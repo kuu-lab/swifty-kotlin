@@ -51,10 +51,14 @@ public interface Channel<E> : SendChannel<E> {
     @KsSymbolName("__kk_channel_receive_catching")
     public suspend fun receiveCatching(): ChannelResult<E>
 
-    @KsSymbolName("kk_channel_cancel")
+    // Upstream `cancel(cause: CancellationException? = null)`: bare
+    // `cancel()` installs the default `CancellationException("Channel was
+    // cancelled")` close cause, matching `cancel(null)` — raw channel handles
+    // have no itable, so both members must stay direct external calls.
+    @KsSymbolName("__kk_channel_cancel")
     public fun cancel()
 
-    @KsSymbolName("__kk_channel_cancel")
+    @KsSymbolName("__kk_channel_cancel_with_cause")
     public fun cancel(cause: CancellationException?)
 
     @KsSymbolName("kk_channel_is_closed_for_receive")

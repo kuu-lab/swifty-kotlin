@@ -330,7 +330,7 @@ private fun throwJsonNumberFormat(source: String, message: String, offset: Int):
     )
 }
 
-private fun String.toJsonQuotedString(): String = buildString {
+internal fun String.toJsonQuotedString(): String = buildString {
     append('"')
     for (character in this@toJsonQuotedString) {
         when (character) {

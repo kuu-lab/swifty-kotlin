@@ -588,7 +588,6 @@ struct RuntimeChannelTests {
         #expect(kk_channel_send(channelHandle, 10, 0) == kChannelResultSuccess)
         #expect(kk_channel_send(channelHandle, 20, 0) == kChannelResultSuccess)
 
-        // Receive both in order.
         #expect(channelReceiveValue(channelHandle, 0) == 10)
         #expect(channelReceiveValue(channelHandle, 0) == 20)
 
@@ -761,7 +760,6 @@ struct RuntimeChannelTests {
     @Test func isClosedTokenEndToEndCloseThenDrain() {
         let ch = kk_channel_create(2)
 
-        // Send two values, then close.
         _ = kk_channel_send(ch, 100, 0)
         _ = kk_channel_send(ch, 200, 0)
         _ = kk_channel_close(ch)
@@ -939,10 +937,8 @@ struct RuntimeChannelTests {
         contState.jobHandle = job
         job.continuationState = contState
 
-        // Cancel the job.
         _ = job.cancel()
 
-        // Get the continuation as an opaque Int.
         let contPtr = Unmanaged.passRetained(contState).toOpaque()
         let contInt = Int(bitPattern: contPtr)
 
@@ -952,7 +948,6 @@ struct RuntimeChannelTests {
         #expect(kk_channel_is_closed_token(result) == 1,
                 "send() with cancelled continuation should return the closed sentinel")
 
-        // Clean up.
         Unmanaged<RuntimeContinuationState>.fromOpaque(contPtr).release()
         _ = kk_channel_close(ch)
     }
@@ -966,10 +961,8 @@ struct RuntimeChannelTests {
         contState.jobHandle = job
         job.continuationState = contState
 
-        // Cancel the job.
         _ = job.cancel()
 
-        // Get the continuation as an opaque Int.
         let contPtr = Unmanaged.passRetained(contState).toOpaque()
         let contInt = Int(bitPattern: contPtr)
 
@@ -979,7 +972,6 @@ struct RuntimeChannelTests {
         #expect(kk_channel_is_closed_token(result) == 1,
                 "receive() with cancelled continuation should return failure status")
 
-        // Clean up.
         Unmanaged<RuntimeContinuationState>.fromOpaque(contPtr).release()
         _ = kk_channel_close(ch)
     }
@@ -1320,7 +1312,7 @@ struct RuntimeChannelTests {
 
     @Test func receiveOnCancelledChannelReportsThrownCancellationException() {
         let ch = kk_channel_create(1)
-        #expect(kk_channel_cancel(ch) == 1)
+        #expect(__kk_channel_cancel(ch) == 1)
 
         var value = 0
         var thrown = 0
@@ -1333,7 +1325,7 @@ struct RuntimeChannelTests {
     @Test func cancelDiscardsBufferedElementsBeforeReceive() {
         let ch = kk_channel_create(4)
         #expect(kk_channel_send(ch, 9, 0) == kChannelResultSuccess)
-        #expect(kk_channel_cancel(ch) == 1)
+        #expect(__kk_channel_cancel(ch) == 1)
 
         var value = -1
         var thrown = 0
@@ -1359,7 +1351,7 @@ struct RuntimeChannelTests {
 
     @Test func sendOnCancelledChannelReportsThrownCancellationException() {
         let ch = kk_channel_create(1)
-        #expect(kk_channel_cancel(ch) == 1)
+        #expect(__kk_channel_cancel(ch) == 1)
 
         var thrown = 0
         let status = kk_channel_send(ch, 42, 0, &thrown)
@@ -1369,8 +1361,8 @@ struct RuntimeChannelTests {
 
     @Test func cancelReturnsTrueOnlyOnFirstCall() {
         let ch = kk_channel_create(1)
-        #expect(kk_channel_cancel(ch) == 1, "first cancel() should report the state change")
-        #expect(kk_channel_cancel(ch) == 0, "second cancel() is a no-op")
+        #expect(__kk_channel_cancel(ch) == 1, "first cancel() should report the state change")
+        #expect(__kk_channel_cancel(ch) == 0, "second cancel() is a no-op")
 
         // close() on an already-cancelled channel reports false (already closed).
         #expect(kk_channel_close(ch) == 0)
@@ -1378,7 +1370,7 @@ struct RuntimeChannelTests {
         // And vice versa: cancel() on a closed channel reports false.
         let ch2 = kk_channel_create(1)
         _ = kk_channel_close(ch2)
-        #expect(kk_channel_cancel(ch2) == 0)
+        #expect(__kk_channel_cancel(ch2) == 0)
     }
 
     @Test func cancelWakesSuspendedReceiverWithCancelledStatus() {
@@ -1401,7 +1393,7 @@ struct RuntimeChannelTests {
             "receiver should be suspended before cancel"
         )
 
-        #expect(kk_channel_cancel(ch) == 1)
+        #expect(__kk_channel_cancel(ch) == 1)
 
         waitForSignals([receiveDone], timeout: 2.0)
         #expect(receiveResult.get() == kChannelResultCancelled,
@@ -1429,7 +1421,7 @@ struct RuntimeChannelTests {
             "sender should be suspended on the full buffer before cancel"
         )
 
-        #expect(kk_channel_cancel(ch) == 1)
+        #expect(__kk_channel_cancel(ch) == 1)
 
         waitForSignals([sendDone], timeout: 2.0)
         #expect(sendResult.get() == kChannelResultCancelled,
@@ -1507,7 +1499,7 @@ struct RuntimeChannelTests {
         #expect(kk_channel_try_send(channel, 20) == kChannelResultSuccess)
 
         let cause = 0x5EED
-        #expect(__kk_channel_cancel(channel, cause) == 1)
+        #expect(__kk_channel_cancel_with_cause(channel, cause) == 1)
 
         #expect(kk_channel_is_closed_for_send(channel) == 1)
         #expect(kk_channel_close_cause(channel) == cause)
@@ -1524,7 +1516,7 @@ struct RuntimeChannelTests {
         #expect(__kk_channel_result_cause(box) == cause)
 
         // Cancel is idempotent like close.
-        #expect(__kk_channel_cancel(channel, 0xBEEF) == 0)
+        #expect(__kk_channel_cancel_with_cause(channel, 0xBEEF) == 0)
         #expect(kk_channel_close_cause(channel) == cause)
     }
 

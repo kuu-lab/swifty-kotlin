@@ -5,10 +5,29 @@
     "kotlin/Function.kt",
     "kotlin/Unit.kt",
     "kotlin/annotations/ExperimentalUnsignedTypes.kt",
+    "kotlin/random/Random.kt",
     "kotlin/time/DurationEncoding.kt",
     "kotlin/time/DurationUnit.kt"
   ],
   "declarations": [
+    {
+      "path": "declarations/Random.kt",
+      "virtualPath": "<kswiftk-jvm>/random.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/random/RandomKt"
+    },
+    {
+      "path": "kotlin/time/DurationUnit.kt",
+      "virtualPath": "<kswiftk-jvm>/durationUnit.kt",
+      "excludeFromStdlibBuild": true,
+      "commonSource": true
+    },
+    {
+      "path": "declarations/Duration.kt",
+      "virtualPath": "<kswiftk-jvm>/duration.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/time/DurationKt"
+    },
     {
       "path": "kotlin/Deprecation.kt",
       "virtualPath": "<kswiftk-jvm>/deprecation.kt",
@@ -164,6 +183,11 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "declarations/JavaReflectionType.kt",
+      "virtualPath": "<kswiftk-jvm>/javaReflectionType.kt",
+      "excludeFromStdlibBuild": false
+    },
+    {
       "path": "declarations/JavaReflection.kt",
       "virtualPath": "<kswiftk-jvm>/javaReflection.kt",
       "excludeFromStdlibBuild": false
@@ -251,6 +275,12 @@
       "runtimeFacade": "kotlin/text/StringsKt"
     },
     {
+      "path": "declarations/Utf8Decoding.kt",
+      "virtualPath": "<kswiftk-jvm>/utf8-decoding.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/text/StringsKt"
+    },
+    {
       "path": "declarations/StringBuilder.kt",
       "virtualPath": "<kswiftk-jvm>/m19-builder.kt",
       "excludeFromStdlibBuild": false
@@ -330,6 +360,11 @@
     {
       "path": "declarations/Pair.kt",
       "virtualPath": "<kswiftk-jvm>/m20-pairs.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "kotlin/Synchronized.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-synchronized-inline.kt",
       "excludeFromStdlibBuild": true
     },
     {
@@ -480,6 +515,11 @@
       "path": "declarations/Console.kt",
       "virtualPath": "<kswiftk-jvm>/console.kt",
       "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/MonitorBridges.kt",
+      "virtualPath": "<kswiftk-jvm>/monitor-bridges.kt",
+      "excludeFromStdlibBuild": false
     },
     {
       "path": "declarations/PlatformBridges.kt",

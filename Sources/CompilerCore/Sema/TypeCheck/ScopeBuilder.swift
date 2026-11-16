@@ -7,6 +7,7 @@ struct TypeCheckScopeBuilder {
         sourceManager: SourceManager? = nil
     ) -> [Int32: FileScope] {
         let topLevelSymbolsByPackage = collectTopLevelSymbolsByPackage(ast: ast, sema: sema)
+        let sourceMembers = indexSourcePackageMembers(topLevelSymbolsByPackage, symbols: sema.symbols)
         let defaultImportPackages = makeDefaultImportPackages(interner: interner)
         // Default imports are identical for every file in this compilation.
         // Populate this shared parent once; file-specific bindings stay in
@@ -65,56 +66,7 @@ struct TypeCheckScopeBuilder {
             }
             let checkInternalModuleVisibility = !suppressesInvisibleAccess
 
-            let packageScope = PackageMembersScope(parent: explicitImportScope, symbols: sema.symbols)
-            let fileScope = FileScope(parent: packageScope, symbols: sema.symbols)
-            for packageSymbol in topLevelSymbolsByPackage[file.packageFQName] ?? [] {
-                // KSP-1150: the coroutine registry retains a root-level
-                // CancellationException compatibility class. An explicit
-                // import of the source-backed class must take precedence over
-                // that residual alias in the root package.
-                if shouldSkipRootCancellationCompatibilityAlias(
-                    packageSymbol,
-                    file: file,
-                    sema: sema,
-                    interner: interner
-                ) {
-                    continue
-                }
-                let packageSymbolInfo = sema.symbols.symbol(packageSymbol)
-                if checkInternalModuleVisibility,
-                   let packageSymbolInfo,
-                   !isInternalVisibleFromFileModule(
-                       packageSymbolInfo, file: file, sema: sema, sourceManager: sourceManager
-                   )
-                {
-                    // Kotlin `internal` visibility is module-scoped: an
-                    // internal declaration from the other module (bundled
-                    // stdlib vs user sources) is not a same-package
-                    // candidate and must not shadow a visible
-                    // wildcard-imported alternative (KUU-4232).
-                    continue
-                }
-                let isFilePrivate = packageSymbolInfo?.visibility == .private
-                let declaredInThisFile = packageSymbolInfo != nil
-                    && (sema.symbols.sourceFileID(for: packageSymbol)
-                        ?? packageSymbolInfo?.declSite?.start.file) == file.fileID
-                if isFilePrivate, declaredInThisFile {
-                    fileScope.insert(packageSymbol)
-                } else if let packageSymbolInfo,
-                          !sema.symbols.isFilePrivateTopLevelVisible(packageSymbolInfo, fileID: file.fileID)
-                {
-                    // File-private top-level declarations are visible only
-                    // inside their declaring file. Collecting one declared
-                    // in another file would let the invisible candidate win
-                    // over a visible alternative (e.g. a wildcard-imported
-                    // enum entry) and then fail with SEMA-0040 at the use
-                    // site (KUU-4312).
-                    continue
-                } else {
-                    packageScope.insert(packageSymbol)
-                }
-            }
-            packageScope.addPackage(file.packageFQName) { [self, sema, file, sourceManager, checkInternalModuleVisibility] symbolID in
+            let includePackageMember: (SymbolID) -> Bool = { symbolID in
                 !shouldSkipRootCancellationCompatibilityAlias(
                     symbolID,
                     file: file,
@@ -125,11 +77,57 @@ struct TypeCheckScopeBuilder {
                     checkInternalModuleVisibility: checkInternalModuleVisibility
                 )
             }
+            let filePrivateMembers = sourceMembers.privateByFile[file.packageFQName]?[file.fileID] ?? []
+            let filePrivateIDs = Set(filePrivateMembers)
+            let packageMembers = sourceMembers.byName[file.packageFQName] ?? [:]
+            let packageScope = PackageMembersScope(
+                parent: explicitImportScope,
+                symbols: sema.symbols,
+                sourceCandidates: { name in
+                    (packageMembers[name] ?? []).filter { !filePrivateIDs.contains($0) && includePackageMember($0) }
+                }
+            )
+            packageScope.addPackage(file.packageFQName, include: includePackageMember)
+
+            // Same-file private declarations occupy the file's own tier.
+            let fileScope = FileScope(parent: packageScope, symbols: sema.symbols)
+            for symbolID in filePrivateMembers where !shouldSkipRootCancellationCompatibilityAlias(
+                symbolID, file: file, sema: sema, interner: interner
+            ) {
+                fileScope.insert(symbolID)
+            }
 
             fileScopes[file.fileID.rawValue] = fileScope
         }
 
         return fileScopes
+    }
+
+    /// Share the source declaration order across all scopes in a package.
+    /// Same-file private declarations also need their own, higher-priority tier.
+    private func indexSourcePackageMembers(
+        _ topLevelSymbolsByPackage: [[InternedString]: [SymbolID]],
+        symbols: SymbolTable
+    ) -> (
+        byName: [[InternedString]: [InternedString: [SymbolID]]],
+        privateByFile: [[InternedString]: [FileID: [SymbolID]]]
+    ) {
+        var byName: [[InternedString]: [InternedString: [SymbolID]]] = [:]
+        var privateByFile: [[InternedString]: [FileID: [SymbolID]]] = [:]
+        for (package, declarations) in topLevelSymbolsByPackage {
+            var names: [InternedString: [SymbolID]] = [:]
+            var seen: Set<SymbolID> = []
+            for id in declarations where seen.insert(id).inserted {
+                guard let symbol = symbols.symbol(id) else { continue }
+                names[symbol.name, default: []].append(id)
+                if symbol.visibility == .private,
+                   let fileID = symbols.sourceFileID(for: id) ?? symbol.declSite?.start.file {
+                    privateByFile[package, default: [:]][fileID, default: []].append(id)
+                }
+            }
+            byName[package] = names
+        }
+        return (byName, privateByFile)
     }
 
     /// File-private top-level declarations never participate in default
@@ -188,6 +186,8 @@ struct TypeCheckScopeBuilder {
         return declOrigin.isBundledStdlib == fileIsBundledStdlib
     }
 
+    // KSP-1150: an import of the source-backed CancellationException wins
+    // over the coroutine registry's root-package compatibility class.
     private func shouldSkipRootCancellationCompatibilityAlias(
         _ symbolID: SymbolID,
         file: ASTFile,

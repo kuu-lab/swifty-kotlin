@@ -10,8 +10,9 @@ private let runtimeCharSequenceGetMethod: @convention(c) (Int, Int, UnsafeMutabl
     kk_char_sequence_get(raw, index, outThrown)
 }
 private let runtimeCharSequenceLengthGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
-    outThrown?.pointee = 0
-    return kk_char_sequence_length(raw)
+    return runtimeThrowingBridge(outThrown) {
+        return kk_char_sequence_length(raw)
+    }
 }
 private let runtimeCharSequenceSubSequenceMethod: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, startIndex, endIndex, outThrown in
     kk_char_sequence_subSequence(raw, startIndex, endIndex, outThrown)
@@ -78,10 +79,11 @@ public func kk_string_ifBlank_flat(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     outThrown?.pointee = 0
-    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-        return runtimeRegisterFlatString(source, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-    }
+let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+guard source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+    return runtimeRegisterFlatString(source, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+
+}
     guard fnPtr != 0 else {
         return runtimeRegisterFlatString("", outLength: outLength, outByteCount: outByteCount, outHash: outHash)
     }
@@ -104,10 +106,11 @@ public func kk_string_ifEmpty_flat(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     outThrown?.pointee = 0
-    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard source.isEmpty else {
-        return runtimeRegisterFlatString(source, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-    }
+let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+guard source.isEmpty else {
+    return runtimeRegisterFlatString(source, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+
+}
     guard fnPtr != 0 else {
         return runtimeRegisterFlatString("", outLength: outLength, outByteCount: outByteCount, outHash: outHash)
     }
@@ -147,20 +150,22 @@ public func kk_charsequence_ifBlank(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
+    return runtimeThrowingBridge(outThrown) {
     guard let codeUnits = runtimeCharSequenceUTF16Units(from: sequenceRaw) else {
         return 0
+
     }
-    let source = String(decoding: codeUnits, as: UTF16.self)
-    guard source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-        return sequenceRaw
+        let source = String(decoding: codeUnits, as: UTF16.self)
+        guard source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return sequenceRaw
+        }
+        return runtimeInvokeCharSequenceDefaultValue(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            outThrown: outThrown,
+            context: "CharSequence.ifBlank defaultValue"
+        )
     }
-    return runtimeInvokeCharSequenceDefaultValue(
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        outThrown: outThrown,
-        context: "CharSequence.ifBlank defaultValue"
-    )
 }
 
 @_cdecl("kk_charsequence_ifEmpty")
@@ -170,23 +175,25 @@ public func kk_charsequence_ifEmpty(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
+    return runtimeThrowingBridge(outThrown) {
     guard let length = runtimeCharSequenceUTF16Length(from: sequenceRaw) else {
         return 0
+
     }
-    guard length == 0 else {
-        return sequenceRaw
+        guard length == 0 else {
+            return sequenceRaw
+        }
+        return runtimeInvokeCharSequenceDefaultValue(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            outThrown: outThrown,
+            context: "CharSequence.ifEmpty defaultValue"
+        )
     }
-    return runtimeInvokeCharSequenceDefaultValue(
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        outThrown: outThrown,
-        context: "CharSequence.ifEmpty defaultValue"
-    )
 }
 
 public func kk_string_get(_ strRaw: Int, _ indexRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
+    return runtimeThrowingBridge(outThrown) {
     let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
     guard indexRaw >= 0, indexRaw < codeUnits.count else {
         runtimeSetThrown(
@@ -196,8 +203,10 @@ public func kk_string_get(_ strRaw: Int, _ indexRaw: Int, _ outThrown: UnsafeMut
             )
         )
         return 0
+
     }
-    return Int(codeUnits[indexRaw])
+        return Int(codeUnits[indexRaw])
+    }
 }
 
 @_cdecl("kk_char_sequence_get")
@@ -206,24 +215,26 @@ public func kk_char_sequence_get(
     _ indexRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
+    return runtimeThrowingBridge(outThrown) {
     guard let codeUnits = runtimeCharSequenceUTF16Units(from: sequenceRaw) else {
         runtimeSetThrown(
             outThrown,
             runtimeAllocateIllegalArgumentException(message: "Value is not a CharSequence")
         )
         return 0
+
     }
-    guard indexRaw >= 0, indexRaw < codeUnits.count else {
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateStringIndexOutOfBoundsException(
-                message: "Index \(indexRaw) out of bounds for length \(codeUnits.count)"
+        guard indexRaw >= 0, indexRaw < codeUnits.count else {
+            runtimeSetThrown(
+                outThrown,
+                runtimeAllocateStringIndexOutOfBoundsException(
+                    message: "Index \(indexRaw) out of bounds for length \(codeUnits.count)"
+                )
             )
-        )
-        return 0
+            return 0
+        }
+        return Int(codeUnits[indexRaw])
     }
-    return Int(codeUnits[indexRaw])
 }
 
 @_cdecl("kk_char_sequence_subSequence")
@@ -233,26 +244,28 @@ public func kk_char_sequence_subSequence(
     _ endIndex: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
+    return runtimeThrowingBridge(outThrown) {
     guard let codeUnits = runtimeCharSequenceUTF16Units(from: sequenceRaw) else {
         runtimeSetThrown(
             outThrown,
             runtimeAllocateIllegalArgumentException(message: "Value is not a CharSequence")
         )
         return 0
+
     }
-    guard startIndex >= 0, endIndex >= startIndex, endIndex <= codeUnits.count else {
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateStringIndexOutOfBoundsException(
-                message: "Range [\(startIndex), \(endIndex)) out of bounds for length \(codeUnits.count)"
+        guard startIndex >= 0, endIndex >= startIndex, endIndex <= codeUnits.count else {
+            runtimeSetThrown(
+                outThrown,
+                runtimeAllocateStringIndexOutOfBoundsException(
+                    message: "Range [\(startIndex), \(endIndex)) out of bounds for length \(codeUnits.count)"
+                )
             )
+            return 0
+        }
+        return runtimeMakeStringRaw(
+            runtimeKotlinStringFromUTF16CodeUnits(Array(codeUnits[startIndex ..< endIndex]))
         )
-        return 0
     }
-    return runtimeMakeStringRaw(
-        runtimeKotlinStringFromUTF16CodeUnits(Array(codeUnits[startIndex ..< endIndex]))
-    )
 }
 
 @_cdecl("__kk_string_get_flat")
@@ -264,7 +277,7 @@ public func __kk_string_get_flat(
     _ indexRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
+    return runtimeThrowingBridge(outThrown) {
     let lookup = runtimeFlatStringCodeUnit(
         data: data, length: length, byteCount: byteCount, hash: hash, index: indexRaw
     )
@@ -276,8 +289,10 @@ public func __kk_string_get_flat(
             )
         )
         return 0
+
     }
-    return Int(unit)
+        return Int(unit)
+    }
 }
 
 @_cdecl("__kk_string_compareTo_member")

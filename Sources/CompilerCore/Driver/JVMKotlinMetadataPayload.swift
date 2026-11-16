@@ -21,6 +21,7 @@ struct JVMKotlinFunction {
         let name: String?
         let sourceType: String
         let isVararg: Bool
+        let hasDefaultValue: Bool
     }
 
     let name: String
@@ -30,6 +31,13 @@ struct JVMKotlinFunction {
     let parameters: [Parameter]
     let receiver: String?
     let isSuspend: Bool
+}
+
+struct JVMKotlinStaticProperty {
+    let name: String
+    let getterName: String
+    let getterDescriptor: String
+    let isNullable: Bool
 }
 
 /// Reads the class and file-facade subset of Kotlin's JVM metadata. Field
@@ -110,6 +118,27 @@ struct JVMKotlinMetadataPayload {
             }
         }
         return result
+    }
+
+    /// Static properties exposed by Kotlin objects through @JvmStatic accessors.
+    func staticPropertyCandidates(byteLimit: Int) throws -> [JVMKotlinStaticProperty] {
+        guard kind == 1, let major = version.first, (1...2).contains(major) else { return [] }
+        let bytes = try decodedData(limit: byteLimit)
+        var cursor = ProtoCursor(bytes[...])
+        guard let tableLength = Int(exactly: try cursor.readVarint()) else { throw JVMClassReader.Invalid() }
+        let names = try JVMMetadataNames(ProtoFields(cursor.readBytes(tableLength)), strings: data2)
+        let declaration = try ProtoFields(bytes[cursor.position...])
+        let types = try TypeTable(declaration.message(30))
+        return try declaration.messages(10).compactMap { property in
+            guard let name = try names.resolve(property.int32(2)), JVMProgramBuilder.isIdentifier(name),
+                  let type = try types.resolve(property, inline: 3, indexed: 9),
+                  let signature = try property.message(100),
+                  let getter = try signature.message(3),
+                  let getterName = try names.resolve(getter.int32(1)),
+                  let descriptor = try names.resolve(getter.int32(2)), descriptor.hasPrefix("()")
+            else { return nil }
+            return JVMKotlinStaticProperty(name: name, getterName: getterName, getterDescriptor: descriptor, isNullable: type.nullable)
+        }
     }
 
     fileprivate struct TypeTable {
@@ -203,12 +232,13 @@ struct JVMKotlinMetadataPayload {
             var valid = true
             for parameter in parameterMessages {
                 let parameterName = try names.resolve(parameter.int32(2))
+                let hasDefaultValue = (parameter.int32(1) ?? 0) & 2 != 0
                 if let vararg = try types.resolve(parameter, inline: 4, indexed: 6) {
                     guard let element = try Self.sourceType(vararg, types: types, names: names) else {
                         valid = false
                         break
                     }
-                    parameters.append(JVMKotlinFunction.Parameter(name: parameterName, sourceType: element, isVararg: true))
+                    parameters.append(JVMKotlinFunction.Parameter(name: parameterName, sourceType: element, isVararg: true, hasDefaultValue: hasDefaultValue))
                     hasFunctionTypes = hasFunctionTypes || element.contains("->")
                     continue
                 }
@@ -217,7 +247,7 @@ struct JVMKotlinMetadataPayload {
                     valid = false
                     break
                 }
-                parameters.append(JVMKotlinFunction.Parameter(name: parameterName, sourceType: type, isVararg: false))
+                parameters.append(JVMKotlinFunction.Parameter(name: parameterName, sourceType: type, isVararg: false, hasDefaultValue: hasDefaultValue))
                 hasFunctionTypes = hasFunctionTypes || type.contains("->")
             }
             guard valid, hasFunctionTypes || (isFileFacade == true) else { continue }
@@ -279,7 +309,8 @@ struct JVMKotlinMetadataPayload {
                 rendered.append(argumentType)
             }
             let isSuspendFunction = name.hasPrefix("kotlin/SuspendFunction")
-            let isExtension = try isExtensionFunctionType(type, names: names)
+            let isExtension = try hasTypeAnnotation("kotlin/ExtensionFunctionType", type: type, names: names)
+            let isComposable = try hasTypeAnnotation("androidx/compose/runtime/Composable", type: type, names: names)
             let returnType = rendered[arity]
             let inputs = Array(rendered.dropLast())
             let receiver: String?
@@ -300,7 +331,8 @@ struct JVMKotlinMetadataPayload {
             } else {
                 body = "(" + parameterList + ") -> " + returnType
             }
-            let functionType = (isSuspendFunction ? "suspend " : "") + body
+            let functionType = (isComposable ? "@androidx.compose.runtime.Composable " : "")
+                + (isSuspendFunction ? "suspend " : "") + body
             return nullable ? "(" + functionType + ")?" : functionType
         }
         var base = sourceClassName(name)
@@ -334,9 +366,9 @@ struct JVMKotlinMetadataPayload {
         return type
     }
 
-    private static func isExtensionFunctionType(_ type: ProtoFields, names: JVMMetadataNames) throws -> Bool {
+    private static func hasTypeAnnotation(_ name: String, type: ProtoFields, names: JVMMetadataNames) throws -> Bool {
         for annotation in try type.messages(100) {
-            if try names.resolve(annotation.int32(1)) == "kotlin/ExtensionFunctionType" { return true }
+            if try names.resolve(annotation.int32(1)) == name { return true }
         }
         return false
     }

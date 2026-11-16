@@ -1,4 +1,7 @@
 package kotlin.jvm.internal
+fun __jvmThreadLocalRandom(): Any = null!!
+fun __jvmThreadLocalRandomNextInt(random: Any): Int = 0
+
 fun <T> __jvmNewList(): kotlin.collections.MutableList<T> = null!!
 fun <T> __jvmNewSet(): kotlin.collections.MutableSet<T> = null!!
 fun <K, V> __jvmNewMap(): kotlin.collections.MutableMap<K, V> = null!!
@@ -129,8 +132,6 @@ fun __jvmUIntString(value: Int): String = null!!
 fun __jvmULongString(value: Long): String = null!!
 fun __jvmUIntCompare(first: Int, second: Int): Int = 0
 fun __jvmULongCompare(first: Long, second: Long): Int = 0
-fun __jvmMonitorEnter(lock: Any) {}
-fun __jvmMonitorExit(lock: Any) {}
 fun __jvmClassName(type: Any): String = null!!
 fun __jvmClassSimpleName(type: Any): String = null!!
 fun __jvmClassModifiers(type: Any): Int = 0

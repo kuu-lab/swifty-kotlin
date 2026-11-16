@@ -17,6 +17,7 @@ struct JVMClassInfo: Sendable {
     var annotations: [JVMAnnotation] = []
     var hasKotlinMetadata = false
     var kotlinAnnotationVarargElementNames: Set<String> = []
+    var kotlinStaticProperties: [String: (getter: JVMForeignMethod, isNullable: Bool)] = [:]
     var isInterface: Bool { flags & 0x0200 != 0 }
     var isAnnotation: Bool { flags & 0x2000 != 0 }
 }
@@ -67,19 +68,34 @@ struct JVMClassReader {
     func text(_ index: Int) throws -> String { guard let s = strings[index] else { throw Invalid() }; return s }
     func className(_ index: Int) throws -> String { guard let s = classes[index] else { throw Invalid() }; return try text(s) }
 
-    /// Import `<T extends Bound> T method(...)` when the parameters use their
-    /// descriptor types. More complex generic signatures keep their erased form.
-    private static func genericResultParameter(in signature: String?, method: JVMForeignMethod) -> String? {
+    /// Import a single result type parameter and any Class<T> parameters
+    /// sharing it. Other parameter types must match their erased descriptors.
+    private static func genericResultParameter(
+        in signature: String?, method: JVMForeignMethod
+    ) -> (name: String, classParameterIndices: Set<Int>)? {
         guard let signature, signature.first == "<", let colon = signature.firstIndex(of: ":"),
-              let parameterEnd = method.descriptor.firstIndex(of: ")"),
               method.result.referenceName != nil, !method.isConstructor else { return nil }
         let name = String(signature[signature.index(after: signature.startIndex)..<colon])
         guard JVMProgramBuilder.isIdentifier(name) else { return nil }
         let bound = method.result.descriptor
-        let tail = ">\(method.descriptor[...parameterEnd])T\(name);"
+        let classType = "Ljava/lang/Class<T\(name);>;"
         for separator in [":", "::"] {
-            let form = "<\(name)\(separator)\(bound)\(tail)"
-            if signature == form || signature.hasPrefix(form + "^") { return name }
+            let prefix = "<\(name)\(separator)\(bound)>("
+            guard signature.hasPrefix(prefix) else { continue }
+            var remaining = signature.dropFirst(prefix.count)
+            var classParameters: Set<Int> = []
+            for (index, parameter) in method.parameters.enumerated() {
+                if parameter.referenceName == "java/lang/Class", remaining.hasPrefix(classType) {
+                    classParameters.insert(index)
+                    remaining = remaining.dropFirst(classType.count)
+                } else if remaining.hasPrefix(parameter.descriptor) {
+                    remaining = remaining.dropFirst(parameter.descriptor.count)
+                } else {
+                    return nil
+                }
+            }
+            let suffix = ")T\(name);"
+            if remaining == suffix || remaining.hasPrefix(suffix + "^") { return (name, classParameters) }
         }
         return nil
     }
@@ -439,7 +455,7 @@ struct JVMClassReader {
                 strings[index] = string
                 if string == "Lkotlin/Metadata;" { hasKotlinMetadata = true }
                 if !hasMetroAnnotation, string.hasPrefix(JVMMetro.annotationPrefix),
-                   JVMMetro.annotationDescriptors.contains(string) {
+                   (string == JVMMetro.invoke || JVMMetro.annotationDescriptors.contains(string)) {
                     hasMetroAnnotation = true
                 }
             case 7: classes[index] = Int(try u2())
@@ -568,6 +584,18 @@ struct JVMClassReader {
         if flags & 0x2000 != 0, let metadata = classAttributes.kotlinMetadata {
             info.kotlinAnnotationVarargElementNames = (try? metadata.annotationVarargElements(byteLimit: bytes.count)) ?? []
         }
+        // Kotlin objects may expose a property's accessor only as @JvmStatic.
+        if let metadata = classAttributes.kotlinMetadata,
+           fields.contains(where: { $0.name == "INSTANCE" && $0.isPublic && $0.isStatic && $0.descriptor == "L\(name);" }),
+           let properties = try? metadata.staticPropertyCandidates(byteLimit: bytes.count) {
+            for property in properties {
+                guard let getter = methods.first(where: {
+                    $0.isStatic && !$0.isProtected && $0.name == property.getterName
+                        && $0.descriptor == property.getterDescriptor && $0.result != .unit
+                }) else { continue }
+                info.kotlinStaticProperties[property.name] = (getter, property.isNullable)
+            }
+        }
         return info
     }
 
@@ -586,8 +614,9 @@ struct JVMClassReader {
     }
 }
 
-final class JVMDescriptorCache {
+final class JVMDescriptorCache: @unchecked Sendable {
     private static let maximumEntries = 2_048
+    private let lock = NSLock()
     private var entries: [String: ([JVMValueType], JVMValueType)] = [:]
 
     func parse(_ descriptor: String) throws -> ([JVMValueType], JVMValueType) {
@@ -596,13 +625,23 @@ final class JVMDescriptorCache {
         guard descriptor.utf8.allSatisfy({ $0 < 0x80 }) else {
             return try JVMDescriptor.parse(descriptor)
         }
-        if let signature = entries[descriptor] { return signature }
+        lock.lock()
+        if let signature = entries[descriptor] {
+            lock.unlock()
+            return signature
+        }
+        lock.unlock()
 
+        // Concurrent readers may parse the same descriptor; the results are
+        // identical, so the last store wins.
         let signature = try JVMDescriptor.parse(descriptor)
+
+        lock.lock()
         entries[descriptor] = signature
         if entries.count == Self.maximumEntries {
             entries.removeAll(keepingCapacity: true)
         }
+        lock.unlock()
         return signature
     }
 }

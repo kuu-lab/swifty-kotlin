@@ -167,6 +167,7 @@ public func __kk_string_isNormalized_flat(
     return normalized.unicodeScalars.elementsEqual(source.unicodeScalars) ? 1 : 0
 }
 
+@_cdecl("__kk_string_split")
 public func kk_string_split(_ strRaw: Int, _ delimRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let delimiter = runtimeStringFromRawOrPanic(delimRaw, caller: #function)
@@ -174,12 +175,6 @@ public func kk_string_split(_ strRaw: Int, _ delimRaw: Int) -> Int {
     return runtimeMakeStringListRaw(runtimeSplitString(source, delimiter: delimiter))
 }
 
-@_cdecl("__kk_string_split")
-public func __kk_string_split(_ strRaw: Int, _ delimRaw: Int) -> Int {
-    kk_string_split(strRaw, delimRaw)
-}
-
-@_cdecl("kk_string_split_flat")
 public func kk_string_split_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
@@ -196,6 +191,7 @@ public func kk_string_split_flat(
     )
 }
 
+@_cdecl("__kk_string_split_limit")
 public func kk_string_split_limit(_ strRaw: Int, _ delimRaw: Int, _ ignoreCaseRaw: Int, _ limitRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let delimiter = runtimeStringFromRawOrPanic(delimRaw, caller: #function)
@@ -205,11 +201,6 @@ public func kk_string_split_limit(_ strRaw: Int, _ delimRaw: Int, _ ignoreCaseRa
     return runtimeMakeStringListRaw(
         runtimeSplitStringLimit(source, delimiter: delimiter, ignoreCase: ignoreCase, limit: limit)
     )
-}
-
-@_cdecl("__kk_string_split_limit")
-public func __kk_string_split_limit(_ strRaw: Int, _ delimRaw: Int, _ ignoreCaseRaw: Int, _ limitRaw: Int) -> Int {
-    kk_string_split_limit(strRaw, delimRaw, ignoreCaseRaw, limitRaw)
 }
 
 func runtimeStringReplace(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
@@ -228,31 +219,32 @@ private func runtimeStringCodePointCount(
     endIndex: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard startIndex >= 0, endIndex >= startIndex, endIndex <= units.count else {
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateIndexOutOfBoundsException(message: "startIndex=\(startIndex), endIndex=\(endIndex), length=\(units.count)")
-        )
-        return 0
-    }
-
-    var count = 0
-    var index = startIndex
-    while index < endIndex {
-        let unit = units[index]
-        if unit >= 0xD800, unit <= 0xDBFF, index + 1 < endIndex {
-            let next = units[index + 1]
-            if next >= 0xDC00, next <= 0xDFFF {
-                index += 2
-                count += 1
-                continue
-            }
+    return runtimeThrowingBridge(outThrown) {
+        guard startIndex >= 0, endIndex >= startIndex, endIndex <= units.count else {
+            runtimeSetThrown(
+                outThrown,
+                runtimeAllocateIndexOutOfBoundsException(message: "startIndex=\(startIndex), endIndex=\(endIndex), length=\(units.count)")
+            )
+            return 0
         }
-        index += 1
-        count += 1
+
+        var count = 0
+        var index = startIndex
+        while index < endIndex {
+            let unit = units[index]
+            if unit >= 0xD800, unit <= 0xDBFF, index + 1 < endIndex {
+                let next = units[index + 1]
+                if next >= 0xDC00, next <= 0xDFFF {
+                    index += 2
+                    count += 1
+                    continue
+                }
+            }
+            index += 1
+            count += 1
+        }
+        return count
     }
-    return count
 }
 
 @_cdecl("__kk_string_codePointCount")

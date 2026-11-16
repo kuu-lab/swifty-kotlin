@@ -12,11 +12,25 @@ fun Float.coerceAtMost(maximumValue: Float): Float = if (this > maximumValue) ma
 fun Double.coerceAtLeast(minimumValue: Double): Double = if (this < minimumValue) minimumValue else this
 fun Double.coerceAtMost(maximumValue: Double): Double = if (this > maximumValue) maximumValue else this
 
+public fun <T : Comparable<T>> T.coerceIn(minimumValue: T?, maximumValue: T?): T {
+    if (minimumValue != null && maximumValue != null && minimumValue > maximumValue) {
+        throw IllegalArgumentException("Cannot coerce value to an empty range: maximum $maximumValue is less than minimum $minimumValue.")
+    }
+    if (minimumValue != null && this < minimumValue) return minimumValue
+    if (maximumValue != null && this > maximumValue) return maximumValue
+    return this
+}
+
 public fun Int.coerceIn(minimumValue: Int, maximumValue: Int): Int {
     if (minimumValue > maximumValue) throw IllegalArgumentException("Cannot coerce value to an empty range: maximum $maximumValue is less than minimum $minimumValue.")
     if (this < minimumValue) return minimumValue
     if (this > maximumValue) return maximumValue
     return this
+}
+
+public fun Int.coerceIn(range: ClosedRange<Int>): Int {
+    if (range.isEmpty()) throw IllegalArgumentException("Cannot coerce value to an empty range: $range.")
+    return coerceIn(range.start, range.endInclusive)
 }
 
 public fun Long.coerceIn(minimumValue: Long, maximumValue: Long): Long {
@@ -40,6 +54,8 @@ public fun Double.coerceIn(minimumValue: Double, maximumValue: Double): Double {
     return this
 }
 
+public infix fun Int.downTo(to: Int): IntProgression = IntProgression(this, to, -1)
+
 public infix fun Int.until(to: Int): IntRange =
     if (to == Int.MIN_VALUE) IntRange(1, 0) else IntRange(this, to - 1)
 
@@ -54,6 +70,13 @@ public interface ClosedFloatingPointRange<T : Comparable<T>> {
     public fun lessThanOrEquals(a: T, b: T): Boolean
     public operator fun contains(value: T): Boolean
     public fun isEmpty(): Boolean
+}
+
+public fun <T : Comparable<T>> T.coerceIn(range: ClosedFloatingPointRange<T>): T {
+    if (range.isEmpty()) throw IllegalArgumentException("Cannot coerce value to an empty range: $range.")
+    if (range.lessThanOrEquals(this, range.start) && !range.lessThanOrEquals(range.start, this)) return range.start
+    if (range.lessThanOrEquals(range.endInclusive, this) && !range.lessThanOrEquals(this, range.endInclusive)) return range.endInclusive
+    return this
 }
 
 public class ClosedDoubleRange(

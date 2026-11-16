@@ -109,13 +109,15 @@ fun CharSequence.split(vararg delimiters: Char, ignoreCase: Boolean = false, lim
     val strings = Array<String>(delimiters.size) { delimiters[it].toString() }
     return splitStrings(this, strings, ignoreCase, limit)
 }
+fun CharSequence.lines(): List<String> = splitStrings(this, arrayOf("\r\n", "\n", "\r"), false, 0)
+
 private fun indentWidth(line: String): Int {
     var width = 0
     while (width < line.length && line[width].isWhitespace()) width++
     return width
 }
 fun String.trimIndent(): String {
-    val lines = splitStrings(this, arrayOf("\r\n", "\n", "\r"), false, 0)
+    val lines = lines()
     var indent = this.length
     for (line in lines) if (!line.isBlank()) {
         val width = indentWidth(line)
@@ -157,7 +159,7 @@ fun String.replaceIndent(newIndent: String = ""): String {
 }
 fun String.trimMargin(marginPrefix: String = "|"): String {
     if (marginPrefix.isBlank()) throw IllegalArgumentException("marginPrefix must be non-blank string.")
-    val lines = splitStrings(this, arrayOf("\r\n", "\n", "\r"), false, 0)
+    val lines = lines()
     val result = mutableListOf<String>()
     var i = 0
     for (line in lines) {

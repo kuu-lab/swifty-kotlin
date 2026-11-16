@@ -54,25 +54,31 @@ private func deferredCompletionSnapshot(_ handle: Int, handoff: RuntimeCompletio
 
 @_cdecl("__kk_deferred_get_completed")
 public func __kk_deferred_get_completed(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let snapshot = deferredCompletionSnapshot(handle, handoff: .valueOrExceptionWhenCompleted)
-    guard snapshot.completed else {
-        outThrown?.pointee = runtimeAllocateIllegalStateException(message: "This job has not completed yet")
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        return runtimeThrowingBridge(outThrown) {
+            let snapshot = deferredCompletionSnapshot(handle, handoff: .valueOrExceptionWhenCompleted)
+            guard snapshot.completed else {
+                outThrown?.pointee = runtimeAllocateIllegalStateException(message: "This job has not completed yet")
+                return 0
+            }
+            outThrown?.pointee = snapshot.exception
+            return snapshot.exception == 0 ? snapshot.value : 0
+        }
     }
-    outThrown?.pointee = snapshot.exception
-    return snapshot.exception == 0 ? snapshot.value : 0
 }
 
 @_cdecl("__kk_deferred_completion_exception")
 public func __kk_deferred_completion_exception(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let snapshot = deferredCompletionSnapshot(handle, handoff: .exceptionWhenCompleted)
-    guard snapshot.completed else {
-        outThrown?.pointee = runtimeAllocateIllegalStateException(message: "This job has not completed yet")
-        return runtimeNullSentinelInt
+    return runtimeThrowingBridge(outThrown) {
+        return runtimeThrowingBridge(outThrown) {
+            let snapshot = deferredCompletionSnapshot(handle, handoff: .exceptionWhenCompleted)
+            guard snapshot.completed else {
+                outThrown?.pointee = runtimeAllocateIllegalStateException(message: "This job has not completed yet")
+                return runtimeNullSentinelInt
+            }
+            return snapshot.exception == 0 ? runtimeNullSentinelInt : snapshot.exception
+        }
     }
-    return snapshot.exception == 0 ? runtimeNullSentinelInt : snapshot.exception
 }
 
 /// Backing for `kotlinx.coroutines.SupervisorJob(): Job`. Identical to `kk_job_new` except
@@ -105,12 +111,15 @@ public func kk_job_join(
     _ continuation: Int,
     _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
-    outThrown?.pointee = 0
-    if runtimeJobHandle(from: jobHandle) === runtimeNonCancellableJob {
-        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: "This job is always active")
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        return runtimeThrowingBridge(outThrown) {
+            if runtimeJobHandle(from: jobHandle) === runtimeNonCancellableJob {
+                outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: "This job is always active")
+                return 0
+            }
+            return runtimeJoinJob(jobHandle, continuation)
+        }
     }
-    return runtimeJoinJob(jobHandle, continuation)
 }
 
 private func runtimeJoinJob(_ jobHandle: Int, _ continuation: Int) -> Int {
@@ -795,19 +804,22 @@ public func kk_job_get_child_cancellation_cause(
     _ jobHandle: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let job = runtimeJobHandle(from: jobHandle)
-        ?? runtimeAsyncTask(from: jobHandle)?.completionJob else {
-        outThrown?.pointee = runtimeAllocateIllegalStateException(
-            message: "Cannot be cancelling child in this state")
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        return runtimeThrowingBridge(outThrown) {
+            guard let job = runtimeJobHandle(from: jobHandle)
+                ?? runtimeAsyncTask(from: jobHandle)?.completionJob else {
+                outThrown?.pointee = runtimeAllocateIllegalStateException(
+                    message: "Cannot be cancelling child in this state")
+                return 0
+            }
+            let (cause, error) = runtimeChildJobCancellationCause(of: job)
+            if error != 0 {
+                outThrown?.pointee = error
+                return 0
+            }
+            return cause
+        }
     }
-    let (cause, error) = runtimeChildJobCancellationCause(of: job)
-    if error != 0 {
-        outThrown?.pointee = error
-        return 0
-    }
-    return cause
 }
 
 /// KUU-1386: `ChildJob.parentCancelled(parentJob)` backing — kotlinx's
@@ -821,31 +833,34 @@ public func kk_job_parent_cancelled(
     _ parentHandle: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let parentJob = runtimeJobHandle(from: parentHandle)
-        ?? runtimeAsyncTask(from: parentHandle)?.completionJob else {
-        outThrown?.pointee = runtimeAllocateIllegalStateException(
-            message: "Cannot be cancelling child in this state")
-        return 0
-    }
-    let (cause, error) = runtimeChildJobCancellationCause(of: parentJob)
-    if error != 0 {
-        outThrown?.pointee = error
-        return 0
-    }
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else { return 0 }
-    let object = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    switch RuntimeJobOrTask(object) {
-    case .job(let job):
-        if job !== runtimeNonCancellableJob {
-            _ = job.cancel(message: "Parent job is cancelled", cause: cause)
+    return runtimeThrowingBridge(outThrown) {
+        return runtimeThrowingBridge(outThrown) {
+            guard let parentJob = runtimeJobHandle(from: parentHandle)
+                ?? runtimeAsyncTask(from: parentHandle)?.completionJob else {
+                outThrown?.pointee = runtimeAllocateIllegalStateException(
+                    message: "Cannot be cancelling child in this state")
+                return 0
+            }
+            let (cause, error) = runtimeChildJobCancellationCause(of: parentJob)
+            if error != 0 {
+                outThrown?.pointee = error
+                return 0
+            }
+            guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else { return 0 }
+            let object = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
+            switch RuntimeJobOrTask(object) {
+            case .job(let job):
+                if job !== runtimeNonCancellableJob {
+                    _ = job.cancel(message: "Parent job is cancelled", cause: cause)
+                }
+            case .task(let task):
+                task.cancel(cause: cause)
+            case .other:
+                break
+            }
+            return 0
         }
-    case .task(let task):
-        task.cancel(cause: cause)
-    case .other:
-        break
     }
-    return 0
 }
 
 /// KUU-1386: kotlinx `JobImpl.handlesException` — a JobImpl never handles its

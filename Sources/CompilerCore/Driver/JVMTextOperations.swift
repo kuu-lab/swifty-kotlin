@@ -56,6 +56,7 @@ struct JVMTextOperation {
         }
         add("trimIndent")
         add("replaceIndent", [p("newIndent", .string, "empty")])
+        add("lines", sourceResult: "List<String>", result: list, receiver: "CharSequence", jvmReceiver: sequence)
         add("trimMargin", [p("marginPrefix", .string, "margin")])
         for name in ["uppercase", "lowercase", "reversed"] { add(name) }
         add("repeat", [p("n", .int)], jvmReceiver: sequence)
@@ -73,6 +74,8 @@ struct JVMTextOperation {
                 }
             }
         }
+        add("endsWith", [p("suffix", sequence), p("ignoreCase", .boolean, "false")],
+            sourceResult: "Boolean", result: .boolean, receiver: "CharSequence", jvmReceiver: sequence)
         add("startsWith", [p("prefix", .string), p("startIndex", .int), p("ignoreCase", .boolean, "false")], sourceResult: "Boolean", result: .boolean)
         for name in ["indexOf", "lastIndexOf"] {
             for char in [false, true] {

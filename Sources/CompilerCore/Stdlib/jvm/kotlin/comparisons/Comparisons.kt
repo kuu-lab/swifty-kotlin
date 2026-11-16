@@ -3,6 +3,9 @@ package kotlin.comparisons
 
 import kotlin.Comparator
 
+@kotlin.jvm.JvmName("naturalOrder")
+public fun <T : Comparable<T>> naturalOrderFacade(): Comparator<T> = naturalOrderComparator<T>()
+
 public fun <T : Comparable<*>> compareValues(a: T?, b: T?): Int {
     if (a === b) return 0
     if (a == null) return -1

@@ -57,20 +57,17 @@ struct IncrementalCompilationCacheTests {
     func testSaveAndLoadRoundTrip() throws {
         let cache = IncrementalCompilationCache(cachePath: tempDir)
 
-        // Write a temp source file
         let sourceDir = tempDir + "/src"
         try FileManager.default.createDirectory(atPath: sourceDir, withIntermediateDirectories: true)
         let sourceFile = sourceDir + "/a.kt"
         try "fun main() {}".write(toFile: sourceFile, atomically: true, encoding: .utf8)
 
-        // Compute fingerprints and save
         cache.computeCurrentFingerprints(for: [sourceFile])
 
         let graph = DependencyGraph()
         graph.recordProvided(filePath: sourceFile, symbols: ["main"])
         cache.saveState(dependencyGraph: graph)
 
-        // Load into a new cache instance
         let cache2 = IncrementalCompilationCache(cachePath: tempDir)
         cache2.loadPreviousState()
         #expect(cache2.hasPreviousCache)
@@ -399,7 +396,6 @@ struct IncrementalCompilationCacheTests {
         let outsideOutput = outsideHashDir + "/output"
         try "outside_secret".write(toFile: outsideOutput, atomically: true, encoding: .utf8)
 
-        // Make cacheRoot/artifacts -> outsideDir
         let artifactsLink = cacheRoot + "/artifacts"
         try FileManager.default.createSymbolicLink(atPath: artifactsLink, withDestinationPath: outsideDir)
 
@@ -475,7 +471,6 @@ struct IncrementalCompilationCacheTests {
         try "outside_secret".write(toFile: outsideSecret, atomically: true, encoding: .utf8)
 
         let options = makeRestoreOptions(outputPath: tempDir + "/out")
-        // Put valid prior output at destination
         try "valid_previous_output".write(toFile: options.outputPath, atomically: true, encoding: .utf8)
 
         let cache = IncrementalCompilationCache(cachePath: cacheRoot)
@@ -630,7 +625,6 @@ struct IncrementalCompilationCacheTests {
         let canaryFile = outsideDir + "/important.txt"
         try "canary".write(toFile: canaryFile, atomically: true, encoding: .utf8)
 
-        // Make cacheRoot/artifacts -> outsideDir
         let artifactsLink = cacheRoot + "/artifacts"
         try FileManager.default.createSymbolicLink(atPath: artifactsLink, withDestinationPath: outsideDir)
 
@@ -644,7 +638,6 @@ struct IncrementalCompilationCacheTests {
             emit: .executable,
             target: TargetTriple.hostDefault()
         )
-        // Also put dummy source artifact
         try "compiled_binary".write(toFile: options.outputPath, atomically: true, encoding: .utf8)
 
         let cache = IncrementalCompilationCache(cachePath: cacheRoot)
@@ -695,7 +688,6 @@ struct IncrementalCompilationCacheTests {
         cache1.computeCurrentFingerprints(for: allPaths, sourceManager: sourceManager)
         cache1.saveState(dependencyGraph: DependencyGraph())
 
-        // Modify the bundled source contents
         _ = sourceManager.addFile(
             path: bundledPath,
             contents: Data("package kotlin\nfun foo() {}".utf8),

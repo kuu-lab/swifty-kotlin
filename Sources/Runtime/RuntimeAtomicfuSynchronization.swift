@@ -214,34 +214,37 @@ public func __kk_atomicfu_lock_new(_ ownerErrorKind: Int) -> Int {
 }
 @_cdecl("__kk_atomicfu_lock_lock")
 public func __kk_atomicfu_lock_lock(_ kernel: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let lock = resolveRuntimeHandle(kernel, as: RuntimeAtomicfuRecursiveLock.self) else {
-        return atomicfuInvalidHandle(outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        guard let lock = resolveRuntimeHandle(kernel, as: RuntimeAtomicfuRecursiveLock.self) else {
+            return atomicfuInvalidHandle(outThrown)
+        }
+        _ = lock.acquire(timeoutNanos: -1)
+        return 0
     }
-    _ = lock.acquire(timeoutNanos: -1)
-    return 0
 }
 @_cdecl("__kk_atomicfu_lock_try_lock")
 public func __kk_atomicfu_lock_try_lock(_ kernel: Int, _ timeoutNanos: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let lock = resolveRuntimeHandle(kernel, as: RuntimeAtomicfuRecursiveLock.self) else {
-        return atomicfuInvalidHandle(outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        guard let lock = resolveRuntimeHandle(kernel, as: RuntimeAtomicfuRecursiveLock.self) else {
+            return atomicfuInvalidHandle(outThrown)
+        }
+        return lock.acquire(timeoutNanos: timeoutNanos == -1 ? -1 : max(0, timeoutNanos)) ? 1 : 0
     }
-    return lock.acquire(timeoutNanos: timeoutNanos == -1 ? -1 : max(0, timeoutNanos)) ? 1 : 0
 }
 @_cdecl("__kk_atomicfu_lock_unlock")
 public func __kk_atomicfu_lock_unlock(_ kernel: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let lock = resolveRuntimeHandle(kernel, as: RuntimeAtomicfuRecursiveLock.self) else {
-        return atomicfuInvalidHandle(outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        guard let lock = resolveRuntimeHandle(kernel, as: RuntimeAtomicfuRecursiveLock.self) else {
+            return atomicfuInvalidHandle(outThrown)
+        }
+        guard lock.release() else {
+            let error = lock.ownerErrorIsArgument
+                ? runtimeAllocateIllegalArgumentException(message: "Thread is not holding the lock")
+                : runtimeAllocateIllegalStateException(message: "Thread is not holding the lock")
+            return atomicfuThrow(error, outThrown)
+        }
+        return 0
     }
-    guard lock.release() else {
-        let error = lock.ownerErrorIsArgument
-            ? runtimeAllocateIllegalArgumentException(message: "Thread is not holding the lock")
-            : runtimeAllocateIllegalStateException(message: "Thread is not holding the lock")
-        return atomicfuThrow(error, outThrown)
-    }
-    return 0
 }
 @_cdecl("__kk_atomicfu_parker_new")
 public func __kk_atomicfu_parker_new() -> Int {
@@ -249,35 +252,38 @@ public func __kk_atomicfu_parker_new() -> Int {
 }
 @_cdecl("__kk_atomicfu_parker_wait")
 public func __kk_atomicfu_parker_wait(_ kernel: Int, _ timeoutNanos: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let parker = resolveRuntimeHandle(kernel, as: RuntimeAtomicfuParker.self) else {
-        return atomicfuInvalidHandle(outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        guard let parker = resolveRuntimeHandle(kernel, as: RuntimeAtomicfuParker.self) else {
+            return atomicfuInvalidHandle(outThrown)
+        }
+        guard parker.park(timeoutNanos: timeoutNanos == -1 ? -1 : max(0, timeoutNanos)) else {
+            return atomicfuThrow(runtimeAllocateIllegalStateException(message: "Thread cannot park this handle"), outThrown)
+        }
+        return 0
     }
-    guard parker.park(timeoutNanos: timeoutNanos == -1 ? -1 : max(0, timeoutNanos)) else {
-        return atomicfuThrow(runtimeAllocateIllegalStateException(message: "Thread cannot park this handle"), outThrown)
-    }
-    return 0
 }
 @_cdecl("__kk_atomicfu_parker_unpark")
 public func __kk_atomicfu_parker_unpark(_ kernel: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let parker = resolveRuntimeHandle(kernel, as: RuntimeAtomicfuParker.self) else {
-        return atomicfuInvalidHandle(outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        guard let parker = resolveRuntimeHandle(kernel, as: RuntimeAtomicfuParker.self) else {
+            return atomicfuInvalidHandle(outThrown)
+        }
+        parker.unpark()
+        return 0
     }
-    parker.unpark()
-    return 0
 }
 @_cdecl("__kk_atomicfu_current_parking_handle")
 public func __kk_atomicfu_current_parking_handle(_ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let generation = atomicfuCurrentGeneration()
-    if let cached: AtomicfuParkingRoot = pthreadGetValue(atomicfuParkingRootKey), cached.generation == generation {
-        return cached.value
+    return runtimeThrowingBridge(outThrown) {
+        let generation = atomicfuCurrentGeneration()
+        if let cached: AtomicfuParkingRoot = pthreadGetValue(atomicfuParkingRootKey), cached.generation == generation {
+            return cached.value
+        }
+        var thrown = 0
+        let result = runtimeInvokeClosureThunk(fnPtr: fnPtr, closureRaw: closureRaw, outThrown: &thrown)
+        if thrown != 0 { return atomicfuThrow(thrown, outThrown) }
+        guard resolveRuntimeObjectHandle(result) != nil else { return atomicfuInvalidHandle(outThrown) }
+        pthreadSetValue(atomicfuParkingRootKey, AtomicfuParkingRoot(value: result, generation: generation))
+        return result
     }
-    var thrown = 0
-    let result = runtimeInvokeClosureThunk(fnPtr: fnPtr, closureRaw: closureRaw, outThrown: &thrown)
-    if thrown != 0 { return atomicfuThrow(thrown, outThrown) }
-    guard resolveRuntimeObjectHandle(result) != nil else { return atomicfuInvalidHandle(outThrown) }
-    pthreadSetValue(atomicfuParkingRootKey, AtomicfuParkingRoot(value: result, generation: generation))
-    return result
 }

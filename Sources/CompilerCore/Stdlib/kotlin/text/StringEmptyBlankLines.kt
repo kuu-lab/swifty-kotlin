@@ -57,7 +57,7 @@ public fun String.lines(): List<String> {
 }
 
 public fun CharSequence.lines(): List<String> {
-    return this.toString().splitIntoLines()
+    return lineSequence().toList()
 }
 
 public fun String.lineSequence(): Sequence<String> {
@@ -65,5 +65,60 @@ public fun String.lineSequence(): Sequence<String> {
 }
 
 public fun CharSequence.lineSequence(): Sequence<String> {
-    return this.toString().normalizeLineSeparators().splitToSequence("\n")
+    return LinesSequence(this)
+}
+
+// Mirrors kotlin-stdlib's LinesIterator: lines are delimited by CRLF, LF or CR,
+// iteration reads through CharSequence.get, and a trailing separator yields an
+// extra empty line. Building lines via subSequence/toString (instead of the
+// receiver's toString()) keeps custom CharSequence implementations observable.
+// A concrete Sequence class is used instead of `Sequence { ... }`: capturing the
+// receiver in that lambda miscompiles when this file is built into the stdlib
+// artifact.
+private class LinesSequence(private val string: CharSequence) : Sequence<String> {
+    override fun iterator(): Iterator<String> = LinesIterator(string)
+}
+
+private class LinesIterator(private val string: CharSequence) : Iterator<String> {
+    private var state = 0
+    private var tokenStartIndex = 0
+    private var delimiterStartIndex = 0
+    private var delimiterLength = 0
+
+    override fun hasNext(): Boolean {
+        if (state != 0) {
+            return state == 1
+        }
+        if (delimiterLength < 0) {
+            state = 2
+            return false
+        }
+        var nextDelimiterLength = -1
+        var nextDelimiterStartIndex = string.length
+        var index = tokenStartIndex
+        while (index < string.length) {
+            val character = string[index]
+            if (character == '\n' || character == '\r') {
+                nextDelimiterLength = if (character == '\r' && index + 1 < string.length && string[index + 1] == '\n') 2 else 1
+                nextDelimiterStartIndex = index
+                break
+            }
+            index++
+        }
+        state = 1
+        delimiterLength = nextDelimiterLength
+        delimiterStartIndex = nextDelimiterStartIndex
+        return true
+    }
+
+    override fun next(): String {
+        if (!hasNext()) {
+            throw NoSuchElementException()
+        }
+        state = 0
+        val lastIndex = delimiterStartIndex
+        val firstIndex = tokenStartIndex
+        tokenStartIndex = delimiterStartIndex + delimiterLength
+        return string.substring(firstIndex, lastIndex)
+    }
 }

@@ -46,7 +46,7 @@ struct RuntimeUuidBridgeTests {
     @Test
     func testToKotlinUuidCopiesTwoLongObjectShape() throws {
         let source = __kk_uuid_random()
-        let converted = __kk_uuid_toKotlinUuid(source)
+        let converted = kk_uuid_toKotlinUuid(source)
 
         let sourceBits = try #require(uuidBits(source))
         let convertedBits = try #require(uuidBits(converted))
@@ -57,14 +57,14 @@ struct RuntimeUuidBridgeTests {
     @Test
     func testToKotlinUuidReturnsDistinctObjectHandle() {
         let source = __kk_uuid_random()
-        let converted = __kk_uuid_toKotlinUuid(source)
+        let converted = kk_uuid_toKotlinUuid(source)
 
         #expect(converted != source, "toKotlinUuid must return a distinct object handle")
     }
 
     @Test
     func testToKotlinUuidNullReceiverReturnsAllZeroUuid() throws {
-        let converted = __kk_uuid_toKotlinUuid(0)
+        let converted = kk_uuid_toKotlinUuid(0)
 
         #expect(converted != 0, "null receiver must not produce a zero handle")
         let bits = try #require(uuidBits(converted))

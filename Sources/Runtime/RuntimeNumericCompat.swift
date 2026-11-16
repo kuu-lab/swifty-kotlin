@@ -1218,54 +1218,62 @@ private func roundDoubleJava7(_ raw: Double) -> Int64 {
 // (outThrown appended by ABILoweringPass — they must NOT be in nonThrowingCallees).
 @_cdecl("__kk_float_roundToInt")
 public func __kk_float_roundToInt(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let raw = kk_bits_to_float(value)
-    if raw.isNaN {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Cannot round NaN value.")
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        let raw = kk_bits_to_float(value)
+        if raw.isNaN {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Cannot round NaN value.")
+            return 0
+        }
+        let r = roundFloatJava7(raw)
+        if r >= Int64(Int32.max) { return Int(Int32.max) }
+        if r <= Int64(Int32.min) { return Int(Int32.min) }
+        return Int(Int32(r))
     }
-    let r = roundFloatJava7(raw)
-    if r >= Int64(Int32.max) { return Int(Int32.max) }
-    if r <= Int64(Int32.min) { return Int(Int32.min) }
-    return Int(Int32(r))
 }
 
 @_cdecl("__kk_double_roundToInt")
 public func __kk_double_roundToInt(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let raw = kk_bits_to_double(value)
-    if raw.isNaN {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Cannot round NaN value.")
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        let raw = kk_bits_to_double(value)
+        if raw.isNaN {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Cannot round NaN value.")
+            return 0
+        }
+        let r = roundDoubleJava7(raw)
+        if r >= Int64(Int32.max) { return Int(Int32.max) }
+        if r <= Int64(Int32.min) { return Int(Int32.min) }
+        return Int(Int32(r))
     }
-    let r = roundDoubleJava7(raw)
-    if r >= Int64(Int32.max) { return Int(Int32.max) }
-    if r <= Int64(Int32.min) { return Int(Int32.min) }
-    return Int(Int32(r))
 }
 
 @_cdecl("__kk_float_roundToLong")
 public func __kk_float_roundToLong(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let raw = kk_bits_to_float(value)
-    if raw.isNaN {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Cannot round NaN value.")
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        let raw = kk_bits_to_float(value)
+        if raw.isNaN {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Cannot round NaN value.")
+            return 0
+        }
+        let r = roundFloatJava7(raw)
+        if r >= Int64.max { return Int(Int64.max) }
+        if r <= Int64.min { return Int(Int64.min) }
+        return Int(r)
     }
-    let r = roundFloatJava7(raw)
-    if r >= Int64.max { return Int(Int64.max) }
-    if r <= Int64.min { return Int(Int64.min) }
-    return Int(r)
 }
 
 @_cdecl("__kk_double_roundToLong")
 public func __kk_double_roundToLong(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let raw = kk_bits_to_double(value)
-    if raw.isNaN {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Cannot round NaN value.")
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        let raw = kk_bits_to_double(value)
+        if raw.isNaN {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Cannot round NaN value.")
+            return 0
+        }
+        let r = roundDoubleJava7(raw)
+        if r >= Int64.max { return Int(Int64.max) }
+        if r <= Int64.min { return Int(Int64.min) }
+        return Int(r)
     }
-    let r = roundDoubleJava7(raw)
-    if r >= Int64.max { return Int(Int64.max) }
-    if r <= Int64.min { return Int(Int64.min) }
-    return Int(r)
 }
 
 
@@ -1752,13 +1760,17 @@ private func runtimeFloorDiv(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutableP
 
 @_cdecl("kk_op_floor_div")
 public func kk_op_floor_div(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    runtimeFloorDiv(lhs, rhs, outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeFloorDiv(lhs, rhs, outThrown)
+    }
 }
 
 @_cdecl("kk_op_lfloor_div")
 public func kk_op_lfloor_div(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    // Long uses same Int representation on 64-bit platforms.
-    runtimeFloorDiv(lhs, rhs, outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        // Long uses same Int representation on 64-bit platforms.
+        runtimeFloorDiv(lhs, rhs, outThrown)
+    }
 }
 
 // PEC-NUM-0002: integer division/remainder must throw ArithmeticException("/ by zero").
@@ -1766,23 +1778,27 @@ public func kk_op_lfloor_div(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutableP
 // Int.MIN_VALUE / -1 wraps silently per Kotlin two's-complement semantics.
 @_cdecl("kk_op_div")
 public func kk_op_div(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    if rhs == 0 {
-        outThrown?.pointee = runtimeAllocateArithmeticException(message: "/ by zero")
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        if rhs == 0 {
+            outThrown?.pointee = runtimeAllocateArithmeticException(message: "/ by zero")
+            return 0
+        }
+        if lhs == Int.min && rhs == -1 { return Int.min }
+        return lhs / rhs
     }
-    if lhs == Int.min && rhs == -1 { return Int.min }
-    return lhs / rhs
 }
 
 // PEC-NUM-0002: kk_op_mod is a throwing callee; outThrown is set and 0 returned when rhs == 0.
 @_cdecl("kk_op_mod")
 public func kk_op_mod(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    if rhs == 0 {
-        outThrown?.pointee = runtimeAllocateArithmeticException(message: "/ by zero")
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        if rhs == 0 {
+            outThrown?.pointee = runtimeAllocateArithmeticException(message: "/ by zero")
+            return 0
+        }
+        if lhs == Int.min && rhs == -1 { return 0 }
+        return lhs % rhs
     }
-    if lhs == Int.min && rhs == -1 { return 0 }
-    return lhs % rhs
 }
 
 // PEC-NUM-0002 / KSP-466: UInt/ULong/UByte/UShort division and remainder must
@@ -1795,20 +1811,24 @@ public func kk_op_mod(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<
 // zero-divisor must still throw ArithmeticException via outThrown.
 @_cdecl("kk_op_udiv")
 public func kk_op_udiv(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    if rhs == 0 {
-        outThrown?.pointee = runtimeAllocateArithmeticException(message: "/ by zero")
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        if rhs == 0 {
+            outThrown?.pointee = runtimeAllocateArithmeticException(message: "/ by zero")
+            return 0
+        }
+        return Int(bitPattern: UInt(bitPattern: lhs) / UInt(bitPattern: rhs))
     }
-    return Int(bitPattern: UInt(bitPattern: lhs) / UInt(bitPattern: rhs))
 }
 
 @_cdecl("kk_op_urem")
 public func kk_op_urem(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    if rhs == 0 {
-        outThrown?.pointee = runtimeAllocateArithmeticException(message: "/ by zero")
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        if rhs == 0 {
+            outThrown?.pointee = runtimeAllocateArithmeticException(message: "/ by zero")
+            return 0
+        }
+        return Int(bitPattern: UInt(bitPattern: lhs) % UInt(bitPattern: rhs))
     }
-    return Int(bitPattern: UInt(bitPattern: lhs) % UInt(bitPattern: rhs))
 }
 
 private func runtimeFloorMod(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
@@ -1826,12 +1846,16 @@ private func runtimeFloorMod(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutableP
 
 @_cdecl("kk_op_floor_mod")
 public func kk_op_floor_mod(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    runtimeFloorMod(lhs, rhs, outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeFloorMod(lhs, rhs, outThrown)
+    }
 }
 
 @_cdecl("kk_op_lfloor_mod")
 public func kk_op_lfloor_mod(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    runtimeFloorMod(lhs, rhs, outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeFloorMod(lhs, rhs, outThrown)
+    }
 }
 
 

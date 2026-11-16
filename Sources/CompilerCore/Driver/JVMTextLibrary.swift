@@ -195,6 +195,8 @@ extension JVMProgramBuilder {
                             try method(symbol, owner: owner, name: name + "-impl", declarations: function.valueParams, extensionReceiver: .long, staticMember: true)
                         case "compareTo":
                             try method(symbol, owner: owner, name: "compareTo-LRDsOJo", declarations: function.valueParams, extensionReceiver: .long, staticMember: true)
+                        case "plus":
+                            try method(symbol, owner: owner, name: "plus-LRDsOJo", declarations: function.valueParams, extensionReceiver: .long, staticMember: true)
                         default:
                             break
                         }
@@ -243,6 +245,12 @@ extension JVMProgramBuilder {
                         continue
                     }
                 }
+            }
+            if ["<kswiftk-jvm>/duration.kt", "<kswiftk-jvm>/random.kt"].contains(path) {
+                try visit(file.topLevelDecls.filter { id in
+                    if case .classDecl = ast.arena.decl(id) { return true }
+                    return false
+                }, path: path)
             }
             if path == "<kswiftk-jvm>/result.kt" {
                 for id in file.topLevelDecls {

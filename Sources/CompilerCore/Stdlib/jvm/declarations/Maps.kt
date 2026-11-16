@@ -20,3 +20,5 @@ public fun <K, V> Map<out K, V>.toList(): List<Pair<K, V>> = null!!
 public fun <K, V> Map<out K, V>.toMutableMap(): MutableMap<K, V> = null!!
 public fun <K, V> Map<out K, V>.toMap(): Map<K, V> = null!!
 public fun <K, V> Array<out Pair<K, V>>.toMap(): Map<K, V> = null!!
+
+public fun <K, V> hashMapOf(vararg pairs: Pair<K, V>): java.util.HashMap<K, V> = null!!

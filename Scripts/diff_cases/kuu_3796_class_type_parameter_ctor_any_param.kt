@@ -6,17 +6,23 @@ class P<T>(val a: Any?) {
     fun f(key: T): P<T> {
         return P(key)
     }
+    // KUU-4577: the expression-body form propagates the declared return type
+    // as the expected type the same way the `return` form does.
+    fun g(key: T): P<T> = P(key)
 }
 
 class POM<K, V>(val firstKey: Any?, val lastKey: Any?, val payload: V) {
     fun put(key: K, value: V): POM<K, V> {
         return POM(key, key, value)
     }
+    fun putExpr(key: K, value: V): POM<K, V> = POM(key, key, value)
 }
 
 fun main() {
     val p: P<String> = P("x")
     println(p.f("y").a)
+    println(p.g("y").a)
     val m: POM<String, Int> = POM("a", "b", 1)
     println(m.put("k", 2).payload)
+    println(m.putExpr("k", 2).payload)
 }

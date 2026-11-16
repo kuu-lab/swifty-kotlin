@@ -318,16 +318,17 @@ public func kk_mutex_lock(_ handle: Int, _ continuation: Int) -> Int {
 
 @_cdecl("kk_mutex_unlock")
 public func kk_mutex_unlock(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
-    outThrown?.pointee = 0
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_mutex_unlock received invalid mutex handle")
+    return runtimeThrowingBridge(outThrown) {
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_mutex_unlock received invalid mutex handle")
+        }
+        let mutex = Unmanaged<RuntimeMutexHandle>.fromOpaque(ptr).takeUnretainedValue()
+        let thrown = mutex.unlock()
+        if thrown != 0 {
+            runtimeSetThrown(outThrown, thrown)
+        }
+        return 0
     }
-    let mutex = Unmanaged<RuntimeMutexHandle>.fromOpaque(ptr).takeUnretainedValue()
-    let thrown = mutex.unlock()
-    if thrown != 0 {
-        runtimeSetThrown(outThrown, thrown)
-    }
-    return 0
 }
 
 /// Normalizes an `Any?` owner token crossing the ABI: Kotlin `null` may
@@ -347,16 +348,17 @@ public func __kk_mutex_lock_owner(
     _ continuation: Int,
     _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_mutex_lock_owner received invalid mutex handle")
+    return runtimeThrowingBridge(outThrown) {
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_mutex_lock_owner received invalid mutex handle")
+        }
+        let mutex = Unmanaged<RuntimeMutexHandle>.fromOpaque(ptr).takeUnretainedValue()
+        return mutex.lockSync(
+            continuation: continuation,
+            owner: runtimeMutexNormalizeOwner(owner),
+            outThrown: outThrown
+        )
     }
-    let mutex = Unmanaged<RuntimeMutexHandle>.fromOpaque(ptr).takeUnretainedValue()
-    return mutex.lockSync(
-        continuation: continuation,
-        owner: runtimeMutexNormalizeOwner(owner),
-        outThrown: outThrown
-    )
 }
 
 @_cdecl("__kk_mutex_unlock_owner")
@@ -365,16 +367,17 @@ public func __kk_mutex_unlock_owner(
     _ owner: Int,
     _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_mutex_unlock_owner received invalid mutex handle")
+    return runtimeThrowingBridge(outThrown) {
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_mutex_unlock_owner received invalid mutex handle")
+        }
+        let mutex = Unmanaged<RuntimeMutexHandle>.fromOpaque(ptr).takeUnretainedValue()
+        let thrown = mutex.unlock(expectedOwner: runtimeMutexNormalizeOwner(owner))
+        if thrown != 0 {
+            runtimeSetThrown(outThrown, thrown)
+        }
+        return 0
     }
-    let mutex = Unmanaged<RuntimeMutexHandle>.fromOpaque(ptr).takeUnretainedValue()
-    let thrown = mutex.unlock(expectedOwner: runtimeMutexNormalizeOwner(owner))
-    if thrown != 0 {
-        runtimeSetThrown(outThrown, thrown)
-    }
-    return 0
 }
 
 @_cdecl("__kk_mutex_tryLock")
@@ -395,21 +398,22 @@ public func __kk_mutex_tryLock_owner(
     _ owner: Int,
     _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_mutex_tryLock_owner received invalid mutex handle")
-    }
-    let mutex = Unmanaged<RuntimeMutexHandle>.fromOpaque(ptr).takeUnretainedValue()
-    switch mutex.tryLock(owner: runtimeMutexNormalizeOwner(owner)) {
-    case .acquired:
-        return 1
-    case .busy:
-        return 0
-    case .alreadyLockedByOwner:
-        outThrown?.pointee = runtimeAllocateIllegalStateException(
-            message: "This mutex is already locked by the specified owner"
-        )
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_mutex_tryLock_owner received invalid mutex handle")
+        }
+        let mutex = Unmanaged<RuntimeMutexHandle>.fromOpaque(ptr).takeUnretainedValue()
+        switch mutex.tryLock(owner: runtimeMutexNormalizeOwner(owner)) {
+        case .acquired:
+            return 1
+        case .busy:
+            return 0
+        case .alreadyLockedByOwner:
+            outThrown?.pointee = runtimeAllocateIllegalStateException(
+                message: "This mutex is already locked by the specified owner"
+            )
+            return 0
+        }
     }
 }
 
@@ -490,16 +494,17 @@ public func kk_semaphore_acquire(_ handle: Int, _ continuation: Int) -> Int {
 
 @_cdecl("kk_semaphore_release")
 public func kk_semaphore_release(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
-    outThrown?.pointee = 0
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_semaphore_release received invalid semaphore handle")
+    return runtimeThrowingBridge(outThrown) {
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_semaphore_release received invalid semaphore handle")
+        }
+        let semaphore = Unmanaged<RuntimeSemaphoreHandle>.fromOpaque(ptr).takeUnretainedValue()
+        let thrown = semaphore.release()
+        if thrown != 0 {
+            runtimeSetThrown(outThrown, thrown)
+        }
+        return 0
     }
-    let semaphore = Unmanaged<RuntimeSemaphoreHandle>.fromOpaque(ptr).takeUnretainedValue()
-    let thrown = semaphore.release()
-    if thrown != 0 {
-        runtimeSetThrown(outThrown, thrown)
-    }
-    return 0
 }
 
 @_cdecl("__kk_semaphore_tryAcquire")
@@ -536,19 +541,20 @@ public func kk_lock_bridge_withLock(
     _ actionClosureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_lock_withLock received invalid mutex handle")
-    }
-    let mutex = Unmanaged<RuntimeMutexHandle>.fromOpaque(ptr).takeUnretainedValue()
+    return runtimeThrowingBridge(outThrown) {
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_lock_withLock received invalid mutex handle")
+        }
+        let mutex = Unmanaged<RuntimeMutexHandle>.fromOpaque(ptr).takeUnretainedValue()
 
-    mutex.lockBlocking()
-    defer { mutex.unlock() }
+        mutex.lockBlocking()
+        defer { mutex.unlock() }
 
-    var thrown = 0
-    let result = runtimeInvokeClosureThunk(fnPtr: actionFnPtr, closureRaw: actionClosureRaw, outThrown: &thrown)
-    if thrown != 0 {
-        return handleCollectionLambdaThrow(thrown, outThrown)
+        var thrown = 0
+        let result = runtimeInvokeClosureThunk(fnPtr: actionFnPtr, closureRaw: actionClosureRaw, outThrown: &thrown)
+        if thrown != 0 {
+            return handleCollectionLambdaThrow(thrown, outThrown)
+        }
+        return result
     }
-    return result
 }

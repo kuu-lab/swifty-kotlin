@@ -5,3 +5,5 @@ fun <T> getOrCreateKotlinClass(type: java.lang.Class<T>): kotlin.reflect.KClass<
 fun getOrCreateKotlinClasses(types: Array<java.lang.Class<*>>): Array<kotlin.reflect.KClass<*>> = Array<kotlin.reflect.KClass<*>>(types.size) { getOrCreateKotlinClass(types[it]) }
 
 fun mutableProperty1(reference: MutablePropertyReference1): kotlin.reflect.KMutableProperty1<Any?, Any?> = reference
+
+fun property2(reference: PropertyReference2): kotlin.reflect.KProperty2<Any?, Any?, Any?> = reference

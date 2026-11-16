@@ -219,12 +219,13 @@ func runtimeCanonicalDecimalString(_ source: String) throws -> String {
 }
 
 private func runtimeBigDecimalFromIntegerText(_ value: Int64, outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    do {
-        let canonical = try runtimeCanonicalDecimalString(String(value))
-        return registerRuntimeObject(RuntimeBigNumberBox(value: canonical, kind: .decimal))
-    } catch {
-        return runtimeArithmeticException(error, outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        do {
+            let canonical = try runtimeCanonicalDecimalString(String(value))
+            return registerRuntimeObject(RuntimeBigNumberBox(value: canonical, kind: .decimal))
+        } catch {
+            return runtimeArithmeticException(error, outThrown: outThrown)
+        }
     }
 }
 
@@ -233,7 +234,9 @@ public func __kk_int_toBigDecimal(
     _ valueRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeBigDecimalFromIntegerText(Int64(Int32(truncatingIfNeeded: valueRaw)), outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeBigDecimalFromIntegerText(Int64(Int32(truncatingIfNeeded: valueRaw)), outThrown: outThrown)
+    }
 }
 
 @_cdecl("__kk_long_toBigDecimal")
@@ -241,7 +244,9 @@ public func __kk_long_toBigDecimal(
     _ valueRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeBigDecimalFromIntegerText(Int64(valueRaw), outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeBigDecimalFromIntegerText(Int64(valueRaw), outThrown: outThrown)
+    }
 }
 
 @_cdecl("__kk_double_toBigDecimal")
@@ -249,48 +254,49 @@ public func __kk_double_toBigDecimal(
     _ valueRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let bits = UInt64(bitPattern: Int64(valueRaw))
-    let value = Double(bitPattern: bits)
-    guard value.isFinite else {
-        outThrown?.pointee = runtimeAllocateNumberFormatException(message: "Infinite or NaN")
-        return 0
-    }
+    return runtimeThrowingBridge(outThrown) {
+        let bits = UInt64(bitPattern: Int64(valueRaw))
+        let value = Double(bitPattern: bits)
+        guard value.isFinite else {
+            outThrown?.pointee = runtimeAllocateNumberFormatException(message: "Infinite or NaN")
+            return 0
+        }
 
-    let exponentBits = Int((bits >> 52) & 0x7FF)
-    let fractionBits = bits & 0x000F_FFFF_FFFF_FFFF
-    let significand = exponentBits == 0 ? fractionBits : fractionBits | (1 << 52)
-    let negative = bits & (1 << 63) != 0
-    var digits = String(significand)
-    var scale = 0
+        let exponentBits = Int((bits >> 52) & 0x7FF)
+        let fractionBits = bits & 0x000F_FFFF_FFFF_FFFF
+        let significand = exponentBits == 0 ? fractionBits : fractionBits | (1 << 52)
+        let negative = bits & (1 << 63) != 0
+        var digits = String(significand)
+        var scale = 0
 
-    if significand != 0 {
-        let binaryExponent = exponentBits == 0 ? -1074 : exponentBits - 1023 - 52
-        if binaryExponent >= 0 {
-            for _ in 0 ..< binaryExponent {
-                digits = runtimeMultiplyMagnitudeBySmall(digits, 2)
-            }
-        } else {
-            scale = -binaryExponent
-            for _ in 0 ..< scale {
-                digits = runtimeMultiplyMagnitudeBySmall(digits, 5)
-            }
-            while scale > 0, digits.last == "0" {
-                digits.removeLast()
-                scale -= 1
+        if significand != 0 {
+            let binaryExponent = exponentBits == 0 ? -1074 : exponentBits - 1023 - 52
+            if binaryExponent >= 0 {
+                for _ in 0 ..< binaryExponent {
+                    digits = runtimeMultiplyMagnitudeBySmall(digits, 2)
+                }
+            } else {
+                scale = -binaryExponent
+                for _ in 0 ..< scale {
+                    digits = runtimeMultiplyMagnitudeBySmall(digits, 5)
+                }
+                while scale > 0, digits.last == "0" {
+                    digits.removeLast()
+                    scale -= 1
+                }
             }
         }
-    }
 
-    let parts = RuntimeBigDecimalParts(
-        digits: digits,
-        negative: negative,
-        scale: scale
-    )
-    do {
-        return try runtimeMakeBigDecimal(parts)
-    } catch {
-        return runtimeArithmeticException(error, outThrown: outThrown)
+        let parts = RuntimeBigDecimalParts(
+            digits: digits,
+            negative: negative,
+            scale: scale
+        )
+        do {
+            return try runtimeMakeBigDecimal(parts)
+        } catch {
+            return runtimeArithmeticException(error, outThrown: outThrown)
+        }
     }
 }
 
@@ -346,9 +352,10 @@ public func __kk_bignum_add(
     _ rhsRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    do { return try runtimeAddBigDecimals(lhsRaw, rhsRaw) }
-    catch { return runtimeArithmeticException(error, outThrown: outThrown) }
+    return runtimeThrowingBridge(outThrown) {
+        do { return try runtimeAddBigDecimals(lhsRaw, rhsRaw) }
+        catch { return runtimeArithmeticException(error, outThrown: outThrown) }
+    }
 }
 
 @_cdecl("__kk_bignum_subtract")
@@ -357,9 +364,10 @@ public func __kk_bignum_subtract(
     _ rhsRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    do { return try runtimeAddBigDecimals(lhsRaw, rhsRaw, subtract: true) }
-    catch { return runtimeArithmeticException(error, outThrown: outThrown) }
+    return runtimeThrowingBridge(outThrown) {
+        do { return try runtimeAddBigDecimals(lhsRaw, rhsRaw, subtract: true) }
+        catch { return runtimeArithmeticException(error, outThrown: outThrown) }
+    }
 }
 
 @_cdecl("__kk_bignum_multiply")
@@ -368,19 +376,20 @@ public func __kk_bignum_multiply(
     _ rhsRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    do {
-        let lhs = try runtimeBigDecimalParts(runtimeBigDecimalValue(lhsRaw, caller: #function))
-        let rhs = try runtimeBigDecimalParts(runtimeBigDecimalValue(rhsRaw, caller: #function))
-        let (scale, overflow) = lhs.scale.addingReportingOverflow(rhs.scale)
-        guard !overflow else { throw RuntimeBigDecimalError.arithmetic("BigDecimal scale out of range") }
-        return try runtimeMakeBigDecimal(RuntimeBigDecimalParts(
-            digits: runtimeMultiplyMagnitudes(lhs.digits, rhs.digits),
-            negative: lhs.negative != rhs.negative,
-            scale: scale
-        ))
-    } catch {
-        return runtimeArithmeticException(error, outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        do {
+            let lhs = try runtimeBigDecimalParts(runtimeBigDecimalValue(lhsRaw, caller: #function))
+            let rhs = try runtimeBigDecimalParts(runtimeBigDecimalValue(rhsRaw, caller: #function))
+            let (scale, overflow) = lhs.scale.addingReportingOverflow(rhs.scale)
+            guard !overflow else { throw RuntimeBigDecimalError.arithmetic("BigDecimal scale out of range") }
+            return try runtimeMakeBigDecimal(RuntimeBigDecimalParts(
+                digits: runtimeMultiplyMagnitudes(lhs.digits, rhs.digits),
+                negative: lhs.negative != rhs.negative,
+                scale: scale
+            ))
+        } catch {
+            return runtimeArithmeticException(error, outThrown: outThrown)
+        }
     }
 }
 
@@ -454,13 +463,14 @@ public func __kk_bignum_divide(
     _ rhsRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    do {
-        let lhs = try runtimeBigDecimalParts(runtimeBigDecimalValue(lhsRaw, caller: #function))
-        let rhs = try runtimeBigDecimalParts(runtimeBigDecimalValue(rhsRaw, caller: #function))
-        return try runtimeMakeBigDecimal(runtimeExactDivide(lhs, rhs))
-    } catch {
-        return runtimeArithmeticException(error, outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        do {
+            let lhs = try runtimeBigDecimalParts(runtimeBigDecimalValue(lhsRaw, caller: #function))
+            let rhs = try runtimeBigDecimalParts(runtimeBigDecimalValue(rhsRaw, caller: #function))
+            return try runtimeMakeBigDecimal(runtimeExactDivide(lhs, rhs))
+        } catch {
+            return runtimeArithmeticException(error, outThrown: outThrown)
+        }
     }
 }
 
@@ -541,19 +551,20 @@ public func __kk_bignum_divideAtScale(
     _ roundingMode: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard (Int(Int32.min) ... Int(Int32.max)).contains(scale) else {
-        return runtimeArithmeticException(
-            RuntimeBigDecimalError.arithmetic("BigDecimal scale out of range"),
-            outThrown: outThrown
-        )
-    }
-    do {
-        let lhs = try runtimeBigDecimalParts(runtimeBigDecimalValue(lhsRaw, caller: #function))
-        let rhs = try runtimeBigDecimalParts(runtimeBigDecimalValue(rhsRaw, caller: #function))
-        return try runtimeMakeBigDecimal(runtimeScaledDivision(lhs, rhs, scale: scale, roundingMode: roundingMode))
-    } catch {
-        return runtimeArithmeticException(error, outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        guard (Int(Int32.min) ... Int(Int32.max)).contains(scale) else {
+            return runtimeArithmeticException(
+                RuntimeBigDecimalError.arithmetic("BigDecimal scale out of range"),
+                outThrown: outThrown
+            )
+        }
+        do {
+            let lhs = try runtimeBigDecimalParts(runtimeBigDecimalValue(lhsRaw, caller: #function))
+            let rhs = try runtimeBigDecimalParts(runtimeBigDecimalValue(rhsRaw, caller: #function))
+            return try runtimeMakeBigDecimal(runtimeScaledDivision(lhs, rhs, scale: scale, roundingMode: roundingMode))
+        } catch {
+            return runtimeArithmeticException(error, outThrown: outThrown)
+        }
     }
 }
 
@@ -614,18 +625,19 @@ public func __kk_bignum_setScale(
     _ roundingMode: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard (Int(Int32.min) ... Int(Int32.max)).contains(scale) else {
-        return runtimeArithmeticException(
-            RuntimeBigDecimalError.arithmetic("BigDecimal scale out of range"),
-            outThrown: outThrown
-        )
-    }
-    do {
-        let value = try runtimeBigDecimalParts(runtimeBigDecimalValue(valueRaw, caller: #function))
-        return try runtimeMakeBigDecimal(runtimeSetBigDecimalScale(value, scale: scale, roundingMode: roundingMode))
-    } catch {
-        return runtimeArithmeticException(error, outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        guard (Int(Int32.min) ... Int(Int32.max)).contains(scale) else {
+            return runtimeArithmeticException(
+                RuntimeBigDecimalError.arithmetic("BigDecimal scale out of range"),
+                outThrown: outThrown
+            )
+        }
+        do {
+            let value = try runtimeBigDecimalParts(runtimeBigDecimalValue(valueRaw, caller: #function))
+            return try runtimeMakeBigDecimal(runtimeSetBigDecimalScale(value, scale: scale, roundingMode: roundingMode))
+        } catch {
+            return runtimeArithmeticException(error, outThrown: outThrown)
+        }
     }
 }
 

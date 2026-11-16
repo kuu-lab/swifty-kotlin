@@ -1,5 +1,19 @@
 [
   {
+    "symbol": "__jvmThreadLocalRandom",
+    "owner": "java/util/concurrent/ThreadLocalRandom",
+    "name": "current",
+    "descriptor": "()Ljava/util/concurrent/ThreadLocalRandom;",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmThreadLocalRandomNextInt",
+    "owner": "java/util/concurrent/ThreadLocalRandom",
+    "name": "nextInt",
+    "descriptor": "()I",
+    "kind": "virtual"
+  },
+  {
     "symbol": "__jvmNewList",
     "owner": "java/util/ArrayList",
     "name": "<init>",

@@ -540,31 +540,32 @@ func runtimeCallableRoots() -> [Int] {
 
 @_cdecl("__kk_kcallable_call")
 public func __kk_kcallable_call(_ raw: Int, _ arguments: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let values = callableArguments(arguments) else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Expected a callable argument array.")
-        return runtimeNullSentinelInt
-    }
-    guard let metadata = callableMetadata(raw) else {
-        // KUU-2947: a local delegated property stub has no real accessor —
-        // the JVM raises UnsupportedOperationException from call/callBy
-        // rather than an invalid-handle error.
-        if let stub = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self),
-           stub.isLocalDelegated
-        {
-            outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
-                message: "call/callBy are not supported for this declaration."
-            )
+    return runtimeThrowingBridge(outThrown) {
+        guard let values = callableArguments(arguments) else {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Expected a callable argument array.")
             return runtimeNullSentinelInt
         }
-        let list = registerRuntimeObject(RuntimeListBox(elements: values))
-        return __kk_kfunction_call_vararg(raw, list, outThrown)
+        guard let metadata = callableMetadata(raw) else {
+            // KUU-2947: a local delegated property stub has no real accessor —
+            // the JVM raises UnsupportedOperationException from call/callBy
+            // rather than an invalid-handle error.
+            if let stub = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self),
+               stub.isLocalDelegated
+            {
+                outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
+                    message: "call/callBy are not supported for this declaration."
+                )
+                return runtimeNullSentinelInt
+            }
+            let list = registerRuntimeObject(RuntimeListBox(elements: values))
+            return __kk_kfunction_call_vararg(raw, list, outThrown)
+        }
+        guard values.count == metadata.arity else {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Callable expects \(metadata.arity) arguments, got \(values.count).")
+            return runtimeNullSentinelInt
+        }
+        return invokeCallable(metadata, values: values, mask: 0, outThrown: outThrown)
     }
-    guard values.count == metadata.arity else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Callable expects \(metadata.arity) arguments, got \(values.count).")
-        return runtimeNullSentinelInt
-    }
-    return invokeCallable(metadata, values: values, mask: 0, outThrown: outThrown)
 }
 
 @_cdecl("__kk_kproperty0_get")
@@ -574,34 +575,35 @@ public func __kk_kproperty0_get(
     _ methodSlot: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    // KUU-3693: a local delegated property stub carries its own KProperty0
-    // itable whose `get` throws the JVM's UnsupportedOperationException for
-    // local delegated references, so it dispatches through the standard
-    // dynamic lookup like every other receiver. Non-local stubs instead park
-    // `call` at the (interfaceSlot, 0) key `get` resolves to — dispatching
-    // them would invoke `call` with the wrong arity — so they keep bailing
-    // until accessor-backed wrappers replace the stub path.
-    if let stub = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self),
-       !stub.isLocalDelegated
-    {
-        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
-            message: "Local delegated property reflection is not supported."
+    return runtimeThrowingBridge(outThrown) {
+        // KUU-3693: a local delegated property stub carries its own KProperty0
+        // itable whose `get` throws the JVM's UnsupportedOperationException for
+        // local delegated references, so it dispatches through the standard
+        // dynamic lookup like every other receiver. Non-local stubs instead park
+        // `call` at the (interfaceSlot, 0) key `get` resolves to — dispatching
+        // them would invoke `call` with the wrong arity — so they keep bailing
+        // until accessor-backed wrappers replace the stub path.
+        if let stub = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self),
+           !stub.isLocalDelegated
+        {
+            outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
+                message: "Local delegated property reflection is not supported."
+            )
+            return runtimeNullSentinelInt
+        }
+        let methodRaw = kk_itable_lookup_dynamic(raw, interfaceTypeID, methodSlot)
+        guard methodRaw != 0 else {
+            outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
+                message: "Property reference has no getter implementation."
+            )
+            return runtimeNullSentinelInt
+        }
+        let method = unsafeBitCast(
+            methodRaw,
+            to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
         )
-        return runtimeNullSentinelInt
+        return method(raw, outThrown)
     }
-    let methodRaw = kk_itable_lookup_dynamic(raw, interfaceTypeID, methodSlot)
-    guard methodRaw != 0 else {
-        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
-            message: "Property reference has no getter implementation."
-        )
-        return runtimeNullSentinelInt
-    }
-    let method = unsafeBitCast(
-        methodRaw,
-        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
-    )
-    return method(raw, outThrown)
 }
 
 /// `KPropertyN.getDelegate` (KUU-3694): delegated-property stubs answer the
@@ -620,36 +622,37 @@ public func __kk_kproperty_get_delegate(
     _ arity: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    if let stub = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self) {
-        return stub.delegateRaw != 0 ? stub.delegateRaw : runtimeNullSentinelInt
-    }
-    let methodRaw = kk_itable_lookup_dynamic(raw, interfaceTypeID, methodSlot)
-    guard methodRaw != 0 else {
-        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
-            message: "Property reference has no getDelegate implementation."
-        )
-        return runtimeNullSentinelInt
-    }
-    switch arity {
-    case 0:
-        let method = unsafeBitCast(
-            methodRaw,
-            to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
-        )
-        return method(raw, outThrown)
-    case 1:
-        let method = unsafeBitCast(
-            methodRaw,
-            to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
-        )
-        return method(raw, arg0, outThrown)
-    default:
-        let method = unsafeBitCast(
-            methodRaw,
-            to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
-        )
-        return method(raw, arg0, arg1, outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        if let stub = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self) {
+            return stub.delegateRaw != 0 ? stub.delegateRaw : runtimeNullSentinelInt
+        }
+        let methodRaw = kk_itable_lookup_dynamic(raw, interfaceTypeID, methodSlot)
+        guard methodRaw != 0 else {
+            outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
+                message: "Property reference has no getDelegate implementation."
+            )
+            return runtimeNullSentinelInt
+        }
+        switch arity {
+        case 0:
+            let method = unsafeBitCast(
+                methodRaw,
+                to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+            )
+            return method(raw, outThrown)
+        case 1:
+            let method = unsafeBitCast(
+                methodRaw,
+                to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+            )
+            return method(raw, arg0, outThrown)
+        default:
+            let method = unsafeBitCast(
+                methodRaw,
+                to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+            )
+            return method(raw, arg0, arg1, outThrown)
+        }
     }
 }
 
@@ -680,46 +683,47 @@ private func callableEmptyVarargArray(_ raw: Int) -> Int? {
 
 @_cdecl("__kk_kcallable_call_by")
 public func __kk_kcallable_call_by(_ raw: Int, _ arguments: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let metadata = callableMetadata(raw) else {
-        if let stub = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self),
-           stub.isLocalDelegated
-        {
-            outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
-                message: "call/callBy are not supported for this declaration."
-            )
-        } else {
-            outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Invalid callable or parameter map.")
-        }
-        return runtimeNullSentinelInt
-    }
-    guard let map = runtimeReflectionObject(from: arguments, as: RuntimeMapBox.self),
-          let parameters = callableArguments(metadata.parameters), parameters.count == metadata.arity else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Invalid callable or parameter map.")
-        return runtimeNullSentinelInt
-    }
-    // Kotlin ignores map entries that do not correspond to this callable.
-    var values: [Int] = []
-    var mask = 0
-    let receiverCount = parameters.prefix { runtimeKParameterInternalKind($0) != 2 }.count
-    for (index, parameter) in parameters.enumerated() {
-        if let entry = map.index(ofRawKey: parameter) ?? map.keys.firstIndex(where: { callableParameterMatches($0, parameter) }) {
-            values.append(map.values[entry])
-        } else if __kk_kparameter_is_optional(parameter) != 0, index - receiverCount < 30 {
-            mask |= 1 << (index - receiverCount)
-            values.append(0)
-        } else if __kk_kparameter_is_optional(parameter) == 0, __kk_kparameter_is_vararg(parameter) != 0 {
-            guard let empty = callableEmptyVarargArray(parameter) else {
-                outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Vararg parameter \(index) does not have an array type.")
-                return runtimeNullSentinelInt
+    return runtimeThrowingBridge(outThrown) {
+        guard let metadata = callableMetadata(raw) else {
+            if let stub = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self),
+               stub.isLocalDelegated
+            {
+                outThrown?.pointee = runtimeAllocateUnsupportedOperationException(
+                    message: "call/callBy are not supported for this declaration."
+                )
+            } else {
+                outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Invalid callable or parameter map.")
             }
-            values.append(empty)
-        } else {
-            outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "No argument provided for required parameter \(index).")
             return runtimeNullSentinelInt
         }
+        guard let map = runtimeReflectionObject(from: arguments, as: RuntimeMapBox.self),
+              let parameters = callableArguments(metadata.parameters), parameters.count == metadata.arity else {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Invalid callable or parameter map.")
+            return runtimeNullSentinelInt
+        }
+        // Kotlin ignores map entries that do not correspond to this callable.
+        var values: [Int] = []
+        var mask = 0
+        let receiverCount = parameters.prefix { runtimeKParameterInternalKind($0) != 2 }.count
+        for (index, parameter) in parameters.enumerated() {
+            if let entry = map.index(ofRawKey: parameter) ?? map.keys.firstIndex(where: { callableParameterMatches($0, parameter) }) {
+                values.append(map.values[entry])
+            } else if __kk_kparameter_is_optional(parameter) != 0, index - receiverCount < 30 {
+                mask |= 1 << (index - receiverCount)
+                values.append(0)
+            } else if __kk_kparameter_is_optional(parameter) == 0, __kk_kparameter_is_vararg(parameter) != 0 {
+                guard let empty = callableEmptyVarargArray(parameter) else {
+                    outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Vararg parameter \(index) does not have an array type.")
+                    return runtimeNullSentinelInt
+                }
+                values.append(empty)
+            } else {
+                outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "No argument provided for required parameter \(index).")
+                return runtimeNullSentinelInt
+            }
+        }
+        return invokeCallable(metadata, values: values, mask: mask, outThrown: outThrown)
     }
-    return invokeCallable(metadata, values: values, mask: mask, outThrown: outThrown)
 }
 
 /// Internal `RuntimeKParameterBox.kind` ordinal (2 = VALUE). Unlike

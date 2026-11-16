@@ -169,6 +169,15 @@ private func runtimeDefaultLocaleBox() -> RuntimeLocaleBox {
     runtimeLocaleDefaultState.get() ?? runtimeHostDefaultLocaleCache.get()
 }
 
+/// The default locale resolved like `java.util.Locale.getDefault()`, as a
+/// Foundation locale. APIs whose locale-sensitive behavior must follow the
+/// JDK default locale (e.g. Calendar week rules) use this instead of
+/// `Locale.current`, which corelibs resolves differently for the C/POSIX
+/// family (en_001 with Monday week start vs the JDK's en/en_US with Sunday).
+func runtimeDefaultFoundationLocale() -> Locale {
+    runtimeDefaultLocaleBox().locale
+}
+
 private func runtimeHostDefaultLocaleBox() -> RuntimeLocaleBox {
     #if os(Linux)
     if let locale = runtimeLinuxDefaultLocaleBox() {

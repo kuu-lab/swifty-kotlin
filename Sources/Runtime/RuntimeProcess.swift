@@ -808,30 +808,33 @@ public func __kk_process_destroy_forcibly(_ handle: Int) {
 
 @_cdecl("__kk_process_input_stream")
 public func __kk_process_input_stream(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let process = runtimeProcessRegistry.process(for: handle) else {
-        outThrown?.pointee = runtimeAllocateIOException(message: "No such process")
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        guard let process = runtimeProcessRegistry.process(for: handle) else {
+            outThrown?.pointee = runtimeAllocateIOException(message: "No such process")
+            return 0
+        }
+        return process.inputStreamRaw()
     }
-    return process.inputStreamRaw()
 }
 
 @_cdecl("__kk_process_output_stream")
 public func __kk_process_output_stream(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let process = runtimeProcessRegistry.process(for: handle) else {
-        outThrown?.pointee = runtimeAllocateIOException(message: "No such process")
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        guard let process = runtimeProcessRegistry.process(for: handle) else {
+            outThrown?.pointee = runtimeAllocateIOException(message: "No such process")
+            return 0
+        }
+        return process.outputStreamRaw()
     }
-    return process.outputStreamRaw()
 }
 
 @_cdecl("__kk_process_error_stream")
 public func __kk_process_error_stream(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let process = runtimeProcessRegistry.process(for: handle) else {
-        outThrown?.pointee = runtimeAllocateIOException(message: "No such process")
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        guard let process = runtimeProcessRegistry.process(for: handle) else {
+            outThrown?.pointee = runtimeAllocateIOException(message: "No such process")
+            return 0
+        }
+        return process.errorStreamRaw()
     }
-    return process.errorStreamRaw()
 }

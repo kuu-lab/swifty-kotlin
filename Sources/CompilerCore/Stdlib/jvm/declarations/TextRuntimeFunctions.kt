@@ -74,6 +74,7 @@ fun String.removeSurrounding(delimiter: CharSequence): String = null!!
 fun String.removeSurrounding(prefix: CharSequence, suffix: CharSequence): String = null!!
 fun String.startsWith(prefix: String, ignoreCase: Boolean = null!!): Boolean = null!!
 fun String.startsWith(prefix: Char, ignoreCase: Boolean = null!!): Boolean = null!!
+fun CharSequence.endsWith(suffix: CharSequence, ignoreCase: Boolean = false): Boolean = null!!
 fun String.endsWith(suffix: String, ignoreCase: Boolean = null!!): Boolean = null!!
 fun String.endsWith(suffix: Char, ignoreCase: Boolean = null!!): Boolean = null!!
 operator fun String.contains(other: CharSequence, ignoreCase: Boolean = null!!): Boolean = null!!

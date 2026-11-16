@@ -47,11 +47,11 @@ struct RuntimeStringSplitJoinTests {
     }
 
     private func splitToSequence(_ value: String, delimiter: String) -> Int {
-        __kk_string_splitToSequence(runtimeMakeStringRaw(value), runtimeMakeStringRaw(delimiter))
+        kk_string_splitToSequence(runtimeMakeStringRaw(value), runtimeMakeStringRaw(delimiter))
     }
 
     private func splitLimit(_ value: String, delimiter: String, ignoreCase: Int, limit: Int) -> Int {
-        __kk_string_split_limit(runtimeMakeStringRaw(value), runtimeMakeStringRaw(delimiter), ignoreCase, limit)
+        kk_string_split_limit(runtimeMakeStringRaw(value), runtimeMakeStringRaw(delimiter), ignoreCase, limit)
     }
 
     // MARK: - joinToString tests

@@ -314,6 +314,13 @@ extension ExprTypeChecker {
             }
         }
         if op == .elvis {
+            if rhs == sema.types.nothingType, !ctx.isConditionallyEvaluated {
+                let base = ctx.flowState.includingMembers(from: locals)
+                let narrowed = ctx.dataFlow.narrowAfterNonNullResult(
+                    lhsID, base: base, locals: locals, ast: ast, sema: sema, interner: interner
+                )
+                applyFlowStateToLocals(narrowed, locals: &locals, sema: sema)
+            }
             rhs = driver.helpers.retypeClassNameAsCompanionValue(
                 rhsID, currentType: rhs, ast: ast, sema: sema
             ) ?? rhs
