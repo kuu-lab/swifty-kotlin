@@ -9,3 +9,13 @@ annotation class JvmName(val name: String)
 annotation class JvmRepeatable(val value: kotlin.reflect.KClass<out Annotation>)
 @kotlin.annotation.Retention(kotlin.annotation.AnnotationRetention.BINARY)
 annotation class JvmField
+
+@Target(
+    AnnotationTarget.CLASS,
+    AnnotationTarget.FUNCTION,
+    AnnotationTarget.PROPERTY,
+    AnnotationTarget.TYPE
+)
+@Retention(AnnotationRetention.BINARY)
+@MustBeDocumented
+public annotation class JvmSuppressWildcards(val suppress: Boolean = true)

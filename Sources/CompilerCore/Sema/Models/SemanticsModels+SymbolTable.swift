@@ -348,6 +348,13 @@ public final class SymbolTable {
     private var pendingTypeParameterBoundConflictChecks: [(symbol: SymbolID, declSite: SourceRange?)] = []
     private var pendingTypeArgumentBoundChecks: [PendingTypeArgumentBoundCheck] = []
     private var sourceFileIDs: [SymbolID: FileID] = [:]
+    // JVM classpath access is scoped by the binary package, independently of Kotlin visibility.
+    var jvmFilePackages: [FileID: [InternedString]] = [:]
+    private var jvmJavaMethods: Set<SymbolID> = []
+    var jvmMutableCollectionViews: [SymbolID: SymbolID] = [:]
+    private var jvmJavaBeanProperties: Set<SymbolID> = []
+    var jvmJavaFieldWriteTypes: [SymbolID: TypeID] = [:]
+    private(set) var jvmPackageAccess: [SymbolID: [InternedString]] = [:]
     /// Selected symbols imported from the validated stdlib artifact, including
     /// indexed declarations whose bodies have not been materialized yet.
     private var importedStdlibSymbolIDs: Set<SymbolID> = []
@@ -494,6 +501,10 @@ public final class SymbolTable {
         worker.fqNameListVersions = fqNameListVersions
         worker.byDeclSite = byDeclSite
         worker.functionSignatures = functionSignatures
+        worker.jvmJavaMethods = jvmJavaMethods
+        worker.jvmMutableCollectionViews = jvmMutableCollectionViews
+        worker.jvmJavaBeanProperties = jvmJavaBeanProperties
+        worker.jvmJavaFieldWriteTypes = jvmJavaFieldWriteTypes
         worker.valueParameterOwners = valueParameterOwners
         worker.propertyTypes = propertyTypes
         worker.propertyHasCustomGetter = propertyHasCustomGetter
@@ -2208,6 +2219,19 @@ public final class SymbolTable {
         if scope == "all" { return true }
         guard let imported = self.symbol(symbol) else { return false }
         return imported.visibility == .public || imported.visibility == .protected
+    }
+
+    func markJVMJavaMethod(_ symbol: SymbolID) { jvmJavaMethods.insert(symbol) }
+
+    func isJVMJavaMethod(_ symbol: SymbolID) -> Bool { jvmJavaMethods.contains(symbol) }
+
+    func markJVMJavaBeanProperty(_ symbol: SymbolID) { jvmJavaBeanProperties.insert(symbol) }
+
+    func isJVMJavaBeanProperty(_ symbol: SymbolID) -> Bool { jvmJavaBeanProperties.contains(symbol) }
+
+    func setJVMPackageAccess(_ package: [InternedString], for symbol: SymbolID) {
+        jvmPackageAccess[symbol] = package
+        bumpBindingVersions(startingAt: symbol)
     }
 
     public func setSourceFileID(_ fileID: FileID, for symbol: SymbolID) {

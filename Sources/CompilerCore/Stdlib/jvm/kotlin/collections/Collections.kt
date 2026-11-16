@@ -12,6 +12,22 @@ import kotlin.jvm.internal.__jvmSingletonList
 import kotlin.jvm.internal.__jvmArrayList
 import kotlin.random.Random
 
+public fun <T> MutableList<T>.reverse() {
+    var left = 0
+    var right = size - 1
+    while (left < right) {
+        val value = this[left]
+        this[left] = this[right]
+        this[right] = value
+        left++
+        right--
+    }
+}
+
+public fun <T : Comparable<T>> MutableList<T>.sort() {
+    if (size > 1) __jvmSortList(this)
+}
+
 public fun <T> Collection<T>.random(): T = random(Random.Default)
 
 public fun <T> Collection<T>.random(random: Random): T {
@@ -20,6 +36,7 @@ public fun <T> Collection<T>.random(random: Random): T {
 }
 
 public fun <T> emptyList(): List<T> = RepositoryEmptyList as List<T>
+public fun <T> listOf(): List<T> = emptyList<T>()
 public fun <T> listOf(element: T): List<T> = __jvmSingletonList(element)
 public fun <T> listOf(vararg elements: T): List<T> {
     if (elements.size == 0) return emptyList<T>()
@@ -656,4 +673,26 @@ public fun <T> Iterable<T>.indexOf(element: T): Int {
         index++
     }
     return -1
+}
+
+public fun <T : Comparable<T>> List<T?>.binarySearch(element: T?, fromIndex: Int = 0, toIndex: Int = size): Int {
+    return binarySearch(fromIndex, toIndex) { compareValues(it, element) }
+}
+
+public fun <T> List<T>.binarySearch(
+    fromIndex: Int = 0, toIndex: Int = size, comparison: (T) -> Int
+): Int {
+    if (fromIndex > toIndex) throw IllegalArgumentException("fromIndex ($fromIndex) is greater than toIndex ($toIndex).")
+    if (fromIndex < 0) throw IndexOutOfBoundsException("fromIndex ($fromIndex) is less than zero.")
+    if (toIndex > size) throw IndexOutOfBoundsException("toIndex ($toIndex) is greater than size ($size).")
+    var low = fromIndex
+    var high = toIndex - 1
+    while (low <= high) {
+        val middle = (low + high) ushr 1
+        val order = comparison(this[middle])
+        if (order < 0) low = middle + 1
+        else if (order > 0) high = middle - 1
+        else return middle
+    }
+    return -low - 1
 }

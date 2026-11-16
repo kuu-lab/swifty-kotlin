@@ -113,12 +113,22 @@ extension JVMProgramBuilder {
             guard allowComposable, function.receiverType == nil, !function.isSuspend, !function.isInline, !function.isTailrec,
                   signature.contextReceiverTypes.isEmpty, signature.contextParameterTypes.isEmpty,
                   parameters.count <= 10, !unsigned,
-                  !function.valueParams.contains(where: { $0.hasDefaultValue || $0.isVararg }),
-                  !signature.valueParameterSymbols.contains(where: sema.composableFunctionParameters.contains)
+                  !function.valueParams.contains(where: \.isVararg)
             else {
-                throw JVMFrontendError(message: "JVM @Composable supports ordinary top-level functions with at most ten parameters and without default arguments or composable function parameters.", range: function.range)
+                throw JVMFrontendError(message: "JVM @Composable supports ordinary top-level functions with at most ten parameters and without vararg parameters.", range: function.range)
+            }
+            for (index, parameter) in signature.valueParameterSymbols.enumerated()
+                where sema.composableFunctionParameters.contains(parameter) {
+                guard case let .functionType(type) = sema.types.kind(of: signature.parameterTypes[index]),
+                      !type.isSuspend, type.contextReceivers.isEmpty,
+                      type.params.count + (type.receiver == nil ? 0 : 1) <= 20
+                else { throw JVMFrontendError(message: "Unsupported JVM @Composable parameter.", range: function.range) }
+                let arity = type.params.count + (type.receiver == nil ? 0 : 1) + JVMCompose.suffix.count
+                parameters[index] = .reference("kotlin/jvm/functions/Function" + String(arity), nullable: false)
+                functionArities.insert(arity)
             }
             parameters += JVMCompose.suffix
+            if function.valueParams.contains(where: \.hasDefaultValue) { parameters.append(.int) }
             jvmComposableFunctions.insert(symbol)
         }
         var internalName = unsigned ? name + "$unsigned$" + JVMNameHash.suffix(parameters.map { ($0.unsignedName ?? "_") + ($0.isNullable ? "?" : "") }.joined()) : name
@@ -301,6 +311,12 @@ extension JVMProgramBuilder {
             guard !exposedField || (hasField && p.delegateExpression == nil) else {
                 throw JVMFrontendError(message: "JVM @JvmField property must have a backing field.", range: p.range)
             }
+            let usesPrivateBackingField = hasField && p.modifiers.contains(.private)
+                && p.getter == nil && p.setter == nil && p.delegateExpression == nil
+                && !p.modifiers.contains(.lateinit) && !exposedField
+                && !sema.bindings.callableReferenceBindings.values.contains { reference in
+                    reference.chosenCallee == symbol || sema.symbols.propertySymbol(forAccessor: reference.chosenCallee) == symbol
+                }
             // @JvmField inside any object — including a companion — publishes a
             // static field on that object, matching kotlinc's layout.
             let staticObjectField = exposedField && plan.isObject
@@ -309,6 +325,7 @@ extension JVMProgramBuilder {
             var property = JVMProperty(name: name, type: type, getter: getter, setter: setter, field: field, modifiers: p.modifiers)
             property.isGetterInline = p.modifiers.contains(.inline) || p.getter?.isInline == true
             property.isSetterInline = p.modifiers.contains(.inline) || p.setter?.isInline == true
+            property.usesPrivateBackingField = usesPrivateBackingField
             property.kotlinType = try kotlinType(propertyType)
             property.kotlinReceiver = try extensionReceiverSemantic.map(kotlinType)
             property.genericSignature = try signatureType(propertyType)

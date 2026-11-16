@@ -38,13 +38,21 @@ internal class RuntimeTypeParameter(private val metadata: RuntimeMetadata, priva
         return result
     }
 }
-internal class RuntimeClassType(private val owner: Any, private val metadata: RuntimeMetadata? = null): KType {
+internal class RuntimeClassType(
+    private val owner: Any,
+    private val metadata: RuntimeMetadata? = null,
+    override val isMarkedNullable: Boolean = false,
+    private val explicitArguments: List<KTypeProjection>? = null
+): KType {
+    constructor(owner: Any, isMarkedNullable: Boolean, arguments: List<KTypeProjection>) :
+        this(owner, null, isMarkedNullable, arguments)
     override val annotations: List<Annotation> get() = emptyList()
     override val isMarkedNullable: Boolean get() = false
     // A constructor's class reference still carries the class's type
     // parameters, so `Box<T>::class` arguments surface `T` rather than
     // collapsing to an empty list.
     override val arguments: List<KTypeProjection> get() {
+        explicitArguments?.let { return it }
         val meta = metadata ?: return emptyList()
         val result = mutableListOf<KTypeProjection>()
         for (parameter in meta.root.children(5)) {
@@ -52,8 +60,30 @@ internal class RuntimeClassType(private val owner: Any, private val metadata: Ru
         }
         return result
     }
+
+    override val isMarkedNullable: Boolean get() = false
     override val classifier: KClassifier get() = ClassReference(owner as java.lang.Class<Any>)
     override fun toString(): String = ClassReference(owner as java.lang.Class<Any>).qualifiedName ?: __jvmClassName(owner)
+    // `typeOf` creates a fresh instance per call; structural equality keeps
+    // `typeOf(X) == typeOf(X)` true and makes KType usable as a Map key.
+    override fun equals(other: Any?): Boolean = other is RuntimeClassType && owner == other.owner
+    override fun hashCode(): Int = owner.hashCode()
+    override fun equals(other: Any?): Boolean =
+        other is RuntimeClassType && classifier == other.classifier &&
+            isMarkedNullable == other.isMarkedNullable && arguments == other.arguments
+    override fun hashCode(): Int = (classifier.hashCode() * 31 + arguments.hashCode()) * 31 + isMarkedNullable.hashCode()
+    override fun toString(): String {
+        val name = ClassReference(owner as java.lang.Class<Any>).qualifiedName ?: __jvmClassName(owner)
+        val projections = if (arguments.isEmpty()) "" else arguments.joinToString(", ", "<", ">") { projection ->
+            when (projection.variance) {
+                null -> "*"
+                KVariance.IN -> "in " + projection.type
+                KVariance.OUT -> "out " + projection.type
+                KVariance.INVARIANT -> projection.type.toString()
+            }
+        }
+        return name + projections + if (isMarkedNullable) "?" else ""
+    }
 }
 internal class RuntimeParameter(private val key: RuntimeCallable, override val index: Int, override val name: String?, override val isOptional: Boolean, override val annotations: List<Annotation>): KParameter {
     override fun equals(other: Any?): Boolean = other is RuntimeParameter && key == other.key && index == other.index
@@ -85,9 +115,9 @@ internal fun boxResult(value: Any?, metadata: RuntimeMetadata, type: Proto): Any
     return value
 }
 open class RuntimeCallable(
-    protected val ownerClass: Any,
+    protected open val ownerClass: Any,
     private val displayName: String,
-    protected val signatureString: String,
+    protected open val signatureString: String,
     protected val boundReceiver: Any?,
     protected val bound: Boolean
 ): KCallable<Any?> {

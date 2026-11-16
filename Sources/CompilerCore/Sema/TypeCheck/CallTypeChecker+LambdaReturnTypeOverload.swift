@@ -59,6 +59,15 @@ extension CallTypeChecker {
                     ownerPath = Array(importDecl.path.dropLast())
                 }
                 let importedObjects = ctx.sema.symbols.lookupAll(fqName: ownerPath)
+                // A Java class exposes its static methods through a projected
+                // companion, but imports name the class as the declaring owner.
+                if ctx.sema.symbols.isJVMJavaMethod(candidate),
+                   importedObjects.contains(where: {
+                       ctx.sema.symbols.companionObjectSymbolIfKnown(for: $0) == dispatchOwner
+                   }) {
+                    result[candidate] = dispatchOwner
+                    break
+                }
                 if let object = importedObjects.first(where: { object in
                     ctx.sema.symbols.symbol(object)?.kind == .object
                         && ctx.sema.types.isNominalSubtypeSymbol(object, of: dispatchOwner)

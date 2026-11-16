@@ -91,6 +91,7 @@ extension JVMClasspathIndex {
             package java.lang
             class String(value: kotlin.String) {
                 companion object {
+                    val CASE_INSENSITIVE_ORDER: kotlin.Comparator<kotlin.String> get() = null!!
                     external fun valueOf(value: Boolean): String
                     external fun valueOf(value: Char): String
                     external fun valueOf(value: CharArray): String
@@ -168,6 +169,9 @@ extension JVMClasspathIndex {
                     val err: java.io.PrintStream get() = null!!
                     external fun getProperty(propertyName: kotlin.String): kotlin.String?
                     external fun getProperty(propertyName: kotlin.String, defaultValue: kotlin.String): kotlin.String
+                    external fun getProperty(propertyName: kotlin.String): kotlin.String?
+                    external fun getProperty(propertyName: kotlin.String, defaultValue: kotlin.String): kotlin.String
+                    external fun currentTimeMillis(): Long
                     external fun nanoTime(): Long
                     external fun arraycopy(src: Any?, srcPos: Int, dest: Any?, destPos: Int, length: Int): Unit
                     external fun exit(status: Int): Unit
@@ -176,6 +180,7 @@ extension JVMClasspathIndex {
             """, 0x0011, "java/lang/Object", [
                 method("java/lang/System", "getProperty", [.string], .reference("java/lang/String", nullable: true), staticMember: true),
                 method("java/lang/System", "getProperty", [.string, .string], .reference("java/lang/String", nullable: false), staticMember: true),
+                method("java/lang/System", "currentTimeMillis", [], .long, staticMember: true),
                 method("java/lang/System", "nanoTime", [], .long, staticMember: true),
                 method("java/lang/System", "arraycopy", [object, .int, object, .int, .int], .unit, staticMember: true),
                 method("java/lang/System", "exit", [.int], .unit, staticMember: true),
@@ -208,8 +213,10 @@ extension JVMClasspathIndex {
             package java.lang
             class Integer private constructor() {
                 companion object {
-                    external fun parseInt(value: String): Int
-                    external fun parseInt(value: String, radix: Int): Int
+                    const val MAX_VALUE: Int = 2147483647
+                    const val MIN_VALUE: Int = -2147483647 - 1
+                    external fun parseInt(value: kotlin.String): Int
+                    external fun parseInt(value: kotlin.String, radix: Int): Int
                 }
             }
             """, 0x0011, "java/lang/Number", [
@@ -222,17 +229,37 @@ extension JVMClasspathIndex {
                 companion object {
                     external fun isDigit(value: Char): Boolean
                     external fun isDigit(value: Int): Boolean
+                    external fun toUpperCase(value: Char): Char
+                    external fun toUpperCase(value: Int): Int
                 }
             }
             """, 0x0011, "java/lang/Object", [
                 method("java/lang/Character", "isDigit", [.char], .boolean, staticMember: true),
                 method("java/lang/Character", "isDigit", [.int], .boolean, staticMember: true),
+                method("java/lang/Character", "toUpperCase", [.char], .char, staticMember: true),
+                method("java/lang/Character", "toUpperCase", [.int], .int, staticMember: true),
             ]),
             ("java/util/Arrays", arraysSource, 0x0031, "java/lang/Object", arraysMethods),
             ("java/util/function/ToIntFunction", """
             package java.util.function
             fun interface ToIntFunction<T> { fun applyAsInt(value: T): Int }
             """, 0x0601, "java/lang/Object", [method("java/util/function/ToIntFunction", "applyAsInt", [object], .int, interface: true)]),
+            ("java/lang/Runnable", """
+            package java.lang
+            fun interface Runnable {
+                fun run()
+            }
+            """, 0x0601, "java/lang/Object", [
+                method("java/lang/Runnable", "run", [], .unit, interface: true),
+            ]),
+            ("java/util/concurrent/Callable", """
+            package java.util.concurrent
+            fun interface Callable<V> {
+                fun call(): V
+            }
+            """, 0x0601, "java/lang/Object", [
+                method("java/util/concurrent/Callable", "call", [], object, interface: true),
+            ]),
             ("java/util/Comparator", """
             package java.util
             fun interface Comparator<T> {
@@ -342,17 +369,40 @@ extension JVMClasspathIndex {
                 method("java/util/SortedSet", "tailSet", [object], .reference("java/util/SortedSet", nullable: false), interface: true),
                 method("java/util/SortedSet", "subSet", [object, object], .reference("java/util/SortedSet", nullable: false), interface: true),
             ]),
+            ("java/lang/Void", """
+            package java.lang
+            class Void private constructor()
+            """, 0x0011, "java/lang/Object", []),
+            ("java/lang/reflect/Field", """
+            package java.lang.reflect
+            class Field private constructor() {
+                var isAccessible: Boolean get() = false set(value) {}
+                external fun setBoolean(receiver: Any?, value: Boolean)
+                external fun setInt(receiver: Any?, value: Int)
+            }
+            """, 0x0011, "java/lang/reflect/AccessibleObject", [
+                method("java/lang/reflect/Field", "isAccessible", [], .boolean),
+                method("java/lang/reflect/Field", "setAccessible", [.boolean], .unit),
+                method("java/lang/reflect/Field", "setBoolean", [object, .boolean], .unit),
+                method("java/lang/reflect/Field", "setInt", [object, .int], .unit),
+            ]),
             ("java/util/Locale", """
             package java.util
             open class Locale {
                 val language: String get() = null!!
                 companion object {
                     val ROOT: Locale get() = null!!
+                    val US: Locale get() = null!!
+                    val JAPAN: Locale get() = null!!
+                    val JAPANESE: Locale get() = null!!
+                    val ENGLISH: Locale get() = null!!
+                    external fun getDefault(): Locale
                     external fun forLanguageTag(languageTag: String): Locale
                 }
             }
             """, 0x0001, "java/lang/Object", [
                 method("java/util/Locale", "getLanguage", [], .string),
+                method("java/util/Locale", "getDefault", [], .reference("java/util/Locale", nullable: false), staticMember: true),
                 method("java/util/Locale", "forLanguageTag", [.string], .reference("java/util/Locale", nullable: false), staticMember: true),
             ]),
             ("java/util/TreeMap", """
@@ -463,6 +513,15 @@ extension JVMClasspathIndex {
                 constructor(msg: String?): super(msg)
             }
             """, 0x0001, "java/lang/IllegalArgumentException", [method("java/security/InvalidParameterException", "<init>", [], .reference("java/security/InvalidParameterException", nullable: false)), method("java/security/InvalidParameterException", "<init>", [.reference("java/lang/String", nullable: true)], .reference("java/security/InvalidParameterException", nullable: false))]),
+            ("java/io/InputStreamReader", """
+            package java.io
+            open class InputStreamReader(input: InputStream, charset: java.nio.charset.Charset): Reader() {
+                override fun read(buffer: CharArray, offset: Int, length: Int): Int = 0
+            }
+            """, 0x0001, "java/io/Reader", [
+                method("java/io/InputStreamReader", "<init>", [.reference("java/io/InputStream", nullable: false), .reference("java/nio/charset/Charset", nullable: false)], .reference("java/io/InputStreamReader", nullable: false)),
+                method("java/io/InputStreamReader", "read", [.reference("[C", nullable: false), .int, .int], .int),
+            ]),
             ("java/nio/charset/Charset", """
             package java.nio.charset
             abstract class Charset {
@@ -500,6 +559,12 @@ extension JVMClasspathIndex {
             var info = JVMClassInfo(name: name, flags: flags, superclass: superclass, interfaces: [], methods: methods)
             if name == "java/lang/System" {
                 info.fields = ["out", "err"].map { JVMForeignField(name: $0, descriptor: "Ljava/io/PrintStream;", access: 0x19) }
+            }
+            if name == "java/lang/String" {
+                info.fields = [JVMForeignField(name: "CASE_INSENSITIVE_ORDER", descriptor: "Ljava/util/Comparator;", access: 0x0019)]
+            }
+            if name == "java/util/Locale" {
+                info.fields = ["ROOT", "US", "JAPAN", "JAPANESE", "ENGLISH"].map { JVMForeignField(name: $0, descriptor: "Ljava/util/Locale;", access: 0x0019) }
             }
             let path = "<kswiftk-jvm>/platform/" + name + ".kt"
             let file = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8), origin: .residualStdlib)
@@ -597,6 +662,21 @@ extension JVMClasspathIndex {
             sourceClasses[file] = info
             classes[durationName] = info
         }
+        // The shared frontend already declares File, its constructors and
+        // path. Supply their JDK signatures even with no platform jar.
+        let fileName = "java/io/File"
+        if classes[fileName] == nil {
+            let fileType = JVMValueType.reference(fileName, nullable: false)
+            classes[fileName] = JVMClassInfo(name: fileName, flags: 0x0001, superclass: "java/lang/Object",
+                                           interfaces: ["java/io/Serializable", "java/lang/Comparable"], methods: [
+                method(fileName, "<init>", [.string], fileType),
+                method(fileName, "<init>", [.string, .string], fileType),
+                method(fileName, "<init>", [.reference(fileName, nullable: true), .string], fileType),
+                method(fileName, "getPath", [], .string),
+                method(fileName, "getAbsolutePath", [], .string),
+                method(fileName, "mkdirs", [], .boolean),
+            ])
+        }
         let closeableName = "java/io/Closeable"
         if classes[closeableName] == nil {
             classes[closeableName] = JVMClassInfo(name: closeableName, flags: 0x0601, superclass: nil,
@@ -629,6 +709,48 @@ extension JVMClasspathIndex {
         if let file = ctx.sourceManager.fileIDs().first(where: { ctx.sourceManager.path(of: $0) == comparatorPath }),
            let info = classes["java/util/Comparator"] {
             sourceClasses[file] = info
+        }
+    }
+
+    func bindJDKFileMembers(in ctx: CompilationContext, sema: SemaModule) throws {
+        guard let file = classes["java/io/File"] else { return }
+        let path = ["java", "io", "File"].map(ctx.interner.intern)
+        for name in ["<init>", "mkdirs"] {
+            for symbol in sema.symbols.lookupAll(fqName: path + [ctx.interner.intern(name)]) {
+                guard sema.symbols.symbol(symbol)?.declSite == nil,
+                      let signature = sema.symbols.functionSignature(for: symbol) else { continue }
+                let parameters = try signature.parameterTypes.map { try Self.type($0, sema: sema, ctx: ctx).descriptor }
+                let result = name == "<init>" ? "V" : "Z"
+                let descriptor = "(" + parameters.joined() + ")" + result
+                methods[symbol] = file.methods.first { $0.name == name && $0.descriptor == descriptor }
+            }
+        }
+        let inputStream = "java/io/InputStream"
+        let inputPath = ["java", "io", "InputStream"].map(ctx.interner.intern)
+        for name in ["available", "read"] {
+            for symbol in sema.symbols.lookupAll(fqName: inputPath + [ctx.interner.intern(name)]) {
+                guard sema.symbols.symbol(symbol)?.declSite == nil,
+                      let signature = sema.symbols.functionSignature(for: symbol) else { continue }
+                let parameters = try signature.parameterTypes.map { try Self.type($0, sema: sema, ctx: ctx) }
+                let descriptor = "(" + parameters.map(\.descriptor).joined() + ")I"
+                guard ["()I", "([B)I", "([BII)I"].contains(descriptor) else { continue }
+                methods[symbol] = JVMForeignMethod(owner: inputStream, name: name, descriptor: descriptor,
+                                                   parameters: parameters, result: .int, isStatic: false,
+                                                   isInterface: false, isAbstract: false)
+            }
+        }
+        for owner in ["java/io/OutputStream", "java/io/FileOutputStream", "java/io/Closeable", inputStream] {
+            let names = owner.hasSuffix("OutputStream") ? ["flush", "close"] : ["close"]
+            let path = owner.split(separator: "/").map { ctx.interner.intern(String($0)) }
+            for name in names {
+                for symbol in sema.symbols.lookupAll(fqName: path + [ctx.interner.intern(name)]) {
+                    guard sema.symbols.symbol(symbol)?.declSite == nil,
+                          sema.symbols.functionSignature(for: symbol)?.parameterTypes.isEmpty == true else { continue }
+                    methods[symbol] = JVMForeignMethod(owner: owner, name: name, descriptor: "()V", parameters: [],
+                                                       result: .unit, isStatic: false, isInterface: owner == "java/io/Closeable",
+                                                       isAbstract: owner == "java/io/Closeable")
+                }
+            }
         }
     }
 }

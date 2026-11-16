@@ -120,7 +120,7 @@ public struct JVMValue {
     public let type: JVMValueType
 }
 
-public enum JVMConstant: Sendable {
+public enum JVMConstant {
     case int(Int32), long(Int64), float(Float), double(Double), boolean(Bool), string(String)
     case null
 }
@@ -226,6 +226,7 @@ public struct JVMFunction {
     public var jvmName: String? = nil
     public var metadataDescriptor: String? = nil
     public var metadataParameterOffset = 0
+    public var declaredExceptions: [String] = []
     public var annotations: [JVMAnnotation] = []
     public var parameterAnnotations: [[JVMAnnotation]] = []
     public var annotationDefault: JVMAnnotationValue? = nil
@@ -254,7 +255,7 @@ public struct JVMProgram {
     public var typeAliases: [JVMTypeAlias] = []
 }
 
-public struct JVMForeignMethod: Sendable {
+public struct JVMForeignMethod {
     public let owner: String
     public let name: String
     public let descriptor: String
@@ -268,11 +269,15 @@ public struct JVMForeignMethod: Sendable {
     public var isVarargs = false
     public var isSuspend = false
     public var isProtected = false
+    var isPackagePrivate = false
     public var annotations: [JVMAnnotation] = []
     public var annotationDefault: JVMAnnotationValue? = nil
     // Classpath methods keep their physical descriptor until bound to a Kotlin call.
+    var parameterAnnotations: [[JVMAnnotation]] = []
+    var genericSignature: String?
     var kotlinSuspendFunction: JVMKotlinSuspendFunction?
     var genericResultParameter: (name: String, classParameterIndices: Set<Int>)?
+    var kotlinOwnerResultParameter: String?
     var kotlinConstructorParameterNames: [String]?
     var kotlinCollisionSourceName: String?
     var kotlinFunction: JVMKotlinFunction?
@@ -312,6 +317,7 @@ public struct JVMProperty {
     public var isGetterInline: Bool = false
     public var isSetterInline: Bool = false
     var accessesForeignField = false
+    var usesPrivateBackingField = false
 }
 
 public struct JVMRecordComponent {
@@ -408,7 +414,7 @@ public struct JVMTypeParameter {
     public var isReified = false
 }
 
-public struct JVMAnnotation: Sendable {
+public struct JVMAnnotation {
     public let descriptor: String
     public var values: [(String, JVMAnnotationValue)]
     public var visible: Bool = true
@@ -416,7 +422,7 @@ public struct JVMAnnotation: Sendable {
         self.descriptor = descriptor; self.values = values; self.visible = visible
     }
 }
-public indirect enum JVMAnnotationValue: Sendable {
+public indirect enum JVMAnnotationValue {
     case constant(JVMConstant)
     case integral(Int32, UInt8)
     case enumEntry(String, String)
