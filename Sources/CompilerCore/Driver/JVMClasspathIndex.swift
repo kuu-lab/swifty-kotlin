@@ -445,8 +445,10 @@ final class JVMClasspathIndex {
                 guard let base = hierarchyClasses[name] else { return }
                 for field in base.fields where field.access & 0x0002 == 0 && inheritedConstantNames.insert(field.name).inserted {
                     if field.isPublic && field.isStatic && field.isFinal {
-                            var f = field; f.inherited = true; inheritedConstants.append(f)
-                        }
+                        var f = field
+                        f.inherited = true
+                        inheritedConstants.append(f)
+                    }
                 }
                 for parent in base.interfaces { collectConstants(parent) }
             }
@@ -461,8 +463,10 @@ final class JVMClasspathIndex {
                 guard let base = hierarchyClasses[name] else { return }
                 for field in base.fields where field.access & 0x0002 == 0 && inheritedConstantNames.insert(field.name).inserted {
                     if field.isPublic && field.isStatic && field.isFinal {
-                            var f = field; f.inherited = true; inheritedConstants.append(f)
-                        }
+                        var f = field
+                        f.inherited = true
+                        inheritedConstants.append(f)
+                    }
                 }
                 bridges += base.bridgeMethods
                 for method in base.methods where !method.isStatic && !method.isConstructor {
@@ -485,8 +489,10 @@ final class JVMClasspathIndex {
                 if visible && superclass == nil { superclass = name; hiddenSegment = false }
                 for field in base.fields where field.access & 0x0002 == 0 && inheritedConstantNames.insert(field.name).inserted {
                     if field.isPublic && field.isStatic && field.isFinal {
-                            var f = field; f.inherited = true; inheritedConstants.append(f)
-                        }
+                        var f = field
+                        f.inherited = true
+                        inheritedConstants.append(f)
+                    }
                 }
                 for method in base.methods where !method.isConstructor && (method.isStatic || hiddenSegment) {
                     if methodKeys.insert(key(method)).inserted {
@@ -1645,7 +1651,8 @@ final class JVMClasspathIndex {
             }
             return "var `\(field.name)`: \(kotlin) get() = null!! set(value) {}\n"
         }
-        let runtimeFields = info.fields.compactMap(runtimeField)
+        let ownPropertyNames = Set(info.kotlinStaticProperties.filter { isExposed($0.value.getter) }.keys)
+            let runtimeFields = info.fields.compactMap { $0.inherited && ownPropertyNames.contains($0.name) ? nil : runtimeField($0) }
         let companion = allowsCompanion ? kotlinCompanion(of: info) : nil
         if allowsCompanion, metadata?.companion == nil, companion != nil || !statics.isEmpty || !constantFields.isEmpty || !runtimeFields.isEmpty {
             source += "companion object"
