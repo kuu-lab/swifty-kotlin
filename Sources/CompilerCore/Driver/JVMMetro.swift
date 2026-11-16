@@ -6,10 +6,12 @@ enum JVMMetro: String {
     case createGraphFactory
 
     static let package = "dev/zacsweers/metro/"
+    static let sourcePackage = "dev.zacsweers.metro"
     static let annotationPrefix = "L" + package
     static let facade = package + "CreateGraphKt"
     static let graph = "L" + package + "DependencyGraph;"
     static let factory = "L" + package + "DependencyGraph$Factory;"
+    static let provides = "L" + package + "Provides;"
     static let implementation = "L" + package + "internal/MetroImplMarker;"
     static let provider = "L" + package + "internal/CallableMetadata;"
     static let invoke = "L" + package + "internal/GraphFactoryInvokeFunctionMarker;"
@@ -46,7 +48,9 @@ extension JVMFunctionBuilder {
         let resultType = try program.expressionType(id)
         switch entry {
         case .createGraphFactory:
-            guard let field = imports.metroFactoryInstance(name) else { throw fail(missingArtifact, id) }
+            guard let field = program.metroFactoryFields[nominal.classSymbol] ?? imports.metroFactoryInstance(name) else {
+                throw fail(missingArtifact, id)
+            }
             let instance = try value(field.type)
             instructions.append(.getStatic(field, instance))
             return JVMIntrinsicResult(value: try convert(instance, to: resultType))
