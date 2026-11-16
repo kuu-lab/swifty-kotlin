@@ -374,6 +374,7 @@ private func jvmRegexForPropertyICU(_ name: String, negated: Bool) -> String? {
     case "L1": return negated ? "[^\\x00-\\xFF]" : "[\\x00-\\xFF]"
     case "all": return negated ? "\\P{Any}" : "\\p{Any}"
     case "javaAlphabetic": return negated ? "\\P{Alphabetic}" : "\\p{Alphabetic}"
+    case "javaDefined": return negated ? "\\P{Assigned}" : "\\p{Assigned}"
     case "javaIdeographic": return negated ? "\\P{Ideographic}" : "\\p{Ideographic}"
     case "javaLowerCase": return negated ? "\\P{Lowercase}" : "\\p{Lowercase}"
     case "javaUpperCase": return negated ? "\\P{Uppercase}" : "\\p{Uppercase}"
@@ -600,7 +601,10 @@ func jvmRegexICUPropertyReplacement(_ name: String, negated: Bool, unicodeClasse
                 }
                 return "[\\p{Is\(upper)}--[\\uE000-\\uE801]]"
             default:
-                return nil
+                // ICU does not know the `Is`-prefixed spelling of binary
+                // properties (e.g. `\\p{IsAssigned}`): emit the bare name.
+                // POSIX names stay verbatim — their bare spellings differ.
+                return jvmRegexPosixNames.contains(upper) ? nil : propertyEscape(short)
             }
         }
         if jvmRegexPropertyNames.contains(short) {

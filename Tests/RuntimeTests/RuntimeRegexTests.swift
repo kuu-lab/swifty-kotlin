@@ -855,7 +855,7 @@ struct RuntimeRegexTests {
         // Is* names ICU already resolves keep passing through.
         #expect(translateJavaPatternForICU("\\p{IsLatin}") == "\\p{IsLatin}")
         #expect(translateJavaPatternForICU("\\p{Islower}") == "\\p{Islower}")
-        #expect(translateJavaPatternForICU("\\p{IsALPHABETIC}") == "\\p{IsALPHABETIC}")
+        #expect(translateJavaPatternForICU("\\p{IsALPHABETIC}") == "\\p{ALPHABETIC}")
         // gc=/general_category= resolve through forProperty: POSIX values take
         // the ASCII expansion in every mode (?U does not reach forProperty),
         // categories and java* get the same rewrites as bare names.
