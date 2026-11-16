@@ -1,6 +1,6 @@
 import Foundation
 
-struct JVMClassInfo {
+struct JVMClassInfo: Sendable {
     let name: String
     let flags: UInt16
     let superclass: String?
@@ -792,8 +792,9 @@ struct JVMClassReader {
     }
 }
 
-final class JVMDescriptorCache {
+final class JVMDescriptorCache: @unchecked Sendable {
     private static let maximumEntries = 2_048
+    private let lock = NSLock()
     private var entries: [String: ([JVMValueType], JVMValueType)] = [:]
 
     func parse(_ descriptor: String) throws -> ([JVMValueType], JVMValueType) {
@@ -802,13 +803,23 @@ final class JVMDescriptorCache {
         guard descriptor.utf8.allSatisfy({ $0 < 0x80 }) else {
             return try JVMDescriptor.parse(descriptor)
         }
-        if let signature = entries[descriptor] { return signature }
+        lock.lock()
+        if let signature = entries[descriptor] {
+            lock.unlock()
+            return signature
+        }
+        lock.unlock()
 
+        // Concurrent readers may parse the same descriptor; the results are
+        // identical, so the last store wins.
         let signature = try JVMDescriptor.parse(descriptor)
+
+        lock.lock()
         entries[descriptor] = signature
         if entries.count == Self.maximumEntries {
             entries.removeAll(keepingCapacity: true)
         }
+        lock.unlock()
         return signature
     }
 }

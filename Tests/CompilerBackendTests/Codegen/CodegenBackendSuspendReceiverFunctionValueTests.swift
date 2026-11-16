@@ -55,6 +55,7 @@ struct CodegenBackendSuspendReceiverFunctionValueTests {
     @Test(arguments: [true, false])
     func testRunTestAcceptsSuspendExtensionReferences(allowDefaultStdlibLibrary: Bool) throws {
         let source = """
+        import kotlinx.coroutines.CoroutineScope
         import kotlinx.coroutines.test.*
 
         @OptIn(ExperimentalCoroutinesApi::class)
@@ -71,13 +72,16 @@ struct CodegenBackendSuspendReceiverFunctionValueTests {
             runTest(testBody = typed)
             val inferred = TestScope::fnBody
             runTest(testBody = inferred)
+            val scope = TestScope()
+            println(scope is TestScope)
+            println(scope is CoroutineScope)
             println("done")
         }
         """
         try assertKotlinOutput(
             source,
             moduleName: "RunTestSuspendExtensionReferences",
-            expected: "fnref t0=0\nfnref t1=9\nfnref t0=0\nfnref t1=9\nfnref t0=0\nfnref t1=9\ndone\n",
+            expected: "fnref t0=0\nfnref t1=9\nfnref t0=0\nfnref t1=9\nfnref t0=0\nfnref t1=9\ntrue\ntrue\ndone\n",
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
