@@ -559,12 +559,16 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
                         let negated = escape == "P"
                         if classDepth > 0 {
                             // Sequence alternatives are not expressible as a
-                            // class member: emit `[...]`-form replacements
-                            // nested, and keep surrogate-space names verbatim
-                            // for regexMarkerSpaceClassReplacement to model.
+                            // class member: `(?:...)`- and multi-atom-form
+                            // replacements (`\uE800[...]`) keep the
+                            // surrogate-space name verbatim for
+                            // regexMarkerSpaceClassReplacement to model, while
+                            // `[...]`-form and `\p{...}`-form replacements are
+                            // valid members and are emitted canonicalized
+                            // (`\p{javaAlphabetic}` -> `\p{Alphabetic}`).
                             if let replacement = jvmRegexICUPropertyReplacement(
                                 name, negated: negated, unicodeClasses: unicodeClasses
-                            ), replacement.hasPrefix("[") {
+                            ), replacement.hasPrefix("[") || replacement.hasPrefix("\\p{") || replacement.hasPrefix("\\P{") {
                                 out.append(replacement)
                             } else {
                                 out.append(contentsOf: chars[index...end])
@@ -591,7 +595,7 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
                     if classDepth > 0 {
                         if let replacement = jvmRegexICUPropertyReplacement(
                             letter, negated: negated, unicodeClasses: unicodeClasses
-                        ), replacement.hasPrefix("[") {
+                        ), replacement.hasPrefix("[") || replacement.hasPrefix("\\p{") || replacement.hasPrefix("\\P{") {
                             out.append(replacement)
                         } else {
                             out.append("\\\(escape){\(letter)}")
@@ -2177,9 +2181,16 @@ func regexMarkerSpaceClassReplacement(_ emitted: String) -> String? {
             } else {
                 return nil
             }
-            guard let coverage = jvmRegexMemberSpaceCoverage(name, negated: negated) else { return nil }
             flushScalar()
-            members.append((kind: .nested, text: coverage.text, scalarRanges: coverage.ranges))
+            if let coverage = jvmRegexMemberSpaceCoverage(name, negated: negated) {
+                members.append((kind: .nested, text: coverage.text, scalarRanges: coverage.ranges))
+            } else {
+                // Names without marker-space coverage (scripts, most
+                // categories, binary properties) cannot match an escape
+                // pair's scalars — keep them as a verbatim member instead of
+                // bailing out of the whole class rewrite.
+                members.append((kind: .nested, text: "\\\(negated ? "P" : "p"){\(name)}", scalarRanges: []))
+            }
             i = j
             continue
         }
