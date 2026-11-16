@@ -391,6 +391,42 @@ func runtimeRunTestTimeoutError(
     )
 }
 
+/// Stable nominal type ID of `kotlinx.coroutines.test.TestScope`. TestScope
+/// values are `RuntimeCoroutineScope` handles, but `as TestScope` receiver
+/// checkcasts inside `suspend TestScope.() -> Unit` function values (e.g. a
+/// `TestScope::fnBody` callable reference passed to `runTest`) require the
+/// handle's nominal identity to be TestScope itself — the same retag +
+/// supertype-edge pattern `ActorScope` uses (KUU-4592).
+private let runtimeTestScopeTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlinx.coroutines.test.TestScope"
+)
+
+private let runtimeTestScopeCoroutineScopeTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlinx.coroutines.CoroutineScope"
+)
+
+/// Mints a scope handle tagged as `TestScope`: still a real
+/// RuntimeCoroutineScope (the `kk_coroutine_scope_*` members keep working),
+/// but its nominal identity is TestScope with a registered edge to
+/// CoroutineScope so `is`/`as` checks answer correctly in both directions.
+private func runtimeMintTestScope(contextRaw: Int) -> Int {
+    let handle = kk_coroutine_scope_new_with_context(contextRaw)
+    runtimeRegisterObjectType(rawValue: handle, classID: runtimeTestScopeTypeID)
+    runtimeRegisterTypeEdge(
+        childTypeID: runtimeTestScopeTypeID,
+        parentTypeID: runtimeTestScopeCoroutineScopeTypeID
+    )
+    return handle
+}
+
+/// Backing for the stdlib `TestScope(context)` factory — same mint as
+/// `kk_coroutine_scope_new_with_context` but tagged as TestScope so
+/// `TestScope() is TestScope` holds.
+@_cdecl("kk_test_scope_new_with_context")
+public func kk_test_scope_new_with_context(_ contextRaw: Int) -> Int {
+    return runtimeMintTestScope(contextRaw: contextRaw)
+}
+
 /// Backing for `kotlinx.coroutines.test.runTest` — mints a `TestScope` (a
 /// real RuntimeCoroutineScope over `context`) and invokes `testBody` with
 /// `this` bound to it. Two block shapes reach this boundary, mirroring
@@ -420,7 +456,7 @@ public func kk_test_run_blocking(
         guard entryPointRaw != 0 else {
             return 0
         }
-        let scopeHandle = kk_coroutine_scope_new_with_context(contextRaw)
+        let scopeHandle = runtimeMintTestScope(contextRaw: contextRaw)
         guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
             fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_test_run_blocking failed to create test scope")
         }
@@ -564,7 +600,7 @@ public func kk_test_run_blocking_with_cont(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     return runtimeThrowingBridge(outThrown) {
-        let scopeHandle = kk_coroutine_scope_new_with_context(contextRaw)
+        let scopeHandle = runtimeMintTestScope(contextRaw: contextRaw)
         guard let scope = runtimeCoroutineScope(from: scopeHandle),
               let contState = runtimeContinuationState(from: continuation),
               scopeSlotRaw >= 0
