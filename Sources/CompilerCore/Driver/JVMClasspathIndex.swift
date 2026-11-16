@@ -588,6 +588,7 @@ final class JVMClasspathIndex {
         if name.hasPrefix("kotlin/jvm/functions/Function") { return false }
         if name.hasPrefix("["), let element = try? JVMDescriptor.parse("()" + String(name.dropFirst())).1 { return expose(element) }
         return name == "java/lang/String" || name == "java/lang/Object" || name == "java/lang/Class"
+            || name == "java/io/InputStream"
             || name == "kotlin/coroutines/Continuation" || classes[name] != nil || sourceClassNames.contains(name)
     }
 
@@ -1216,6 +1217,9 @@ final class JVMClasspathIndex {
         // interfaces. Share those types so Java implementations participate
         // in Kotlin's Iterable extension resolution.
         covered.formUnion(["java/lang/Iterable", "java/util/Iterator", "java/lang/Comparable"])
+        // Java list subinterfaces (e.g. Android's ObservableList) use the
+        // same List nominal as generic signatures and Kotlin source.
+        covered.insert("java/util/List")
         // The frontend's CoroutineDispatcher contract already models its
         // Java list subinterfaces (e.g. Android's ObservableList) use the
         // same List nominal as generic signatures and Kotlin source.
@@ -1393,6 +1397,7 @@ final class JVMClasspathIndex {
                 }
                 parents += info.interfaces.filter {
                     classes[$0] != nil || sourceClassNames.contains($0) || info.kotlinReadOnlyCollectionSupertypes[$0] != nil
+                        || $0 == "java/util/List"
                         || $0 == "java/lang/Comparable" && info.kotlinComparableSupertype != nil
                         || $0 == "java/util/List"
                 }.compactMap { supertypeReference($0, child: info) }
