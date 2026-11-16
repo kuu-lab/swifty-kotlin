@@ -418,6 +418,17 @@ func jvmRegexMemberSpaceCoverage(_ name: String, negated: Bool) -> (text: String
             if block.hasPrefix("IN") { block = String(block.dropFirst(2)) }
             if block.hasPrefix("BLK") { block = String(block.dropFirst(3)) }
             return jvmRegexMemberBlockCoverage(block, negated: negated)
+        case "sc", "script":
+            // Only script Unknown (Zzzz) covers marker-space scalars
+            // (surrogates and PUA are sc=Unknown); every real script misses
+            // the marker space entirely and stays verbatim.
+            let script = normalized(value)
+            if script == "UNKNOWN" || script == "ZZZZ" {
+                return negated
+                    ? ("\\P{sc=Unknown}", [])
+                    : ("[\\p{sc=Unknown}--[\\uE000-\\uE801]]", [surrogateRange, markerRange])
+            }
+            return nil
         default:
             return nil
         }
@@ -428,6 +439,13 @@ func jvmRegexMemberSpaceCoverage(_ name: String, negated: Bool) -> (text: String
         return jvmRegexMemberBlockCoverage(normalized(String(name.dropFirst(2))), negated: negated)
     }
     switch lookup {
+    case "Unknown", "Zzzz":
+        // `\p{IsUnknown}` / `\p{IsZzzz}`: script Unknown covers every
+        // marker-space scalar, so the positive member needs both pair arms;
+        // its complement covers none of them.
+        return negated
+            ? ("\\P{sc=Unknown}", [])
+            : ("[\\p{sc=Unknown}--[\\uE000-\\uE801]]", [surrogateRange, markerRange])
     case "Cs":
         return negated
             ? ("[\\P{Cs}--[\\uE000-\\uE801]]", [markerRange])

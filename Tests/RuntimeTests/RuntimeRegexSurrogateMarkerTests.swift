@@ -226,6 +226,18 @@ struct RuntimeRegexSurrogateMarkerTests {
         // `[^\p{L}]` = non-letters: the surrogate matches once.
         let negOuter = makeRegex("[^\\p{L}]")
         #expect(findAllValues(negOuter, units: [0x61, 0xD800, 0x35]).count == 2)
+        // Script Unknown (Zzzz) covers the whole marker space, so its
+        // complement covers none of it: `[\P{...}]` must not pair-match.
+        for pattern in ["[\\P{IsUnknown}]", "[\\P{sc=Unknown}]", "[\\P{sc=Zzzz}]"] {
+            let negated = makeRegex(pattern)
+            #expect(findAllValues(negated, units: [0x61, 0xD800, 0xE005]).count == 1,
+                    "\(pattern) matched a marker-space unit")
+        }
+        // `\p{sc=Unknown}` itself covers both marker spaces as whole units.
+        let unknownScript = makeRegex("[\\p{sc=Unknown}]")
+        #expect(findAllValues(unknownScript, units: [0x61, 0xD800, 0xE005]).count == 2)
+        let unknownNegatedOuter = makeRegex("[^\\P{sc=Unknown}]")
+        #expect(findAllValues(unknownNegatedOuter, units: [0x61, 0xD800, 0xE005]).count == 2)
     }
 
     @Test
