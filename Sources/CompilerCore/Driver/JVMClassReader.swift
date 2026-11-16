@@ -30,7 +30,7 @@ struct JVMClassInfo {
     var hasKotlinMetadata = false
     var kotlinAnnotationVarargElementNames: Set<String> = []
     var kotlinStaticProperties: [String: (getter: JVMForeignMethod, isNullable: Bool)] = [:]
-    var kotlinMemberProperties: [String: (getter: JVMForeignMethod, sourceType: String)] = [:]
+    var kotlinMemberProperties: [String: (getter: JVMForeignMethod, setter: JVMForeignMethod?, sourceType: String)] = [:]
     var kotlinTopLevelConstants: [String: String] = [:]
     var kotlinTopLevelProperties: [(source: JVMKotlinTopLevelProperty, getter: JVMForeignMethod)] = []
     var kotlinMultifileParts: [String] = []
@@ -51,7 +51,8 @@ struct JVMClassInfo {
     }
 
     func isRuntimeInstanceField(_ field: JVMForeignField) -> Bool {
-        isKotlinFileFacade == nil && field.isPublic && !field.isStatic && field.access & 0x1000 == 0
+        isKotlinFileFacade == nil && (field.isPublic || field.isPackagePrivate)
+            && !field.isStatic && field.access & 0x1000 == 0
     }
 }
 
@@ -72,6 +73,7 @@ struct JVMForeignField {
     var genericSignature: String?
     var isStatic: Bool { access & 8 != 0 }
     var isPublic: Bool { access & 1 != 0 }
+    var isPackagePrivate: Bool { access & 0x0007 == 0 }
     var isFinal: Bool { access & 16 != 0 }
 }
 
@@ -607,7 +609,8 @@ struct JVMClassReader {
             let isMetroAccessor = hasMetroAnnotation && ((methodInfo.annotations.contains { $0.descriptor == JVMMetro.provides } || methodName == "<init>") && access & 0x0002 != 0
                 || access & 0x1009 == 0x1009 && methodName.hasPrefix("access$"))
             let isPackageConstructor = methodName == "<init>" && access & 0x0007 == 0
-            if isMetroAccessor || ((access & 0x0005 != 0 || isPackageConstructor) && (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod || isValueAdapter || isSyntheticConstructor || isReifiedGlanceAction || isReifiedWorkBuilder || isReifiedContextService || isReifiedActivityViewModel || isReifiedHiltViewModel)), methodName != "<clinit>",
+            let isPackagePrivate = !hasKotlinMetadata && access & 0x0007 == 0
+            if isMetroAccessor || ((access & 0x0005 != 0 || isPackageConstructor || isPackagePrivate) && (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod || isValueAdapter || isSyntheticConstructor || isReifiedGlanceAction || isReifiedWorkBuilder || isReifiedContextService || isReifiedActivityViewModel || isReifiedHiltViewModel)), methodName != "<clinit>",
                let signature = try? (descriptorCache?.parse(descriptor) ?? JVMDescriptor.parse(descriptor)),
                signature.0.reduce(0, { $0 + $1.width }) <= (access & 8 != 0 ? 255 : 254) {
                 var method = JVMForeignMethod(owner: name, name: methodName, descriptor: descriptor,
@@ -615,7 +618,7 @@ struct JVMClassReader {
                     isStatic: access & 8 != 0, isInterface: flags & 0x0200 != 0, isAbstract: access & 0x0400 != 0)
                 method.isFinal = access & 16 != 0
                 method.isProtected = access & 0x0004 != 0
-                method.isPackagePrivate = isPackageConstructor
+                method.isPackagePrivate = isPackagePrivate
                 method.isVarargs = access & 0x0080 != 0
                 method.genericResultParameter = Self.genericResultParameter(in: methodInfo.signature, method: method)
                 if name == "androidx/work/WorkRequest$Builder", let signature = methodInfo.signature {
@@ -871,11 +874,16 @@ struct JVMClassReader {
                               || flags & 0x0200 != 0 && getter.isAbstract && !property.isVar && property.isSourceVisible
                               || !getter.isStatic && property.isSourceVisible && !property.isVar
                                   && getter.composePropertyABI(hasReceiver: false)
-                              || getter.isFinal && !property.isVar
-                                  && (sourceType.contains("<") || getter.name == property.name)),
+                              || getter.isFinal && property.isSourceVisible
+                                  && (property.isNullable || sourceType.contains("<")
+                                      || !property.isVar && getter.name == property.name)),
                           !getter.isStatic && (getter.parameters.isEmpty || getter.composePropertyABI(hasReceiver: false))
                               || hasValueAdapters && getter.isStatic && getter.parameters.map(\.descriptor) == [valueCarrier?.descriptor] {
-                    info.kotlinMemberProperties[property.name] = (getter, sourceType)
+                    let setter = methods.first {
+                        !$0.isProtected && !$0.isStatic
+                            && $0.name == property.setterName && $0.descriptor == property.setterDescriptor
+                    }
+                    info.kotlinMemberProperties[property.name] = (getter, setter, sourceType)
                 }
             }
         }
