@@ -29,6 +29,10 @@ extension JVMBackendTests {
                 override fun dependsOn(child: Behavior.Widget?): Boolean = child == null
             }
 
+            // A Java `V extends View` bound is a platform type — nullable
+            // type arguments like `Widget?` must not be rejected.
+            fun acceptsNullableBound(b: Behavior<Behavior.Widget?>): Boolean = true
+
             fun main() {
                 println(Behavior.dispatch(Candidate(), null))
                 println(Behavior.dispatch(Candidate(), Behavior.Widget()))
