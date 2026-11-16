@@ -836,8 +836,9 @@ final class JVMClasspathIndex {
             var parameter = (element.isVararg ? "vararg val " : "val ") + name + ": " + type
             // Vararg defaults remain array literals in bytecode metadata; the
             // frontend consumes them directly, while source varargs may omit them.
-            if !element.isVararg, let value = element.defaultValue, let rendered = annotationValueSource(value, type: element.type) {
-                parameter += " = \(rendered)"
+            // Omitting an annotation vararg already supplies an empty array.
+            if let value = element.defaultValue, let rendered = annotationValueSource(value, type: element.type),
+               !element.isVararg || rendered != "[]" {                parameter += " = \(rendered)"
             }
             return parameter
         }.joined(separator: ", ")
@@ -1846,6 +1847,17 @@ final class JVMClasspathIndex {
             guard !["Z", "B", "C", "S", "I", "J", "F", "D"].contains(n), !n.isEmpty else { return [] }
             return [n]
         }
+        // Kotlin metadata can name types erased from the descriptor,
+        // such as a parameter of a Compose receiver lambda.
+        func markSourceTypes(_ sourceTypes: [String]) {
+            for type in sourceTypes {
+                let range = NSRange(type.startIndex..., in: type)
+                for match in Self.dottedPattern.matches(in: type, range: range) {
+                    guard let token = Range(match.range, in: type) else { continue }
+                    for name in normalizedToBinary[String(type[token])] ?? [] { markNeeded(name) }
+                }
+            }
+        }
         var edgeProcessed = Set<String>()
         func processEdges(_ name: String) {
             guard edgeProcessed.insert(name).inserted, let info = classes[name] else { return }
@@ -1877,12 +1889,13 @@ final class JVMClasspathIndex {
                         markNeeded(ref)
                     }
                 }
-                // Kotlin metadata can name types erased from the descriptor,
-                // such as a parameter of a Compose receiver lambda.
                 if let function = method.kotlinFunction {
                     let sourceTypes = (function.contextParameters + function.parameters).map(\.sourceType)
                         + [function.result] + [function.receiver].compactMap { $0 }
                     markSourceTypes(sourceTypes)
+                }
+                if let function = method.kotlinSuspendFunction {
+                    markSourceTypes(function.parameters.compactMap(\.sourceType))
                 }
             }
             for field in info.fields where field.isStatic && field.isPublic && field.access & 0x1000 == 0 {
@@ -2029,16 +2042,20 @@ final class JVMClasspathIndex {
             let isVararg = method.isVarargs && index == types.count - 1
             let name: String
             let nullable: Bool
+            let suspendSourceType: String?
             if receiverInParameters && index == 0 {
                 name = "`$receiver`"
                 nullable = suspend?.receiverIsNullable == true
+                suspendSourceType = nil
             } else if let suspend {
                 let metadataIndex = index - (receiverInParameters ? 1 : 0)
                 name = useNames ? "`\(names[metadataIndex])`" : "p\(index)"
                 nullable = suspend.parameters[metadataIndex].isNullable
+                suspendSourceType = suspend.parameters[metadataIndex].sourceType
             } else {
                 name = "p\(index)"
                 nullable = false
+                suspendSourceType = nil
             }
             let parameterType: String
             if let generic = method.genericResultParameter, generic.classParameterIndices.contains(index) {
@@ -2049,7 +2066,8 @@ final class JVMClasspathIndex {
             } else {
                 parameterType = kotlinType(parameter)
             }
-            return (isVararg ? "vararg " : "") + name + ": " + parameterType + (nullable ? "?" : "")
+            return (isVararg ? "vararg " : "") + name + ": "
+                + (suspendSourceType ?? (parameterType + (nullable ? "?" : "")))
         }.joined(separator: ", ")
     }
 
