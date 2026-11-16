@@ -58,11 +58,16 @@ extension JVMFunctionBuilder {
             }
             return JVMIntrinsicResult(value: try jdkCall("java/nio/file/Paths", "get", [.string, .reference("[Ljava/lang/String;", nullable: false)], .reference("java/nio/file/Path", nullable: false), arguments: [path, strings], resolved: resultType))
         }
+        if ["kotlin/jvm/internal/__jvmMonitorEnter", "kotlin/jvm/internal/__jvmMonitorExit"].contains(fq),
+           args.count == 1,
+           symbol.declSite.map({
+               context.sourceManager.origin(of: $0.start.file)?.isBundledStdlib == true
+           }) == true {
+            instructions.append(.monitor(try requireValue(args[0].expr), enter: name == "__jvmMonitorEnter"))
+            return JVMIntrinsicResult(value: nil)
+        }
         if context.options.stdlibOnly, fq.hasPrefix("kotlin/jvm/internal/__jvm") {
             let values = try args.map { try requireValue($0.expr) }
-            if ["__jvmMonitorEnter", "__jvmMonitorExit"].contains(name), values.count == 1 {
-                instructions.append(.monitor(values[0], enter: name == "__jvmMonitorEnter")); return JVMIntrinsicResult(value: nil)
-            }
             if name == "__jvmEnumEntries", values.count == 1 {
                 let array: JVMValueType = .reference("[Ljava/lang/Enum;", nullable: false)
                 return JVMIntrinsicResult(value: try convert(constructJDK(program.coroutineIntrinsicOwner + "$EnumEntries", parameters: [array], arguments: [convert(values[0], to: array)]), to: resultType))
@@ -460,8 +465,9 @@ extension JVMFunctionBuilder {
             let array: JVMValueType = .reference(owner == "[I" ? "[I" : "[Ljava/lang/Object;", nullable: false)
             return JVMIntrinsicResult(value: try jdkCall("kotlin/collections/ArraysKt", "getIndices", [array], .reference("kotlin/ranges/IntRange", nullable: false), arguments: [requireValue(receiverID)]))
         }
-        if owner == "[I", member == "lastIndex", args.isEmpty {
-            return JVMIntrinsicResult(value: try jdkCall("kotlin/collections/ArraysKt", "getLastIndex", [.reference("[I", nullable: false)], .int, arguments: [requireValue(receiverID)]))
+        if member == "lastIndex", args.isEmpty, owner == "[I" || owner.hasPrefix("[L") || owner.hasPrefix("[[") {
+            let array: JVMValueType = .reference(owner == "[I" ? "[I" : "[Ljava/lang/Object;", nullable: false)
+            return JVMIntrinsicResult(value: try jdkCall("kotlin/collections/ArraysKt", "getLastIndex", [array], .int, arguments: [requireValue(receiverID)]))
         }
         if owner.hasPrefix("["), member == "size", args.isEmpty {
             let source = try requireValue(receiverID), result = try value(.int)
@@ -470,7 +476,7 @@ extension JVMFunctionBuilder {
         if owner == "kotlin/sequences/Sequence", ["sum", "average"].contains(member), args.isEmpty {
             return JVMIntrinsicResult(value: try sequenceAggregate(receiverID, member: member, id: id))
         }
-        let collections: Set<String> = ["java/util/ArrayList", "java/util/LinkedHashMap", "java/util/LinkedHashSet", "java/lang/Iterable", "java/util/Iterator", "java/util/ListIterator", "java/util/Collection", "java/util/List", "kotlin/enums/EnumEntries", "java/util/Set", "java/util/Map", "kotlin/text/MatchGroupCollection"]
+        let collections: Set<String> = ["java/util/ArrayList", "java/util/HashMap", "java/util/LinkedHashMap", "java/util/LinkedHashSet", "java/lang/Iterable", "java/util/Iterator", "java/util/ListIterator", "java/util/Collection", "java/util/List", "kotlin/enums/EnumEntries", "java/util/Set", "java/util/Map", "kotlin/text/MatchGroupCollection"]
         if collections.contains(owner) {
             if member == "withIndex", args.isEmpty {
                 let iterableType = JVMValueType.reference("java/lang/Iterable", nullable: false)
@@ -510,7 +516,7 @@ extension JVMFunctionBuilder {
             if let selected = try mappedBuiltinMemberOwner(id), collections.contains(selected) { owner = selected }
             if owner == "java/util/ArrayList" { owner = "java/util/List" }
             if owner == "java/util/LinkedHashSet" { owner = "java/util/Set" }
-            if owner == "java/util/LinkedHashMap" { owner = "java/util/Map" }
+            if owner == "java/util/LinkedHashMap" || owner == "java/util/HashMap" { owner = "java/util/Map" }
             let isIteratorRemove = owner == "java/util/Iterator" && member == "remove"
             // Sema's chosen callee is authoritative for member vs extension:
             // when it picked a Kotlin extension, the fixed JDK member signature
@@ -995,6 +1001,7 @@ extension JVMFunctionBuilder {
         }
         else if source.type.isCharSequence { elementType = .char }
         else if source.type.referenceName == "kotlin/ranges/IntRange" || source.type.referenceName == "kotlin/ranges/IntProgression" { elementType = .int }
+        else if source.type.referenceName == "kotlin/ranges/LongRange" || source.type.referenceName == "kotlin/ranges/LongProgression" { elementType = .long }
         else if source.type.referenceName?.hasPrefix("[") == true { elementType = try arrayComponent(source.type) }
         else if let semantic = program.sema.bindings.exprType(for: iterable), case let .classType(t) = program.sema.types.kind(of: semantic), let arg = t.args.first {
             switch arg {

@@ -117,12 +117,13 @@ func runtimeResultRunCatching(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let (result, thrown) = runtimeResultInvoke0(fnPtr: fnPtr, closureRaw: closureRaw)
-    if thrown != 0 {
-        return runtimeResultFailure(thrown)
+    return runtimeThrowingBridge(outThrown) {
+        let (result, thrown) = runtimeResultInvoke0(fnPtr: fnPtr, closureRaw: closureRaw)
+        if thrown != 0 {
+            return runtimeResultFailure(thrown)
+        }
+        return runtimeResultSuccess(result)
     }
-    return runtimeResultSuccess(result)
 }
 
 func runtimeResultSuccessFlag(_ resultRaw: Int) -> Int {
@@ -142,15 +143,16 @@ func runtimeResultGetOrThrow(
     _ resultRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let access = runtimeResultAccessFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
-    let box = access.box
-    defer { withExtendedLifetime(access) {} }
-    if box.isSuccess {
-        return box.value
+    return runtimeThrowingBridge(outThrown) {
+        guard let access = runtimeResultAccessFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
+        let box = access.box
+        defer { withExtendedLifetime(access) {} }
+        if box.isSuccess {
+            return box.value
+        }
+        outThrown?.pointee = box.exception
+        return 0
     }
-    outThrown?.pointee = box.exception
-    return 0
 }
 
 private func runtimeResultInvoke1(
@@ -184,14 +186,15 @@ func runtimeResultGetOrElse(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let access = runtimeResultAccessFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
-    let box = access.box
-    defer { withExtendedLifetime(access) {} }
-    if box.isSuccess {
-        return box.value
+    return runtimeThrowingBridge(outThrown) {
+        guard let access = runtimeResultAccessFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
+        let box = access.box
+        defer { withExtendedLifetime(access) {} }
+        if box.isSuccess {
+            return box.value
+        }
+        return runtimeResultInvoke1(fnPtr: fnPtr, closureRaw: closureRaw, value: box.exception, outThrown: outThrown)
     }
-    return runtimeResultInvoke1(fnPtr: fnPtr, closureRaw: closureRaw, value: box.exception, outThrown: outThrown)
 }
 
 func runtimeResultMap(
@@ -200,20 +203,21 @@ func runtimeResultMap(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let access = runtimeResultAccessFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
-    let box = access.box
-    defer { withExtendedLifetime(access) {} }
-    if !box.isSuccess {
-        return runtimeResultFailure(box.exception)
+    return runtimeThrowingBridge(outThrown) {
+        guard let access = runtimeResultAccessFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
+        let box = access.box
+        defer { withExtendedLifetime(access) {} }
+        if !box.isSuccess {
+            return runtimeResultFailure(box.exception)
+        }
+        var thrown = 0
+        let transformed = runtimeResultInvoke1(fnPtr: fnPtr, closureRaw: closureRaw, value: box.value, outThrown: &thrown)
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return 0
+        }
+        return runtimeResultSuccess(transformed)
     }
-    var thrown = 0
-    let transformed = runtimeResultInvoke1(fnPtr: fnPtr, closureRaw: closureRaw, value: box.value, outThrown: &thrown)
-    if thrown != 0 {
-        outThrown?.pointee = thrown
-        return 0
-    }
-    return runtimeResultSuccess(transformed)
 }
 
 func runtimeResultFold(
@@ -224,24 +228,25 @@ func runtimeResultFold(
     _ failureClosureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let access = runtimeResultAccessFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
-    let box = access.box
-    defer { withExtendedLifetime(access) {} }
-    if box.isSuccess {
+    return runtimeThrowingBridge(outThrown) {
+        guard let access = runtimeResultAccessFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
+        let box = access.box
+        defer { withExtendedLifetime(access) {} }
+        if box.isSuccess {
+            return runtimeResultInvoke1(
+                fnPtr: successFnPtr,
+                closureRaw: successClosureRaw,
+                value: box.value,
+                outThrown: outThrown
+            )
+        }
         return runtimeResultInvoke1(
-            fnPtr: successFnPtr,
-            closureRaw: successClosureRaw,
-            value: box.value,
+            fnPtr: failureFnPtr,
+            closureRaw: failureClosureRaw,
+            value: box.exception,
             outThrown: outThrown
         )
     }
-    return runtimeResultInvoke1(
-        fnPtr: failureFnPtr,
-        closureRaw: failureClosureRaw,
-        value: box.exception,
-        outThrown: outThrown
-    )
 }
 
 func runtimeResultOnSuccess(
@@ -250,19 +255,20 @@ func runtimeResultOnSuccess(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let access = runtimeResultAccessFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
-    let box = access.box
-    defer { withExtendedLifetime(access) {} }
-    if box.isSuccess {
-        var thrown = 0
-        _ = runtimeResultInvoke1(fnPtr: fnPtr, closureRaw: closureRaw, value: box.value, outThrown: &thrown)
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            return 0
+    return runtimeThrowingBridge(outThrown) {
+        guard let access = runtimeResultAccessFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
+        let box = access.box
+        defer { withExtendedLifetime(access) {} }
+        if box.isSuccess {
+            var thrown = 0
+            _ = runtimeResultInvoke1(fnPtr: fnPtr, closureRaw: closureRaw, value: box.value, outThrown: &thrown)
+            if thrown != 0 {
+                outThrown?.pointee = thrown
+                return 0
+            }
         }
+        return resultRaw
     }
-    return resultRaw
 }
 
 func runtimeResultOnFailure(
@@ -271,19 +277,20 @@ func runtimeResultOnFailure(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let access = runtimeResultAccessFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
-    let box = access.box
-    defer { withExtendedLifetime(access) {} }
-    if !box.isSuccess {
-        var thrown = 0
-        _ = runtimeResultInvoke1(fnPtr: fnPtr, closureRaw: closureRaw, value: box.exception, outThrown: &thrown)
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            return 0
+    return runtimeThrowingBridge(outThrown) {
+        guard let access = runtimeResultAccessFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
+        let box = access.box
+        defer { withExtendedLifetime(access) {} }
+        if !box.isSuccess {
+            var thrown = 0
+            _ = runtimeResultInvoke1(fnPtr: fnPtr, closureRaw: closureRaw, value: box.exception, outThrown: &thrown)
+            if thrown != 0 {
+                outThrown?.pointee = thrown
+                return 0
+            }
         }
+        return resultRaw
     }
-    return resultRaw
 }
 
 func runtimeResultRecover(
@@ -292,20 +299,21 @@ func runtimeResultRecover(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let access = runtimeResultAccessFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
-    let box = access.box
-    defer { withExtendedLifetime(access) {} }
-    if box.isSuccess {
-        return runtimeResultSuccess(box.value)
+    return runtimeThrowingBridge(outThrown) {
+        guard let access = runtimeResultAccessFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
+        let box = access.box
+        defer { withExtendedLifetime(access) {} }
+        if box.isSuccess {
+            return runtimeResultSuccess(box.value)
+        }
+        var thrown = 0
+        let recovered = runtimeResultInvoke1(fnPtr: fnPtr, closureRaw: closureRaw, value: box.exception, outThrown: &thrown)
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return 0
+        }
+        return runtimeResultSuccess(recovered)
     }
-    var thrown = 0
-    let recovered = runtimeResultInvoke1(fnPtr: fnPtr, closureRaw: closureRaw, value: box.exception, outThrown: &thrown)
-    if thrown != 0 {
-        outThrown?.pointee = thrown
-        return 0
-    }
-    return runtimeResultSuccess(recovered)
 }
 
 func runtimeResultRecoverCatching(
@@ -314,24 +322,25 @@ func runtimeResultRecoverCatching(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let access = runtimeResultAccessFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
-    let box = access.box
-    defer { withExtendedLifetime(access) {} }
-    if box.isSuccess {
-        return runtimeResultSuccess(box.value)
+    return runtimeThrowingBridge(outThrown) {
+        guard let access = runtimeResultAccessFromRawOrThrow(resultRaw, outThrown: outThrown) else { return 0 }
+        let box = access.box
+        defer { withExtendedLifetime(access) {} }
+        if box.isSuccess {
+            return runtimeResultSuccess(box.value)
+        }
+        var thrown = 0
+        let recovered = runtimeResultInvoke1(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            value: box.exception,
+            outThrown: &thrown
+        )
+        if thrown != 0 {
+            return runtimeResultFailure(thrown)
+        }
+        return runtimeResultSuccess(recovered)
     }
-    var thrown = 0
-    let recovered = runtimeResultInvoke1(
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        value: box.exception,
-        outThrown: &thrown
-    )
-    if thrown != 0 {
-        return runtimeResultFailure(thrown)
-    }
-    return runtimeResultSuccess(recovered)
 }
 
 @_cdecl("kk_runtime_result_success")
@@ -359,7 +368,9 @@ public func kk_runtime_result_get_or_throw(
     _ resultRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeResultGetOrThrow(resultRaw, outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeResultGetOrThrow(resultRaw, outThrown)
+    }
 }
 
 @_cdecl("kk_runtime_result_exception_or_null")
@@ -373,7 +384,9 @@ public func kk_runtime_result_run_catching(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeResultRunCatching(fnPtr, closureRaw, outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeResultRunCatching(fnPtr, closureRaw, outThrown)
+    }
 }
 
 @_cdecl("kk_runtime_result_get_or_else")
@@ -383,7 +396,9 @@ public func kk_runtime_result_get_or_else(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeResultGetOrElse(resultRaw, fnPtr, closureRaw, outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeResultGetOrElse(resultRaw, fnPtr, closureRaw, outThrown)
+    }
 }
 
 @_cdecl("kk_runtime_result_map")
@@ -393,7 +408,9 @@ public func kk_runtime_result_map(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeResultMap(resultRaw, fnPtr, closureRaw, outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeResultMap(resultRaw, fnPtr, closureRaw, outThrown)
+    }
 }
 
 @_cdecl("kk_runtime_result_fold")
@@ -405,7 +422,9 @@ public func kk_runtime_result_fold(
     _ failureClosureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeResultFold(resultRaw, successFnPtr, successClosureRaw, failureFnPtr, failureClosureRaw, outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeResultFold(resultRaw, successFnPtr, successClosureRaw, failureFnPtr, failureClosureRaw, outThrown)
+    }
 }
 
 @_cdecl("kk_runtime_result_on_success")
@@ -415,7 +434,9 @@ public func kk_runtime_result_on_success(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeResultOnSuccess(resultRaw, fnPtr, closureRaw, outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeResultOnSuccess(resultRaw, fnPtr, closureRaw, outThrown)
+    }
 }
 
 @_cdecl("kk_runtime_result_on_failure")
@@ -425,7 +446,9 @@ public func kk_runtime_result_on_failure(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeResultOnFailure(resultRaw, fnPtr, closureRaw, outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeResultOnFailure(resultRaw, fnPtr, closureRaw, outThrown)
+    }
 }
 
 @_cdecl("kk_runtime_result_recover")
@@ -435,7 +458,9 @@ public func kk_runtime_result_recover(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeResultRecover(resultRaw, fnPtr, closureRaw, outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeResultRecover(resultRaw, fnPtr, closureRaw, outThrown)
+    }
 }
 
 @_cdecl("kk_runtime_result_recover_catching")
@@ -445,5 +470,7 @@ public func kk_runtime_result_recover_catching(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeResultRecoverCatching(resultRaw, fnPtr, closureRaw, outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeResultRecoverCatching(resultRaw, fnPtr, closureRaw, outThrown)
+    }
 }

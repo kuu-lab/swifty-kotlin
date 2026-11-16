@@ -12,6 +12,8 @@ fun Float.coerceAtMost(maximumValue: Float): Float = if (this > maximumValue) ma
 fun Double.coerceAtLeast(minimumValue: Double): Double = if (this < minimumValue) minimumValue else this
 fun Double.coerceAtMost(maximumValue: Double): Double = if (this > maximumValue) maximumValue else this
 
+public fun <T : Comparable<T>> T.coerceAtLeast(minimumValue: T): T = if (this < minimumValue) minimumValue else this
+
 public fun <T : Comparable<T>> T.coerceIn(minimumValue: T?, maximumValue: T?): T {
     if (minimumValue != null && maximumValue != null && minimumValue > maximumValue) {
         throw IllegalArgumentException("Cannot coerce value to an empty range: maximum $maximumValue is less than minimum $minimumValue.")
@@ -54,6 +56,8 @@ public fun Double.coerceIn(minimumValue: Double, maximumValue: Double): Double {
     return this
 }
 
+public infix fun Int.downTo(to: Int): IntProgression = IntProgression(this, to, -1)
+
 public infix fun Int.until(to: Int): IntRange =
     if (to == Int.MIN_VALUE) IntRange(1, 0) else IntRange(this, to - 1)
 
@@ -62,12 +66,10 @@ public inline fun IntRange.all(predicate: (Int) -> Boolean): Boolean {
     return true
 }
 
-public interface ClosedFloatingPointRange<T : Comparable<T>> {
-    public val start: T
-    public val endInclusive: T
+public interface ClosedFloatingPointRange<T : Comparable<T>> : ClosedRange<T> {
     public fun lessThanOrEquals(a: T, b: T): Boolean
-    public operator fun contains(value: T): Boolean
-    public fun isEmpty(): Boolean
+    public override operator fun contains(value: T): Boolean
+    public override fun isEmpty(): Boolean
 }
 
 public fun <T : Comparable<T>> T.coerceIn(range: ClosedFloatingPointRange<T>): T {

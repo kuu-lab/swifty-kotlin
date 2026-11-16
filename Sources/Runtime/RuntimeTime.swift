@@ -88,8 +88,9 @@ private let runtimeClockInterfaceTypeID = runtimeStableNominalTypeID(
 
 private let runtimeClockNowItableThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
     receiver, outThrown in
-    outThrown?.pointee = 0
-    return kk_clock_now(receiver)
+    return runtimeThrowingBridge(outThrown) {
+        kk_clock_now(receiver)
+    }
 }
 
 /// `TimeSource.asClock()` creates a Swift runtime box rather than a compiler

@@ -16,6 +16,8 @@ final class JVMProgramBuilder {
     var localFunctions: [SymbolID: JVMLocalFunctionPlan] = [:]
     var syntheticFunctions: [String: [JVMFunction]] = [:]
     var closureClasses: [JVMClass] = []
+    var metroFactoryFields: [SymbolID: JVMField] = [:]
+    var metroClasses: [JVMClass] = []
     var functionArities: Set<Int> = []
     var nextClosure = 0
     var needsSuspendCoroutine = false
@@ -316,6 +318,7 @@ final class JVMProgramBuilder {
             }
             plans.append(facadePlan); declarationsByFile.append(declarations)
         }
+        try prepareMetroGraphs()
         var facades: [JVMProgram] = []
         for (index, file) in files.enumerated() {
             facadeName = names[index].0; facadePlan = plans[index]
@@ -405,7 +408,7 @@ final class JVMProgramBuilder {
         }
         emittedClasses += try repeatableContainers()
         if context.options.stdlibOnly { functionArities.insert(0) }
-        emittedClasses += closureClasses + functionRuntime() + enumRuntime()
+        emittedClasses += metroClasses + closureClasses + functionRuntime() + enumRuntime()
         var output = facades.removeFirst()
         syntheticFunctions[coroutineIntrinsicOwner, default: []] += coroutineIntrinsics()
         output.functions += (syntheticFunctions[output.internalClassName] ?? [])
@@ -456,7 +459,7 @@ final class JVMFunctionBuilder {
     var reifiedRuntimeTokens: [SymbolID: ReifiedRuntimeToken] = [:]
     var inlineArguments: [InternedString: InlineLambda] = [:]
     var inlineReturns: [InlineReturn] = []
-    var inlineStack: Set<SymbolID> = []
+    var inlineStack: [SymbolID: Int] = [:]
     var contextualReceivers: [SymbolID: JVMValue] = [:]
     var contextArguments: [(type: TypeID, value: JVMValue)] = []
     var backingProperty: JVMProperty?
@@ -638,6 +641,17 @@ final class JVMFunctionBuilder {
             if let signature = semanticSignature, signature.parameterTypes.indices.contains(i), case let .functionType(f) = program.sema.types.kind(of: signature.parameterTypes[i]) { local.functionType = f }
             if let signature = semanticSignature, signature.valueParameterSymbols.indices.contains(i) { local.symbol = signature.valueParameterSymbols[i] }
             scopes[0][param.name] = local
+        }
+        if let owner, isStaticBody, owner.isObject,
+           let functionSymbol, program.isJvmStatic(functionSymbol) {
+            thisValue = try singleton(owner)
+        }
+        if let owner, isStaticBody, let thisValue {
+            contextualReceivers[owner.symbol] = thisValue
+            contextualReceivers[SyntheticSymbolScheme.receiverParameterSymbol(for: owner.symbol)] = thisValue
+            if let functionSymbol, extensionValue == nil {
+                contextualReceivers[SyntheticSymbolScheme.receiverParameterSymbol(for: functionSymbol)] = thisValue
+            }
         }
         if reference.name != "<init>" && !isStaticBody { try prepareEnclosingInstances() }
     }

@@ -51,19 +51,20 @@ private let stringBuilderCharSequenceSuperTypeID = runtimeStableNominalTypeID(fq
 private let stringBuilderAppendableSuperTypeID = runtimeStableNominalTypeID(fqName: "kotlin.text.Appendable")
 private let stringBuilderComparableSuperTypeID = runtimeStableNominalTypeID(fqName: "kotlin.Comparable")
 private let stringBuilderCompareToMethod: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { lhs, rhs, outThrown in
-    outThrown?.pointee = 0
-    guard let lhsBuilder = runtimeStringBuilderBox(from: lhs),
-          let rhsBuilder = runtimeStringBuilderBox(from: rhs)
-    else {
-        runtimeStructuredPanic("StringBuilder.compareTo requires StringBuilder operands")
-    }
-    for (lhsUnit, rhsUnit) in zip(lhsBuilder.units, rhsBuilder.units) {
-        let difference = Int(lhsUnit) - Int(rhsUnit)
-        if difference != 0 {
-            return difference
+    return runtimeThrowingBridge(outThrown) {
+        guard let lhsBuilder = runtimeStringBuilderBox(from: lhs),
+              let rhsBuilder = runtimeStringBuilderBox(from: rhs)
+        else {
+            runtimeStructuredPanic("StringBuilder.compareTo requires StringBuilder operands")
         }
+        for (lhsUnit, rhsUnit) in zip(lhsBuilder.units, rhsBuilder.units) {
+            let difference = Int(lhsUnit) - Int(rhsUnit)
+            if difference != 0 {
+                return difference
+            }
+        }
+        return lhsBuilder.units.count - rhsBuilder.units.count
     }
-    return lhsBuilder.units.count - rhsBuilder.units.count
 }
 
 func runtimeRegisterStringBuilderType(_ raw: Int) -> Int {

@@ -505,7 +505,6 @@ struct RuntimeSequenceTests {
     }
 
     @Test func iteratorBuilderYieldDirectlyAppendsToBuilder() {
-        // Test __kk_iterator_builder_yield works directly with RuntimeIteratorBuilderBox
         let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
             _ = __kk_iterator_builder_yield(builderRaw, 100)
             _ = __kk_iterator_builder_yield(builderRaw, 200)
@@ -565,7 +564,6 @@ struct RuntimeSequenceTests {
         #expect(__kk_iterator_builder_hasNext(iterHandle) == 1)
         #expect(__kk_iterator_builder_next(iterHandle) == 3)
 
-        // Now consume the rest.
         #expect(__kk_iterator_builder_hasNext(iterHandle) == 1)
         #expect(__kk_iterator_builder_next(iterHandle) == 4)
         #expect(__kk_iterator_builder_hasNext(iterHandle) == 1)

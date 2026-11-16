@@ -59,6 +59,8 @@ enum CLIParser {
                              Key alias (default: androiddebugkey)
       --android-store-pass <pass>  Keystore password (default: android)
       --android-key-pass <pass>    Key password (default: store password)
+      -Xlegacy-non-exhaustive-when
+                             Allow Kotlin 1.2-style non-exhaustive when statements
       -Xfrontend <flag>      Frontend feature flag (e.g. time-phases, incremental-stats,
                              common-module)
       -Xplugin=<path>        Load external compiler plugin JAR (comma-separated paths allowed)
@@ -257,6 +259,8 @@ enum CLIParser {
                 frontendFlags.append("opt-in=\(String(arg.dropFirst("-opt-in=".count)))")
             case _ where arg.hasPrefix("-Xopt-in="):
                 frontendFlags.append("opt-in=\(String(arg.dropFirst("-Xopt-in=".count)))")
+            case "-Xlegacy-non-exhaustive-when":
+                frontendFlags.append(CompilerOptions.legacyNonExhaustiveWhenFlag)
             case "-Xfrontend":
                 try frontendFlags.append(requireValue(option: arg, args: args, index: &index))
             case "-Xplugin":

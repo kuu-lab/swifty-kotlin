@@ -661,9 +661,11 @@ extension ControlFlowTypeChecker {
             // for any other subject type, Kotlin requires exhaustiveness only when
             // the when's value is actually used (see the subjectless `when` path
             // below, which already applies this rule).
+            let allowsLegacyStatement = driver.compilationContext?.options.frontendFlags
+                .contains(CompilerOptions.legacyNonExhaustiveWhenFlag) == true
             if !isExhaustive,
                isStatementContext,
-               !ctx.dataFlow.subjectRequiresStatementExhaustiveness(subjectType: subjectType, sema: sema)
+               allowsLegacyStatement || !ctx.dataFlow.subjectRequiresStatementExhaustiveness(subjectType: subjectType, sema: sema)
             {
                 // Not exhaustive, but legal as a statement: fall through without
                 // diagnosing, matching the subjectless `when` statement behavior.

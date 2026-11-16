@@ -78,6 +78,8 @@ public fun IntArray.max(): Int {
     return result
 }
 
+public operator fun <T> Array<out T>.contains(element: T): Boolean = indexOf(element) >= 0
+
 public fun <T> Array<out T>.indexOf(element: T): Int {
     var index = 0
     while (index < size) {

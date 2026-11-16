@@ -9,22 +9,25 @@ private let runtimeKTypeInterfaceTypeID: Int64 =
 private let runtimeKTypeArgumentsGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
     raw,
     outThrown in
-    outThrown?.pointee = 0
-    return __kk_ktype_arguments(raw)
+    return runtimeThrowingBridge(outThrown) {
+        return __kk_ktype_arguments(raw)
+    }
 }
 
 private let runtimeKTypeClassifierGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
     raw,
     outThrown in
-    outThrown?.pointee = 0
-    return __kk_ktype_classifier(raw)
+    return runtimeThrowingBridge(outThrown) {
+        return __kk_ktype_classifier(raw)
+    }
 }
 
 private let runtimeKTypeIsMarkedNullableGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
     raw,
     outThrown in
-    outThrown?.pointee = 0
-    return __kk_ktype_isMarkedNullable(raw)
+    return runtimeThrowingBridge(outThrown) {
+        return __kk_ktype_isMarkedNullable(raw)
+    }
 }
 
 func registerRuntimeObject(_ box: RuntimeKTypeBox) -> Int {
@@ -45,39 +48,43 @@ func registerRuntimeObject(_ box: RuntimeKTypeBox) -> Int {
 private let runtimeKTypeParameterIsReifiedGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
     raw,
     outThrown in
-    outThrown?.pointee = 0
-    return runtimeReflectionObject(from: raw, as: RuntimeKTypeParameterBox.self)?.isReified == true ? 1 : 0
+    return runtimeThrowingBridge(outThrown) {
+        return runtimeReflectionObject(from: raw, as: RuntimeKTypeParameterBox.self)?.isReified == true ? 1 : 0
+    }
 }
 
 private let runtimeKTypeParameterNameGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
     raw,
     outThrown in
-    outThrown?.pointee = 0
-    return runtimeReflectionObject(from: raw, as: RuntimeKTypeParameterBox.self)?.nameRaw ?? runtimeNullSentinelInt
+    return runtimeThrowingBridge(outThrown) {
+        return runtimeReflectionObject(from: raw, as: RuntimeKTypeParameterBox.self)?.nameRaw ?? runtimeNullSentinelInt
+    }
 }
 
 private let runtimeKTypeParameterUpperBoundsGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
     raw,
     outThrown in
-    outThrown?.pointee = 0
-    return runtimeReflectionObject(from: raw, as: RuntimeKTypeParameterBox.self)?.upperBoundsRaw
-        ?? registerRuntimeObject(RuntimeListBox(elements: []))
+    return runtimeThrowingBridge(outThrown) {
+        return runtimeReflectionObject(from: raw, as: RuntimeKTypeParameterBox.self)?.upperBoundsRaw
+            ?? registerRuntimeObject(RuntimeListBox(elements: []))
+    }
 }
 
 private let runtimeKTypeParameterVarianceGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
     raw,
     outThrown in
-    outThrown?.pointee = 0
-    guard let box = runtimeReflectionObject(from: raw, as: RuntimeKTypeParameterBox.self) else {
-        return runtimeNullSentinelInt
+    return runtimeThrowingBridge(outThrown) {
+        guard let box = runtimeReflectionObject(from: raw, as: RuntimeKTypeParameterBox.self) else {
+            return runtimeNullSentinelInt
+        }
+        let names = ["INVARIANT", "IN", "OUT"]
+        let ordinal = (0..<names.count).contains(box.varianceOrdinal) ? box.varianceOrdinal : 0
+        return kk_enum_box_ordinal(
+            ordinal,
+            runtimeMakeStringRaw(names[ordinal]),
+            Int(runtimeStableNominalTypeID(fqName: "kotlin.reflect.KVariance"))
+        )
     }
-    let names = ["INVARIANT", "IN", "OUT"]
-    let ordinal = (0..<names.count).contains(box.varianceOrdinal) ? box.varianceOrdinal : 0
-    return kk_enum_box_ordinal(
-        ordinal,
-        runtimeMakeStringRaw(names[ordinal]),
-        Int(runtimeStableNominalTypeID(fqName: "kotlin.reflect.KVariance"))
-    )
 }
 
 private func registerRuntimeObject(_ box: RuntimeKTypeParameterBox) -> Int {
@@ -391,45 +398,46 @@ public func __kk_ktypeprojection_create_checked(
     _ typeRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
+    return runtimeThrowingBridge(outThrown) {
 
-    let varianceIsNull = varianceOrdinal == runtimeNullSentinelInt
-    let typeIsNull = typeRaw == 0 || typeRaw == runtimeNullSentinelInt
-    // Nullable enum arguments cross the runtime ABI as boxed Int handles.
-    // Preserve the null sentinel before unboxing; kk_unbox_int maps null to 0.
-    let kotlinVarianceOrdinal = varianceIsNull ? -1 : kk_unbox_int(varianceOrdinal)
-    // KVariance declares INVARIANT, IN, OUT, while RuntimeKVariance keeps the
-    // existing typeOf bridge's internal order IN, OUT, INVARIANT.
-    let decodedVarianceOrdinal: Int = switch kotlinVarianceOrdinal {
-    case 0: 2 // INVARIANT
-    case 1: 0 // IN
-    case 2: 1 // OUT
-    default: kotlinVarianceOrdinal
-    }
-    guard varianceIsNull == typeIsNull else {
-        let message: String
-        if varianceIsNull {
-            message = "Star projection must have no type specified."
-        } else {
-            let varianceName: String = switch RuntimeKVariance(rawValue: decodedVarianceOrdinal) {
-            case .in: "IN"
-            case .out: "OUT"
-            case .invariant: "INVARIANT"
-            case nil: "INVARIANT"
-            }
-            message = "The projection variance \(varianceName) requires type to be specified."
+        let varianceIsNull = varianceOrdinal == runtimeNullSentinelInt
+        let typeIsNull = typeRaw == 0 || typeRaw == runtimeNullSentinelInt
+        // Nullable enum arguments cross the runtime ABI as boxed Int handles.
+        // Preserve the null sentinel before unboxing; kk_unbox_int maps null to 0.
+        let kotlinVarianceOrdinal = varianceIsNull ? -1 : kk_unbox_int(varianceOrdinal)
+        // KVariance declares INVARIANT, IN, OUT, while RuntimeKVariance keeps the
+        // existing typeOf bridge's internal order IN, OUT, INVARIANT.
+        let decodedVarianceOrdinal: Int = switch kotlinVarianceOrdinal {
+        case 0: 2 // INVARIANT
+        case 1: 0 // IN
+        case 2: 1 // OUT
+        default: kotlinVarianceOrdinal
         }
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: message)
-        return 0
-    }
+        guard varianceIsNull == typeIsNull else {
+            let message: String
+            if varianceIsNull {
+                message = "Star projection must have no type specified."
+            } else {
+                let varianceName: String = switch RuntimeKVariance(rawValue: decodedVarianceOrdinal) {
+                case .in: "IN"
+                case .out: "OUT"
+                case .invariant: "INVARIANT"
+                case nil: "INVARIANT"
+                }
+                message = "The projection variance \(varianceName) requires type to be specified."
+            }
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: message)
+            return 0
+        }
 
-    if varianceIsNull {
-        return runtimeKTypeProjectionCreate(typeRaw: 0, variance: nil)
+        if varianceIsNull {
+            return runtimeKTypeProjectionCreate(typeRaw: 0, variance: nil)
+        }
+        return runtimeKTypeProjectionCreate(
+            typeRaw: typeRaw,
+            variance: RuntimeKVariance(rawValue: decodedVarianceOrdinal) ?? .invariant
+        )
     }
-    return runtimeKTypeProjectionCreate(
-        typeRaw: typeRaw,
-        variance: RuntimeKVariance(rawValue: decodedVarianceOrdinal) ?? .invariant
-    )
 }
 
 /// Returns the projection's variance as a `kotlin.reflect.KVariance` enum box

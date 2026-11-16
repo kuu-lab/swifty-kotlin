@@ -1,75 +1,24 @@
+private let fileSystemExceptionABI = RuntimeABISectionBuilder("FileSystemException")
+
 /// Each `kotlin.io` filesystem exception class gets one constructor entry point
 /// per arity so that the allocated box carries the runtime type identity
 /// catch-clause dispatch (`kk_op_is`) needs.
 public extension RuntimeABISpec {
-    private static let fileSystemExceptionPrefixes = [
-        "file_system",
-        "file_already_exists",
-        "access_denied",
-        "no_such_file",
+    static let fileSystemExceptionFunctions: [RuntimeABIFunctionSpec] = [
+        fileSystemExceptionABI.nt("__kk_file_system_exception_new_file", "fileRaw"),
+        fileSystemExceptionABI.nt("__kk_file_system_exception_new_file_other", "fileRaw otherRaw"),
+        fileSystemExceptionABI.nt("__kk_file_system_exception_new_file_other_reason", "fileRaw otherRaw reasonRaw"),
+        fileSystemExceptionABI.nt("__kk_file_already_exists_exception_new_file", "fileRaw"),
+        fileSystemExceptionABI.nt("__kk_file_already_exists_exception_new_file_other", "fileRaw otherRaw"),
+        fileSystemExceptionABI.nt("__kk_file_already_exists_exception_new_file_other_reason", "fileRaw otherRaw reasonRaw"),
+        fileSystemExceptionABI.nt("__kk_access_denied_exception_new_file", "fileRaw"),
+        fileSystemExceptionABI.nt("__kk_access_denied_exception_new_file_other", "fileRaw otherRaw"),
+        fileSystemExceptionABI.nt("__kk_access_denied_exception_new_file_other_reason", "fileRaw otherRaw reasonRaw"),
+        fileSystemExceptionABI.nt("__kk_no_such_file_exception_new_file", "fileRaw"),
+        fileSystemExceptionABI.nt("__kk_no_such_file_exception_new_file_other", "fileRaw otherRaw"),
+        fileSystemExceptionABI.nt("__kk_no_such_file_exception_new_file_other_reason", "fileRaw otherRaw reasonRaw"),
+        fileSystemExceptionABI.nt("__kk_file_system_exception_file", "selfRaw"),
+        fileSystemExceptionABI.nt("__kk_file_system_exception_other", "selfRaw"),
+        fileSystemExceptionABI.nt("__kk_file_system_exception_reason", "selfRaw"),
     ]
-
-    static let fileSystemExceptionFunctions: [RuntimeABIFunctionSpec] =
-        fileSystemExceptionPrefixes.flatMap { prefix -> [RuntimeABIFunctionSpec] in
-            [
-                RuntimeABIFunctionSpec(
-                    name: "__kk_\(prefix)_exception_new_file",
-                    parameters: [
-                        RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "FileSystemException",
-                    isThrowing: false
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "__kk_\(prefix)_exception_new_file_other",
-                    parameters: [
-                        RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                        RuntimeABIParameter(name: "otherRaw", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "FileSystemException",
-                    isThrowing: false
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "__kk_\(prefix)_exception_new_file_other_reason",
-                    parameters: [
-                        RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                        RuntimeABIParameter(name: "otherRaw", type: .intptr),
-                        RuntimeABIParameter(name: "reasonRaw", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "FileSystemException",
-                    isThrowing: false
-                ),
-            ]
-        } + [
-            RuntimeABIFunctionSpec(
-                name: "__kk_file_system_exception_file",
-                parameters: [
-                    RuntimeABIParameter(name: "selfRaw", type: .intptr),
-                ],
-                returnType: .intptr,
-                section: "FileSystemException",
-                isThrowing: false
-            ),
-            RuntimeABIFunctionSpec(
-                name: "__kk_file_system_exception_other",
-                parameters: [
-                    RuntimeABIParameter(name: "selfRaw", type: .intptr),
-                ],
-                returnType: .intptr,
-                section: "FileSystemException",
-                isThrowing: false
-            ),
-            RuntimeABIFunctionSpec(
-                name: "__kk_file_system_exception_reason",
-                parameters: [
-                    RuntimeABIParameter(name: "selfRaw", type: .intptr),
-                ],
-                returnType: .intptr,
-                section: "FileSystemException",
-                isThrowing: false
-            ),
-        ]
 }

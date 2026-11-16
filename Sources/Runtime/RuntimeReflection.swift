@@ -114,8 +114,10 @@ public func __kk_kclass_is_runtime(_ raw: Int) -> Int {
 
 @_cdecl("__kk_kclass_get_annotations_typed")
 public func __kk_kclass_get_annotations_typed(_ kclassRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let records = runtimeKClassBox(from: kclassRaw)?.metadata?.annotations ?? []
-    return runtimeAnnotationList(records, materializeFactories: true, outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        let records = runtimeKClassBox(from: kclassRaw)?.metadata?.annotations ?? []
+        return runtimeAnnotationList(records, materializeFactories: true, outThrown: outThrown)
+    }
 }
 
 @_cdecl("__kk_annotation_mark_reflection_materialized")
@@ -257,8 +259,10 @@ func runtimeAnnotationArray(
 
 @_cdecl("__kk_kcallable_get_annotations_typed")
 public func __kk_kcallable_get_annotations_typed(_ callableRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let records = runtimeStorage.withDelegateLock { $0.callableRefMetadataByValue[callableRaw]?.annotations ?? [] }
-    return runtimeAnnotationList(records, materializeFactories: true, outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        let records = runtimeStorage.withDelegateLock { $0.callableRefMetadataByValue[callableRaw]?.annotations ?? [] }
+        return runtimeAnnotationList(records, materializeFactories: true, outThrown: outThrown)
+    }
 }
 
 @_cdecl("__kk_kcallable_register_annotation_factory")
@@ -299,19 +303,21 @@ public func __kk_kcallable_register_single_annotation(
 public func __kk_kclass_find_annotation_typed(
     _ kclassRaw: Int, _ typeToken: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    guard let records = runtimeKClassBox(from: kclassRaw)?.metadata?.annotations else {
-        return runtimeNullSentinelInt
-    }
-    for record in records where runtimeShouldExposeAnnotation(fqName: record.annotationFQName) {
-        var thrown = 0
-        let value = runtimeAnnotationValue(record, materializeFactory: true, outThrown: &thrown)
-        if thrown != 0 {
-            outThrown?.pointee = thrown
+    return runtimeThrowingBridge(outThrown) {
+        guard let records = runtimeKClassBox(from: kclassRaw)?.metadata?.annotations else {
             return runtimeNullSentinelInt
         }
-        if kk_op_is(value, typeToken) != 0 { return value }
+        for record in records where runtimeShouldExposeAnnotation(fqName: record.annotationFQName) {
+            var thrown = 0
+            let value = runtimeAnnotationValue(record, materializeFactory: true, outThrown: &thrown)
+            if thrown != 0 {
+                outThrown?.pointee = thrown
+                return runtimeNullSentinelInt
+            }
+            if kk_op_is(value, typeToken) != 0 { return value }
+        }
+        return runtimeNullSentinelInt
     }
-    return runtimeNullSentinelInt
 }
 
 /// The current metadata pipeline records annotation arguments as strings, so
@@ -517,8 +523,10 @@ public func __kk_kparameter_is_runtime(_ raw: Int) -> Int {
 /// interface dispatch.
 @_cdecl("__kk_kparameter_get_annotations_typed")
 public func __kk_kparameter_get_annotations_typed(_ raw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let records = runtimeKParameterBox(from: raw)?.annotations ?? []
-    return runtimeAnnotationList(records, materializeFactories: true, outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        let records = runtimeKParameterBox(from: raw)?.annotations ?? []
+        return runtimeAnnotationList(records, materializeFactories: true, outThrown: outThrown)
+    }
 }
 
 /// The owning callable's runtime handle for a `RuntimeKParameterBox`, when it

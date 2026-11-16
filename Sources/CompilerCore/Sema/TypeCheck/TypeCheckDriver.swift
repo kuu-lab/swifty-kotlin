@@ -2,6 +2,7 @@ struct LocalBindings: ExpressibleByDictionaryLiteral, Sequence {
     typealias Value = (type: TypeID, symbol: SymbolID, isMutable: Bool, isInitialized: Bool)
     private var bindings: [InternedString: Value]
     var memberFlow: [DataFlowReference: VariableFlowState] = [:]
+    var immutableLocalInitializers: [SymbolID: ExprID] = [:]
     var variableFacts: [SymbolID: DataFlowValueFacts] = [:]
     var invalidatedVariableFacts: Set<SymbolID> = []
 
