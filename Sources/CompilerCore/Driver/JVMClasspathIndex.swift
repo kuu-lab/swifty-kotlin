@@ -443,7 +443,7 @@ final class JVMClasspathIndex {
             var inheritedConstants: [JVMForeignField] = []
             func collectConstants(_ name: String) {
                 guard let base = hierarchyClasses[name] else { return }
-                for field in base.fields where inheritedConstantNames.insert(field.name).inserted {
+                for field in base.fields where field.access & 0x0002 == 0 && inheritedConstantNames.insert(field.name).inserted {
                     if field.isPublic && field.isStatic && field.isFinal {
                         inheritedConstants.append(field)
                     }
@@ -459,7 +459,7 @@ final class JVMClasspathIndex {
                     return
                 }
                 guard let base = hierarchyClasses[name] else { return }
-                for field in base.fields where inheritedConstantNames.insert(field.name).inserted {
+                for field in base.fields where field.access & 0x0002 == 0 && inheritedConstantNames.insert(field.name).inserted {
                     if field.isPublic && field.isStatic && field.isFinal {
                         inheritedConstants.append(field)
                     }
@@ -483,7 +483,7 @@ final class JVMClasspathIndex {
             while let name = next, visited.insert(name).inserted, let base = hierarchyClasses[name] {
                 let visible = classes[name] != nil
                 if visible && superclass == nil { superclass = name; hiddenSegment = false }
-                for field in base.fields where inheritedConstantNames.insert(field.name).inserted {
+                for field in base.fields where field.access & 0x0002 == 0 && inheritedConstantNames.insert(field.name).inserted {
                     if field.isPublic && field.isStatic && field.isFinal {
                         inheritedConstants.append(field)
                     }
@@ -1659,7 +1659,7 @@ final class JVMClasspathIndex {
             source += " {\n"
             for declaration in constantFields { source += declaration }
             for declaration in runtimeFields { source += declaration }
-            let runtimeFieldNames = Set(info.fields.compactMap { runtimeField($0) != nil ? $0.name : nil })
+            let runtimeFieldNames = Set(info.fields.filter { !$0.inherited }.compactMap { runtimeField($0) != nil ? $0.name : nil })
             for (name, property) in info.kotlinStaticProperties.sorted(by: { $0.key < $1.key })
                 where isExposed(property.getter) && !runtimeFieldNames.contains(name) {
                 let type = kotlinType(property.getter.result) + (property.isNullable ? "?" : "")
