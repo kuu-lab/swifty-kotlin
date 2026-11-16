@@ -79,7 +79,7 @@ final class TypeCheckDriver {
     var publishedInferredPropertyDecls: Set<DeclID> = []
     /// Object headers published for forward references, with bodies still unchecked.
     var predeclaredObjectLiteralDecls: Set<DeclID> = []
-    var inferredReturnFunctions: [SymbolID: (function: FunDecl, context: TypeInferenceContext)] = [:]
+    var inferredReturnFunctions: [SymbolID: (function: FunDecl, context: TypeInferenceContext, baseLocals: LocalBindings)] = [:]
     var checkingInferredReturnFunctions: Set<SymbolID> = []
     var checkedInferredReturnFunctions: Set<SymbolID> = []
     var inferredPropertyDeclarations: [SymbolID: (declaration: DeclID, property: PropertyDecl, context: TypeInferenceContext, initialLocals: LocalBindings)] = [:]

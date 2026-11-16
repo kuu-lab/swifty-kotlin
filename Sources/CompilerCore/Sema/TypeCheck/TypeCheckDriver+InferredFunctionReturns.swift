@@ -134,7 +134,7 @@ extension TypeCheckDriver {
     /// properties register: a getter, setter, or delegate body keeps the
     /// source-order pass so a speculative check against placeholder types
     /// cannot skip the authoritative accessor-body diagnostics.
-    private func registerInferredMemberProperties(
+    func registerInferredMemberProperties(
         _ declIDs: [DeclID],
         context: TypeInferenceContext,
         initialLocals: LocalBindings
@@ -176,7 +176,8 @@ extension TypeCheckDriver {
 
     func registerInferredReturnFunction(
         for declarationID: DeclID,
-        context: TypeInferenceContext
+        context: TypeInferenceContext,
+        baseLocals: LocalBindings = [:]
     ) {
         guard case let .funDecl(function)? = ast.arena.decl(declarationID),
               function.returnType == nil,
@@ -185,7 +186,8 @@ extension TypeCheckDriver {
         else { return }
         inferredReturnFunctions[symbol] = (
             function,
-            context.with(currentDeclSymbol: symbol)
+            context.with(currentDeclSymbol: symbol),
+            baseLocals
         )
     }
 
@@ -208,7 +210,8 @@ extension TypeCheckDriver {
                 symbol: symbol,
                 ctx: declaration.context,
                 solver: solver,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                baseLocals: declaration.baseLocals
             )
             let errors = diagnostics.diagnostics.dropFirst(checkpoint).filter { $0.severity == .error }
             if !errors.isEmpty,
