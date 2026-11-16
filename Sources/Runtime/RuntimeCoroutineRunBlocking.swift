@@ -140,151 +140,152 @@ public func __kk_run_blocking_context(
     _ envRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    // plus(empty) copies the mutable runtime representation. Never mutate a
-    // supplied context object or merge ambient Name/Job into a default call.
-    let context = resolveToCoroutineContext(contextRaw).plus(RuntimeCoroutineContext())
-    let parentCandidate = runtimeJobHandle(from: context.jobHandleRaw)
-        ?? runtimeAsyncTask(from: context.jobHandleRaw)?.completionJob
-    let parent = parentCandidate === runtimeJobHandle(from: kk_non_cancellable_instance()) ? nil : parentCandidate
-    let oldLoop = RuntimeEventLoop.current
-    let oldKey = RuntimeCoroutineScopeTaskKey.installedKey
-    let oldJob = RuntimeJobHandle.current
-    let oldDispatcher = RuntimeDispatcher.current
-    let waitLoop = oldLoop ?? RuntimeEventLoop()
-    let scheduler = runtimeBlockingScheduler(context: context, fallbackLoop: waitLoop)
-    // No interceptor: expose the loop that actually executes the body.
-    if context.dispatcherElementHandle == 0 {
-        context.installDispatcherElementHandle(waitLoop.elementHandle())
-    }
-    let scope = RuntimeCoroutineScope(context: context)
-    scope.blockingScheduler = scheduler
-    let job = RuntimeJobHandle()
-    job.debugName = "BlockingCoroutine"
-    job.propagatesFailureToParent = false
-    job.markStarted()
-    let jobRaw = runtimeRegisterObject(job)
-    context.installJobHandle(jobRaw)
-    scope.adoptJob(job)
-    let invocation = RuntimeContinuationState(functionID: 0)
-    invocation.scope = scope
-    invocation.builderContext = context
-    invocation.jobHandle = job
-    invocation.blockingScheduler = scheduler
-    invocation.eventLoop = scheduler.eventLoop
-    job.continuationState = invocation
-    // Cancellation links exist before parent registration, including the
-    // already-cancelled-parent case. This builder never completes its parent.
-    parent?.registerChild(jobRaw)
-    RuntimeEventLoop.current = waitLoop
-    defer {
-        parent?.detachChild(jobRaw)
-        RuntimeEventLoop.current = oldLoop
-        RuntimeCoroutineScopeTaskKey.restoreKey(oldKey)
-        RuntimeJobHandle.current = oldJob
-        RuntimeDispatcher.current = oldDispatcher
-    }
-    let outcome = RuntimeBlockingOutcome()
-    scheduler.start {
-        let savedKey = RuntimeCoroutineScopeTaskKey.installedKey
-        let savedJob = RuntimeJobHandle.current
-        let savedLoop = RuntimeEventLoop.current
-        let savedDispatcher = RuntimeDispatcher.current
-        let invocationKey = RuntimeCoroutineScopeTaskKey.installFreshKey()
-        RuntimeCoroutineScope.installScope(scope, forTask: invocationKey)
-        RuntimeContinuationState.installState(invocation, forTask: invocationKey)
-        RuntimeJobHandle.current = job
-        RuntimeEventLoop.current = scheduler.eventLoop
-        RuntimeDispatcher.current = scheduler.dispatcher
-        var result = 0
-        var thrown = 0
-        // KUU-2687: for a real-dispatcher destination the body is driven
-        // asynchronously — each suspension must end this work item so a
-        // limited view's permit is released for the queued resumption.
-        // Blocking the worker until completion would hold the only permit of
-        // a `parallelism=1` view while the resume waits behind it: deadlock.
-        var bodyAsync = false
+    return runtimeThrowingBridge(outThrown) {
+        // plus(empty) copies the mutable runtime representation. Never mutate a
+        // supplied context object or merge ambient Name/Job into a default call.
+        let context = resolveToCoroutineContext(contextRaw).plus(RuntimeCoroutineContext())
+        let parentCandidate = runtimeJobHandle(from: context.jobHandleRaw)
+            ?? runtimeAsyncTask(from: context.jobHandleRaw)?.completionJob
+        let parent = parentCandidate === runtimeJobHandle(from: kk_non_cancellable_instance()) ? nil : parentCandidate
+        let oldLoop = RuntimeEventLoop.current
+        let oldKey = RuntimeCoroutineScopeTaskKey.installedKey
+        let oldJob = RuntimeJobHandle.current
+        let oldDispatcher = RuntimeDispatcher.current
+        let waitLoop = oldLoop ?? RuntimeEventLoop()
+        let scheduler = runtimeBlockingScheduler(context: context, fallbackLoop: waitLoop)
+        // No interceptor: expose the loop that actually executes the body.
+        if context.dispatcherElementHandle == 0 {
+            context.installDispatcherElementHandle(waitLoop.elementHandle())
+        }
+        let scope = RuntimeCoroutineScope(context: context)
+        scope.blockingScheduler = scheduler
+        let job = RuntimeJobHandle()
+        job.debugName = "BlockingCoroutine"
+        job.propagatesFailureToParent = false
+        job.markStarted()
+        let jobRaw = runtimeRegisterObject(job)
+        context.installJobHandle(jobRaw)
+        scope.adoptJob(job)
+        let invocation = RuntimeContinuationState(functionID: 0)
+        invocation.scope = scope
+        invocation.builderContext = context
+        invocation.jobHandle = job
+        invocation.blockingScheduler = scheduler
+        invocation.eventLoop = scheduler.eventLoop
+        job.continuationState = invocation
+        // Cancellation links exist before parent registration, including the
+        // already-cancelled-parent case. This builder never completes its parent.
+        parent?.registerChild(jobRaw)
+        RuntimeEventLoop.current = waitLoop
         defer {
-            RuntimeCoroutineScope.removeScope(forTask: invocationKey)
-            RuntimeContinuationState.removeState(forTask: invocationKey)
-            RuntimeCoroutineScopeTaskKey.restoreKey(savedKey)
-            RuntimeJobHandle.current = savedJob
-            RuntimeEventLoop.current = savedLoop
-            RuntimeDispatcher.current = savedDispatcher
-            // Publish only after this invocation's ambient bindings restore.
-            if !bodyAsync {
-                outcome.complete(result: result, thrown: thrown)
-                waitLoop.wake()
+            parent?.detachChild(jobRaw)
+            RuntimeEventLoop.current = oldLoop
+            RuntimeCoroutineScopeTaskKey.restoreKey(oldKey)
+            RuntimeJobHandle.current = oldJob
+            RuntimeDispatcher.current = oldDispatcher
+        }
+        let outcome = RuntimeBlockingOutcome()
+        scheduler.start {
+            let savedKey = RuntimeCoroutineScopeTaskKey.installedKey
+            let savedJob = RuntimeJobHandle.current
+            let savedLoop = RuntimeEventLoop.current
+            let savedDispatcher = RuntimeDispatcher.current
+            let invocationKey = RuntimeCoroutineScopeTaskKey.installFreshKey()
+            RuntimeCoroutineScope.installScope(scope, forTask: invocationKey)
+            RuntimeContinuationState.installState(invocation, forTask: invocationKey)
+            RuntimeJobHandle.current = job
+            RuntimeEventLoop.current = scheduler.eventLoop
+            RuntimeDispatcher.current = scheduler.dispatcher
+            var result = 0
+            var thrown = 0
+            // KUU-2687: for a real-dispatcher destination the body is driven
+            // asynchronously — each suspension must end this work item so a
+            // limited view's permit is released for the queued resumption.
+            // Blocking the worker until completion would hold the only permit of
+            // a `parallelism=1` view while the resume waits behind it: deadlock.
+            var bodyAsync = false
+            defer {
+                RuntimeCoroutineScope.removeScope(forTask: invocationKey)
+                RuntimeContinuationState.removeState(forTask: invocationKey)
+                RuntimeCoroutineScopeTaskKey.restoreKey(savedKey)
+                RuntimeJobHandle.current = savedJob
+                RuntimeEventLoop.current = savedLoop
+                RuntimeDispatcher.current = savedDispatcher
+                // Publish only after this invocation's ambient bindings restore.
+                if !bodyAsync {
+                    outcome.complete(result: result, thrown: thrown)
+                    waitLoop.wake()
+                }
             }
-        }
-        if job.cancellationSnapshot() {
-            thrown = kk_job_get_cancellation_exception(jobRaw)
-            return
-        }
-        let scopeRaw = Int(bitPattern: Unmanaged.passUnretained(scope).toOpaque())
-        if let box = runtimeFunctionValueBox(from: fnOrBox), box.suspendEntryPoint != 0 {
-            if case .dispatcher = scheduler.destination {
-                // Async drive: completions reach `outcome` through the entry
-                // loop's onCompletion instead of this work item's return.
-                guard box.arity == 1 else {
-                    thrown = runtimeAllocateThrowable(
-                        message: "Function invoke arity mismatch: expected \(box.arity), got 1"
-                    )
-                    return
-                }
-                let child = kk_coroutine_continuation_new(box.suspendEntryPoint)
-                for (index, argument) in ([box.closureRaw] + [scopeRaw]).enumerated() {
-                    _ = kk_coroutine_launcher_arg_set(child, Int64(index), Int64(argument))
-                }
-                if let childState = runtimeContinuationState(from: child) {
-                    childState.scope = scope
-                    childState.builderContext = context
-                    childState.jobHandle = job
-                    childState.blockingScheduler = scheduler
-                    childState.flowCollectContext = invocation.flowCollectContext
-                    invocation.bindSuspendedCallChild(childState)
-                }
-                bodyAsync = true
-                _ = runSuspendEntryLoopWithContinuation(
-                    entryPointRaw: box.suspendEntryPoint,
-                    continuation: child,
-                    onCompletion: { bodyResult, bodyThrown, _ in
-                        if let childState = runtimeContinuationState(from: child) {
-                            invocation.unbindSuspendedCallChild(childState)
-                        }
-                        outcome.complete(result: bodyResult, thrown: bodyThrown)
-                        waitLoop.wake()
+            if job.cancellationSnapshot() {
+                thrown = kk_job_get_cancellation_exception(jobRaw)
+                return
+            }
+            let scopeRaw = Int(bitPattern: Unmanaged.passUnretained(scope).toOpaque())
+            if let box = runtimeFunctionValueBox(from: fnOrBox), box.suspendEntryPoint != 0 {
+                if case .dispatcher = scheduler.destination {
+                    // Async drive: completions reach `outcome` through the entry
+                    // loop's onCompletion instead of this work item's return.
+                    guard box.arity == 1 else {
+                        thrown = runtimeAllocateThrowable(
+                            message: "Function invoke arity mismatch: expected \(box.arity), got 1"
+                        )
+                        return
                     }
-                )
+                    let child = kk_coroutine_continuation_new(box.suspendEntryPoint)
+                    for (index, argument) in ([box.closureRaw] + [scopeRaw]).enumerated() {
+                        _ = kk_coroutine_launcher_arg_set(child, Int64(index), Int64(argument))
+                    }
+                    if let childState = runtimeContinuationState(from: child) {
+                        childState.scope = scope
+                        childState.builderContext = context
+                        childState.jobHandle = job
+                        childState.blockingScheduler = scheduler
+                        childState.flowCollectContext = invocation.flowCollectContext
+                        invocation.bindSuspendedCallChild(childState)
+                    }
+                    bodyAsync = true
+                    _ = runSuspendEntryLoopWithContinuation(
+                        entryPointRaw: box.suspendEntryPoint,
+                        continuation: child,
+                        onCompletion: { bodyResult, bodyThrown, _ in
+                            if let childState = runtimeContinuationState(from: child) {
+                                invocation.unbindSuspendedCallChild(childState)
+                            }
+                            outcome.complete(result: bodyResult, thrown: bodyThrown)
+                            waitLoop.wake()
+                        }
+                    )
+                } else {
+                    result = runtimeInvokeSuspendFunction(
+                        fnOrBox, arguments: [scopeRaw], continuation: 0, outThrown: &thrown
+                    )
+                }
             } else {
-                result = runtimeInvokeSuspendFunction(
-                    fnOrBox, arguments: [scopeRaw], continuation: 0, outThrown: &thrown
+                result = runtimeInvokeCollectionLambda1(
+                    fnPtr: fnOrBox, closureRaw: envRaw, value: scopeRaw, outThrown: &thrown
                 )
             }
-        } else {
-            result = runtimeInvokeCollectionLambda1(
-                fnPtr: fnOrBox, closureRaw: envRaw, value: scopeRaw, outThrown: &thrown
-            )
         }
+        waitLoop.run(until: {
+            RuntimeUnconfinedRunQueue.drainReady()
+            return outcome.isFinished
+        })
+        let body = outcome.snapshot()
+        let priorChildFailure = scope.childFailureSnapshot()
+        if body.thrown != 0 { scope.cancel() }
+        let childThrown = scope.waitForChildren(releaseOriginalHandles: false)
+        var thrown = priorChildFailure != 0 ? priorChildFailure
+            : (childThrown != 0 && (body.thrown == 0 || kk_is_cancellation_exception(body.thrown) != 0)
+                ? childThrown : body.thrown)
+        // Cancellation after the final body suspension still makes the scoped
+        // BlockingCoroutine complete exceptionally, even if its body returned T.
+        if thrown == 0 && job.cancellationSnapshot() {
+            thrown = kk_job_get_cancellation_exception(jobRaw)
+        }
+        if thrown != 0 { _ = job.completeExceptionally(with: thrown) }
+        else { _ = job.complete(with: body.result) }
+        outThrown?.pointee = thrown
+        return thrown == 0 ? body.result : 0
     }
-    waitLoop.run(until: {
-        RuntimeUnconfinedRunQueue.drainReady()
-        return outcome.isFinished
-    })
-    let body = outcome.snapshot()
-    let priorChildFailure = scope.childFailureSnapshot()
-    if body.thrown != 0 { scope.cancel() }
-    let childThrown = scope.waitForChildren(releaseOriginalHandles: false)
-    var thrown = priorChildFailure != 0 ? priorChildFailure
-        : (childThrown != 0 && (body.thrown == 0 || kk_is_cancellation_exception(body.thrown) != 0)
-            ? childThrown : body.thrown)
-    // Cancellation after the final body suspension still makes the scoped
-    // BlockingCoroutine complete exceptionally, even if its body returned T.
-    if thrown == 0 && job.cancellationSnapshot() {
-        thrown = kk_job_get_cancellation_exception(jobRaw)
-    }
-    if thrown != 0 { _ = job.completeExceptionally(with: thrown) }
-    else { _ = job.complete(with: body.result) }
-    outThrown?.pointee = thrown
-    return thrown == 0 ? body.result : 0
 }

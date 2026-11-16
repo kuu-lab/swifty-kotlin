@@ -1,6 +1,6 @@
 import Foundation
 
-struct JVMClassInfo {
+struct JVMClassInfo: Sendable {
     let name: String
     let flags: UInt16
     let superclass: String?
@@ -714,6 +714,46 @@ struct JVMClassReader {
                 }
             }
         }
+        if classAttributes.kotlinMetadata != nil, hasJvmOverloads {
+            let methodsByParameters = Dictionary(grouping: methods) { method in
+                method.name + method.descriptor.prefix(through: method.descriptor.firstIndex(of: ")")!)
+            }
+            methods.removeAll { method in
+                guard !method.isConstructor,
+                      method.annotations.contains(where: { $0.descriptor == "Lkotlin/jvm/JvmOverloads;" }) else { return false }
+                let key = method.name + method.descriptor.prefix(through: method.descriptor.firstIndex(of: ")")!)
+                return methodsByParameters[key]?.contains { other in
+                    other.descriptor != method.descriptor
+                        && !other.annotations.contains { $0.descriptor == "Lkotlin/jvm/JvmOverloads;" }
+                } == true
+            }
+        }
+        if let metadata = classAttributes.kotlinMetadata, metadata.isFileFacade == false {
+            let duplicateGroups = Dictionary(grouping: methods.filter { !$0.isConstructor && !$0.isStatic }) {
+                $0.name + $0.descriptor.prefix(through: $0.descriptor.firstIndex(of: ")")!)
+            }.values.filter { $0.count > 1 }
+            if !duplicateGroups.isEmpty,
+               let sourceNames = try? metadata.collidingMemberSourceNames(byteLimit: bytes.count) {
+                var ignored: Set<String> = []
+                var renamed: [String: String] = [:]
+                for group in duplicateGroups {
+                    let names = group.compactMap { method in sourceNames[method.name + method.descriptor] }
+                    guard !names.isEmpty, Set(names).count == names.count else { continue }
+                    for method in group {
+                        let key = method.name + method.descriptor
+                        if let sourceName = sourceNames[key] {
+                            if sourceName != method.name { renamed[key] = sourceName }
+                        } else {
+                            ignored.insert(key)
+                        }
+                    }
+                }
+                methods.removeAll { ignored.contains($0.name + $0.descriptor) }
+                for index in methods.indices {
+                    methods[index].kotlinCollisionSourceName = renamed[methods[index].name + methods[index].descriptor]
+                }
+            }
+        }
         var info = JVMClassInfo(
             name: name,
             flags: flags,
@@ -738,7 +778,7 @@ struct JVMClassReader {
         info.isKotlinMultifilePart = classAttributes.kotlinMetadata?.isMultifilePart == true
         info.genericSignature = classAttributes.signature
         info.metroAccessors = metroAccessors
-        if !info.classTypeParameterNames.isEmpty, let metadata = classAttributes.kotlinMetadata {
+        if info.isInterface, !info.classTypeParameterNames.isEmpty, let metadata = classAttributes.kotlinMetadata {
             info.kotlinTypeParameterVariance = (try? metadata.classTypeParameterVariance(byteLimit: bytes.count)) ?? [:]
         }
         info.kotlinReadOnlyCollectionSupertypes = readOnlyCollectionSupertypes
@@ -835,8 +875,9 @@ struct JVMClassReader {
     }
 }
 
-final class JVMDescriptorCache {
+final class JVMDescriptorCache: @unchecked Sendable {
     private static let maximumEntries = 2_048
+    private let lock = NSLock()
     private var entries: [String: ([JVMValueType], JVMValueType)] = [:]
 
     func parse(_ descriptor: String) throws -> ([JVMValueType], JVMValueType) {
@@ -845,13 +886,23 @@ final class JVMDescriptorCache {
         guard descriptor.utf8.allSatisfy({ $0 < 0x80 }) else {
             return try JVMDescriptor.parse(descriptor)
         }
-        if let signature = entries[descriptor] { return signature }
+        lock.lock()
+        if let signature = entries[descriptor] {
+            lock.unlock()
+            return signature
+        }
+        lock.unlock()
 
+        // Concurrent readers may parse the same descriptor; the results are
+        // identical, so the last store wins.
         let signature = try JVMDescriptor.parse(descriptor)
+
+        lock.lock()
         entries[descriptor] = signature
         if entries.count == Self.maximumEntries {
             entries.removeAll(keepingCapacity: true)
         }
+        lock.unlock()
         return signature
     }
 }
