@@ -785,6 +785,7 @@ final class DataFlowSemaPhase: CompilerPhase {
             )
         }
         if ctx.options.emit.isJVM {
+            registerJVMFileMembers(symbols: symbols, types: types, interner: ctx.interner)
             do { try ctx.jvmImports?.bind(in: ctx, sema: sema) }
             catch { ctx.diagnostics.error("KSWIFTK-JVM-0003", "Cannot bind JVM classpath: \(error)", range: nil) }
         }
