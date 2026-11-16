@@ -1652,7 +1652,7 @@ final class JVMClasspathIndex {
             return "var `\(field.name)`: \(kotlin) get() = null!! set(value) {}\n"
         }
         let ownPropertyNames = Set(info.kotlinStaticProperties.filter { isExposed($0.value.getter) }.keys)
-            let runtimeFields = info.fields.compactMap { $0.inherited && ownPropertyNames.contains($0.name) ? nil : runtimeField($0) }
+        let runtimeFields = info.fields.compactMap { $0.inherited && ownPropertyNames.contains($0.name) ? nil : runtimeField($0) }
         let companion = allowsCompanion ? kotlinCompanion(of: info) : nil
         if allowsCompanion, metadata?.companion == nil, companion != nil || !statics.isEmpty || !constantFields.isEmpty || !runtimeFields.isEmpty {
             source += "companion object"
