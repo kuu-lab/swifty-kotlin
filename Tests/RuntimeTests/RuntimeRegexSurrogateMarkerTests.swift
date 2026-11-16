@@ -193,6 +193,32 @@ struct RuntimeRegexSurrogateMarkerTests {
     }
 
     @Test
+    func propertyMemberCanonicalizationAndCoverage() {
+        // `[\p{javaAlphabetic}]` must compile: the member's canonical ICU
+        // name is emitted, not the raw `javaAlphabetic` spelling.
+        let alphaClass = makeRegex("[\\p{javaAlphabetic}]")
+        #expect(findAllValues(alphaClass, units: [0x61, 0x35]).count == 1)
+        // `[\p{IsAssigned}]` covers both escape-pair spaces but NOT
+        // unassigned scalars like U+0378.
+        let assignedClass = makeRegex("[\\p{IsAssigned}]")
+        #expect(findAllValues(assignedClass, units: [0x0378]).isEmpty)
+        #expect(findAllValues(assignedClass, units: [0x61, 0xD800]).count == 2)
+        // `\P{javaDefined}` / `\P{IsAssigned}` = unassigned only: neither the
+        // surrogate pair nor the private-use pair may match.
+        for pattern in ["\\P{javaDefined}", "\\P{IsAssigned}"] {
+            let neg = makeRegex(pattern)
+            #expect(findAllValues(neg, units: [0xD800]).isEmpty, "\(pattern) matched a surrogate")
+            #expect(findAllValues(neg, units: [0xE005]).isEmpty, "\(pattern) matched private use")
+            #expect(findAllValues(neg, units: [0x0378]).count == 1, "\(pattern) missed U+0378")
+        }
+        // `\p{IsGraph}` includes private-use originals (the \uE801 pair arm)
+        // but not surrogates.
+        let graph = makeRegex("\\p{IsGraph}")
+        #expect(findAllValues(graph, units: [0xE005]).count == 1)
+        #expect(findAllValues(graph, units: [0xD800]).isEmpty)
+    }
+
+    @Test
     func overflowingHexEscapesFailLikeJvm() {
         // `\x{...}` values beyond Int/Unicode range must not wrap around:
         // the escape is left for ICU to reject, matching the JVM's

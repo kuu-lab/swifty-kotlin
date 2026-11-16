@@ -445,13 +445,17 @@ func jvmRegexMemberSpaceCoverage(_ name: String, negated: Bool) -> (text: String
             ? ("[^\\s\\S]", [])
             : ("[^\\uE000-\\uE801]", [surrogateRange, markerRange])
     case "Assigned":
-        // Assigned = \\P{Cn}: it covers both escape-pair spaces (surrogates
+        // Assigned = \P{Cn}: it covers both escape-pair spaces (surrogates
         // are Cs, marker scalars are Co — both assigned) but excludes
         // unassigned scalars like U+0378, so the plain arm must keep the
-        // property rather than collapsing to `[^\\uE000-\\uE801]`.
+        // property rather than collapsing to `[^\uE000-\uE801]`.
         return negated
             ? ("[\\P{Assigned}]", [])
             : ("[\\p{Assigned}--[\\uE000-\\uE801]]", [surrogateRange, markerRange])
+    case "Graph", "GRAPH", "Print", "PRINT":
+        return negated
+            ? ("[\\P{Is\(lookup.uppercased())}--[\\uE000-\\uE801]]", [surrogateRange])
+            : ("[\\p{Is\(lookup.uppercased())}--[\\uE000-\\uE801]]", [markerRange])
     default:
         return nil
     }
@@ -596,13 +600,15 @@ func jvmRegexICUPropertyReplacement(_ name: String, negated: Bool, unicodeClasse
             case "GRAPH", "PRINT":
                 // ICU's graph/print cover the private-use marker scalars, so
                 // a bare passthrough would match half an escape pair (KUU-4590).
+                // Markers are literal-PUA originals, so the positive form
+                // keeps the \uE801 pair arm; surrogates are not graph/print.
                 if negated {
                     return "(?:[\\P{Is\(upper)}--[\\uE000-\\uE801]]|\\uE800[\\uE000-\\uE7FF])"
                 }
-                return "[\\p{Is\(upper)}--[\\uE000-\\uE801]]"
+                return "(?:[\\p{Is\(upper)}--[\\uE000-\\uE801]]|\\uE801[\\uE000-\\uE801])"
             default:
                 // ICU does not know the `Is`-prefixed spelling of binary
-                // properties (e.g. `\\p{IsAssigned}`): emit the bare name.
+                // properties (e.g. `\p{IsAssigned}`): emit the bare name.
                 // POSIX names stay verbatim — their bare spellings differ.
                 return jvmRegexPosixNames.contains(upper) ? nil : propertyEscape(short)
             }
