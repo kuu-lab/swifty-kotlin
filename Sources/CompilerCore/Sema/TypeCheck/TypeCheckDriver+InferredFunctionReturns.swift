@@ -204,6 +204,7 @@ extension TypeCheckDriver {
             // Use the declaration's file scope and receiver/parameter bindings,
             // never the caller's lambda locals or expected return type.
             let checkpoint = diagnostics.checkpoint()
+            let nominalDeclsCheckedBefore = localNominalDeclChecks.count
             let signature = sema.symbols.functionSignature(for: symbol)
             declChecker.typeCheckFunctionDecl(
                 declaration.function,
@@ -224,6 +225,13 @@ extension TypeCheckDriver {
                 if let signature { sema.symbols.setFunctionSignature(signature, for: symbol) }
                 checkedInferredReturnFunctions.remove(symbol)
                 deferredInferredReturnFunctions.insert(symbol)
+                // The rollback kept symbol bindings for nominal decls checked
+                // inside this run; force the retry to re-run their member
+                // checks so errors inside them — e.g. in an object literal
+                // returned by the function — are not lost with the rollback.
+                pendingLocalNominalRechecks.formUnion(
+                    localNominalDeclChecks[nominalDeclsCheckedBefore...]
+                )
             }
         }
     }

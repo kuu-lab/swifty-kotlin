@@ -67,8 +67,10 @@ extension ExprTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
 
+        let pendingRecheck = driver.pendingLocalNominalRechecks.remove(declID) != nil
         if let existing = sema.bindings.declSymbols[declID],
-           driver.predeclaredObjectLiteralDecls.remove(declID) == nil
+           driver.predeclaredObjectLiteralDecls.remove(declID) == nil,
+           !pendingRecheck
         {
             return existing
         }
@@ -172,6 +174,9 @@ extension ExprTypeChecker {
             ctx: ctx
         )
         driver.predeclaredObjectLiteralDecls.remove(declID)
+        if driver.sourceManager?.origin(of: ctx.currentFileID)?.isBundledStdlib != true {
+            driver.localNominalDeclChecks.append(declID)
+        }
         let directSuperSymbols = sema.symbols.directSupertypes(for: objectSymbol)
         let inheritance = DataFlowSemaPhase()
 

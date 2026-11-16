@@ -123,8 +123,13 @@ extension ExprTypeChecker {
     ) -> SymbolID {
         let sema = ctx.sema
 
-        if let existing = sema.bindings.declSymbols[declID] {
+        if let existing = sema.bindings.declSymbols[declID],
+           driver.pendingLocalNominalRechecks.remove(declID) == nil
+        {
             return existing
+        }
+        if driver.sourceManager?.origin(of: ctx.currentFileID)?.isBundledStdlib != true {
+            driver.localNominalDeclChecks.append(declID)
         }
 
         let aliasFQName = fqNamePrefix + [typeAliasDecl.name]
@@ -247,8 +252,13 @@ extension ExprTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
 
-        if let existing = sema.bindings.declSymbols[declID] {
+        if let existing = sema.bindings.declSymbols[declID],
+           driver.pendingLocalNominalRechecks.remove(declID) == nil
+        {
             return existing
+        }
+        if driver.sourceManager?.origin(of: ctx.currentFileID)?.isBundledStdlib != true {
+            driver.localNominalDeclChecks.append(declID)
         }
 
         let outerLocalsSnapshot = locals
