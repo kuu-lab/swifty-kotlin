@@ -491,10 +491,13 @@ func runtimeAllocateCancellationException(
 }
 
 /// The message matches kotlinx.coroutines verbatim so `e.message` agrees with
-/// Kotlin/JVM.
+/// Kotlin/JVM. A non-positive timeout takes kotlinx' immediate-failure branch
+/// ("Timed out immediately") rather than the deadline-exceeded wording.
 func runtimeAllocateTimeoutCancellationException(timeoutMillis: Int) -> Int {
     runtimeRegisterThrowable(RuntimeTimeoutCancellationBox(
-        message: "Timed out waiting for \(timeoutMillis) ms"
+        message: timeoutMillis <= 0
+            ? "Timed out immediately"
+            : "Timed out waiting for \(timeoutMillis) ms"
     ))
 }
 

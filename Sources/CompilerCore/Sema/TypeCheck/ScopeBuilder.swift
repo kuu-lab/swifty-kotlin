@@ -726,6 +726,17 @@ struct TypeCheckScopeBuilder {
                 continue
             }
 
+            if importDecl.isWildcard {
+                for owner in resolved {
+                    guard let companion = sema.symbols.companionObjectSymbolIfKnown(for: owner),
+                          isAccessibleWildcardSymbol(owner) else { continue }
+                    for member in sema.symbols.declaredChildren(of: companion)
+                        where sema.symbols.isJVMJavaMethod(member) && isAccessibleWildcardSymbol(member) {
+                        wildcardImportScope.insert(member)
+                    }
+                }
+            }
+
             if importDecl.isWildcard, validatesImports,
                let importedObject = resolved.first(where: { sema.symbols.symbol($0)?.kind == .object }),
                let object = sema.symbols.symbol(importedObject)

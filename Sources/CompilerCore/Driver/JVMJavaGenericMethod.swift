@@ -11,11 +11,64 @@ extension JVMClasspathIndex {
         return (base + types.result[arguments...], types.referencedClasses)
     }
 
+    func javaInstanceFieldSourceType(_ field: JVMForeignField, in owner: JVMClassInfo, erased: JVMValueType) -> String {
+        let source: String
+        if let signature = field.genericSignature {
+            var accessor = JVMForeignMethod(owner: owner.name, name: field.name, descriptor: "()" + field.descriptor,
+                                            parameters: [], result: erased, isStatic: false, isInterface: owner.isInterface, isAbstract: false)
+            accessor.genericSignature = "()" + signature
+            source = javaGenericTypes(accessor)?.result ?? kotlinType(erased)
+        } else {
+            source = kotlinType(erased)
+        }
+        // Java fields use platform collection types, which permit mutating
+        // the referenced collection even when the field itself is final.
+        if owner.isKotlinFileFacade == nil && erased.referenceName == "java/util/Map" {
+            let readOnly = "kotlin.collections.Map"
+            if source.hasPrefix(readOnly + "<") {
+                return "kotlin.collections.MutableMap" + source.dropFirst(readOnly.count)
+            }
+        }
+        return source
+    }
+
+    func javaTypeParameterBounds(_ info: JVMClassInfo) -> (bounds: [String], referencedClasses: Set<String>) {
+        var bounds: [String] = []
+        var references: Set<String> = []
+        for name in info.classTypeParameterNames {
+            for bound in info.javaClassTypeParameterBounds[name] ?? [] where bound.first == "L" {
+                let binary = String(bound.dropFirst().prefix { $0 != "<" && $0 != ";" })
+                let carrier: JVMValueType = .reference(binary, nullable: false)
+                guard exposeSuspendType(carrier) else { continue }
+                // A simple bound has the same erasure and source type.
+                // Parameterized bounds need a projection such as Enum<*>.
+                var source = kotlinType(carrier)
+                guard !source.contains("<") else { continue }
+                // A Java bound is a boxed reference. Mapping e.g.
+                // java/lang/Integer to non-null kotlin.Int would erase T to
+                // primitive `I` while the method descriptor keeps
+                // `Ljava/lang/Integer;` — render the bound nullable so the
+                // erasure stays boxed.
+                if ["kotlin.Int","kotlin.Long","kotlin.Short","kotlin.Byte",
+                    "kotlin.Char","kotlin.Boolean","kotlin.Float","kotlin.Double",
+                    // A leading `Ljava/lang/Object;` bound is Java's default —
+                    // Kotlin's `Any?`, not the non-null `Any`; otherwise
+                    // `Box<String?>` would violate the synthesized bound.
+                    "kotlin.Any"].contains(source) {
+                    source += "?"
+                }
+                bounds.append("`\(name)`: " + source)
+                references.insert(binary)
+            }
+        }
+        return (bounds, references)
+    }
+
     /// Recover Java source types for simple parameterized signatures. The
     /// classfile descriptor remains the source of truth for invocation.
     func javaGenericTypes(_ method: JVMForeignMethod) -> (parameters: [String], result: String, typeParameters: [String], bounds: [(name: String, type: String)], referencedClasses: Set<String>)? {
         guard let owner = classes[method.owner], owner.isKotlinFileFacade == nil,
-              let signature = method.genericSignature, !method.isConstructor
+              let signature = method.genericSignature
         else { return nil }
 
         let canUseGenericMembers = !method.owner.hasPrefix("java/") && !method.owner.hasPrefix("javax/")
@@ -37,11 +90,21 @@ extension JVMClasspathIndex {
                 hasGenericType = true
                 return "`\(name)`"
             }
+            if first == "[" {
+                let component = carrier.flatMap { type -> JVMValueType? in
+                    guard type.descriptor.hasPrefix("[") else { return nil }
+                    return try? JVMDescriptor.parse("()" + type.descriptor.dropFirst()).1
+                }
+                if let component, component.referenceName == nil, let carrier {
+                    guard let marker = remaining.first, marker == component.descriptor.first else { return nil }
+                    remaining.removeFirst()
+                    return kotlinType(carrier)
+                }
+                guard let element = parseType(component, depth: depth + 1) else { return nil }
+                return "kotlin.Array<" + element + ">"
+            }
             if first != "L" {
                 guard let carrier, first == carrier.descriptor.first else { return nil }
-                let suffix = carrier.descriptor.dropFirst()
-                guard remaining.hasPrefix(suffix) else { return nil }
-                remaining = remaining.dropFirst(suffix.count)
                 return kotlinType(carrier)
             }
             let name = String(remaining.prefix { $0 != "<" && $0 != ";" })
@@ -53,7 +116,7 @@ extension JVMClasspathIndex {
             var source = kotlinType(type)
             if remaining.first == "<" {
                 let mappedCollections = ["java/util/List", "java/util/Set", "java/util/Map"]
-                let javaGenerics = ["java/lang/Class", "java/util/concurrent/Callable", "java/lang/Iterable"]
+                let javaGenerics = ["java/lang/Class", "java/util/concurrent/Callable", "java/lang/Iterable", "java/lang/Comparable"]
                 let hasTypeParameters = classes[name]?.classTypeParameterNames.isEmpty == false
                 guard depth == 0 && mappedCollections.contains(name)
                     || canUseGenericMembers && (!source.contains("<") || mappedCollections.contains(name)
@@ -152,7 +215,7 @@ extension JVMClasspathIndex {
         }
         guard remaining.first == ")" else { return nil }
         remaining.removeFirst()
-        guard let result = parseType(method.result), hasGenericType,
+        guard let result = parseType(method.isConstructor ? .unit : method.result), hasGenericType,
               remaining.isEmpty || remaining.first == "^" else { return nil }
         return (parameters, result, methodTypeParameters, methodBounds, referencedClasses)
     }
