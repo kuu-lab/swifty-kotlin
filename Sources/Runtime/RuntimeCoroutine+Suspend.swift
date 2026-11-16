@@ -145,20 +145,21 @@ public func kk_with_timeout(
     _ continuation: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let outcome = runTimeoutBlock(
-        timeoutMillis: timeoutMillis,
-        entryPointRaw: entryPointRaw,
-        continuation: continuation
-    )
-    if outcome.timedOut {
-        outThrown?.pointee = runtimeAllocateTimeoutCancellationException(
-            timeoutMillis: timeoutMillis
+    return runtimeThrowingBridge(outThrown) {
+        let outcome = runTimeoutBlock(
+            timeoutMillis: timeoutMillis,
+            entryPointRaw: entryPointRaw,
+            continuation: continuation
         )
-        return 0
+        if outcome.timedOut {
+            outThrown?.pointee = runtimeAllocateTimeoutCancellationException(
+                timeoutMillis: timeoutMillis
+            )
+            return 0
+        }
+        outThrown?.pointee = outcome.thrown
+        return outcome.result
     }
-    outThrown?.pointee = outcome.thrown
-    return outcome.result
 }
 
 /// Legacy non-throwing ABI; new Kotlin calls use the throwing bridge below.
@@ -175,20 +176,21 @@ public func kk_with_timeout_or_null_throwing(
     _ continuation: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let outcome = runTimeoutBlock(
-        timeoutMillis: timeoutMillis,
-        entryPointRaw: entryPointRaw,
-        continuation: continuation
-    )
-    if outcome.timedOut {
-        // Use the shared null-sentinel convention (see e.g. RuntimeRangeAndDispatch's
-        // `orNull` helpers) rather than raw 0, which is a valid unboxed Int result and
-        // would otherwise be indistinguishable from "no value" when printed/compared.
-        return runtimeNullSentinelInt
+    return runtimeThrowingBridge(outThrown) {
+        let outcome = runTimeoutBlock(
+            timeoutMillis: timeoutMillis,
+            entryPointRaw: entryPointRaw,
+            continuation: continuation
+        )
+        if outcome.timedOut {
+            // Use the shared null-sentinel convention (see e.g. RuntimeRangeAndDispatch's
+            // `orNull` helpers) rather than raw 0, which is a valid unboxed Int result and
+            // would otherwise be indistinguishable from "no value" when printed/compared.
+            return runtimeNullSentinelInt
+        }
+        outThrown?.pointee = outcome.thrown
+        return outcome.result
     }
-    outThrown?.pointee = outcome.thrown
-    return outcome.result
 }
 
 

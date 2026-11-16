@@ -343,7 +343,6 @@ extension LoweringPassRegressionTests {
         let packageName = interner.intern("demo")
         let packagePath = [packageName]
 
-        // Define a data class Point with two properties: x and y
         let pointName = interner.intern("Point")
         let pointFQName = packagePath + [pointName]
         let pointSymbol = symbols.define(
@@ -395,7 +394,6 @@ extension LoweringPassRegressionTests {
             nullability: .nonNull
         )))
 
-        // Register constructor properties x and y
         let xName = interner.intern("x")
         let xSymbol = symbols.define(
             kind: .property,
@@ -567,7 +565,6 @@ extension LoweringPassRegressionTests {
             nullability: .nonNull
         )))
 
-        // Register synthetic hashCode symbol
         let hashCodeName = interner.intern("hashCode")
         let hashCodeFQName = emptyFQName + [hashCodeName]
         let hashCodeSymbol = symbols.define(
@@ -644,7 +641,6 @@ extension LoweringPassRegressionTests {
             nullability: .nonNull
         )))
 
-        // Register a single constructor property
         let valueName = interner.intern("value")
         let valueSymbol = symbols.define(
             kind: .property,
@@ -689,7 +685,6 @@ extension LoweringPassRegressionTests {
             for: ctorSymbolwrapperSymbol
         )
 
-        // Register synthetic hashCode symbol
         let hashCodeName = interner.intern("hashCode")
         let hashCodeFQName = wrapperFQName + [hashCodeName]
         let hashCodeSymbol = symbols.define(
@@ -746,7 +741,6 @@ extension LoweringPassRegressionTests {
         let packageName = interner.intern("demo")
         let packagePath = [packageName]
 
-        // Define data class Point with primary-constructor properties x and y.
         let pointName = interner.intern("Point")
         let pointFQName = packagePath + [pointName]
         let pointSymbol = symbols.define(
@@ -781,7 +775,6 @@ extension LoweringPassRegressionTests {
             visibility: .private
         )
 
-        // Register properties x: Int and y: Int
         let intType = types.make(.primitive(.int, .nonNull))
         let xName = interner.intern("x")
         let xSymbol = symbols.define(
@@ -1030,7 +1023,6 @@ extension LoweringPassRegressionTests {
             flags: [.synthetic]
         )
 
-        // Define a constructor with two Int parameters (x, y)
         let initName = interner.intern("<init>")
         let ctorSymbol = symbols.define(
             kind: .constructor,
