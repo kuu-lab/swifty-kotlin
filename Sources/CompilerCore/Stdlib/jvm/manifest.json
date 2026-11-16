@@ -74,7 +74,7 @@
       "virtualPath": "<kswiftk-jvm>/byte-streams.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/io/ByteStreamsKt",
-      "consumerIdentifiers": ["readBytes"]
+      "consumerIdentifiers": ["readBytes", "reader", "readText"]
     },
     {
       "path": "declarations/UStrings.kt",
@@ -773,6 +773,12 @@
       "path": "declarations/MapHigherOrderFunctions.kt",
       "virtualPath": "<kswiftk-jvm>/map-higher-order-functions.kt",
       "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/MapFilter.kt",
+      "virtualPath": "<kswiftk-jvm>/map-filter.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/MapsKt"
     },
     {
       "path": "declarations/BuilderContracts.kt",
