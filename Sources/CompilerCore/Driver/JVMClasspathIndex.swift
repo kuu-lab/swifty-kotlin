@@ -2738,6 +2738,12 @@ final class JVMClasspathIndex {
     /// Resolve their classfile descriptors and platform types when a signature
     /// is requested, including requests made by override checking or codegen.
     func bind(in ctx: CompilationContext, sema: SemaModule) throws {
+        func platform(_ type: TypeID) -> TypeID {
+            switch sema.types.kind(of: type) {
+            case .classType, .stringStruct, .any, .typeParam: return sema.types.withNullability(.platformType, for: type)
+            default: return type
+            }
+        }
         boundSymbols = sema.symbols
         let allSymbols = sema.symbols.allSymbols()
         let foreignFiles = Set(sourceClasses.keys.filter {
