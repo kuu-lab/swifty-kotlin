@@ -468,16 +468,16 @@ struct RuntimeRegexTests {
     @Test
     func translateRewritesPredefinedClassesToAsciiByDefault() {
         #expect(translateJavaPatternForICU("\\w+") == "[a-zA-Z0-9_]+")
-        #expect(translateJavaPatternForICU("\\W+") == "[^a-zA-Z0-9_]+")
+        #expect(translateJavaPatternForICU("\\W+") == "(?:[^a-zA-Z0-9_\\uE000-\\uE801]|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801])+")
         #expect(translateJavaPatternForICU("\\d+") == "[0-9]+")
-        #expect(translateJavaPatternForICU("\\D+") == "[^0-9]+")
+        #expect(translateJavaPatternForICU("\\D+") == "(?:[^0-9\\uE000-\\uE801]|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801])+")
         #expect(translateJavaPatternForICU("\\s+") == "[ \\t\\n\\x0B\\f\\r]+")
-        #expect(translateJavaPatternForICU("\\S+") == "[^ \\t\\n\\x0B\\f\\r]+")
+        #expect(translateJavaPatternForICU("\\S+") == "(?:[^ \\t\\n\\x0B\\f\\r\\uE000-\\uE801]|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801])+")
         // Inside classes the expansions are emitted as nested classes so they
         // union with neighbours instead of merging into a range.
         #expect(translateJavaPatternForICU("[\\w-]") == "[[a-zA-Z0-9_]-]")
         #expect(translateJavaPatternForICU("[^\\w]") == "[^[a-zA-Z0-9_]]")
-        #expect(translateJavaPatternForICU("[\\W]") == "[[^a-zA-Z0-9_]]")
+        #expect(translateJavaPatternForICU("[\\W]") == "(?:[[^a-zA-Z0-9_\\uE000-\\uE801]]|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801])")
         // Escaped backslash + 'w' is not a class escape.
         #expect(translateJavaPatternForICU("\\\\w") == "\\\\w")
         // \Q...\E quoting is untouched.
@@ -556,11 +556,11 @@ struct RuntimeRegexTests {
         #expect(translateJavaPatternForICU("\\p{XDigit}+") == "[0-9a-fA-F]+")
         #expect(translateJavaPatternForICU("\\p{Space}+") == "[ \\t\\n\\x0B\\f\\r]+")
         // \P{Name} complements the ASCII expansion.
-        #expect(translateJavaPatternForICU("\\P{Lower}+") == "[^a-z]+")
-        #expect(translateJavaPatternForICU("\\P{XDigit}") == "[^0-9a-fA-F]")
+        #expect(translateJavaPatternForICU("\\P{Lower}+") == "(?:[^a-z\\uE000-\\uE801]|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801])+")
+        #expect(translateJavaPatternForICU("\\P{XDigit}") == "(?:[^0-9a-fA-F\\uE000-\\uE801]|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801])")
         // Inside classes the expansion is a nested class so it unions safely.
         #expect(translateJavaPatternForICU("[\\p{Lower}_]") == "[[a-z]_]")
-        #expect(translateJavaPatternForICU("[\\P{Lower}]") == "[[^a-z]]")
+        #expect(translateJavaPatternForICU("[\\P{Lower}]") == "(?:[[^a-z\\uE000-\\uE801]]|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801])")
         #expect(translateJavaPatternForICU("[^\\p{Punct}]")
             == "[^[\\x21-\\x2F\\x3A-\\x40\\x5B-\\x60\\x7B-\\x7E]]")
         // Non-POSIX \p{...} names are Unicode on both sides: verbatim.
@@ -572,8 +572,8 @@ struct RuntimeRegexTests {
         // Unbraced single-letter categories (exactly L M N P S Z C on the
         // JVM) are wrapped in braces for ICU; other letters stay verbatim.
         #expect(translateJavaPatternForICU("\\pL+") == "\\p{L}+")
-        #expect(translateJavaPatternForICU("\\pC") == "\\p{C}")
-        #expect(translateJavaPatternForICU("\\PL") == "\\P{L}")
+        #expect(translateJavaPatternForICU("\\pC") == "(?:[\\p{C}--[\\uE000-\\uE801]]|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801])")
+        #expect(translateJavaPatternForICU("\\PL") == "(?:[\\P{L}--[\\uE000-\\uE801]]|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801])")
         #expect(translateJavaPatternForICU("\\pU") == "\\pU")
         // \Q...\E quoting is untouched.
         #expect(translateJavaPatternForICU("\\Q\\p{Lower}\\E\\p{Lower}")
@@ -587,7 +587,7 @@ struct RuntimeRegexTests {
             == "(?:\\p{Lower}+)[a-z]")
         #expect(translateJavaPatternForICU("(?U)\\p{Lower}(?-U)\\p{Lower}")
             == "\\p{Lower}[a-z]")
-        #expect(translateJavaPatternForICU("(?U)\\P{Lower}") == "\\P{Lower}")
+        #expect(translateJavaPatternForICU("(?U)\\P{Lower}") == "(?:[\\P{Lower}--[\\uE000-\\uE801]]|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801])")
         // A bare (?U) applies only until the end of the enclosing group.
         #expect(translateJavaPatternForICU("(x(?U)\\p{Lower}) \\p{Lower}")
             == "(x\\p{Lower}) [a-z]")
@@ -814,24 +814,24 @@ struct RuntimeRegexTests {
     func translateRewritesJvmOnlyPropertyNames() {
         // LD = L ∪ Nd, L1 = U+0000–U+00FF, all = Any (JDK CharPredicates).
         #expect(translateJavaPatternForICU("\\p{LD}") == "[\\p{L}\\p{Nd}]")
-        #expect(translateJavaPatternForICU("\\P{LD}") == "[^\\p{L}\\p{Nd}]")
+        #expect(translateJavaPatternForICU("\\P{LD}") == "(?:[^\\p{L}\\p{Nd}\\uE000-\\uE801]|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801])")
         #expect(translateJavaPatternForICU("\\p{L1}") == "[\\x00-\\xFF]")
-        #expect(translateJavaPatternForICU("\\P{L1}") == "[^\\x00-\\xFF]")
-        #expect(translateJavaPatternForICU("\\p{all}") == "\\p{Any}")
+        #expect(translateJavaPatternForICU("\\P{L1}") == "(?:[^\\x00-\\xFF\\uE000-\\uE801]|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801])")
+        #expect(translateJavaPatternForICU("\\p{all}") == "(?:[\\p{Any}--[\\uE000-\\uE801]]|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801])")
         #expect(translateJavaPatternForICU("\\P{all}") == "\\P{Any}")
         // java* predicates ICU lacks or resolves differently.
         #expect(translateJavaPatternForICU("\\p{javaAlphabetic}") == "\\p{Alphabetic}")
         #expect(translateJavaPatternForICU("\\p{javaIdeographic}") == "\\p{Ideographic}")
         #expect(translateJavaPatternForICU("\\p{javaLowerCase}") == "\\p{Lowercase}")
         #expect(translateJavaPatternForICU("\\p{javaUpperCase}") == "\\p{Uppercase}")
-        #expect(translateJavaPatternForICU("\\P{javaLowerCase}") == "\\P{Lowercase}")
+        #expect(translateJavaPatternForICU("\\P{javaLowerCase}") == "(?:[\\P{Lowercase}--[\\uE000-\\uE801]]|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801])")
         // java* names ICU already resolves identically stay verbatim.
         #expect(translateJavaPatternForICU("\\p{javaDigit}") == "\\p{javaDigit}")
         #expect(translateJavaPatternForICU("\\p{javaWhitespace}") == "\\p{javaWhitespace}")
         // Is* names follow the JVM's forUnicodeProperty → forProperty →
         // forUnicodeScript dispatch, then get the same rewrite as the bare
         // form (ICU rejects every Is<java*> spelling outright).
-        #expect(translateJavaPatternForICU("\\p{Isall}") == "\\p{Any}")
+        #expect(translateJavaPatternForICU("\\p{Isall}") == "(?:[\\p{Any}--[\\uE000-\\uE801]]|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801])")
         #expect(translateJavaPatternForICU("\\p{IsLD}") == "[\\p{L}\\p{Nd}]")
         #expect(translateJavaPatternForICU("\\p{IsL1}") == "[\\x00-\\xFF]")
         #expect(translateJavaPatternForICU("\\p{IsjavaAlphabetic}") == "\\p{Alphabetic}")
@@ -841,7 +841,7 @@ struct RuntimeRegexTests {
         #expect(translateJavaPatternForICU("\\p{IsjavaDigit}") == "\\p{javaDigit}")
         #expect(translateJavaPatternForICU("\\p{IsjavaWhitespace}") == "\\p{javaWhitespace}")
         #expect(translateJavaPatternForICU("\\p{IsLu}") == "\\p{Lu}")
-        #expect(translateJavaPatternForICU("\\P{IsLu}") == "\\P{Lu}")
+        #expect(translateJavaPatternForICU("\\P{IsLu}") == "(?:[\\P{Lu}--[\\uE000-\\uE801]]|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801])")
         #expect(translateJavaPatternForICU("\\p{IsWORD}")
             == "[\\p{Alphabetic}\\p{M}\\p{Nd}\\p{Pc}\\p{Join_Control}]")
         #expect(translateJavaPatternForICU("\\p{Isword}")
@@ -855,7 +855,7 @@ struct RuntimeRegexTests {
         // Is* names ICU already resolves keep passing through.
         #expect(translateJavaPatternForICU("\\p{IsLatin}") == "\\p{IsLatin}")
         #expect(translateJavaPatternForICU("\\p{Islower}") == "\\p{Islower}")
-        #expect(translateJavaPatternForICU("\\p{IsALPHABETIC}") == "\\p{IsALPHABETIC}")
+        #expect(translateJavaPatternForICU("\\p{IsALPHABETIC}") == "\\p{ALPHABETIC}")
         // gc=/general_category= resolve through forProperty: POSIX values take
         // the ASCII expansion in every mode (?U does not reach forProperty),
         // categories and java* get the same rewrites as bare names.
@@ -867,16 +867,16 @@ struct RuntimeRegexTests {
         #expect(translateJavaPatternForICU("\\p{gc=Digit}") == "[0-9]")
         #expect(translateJavaPatternForICU("\\p{gc=Punct}")
             == "[\\x21-\\x2F\\x3A-\\x40\\x5B-\\x60\\x7B-\\x7E]")
-        #expect(translateJavaPatternForICU("\\p{gc=all}") == "\\p{Any}")
+        #expect(translateJavaPatternForICU("\\p{gc=all}") == "(?:[\\p{Any}--[\\uE000-\\uE801]]|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801])")
         #expect(translateJavaPatternForICU("\\p{gc=LD}") == "[\\p{L}\\p{Nd}]")
         #expect(translateJavaPatternForICU("\\p{gc=L1}") == "[\\x00-\\xFF]")
         #expect(translateJavaPatternForICU("\\p{gc=javaLowerCase}") == "\\p{Lowercase}")
         #expect(translateJavaPatternForICU("\\p{gc=javaDigit}") == "\\p{javaDigit}")
-        #expect(translateJavaPatternForICU("\\P{gc=Lower}") == "[^a-z]")
+        #expect(translateJavaPatternForICU("\\P{gc=Lower}") == "(?:[^a-z\\uE000-\\uE801]|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801])")
         // The empty Java block SURROGATES_AREA never matches; its complement
         // matches everything.
         #expect(translateJavaPatternForICU("\\p{InSurrogates_Area}") == "\\P{Any}")
-        #expect(translateJavaPatternForICU("\\P{InSurrogates_Area}") == "\\p{Any}")
+        #expect(translateJavaPatternForICU("\\P{InSurrogates_Area}") == "(?:[\\p{Any}--[\\uE000-\\uE801]]|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801])")
         #expect(translateJavaPatternForICU("\\p{blk=Surrogates_Area}") == "\\P{Any}")
         #expect(translateJavaPatternForICU("\\p{block=surrogates_area}") == "\\P{Any}")
         // Rewrites compose with flags, classes and quotes like the POSIX ones.
