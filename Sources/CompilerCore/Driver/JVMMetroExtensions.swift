@@ -54,12 +54,21 @@ extension JVMMetroBindingEmitter {
         guard extensionFactories.insert(factory.name).inserted else { return }
         let inputs = try program.metroDependencies(method)
         let types = method.parameters
-        let childBinding = try makeExtension(child, inputs: Array(zip(inputs, types)))
+        let logicalTypes = types.enumerated().map { index, type in
+            let parameters = method.kotlinFunction?.parameters ?? []
+            return parameters.indices.contains(index) ? program.metroValueType(parameters[index].sourceType) ?? type : type
+        }
+        let logicalInputs = inputs.enumerated().map { index, key in
+            JVMMetroBindingKey(logicalTypes[index] == types[index] ? key.type : logicalTypes[index].descriptor,
+                               qualifiers: key.qualifiers)
+        }
+        let childBinding = try makeExtension(child, inputs: Array(zip(logicalInputs, logicalTypes)))
         guard case let .extensionGraph(name) = childBinding.recipe else { preconditionFailure() }
         let builder = try makeBuilder(method.name, result: method.result)
         let receiver = try builder.value(.reference(implementation, nullable: false))
         let arguments = try types.map { try builder.value($0) }
-        let result = try builder.constructJDK(name, parameters: [receiver.type] + types, arguments: [receiver] + arguments)
+        let logicalArguments = try zip(arguments, logicalTypes).map { try builder.convert($0, to: $1) }
+        let result = try builder.constructJDK(name, parameters: [receiver.type] + logicalTypes, arguments: [receiver] + logicalArguments)
         builder.instructions.append(.returnValue(result))
         let function = program.rawFunction(implementation, name: method.name, parameters: types, result: method.result,
                                            access: 0x0011, locals: builder.locals, instructions: builder.instructions)
