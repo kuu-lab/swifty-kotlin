@@ -30,4 +30,57 @@ extension BundledStdlibExecutionTests {
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
+
+    // KUU-4587: a non-positive timeout must short-circuit before the block runs.
+    // kotlinx returns null from `withTimeoutOrNull` and throws
+    // `TimeoutCancellationException("Timed out immediately")` from `withTimeout`
+    // without executing the block; running the block races the already-expired
+    // deadline and can wrongly produce the block's value.
+    @Test(arguments: [true, false])
+    func testWithTimeoutNonPositiveDuration(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            import kotlin.time.Duration.Companion.milliseconds
+            import kotlinx.coroutines.*
+
+            fun main() = runBlocking {
+                var negDurationRan = false
+                val negDuration = withTimeoutOrNull((-1).milliseconds) { negDurationRan = true; "unreachable" }
+                println(negDuration)
+                println(negDurationRan)
+
+                var zeroDurationRan = false
+                val zeroDuration = withTimeoutOrNull(0.milliseconds) { zeroDurationRan = true; "unreachable" }
+                println(zeroDuration)
+                println(zeroDurationRan)
+
+                var negLongRan = false
+                val negLong = withTimeoutOrNull(-1L) { negLongRan = true; "unreachable" }
+                println(negLong)
+                println(negLongRan)
+
+                var positiveRan = false
+                val positive = withTimeoutOrNull(1000.milliseconds) { positiveRan = true; 42 }
+                println(positive)
+                println(positiveRan)
+
+                var withTimeoutRan = false
+                var withTimeoutMessage = ""
+                var withTimeoutThrew = false
+                try {
+                    withTimeout((-1).milliseconds) { withTimeoutRan = true; "unreachable" }
+                } catch (e: TimeoutCancellationException) {
+                    withTimeoutThrew = true
+                    withTimeoutMessage = e.message ?: ""
+                }
+                println(withTimeoutThrew)
+                println(withTimeoutMessage)
+                println(withTimeoutRan)
+            }
+            """,
+            expectedOutput: "null\nfalse\nnull\nfalse\nnull\nfalse\n42\ntrue\ntrue\nTimed out immediately\nfalse\n",
+            moduleName: "KUU4587NonPositiveTimeout",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
 }
