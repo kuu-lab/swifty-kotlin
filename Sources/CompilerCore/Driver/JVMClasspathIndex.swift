@@ -445,8 +445,8 @@ final class JVMClasspathIndex {
                 guard let base = hierarchyClasses[name] else { return }
                 for field in base.fields where field.access & 0x0002 == 0 && inheritedConstantNames.insert(field.name).inserted {
                     if field.isPublic && field.isStatic && field.isFinal {
-                        inheritedConstants.append(field)
-                    }
+                            var f = field; f.inherited = true; inheritedConstants.append(f)
+                        }
                 }
                 for parent in base.interfaces { collectConstants(parent) }
             }
@@ -461,8 +461,8 @@ final class JVMClasspathIndex {
                 guard let base = hierarchyClasses[name] else { return }
                 for field in base.fields where field.access & 0x0002 == 0 && inheritedConstantNames.insert(field.name).inserted {
                     if field.isPublic && field.isStatic && field.isFinal {
-                        inheritedConstants.append(field)
-                    }
+                            var f = field; f.inherited = true; inheritedConstants.append(f)
+                        }
                 }
                 bridges += base.bridgeMethods
                 for method in base.methods where !method.isStatic && !method.isConstructor {
@@ -485,8 +485,8 @@ final class JVMClasspathIndex {
                 if visible && superclass == nil { superclass = name; hiddenSegment = false }
                 for field in base.fields where field.access & 0x0002 == 0 && inheritedConstantNames.insert(field.name).inserted {
                     if field.isPublic && field.isStatic && field.isFinal {
-                        inheritedConstants.append(field)
-                    }
+                            var f = field; f.inherited = true; inheritedConstants.append(f)
+                        }
                 }
                 for method in base.methods where !method.isConstructor && (method.isStatic || hiddenSegment) {
                     if methodKeys.insert(key(method)).inserted {
