@@ -29,6 +29,7 @@ struct JVMClassInfo: Sendable {
     var kotlinAnnotationVarargElementNames: Set<String> = []
     var kotlinStaticProperties: [String: (getter: JVMForeignMethod, isNullable: Bool)] = [:]
     var kotlinMemberProperties: [String: (getter: JVMForeignMethod, sourceType: String)] = [:]
+    var kotlinTopLevelConstants: [String: String] = [:]
     var kotlinTopLevelProperties: [(source: JVMKotlinTopLevelProperty, getter: JVMForeignMethod)] = []
     var kotlinMultifileParts: [String] = []
     var isKotlinMultifilePart = false
@@ -638,11 +639,12 @@ struct JVMClassReader {
         }
         let isMetroFactory = classAttributes.annotations.contains { $0.descriptor == JVMMetro.factory }
         let functionTypeMemberNames = Set(methods.lazy.filter(Self.hasFunctionTypeDescriptor).map(\.name))
+        let defaultMethodNames = Set(defaultArgumentMethods.map { String($0.name.dropLast("$default".count)) })
         if let metadata = classAttributes.kotlinMetadata,
            (metadata.isFileFacade == true || isMetroFactory || hasValueAdapters || !metroAccessors.isEmpty
                || methods.contains(where: { Self.hasFunctionTypeDescriptor($0) || !$0.isStatic && (!$0.parameters.isEmpty || $0.isFinal) })),
            let table = functionTable ?? (try? metadata.functionTable(byteLimit: bytes.count)),
-           let functions = try? metadata.functions(in: table, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype, functionTypeMemberNames: functionTypeMemberNames, metroFactory: isMetroFactory) {
+           let functions = try? metadata.functions(in: table, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype, functionTypeMemberNames: functionTypeMemberNames, metroFactory: isMetroFactory, defaultMethodNames: defaultMethodNames) {
             for index in methods.indices {
                 let method = methods[index]
                 let isSuspend = method.kotlinSuspendFunction != nil
@@ -655,7 +657,9 @@ struct JVMClassReader {
                           return candidate.isSuspend == isSuspend
                               && (metadata.isFileFacade == true && method.isStatic || Self.hasFunctionTypeDescriptor(method)
                                   || !method.isStatic && candidate.contextParameters.isEmpty
-                                      && (candidate.receiver != nil || (candidate.isInfix || hasReadOnlyListSupertype
+                                      && (candidate.receiver != nil || (defaultMethodNames.contains(method.name)
+                                          && candidate.parameters.contains(where: \.hasDefaultValue)
+                                          || candidate.isInfix || hasReadOnlyListSupertype
                                           && candidate.name == "subList" || method.isFinal && candidate.isGenericFinalGetter
                                           || (method.isFinal || isMetroFactory) && candidate.hasStableFinalParameters
                                           || candidate.mangledMemberParameterDescriptors != nil)
@@ -781,11 +785,16 @@ struct JVMClassReader {
         if info.isInterface, let metadata = classAttributes.kotlinMetadata {
             info.kotlinSealedInterfaceSubclasses = (try? metadata.sealedInterfaceSubclasses(byteLimit: bytes.count)) ?? []
         }
+        if info.isKotlinMultifilePart || fields.contains(where: { $0.isStatic && $0.isFinal && $0.constantValue != nil }),
+           let metadata = classAttributes.kotlinMetadata {
+            info.kotlinTopLevelConstants = (try? metadata.topLevelConstants(byteLimit: bytes.count)) ?? [:]
+        }
         if let metadata = classAttributes.kotlinMetadata, let properties = try? metadata.topLevelProperties(byteLimit: bytes.count) {
             for property in properties {
                 guard let getter = methods.first(where: {
                     $0.isStatic && !$0.isProtected && $0.name == property.getterName && $0.descriptor == property.getterDescriptor
-                        && $0.parameters.count == (property.receiver == nil ? 0 : 1) && $0.result != .unit
+                        && ($0.parameters.count == (property.receiver == nil ? 0 : 1)
+                            || $0.composePropertyABI(hasReceiver: property.receiver != nil)) && $0.result != .unit
                 }) else { continue }
                 info.kotlinTopLevelProperties.append((property, getter))
             }
@@ -795,7 +804,7 @@ struct JVMClassReader {
             info.isKotlinObject = (try? metadata.isObject(byteLimit: bytes.count)) == true
         }
         if let metadata = classAttributes.kotlinMetadata,
-           hasReadOnlyMapSupertype || isKotlinObject || name.hasSuffix("$Companion") || methods.contains(where: {
+           hasReadOnlyMapSupertype || isKotlinObject || flags & 0x0200 != 0 || name.hasSuffix("$Companion") || methods.contains(where: {
                $0.name.hasPrefix("get") && ($0.name.contains("-")
                    || flags & 0x0200 != 0 && $0.isAbstract && $0.result.referenceName == "kotlinx/coroutines/flow/StateFlow")
                    || $0.isFinal && !$0.isStatic && $0.parameters.isEmpty
@@ -813,8 +822,6 @@ struct JVMClassReader {
                           (name.hasSuffix("$Companion") || getter.name.contains("-")
                               || hasReadOnlyMapSupertype && !property.isVar && ["keys", "values", "entries"].contains(property.name)
                               || flags & 0x0200 != 0 && getter.isAbstract && !property.isVar && property.isSourceVisible
-                                  && getter.result.referenceName == "kotlinx/coroutines/flow/StateFlow"
-                                  && sourceType.hasPrefix("kotlinx.coroutines.flow.StateFlow<")
                               || getter.isFinal && !property.isVar
                                   && (sourceType.contains("<") || getter.name == property.name)),
                           !getter.isStatic && getter.parameters.isEmpty

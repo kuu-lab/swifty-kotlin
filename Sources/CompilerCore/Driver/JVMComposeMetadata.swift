@@ -1,4 +1,12 @@
 extension JVMForeignMethod {
+    func composePropertyABI(hasReceiver: Bool) -> Bool {
+        let receiverCount = hasReceiver ? 1 : 0
+        return isStatic && parameters.count == receiverCount + 2
+            && parameters[receiverCount].referenceName == JVMCompose.composer
+            && parameters.last == .int
+            && annotations.contains { $0.descriptor == "Landroidx/compose/runtime/Composable;" }
+    }
+
     /// Compose appends a Composer, change masks and an optional default mask
     /// to a source signature. The classfile annotation and exact descriptor
     /// distinguish this entry point from ordinary Kotlin static functions.
