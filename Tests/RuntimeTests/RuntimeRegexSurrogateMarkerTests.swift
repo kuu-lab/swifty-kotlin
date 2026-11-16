@@ -216,6 +216,16 @@ struct RuntimeRegexSurrogateMarkerTests {
         let graph = makeRegex("\\p{IsGraph}")
         #expect(findAllValues(graph, units: [0xE005]).count == 1)
         #expect(findAllValues(graph, units: [0xD800]).isEmpty)
+        // `[^\P{L}]` = letters only: the surrogate is neither matched as a
+        // unit nor via pair arms, and the letter still matches.
+        let negNegated = makeRegex("[^\\P{L}]")
+        #expect(findAllValues(negNegated, units: [0x61, 0xD800]).count == 1)
+        // `[\P{L}]` matches the surrogate once as a unit.
+        let negMember = makeRegex("[\\P{L}]")
+        #expect(findAllValues(negMember, units: [0x61, 0xD800]).count == 1)
+        // `[^\p{L}]` = non-letters: the surrogate matches once.
+        let negOuter = makeRegex("[^\\p{L}]")
+        #expect(findAllValues(negOuter, units: [0x61, 0xD800, 0x35]).count == 2)
     }
 
     @Test

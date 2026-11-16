@@ -2165,7 +2165,7 @@ func regexMarkerSpaceClassReplacement(_ emitted: String) -> String? {
         if chars[i] == "\\", i + 1 < chars.count - 1, chars[i + 1] == "p" || chars[i + 1] == "P" {
             // `\p{Name}` / `\P{Name}` class member: surrogate-space-aware
             // coverage (Cs/C/Co, surrogate blocks, PUA, Any/Assigned).
-            let negated = chars[i + 1] == "P"
+            let memberNegated = chars[i + 1] == "P"
             var j = i + 2
             var name = ""
             if j < chars.count - 1, chars[j] == "{" {
@@ -2182,14 +2182,22 @@ func regexMarkerSpaceClassReplacement(_ emitted: String) -> String? {
                 return nil
             }
             flushScalar()
-            if let coverage = jvmRegexMemberSpaceCoverage(name, negated: negated) {
+            if let coverage = jvmRegexMemberSpaceCoverage(name, negated: memberNegated) {
                 members.append((kind: .nested, text: coverage.text, scalarRanges: coverage.ranges))
+            } else if memberNegated {
+                // `\P{Name}` for a name without surrogate-space members: its
+                // complement covers the WHOLE marker space, so both escape
+                // pairs match as units. The member text is polarity-aware:
+                // inside `[^...]` it keeps matching markers (they stay
+                // excluded); inside `[...]` it must not match half a pair.
+                members.append((kind: .nested,
+                                text: negated ? "\\P{\(name)}" : "[\\P{\(name)}--[\\uE000-\\uE801]]",
+                                scalarRanges: [(0xD800, 0xDFFF), (0xE000, 0xE801)]))
             } else {
-                // Names without marker-space coverage (scripts, most
-                // categories, binary properties) cannot match an escape
-                // pair's scalars — keep them as a verbatim member instead of
-                // bailing out of the whole class rewrite.
-                members.append((kind: .nested, text: "\\\(negated ? "P" : "p"){\(name)}", scalarRanges: []))
+                // Positive names without marker-space coverage (scripts,
+                // ordinary categories, binary properties) cannot match an
+                // escape pair's scalars — keep them as a verbatim member.
+                members.append((kind: .nested, text: "\\p{\(name)}", scalarRanges: []))
             }
             i = j
             continue
