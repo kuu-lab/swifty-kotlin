@@ -274,7 +274,8 @@ extension JVMProgramBuilder {
         f.genericSignature = (f.typeParameters.isEmpty ? "" : "<" + f.typeParameters.map(\.signature).joined() + ">") + "(" + (try ((f.kotlinReceiver == nil ? [] : [signature.receiverType].compactMap { $0 }) + signature.parameterTypes).map { try signatureType($0, parameterPosition: true) }).joined() + ")" + (f.isConstructor ? "V" : try signatureType(signature.returnType))
         if let symbol = sourceDeclaration?.key, jvmComposableFunctions.contains(symbol),
            let closing = f.genericSignature?.lastIndex(of: ")") {
-            f.genericSignature?.insert(contentsOf: JVMCompose.suffix.map(\.descriptor).joined(), at: closing)
+            let hiddenParameters = f.reference.parameters.dropFirst(signature.parameterTypes.count)
+            f.genericSignature?.insert(contentsOf: hiddenParameters.map(\.descriptor).joined(), at: closing)
         }
         if let declaration, declaration.valueParams.contains(where: \.isVararg) {
             let prefix = f.typeParameters.isEmpty ? "" : "<" + f.typeParameters.map(\.signature).joined() + ">"
