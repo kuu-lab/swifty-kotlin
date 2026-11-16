@@ -8,19 +8,10 @@
 package kotlin.random
 
 import kotlin.math.nextDown
-import kotlin.internal.KsSymbolName
 
 // The public API and state initialization follow kotlin-stdlib's
 // libraries/stdlib/src/kotlin/random/{Random,XorWowRandom}.kt structure so
 // seeded output remains bit-exact with kotlinc.
-private external fun __kk_random_seed_entropy(): Long
-
-@KsSymbolName("__kk_random_nextInt_rangeObject")
-private external fun __kk_random_nextInt_rangeObject(random: Random, range: IntRange): Int
-
-@KsSymbolName("__kk_random_nextLong_rangeObject")
-private external fun __kk_random_nextLong_rangeObject(random: Random, range: LongRange): Long
-
 // Single-method interfaces expose the Random methods that native runtime
 // helpers call through itable dispatch. Keeping each interface to one method
 // fixes its runtime slot at zero, independent of symbol ordering. They are
@@ -72,7 +63,7 @@ public abstract class Random : RandomSource, RandomLongSource, RandomIntBitsSour
         var result: Int
         do {
             result = nextInt()
-        } while (result !in from until until)
+        } while (result < from || result >= until)
         return result
     }
 
@@ -112,7 +103,7 @@ public abstract class Random : RandomSource, RandomLongSource, RandomIntBitsSour
         var result: Long
         do {
             result = nextLong()
-        } while (result !in from until until)
+        } while (result < from || result >= until)
         return result
     }
 
@@ -163,7 +154,7 @@ public abstract class Random : RandomSource, RandomLongSource, RandomIntBitsSour
         return from + (nextFloat() * (until - from))
     }
 
-    public open fun nextBytes(array: ByteArray, fromIndex: Int, toIndex: Int): ByteArray {
+    public open fun nextBytes(array: ByteArray, fromIndex: Int = 0, toIndex: Int = array.size): ByteArray {
         // See checkRangeBounds below for why these messages are precomputed.
         val rangeMessage = "fromIndex ($fromIndex) or toIndex ($toIndex) are out of range: 0..${array.size}."
         require(fromIndex in 0..array.size && toIndex in 0..array.size) { rangeMessage }
@@ -192,12 +183,7 @@ public abstract class Random : RandomSource, RandomLongSource, RandomIntBitsSour
     public open fun nextBytes(size: Int): ByteArray = nextBytes(ByteArray(size) { 0 })
 
     public companion object Default : Random() {
-        private val defaultRandom: Random
-
-        init {
-            val entropy = __kk_random_seed_entropy()
-            defaultRandom = Random(entropy)
-        }
+        private val defaultRandom: Random = platformDefaultRandom()
 
         // NOTE: every open member is re-declared here, even though most bodies
         // are identical to what Random's own skeleton implementation would
@@ -228,10 +214,6 @@ public abstract class Random : RandomSource, RandomLongSource, RandomIntBitsSour
         override fun nextBytes(size: Int): ByteArray = defaultRandom.nextBytes(size)
     }
 }
-
-public fun Random.nextInt(range: IntRange): Int = __kk_random_nextInt_rangeObject(this, range)
-
-public fun Random.nextLong(range: LongRange): Long = __kk_random_nextLong_rangeObject(this, range)
 
 internal class XorWowRandom internal constructor(
     private var x: Int,

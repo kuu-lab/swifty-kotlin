@@ -1,5 +1,19 @@
 [
   {
+    "symbol": "__jvmThreadLocalRandom",
+    "owner": "java/util/concurrent/ThreadLocalRandom",
+    "name": "current",
+    "descriptor": "()Ljava/util/concurrent/ThreadLocalRandom;",
+    "kind": "static"
+  },
+  {
+    "symbol": "__jvmThreadLocalRandomNextInt",
+    "owner": "java/util/concurrent/ThreadLocalRandom",
+    "name": "nextInt",
+    "descriptor": "()I",
+    "kind": "virtual"
+  },
+  {
     "symbol": "__jvmNewList",
     "owner": "java/util/ArrayList",
     "name": "<init>",
@@ -1153,6 +1167,13 @@
     "name": "<init>",
     "descriptor": "([BLjava/lang/String;)V",
     "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmUtf8Bytes",
+    "owner": "java/lang/String",
+    "name": "getBytes",
+    "descriptor": "(Ljava/lang/String;)[B",
+    "kind": "virtual"
   },
   {
     "symbol": "__jvmUnmodifiableSet",
