@@ -338,7 +338,7 @@ final class JVMClasspathIndex {
                 source += indentation + visibility + (isInner ? "inner " : "") + classKind + "`\(name)`\(typeParameters) private constructor()"
             }
             var parents: [String] = []
-            if !info.isInterface, let base = info.superclass, classes[base] != nil,
+            if !info.isInterface, let base = info.superclass, classes[base] != nil || mappedJavaException(base) != nil,
                let mapped = superclassReference(base, child: info) {
                 parents.append(mapped)
             }
@@ -458,7 +458,12 @@ final class JVMClasspathIndex {
             var next = info.superclass
             var superclass: String?
             var hiddenSegment = true
-            while let name = next, visited.insert(name).inserted, let base = hierarchyClasses[name] {
+            while let name = next, visited.insert(name).inserted {
+                if superclass == nil, mappedJavaException(name) != nil {
+                    superclass = name
+                    hiddenSegment = false
+                }
+                guard let base = hierarchyClasses[name] else { break }
                 let visible = classes[name] != nil
                 if visible && superclass == nil { superclass = name; hiddenSegment = false }
                 for method in base.methods where !method.isConstructor && (method.isStatic || hiddenSegment) {
@@ -706,6 +711,12 @@ final class JVMClasspathIndex {
             return base
         }
     }
+    private func mappedJavaException(_ name: String) -> String? {
+        guard name.hasPrefix("java/lang/"),
+              Self.exceptionNames.contains(String(name.dropFirst("java/lang/".count))) else { return nil }
+        return Self.jdkToKotlinTypeNames[name]
+    }
+
     /// Supertype positions keep the erased JDK name: Kotlin mapped types
     /// declare property-style members that Java method stubs cannot satisfy,
     /// so `extends`/`implements` clauses must name the interface the
@@ -718,6 +729,11 @@ final class JVMClasspathIndex {
         case "java/lang/String": return "kotlin.String"
         case "java/lang/Enum", "java/lang/Record": return nil
         default:
+            // Kotlin typealiases for the Java exception family share one
+            // throwable hierarchy, including imported Java subclasses.
+            if let mapped = mappedJavaException(name) {
+                return mapped
+            }
             // Covered classes get no stub, so an erased `java.*` supertype
             // would not resolve. When the JDK->Kotlin mapped-type table names
             // a provided Kotlin counterpart (kotlin.Number, kotlin.text
@@ -1250,7 +1266,11 @@ final class JVMClasspathIndex {
                 } else {
                 let isNonCancellable = info.name == "kotlinx/coroutines/NonCancellable" && info.isKotlinObject
                     && info.superclass == "kotlin/coroutines/AbstractCoroutineContextElement"
-                if isNonCancellable {
+                let isComposeObject = info.isKotlinObject && info.kotlinMemberProperties.values.contains {
+                    $0.getter.composePropertyABI(hasReceiver: false)
+                } && own.allSatisfy { !$0.isStatic }
+                let isObject = isNonCancellable || isComposeObject
+                if isObject {
                     source += "object `\(short)`"
                 } else if info.isInterface {
                     source += interfaceKeyword(info) + " `\(short)`"
@@ -1265,7 +1285,7 @@ final class JVMClasspathIndex {
                         ? "()" : "protected constructor()"
                 }
                 var parents: [String] = []
-                if !info.isInterface, let base = info.superclass, classes[base] != nil,
+                if !info.isInterface, let base = info.superclass, classes[base] != nil || mappedJavaException(base) != nil,
                    let mapped = superclassReference(base, child: info) {
                     parents.append(mapped)
                 }
@@ -1275,10 +1295,14 @@ final class JVMClasspathIndex {
                 }.compactMap { supertypeReference($0, child: info) }
                 if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
                 source += " {\n"
-                source += memberDeclarations(info: info, members: info.methods, allowsCompanion: !isNonCancellable)
-                if info.name == Self.compositionLocal, compositionLocalGetter != nil,
+                source += memberDeclarations(info: info, members: info.methods, allowsCompanion: !isObject)
+                if info.name == Self.compositionLocal, info.kotlinMemberProperties["current"] == nil,
+                   let getter = compositionLocalGetter,
                    let type = info.classTypeParameterNames.first {
-                    source += "@get:androidx.compose.runtime.Composable val current: `\(type)` get() = null!!\n"
+                    let readonly = getter.annotations.contains {
+                        $0.descriptor == "Landroidx/compose/runtime/ReadOnlyComposable;"
+                    } ? " @androidx.compose.runtime.ReadOnlyComposable" : ""
+                    source += "val current: `\(type)` @androidx.compose.runtime.Composable\(readonly) get() = null!!\n"
                 }
                 if info.name == Self.composeView, composeContentMethod != nil {
                     source += "external fun setContent(content: @androidx.compose.runtime.Composable () -> Unit): Unit\n"
@@ -1546,7 +1570,8 @@ final class JVMClasspathIndex {
         }
         for method in own where !method.isConstructor && !method.isStatic && !isKotlinPropertyAccessor(method) {
             if inheritedKotlinGetters.contains(memberKey(method)) { continue }
-            if let getter = exposedKotlinProperties[method.name]?.getter, getter.descriptor == method.descriptor {
+            if let getter = exposedKotlinProperties[method.name]?.getter,
+               getter.descriptor == method.descriptor || method.composePropertyABI(hasReceiver: false) {
                 continue
             }
             var overrides = overridesParent(method, in: info)
@@ -1641,7 +1666,13 @@ final class JVMClasspathIndex {
             } else if !info.isInterface && !getter.isFinal {
                 source += "open "
             }
-            source += "val `\(name)`: \(property.sourceType)" + (info.isInterface ? "\n" : " get() = null!!\n")
+            let composable = getter.composePropertyABI(hasReceiver: false)
+            let annotations = composable ? " @androidx.compose.runtime.Composable" : ""
+            let readonly = composable && getter.annotations.contains {
+                $0.descriptor == "Landroidx/compose/runtime/ReadOnlyComposable;"
+            } ? " @androidx.compose.runtime.ReadOnlyComposable" : ""
+            source += "val `\(name)`: \(property.sourceType)"
+                + (info.isInterface && !composable ? "\n" : "\(annotations)\(readonly) get() = null!!\n")
         }
         for (field, type) in instanceFields {
             let setter = field.isFinal ? "" : " set(value) {}"
