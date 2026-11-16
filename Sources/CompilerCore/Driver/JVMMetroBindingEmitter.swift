@@ -18,6 +18,11 @@ final class JVMMetroBindingEmitter {
     var classes: [JVMClass] = []
     var extensionInterfaces: [String] = []
     var extensionFactories: Set<String> = []
+    /// Child-graph extensions keyed by child + input shape so direct and
+    /// Factory-based resolution of the same extension share one generated
+    /// class instead of colliding on `…$ChildImpl`.
+    var extensionGraphs: [String: JVMMetroBinding] = [:]
+    var extensionNameCounts: [String: Int] = [:]
 
     init(program: JVMProgramBuilder, implementation: String, range: SourceRange,
          scopes: Set<String>, bindings: [JVMMetroBindingKey: [JVMMetroBinding]],
@@ -178,8 +183,46 @@ final class JVMMetroBindingEmitter {
             }
             name = implementation + "$Module" + String(modules.count)
             modules[owner] = name
+            var functions = [program.metroConstructor(name, fields: [])]
+            // `-jvm-default=disable` puts interface method bodies on
+            // `<owner>$DefaultImpls` as statics taking the instance first.
+            // Without these delegating members, a provider body calling a
+            // sibling interface method on the generated module dispatches to
+            // an unimplemented abstract method (AbstractMethodError).
+            if let impls = program.context.jvmImports?.metroClassInfo(owner + "$DefaultImpls") {
+                for body in impls.methods
+                where body.isStatic && body.parameters.first?.descriptor == "L" + owner + ";" {
+                    let receiver = JVMValue(slot: 0, type: .reference(name, nullable: false))
+                    var slot = 1
+                    let parameters = body.parameters.dropFirst()
+                    let arguments = parameters.map { type -> JVMValue in
+                        defer { slot += type.width }
+                        return JVMValue(slot: slot, type: type)
+                    }
+                    let instructions: [JVMInstruction]
+                    var locals = [receiver] + arguments
+                    if body.result == .unit {
+                        instructions = [
+                            .foreignCall(body, receiver: nil, arguments: [receiver] + arguments, result: nil),
+                            .returnValue(nil),
+                        ]
+                    } else {
+                        let result = JVMValue(slot: slot, type: body.result)
+                        locals.append(result)
+                        instructions = [
+                            .foreignCall(body, receiver: nil, arguments: [receiver] + arguments, result: result),
+                            .returnValue(result),
+                        ]
+                    }
+                    functions.append(program.rawFunction(
+                        name, name: body.name, parameters: Array(parameters), result: body.result,
+                        access: 0x0011, locals: locals,
+                        instructions: instructions
+                    ))
+                }
+            }
             classes.append(program.rawClass(name, interfaces: [owner], access: 0x0030,
-                                            functions: [program.metroConstructor(name, fields: [])]))
+                                            functions: functions))
         }
         return try builder.constructJDK(name)
     }
