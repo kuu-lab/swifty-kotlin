@@ -1718,6 +1718,17 @@ final class JVMClasspathIndex {
             guard !["Z", "B", "C", "S", "I", "J", "F", "D"].contains(n), !n.isEmpty else { return [] }
             return [n]
         }
+        // Kotlin metadata can name types erased from the descriptor,
+        // such as a parameter of a Compose receiver lambda.
+        func markSourceTypes(_ sourceTypes: [String]) {
+            for type in sourceTypes {
+                let range = NSRange(type.startIndex..., in: type)
+                for match in Self.dottedPattern.matches(in: type, range: range) {
+                    guard let token = Range(match.range, in: type) else { continue }
+                    for name in normalizedToBinary[String(type[token])] ?? [] { markNeeded(name) }
+                }
+            }
+        }
         var edgeProcessed = Set<String>()
         func processEdges(_ name: String) {
             guard edgeProcessed.insert(name).inserted, let info = classes[name] else { return }
@@ -1736,18 +1747,9 @@ final class JVMClasspathIndex {
                         markNeeded(ref)
                     }
                 }
-                // Kotlin metadata can name types erased from the descriptor,
-                // such as a parameter of a Compose receiver lambda.
                 if let function = method.kotlinFunction {
-                    let sourceTypes = function.parameters.map(\.sourceType)
-                        + [function.result] + [function.receiver].compactMap { $0 }
-                    for type in sourceTypes {
-                        let range = NSRange(type.startIndex..., in: type)
-                        for match in Self.dottedPattern.matches(in: type, range: range) {
-                            guard let token = Range(match.range, in: type) else { continue }
-                            for name in normalizedToBinary[String(type[token])] ?? [] { markNeeded(name) }
-                        }
-                    }
+                    markSourceTypes(function.parameters.map(\.sourceType)
+                        + [function.result] + [function.receiver].compactMap { $0 })
                 }
                 if let function = method.kotlinSuspendFunction {
                     markSourceTypes(function.parameters.compactMap(\.sourceType) + [function.sourceResult].compactMap { $0 })
