@@ -13,11 +13,12 @@ struct JVMClassInfo {
     var classTypeParameterNames: [String] = []
     var kotlinTypeParameterVariance: [String: String] = [:]
     var genericSignature: String?
+    var genericSupertypeSignatures: [String: String] = [:]
     var innerClasses: [JVMInnerClassInfo] = []
     var hasInnerClassesAttribute = false
     var hasEnclosingMethod = false
     var isKotlinFileFacade: Bool?
-    var kotlinSealedInterfaceSubclasses: [String] = []
+    var kotlinSealedSubclasses: [String] = []
     var isKotlinObject = false
     var kotlinReadOnlyCollectionSupertypes: [String: String] = [:]
     var kotlinComparableSupertype: String?
@@ -67,6 +68,7 @@ struct JVMForeignField {
     /// `ConstantValue` attribute payload for `static final` fields, when the
     /// classfile carries one. Used to emit Kotlin `const`-style literals.
     var constantValue: JVMFieldConstant?
+    var genericSignature: String?
     var isStatic: Bool { access & 8 != 0 }
     var isPublic: Bool { access & 1 != 0 }
     var isFinal: Bool { access & 16 != 0 }
@@ -130,22 +132,22 @@ struct JVMClassReader {
         }
         return nil
     }
-    /// Field attributes: returns the resolved `ConstantValue` payload, if any.
-    mutating func fieldAttributes() throws -> JVMFieldConstant? {
-        var result: JVMFieldConstant?
+    mutating func readFieldAttributes(into field: inout JVMForeignField) throws {
         let count = try u2()
         for _ in 0..<count {
             let nameIndex = Int(try u2())
             let size = try u4()
             let end = offset + Int(size)
-            if try text(nameIndex) == "ConstantValue", size == 2 {
-                result = constants[Int(try u2())]
+            let attribute = try text(nameIndex)
+            if attribute == "ConstantValue", size == 2 {
+                field.constantValue = constants[Int(try u2())]
+            } else if attribute == "Signature", size == 2 {
+                field.genericSignature = try text(Int(u2()))
             } else {
                 try skip(Int(size))
             }
             guard offset == end else { throw Invalid() }
         }
-        return result
     }
     /// Method attributes: the generic signature, annotation-class element
     /// defaults, and annotations carried by those element declarations. Other
@@ -389,10 +391,10 @@ struct JVMClassReader {
         }
     }
 
-    private static func classTypeParameterNames(in signature: String?) throws -> [String] {
-        guard let signature, signature.first == "<" else { return [] }
+    private static func classSignature(_ signature: String?) throws -> (parameters: [String], supertypes: [String: String]) {
+        guard let signature else { return ([], [:]) }
         let scalars = Array(signature)
-        var index = 1
+        var index = scalars.first == "<" ? 1 : 0
         var names: [String] = []
 
         func parseReferenceType() throws {
@@ -433,22 +435,35 @@ struct JVMClassReader {
             try parseReferenceType()
         }
 
-        while index < scalars.count, scalars[index] != ">" {
-            let start = index
-            while index < scalars.count, scalars[index] != ":" { index += 1 }
-            guard index < scalars.count, index > start else { throw Invalid() }
-            let name = String(scalars[start..<index])
-            guard JVMProgramBuilder.isIdentifier(name) else { throw Invalid() }
-            names.append(name)
-            index += 1
-            if index < scalars.count, scalars[index] != ":" { try parseReferenceType() }
-            while index < scalars.count, scalars[index] == ":" {
+        if index == 1 {
+            while index < scalars.count, scalars[index] != ">" {
+                let start = index
+                while index < scalars.count, scalars[index] != ":" { index += 1 }
+                guard index < scalars.count, index > start else { throw Invalid() }
+                let name = String(scalars[start..<index])
+                guard JVMProgramBuilder.isIdentifier(name) else { throw Invalid() }
+                names.append(name)
                 index += 1
-                try parseReferenceType()
+                if index < scalars.count, scalars[index] != ":" { try parseReferenceType() }
+                while index < scalars.count, scalars[index] == ":" {
+                    index += 1
+                    try parseReferenceType()
+                }
+            }
+            guard index < scalars.count, scalars[index] == ">" else { throw Invalid() }
+            index += 1
+        }
+        var supertypes: [String: String] = [:]
+        while index < scalars.count {
+            let start = index
+            try parseReferenceType()
+            let type = String(scalars[start..<index])
+            if type.first == "L", type.contains("<") {
+                let name = String(type.dropFirst().prefix { $0 != "<" && $0 != ";" })
+                supertypes[name] = type
             }
         }
-        guard index < scalars.count, scalars[index] == ">" else { throw Invalid() }
-        return names
+        return (names, supertypes)
     }
 
     private mutating func readModifiedUTF8(length: Int) throws -> String {
@@ -546,7 +561,7 @@ struct JVMClassReader {
             let access = try u2(), nameIndex = try u2(), descriptorIndex = try u2()
             let fieldName = try text(Int(nameIndex)), descriptor = try text(Int(descriptorIndex))
             var field = JVMForeignField(name: fieldName, descriptor: descriptor, access: access)
-            field.constantValue = try fieldAttributes()
+            try readFieldAttributes(into: &field)
             fields.append(field)
         }
         var methods: [JVMForeignMethod] = []
@@ -572,11 +587,14 @@ struct JVMClassReader {
                 && methodName == "OneTimeWorkRequestBuilder" && descriptor == "()Landroidx/work/OneTimeWorkRequest$Builder;"
             let isReifiedContextService = hasKotlinMetadata && access & 0x1009 == 0x1009
                 && JVMAndroidXContextService.isEntry(owner: name, name: methodName, descriptor: descriptor)
+            let isReifiedActivityViewModel = hasKotlinMetadata && access & 0x1009 == 0x1009
+                && JVMAndroidXActivityViewModel.isEntry(owner: name, name: methodName, descriptor: descriptor)
             let isReifiedHiltViewModel = hasKotlinMetadata && access & 0x1009 == 0x1009
                 && JVMClasspathIndex.isReifiedHiltViewModel(owner: name, name: methodName, descriptor: descriptor)
             let isMetroAccessor = hasMetroAnnotation && ((methodInfo.annotations.contains { $0.descriptor == JVMMetro.provides } || methodName == "<init>") && access & 0x0002 != 0
                 || access & 0x1009 == 0x1009 && methodName.hasPrefix("access$"))
-            if isMetroAccessor || (access & 0x0005 != 0 && (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod || isValueAdapter || isSyntheticConstructor || isReifiedGlanceAction || isReifiedWorkBuilder || isReifiedContextService || isReifiedHiltViewModel)), methodName != "<clinit>",
+            let isPackageConstructor = methodName == "<init>" && access & 0x0007 == 0
+            if isMetroAccessor || ((access & 0x0005 != 0 || isPackageConstructor) && (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod || isValueAdapter || isSyntheticConstructor || isReifiedGlanceAction || isReifiedWorkBuilder || isReifiedContextService || isReifiedActivityViewModel || isReifiedHiltViewModel)), methodName != "<clinit>",
                let signature = try? (descriptorCache?.parse(descriptor) ?? JVMDescriptor.parse(descriptor)),
                signature.0.reduce(0, { $0 + $1.width }) <= (access & 8 != 0 ? 255 : 254) {
                 var method = JVMForeignMethod(owner: name, name: methodName, descriptor: descriptor,
@@ -595,6 +613,7 @@ struct JVMClassReader {
                 method.annotationDefault = methodInfo.annotationDefault
                 method.parameterAnnotations = methodInfo.parameterAnnotations
                 method.genericSignature = methodInfo.signature
+                method.isPackagePrivate = isPackageConstructor
                 if isMetroAccessor { metroAccessors.append(method) }
                 else if isSyntheticConstructor { syntheticConstructors.append(method) }
                 else if isDefaultArgumentMethod { defaultArgumentMethods.append(method) }
@@ -652,7 +671,7 @@ struct JVMClassReader {
            (metadata.isFileFacade == true || isMetroFactory || hasValueAdapters || !metroAccessors.isEmpty
                || methods.contains(where: { Self.hasFunctionTypeDescriptor($0) || !$0.isStatic && (!$0.parameters.isEmpty || $0.isFinal) })),
            let table = functionTable ?? (try? metadata.functionTable(byteLimit: bytes.count)),
-           let functions = try? metadata.functions(in: table, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype, functionTypeMemberNames: functionTypeMemberNames.union(typedFlowMemberNames), metroFactory: isMetroFactory, defaultMethodNames: defaultMethodNames, composableMemberNames: composableMemberNames) {
+           let functions = try? metadata.functions(in: table, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype, functionTypeMemberNames: functionTypeMemberNames.union(typedFlowMemberNames), metroFactory: isMetroFactory, defaultMethodNames: defaultMethodNames, composableMemberNames: composableMemberNames, ownerIsInterface: flags & 0x0200 != 0, ownerIsSAM: flags & 0x0200 != 0 && methods.filter { $0.isAbstract && !$0.isStatic }.count == 1) {
             for index in methods.indices {
                 let method = methods[index]
                 let isSuspend = method.kotlinSuspendFunction != nil
@@ -671,7 +690,7 @@ struct JVMClassReader {
                                           && candidate.parameters.contains(where: \.hasDefaultValue)
                                           || candidate.isInfix || candidate.isOperator || hasReadOnlyListSupertype
                                           && candidate.name == "subList" || method.isFinal && candidate.isGenericFinalGetter
-                                          || (method.isFinal || isMetroFactory) && candidate.hasStableFinalParameters
+                                          || (method.isFinal || isMetroFactory || flags & 0x0200 != 0) && candidate.hasStableFinalParameters
                                           || candidate.mangledMemberParameterDescriptors != nil)
                                           && candidate.descriptor != nil))
                               && (candidate.jvmName ?? candidate.name) == method.name
@@ -731,6 +750,7 @@ struct JVMClassReader {
                 }
             }
         }
+        let classSignature = try Self.classSignature(classAttributes.signature)
         var info = JVMClassInfo(
             name: name,
             flags: flags,
@@ -740,7 +760,7 @@ struct JVMClassReader {
             fields: fields,
             bridgeMethods: bridgeMethods,
             defaultArgumentMethods: defaultArgumentMethods,
-            classTypeParameterNames: try Self.classTypeParameterNames(in: classAttributes.signature),
+            classTypeParameterNames: classSignature.parameters,
             innerClasses: classAttributes.innerClasses,
             hasInnerClassesAttribute: classAttributes.hasInnerClassesAttribute,
             hasEnclosingMethod: classAttributes.hasEnclosingMethod,
@@ -754,8 +774,9 @@ struct JVMClassReader {
         info.kotlinMultifileParts = classAttributes.kotlinMetadata?.multifileParts ?? []
         info.isKotlinMultifilePart = classAttributes.kotlinMetadata?.isMultifilePart == true
         info.genericSignature = classAttributes.signature
+        info.genericSupertypeSignatures = classSignature.supertypes
         info.metroAccessors = metroAccessors
-        if info.isInterface, !info.classTypeParameterNames.isEmpty, let metadata = classAttributes.kotlinMetadata {
+        if !info.classTypeParameterNames.isEmpty, let metadata = classAttributes.kotlinMetadata {
             info.kotlinTypeParameterVariance = (try? metadata.classTypeParameterVariance(byteLimit: bytes.count)) ?? [:]
         }
         info.kotlinReadOnlyCollectionSupertypes = readOnlyCollectionSupertypes
@@ -792,8 +813,8 @@ struct JVMClassReader {
                 }
             }
         }
-        if info.isInterface, let metadata = classAttributes.kotlinMetadata {
-            info.kotlinSealedInterfaceSubclasses = (try? metadata.sealedInterfaceSubclasses(byteLimit: bytes.count)) ?? []
+        if info.flags & 0x0400 != 0, let metadata = classAttributes.kotlinMetadata {
+            info.kotlinSealedSubclasses = (try? metadata.sealedSubclasses(byteLimit: bytes.count)) ?? []
         }
         if info.isKotlinMultifilePart || fields.contains(where: { $0.isStatic && $0.isFinal && $0.constantValue != nil }),
            let metadata = classAttributes.kotlinMetadata {
