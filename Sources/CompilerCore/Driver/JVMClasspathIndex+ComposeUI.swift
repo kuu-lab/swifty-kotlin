@@ -126,7 +126,8 @@ extension JVMClasspathIndex {
         let columnDescriptor = "(Landroidx/compose/ui/Modifier;Landroidx/compose/foundation/layout/Arrangement$Vertical;Landroidx/compose/ui/Alignment$Horizontal;Lkotlin/jvm/functions/Function3;L\(JVMCompose.composer);II)V"
         if classes["androidx/compose/foundation/layout/ColumnScope"] != nil,
            let method = composeMethod(owner: "androidx/compose/foundation/layout/ColumnKt", name: "Column",
-                                      descriptor: columnDescriptor, isStatic: true) {
+                                      descriptor: columnDescriptor, isStatic: true),
+           method.kotlinComposeABI == nil {
             inject("<kswiftk-jvm-import>/compose-column.kt", """
                 package androidx.compose.foundation.layout
                 @androidx.compose.runtime.Composable external fun Column(content: @androidx.compose.runtime.Composable ColumnScope.() -> Unit): Unit
