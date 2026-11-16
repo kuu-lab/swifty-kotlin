@@ -155,20 +155,64 @@ extension CallLowerer {
             )
             let actionResult = arena.appendTemporary(type: valueType)
             if let callableInfo = driver.ctx.callableValueInfo(for: actionExpr) {
+                // Same first-parameter marshalling as the Array(size, init)
+                // lowerer: contravariant callees such as `(Any) -> Int`
+                // need the index as an erased `Any`-slot box.
+                let needsBoxedIndex: Bool
+                if let signature = sema.symbols.functionSignature(for: callableInfo.symbol),
+                   let firstParam = signature.receiverType ?? signature.parameterTypes.first {
+                    if case .primitive(.int, _) = sema.types.kind(of: sema.types.makeNonNullable(firstParam)) {
+                        needsBoxedIndex = false
+                    } else {
+                        needsBoxedIndex = true
+                    }
+                } else {
+                    needsBoxedIndex = false
+                }
+                let indexArg: KIRExprID
+                if needsBoxedIndex {
+                    indexArg = boxValueForAnySlot(
+                        indexExpr,
+                        sourceType: intType,
+                        types: sema.types,
+                        symbols: sema.symbols,
+                        interner: interner,
+                        arena: arena,
+                        requireNonNull: true,
+                        sema: sema,
+                        into: &instructions
+                    )
+                } else {
+                    indexArg = indexExpr
+                }
                 instructions.append(.call(
                     symbol: callableInfo.symbol,
                     callee: callableInfo.callee,
-                    arguments: callableInfo.captureArguments + [indexExpr],
+                    arguments: callableInfo.captureArguments + [indexArg],
                     result: actionResult,
                     canThrow: true
                 ))
             } else {
                 // Same generic-invoke fallback as the Array(size, init)
                 // lowerer: function-typed parameters have no callable
-                // fast path and must go through kk_function_invoke.
+                // fast path and must go through kk_function_invoke. The
+                // index is boxed into the erased `Any` argument slot so an
+                // init whose declared parameter is broader than Int still
+                // sees a boxed value (e.g. `(Any) -> Int`).
+                let boxedIndex = boxValueForAnySlot(
+                    indexExpr,
+                    sourceType: intType,
+                    types: sema.types,
+                    symbols: sema.symbols,
+                    interner: interner,
+                    arena: arena,
+                    requireNonNull: true,
+                    sema: sema,
+                    into: &instructions
+                )
                 instructions.append(.call(
                     callee: interner.intern("kk_function_invoke"),
-                    arguments: [actionExpr, indexExpr],
+                    arguments: [actionExpr, boxedIndex],
                     result: actionResult,
                     canThrow: true
                 ))

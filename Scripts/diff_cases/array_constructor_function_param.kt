@@ -1,4 +1,7 @@
 // DIFF_JVM
+@file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+import kotlin.concurrent.atomics.AtomicIntArray
+
 // KUU-4599: passing a function-typed parameter directly as the
 // `Array(size, init)` / primitive-array `init` argument must still invoke it
 // for every element. Before the fix the native lowering only understood
@@ -15,6 +18,18 @@ fun wrapDA(n: Int, f: (Int) -> Double) = DoubleArray(n, f)
 var calls = 0
 fun counter(i: Int): Int { calls += 1; return i * 10 }
 
+// Parameter contravariance lets an init whose declared parameter is
+// broader than Int be passed directly; the index is then delivered as an
+// erased `Any` value, so `is` checks inside the init must still see a
+// boxed Int (a bare integer would make `it is Number` false).
+fun takeAny(x: Any): Int = if (x is Number) (x as Number).toInt() * 10 + 1 else -1
+fun wrapAny(n: Int, f: (Any) -> Int) = Array(n, f)
+fun wrapAnyRef(n: Int) = Array(n, ::takeAny)
+fun Int.extPlus1() = this + 1
+fun wrapExt(n: Int) = Array(n, Int::extPlus1)
+fun wrapAtomicIA(n: Int, f: (Int) -> Int) = AtomicIntArray(n, f)
+fun wrapAtomicAny(n: Int, f: (Any) -> Int) = AtomicIntArray(n, f)
+
 fun main() {
     println(wrap(3) { it + 1 }.toList())        // [1, 2, 3]
     println(wrapIA(3) { it + 1 }.toList())      // [1, 2, 3]
@@ -29,4 +44,13 @@ fun main() {
     // The same call shape in a non-inline helper keeps working.
     val g = { it: Int -> it * 3 }
     println(IntArray(2, g).toList())            // [0, 3]
+
+    println(wrapAny(3, ::takeAny).toList())     // [1, 11, 21]
+    println(wrapAnyRef(3).toList())             // [1, 11, 21]
+    println(wrapExt(3).toList())                // [1, 2, 3]
+
+    val aa = wrapAtomicIA(3) { it + 1 }
+    println(aa.loadAt(0)); println(aa.loadAt(1)); println(aa.loadAt(2))
+    val ab = wrapAtomicAny(3, ::takeAny)
+    println(ab.loadAt(0)); println(ab.loadAt(1)); println(ab.loadAt(2))
 }
