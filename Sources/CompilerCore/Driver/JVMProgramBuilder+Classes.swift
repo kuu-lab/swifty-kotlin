@@ -116,7 +116,17 @@ extension JVMProgramBuilder {
                   !function.valueParams.contains(where: \.isVararg),
                   !signature.valueParameterSymbols.contains(where: sema.composableFunctionParameters.contains)
             else {
-                throw JVMFrontendError(message: "JVM @Composable supports ordinary top-level functions with at most ten parameters and without vararg or composable function parameters.", range: function.range)
+                throw JVMFrontendError(message: "JVM @Composable supports ordinary top-level functions with at most ten parameters and without vararg parameters.", range: function.range)
+            }
+            for (index, parameter) in signature.valueParameterSymbols.enumerated()
+                where sema.composableFunctionParameters.contains(parameter) {
+                guard case let .functionType(type) = sema.types.kind(of: signature.parameterTypes[index]),
+                      !type.isSuspend, type.contextReceivers.isEmpty,
+                      type.params.count + (type.receiver == nil ? 0 : 1) <= 20
+                else { throw JVMFrontendError(message: "Unsupported JVM @Composable parameter.", range: function.range) }
+                let arity = type.params.count + (type.receiver == nil ? 0 : 1) + JVMCompose.suffix.count
+                parameters[index] = .reference("kotlin/jvm/functions/Function" + String(arity), nullable: false)
+                functionArities.insert(arity)
             }
             parameters += JVMCompose.suffix
             if function.valueParams.contains(where: \.hasDefaultValue) { parameters.append(.int) }
