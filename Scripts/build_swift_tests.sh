@@ -61,9 +61,11 @@ kswiftk_build_with_retry() {
 #
 # When SWIFT_TEST_BUILD_TARGETS is set, build only those targets (one
 # invocation per target) so CI lanes can build the minimal set they need.
-# With the Swift 6.3+ `swiftbuild` build system, per-target test products are
-# named `<Target>-test-runner`; select the build system via SWIFT_BUILD_SYSTEM
-# (default: native).
+# Per-target builds do NOT produce the unified test bundle, so a later
+# `swift test --skip-build` will not find it; use this only for build-only
+# lanes. With the Swift 6.3+ `swiftbuild` build system, per-target test
+# products are named `<Target>-test-runner`; select the build system via
+# SWIFT_BUILD_SYSTEM (default: native).
 build_targets="${SWIFT_TEST_BUILD_TARGETS:-}"
 build_system="${SWIFT_BUILD_SYSTEM:-}"
 
@@ -95,7 +97,7 @@ kswiftk_setup_compile_cache_env
 # not invalidated.
 kswiftk_append_compile_cache_flags swift_build_args
 
-if [[ -z "$build_targets" || "$build_system" == "native" ]]; then
+if [[ -z "$build_targets" ]]; then
     # The legacy native build system produces a single PackageTests bundle.
     # We must build all test targets together with --build-tests so that
     # subsequent `swift test --skip-build` invocations can find the bundle.
@@ -103,7 +105,8 @@ if [[ -z "$build_targets" || "$build_system" == "native" ]]; then
     kswiftk_build_with_retry --build-tests "${swift_build_args[@]}"
 else
     echo "build_swift_tests.sh: building selected test targets: $build_targets" >&2
-    # swiftbuild creates per-test-target products as `<Target>-test-runner`.
+    # swiftbuild creates per-test-target products as `<Target>-test-runner`;
+    # under the native build system `--target <T>` builds the target itself.
     target_suffix=""
     [[ "$build_system" == "swiftbuild" ]] && target_suffix="-test-runner"
     for target in $build_targets; do
