@@ -458,6 +458,7 @@ final class JVMFunctionBuilder {
     var inlineReturns: [InlineReturn] = []
     var inlineStack: [SymbolID: Int] = [:]
     var contextualReceivers: [SymbolID: JVMValue] = [:]
+    var contextArguments: [(type: TypeID, value: JVMValue)] = []
     var backingProperty: JVMProperty?
     var beforeDelegation = false
     var initializingObject = false
@@ -571,6 +572,14 @@ final class JVMFunctionBuilder {
                 instructions.append(.foreignCall(JVMForeignMethod(owner: "kotlin/time/Duration", name: "box-impl", descriptor: "(J)Lkotlin/time/Duration;", parameters: [.long], result: type, isStatic: true, isInterface: false, isAbstract: false), receiver: nil, arguments: [source], result: result))
                 return result
             }
+        }
+        if let name = source.type.referenceName, let carrier = context.jvmImports?.importedValueCarrier(for: source.type),
+           carrier.descriptor == type.descriptor {
+            return try jdkCall(name, "unbox-impl", [], carrier, receiver: source, resolved: type)!
+        }
+        if let name = type.referenceName, let carrier = context.jvmImports?.importedValueCarrier(for: type),
+           carrier.descriptor == source.type.descriptor {
+            return try jdkCall(name, "box-impl", [carrier], type, arguments: [source])!
         }
         if source.type.referenceName != nil, type.isNumeric,
            let carrier = source.type.numericCarrier, carrier != type {

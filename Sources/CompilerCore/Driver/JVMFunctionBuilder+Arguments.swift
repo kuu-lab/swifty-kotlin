@@ -50,6 +50,7 @@ extension JVMFunctionBuilder {
         importedDefaults: [Bool]? = nil
     ) throws -> (values: [JVMValue], masks: [UInt32], contextValues: [Int: JVMValue]) {
         let signature = binding.flatMap { program.sema.symbols.functionSignature(for: $0.chosenCallee) }
+        let importedFunction = binding.flatMap { context.jvmImports?.methods[$0.chosenCallee]?.kotlinFunction }
         let varargIndex = declarations?.firstIndex(where: \.isVararg)
             ?? signature?.valueParameterIsVararg.firstIndex(of: true)
         let varargElement = try varargIndex.map { try specializedVarargElement(at: $0, erased: parameters[$0], binding: binding) }
@@ -87,7 +88,18 @@ extension JVMFunctionBuilder {
             }
             guard parameters.indices.contains(index), index == varargIndex || supplied[index] == nil else { throw fail("Invalid JVM argument mapping.", id) }
             if index != varargIndex { positionalCursor = max(positionalCursor, index + 1) }
-            let evaluated = try composableParameters.contains(index) ? composeContent(arg.expr) : expression(arg.expr)
+            let evaluated: JVMValue?
+            if composableParameters.contains(index) {
+                evaluated = try composeContent(arg.expr)
+            } else if let composer = activeComposer, let importedFunction, importedFunction.hasInlineContextCallback,
+                      importedFunction.parameters.indices.contains(index),
+                      !importedFunction.parameters[index].isCrossinline, !importedFunction.parameters[index].isNoinline,
+                      case .lambdaLiteral = arena.expr(arg.expr) {
+                // Inline callbacks are invoked synchronously in the caller's composition.
+                evaluated = try closure(arg.expr, capturedComposer: composer)
+            } else {
+                evaluated = try expression(arg.expr)
+            }
             if terminated { throw JVMTerminatedExpression() }
             let sourceValue: JVMValue
             if let evaluated { sourceValue = evaluated }
@@ -187,6 +199,9 @@ extension JVMFunctionBuilder {
             instructions.append(.foreignCall(method, receiver: dispatch, arguments: [content], result: nil))
             return JVMIntrinsicResult(value: nil)
         }
+        if let method {
+            prefix += try importedContextArguments(binding, method: method, id: id)
+        }
         if extensionCall {
             let implicit = implicitExtensionReceiver(id)
             guard let value = try receiverValue ?? receiver.map(requireValue) ?? implicit else { throw fail("Missing JVM extension receiver.", id) }
@@ -240,7 +255,8 @@ extension JVMFunctionBuilder {
         let physicalResult = reference?.result ?? method!.result
         // A safe Unit call has logical type Unit?, but its ordinary entry
         // still returns void. The safe-call join materializes Unit afterward.
-        let result = constructor || physicalResult == .unit || resultType == .unit ? nil : try value(resultType)
+        let result = constructor || physicalResult == .unit || resultType == .unit
+            ? nil : try value(foreignResultType(physicalResult, resolved: resultType))
         if let object { instructions.append(.allocate(method!.owner, object)) }
         if usesDefaults {
             if let importedDefault {
@@ -267,6 +283,6 @@ extension JVMFunctionBuilder {
             if isComposable { try composableCall(reference, symbol: symbol, arguments: values, result: result, at: id) }
             else { instructions.append(.call(reference, values, result)) }
         }
-        return JVMIntrinsicResult(value: object ?? result)
+        return JVMIntrinsicResult(value: try object ?? result.map { try convert($0, to: resultType) })
     }
 }

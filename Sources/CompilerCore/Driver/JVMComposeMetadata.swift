@@ -6,12 +6,13 @@ extension JVMForeignMethod {
         guard isStatic, !function.isSuspend, function.descriptor == descriptor,
               annotations.contains(where: { $0.descriptor == "Landroidx/compose/runtime/Composable;" }),
               function.parameters.count <= 31 else { return nil }
-        let firstHidden = function.parameters.count + (function.receiver == nil ? 0 : 1)
+        let firstHidden = function.parameters.count + function.leadingParameterCount
         guard parameters.indices.contains(firstHidden), parameters[firstHidden].referenceName == JVMCompose.composer
         else { return nil }
         let masks = parameters.dropFirst(firstHidden + 1)
         let defaults = function.parameters.contains(where: \.hasDefaultValue) ? 1 : 0
-        guard masks.count > defaults, masks.allSatisfy({ $0 == .int }) else { return nil }
+        guard defaults == 0 || function.contextParameters.isEmpty,
+              masks.count > defaults, masks.allSatisfy({ $0 == .int }) else { return nil }
         return (changes: masks.count - defaults, defaults: defaults)
     }
 
@@ -21,6 +22,21 @@ extension JVMForeignMethod {
 }
 
 extension JVMFunctionBuilder {
+    func readCompositionLocal(_ id: ExprID, receiver: ExprID) throws -> JVMValue? {
+        let sema = program.sema
+        guard let getter = context.jvmImports?.compositionLocalGetter,
+              let selected = sema.bindings.identifierSymbol(for: id) ?? sema.bindings.callBinding(for: id)?.chosenCallee,
+              let property = sema.symbols.symbol(sema.symbols.propertySymbol(forAccessor: selected) ?? selected),
+              property.kind == .property, context.interner.resolve(property.name) == "current",
+              let parent = sema.symbols.parentSymbol(for: property.id),
+              try program.className(parent) == getter.owner else { return nil }
+        guard let composer = activeComposer else { throw fail("JVM CompositionLocal.current requires an active Composer.", id) }
+        let object = try convert(requireValue(receiver), to: .reference(getter.owner, nullable: false))
+        let unchanged = try constant(.int(0), .int)
+        return try jdkCall(getter.owner, getter.name, getter.parameters, getter.result,
+                           receiver: object, arguments: [composer, unchanged], resolved: program.expressionType(id))
+    }
+
     func metadataComposeCall(
         _ method: JVMForeignMethod,
         signature: JVMKotlinFunction,
@@ -34,12 +50,12 @@ extension JVMFunctionBuilder {
     ) throws -> JVMIntrinsicResult {
         guard let composer = activeComposer else { throw fail("JVM @Composable calls require an active Composer.", id) }
         guard activeRegions.isEmpty else { throw fail("JVM @Composable calls are unsupported inside a try expression.", id) }
-        var prefix: [JVMValue] = []
+        var prefix = try importedContextArguments(binding, method: method, id: id)
         if signature.receiver != nil {
             guard let value = try receiverValue ?? receiver.map(requireValue) ?? implicitExtensionReceiver(id) else {
                 throw fail("Missing JVM Compose extension receiver.", id)
             }
-            prefix.append(try convert(value, to: method.parameters[0]))
+            prefix.append(try convert(value, to: method.parameters[prefix.count]))
         }
         let parameters = Array(method.parameters.dropFirst(prefix.count).prefix(signature.parameters.count))
         let composableParameters = binding.flatMap { context.jvmImports?.importedComposableParameters[$0.chosenCallee] } ?? []
@@ -51,10 +67,11 @@ extension JVMFunctionBuilder {
         if abi.defaults != 0 {
             hidden.append(try constant(.int(Int32(bitPattern: explicit.masks[0])), .int))
         }
-        let result = method.result == .unit ? nil : try value(expectedResult ?? program.expressionType(id))
+        let resultType = try expectedResult ?? program.expressionType(id)
+        let result = method.result == .unit ? nil : try value(foreignResultType(method.result, resolved: resultType))
         try beginComposeGroup(composer, key: composeCallKey(at: id))
         instructions.append(.foreignCall(method, receiver: nil, arguments: prefix + explicit.values + hidden, result: result))
         _ = try jdkCall(JVMCompose.composer, JVMCompose.end, [], .unit, receiver: composer, interface: true)
-        return JVMIntrinsicResult(value: result)
+        return JVMIntrinsicResult(value: try result.map { try convert($0, to: resultType) })
     }
 }
