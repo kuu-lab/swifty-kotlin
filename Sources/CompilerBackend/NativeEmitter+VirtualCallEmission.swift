@@ -373,7 +373,13 @@ extension NativeEmitter.FunctionEmissionContext {
                     && signature.valueParameterIsVararg[index]
                     ? typeSystem.anyType : parameter
             }
-            let parameters = receivers + valueParameters
+            // Context parameters sit between the receivers and the value
+            // params in the call ABI — the same order
+            // `sourceExternalSignature` uses. Without them the arity check
+            // below fails for `context(...)` members and the call falls
+            // back to the all-i64 `__v` type, which mismatches the real
+            // (aggregate) argument under O2 verification (KUU-4589).
+            let parameters = receivers + signature.contextParameterTypes + valueParameters
             guard parameters.count == argumentValues.count else {
                 return nil
             }

@@ -44,3 +44,7 @@ fun nullableTypeOf(type: java.lang.Class<*>, first: KTypeProjection, second: KTy
 
 fun nullableTypeOf(type: java.lang.Class<*>, vararg arguments: KTypeProjection): KType =
     RuntimeClassType(type, true, arguments.toList())
+||||||| parent of 0997e5b738 (Provide the non-generic JVM Reflection.typeOf bridge)
+
+fun typeOf(type: java.lang.Class<*>): kotlin.reflect.KType =
+    kotlin.reflect.jvm.internal.RuntimeClassType(type)
