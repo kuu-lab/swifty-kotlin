@@ -439,10 +439,18 @@ func jvmRegexMemberSpaceCoverage(_ name: String, negated: Bool) -> (text: String
         return negated
             ? ("[\\P{Co}--[\\uE000-\\uE801]]", [surrogateRange])
             : ("[\\p{Co}--[\\uE000-\\uE801]]", [markerRange])
-    case "Any", "all", "Assigned":
+    case "Any", "all":
         return negated
             ? ("[^\\s\\S]", [])
             : ("[^\\uE000-\\uE801]", [surrogateRange, markerRange])
+    case "Assigned":
+        // Assigned = \\P{Cn}: it covers both escape-pair spaces (surrogates
+        // are Cs, marker scalars are Co — both assigned) but excludes
+        // unassigned scalars like U+0378, so the plain arm must keep the
+        // property rather than collapsing to `[^\\uE000-\\uE801]`.
+        return negated
+            ? ("[\\P{Assigned}]", [])
+            : ("[\\p{Assigned}--[\\uE000-\\uE801]]", [surrogateRange, markerRange])
     default:
         return nil
     }
