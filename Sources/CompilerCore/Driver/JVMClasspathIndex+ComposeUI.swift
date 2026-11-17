@@ -4,6 +4,24 @@ extension JVMClasspathIndex {
     static let composeView = "androidx/compose/ui/platform/ComposeView"
     static let mutableIntState = "androidx/compose/runtime/MutableIntState"
     static let mutableState = "androidx/compose/runtime/MutableState"
+    static let compositionLocal = "androidx/compose/runtime/CompositionLocal"
+    static let primitiveComposeStates: [(type: String, getter: String, carrier: String)] = [
+        ("Double", "DoubleValue", "D"), ("Float", "FloatValue", "F"),
+        ("Int", "IntValue", "I"), ("Long", "LongValue", "J"),
+    ]
+
+    func composePrimitiveStateSource(owner: String, name: String) -> String? {
+        guard let state = Self.primitiveComposeStates.first(where: {
+            owner == "androidx/compose/runtime/Mutable" + $0.type + "State"
+        }), state.type == "Int" ? composeIntStateFactory != nil : composeStateFactory != nil,
+              composeMethod(owner: owner, name: "get" + state.getter,
+                          descriptor: "()" + state.carrier, isStatic: false) != nil,
+            composeMethod(owner: owner, name: "set" + state.getter,
+                          descriptor: "(" + state.carrier + ")V", isStatic: false) != nil
+        else { return nil }
+        return "interface `\(name)` { var " + state.getter.prefix(1).lowercased() + state.getter.dropFirst()
+            + ": kotlin." + state.type + " }\n"
+    }
 
     func composeMethod(owner: String, name: String, descriptor: String, isStatic: Bool) -> JVMForeignMethod? {
         guard hasComposeRuntime, let info = classes[owner] else { return nil }
@@ -23,6 +41,11 @@ extension JVMClasspathIndex {
         guard hasComposableLambdaFactory else { return nil }
         return composeMethod(owner: Self.composeView, name: "setContent",
                              descriptor: "(Lkotlin/jvm/functions/Function2;)V", isStatic: false)
+    }
+
+    var compositionLocalGetter: JVMForeignMethod? {
+        composeMethod(owner: Self.compositionLocal, name: "getCurrent",
+                      descriptor: "(L\(JVMCompose.composer);I)Ljava/lang/Object;", isStatic: false)
     }
 
     var composeIntStateFactory: JVMForeignMethod? {
