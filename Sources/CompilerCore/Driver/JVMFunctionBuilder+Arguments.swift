@@ -156,6 +156,7 @@ extension JVMFunctionBuilder {
         let binding = program.sema.bindings.callBinding(for: id)
         guard let symbol = binding?.chosenCallee ?? program.sema.bindings.identifierSymbol(for: id) else { return nil }
         if let binding, let metro = try importedMetroCall(binding, id: id) { return metro }
+        if let binding, let action = try importedGlanceActivityAction(binding, args: args, id: id) { return action }
         if let local = program.localFunctions[symbol] {
             return try localFunctionCall(local, symbol: symbol, args: args, receiver: receiver, id: id, expectedResult: expectedResult)
         }
@@ -201,6 +202,9 @@ extension JVMFunctionBuilder {
         }
         if let method {
             prefix += try importedContextArguments(binding, method: method, id: id)
+            if method.kotlinFunction?.valueOperatorParameterDescriptors != nil {
+                prefix.append(try receiverValue ?? receiver.map(requireValue) ?? instance(id))
+            }
         }
         if extensionCall {
             let implicit = implicitExtensionReceiver(id)
@@ -217,9 +221,10 @@ extension JVMFunctionBuilder {
         let defaultSymbol = program.defaultOwner(binding?.defaultArgumentOwner ?? symbol)
         let defaultParameters = program.sourceParameters[defaultSymbol] ?? program.sourceParameters[symbol]
         let importedDefault = context.jvmImports?.importedDefaultMethods[symbol]
-        let importedDefaults = importedDefault.flatMap { _ in
-            program.sema.symbols.functionSignature(for: symbol)?.valueParameterHasDefaultValues
-        }
+        let importedConstructor = context.jvmImports?.importedValueParameterConstructors[symbol]
+        let importedConstructorDefault = context.jvmImports?.importedConstructorDefaults[symbol]
+        let importedDefaults = importedDefault != nil || importedConstructor?.defaults != nil || importedConstructorDefault != nil
+            ? program.sema.symbols.functionSignature(for: symbol)?.valueParameterHasDefaultValues : nil
         let object = constructor ? try value(method!.result) : nil
         let ordered = try arguments(
             args,
@@ -258,14 +263,20 @@ extension JVMFunctionBuilder {
         let result = constructor || physicalResult == .unit || resultType == .unit
             ? nil : try value(foreignResultType(physicalResult, resolved: resultType))
         if let object { instructions.append(.allocate(method!.owner, object)) }
-        if usesDefaults {
+        if let importedConstructor {
+            let target = usesDefaults ? importedConstructor.defaults : importedConstructor.bridge
+            guard let target else { throw fail("Missing JVM value-parameter constructor bridge.", id) }
+            values += usesDefaults ? try maskArguments(ordered.masks, constructor: true)
+                : [try constant(.null, .reference("kotlin/jvm/internal/DefaultConstructorMarker", nullable: true))]
+            instructions.append(.foreignCall(target, receiver: object, arguments: values, result: nil))
+        } else if usesDefaults {
             if let importedDefault {
                 values += try maskArguments(ordered.masks, constructor: false)
                 instructions.append(.foreignCall(importedDefault, receiver: nil, arguments: values, result: result))
             } else if constructor {
                 values += try maskArguments(ordered.masks, constructor: true)
                 let params = allTypes + Array(repeating: JVMValueType.int, count: ordered.masks.count) + [.reference("kotlin/jvm/internal/DefaultConstructorMarker", nullable: true)]
-                let call = JVMForeignMethod(owner: method!.owner, name: "<init>", descriptor: "(" + params.map(\.descriptor).joined() + ")V", parameters: params, result: method!.result, isStatic: false, isInterface: false, isAbstract: false)
+                let call = importedConstructorDefault ?? JVMForeignMethod(owner: method!.owner, name: "<init>", descriptor: "(" + params.map(\.descriptor).joined() + ")V", parameters: params, result: method!.result, isStatic: false, isInterface: false, isAbstract: false)
                 instructions.append(.foreignCall(call, receiver: object, arguments: values, result: nil))
             } else {
                 let target = try program.defaultReference(defaultSymbol)

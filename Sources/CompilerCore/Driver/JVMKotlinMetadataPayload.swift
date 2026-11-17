@@ -10,6 +10,7 @@ struct JVMKotlinSuspendFunction {
 
     let name: String
     let result: JVMValueType
+    let sourceResult: String?
     let parameters: [Parameter]
     let receiverIsNullable: Bool?
 }
@@ -18,6 +19,8 @@ struct JVMKotlinSuspendFunction {
 /// parameters include function types. The physical descriptor stays on
 /// `JVMForeignMethod`; this carries only the declaration shape Sema needs.
 struct JVMKotlinFunction {
+    static let valueOperators: Set<String> = ["plus", "minus", "times", "div", "rem", "compareTo"]
+
     struct TypeParameter {
         let name: String
         let bounds: [String]
@@ -42,18 +45,31 @@ struct JVMKotlinFunction {
     let receiver: String?
     let isSuspend: Bool
     var isInline = false
+    var isOperator = false
+    var isInfix = false
+    var valueOperatorParameterDescriptors: [String]?
+    var mangledMemberParameterDescriptors: [String]?
+    var isGenericFinalGetter = false
+    var hasStableFinalParameters = false
 
     var leadingParameterCount: Int { contextParameters.count + (receiver == nil ? 0 : 1) }
+    var composableParameters: Set<Int> {
+        Set(parameters.indices.filter {
+            parameters[$0].sourceType.hasPrefix("@androidx.compose.runtime.Composable ")
+        })
+    }
     var hasInlineContextCallback: Bool {
         isInline && parameters.contains { $0.sourceType.hasPrefix("context(") && !$0.isCrossinline && !$0.isNoinline }
     }
 }
 
-struct JVMKotlinStaticProperty {
+struct JVMKotlinClassProperty {
     let name: String
     let getterName: String
     let getterDescriptor: String
     let isNullable: Bool
+    let isVar: Bool
+    let isSourceVisible: Bool
     let sourceType: String?
 }
 
@@ -63,6 +79,12 @@ struct JVMKotlinTopLevelProperty {
     let result: String
     let getterName: String
     let getterDescriptor: String
+}
+
+struct JVMKotlinValueConstructor {
+    let descriptor: String
+    let parameters: [JVMKotlinFunction.Parameter]
+    let visibility: String
 }
 
 /// Reads the class and file-facade subset of Kotlin's JVM metadata. Field
@@ -85,6 +107,7 @@ struct JVMKotlinMetadataPayload {
         fileprivate let names: JVMMetadataNames
         fileprivate let types: TypeTable
         fileprivate let functions: [ProtoFields]
+        fileprivate let ownerTypeParameters: [Int32: String]
     }
 
     var multifileParts: [String] { kind == 4 ? data1 : [] }
@@ -98,7 +121,92 @@ struct JVMKotlinMetadataPayload {
         let names = try JVMMetadataNames(ProtoFields(cursor.readBytes(tableLength)), strings: data2)
         let declaration = try ProtoFields(bytes[cursor.position...])
         let classTypes = try TypeTable(declaration.message(30))
-        return FunctionTable(names: names, types: classTypes, functions: try declaration.messages(isFileFacade ? 3 : 9))
+        var ownerTypeParameters: [Int32: String] = [:]
+        if !isFileFacade {
+            for parameter in try declaration.messages(5) {
+                guard let id = parameter.int32(1), let name = try names.resolve(parameter.int32(2)),
+                      JVMProgramBuilder.isIdentifier(name) else { continue }
+                ownerTypeParameters[id] = name
+            }
+        }
+        return FunctionTable(names: names, types: classTypes,
+                             functions: try declaration.messages(isFileFacade ? 3 : 9),
+                             ownerTypeParameters: ownerTypeParameters)
+    }
+
+    func sealedInterfaceSubclasses(byteLimit: Int) throws -> [String] {
+        guard kind == 1, let major = version.first, (1...2).contains(major) else { return [] }
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
+        // Class flags store modality in bits 4–5. The classfile reader has
+        // already established that the owner is an interface.
+        guard (declaration.int32(1) ?? 0) & (3 << 4) == (3 << 4) else { return [] }
+        let children = try declaration.int32List(16)
+        let resolved = try children.compactMap { try names.resolve($0)?.replacingOccurrences(of: ".", with: "$") }
+        return resolved.count == children.count ? resolved : []
+    }
+
+    func isObject(byteLimit: Int) throws -> Bool {
+        guard kind == 1, let major = version.first, (1...2).contains(major) else { return false }
+        let (declaration, _) = try declarationData(byteLimit: byteLimit)
+        return (declaration.int32(1) ?? 0) & (7 << 6) == (5 << 6)
+    }
+
+    func readOnlyCollectionSupertypes(byteLimit: Int) throws -> [String: String] {
+        guard kind == 1, let major = version.first, (1...2).contains(major) else { return [:] }
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
+        var types = try TypeTable(declaration.message(30))
+        types.parameterNames = try Self.classTypeParameters(declaration, names: names)
+        let inline = try declaration.messages(6).map { (type: $0, nullable: $0.bool(3) == true) }
+        let indexed = try declaration.int32List(2).compactMap { types.resolve(index: $0) }
+        let collectionNames: Set<String> = ["Collection", "List", "Map", "Set"]
+        var result: [String: String] = [:]
+        for type in inline + indexed {
+            guard let name = try names.resolve(type.type.int32(6)), name.hasPrefix("kotlin/collections/"),
+                  let short = name.split(separator: "/").last.map(String.init), collectionNames.contains(short),
+                  let carrier = JVMClasspathIndex.collectionNames[short],
+                  let source = try Self.sourceType(type, types: types, names: names) else { continue }
+            result[carrier] = source
+        }
+        return result
+    }
+
+    func parameterizedSupertypes(byteLimit: Int) throws -> [String: String] {
+        guard kind == 1, let major = version.first, (1...2).contains(major) else { return [:] }
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
+        var types = try TypeTable(declaration.message(30))
+        types.parameterNames = try Self.classTypeParameters(declaration, names: names)
+        let inline = try declaration.messages(6).map { (type: $0, nullable: $0.bool(3) == true) }
+        let indexed = try declaration.int32List(2).compactMap { types.resolve(index: $0) }
+        var result: [String: String] = [:]
+        for type in inline + indexed where type.type.has(2) {
+            guard let name = try names.resolve(type.type.int32(6)), !name.hasPrefix("kotlin/"),
+                  let source = try Self.sourceType(type, types: types, names: names) else { continue }
+            result[name] = source
+        }
+        return result
+    }
+
+    func comparableSupertype(byteLimit: Int) throws -> String? {
+        guard kind == 1, let major = version.first, (1...2).contains(major) else { return nil }
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
+        var types = try TypeTable(declaration.message(30))
+        types.parameterNames = try Self.classTypeParameters(declaration, names: names)
+        let inline = try declaration.messages(6).map { (type: $0, nullable: $0.bool(3) == true) }
+        let indexed = try declaration.int32List(2).compactMap { types.resolve(index: $0) }
+        for type in inline + indexed where try names.resolve(type.type.int32(6)) == "kotlin/Comparable" {
+            return try Self.sourceType(type, types: types, names: names)
+        }
+        return nil
+    }
+
+    private static func classTypeParameters(_ declaration: ProtoFields, names: JVMMetadataNames) throws -> [Int32: String] {
+        var parameters: [Int32: String] = [:]
+        for parameter in try declaration.messages(5) {
+            guard let id = parameter.int32(1), let name = try names.resolve(parameter.int32(2)),
+                  JVMProgramBuilder.isIdentifier(name) else { continue }
+            parameters[id] = name
+        }
+        return parameters
     }
 
     func suspendFunctions(in table: FunctionTable) throws -> [String: JVMKotlinSuspendFunction] {
@@ -111,14 +219,35 @@ struct JVMKotlinMetadataPayload {
                   let signature = try function.message(100),
                   let descriptor = try names.resolve(signature.int32(2)) else { continue }
             let jvmName = try names.resolve(signature.int32(1)) ?? name
+            let carriers = (try? JVMDescriptor.parse(descriptor).0) ?? []
             let types = try function.message(30).map(TypeTable.init) ?? classTypes
-            guard let returnType = try types.resolve(function, inline: 3, indexed: 7),
-                  let carrier = try Self.resultType(returnType, types: types, names: names) else { continue }
+            guard let returnType = try types.resolve(function, inline: 3, indexed: 7) else { continue }
+            let carrier: JVMValueType
+            if let concrete = try Self.resultType(returnType, types: types, names: names) {
+                carrier = concrete
+            } else if try function.messages(4).contains(where: { parameter in
+                returnType.type.int32(7).map { $0 == parameter.int32(1) } == true
+                    || returnType.type.int32(9).map { $0 == parameter.int32(2) } == true
+            }) {
+                // Type-parameter results travel as boxed objects across the continuation boundary.
+                carrier = .reference("java/lang/Object", nullable: true)
+            } else {
+                continue
+            }
             let receiver = try types.resolve(function, inline: 5, indexed: 8)
-            let parameters = try function.messages(6).map { parameter in
+            let parameters = try function.messages(6).enumerated().map { index, parameter in
                 let resolved = try types.resolve(parameter, inline: 3, indexed: 5)
                 let sourceType = try resolved.flatMap { type in
-                    type.type.has(2) ? try Self.sourceType(type, types: types, names: names) : nil
+                    let physicalIndex = index + (receiver == nil ? 0 : 1)
+                    let differsFromCarrier: Bool
+                    if jvmName.contains("-"), carriers.indices.contains(physicalIndex),
+                       let logical = try Self.resultType(type, types: types, names: names) {
+                        differsFromCarrier = logical.descriptor != carriers[physicalIndex].descriptor
+                    } else {
+                        differsFromCarrier = false
+                    }
+                    return type.type.has(2) || differsFromCarrier
+                        ? try Self.sourceType(type, types: types, names: names) : nil
                 }
                 return JVMKotlinSuspendFunction.Parameter(
                     name: try names.resolve(parameter.int32(2)),
@@ -127,7 +256,9 @@ struct JVMKotlinMetadataPayload {
                 )
             }
             let info = JVMKotlinSuspendFunction(
-                name: name, result: carrier, parameters: parameters, receiverIsNullable: receiver?.nullable
+                name: name, result: carrier,
+                sourceResult: returnType.type.has(2) ? try Self.sourceType(returnType, types: types, names: names) : nil,
+                parameters: parameters, receiverIsNullable: receiver?.nullable
             )
             guard result.updateValue(info, forKey: jvmName + descriptor) == nil else { throw JVMClassReader.Invalid() }
         }
@@ -154,24 +285,26 @@ struct JVMKotlinMetadataPayload {
     }
 
     /// Static properties exposed by Kotlin objects through @JvmStatic accessors.
-    func staticPropertyCandidates(byteLimit: Int) throws -> [JVMKotlinStaticProperty] {
+    func classPropertyCandidates(byteLimit: Int) throws -> [JVMKotlinClassProperty] {
         guard kind == 1, let major = version.first, (1...2).contains(major) else { return [] }
-        let bytes = try decodedData(limit: byteLimit)
-        var cursor = ProtoCursor(bytes[...])
-        guard let tableLength = Int(exactly: try cursor.readVarint()) else { throw JVMClassReader.Invalid() }
-        let names = try JVMMetadataNames(ProtoFields(cursor.readBytes(tableLength)), strings: data2)
-        let declaration = try ProtoFields(bytes[cursor.position...])
-        let types = try TypeTable(declaration.message(30))
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
+        var types = try TypeTable(declaration.message(30))
+        types.parameterNames = try Self.classTypeParameters(declaration, names: names)
         return try declaration.messages(10).compactMap { property in
             guard let name = try names.resolve(property.int32(2)), JVMProgramBuilder.isIdentifier(name),
                   let type = try types.resolve(property, inline: 3, indexed: 9),
                   let signature = try property.message(100),
                   let getter = try signature.message(3),
                   let getterName = try names.resolve(getter.int32(1)),
-                  let descriptor = try names.resolve(getter.int32(2)), descriptor.hasPrefix("()")
+                  let descriptor = try names.resolve(getter.int32(2))
             else { return nil }
-            return JVMKotlinStaticProperty(name: name, getterName: getterName, getterDescriptor: descriptor,
-                                           isNullable: type.nullable, sourceType: try Self.sourceType(type, types: types, names: names))
+            let hasSetter = try signature.message(4) != nil
+            let flags = property.int32(11) ?? 6
+            let visibility = (flags >> 1) & 7
+            return JVMKotlinClassProperty(name: name, getterName: getterName, getterDescriptor: descriptor,
+                                           isNullable: type.nullable, isVar: flags & (1 << 8) != 0 || hasSetter,
+                                           isSourceVisible: visibility == 2 || visibility == 3,
+                                           sourceType: try Self.sourceType(type, types: types, names: names))
         }
     }
 
@@ -181,6 +314,142 @@ struct JVMKotlinMetadataPayload {
         guard let tableLength = Int(exactly: try cursor.readVarint()) else { throw JVMClassReader.Invalid() }
         let names = try JVMMetadataNames(ProtoFields(cursor.readBytes(tableLength)), strings: data2)
         return (try ProtoFields(bytes[cursor.position...]), names)
+    }
+
+    /// Names of public Kotlin declarations keyed by the physical JVM method.
+    func collidingMemberSourceNames(byteLimit: Int) throws -> [String: String] {
+        guard kind == 1, let major = version.first, (1...2).contains(major) else { return [:] }
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
+        let ownerTypes = try TypeTable(declaration.message(30))
+        var sourceNames: [String: String] = [:]
+        for function in try declaration.messages(9) {
+            let flags = function.int32(9) ?? 6
+            let visibility = (flags >> 1) & 7
+            guard visibility == 2 || visibility == 3,
+                  let name = try names.resolve(function.int32(2)), JVMProgramBuilder.isIdentifier(name) else { continue }
+            let signature = try function.message(100)
+            let jvmName = try names.resolve(signature?.int32(1)) ?? name
+            if let descriptor = try names.resolve(signature?.int32(2)) {
+                sourceNames[jvmName + descriptor] = name
+                continue
+            }
+            let types = try function.message(30).map(TypeTable.init) ?? ownerTypes
+            let parameters = try function.messages(6)
+            guard !function.has(5), !function.has(8), flags & (1 << 13) == 0,
+                  let type = try types.resolve(function, inline: 3, indexed: 7),
+                  let result = try Self.resultType(type, types: types, names: names) else { continue }
+            let carriers = try parameters.compactMap { parameter in
+                try types.resolve(parameter, inline: 3, indexed: 5).flatMap {
+                    try Self.resultType($0, types: types, names: names)
+                }
+            }
+            guard carriers.count == parameters.count else { continue }
+            let descriptor = "(" + carriers.map(\.descriptor).joined() + ")" + result.descriptor
+            sourceNames[jvmName + descriptor] = name
+        }
+        for property in try classPropertyCandidates(byteLimit: byteLimit) where property.isSourceVisible {
+            sourceNames[property.getterName + property.getterDescriptor] = property.getterName
+        }
+        return sourceNames
+    }
+
+    func constructorParameterNames(byteLimit: Int) throws -> [String: [String]] {
+        guard kind == 1, let major = version.first, (1...2).contains(major) else { return [:] }
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
+        let types = try TypeTable(declaration.message(30))
+        var result: [String: [String]] = [:]
+        for constructor in try declaration.messages(8) {
+            // Classfile visibility can expose Kotlin-internal constructors.
+            // Only public and protected declarations supply source labels.
+            let flags = constructor.int32(1) ?? 6
+            guard (flags >> 1) & 7 == 3 || (flags >> 1) & 7 == 2 else { continue }
+            let parameters = try constructor.messages(2)
+            guard !parameters.isEmpty else { continue }
+            let labels = try parameters.compactMap { try names.resolve($0.int32(2)) }
+            guard labels.count == parameters.count, Set(labels).count == labels.count,
+                  labels.allSatisfy(JVMProgramBuilder.isIdentifier) else { continue }
+            let signature = try constructor.message(100)
+            if let descriptor = try names.resolve(signature?.int32(2)) {
+                result[descriptor] = labels
+                continue
+            }
+            let carriers = try parameters.compactMap { parameter in
+                try types.resolve(parameter, inline: 3, indexed: 5).flatMap {
+                    try Self.resultType($0, types: types, names: names)
+                }
+            }
+            guard carriers.count == parameters.count else { continue }
+            let descriptor = "(" + carriers.map(\.descriptor).joined() + ")V"
+            result[descriptor] = labels
+        }
+        return result
+    }
+
+    func constructorsWithLoweredParameters(byteLimit: Int) throws -> [JVMKotlinValueConstructor] {
+        guard kind == 1, let major = version.first, (1...2).contains(major) else { return [] }
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
+        let types = try TypeTable(declaration.message(30))
+        var result: [JVMKotlinValueConstructor] = []
+        let marker = "Lkotlin/jvm/internal/DefaultConstructorMarker;)V"
+        for constructor in try declaration.messages(8) {
+            let visibility = ((constructor.int32(1) ?? 6) >> 1) & 7
+            guard visibility == 2 || visibility == 3 else { continue }
+            let fields = try constructor.messages(2)
+            guard !fields.isEmpty else { continue }
+            let signature = try constructor.message(100)
+            let explicitDescriptor = try names.resolve(signature?.int32(2))
+            let bridgeDescriptor: String
+            if let explicitDescriptor {
+                bridgeDescriptor = explicitDescriptor
+            } else {
+                let carriers = try fields.compactMap { parameter in
+                    try types.resolve(parameter, inline: 3, indexed: 5).flatMap {
+                        try Self.resultType($0, types: types, names: names)
+                    }
+                }
+                guard carriers.count == fields.count else { continue }
+                bridgeDescriptor = "(" + carriers.map(\.descriptor).joined() + ")V"
+            }
+            let requiresMarker = bridgeDescriptor.hasSuffix(marker)
+            guard requiresMarker || fields.contains(where: { ($0.int32(1) ?? 0) & 2 != 0 }),
+                  let (carriers, jvmResult) = try? JVMDescriptor.parse(bridgeDescriptor),
+                  jvmResult == .unit, fields.count + (requiresMarker ? 1 : 0) == carriers.count
+            else { continue }
+            let descriptor = requiresMarker ? String(bridgeDescriptor.dropLast(marker.count)) + ")V" : bridgeDescriptor
+            let parameters = try fields.compactMap { parameter -> JVMKotlinFunction.Parameter? in
+                guard !parameter.has(4), !parameter.has(6),
+                      let name = try names.resolve(parameter.int32(2)), JVMProgramBuilder.isIdentifier(name),
+                      let type = try types.resolve(parameter, inline: 3, indexed: 5),
+                      let sourceType = try Self.sourceType(type, types: types, names: names) else { return nil }
+                return .init(name: name, sourceType: sourceType, isVararg: false,
+                             hasDefaultValue: (parameter.int32(1) ?? 0) & 2 != 0)
+            }
+            guard fields.count == parameters.count else { continue }
+            result.append(.init(descriptor: descriptor, parameters: parameters, visibility: visibility == 2 ? "protected " : ""))
+        }
+        return result
+    }
+
+    func valueClassConstructors(byteLimit: Int) throws -> [JVMKotlinValueConstructor] {
+        guard kind == 1, let major = version.first, (1...2).contains(major) else { return [] }
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
+        let types = try TypeTable(declaration.message(30))
+        return try declaration.messages(8).compactMap { constructor in
+            let visibility = ((constructor.int32(1) ?? 6) >> 1) & 7
+            guard visibility == 3, let signature = try constructor.message(100),
+                  try names.resolve(signature.int32(1)) == "constructor-impl",
+                  let descriptor = try names.resolve(signature.int32(2)) else { return nil }
+            let fields = try constructor.messages(2)
+            let parameters = try fields.compactMap { parameter -> JVMKotlinFunction.Parameter? in
+                guard !parameter.has(4), !parameter.has(6),
+                      let name = try names.resolve(parameter.int32(2)), JVMProgramBuilder.isIdentifier(name),
+                      let type = try types.resolve(parameter, inline: 3, indexed: 5),
+                      let sourceType = try Self.sourceType(type, types: types, names: names) else { return nil }
+                return .init(name: name, sourceType: sourceType, isVararg: false, hasDefaultValue: false)
+            }
+            guard !fields.isEmpty, fields.count == parameters.count else { return nil }
+            return .init(descriptor: descriptor, parameters: parameters, visibility: "")
+        }
     }
 
     func topLevelProperties(byteLimit: Int) throws -> [JVMKotlinTopLevelProperty] {
@@ -272,12 +541,17 @@ struct JVMKotlinMetadataPayload {
     /// Functions whose Kotlin signature cannot be recovered from the erased JVM
     /// descriptor, plus every top-level file-facade function so lazy classpath
     /// roots can be found by callable name.
-    func functions(in table: FunctionTable) throws -> [JVMKotlinFunction] {
+    func functions(in table: FunctionTable, isValueClass: Bool = false, hasReadOnlyListSupertype: Bool = false, functionTypeMemberNames: Set<String> = []) throws -> [JVMKotlinFunction] {
         let names = table.names
         let classTypes = table.types
+        let ownerTypeParameters = table.ownerTypeParameters
         var result: [JVMKotlinFunction] = []
         for function in table.functions {
             guard let name = try names.resolve(function.int32(2)) else { continue }
+            let flags = function.int32(9) ?? 0
+            let isInfix = flags & (1 << 9) != 0
+            let isOperator = flags & (1 << 8) != 0
+            let isSubList = hasReadOnlyListSupertype && name == "subList"
             let signature = try function.message(100)
             let jvmName: String?
             var descriptor: String?
@@ -289,6 +563,10 @@ struct JVMKotlinMetadataPayload {
                 descriptor = nil
             }
             var types = try function.message(30).map(TypeTable.init) ?? classTypes
+            let isFinal = (flags >> 4) & 3 == 0
+            if isInfix || isSubList || isFinal || functionTypeMemberNames.contains(jvmName ?? name) {
+                types.parameterNames = ownerTypeParameters
+            }
             let typeParameterMessages = try function.messages(4)
             guard typeParameterMessages.isEmpty || isFileFacade == true else { continue }
             let parameterIDs = try typeParameterMessages.compactMap { parameter -> Int32? in
@@ -324,6 +602,11 @@ struct JVMKotlinMetadataPayload {
             }
             guard contextParameters.count == contextMessages.count else { continue }
             let parameterMessages = try function.messages(6)
+            let isGenericFinalGetter = isFileFacade != true && isFinal && !name.hasPrefix("get")
+                && returnResolved.type.has(2) && parameterMessages.isEmpty
+            let hasStableFinalParameters = isFileFacade != true && isFinal && receiver == nil && contextParameters.isEmpty
+                && !parameterMessages.isEmpty && flags & (1 << 15) == 0
+                && parameterMessages.allSatisfy { ($0.int32(1) ?? 0) & 2 == 0 }
             var parameters: [JVMKotlinFunction.Parameter] = []
             var hasFunctionTypes = resultType.contains("->") || (receiverType?.contains("->") ?? false)
             var valid = true
@@ -349,9 +632,29 @@ struct JVMKotlinMetadataPayload {
                     hasDefaultValue: hasDefaultValue, isCrossinline: flags & 4 != 0, isNoinline: flags & 8 != 0))
                 hasFunctionTypes = hasFunctionTypes || type.contains("->")
             }
-            guard valid, hasFunctionTypes || (isFileFacade == true) else { continue }
-            let flags = function.int32(9) ?? 0
+            let isValueOperator = isValueClass && isOperator && receiver == nil && contextParameters.isEmpty
+                && JVMKotlinFunction.valueOperators.contains(name) && descriptor != nil
+            let isMangledMember = isFileFacade != true && receiver == nil && contextParameters.isEmpty
+                && jvmName?.hasPrefix(name + "-") == true && descriptor != nil && !isValueClass
+            let hasStableScalarParameters = hasStableFinalParameters && !isMangledMember
+                && parameters.allSatisfy { parameter in
+                    parameter.sourceType == "kotlin.String"
+                        || ["kotlin.Boolean", "kotlin.Byte", "kotlin.Short", "kotlin.Int", "kotlin.Long",
+                            "kotlin.Char", "kotlin.Float", "kotlin.Double"].contains(parameter.sourceType)
+                }
+            guard valid, hasFunctionTypes || (isFileFacade == true) || receiver != nil || isInfix || isValueOperator || isSubList
+                || isGenericFinalGetter || isMangledMember || hasStableScalarParameters else { continue }
             let isSuspend = flags & (1 << 13) != 0
+            var logicalParameterDescriptors: [String]?
+            if isValueOperator || isMangledMember {
+                let descriptors = try parameterMessages.compactMap { parameter in
+                    try types.resolve(parameter, inline: 3, indexed: 5).flatMap {
+                        try Self.resultType($0, types: types, names: names)?.descriptor
+                    }
+                }
+                guard descriptors.count == parameters.count else { continue }
+                logicalParameterDescriptors = descriptors
+            }
             if !hasFunctionTypes, descriptor == nil {
                 // The signature extension can omit descriptors that the JVM
                 // backend derives from Kotlin types. Recover them so overloads
@@ -380,7 +683,13 @@ struct JVMKotlinMetadataPayload {
                 contextParameters: contextParameters,
                 receiver: receiverType,
                 isSuspend: isSuspend,
-                isInline: flags & (1 << 10) != 0
+                isInline: flags & (1 << 10) != 0,
+                isOperator: isOperator,
+                isInfix: isInfix,
+                valueOperatorParameterDescriptors: isValueOperator ? logicalParameterDescriptors : nil,
+                mangledMemberParameterDescriptors: isMangledMember ? logicalParameterDescriptors : nil,
+                isGenericFinalGetter: isGenericFinalGetter,
+                hasStableFinalParameters: hasStableScalarParameters
             ))
         }
         return result

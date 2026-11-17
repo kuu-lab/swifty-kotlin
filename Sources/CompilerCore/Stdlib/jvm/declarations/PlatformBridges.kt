@@ -4,7 +4,16 @@ fun __jvmSuppressedExceptions(throwable: Throwable): Array<Throwable> = null!!
 fun __jvmFileName(file: java.io.File): String = null!!
 
 fun __jvmCloseResource(resource: java.io.Closeable) {}
+fun __jvmByteArrayOutputStream(size: Int): Any = null!!
+fun __jvmInputStreamAvailable(stream: java.io.InputStream): Int = 0
+fun __jvmInputStreamRead(stream: java.io.InputStream, buffer: ByteArray): Int = 0
+fun __jvmOutputStreamWrite(stream: Any, buffer: ByteArray, offset: Int, length: Int) {}
+fun __jvmOutputStreamToBytes(stream: Any): ByteArray = null!!
+fun __jvmCharDigit(character: Char, radix: Int): Int = 0
 
+fun __jvmStringWriter(): Any = null!!
+fun __jvmPrintWriter(writer: Any): Any = null!!
+fun __jvmPrintStackTrace(error: Throwable, writer: Any) {}
 fun __jvmThreadLocalRandom(): Any = null!!
 fun __jvmThreadLocalRandomNextInt(random: Any): Int = 0
 

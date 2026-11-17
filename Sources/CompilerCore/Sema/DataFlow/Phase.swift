@@ -224,7 +224,8 @@ final class DataFlowSemaPhase: CompilerPhase {
                     symbols: symbols,
                     types: types,
                     interner: ctx.interner,
-                    bundledIndex: bundledIndex
+                    bundledIndex: bundledIndex,
+                    projectsCoroutineContextIsActive: ctx.jvmImports?.projectsCoroutineContextIsActive == true
                 )
             }
         }

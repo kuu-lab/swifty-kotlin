@@ -123,8 +123,13 @@ extension ExprTypeChecker {
     ) -> SymbolID {
         let sema = ctx.sema
 
-        if let existing = sema.bindings.declSymbols[declID] {
+        if let existing = sema.bindings.declSymbols[declID],
+           driver.pendingLocalNominalRechecks.remove(declID) == nil
+        {
             return existing
+        }
+        if driver.sourceManager?.origin(of: ctx.currentFileID)?.isBundledStdlib != true {
+            driver.localNominalDeclChecks.append(declID)
         }
 
         let aliasFQName = fqNamePrefix + [typeAliasDecl.name]
@@ -247,8 +252,13 @@ extension ExprTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
 
-        if let existing = sema.bindings.declSymbols[declID] {
+        if let existing = sema.bindings.declSymbols[declID],
+           driver.pendingLocalNominalRechecks.remove(declID) == nil
+        {
             return existing
+        }
+        if driver.sourceManager?.origin(of: ctx.currentFileID)?.isBundledStdlib != true {
+            driver.localNominalDeclChecks.append(declID)
         }
 
         let outerLocalsSnapshot = locals
@@ -851,6 +861,38 @@ extension ExprTypeChecker {
             .merging(
                 driver.declChecker.primaryConstructorParameterLocals(classDecl: classDecl, ctx: classCtx)
             ) { _, new in new }
+
+        // KUU-4595: an expression-bodied member function keeps the `Any`
+        // return placeholder collected above until its body is checked at
+        // the end of this pass, but super-delegation arguments, constructor
+        // default values, property initializers and `by lazy` lambdas below
+        // can already call it. Register each for the same on-demand return
+        // inference named members get, seeded with the outer locals the
+        // authoritative pass uses so a speculative check binds identical
+        // symbols — an unseeded check could resolve an outer local through
+        // the member scope and cache that binding permanently. Inferred
+        // member properties likewise stay `pending` until this pass (or an
+        // on-demand read from an early-inferred function) resolves them.
+        let localMemberFunctionCtx = driver.helpers.localFunctionOptInContext(classCtx)
+        for functionDeclID in classDecl.memberFunctions {
+            driver.registerInferredReturnFunction(
+                for: functionDeclID,
+                context: localMemberFunctionCtx,
+                baseLocals: outerLocalsSnapshot
+            )
+        }
+        for propertyDeclID in classDecl.memberProperties {
+            guard case let .propertyDecl(property)? = ast.arena.decl(propertyDeclID),
+                  property.type == nil,
+                  let symbol = propertySymbolsByDecl[propertyDeclID]
+            else { continue }
+            driver.pendingPropertyTypes.insert(symbol)
+        }
+        driver.registerInferredMemberProperties(
+            classDecl.memberProperties,
+            context: classCtx,
+            initialLocals: primaryCtorLocals
+        )
 
         driver.declChecker.typeCheckClassDelegation(
             classDecl,

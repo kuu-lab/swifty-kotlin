@@ -273,6 +273,8 @@ public struct JVMForeignMethod: Sendable {
     // Classpath methods keep their physical descriptor until bound to a Kotlin call.
     var kotlinSuspendFunction: JVMKotlinSuspendFunction?
     var genericResultParameter: (name: String, classParameterIndices: Set<Int>)?
+    var kotlinConstructorParameterNames: [String]?
+    var kotlinCollisionSourceName: String?
     var kotlinFunction: JVMKotlinFunction?
     public var isConstructor: Bool { name == "<init>" }
 }
@@ -309,6 +311,7 @@ public struct JVMProperty {
     var isDirectField = false
     public var isGetterInline: Bool = false
     public var isSetterInline: Bool = false
+    var accessesForeignField = false
 }
 
 public struct JVMRecordComponent {

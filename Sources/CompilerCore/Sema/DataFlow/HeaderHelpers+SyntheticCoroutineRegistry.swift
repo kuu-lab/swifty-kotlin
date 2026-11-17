@@ -7,13 +7,15 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        bundledIndex: BundledDeclarationIndex = .empty
+        bundledIndex: BundledDeclarationIndex = .empty,
+        projectsCoroutineContextIsActive: Bool = false
     ) {
         var context = SyntheticCoroutineRegistryContext(
             symbols: symbols,
             types: types,
             interner: interner,
-            bundledIndex: bundledIndex
+            bundledIndex: bundledIndex,
+            projectsCoroutineContextIsActive: projectsCoroutineContextIsActive
         )
         registerCoroutinePackageTree(context: &context)
         registerRestrictsSuspensionResidual(context: &context)
@@ -51,6 +53,7 @@ struct SyntheticCoroutineRegistryContext {
     let types: TypeSystem
     let interner: StringInterner
     let bundledIndex: BundledDeclarationIndex
+    let projectsCoroutineContextIsActive: Bool
 
     var kotlinPkg: [InternedString] = []
     var kotlinCoroutinesPkg: [InternedString] = []
