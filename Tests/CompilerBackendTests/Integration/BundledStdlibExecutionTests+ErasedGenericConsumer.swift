@@ -83,6 +83,31 @@ extension BundledStdlibExecutionTests {
         )
     }
 
+    /// KUU-4594: reading an element (`[0]` / `get`) or iterating a `List`
+    /// heap-polluted through an unchecked generic cast must throw
+    /// ClassCastException at the claim site instead of printing `null`.
+    @Test(arguments: [false, true], [0, 2])
+    func erasedGenericMemberResultClaim(fromArtifact: Bool, optimization: Int) throws {
+        let source = try diffCaseSource("kuu4594_erased_generic_member_result.kt", file: #filePath)
+        try compileAndRunKotlin(
+            source,
+            expectedOutput: """
+            size:3
+            index:CCE
+            get:CCE
+            iter:CCE
+            valid-index:a
+            valid-get:b
+            valid-iter:ok:ab
+            int-sum:6
+
+            """,
+            moduleName: "ErasedGenericMemberResultClaim",
+            allowDefaultStdlibLibrary: fromArtifact,
+            optLevel: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
+
     /// KUU-4393: a statement-position call records a Unit consumer so the
     /// erased result is popped without a claim checkcast. A platform-typed
     /// expression bound must not resurrect that checkcast — `ConcurrentMap`'s
