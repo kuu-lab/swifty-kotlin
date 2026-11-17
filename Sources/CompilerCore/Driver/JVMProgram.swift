@@ -273,6 +273,8 @@ public struct JVMForeignMethod: Sendable {
     // Classpath methods keep their physical descriptor until bound to a Kotlin call.
     var kotlinSuspendFunction: JVMKotlinSuspendFunction?
     var genericResultParameter: (name: String, classParameterIndices: Set<Int>)?
+    var kotlinConstructorParameterNames: [String]?
+    var kotlinCollisionSourceName: String?
     var kotlinFunction: JVMKotlinFunction?
     public var isConstructor: Bool { name == "<init>" }
 }
@@ -294,6 +296,7 @@ public struct JVMProperty {
     public var setter: JVMForeignMethod?
     public var field: JVMField?
     public var isImportedField = false
+    public var readsStaticField = false
     public let modifiers: Modifiers
     public var kotlinType: JVMKotlinType? = nil
     public var kotlinReceiver: JVMKotlinType? = nil
@@ -308,6 +311,7 @@ public struct JVMProperty {
     var isDirectField = false
     public var isGetterInline: Bool = false
     public var isSetterInline: Bool = false
+    var accessesForeignField = false
 }
 
 public struct JVMRecordComponent {
@@ -387,7 +391,7 @@ public indirect enum JVMKotlinType {
     case named(String, [JVMKotlinTypeArgument], nullable: Bool)
     case parameter(Int, nullable: Bool, definitelyNotNull: Bool)
     case flexible(JVMKotlinType, JVMKotlinType)
-    case function([JVMKotlinType], JVMKotlinType, receiver: JVMKotlinType?, nullable: Bool, isSuspend: Bool = false)
+    case function([JVMKotlinType], JVMKotlinType, receiver: JVMKotlinType?, nullable: Bool, isSuspend: Bool = false, context: [JVMKotlinType] = [])
 }
 public struct JVMKotlinTypeArgument {
     public let type: JVMKotlinType?

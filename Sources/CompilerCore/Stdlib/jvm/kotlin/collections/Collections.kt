@@ -220,20 +220,32 @@ public fun <T> List<T>.dropLastWhile(predicate: (T) -> Boolean): List<T> {
     return result
 }
 public fun <T> Iterable<T>.joinToString(separator: CharSequence = ", ", prefix: CharSequence = "", postfix: CharSequence = "", limit: Int = -1, truncated: CharSequence = "...", transform: ((T) -> CharSequence)? = null): String {
-    val result = StringBuilder()
-    result.append(prefix)
+    return joinTo(StringBuilder(), separator, prefix, postfix, limit, truncated, transform).toString()
+}
+
+public fun <T, A : Appendable> Iterable<T>.joinTo(
+    buffer: A,
+    separator: CharSequence = ", ",
+    prefix: CharSequence = "",
+    postfix: CharSequence = "",
+    limit: Int = -1,
+    truncated: CharSequence = "...",
+    transform: ((T) -> CharSequence)? = null
+): A {
+    buffer.append(prefix)
     var count = 0
     for (element in this) {
         count++
-        if (count > 1) result.append(separator)
+        if (count > 1) buffer.append(separator)
         if (limit >= 0 && count > limit) break
-        if (transform != null) result.append(transform(element))
-        else if (element is CharSequence) result.append(element)
-        else result.append(element)
+        if (transform != null) buffer.append(transform(element))
+        else if (element is CharSequence) buffer.append(element)
+        else if (element is Char) buffer.append(element)
+        else buffer.append(element.toString())
     }
-    if (limit >= 0 && count > limit) result.append(truncated)
-    result.append(postfix)
-    return result.toString()
+    if (limit >= 0 && count > limit) buffer.append(truncated)
+    buffer.append(postfix)
+    return buffer
 }
 
 public fun <T> Iterable<T>.asSequence(): kotlin.sequences.Sequence<T> {
@@ -591,6 +603,27 @@ public fun <T> MutableCollection<in T>.retainAll(elements: kotlin.sequences.Sequ
 
 public fun <T> List<T>.asReversed(): List<T> = ReversedListView(this)
 
+public fun Collection<Byte>.toByteArray(): ByteArray {
+    val array = ByteArray(size)
+    var index = 0
+    for (element in this) array[index++] = element
+    return array
+}
+
+public fun Collection<Float>.toFloatArray(): FloatArray {
+    val array = FloatArray(size)
+    var index = 0
+    for (element in this) array[index++] = element
+    return array
+}
+
+public fun Collection<Long>.toLongArray(): LongArray {
+    val array = LongArray(size)
+    var index = 0
+    for (element in this) array[index++] = element
+    return array
+}
+
 private class ReversedListView<T>(private val source: List<T>) : AbstractList<T>() {
     override val size: Int get() = source.size
 
@@ -616,9 +649,20 @@ public fun <T> Iterable<T>.indexOf(element: T): Int {
     }
     return -1
 }
-
 public fun <T : Comparable<T>> List<T?>.binarySearch(element: T?, fromIndex: Int = 0, toIndex: Int = size): Int {
-    return binarySearch(fromIndex, toIndex) { compareValues(it, element) }
+    if (fromIndex > toIndex) throw IllegalArgumentException("fromIndex ($fromIndex) is greater than toIndex ($toIndex).")
+    if (fromIndex < 0) throw IndexOutOfBoundsException("fromIndex ($fromIndex) is less than zero.")
+    if (toIndex > size) throw IndexOutOfBoundsException("toIndex ($toIndex) is greater than size ($size).")
+    var low = fromIndex
+    var high = toIndex - 1
+    while (low <= high) {
+        val middle = (low + high) ushr 1
+        val order = compareValues(this[middle], element)
+        if (order < 0) low = middle + 1
+        else if (order > 0) high = middle - 1
+        else return middle
+    }
+    return -low - 1
 }
 
 public fun <T> List<T>.binarySearch(
