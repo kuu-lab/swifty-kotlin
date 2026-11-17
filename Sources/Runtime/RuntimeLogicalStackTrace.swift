@@ -1,26 +1,33 @@
 import Foundation
 
 struct RuntimeLogicalStackTraceFrame: Equatable, Sendable {
-    var className: String
-    var methodName: String
-    var fileName: String
+    // Generated code passes pointers to compiler-emitted static C strings, so
+    // the names stay as raw addresses and are decoded only when a trace is
+    // materialized (exception paths).  Every Kotlin call enters and exits a
+    // frame; allocating three Strings per call dominated profile time.
+    var classNameRaw: Int
+    var methodNameRaw: Int
+    var fileNameRaw: Int
     var line: Int
+
+    var className: String { runtimeStackTraceCString(classNameRaw) }
+    var methodName: String { runtimeStackTraceCString(methodNameRaw) }
+    var fileName: String { runtimeStackTraceCString(fileNameRaw) }
 }
 
 private final class RuntimeLogicalStackTraceState {
     var frames: [RuntimeLogicalStackTraceFrame] = []
 }
 
-private let runtimeLogicalStackTraceThreadKey = "KSwiftK.RuntimeLogicalStackTrace"
+private let runtimeLogicalStackTraceTLSKey = makePthreadKey()
 
 private func runtimeLogicalStackTraceState(createIfNeeded: Bool) -> RuntimeLogicalStackTraceState? {
-    let dictionary = Thread.current.threadDictionary
-    if let state = dictionary[runtimeLogicalStackTraceThreadKey] as? RuntimeLogicalStackTraceState {
+    if let state: RuntimeLogicalStackTraceState = pthreadGetValue(runtimeLogicalStackTraceTLSKey) {
         return state
     }
     guard createIfNeeded else { return nil }
     let state = RuntimeLogicalStackTraceState()
-    dictionary[runtimeLogicalStackTraceThreadKey] = state
+    pthreadSetValue(runtimeLogicalStackTraceTLSKey, state)
     return state
 }
 
@@ -41,9 +48,9 @@ public func kk_runtime_stack_trace_enter(
 ) -> Int {
     guard let state = runtimeLogicalStackTraceState(createIfNeeded: true) else { return 0 }
     state.frames.append(RuntimeLogicalStackTraceFrame(
-        className: runtimeStackTraceCString(classNameRaw),
-        methodName: runtimeStackTraceCString(methodNameRaw),
-        fileName: runtimeStackTraceCString(fileNameRaw),
+        classNameRaw: classNameRaw,
+        methodNameRaw: methodNameRaw,
+        fileNameRaw: fileNameRaw,
         line: max(0, line)
     ))
     return 0
@@ -57,7 +64,7 @@ public func kk_runtime_stack_trace_set_location(_ fileNameRaw: Int, _ line: Int)
     else {
         return 0
     }
-    state.frames[frameIndex].fileName = runtimeStackTraceCString(fileNameRaw)
+    state.frames[frameIndex].fileNameRaw = fileNameRaw
     state.frames[frameIndex].line = max(0, line)
     return 0
 }

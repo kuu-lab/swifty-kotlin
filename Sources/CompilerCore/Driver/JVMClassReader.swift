@@ -64,6 +64,8 @@ struct JVMForeignField {
     /// `ConstantValue` attribute payload for `static final` fields, when the
     /// classfile carries one. Used to emit Kotlin `const`-style literals.
     var constantValue: JVMFieldConstant?
+    /// Collected from a supertype rather than declared on this classfile.
+    var inherited = false
     var isStatic: Bool { access & 8 != 0 }
     var isPublic: Bool { access & 1 != 0 }
     var isFinal: Bool { access & 16 != 0 }
@@ -548,8 +550,10 @@ struct JVMClassReader {
             let isValueAdapter = hasKotlinMetadata && ["box-impl", "unbox-impl", "constructor-impl"].contains(methodName)
             let isReifiedGlanceAction = hasKotlinMetadata && name == "androidx/glance/action/StartActivityActionKt"
                 && methodName == "actionStartActivity" && descriptor == "(Landroidx/glance/action/ActionParameters;)Landroidx/glance/action/Action;"
+            let isReifiedWorkBuilder = hasKotlinMetadata && name == "androidx/work/OneTimeWorkRequestKt"
+                && methodName == "OneTimeWorkRequestBuilder" && descriptor == "()Landroidx/work/OneTimeWorkRequest$Builder;"
             if access & 0x0005 != 0,
-               (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod || isValueAdapter || isSyntheticConstructor || isReifiedGlanceAction), methodName != "<clinit>",
+               (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod || isValueAdapter || isSyntheticConstructor || isReifiedGlanceAction || isReifiedWorkBuilder), methodName != "<clinit>",
                let signature = try? (descriptorCache?.parse(descriptor) ?? JVMDescriptor.parse(descriptor)),
                signature.0.reduce(0, { $0 + $1.width }) <= (access & 8 != 0 ? 255 : 254) {
                 var method = JVMForeignMethod(owner: name, name: methodName, descriptor: descriptor,
@@ -559,6 +563,11 @@ struct JVMClassReader {
                 method.isProtected = access & 0x0004 != 0
                 method.isVarargs = access & 0x0080 != 0
                 method.genericResultParameter = Self.genericResultParameter(in: methodInfo.signature, method: method)
+                if name == "androidx/work/WorkRequest$Builder", let signature = methodInfo.signature {
+                    for parameter in ["B", "W"] where signature.hasSuffix(")T\(parameter);") {
+                        method.kotlinOwnerResultParameter = parameter
+                    }
+                }
                 method.annotations = methodInfo.annotations
                 method.annotationDefault = methodInfo.annotationDefault
                 if isSyntheticConstructor { syntheticConstructors.append(method) }
