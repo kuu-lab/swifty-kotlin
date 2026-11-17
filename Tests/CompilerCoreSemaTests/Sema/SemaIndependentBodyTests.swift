@@ -6,7 +6,7 @@ import Testing
 
 @Suite
 struct SemaIndependentBodyTests {
-    private func analyze(_ sources: [String], jobs: Int, enabled: Bool = true, parallelFrontend: Bool = false) throws -> CompilationContext {
+    private func analyze(_ sources: [String], jobs: Int, enabled: Bool = true, parallelFrontend: Bool = false, serial: Bool = false) throws -> CompilationContext {
         let paths = sources.indices.map { "/virtual/sema-independent/input\($0).kt" }
         let ctx = makeCompilationContext(
             inputs: paths,
@@ -21,7 +21,7 @@ struct SemaIndependentBodyTests {
         // can change ExprIDs before Sema starts. Freeze that input when testing
         // the Sema allocator itself, including ExprID-based synthetic names.
         var options = ctx.options
-        options.frontendFlags = ["jobs=\(jobs)"] + (enabled ? ["sema-parallel"] : [])
+        options.frontendFlags = ["jobs=\(jobs)"] + (enabled ? ["sema-parallel"] : []) + (serial ? ["sema-serial"] : [])
         let semaContext = CompilationContext(
             options: options, sourceManager: ctx.sourceManager,
             diagnostics: ctx.diagnostics, interner: ctx.interner
@@ -63,10 +63,14 @@ struct SemaIndependentBodyTests {
     }
 
     @Test
-    func parallelismRequiresExplicitOptIn() throws {
-        let ctx = try analyze(["fun a(x: Int): Int = x + 1", "fun b(x: Int): Int = x * 2"], jobs: 4, enabled: false)
-        #expect(ctx.sema?.independentBodyCount == 0)
-        #expect(!ctx.diagnostics.hasError)
+    func parallelismDefaultsOnWithFrontendJobsAndCanBeDisabled() throws {
+        let sources = ["fun a(x: Int): Int = x + 1", "fun b(x: Int): Int = x * 2"]
+        let parallel = try analyze(sources, jobs: 4, enabled: false)
+        #expect((parallel.sema?.independentBodyCount ?? 0) > 0)
+        #expect(!parallel.diagnostics.hasError)
+        let serial = try analyze(sources, jobs: 4, enabled: false, serial: true)
+        #expect((serial.sema?.independentBodyCount ?? -1) == 0)
+        #expect(!serial.diagnostics.hasError)
     }
 
     @Test(arguments: [2, 4])
@@ -296,7 +300,7 @@ struct SemaIndependentBodyTests {
             end: SourceLocation(file: FileID(rawValue: 0), offset: 20)
         )
         parent.addSuppression(code: "KSWIFTK-TYPE-0002", range: range)
-        let worker = parent.makeSemaWorkerDiagnostics()
+        let worker = parent.makeWorkerDiagnostics()
         worker.error("KSWIFTK-TYPE-0002", "suppressed", range: range)
         #expect(worker.diagnostics.isEmpty)
         let checkpoint = worker.checkpoint()
