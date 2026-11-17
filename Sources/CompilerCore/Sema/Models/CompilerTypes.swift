@@ -490,11 +490,17 @@ public struct CompilerOptions: Equatable {
         return names
     }
 
+    /// Default frontend worker count when `-Xfrontend jobs=N` is absent.
+    /// Matches the stdlib artifact builder's default and lets BuildAST use the
+    /// same parallelism Lex/Parse already get from `DispatchQueue.concurrentPerform`.
+    public static let defaultFrontendJobs = min(max(ProcessInfo.processInfo.activeProcessorCount, 1), 8)
+
     /// The number of frontend parallel jobs parsed from `-Xfrontend jobs=N`.
     /// Controls BuildASTPhase concurrency and, with sema-parallel enabled,
     /// independent Sema preparation/body workers. LexPhase and ParsePhase
     /// always submit all file tasks concurrently (unchanged from pre-PR
-    /// behaviour).  Returns 1 (sequential) when the flag is not present.
+    /// behaviour). Returns `defaultFrontendJobs` when no valid jobs flag is
+    /// present; `jobs=1` forces sequential BuildAST.
     public var frontendJobs: Int {
         for flag in frontendFlags {
             if flag.hasPrefix("jobs="),
@@ -504,7 +510,7 @@ public struct CompilerOptions: Equatable {
                 return n
             }
         }
-        return 1
+        return Self.defaultFrontendJobs
     }
 
     /// Thread-safety mode for `by lazy { }` delegates, parsed from

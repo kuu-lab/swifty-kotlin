@@ -122,7 +122,7 @@ struct CompilerOptionsTests {
 
     // MARK: - frontendJobs
 
-    @Test func testFrontendJobsDefaultIsOne() {
+    @Test func testFrontendJobsDefaultIsHostBounded() {
         let opts = CompilerOptions(
             moduleName: "Test",
             inputs: [],
@@ -130,7 +130,7 @@ struct CompilerOptionsTests {
             emit: .kirDump,
             target: defaultTargetTriple()
         )
-        #expect(opts.frontendJobs == 1)
+        #expect(opts.frontendJobs == CompilerOptions.defaultFrontendJobs)
     }
 
     @Test func testFrontendJobsParsesFromFlag() {
@@ -154,8 +154,8 @@ struct CompilerOptionsTests {
             target: defaultTargetTriple(),
             frontendFlags: ["jobs=0"]
         )
-        // jobs=0 is < 1, so should return default of 1
-        #expect(opts.frontendJobs == 1)
+        // jobs=0 is < 1, so should fall back to the default worker count.
+        #expect(opts.frontendJobs == CompilerOptions.defaultFrontendJobs)
     }
 
     @Test func testFrontendJobsIgnoresNonNumeric() {
@@ -167,7 +167,7 @@ struct CompilerOptionsTests {
             target: defaultTargetTriple(),
             frontendFlags: ["jobs=abc"]
         )
-        #expect(opts.frontendJobs == 1)
+        #expect(opts.frontendJobs == CompilerOptions.defaultFrontendJobs)
     }
 
     @Test func testFrontendJobsIgnoresUnrelatedFlags() {
@@ -179,7 +179,7 @@ struct CompilerOptionsTests {
             target: defaultTargetTriple(),
             frontendFlags: ["sema-cache", "debug-mode"]
         )
-        #expect(opts.frontendJobs == 1)
+        #expect(opts.frontendJobs == CompilerOptions.defaultFrontendJobs)
     }
 
     @Test func testFrontendJobsUsesFirstMatch() {

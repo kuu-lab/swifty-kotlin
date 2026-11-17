@@ -185,8 +185,8 @@ struct FrontendParallelBenchmarkTests {
     @Test func testFrontendJobsParsing() {
         let cases: [(flags: [String], expected: Int, note: String)] = [
             (["jobs=4"], 4, "explicit jobs=4"),
-            ([], 1, "Default should be 1 (sequential)"),
-            (["jobs=0"], 1, "jobs=0 should fall back to 1"),
+            ([], CompilerOptions.defaultFrontendJobs, "Default should use defaultFrontendJobs"),
+            (["jobs=0"], CompilerOptions.defaultFrontendJobs, "jobs=0 should fall back to defaultFrontendJobs"),
             (["jobs=1"], 1, "jobs=1 should be sequential"),
             (["other-flag", "jobs=8"], 8, "jobs= after an unrelated flag"),
         ]

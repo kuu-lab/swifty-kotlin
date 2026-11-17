@@ -416,7 +416,7 @@ public final class BuildASTPhase: CompilerPhase {
             ), at: index)
         }
 
-        if jobs <= 1 {
+        if jobs <= 1 || syntaxTrees.count <= 1 {
             for index in syntaxTrees.indices {
                 buildFile(index)
             }
