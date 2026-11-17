@@ -107,7 +107,7 @@ private func javaNetErrorMessage(_ code: Int32) -> String {
 
 /// Decodes a NUL-terminated `[CChar]` buffer as UTF-8; the array-taking
 /// `String(cString:)` overload is deprecated.
-private func javaNetUTF8String(fromCString buffer: [CChar]) -> String {
+func javaNetUTF8String(fromCString buffer: [CChar]) -> String {
     let end = buffer.firstIndex(of: 0) ?? buffer.count
     return String(decoding: buffer[..<end].map { UInt8(bitPattern: $0) }, as: UTF8.self)
 }
