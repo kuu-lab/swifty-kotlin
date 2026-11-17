@@ -452,14 +452,27 @@ final class JVMClasspathIndex {
             var inheritedInterfaces = info.interfaces
             var interfaceVisited: Set<String> = []
             var interfaceMethods: [String: JVMForeignMethod] = [:]
+            var inheritedConstantNames = Set(info.fields.map(\.name))
+            var inheritedConstants: [JVMForeignField] = []
+            func collectConstants(_ name: String) {
+                guard let base = hierarchyClasses[name] else { return }
+                for field in base.fields where field.access & 0x0002 == 0 && inheritedConstantNames.insert(field.name).inserted {
+                    if field.isPublic && field.isStatic && field.isFinal {
+                        var f = field; f.inherited = true; inheritedConstants.append(f)
+                    }
+                }
+                for parent in base.interfaces { collectConstants(parent) }
+            }
             func inheritInterface(_ name: String) {
                 guard interfaceVisited.insert(name).inserted else { return }
                 if classes[name] != nil || info.kotlinReadOnlyCollectionSupertypes[name] != nil
                     || name == "java/lang/Comparable" && info.kotlinComparableSupertype != nil {
                     interfaces.append(name)
+                    collectConstants(name)
                     return
                 }
                 guard let base = hierarchyClasses[name] else { return }
+                collectConstants(name)
                 bridges += base.bridgeMethods
                 for method in base.methods where !method.isStatic && !method.isConstructor {
                     let signature = key(method)
@@ -484,6 +497,11 @@ final class JVMClasspathIndex {
                 guard let base = hierarchyClasses[name] else { break }
                 let visible = classes[name] != nil
                 if visible && superclass == nil { superclass = name; hiddenSegment = false }
+                for field in base.fields where field.access & 0x0002 == 0 && inheritedConstantNames.insert(field.name).inserted {
+                    if field.isPublic && field.isStatic && field.isFinal {
+                        var f = field; f.inherited = true; inheritedConstants.append(f)
+                    }
+                }
                 for method in base.methods where !method.isConstructor && (method.isStatic || hiddenSegment) {
                     if methodKeys.insert(key(method)).inserted {
                         // A method reference must name an accessible class even
@@ -627,11 +645,31 @@ final class JVMClasspathIndex {
     private(set) var projectsCoroutineContextIsActive = false
 
     func metroFactoryInstance(_ factory: String) -> JVMField? {
+        guard let factoryInfo = hierarchyClasses[factory],
+              factoryInfo.annotations.contains(where: { $0.descriptor == JVMMetro.factory }) else { return nil }
         let name = factory + "$Impl"
-        guard hierarchyClasses[factory]?.annotations.contains(where: { $0.descriptor == JVMMetro.factory }) == true,
-              let impl = hierarchyClasses[name], impl.flags & 1 != 0, impl.interfaces.contains(factory),
-              impl.annotations.contains(where: { $0.descriptor == JVMMetro.implementation }) else { return nil }
-        return metroSingleton(in: impl, named: "INSTANCE", type: name)
+        if let impl = hierarchyClasses[name], impl.flags & 1 != 0, impl.interfaces.contains(factory),
+           impl.annotations.contains(where: { $0.descriptor == JVMMetro.implementation }),
+           let instance = metroSingleton(in: impl, named: "INSTANCE", type: name) {
+            return instance
+        }
+        return metroCompanionFactory(for: factoryInfo)
+    }
+
+    private func metroCompanionFactory(for factory: JVMClassInfo) -> JVMField? {
+        guard let graphName = innerClassMetadata[factory.name]?.outerName,
+              let graph = hierarchyClasses[graphName],
+              graph.annotations.contains(where: { $0.descriptor == JVMMetro.graph }),
+              let companion = hierarchyClasses[graphName + "$Companion"],
+              companion.flags & 1 != 0, companion.interfaces.contains(factory.name),
+              companion.methods.contains(where: { method in
+                  !method.isStatic && !method.isProtected
+                      && method.annotations.contains(where: { $0.descriptor == JVMMetro.invoke })
+                      && factory.methods.contains(where: {
+                          $0.isAbstract && $0.name == method.name && $0.descriptor == method.descriptor
+                      })
+              }) else { return nil }
+        return metroSingleton(in: graph, named: "Companion", type: companion.name)
     }
 
     func metroGraphInvoker(_ graph: String) -> (JVMField, JVMForeignMethod)? {
@@ -1702,6 +1740,7 @@ final class JVMClasspathIndex {
             source += " {\n"
             for declaration in constantFields { source += declaration }
             for declaration in runtimeFields { source += declaration }
+            let runtimeFieldNames = Set(info.fields.compactMap { runtimeField($0) != nil ? $0.name : nil })
             for (name, property) in info.kotlinStaticProperties.sorted(by: { $0.key < $1.key })
                 where isExposed(property.getter) {
                 let type = kotlinType(property.getter.result) + (property.isNullable ? "?" : "")
@@ -2429,8 +2468,43 @@ final class JVMClasspathIndex {
         }
         if !staticMember, !signature.isSuspend {
             let logicalParameters = descriptorTypes.map(\.descriptor)
-            let mangledMembers = info.methods.filter {
-                $0.sourceName == name && $0.kotlinFunction?.mangledMemberParameterDescriptors == logicalParameters
+            if isExtension, let receiver = descriptorTypes.first {
+                let extensions = info.methods.filter { method in
+                    !method.isStatic && method.sourceName == name
+                        && method.kotlinFunction?.mangledExtensionReceiverDescriptor == receiver.descriptor
+                        && method.parameters.dropFirst().map(\.descriptor) == Array(logicalParameters.dropFirst())
+                }
+                if extensions.count == 1 {
+                    methods[symbol.id] = extensions[0]
+                    return
+                }
+            }
+            let mangledMembers = info.methods.filter { method in
+                guard method.sourceName == name,
+                      method.kotlinFunction?.mangledMemberParameterDescriptors == logicalParameters
+                else { return false }
+                // A value class and its underlying type share an erased
+                // descriptor (`Dp` erases to `F`), so descriptor equality
+                // alone would also match `foo(Float)` calls against a
+                // mangled `foo(Dp)` candidate — require the declared Kotlin
+                // parameter names to agree too.
+                guard let params = method.kotlinFunction?.parameters,
+                      params.count == signature.parameterTypes.count else { return false }
+                return zip(params, signature.parameterTypes).allSatisfy { param, callType in
+                    // `fixture.Box<kotlin.String>` must compare as `Box`:
+                    // drop generic arguments before taking the last path
+                    // component, or `.last` returns `String>`.
+                    let declaredName = param.sourceType
+                        .split(separator: "<").first
+                        .flatMap { $0.split(separator: ".").last }
+                        .map(String.init)?
+                        .replacingOccurrences(of: "?", with: "")
+                    guard let declared = declaredName,
+                          case let .classType(nominal) = sema.types.kind(of: callType),
+                          let symbol = sema.symbols.symbol(nominal.classSymbol)
+                    else { return true }
+                    return ctx.interner.resolve(symbol.name) == declared
+                }
             }
             if mangledMembers.count == 1 {
                 methods[symbol.id] = mangledMembers[0]

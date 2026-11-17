@@ -64,6 +64,8 @@ struct JVMForeignField {
     /// `ConstantValue` attribute payload for `static final` fields, when the
     /// classfile carries one. Used to emit Kotlin `const`-style literals.
     var constantValue: JVMFieldConstant?
+    /// Collected from a supertype rather than declared on this classfile.
+    var inherited = false
     var isStatic: Bool { access & 8 != 0 }
     var isPublic: Bool { access & 1 != 0 }
     var isFinal: Bool { access & 16 != 0 }
