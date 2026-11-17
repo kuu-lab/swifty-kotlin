@@ -185,7 +185,7 @@ extension DeclTypeChecker {
             baseLocals: baseLocals
         )
         if classDecl.modifiers.contains(.annotationClass),
-           !ctx.sema.jvmClasspathStubFiles.contains(classDecl.range.start.file) {
+           driver.compilationContext?.jvmImports?.classpathStubFiles.contains(classDecl.range.start.file) != true {
             for parameter in classDecl.primaryConstructorParams {
                 if let value = parameter.defaultValue { validateAnnotationDefaultValue(value, ctx: classCtx) }
             }
