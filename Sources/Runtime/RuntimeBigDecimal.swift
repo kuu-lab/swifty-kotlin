@@ -536,6 +536,25 @@ private func runtimeRoundedMathContextDivide(
     )
 }
 
+private func runtimeIsNonTerminatingDecimal(_ lhsDigits: String, _ rhsDigits: String) -> Bool {
+    let gcd = runtimeGCD(lhsDigits, rhsDigits)
+    var denominator = runtimeDivideMagnitudes(rhsDigits, gcd).0
+    while true {
+        if denominator == "1" { return false }
+        let byTwo = runtimeDivideMagnitudes(denominator, "2")
+        if byTwo.1 == "0" {
+            denominator = byTwo.0
+            continue
+        }
+        let byFive = runtimeDivideMagnitudes(denominator, "5")
+        if byFive.1 == "0" {
+            denominator = byFive.0
+            continue
+        }
+        return true
+    }
+}
+
 private func runtimeMathContextDivide(
     _ lhs: RuntimeBigDecimalParts,
     _ rhs: RuntimeBigDecimalParts,
@@ -551,6 +570,9 @@ private func runtimeMathContextDivide(
     }
     if precision == 0 {
         return try runtimeExactDivide(lhs, rhs)
+    }
+    if runtimeIsNonTerminatingDecimal(lhs.digits, rhs.digits) {
+        return try runtimeRoundedMathContextDivide(lhs, rhs, precision: precision, roundingMode: roundingMode)
     }
 
     do {

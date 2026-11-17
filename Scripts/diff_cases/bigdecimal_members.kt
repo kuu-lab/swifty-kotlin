@@ -32,6 +32,7 @@ fun main() {
     println(BigDecimal("1").divide(BigDecimal("3"), MathContext(2, RoundingMode.HALF_UP)))
     println(BigDecimal("2").divide(BigDecimal("3"), MathContext(2, RoundingMode.HALF_UP)))
     println(BigDecimal("999").divide(BigDecimal("10"), MathContext(2, RoundingMode.HALF_UP)))
+    println(BigDecimal("1E-1000").divide(BigDecimal("3"), MathContext(2, RoundingMode.HALF_UP)))
     println(BigDecimal("1.23456").divide(BigDecimal.ONE, MathContext(3, RoundingMode.HALF_UP)))
     println(BigDecimal("1").divide(BigDecimal("8"), MathContext.UNLIMITED))
     println(BigDecimal("1").divide(BigDecimal("2"), MathContext(2, RoundingMode.HALF_UP)))

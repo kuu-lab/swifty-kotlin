@@ -264,6 +264,10 @@ struct RuntimeBigDecimalTests {
         #expect(thrown == 0)
         #expect(stringValue(__kk_bignum_toString(carried)) == "1.0E+2")
 
+        let largeScale = __kk_bignum_divideMathContext(box("1E-1000"), box("3"), 2, 4, &thrown)
+        #expect(thrown == 0)
+        #expect(stringValue(__kk_bignum_toString(largeScale)) == "3.3E-1001")
+
         _ = __kk_bignum_divideMathContext(box("1"), box("3"), 0, 4, &thrown)
         #expect(thrown != 0)
     }
