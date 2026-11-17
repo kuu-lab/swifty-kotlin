@@ -1,6 +1,6 @@
 import Foundation
 
-struct JVMClassInfo {
+struct JVMClassInfo: Sendable {
     let name: String
     let flags: UInt16
     let superclass: String?

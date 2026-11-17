@@ -40,6 +40,47 @@ extension JVMProgramBuilder {
         }
     }
 
+    func metroGraphMethods(_ graph: String, range: SourceRange?) throws -> [JVMForeignMethod] {
+        var entries: [String: JVMForeignMethod] = [:]
+        var pending = [graph]
+        var visited: Set<String> = []
+        while let owner = pending.popLast() {
+            guard visited.insert(owner).inserted else { continue }
+            let declared: [JVMForeignMethod]
+            if let source = classes.values.first(where: { $0.name == owner && $0.isInterface }) {
+                pending += source.interfaces.reversed()
+                declared = try declaredInterfaceMethods(source).map { method in
+                    if let symbol = source.methodSymbols[jvmMemberKey(method)] {
+                        return try metroSourceMethod(method, symbol: symbol)
+                    }
+                    var method = method
+                    if let property = source.properties.first(where: { jvmMemberKey($0.2.getter) == jvmMemberKey(method) }),
+                       let symbol = sema.bindings.declSymbol(for: property.0) {
+                        method.annotations = try annotations(for: symbol, target: "get")
+                        method.genericSignature = "()" + (property.2.genericSignature ?? method.result.descriptor)
+                    }
+                    return method
+                }
+            } else if let info = context.jvmImports?.metroClassInfo(owner) {
+                pending += info.interfaces.reversed()
+                declared = info.methods.filter { !$0.isStatic && !$0.isConstructor }
+            } else {
+                continue
+            }
+            for method in declared where entries[jvmMemberKey(method)] == nil {
+                entries[jvmMemberKey(method)] = method
+            }
+        }
+        let methods = entries.values.filter(\.isAbstract).sorted { jvmMemberKey($0) < jvmMemberKey($1) }
+        for method in methods where method.isSuspend || !method.parameters.isEmpty || method.result == .unit {
+            throw JVMFrontendError(
+                message: "Unsupported Metro graph entry \(graph).\(method.name)\(method.descriptor).",
+                range: range
+            )
+        }
+        return methods
+    }
+
     private func metroGraphMethods(
         _ graph: JVMClassPlan, implementation: String, inputs: [JVMField]
     ) throws -> [JVMFunction] {
@@ -75,7 +116,7 @@ extension JVMProgramBuilder {
         }
     }
 
-    private func metroConstructor(_ owner: String, fields: [JVMField], access: UInt16 = 0) -> JVMFunction {
+    func metroConstructor(_ owner: String, fields: [JVMField], access: UInt16 = 0) -> JVMFunction {
         let receiver = JVMValue(slot: 0, type: .reference(owner, nullable: false))
         var locals = [receiver]
         var instructions: [JVMInstruction] = [.foreignCall(objectConstructor(), receiver: receiver, arguments: [], result: nil)]
