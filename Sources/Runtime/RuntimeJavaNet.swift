@@ -105,6 +105,13 @@ private func javaNetErrorMessage(_ code: Int32) -> String {
     String(cString: strerror(code))
 }
 
+/// Decodes a NUL-terminated `[CChar]` buffer as UTF-8; the array-taking
+/// `String(cString:)` overload is deprecated.
+private func javaNetUTF8String(fromCString buffer: [CChar]) -> String {
+    let end = buffer.firstIndex(of: 0) ?? buffer.count
+    return String(decoding: buffer[..<end].map { UInt8(bitPattern: $0) }, as: UTF8.self)
+}
+
 /// Formats a numeric host the way the JDK `InetAddress.getHostAddress` does:
 /// IPv6 is uncompressed eight-group lowercase hex without leading zeros, and
 /// IPv4-mapped `::ffff:a.b.c.d` collapses to the IPv4 form (the JDK models it
@@ -148,7 +155,7 @@ private func javaNetResolveAll(_ host: String) -> [String] {
         let info = current.pointee
         var buffer = [CChar](repeating: 0, count: Int(NI_MAXHOST))
         if getnameinfo(info.ai_addr, info.ai_addrlen, &buffer, socklen_t(buffer.count), nil, 0, NI_NUMERICHOST) == 0 {
-            let text = javaNetNumericHost(String(cString: buffer))
+            let text = javaNetNumericHost(javaNetUTF8String(fromCString: buffer))
             if !seen.contains(text) {
                 seen.insert(text)
                 addresses.append(text)
@@ -207,14 +214,14 @@ public func __kk_net_reverse_lookup(_ addressRaw: Int) -> Int {
         }
     }
     guard ok == 0 else { return runtimeMakeUTF8StringRaw("") }
-    return runtimeMakeUTF8StringRaw(String(cString: hostBuffer))
+    return runtimeMakeUTF8StringRaw(javaNetUTF8String(fromCString: hostBuffer))
 }
 
 @_cdecl("__kk_net_local_host_name")
 public func __kk_net_local_host_name() -> Int {
     var name = [CChar](repeating: 0, count: 256)
     if gethostname(&name, name.count) == 0 {
-        return runtimeMakeUTF8StringRaw(String(cString: name))
+        return runtimeMakeUTF8StringRaw(javaNetUTF8String(fromCString: name))
     }
     return runtimeMakeUTF8StringRaw("localhost")
 }
@@ -270,8 +277,8 @@ final class RuntimeJavaNetSocketBox {
                     getnameinfo($0, length, &buffer, socklen_t(buffer.count), &servBuffer, socklen_t(servBuffer.count), NI_NUMERICHOST | NI_NUMERICSERV)
                 }
             }) == 0 {
-                localAddress = javaNetNumericHost(String(cString: buffer))
-                localPort = Int(String(cString: servBuffer)) ?? -1
+                localAddress = javaNetNumericHost(javaNetUTF8String(fromCString: buffer))
+                localPort = Int(javaNetUTF8String(fromCString: servBuffer)) ?? -1
             }
         }
     }
@@ -557,8 +564,8 @@ public func __kk_net_socket_connect(
                 getnameinfo($0, length, &hostBuffer, socklen_t(hostBuffer.count), &servBuffer, socklen_t(servBuffer.count), NI_NUMERICHOST | NI_NUMERICSERV)
             }
         }
-        box.remoteAddress = javaNetNumericHost(String(cString: hostBuffer))
-        box.remotePort = Int(String(cString: servBuffer)) ?? port
+        box.remoteAddress = javaNetNumericHost(javaNetUTF8String(fromCString: hostBuffer))
+        box.remotePort = Int(javaNetUTF8String(fromCString: servBuffer)) ?? port
         box.refreshLocalPeer()
         return
     }
@@ -851,8 +858,8 @@ public func __kk_net_server_socket_bind(
             getnameinfo($0, boundLen, &hostBuffer, socklen_t(hostBuffer.count), &servBuffer, socklen_t(servBuffer.count), NI_NUMERICHOST | NI_NUMERICSERV)
         }
     }
-    box.localAddress = javaNetNumericHost(String(cString: hostBuffer))
-    box.localPort = Int(String(cString: servBuffer)) ?? port
+    box.localAddress = javaNetNumericHost(javaNetUTF8String(fromCString: hostBuffer))
+    box.localPort = Int(javaNetUTF8String(fromCString: servBuffer)) ?? port
 }
 
 @_cdecl("__kk_net_server_socket_accept")
@@ -905,8 +912,8 @@ public func __kk_net_server_socket_accept(_ boxRaw: Int, _ outThrown: UnsafeMuta
                 getnameinfo($0, peerLen, &hostBuffer, socklen_t(hostBuffer.count), &servBuffer, socklen_t(servBuffer.count), NI_NUMERICHOST | NI_NUMERICSERV)
             }
         }
-        client.remoteAddress = javaNetNumericHost(String(cString: hostBuffer))
-        client.remotePort = Int(String(cString: servBuffer)) ?? -1
+        client.remoteAddress = javaNetNumericHost(javaNetUTF8String(fromCString: hostBuffer))
+        client.remotePort = Int(javaNetUTF8String(fromCString: servBuffer)) ?? -1
         client.refreshLocalPeer()
         return registerRuntimeObject(client)
     }
