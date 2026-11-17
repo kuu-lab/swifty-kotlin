@@ -168,6 +168,7 @@ extension JVMClasspathIndex {
                     val err: java.io.PrintStream get() = null!!
                     external fun getProperty(propertyName: kotlin.String): kotlin.String?
                     external fun getProperty(propertyName: kotlin.String, defaultValue: kotlin.String): kotlin.String
+                    external fun currentTimeMillis(): Long
                     external fun nanoTime(): Long
                     external fun arraycopy(src: Any?, srcPos: Int, dest: Any?, destPos: Int, length: Int): Unit
                     external fun exit(status: Int): Unit
@@ -176,6 +177,7 @@ extension JVMClasspathIndex {
             """, 0x0011, "java/lang/Object", [
                 method("java/lang/System", "getProperty", [.string], .reference("java/lang/String", nullable: true), staticMember: true),
                 method("java/lang/System", "getProperty", [.string, .string], .reference("java/lang/String", nullable: false), staticMember: true),
+                method("java/lang/System", "currentTimeMillis", [], .long, staticMember: true),
                 method("java/lang/System", "nanoTime", [], .long, staticMember: true),
                 method("java/lang/System", "arraycopy", [object, .int, object, .int, .int], .unit, staticMember: true),
                 method("java/lang/System", "exit", [.int], .unit, staticMember: true),
