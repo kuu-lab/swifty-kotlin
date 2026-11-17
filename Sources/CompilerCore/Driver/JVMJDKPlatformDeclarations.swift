@@ -619,6 +619,74 @@ extension JVMClasspathIndex {
             classes[info.name] = info
         }
 
+        // The stdlib-jar contracts in declarations/JavaCollections.kt describe
+        // the JDK abstract collection bases the kotlin.collections sources
+        // extend. Consumer builds resolve them from the real classpath; the
+        // stdlib-only build has no classpath, so register the same erased
+        // signatures when the file was injected and nothing provided them.
+        let javaCollectionsPath = "<kswiftk-jvm>/javaCollections.kt"
+        if ctx.sourceManager.fileIDs().contains(where: { ctx.sourceManager.path(of: $0) == javaCollectionsPath }) {
+            let collection: JVMValueType = .reference("java/util/Collection", nullable: false)
+            let set: JVMValueType = .reference("java/util/Set", nullable: false)
+            let iterator: JVMValueType = .reference("java/util/Iterator", nullable: false)
+            let listIterator: JVMValueType = .reference("java/util/ListIterator", nullable: false)
+            let collectionBases: [(String, [JVMForeignMethod])] = [
+                ("java/util/AbstractCollection", [
+                    method("java/util/AbstractCollection", "<init>", [], .reference("java/util/AbstractCollection", nullable: false)),
+                    method("java/util/AbstractCollection", "size", [], .int),
+                    method("java/util/AbstractCollection", "isEmpty", [], .boolean),
+                    method("java/util/AbstractCollection", "contains", [object], .boolean),
+                    method("java/util/AbstractCollection", "iterator", [], iterator),
+                ]),
+                ("java/util/AbstractSet", [
+                    method("java/util/AbstractSet", "<init>", [], .reference("java/util/AbstractSet", nullable: false)),
+                    method("java/util/AbstractSet", "size", [], .int),
+                    method("java/util/AbstractSet", "isEmpty", [], .boolean),
+                    method("java/util/AbstractSet", "contains", [object], .boolean),
+                    method("java/util/AbstractSet", "iterator", [], iterator),
+                ]),
+                ("java/util/AbstractList", [
+                    method("java/util/AbstractList", "<init>", [], .reference("java/util/AbstractList", nullable: false)),
+                    method("java/util/AbstractList", "size", [], .int),
+                    method("java/util/AbstractList", "isEmpty", [], .boolean),
+                    method("java/util/AbstractList", "contains", [object], .boolean),
+                    method("java/util/AbstractList", "get", [.int], object),
+                    method("java/util/AbstractList", "listIterator", [], listIterator),
+                    method("java/util/AbstractList", "listIterator", [.int], listIterator),
+                ]),
+                ("java/util/AbstractMap", [
+                    method("java/util/AbstractMap", "<init>", [], .reference("java/util/AbstractMap", nullable: false)),
+                    method("java/util/AbstractMap", "size", [], .int),
+                    method("java/util/AbstractMap", "isEmpty", [], .boolean),
+                    method("java/util/AbstractMap", "containsKey", [object], .boolean),
+                    method("java/util/AbstractMap", "get", [object], object),
+                    method("java/util/AbstractMap", "keySet", [], set),
+                    method("java/util/AbstractMap", "values", [], collection),
+                    method("java/util/AbstractMap", "entrySet", [], set),
+                ]),
+                ("java/util/ListIterator", [
+                    method("java/util/ListIterator", "hasPrevious", [], .boolean, interface: true),
+                    method("java/util/ListIterator", "previous", [], object, interface: true),
+                    method("java/util/ListIterator", "nextIndex", [], .int, interface: true),
+                    method("java/util/ListIterator", "previousIndex", [], .int, interface: true),
+                    method("java/util/ListIterator", "add", [object], .unit, interface: true),
+                    method("java/util/ListIterator", "set", [object], .unit, interface: true),
+                    method("java/util/ListIterator", "remove", [], .unit, interface: true),
+                ]),
+                ("java/util/RandomAccess", []),
+            ]
+            for (name, members) in collectionBases where classes[name] == nil {
+                let isInterface = name == "java/util/ListIterator" || name == "java/util/RandomAccess"
+                classes[name] = JVMClassInfo(
+                    name: name,
+                    flags: isInterface ? 0x0601 : 0x0401,
+                    superclass: isInterface ? nil : "java/lang/Object",
+                    interfaces: [],
+                    methods: members
+                )
+            }
+        }
+
         // The bundled `kotlin.Comparator` declaration erases to the JDK
         // interface (`builtinName` maps it to java/util/Comparator) and is
         // never lowered into a classfile. Binding its source file to the

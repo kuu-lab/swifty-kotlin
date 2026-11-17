@@ -2,13 +2,6 @@
 
 package kotlin.collections
 
-import kotlin.jvm.internal.__jvmArrayList
-
-public fun <T> Array<out T>.asList(): List<T> = __jvmArrayList(this)
-
-public fun <T> Array<out T>.asIterable(): Iterable<T> =
-    if (size == 0) emptyList<T>() else asSequence().asIterable()
-
 public infix fun <T> Array<out T>?.contentEquals(other: Array<out T>?): Boolean =
     java.util.Arrays.equals(this, other)
 
