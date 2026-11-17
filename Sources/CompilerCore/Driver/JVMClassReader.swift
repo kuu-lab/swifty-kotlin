@@ -5,21 +5,49 @@ struct JVMClassInfo: Sendable {
     let flags: UInt16
     let superclass: String?
     let interfaces: [String]
-    let methods: [JVMForeignMethod]
+    var methods: [JVMForeignMethod]
     var fields: [JVMForeignField] = []
     var bridgeMethods: [JVMForeignMethod] = []
     var defaultArgumentMethods: [JVMForeignMethod] = []
     var classTypeParameterNames: [String] = []
+    var genericSignature: String?
     var innerClasses: [JVMInnerClassInfo] = []
     var hasInnerClassesAttribute = false
     var hasEnclosingMethod = false
     var isKotlinFileFacade: Bool?
+    var kotlinSealedInterfaceSubclasses: [String] = []
+    var isKotlinObject = false
+    var kotlinReadOnlyCollectionSupertypes: [String: String] = [:]
+    var kotlinComparableSupertype: String?
+    var kotlinParameterizedSupertypes: [String: String] = [:]
+    var kotlinLoweredConstructors: [(source: JVMKotlinValueConstructor, entry: JVMForeignMethod, defaults: JVMForeignMethod?)] = []
+    var kotlinValueClassConstructors: [(source: JVMKotlinValueConstructor, adapter: JVMForeignMethod)] = []
     var annotations: [JVMAnnotation] = []
     var hasKotlinMetadata = false
     var kotlinAnnotationVarargElementNames: Set<String> = []
     var kotlinStaticProperties: [String: (getter: JVMForeignMethod, isNullable: Bool)] = [:]
+    var kotlinMemberProperties: [String: (getter: JVMForeignMethod, sourceType: String)] = [:]
+    var kotlinTopLevelProperties: [(source: JVMKotlinTopLevelProperty, getter: JVMForeignMethod)] = []
+    var kotlinMultifileParts: [String] = []
+    var isKotlinMultifilePart = false
     var isInterface: Bool { flags & 0x0200 != 0 }
     var isAnnotation: Bool { flags & 0x2000 != 0 }
+    var repeatableAnnotationContainer: String? {
+        guard isAnnotation,
+              let repeatable = annotations.first(where: { $0.descriptor == "Ljava/lang/annotation/Repeatable;" }),
+              case let .classType(container)? = repeatable.values.first(where: { $0.0 == "value" })?.1,
+              container.hasPrefix("L"), container.hasSuffix(";") else { return nil }
+        return String(container.dropFirst().dropLast())
+    }
+
+    func isRuntimeStaticField(_ field: JVMForeignField) -> Bool {
+        isKotlinFileFacade == nil && field.isPublic && field.isStatic
+            && (!field.isFinal || field.constantValue == nil) && field.access & 0x5000 == 0
+    }
+
+    func isRuntimeInstanceField(_ field: JVMForeignField) -> Bool {
+        isKotlinFileFacade == nil && field.isPublic && !field.isStatic && field.access & 0x1000 == 0
+    }
 }
 
 struct JVMInnerClassInfo {
@@ -443,6 +471,7 @@ struct JVMClassReader {
         let count = Int(try u2())
         var index = 1
         var hasKotlinMetadata = false
+        var hasJvmOverloads = false
         var hasMetroAnnotation = false
         var hasComposableAnnotation = false
         // CONSTANT_String may reference a Utf8 entry declared later in the
@@ -455,6 +484,7 @@ struct JVMClassReader {
                 let string = try readModifiedUTF8(length: length)
                 strings[index] = string
                 if string == "Lkotlin/Metadata;" { hasKotlinMetadata = true }
+                if string == "Lkotlin/jvm/JvmOverloads;" { hasJvmOverloads = true }
                 if string == "Landroidx/compose/runtime/Composable;" { hasComposableAnnotation = true }
                 if !hasMetroAnnotation, string.hasPrefix(JVMMetro.annotationPrefix),
                    (string == JVMMetro.invoke || JVMMetro.annotationDescriptors.contains(string)) {
@@ -505,15 +535,21 @@ struct JVMClassReader {
         var methods: [JVMForeignMethod] = []
         var bridgeMethods: [JVMForeignMethod] = []
         var defaultArgumentMethods: [JVMForeignMethod] = []
+        var syntheticConstructors: [JVMForeignMethod] = []
         let methodCount = try u2()
         let parseAnnotations = flags & 0x2000 != 0 || hasMetroAnnotation
         for _ in 0..<methodCount {
             let access = try u2(), nameIndex = try u2(), descriptorIndex = try u2()
             let methodName = try text(Int(nameIndex)), descriptor = try text(Int(descriptorIndex))
-            let methodInfo = try methodAttributes(parseAnnotations: parseAnnotations || hasComposableAnnotation)
+            let methodInfo = try methodAttributes(parseAnnotations: parseAnnotations || hasComposableAnnotation || hasJvmOverloads)
             let isDefaultArgumentMethod = access & 0x1009 == 0x1009 && methodName.hasSuffix("$default")
+            let isSyntheticConstructor = hasKotlinMetadata && access & 0x1001 == 0x1001 && methodName == "<init>"
+                && descriptor.hasSuffix("Lkotlin/jvm/internal/DefaultConstructorMarker;)V")
+            let isValueAdapter = hasKotlinMetadata && ["box-impl", "unbox-impl", "constructor-impl"].contains(methodName)
+            let isReifiedGlanceAction = hasKotlinMetadata && name == "androidx/glance/action/StartActivityActionKt"
+                && methodName == "actionStartActivity" && descriptor == "(Landroidx/glance/action/ActionParameters;)Landroidx/glance/action/Action;"
             if access & 0x0005 != 0,
-               (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod), methodName != "<clinit>",
+               (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod || isValueAdapter || isSyntheticConstructor || isReifiedGlanceAction), methodName != "<clinit>",
                let signature = try? (descriptorCache?.parse(descriptor) ?? JVMDescriptor.parse(descriptor)),
                signature.0.reduce(0, { $0 + $1.width }) <= (access & 8 != 0 ? 255 : 254) {
                 var method = JVMForeignMethod(owner: name, name: methodName, descriptor: descriptor,
@@ -525,7 +561,8 @@ struct JVMClassReader {
                 method.genericResultParameter = Self.genericResultParameter(in: methodInfo.signature, method: method)
                 method.annotations = methodInfo.annotations
                 method.annotationDefault = methodInfo.annotationDefault
-                if isDefaultArgumentMethod { defaultArgumentMethods.append(method) }
+                if isSyntheticConstructor { syntheticConstructors.append(method) }
+                else if isDefaultArgumentMethod { defaultArgumentMethods.append(method) }
                 else if access & 0x0040 != 0 { bridgeMethods.append(method) }
                 else { methods.append(method) }
             }
@@ -533,6 +570,26 @@ struct JVMClassReader {
         let classAttributes = try classAttributes(hasKotlinMetadata: hasKotlinMetadata, parseAnnotations: parseAnnotations)
         guard offset == bytes.count else { throw Invalid() }
         var functionTable: JVMKotlinMetadataPayload.FunctionTable?
+        if let metadata = classAttributes.kotlinMetadata,
+           methods.contains(where: { $0.isConstructor && !$0.parameters.isEmpty }),
+           let constructors = try? metadata.constructorParameterNames(byteLimit: bytes.count) {
+            for index in methods.indices where methods[index].isConstructor {
+                if let names = constructors[methods[index].descriptor], names.count == methods[index].parameters.count {
+                    methods[index].kotlinConstructorParameterNames = names
+                }
+            }
+        }
+        let valueCarrier = methods.first(where: { !$0.isStatic && $0.name == "unbox-impl" && $0.parameters.isEmpty })?.result
+        let hasValueAdapters = valueCarrier.map { carrier in
+            methods.contains { $0.isStatic && $0.name == "box-impl" && $0.descriptor == "(" + carrier.descriptor + ")L" + name + ";" }
+        } ?? false
+        var readOnlyCollectionSupertypes: [String: String] = [:]
+        if flags & 0x0200 != 0, let metadata = classAttributes.kotlinMetadata,
+           interfaces.contains(where: { $0 == "kotlin/jvm/internal/markers/KMappedMarker" }) {
+            readOnlyCollectionSupertypes = (try? metadata.readOnlyCollectionSupertypes(byteLimit: bytes.count)) ?? [:]
+        }
+        let hasReadOnlyListSupertype = readOnlyCollectionSupertypes["java/util/List"] != nil
+        let hasReadOnlyMapSupertype = readOnlyCollectionSupertypes["java/util/Map"] != nil
         if let metadata = classAttributes.kotlinMetadata,
            methods.contains(where: Self.hasSuspendDescriptor),
            let table = try? metadata.functionTable(byteLimit: bytes.count) {
@@ -547,24 +604,77 @@ struct JVMClassReader {
                 }
             }
         }
+        let functionTypeMemberNames = Set(methods.lazy.filter(Self.hasFunctionTypeDescriptor).map(\.name))
         if let metadata = classAttributes.kotlinMetadata,
-           (metadata.isFileFacade == true || methods.contains(where: Self.hasFunctionTypeDescriptor)),
+           (metadata.isFileFacade == true || hasValueAdapters
+               || methods.contains(where: { Self.hasFunctionTypeDescriptor($0) || !$0.isStatic && (!$0.parameters.isEmpty || $0.isFinal) })),
            let table = functionTable ?? (try? metadata.functionTable(byteLimit: bytes.count)),
-           let functions = try? metadata.functions(in: table) {
+           let functions = try? metadata.functions(in: table, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype, functionTypeMemberNames: functionTypeMemberNames) {
             for index in methods.indices {
                 let method = methods[index]
                 let isSuspend = method.kotlinSuspendFunction != nil
-                guard (metadata.isFileFacade == true && method.isStatic) || Self.hasFunctionTypeDescriptor(method),
+                guard (metadata.isFileFacade == true && method.isStatic) || Self.hasFunctionTypeDescriptor(method) || !method.isStatic,
                       let function = functions.first(where: { candidate in
-                          candidate.isSuspend == isSuspend
+                          if let parameters = candidate.valueOperatorParameterDescriptors {
+                              return method.isStatic && method.parameters.count == parameters.count + 1
+                                  && method.parameters.first?.descriptor == valueCarrier?.descriptor
+                          }
+                          return candidate.isSuspend == isSuspend
+                              && (metadata.isFileFacade == true && method.isStatic || Self.hasFunctionTypeDescriptor(method)
+                                  || !method.isStatic && candidate.contextParameters.isEmpty
+                                      && (candidate.receiver != nil || (candidate.isInfix || hasReadOnlyListSupertype
+                                          && candidate.name == "subList" || method.isFinal && candidate.isGenericFinalGetter
+                                          || method.isFinal && candidate.hasStableFinalParameters
+                                          || candidate.mangledMemberParameterDescriptors != nil)
+                                          && candidate.descriptor != nil))
                               && (candidate.jvmName ?? candidate.name) == method.name
                               && (candidate.descriptor == nil || candidate.descriptor == method.descriptor)
-                              && (candidate.parameters.count + (candidate.receiver == nil ? 0 : 1)
+                              && (candidate.parameters.count + candidate.leadingParameterCount
                                   + (candidate.isSuspend ? 1 : 0) == method.parameters.count
                                   || method.composeABI(for: candidate) != nil)
                       })
                 else { continue }
                 methods[index].kotlinFunction = function
+            }
+        }
+        if classAttributes.kotlinMetadata != nil, hasJvmOverloads {
+            let methodsByParameters = Dictionary(grouping: methods) { method in
+                method.name + method.descriptor.prefix(through: method.descriptor.firstIndex(of: ")")!)
+            }
+            methods.removeAll { method in
+                guard !method.isConstructor,
+                      method.annotations.contains(where: { $0.descriptor == "Lkotlin/jvm/JvmOverloads;" }) else { return false }
+                let key = method.name + method.descriptor.prefix(through: method.descriptor.firstIndex(of: ")")!)
+                return methodsByParameters[key]?.contains { other in
+                    other.descriptor != method.descriptor
+                        && !other.annotations.contains { $0.descriptor == "Lkotlin/jvm/JvmOverloads;" }
+                } == true
+            }
+        }
+        if let metadata = classAttributes.kotlinMetadata, metadata.isFileFacade == false {
+            let duplicateGroups = Dictionary(grouping: methods.filter { !$0.isConstructor && !$0.isStatic }) {
+                $0.name + $0.descriptor.prefix(through: $0.descriptor.firstIndex(of: ")")!)
+            }.values.filter { $0.count > 1 }
+            if !duplicateGroups.isEmpty,
+               let sourceNames = try? metadata.collidingMemberSourceNames(byteLimit: bytes.count) {
+                var ignored: Set<String> = []
+                var renamed: [String: String] = [:]
+                for group in duplicateGroups {
+                    let names = group.compactMap { method in sourceNames[method.name + method.descriptor] }
+                    guard !names.isEmpty, Set(names).count == names.count else { continue }
+                    for method in group {
+                        let key = method.name + method.descriptor
+                        if let sourceName = sourceNames[key] {
+                            if sourceName != method.name { renamed[key] = sourceName }
+                        } else {
+                            ignored.insert(key)
+                        }
+                    }
+                }
+                methods.removeAll { ignored.contains($0.name + $0.descriptor) }
+                for index in methods.indices {
+                    methods[index].kotlinCollisionSourceName = renamed[methods[index].name + methods[index].descriptor]
+                }
             }
         }
         var info = JVMClassInfo(
@@ -587,16 +697,86 @@ struct JVMClassReader {
         if flags & 0x2000 != 0, let metadata = classAttributes.kotlinMetadata {
             info.kotlinAnnotationVarargElementNames = (try? metadata.annotationVarargElements(byteLimit: bytes.count)) ?? []
         }
-        // Kotlin objects may expose a property's accessor only as @JvmStatic.
-        if let metadata = classAttributes.kotlinMetadata,
-           fields.contains(where: { $0.name == "INSTANCE" && $0.isPublic && $0.isStatic && $0.descriptor == "L\(name);" }),
-           let properties = try? metadata.staticPropertyCandidates(byteLimit: bytes.count) {
+        info.kotlinMultifileParts = classAttributes.kotlinMetadata?.multifileParts ?? []
+        info.isKotlinMultifilePart = classAttributes.kotlinMetadata?.isMultifilePart == true
+        info.genericSignature = classAttributes.signature
+        info.kotlinReadOnlyCollectionSupertypes = readOnlyCollectionSupertypes
+        if !functionTypeMemberNames.isEmpty, let metadata = classAttributes.kotlinMetadata {
+            info.kotlinParameterizedSupertypes = (try? metadata.parameterizedSupertypes(byteLimit: bytes.count)) ?? [:]
+        }
+        if hasValueAdapters, interfaces.contains("java/lang/Comparable"), let metadata = classAttributes.kotlinMetadata {
+            info.kotlinComparableSupertype = try? metadata.comparableSupertype(byteLimit: bytes.count)
+        }
+        if hasValueAdapters, let valueCarrier, let metadata = classAttributes.kotlinMetadata,
+           let constructors = try? metadata.valueClassConstructors(byteLimit: bytes.count) {
+            for constructor in constructors {
+                guard let adapter = methods.first(where: {
+                    $0.name == "constructor-impl" && $0.isStatic && !$0.isProtected
+                        && $0.descriptor == constructor.descriptor && $0.result.descriptor == valueCarrier.descriptor
+                        && $0.parameters.count == constructor.parameters.count
+                }) else { continue }
+                info.kotlinValueClassConstructors.append((constructor, adapter))
+            }
+        }
+        if !syntheticConstructors.isEmpty, let metadata = classAttributes.kotlinMetadata,
+           let constructors = try? metadata.constructorsWithLoweredParameters(byteLimit: bytes.count) {
+            let marker = "Lkotlin/jvm/internal/DefaultConstructorMarker;)V"
+            for constructor in constructors {
+                let prefix = String(constructor.descriptor.dropLast(2))
+                let maskCount = (constructor.parameters.count + 31) / 32
+                let defaultDescriptor = prefix + String(repeating: "I", count: maskCount) + marker
+                let defaults = syntheticConstructors.first { $0.descriptor == defaultDescriptor }
+                if let entry = methods.first(where: { $0.isConstructor && $0.descriptor == constructor.descriptor }) {
+                    guard defaults != nil else { continue }
+                    info.kotlinLoweredConstructors.append((constructor, entry, defaults))
+                } else if let entry = syntheticConstructors.first(where: { $0.descriptor == prefix + marker }) {
+                    info.kotlinLoweredConstructors.append((constructor, entry, defaults))
+                }
+            }
+        }
+        if info.isInterface, let metadata = classAttributes.kotlinMetadata {
+            info.kotlinSealedInterfaceSubclasses = (try? metadata.sealedInterfaceSubclasses(byteLimit: bytes.count)) ?? []
+        }
+        if let metadata = classAttributes.kotlinMetadata, let properties = try? metadata.topLevelProperties(byteLimit: bytes.count) {
             for property in properties {
                 guard let getter = methods.first(where: {
-                    $0.isStatic && !$0.isProtected && $0.name == property.getterName
-                        && $0.descriptor == property.getterDescriptor && $0.result != .unit
+                    $0.isStatic && !$0.isProtected && $0.name == property.getterName && $0.descriptor == property.getterDescriptor
+                        && $0.parameters.count == (property.receiver == nil ? 0 : 1) && $0.result != .unit
                 }) else { continue }
-                info.kotlinStaticProperties[property.name] = (getter, property.isNullable)
+                info.kotlinTopLevelProperties.append((property, getter))
+            }
+        }
+        let isKotlinObject = fields.contains { $0.name == "INSTANCE" && $0.isPublic && $0.isStatic && $0.descriptor == "L\(name);" }
+        if isKotlinObject, let metadata = classAttributes.kotlinMetadata {
+            info.isKotlinObject = (try? metadata.isObject(byteLimit: bytes.count)) == true
+        }
+        if let metadata = classAttributes.kotlinMetadata,
+           hasReadOnlyMapSupertype || isKotlinObject || name.hasSuffix("$Companion") || methods.contains(where: {
+               $0.name.hasPrefix("get") && ($0.name.contains("-")
+                   || flags & 0x0200 != 0 && $0.isAbstract && $0.result.referenceName == "kotlinx/coroutines/flow/StateFlow")
+                   || $0.isFinal && !$0.isStatic && $0.parameters.isEmpty
+                       && ($0.name.hasPrefix("get") || $0.name.hasPrefix("is"))
+           }),
+           let properties = try? metadata.classPropertyCandidates(byteLimit: bytes.count) {
+            for property in properties {
+                guard let getter = methods.first(where: {
+                    !$0.isProtected && $0.name == property.getterName && $0.descriptor == property.getterDescriptor && $0.result != .unit
+                }) else { continue }
+                if isKotlinObject && getter.isStatic && getter.parameters.isEmpty {
+                    // Kotlin objects may expose a property's accessor only as @JvmStatic.
+                    info.kotlinStaticProperties[property.name] = (getter, property.isNullable)
+                } else if let sourceType = property.sourceType,
+                          (name.hasSuffix("$Companion") || getter.name.contains("-")
+                              || hasReadOnlyMapSupertype && !property.isVar && ["keys", "values", "entries"].contains(property.name)
+                              || flags & 0x0200 != 0 && getter.isAbstract && !property.isVar && property.isSourceVisible
+                                  && getter.result.referenceName == "kotlinx/coroutines/flow/StateFlow"
+                                  && sourceType.hasPrefix("kotlinx.coroutines.flow.StateFlow<")
+                              || getter.isFinal && !property.isVar
+                                  && (sourceType.contains("<") || getter.name == property.name)),
+                          !getter.isStatic && getter.parameters.isEmpty
+                              || hasValueAdapters && getter.isStatic && getter.parameters.map(\.descriptor) == [valueCarrier?.descriptor] {
+                    info.kotlinMemberProperties[property.name] = (getter, sourceType)
+                }
             }
         }
         return info

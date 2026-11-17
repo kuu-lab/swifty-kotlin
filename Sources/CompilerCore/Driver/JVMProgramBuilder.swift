@@ -423,8 +423,16 @@ final class JVMProgramBuilder {
             let duplicates = Dictionary(grouping: generatedNames, by: { $0 }).filter { $0.value.count > 1 }.keys.sorted().joined(separator: ", ")
             throw JVMFrontendError(message: "JVM generated class name clashes with a source class or facade: " + duplicates)
         }
-        for functions in [output.functions] + emittedClasses.map(\.functions) {
+        for classIndex in emittedClasses.indices {
+            let functions = emittedClasses[classIndex].functions
             let signatures = functions.map { $0.reference.name + $0.reference.descriptor }
+            guard Set(signatures).count == signatures.count else {
+                let dups = Dictionary(grouping: signatures, by: { $0 }).filter { $0.value.count > 1 }.keys.sorted().joined(separator: ", ")
+                throw JVMFrontendError(message: "Clashing JVM function/accessor signatures in " + emittedClasses[classIndex].name + ": " + dups)
+            }
+        }
+        do {
+            let signatures = output.functions.map { $0.reference.name + $0.reference.descriptor }
             guard Set(signatures).count == signatures.count else { throw JVMFrontendError(message: "Clashing JVM function/accessor signatures.") }
         }
         output.classes = emittedClasses
@@ -461,6 +469,7 @@ final class JVMFunctionBuilder {
     var inlineReturns: [InlineReturn] = []
     var inlineStack: [SymbolID: Int] = [:]
     var contextualReceivers: [SymbolID: JVMValue] = [:]
+    var contextArguments: [(type: TypeID, value: JVMValue)] = []
     var backingProperty: JVMProperty?
     var beforeDelegation = false
     var initializingObject = false
@@ -574,6 +583,14 @@ final class JVMFunctionBuilder {
                 instructions.append(.foreignCall(JVMForeignMethod(owner: "kotlin/time/Duration", name: "box-impl", descriptor: "(J)Lkotlin/time/Duration;", parameters: [.long], result: type, isStatic: true, isInterface: false, isAbstract: false), receiver: nil, arguments: [source], result: result))
                 return result
             }
+        }
+        if let name = source.type.referenceName, let carrier = context.jvmImports?.importedValueCarrier(for: source.type),
+           carrier.descriptor == type.descriptor {
+            return try jdkCall(name, "unbox-impl", [], carrier, receiver: source, resolved: type)!
+        }
+        if let name = type.referenceName, let carrier = context.jvmImports?.importedValueCarrier(for: type),
+           carrier.descriptor == source.type.descriptor {
+            return try jdkCall(name, "box-impl", [carrier], type, arguments: [source])!
         }
         if source.type.referenceName != nil, type.isNumeric,
            let carrier = source.type.numericCarrier, carrier != type {

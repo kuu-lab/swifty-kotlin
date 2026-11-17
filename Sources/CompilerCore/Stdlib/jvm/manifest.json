@@ -3,11 +3,15 @@
   "commonSources": [
     "kotlin/Pair/Pair.kt",
     "kotlin/Function.kt",
+    "kotlin/IgnorableReturnValue.kt",
     "kotlin/Unit.kt",
     "kotlin/annotations/ExperimentalUnsignedTypes.kt",
+    "kotlin/io/encoding/Base64.kt",
     "kotlin/random/Random.kt",
     "kotlin/time/DurationEncoding.kt",
-    "kotlin/time/DurationUnit.kt"
+    "kotlin/time/DurationUnit.kt",
+    "kotlin/time/InstantFormatting.kt",
+    "kotlin/time/InstantParsing.kt"
   ],
   "declarations": [
     {
@@ -15,6 +19,13 @@
       "virtualPath": "<kswiftk-jvm>/random.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/random/RandomKt"
+    },
+    {
+      "path": "declarations/PlatformRandom.kt",
+      "virtualPath": "<kswiftk-jvm>/platform-random.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/random/PlatformRandomKt",
+      "consumerIdentifiers": ["asJavaRandom", "asKotlinRandom"]
     },
     {
       "path": "kotlin/time/DurationUnit.kt",
@@ -33,7 +44,10 @@
       "virtualPath": "<kswiftk-jvm>/duration-conversions.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/time/jdk8/DurationConversionsJDK8Kt",
-      "consumerIdentifiers": ["toJavaDuration", "toKotlinDuration"]
+      "consumerIdentifiers": [
+        "toJavaDuration",
+        "toKotlinDuration"
+      ]
     },
     {
       "path": "declarations/Instant.kt",
@@ -45,7 +59,10 @@
       "virtualPath": "<kswiftk-jvm>/instant-conversions.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/time/jdk8/InstantConversionsJDK8Kt",
-      "consumerIdentifiers": ["toJavaInstant", "toKotlinInstant"]
+      "consumerIdentifiers": [
+        "toJavaInstant",
+        "toKotlinInstant"
+      ]
     },
     {
       "path": "declarations/Clock.kt",
@@ -63,7 +80,9 @@
       "virtualPath": "<kswiftk-jvm>/byte-streams.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/io/ByteStreamsKt",
-      "consumerIdentifiers": ["readBytes"]
+      "consumerIdentifiers": [
+        "readBytes"
+      ]
     },
     {
       "path": "declarations/UStrings.kt",
@@ -306,12 +325,6 @@
       "runtimeFacade": "kotlin/text/StringsKt"
     },
     {
-      "path": "declarations/Utf8Conversions.kt",
-      "virtualPath": "<kswiftk-jvm>/utf8-conversions.kt",
-      "excludeFromStdlibBuild": true,
-      "runtimeFacade": "kotlin/text/StringsKt"
-    },
-    {
       "path": "declarations/StringBuilder.kt",
       "virtualPath": "<kswiftk-jvm>/m19-builder.kt",
       "excludeFromStdlibBuild": false
@@ -525,6 +538,12 @@
       "path": "declarations/Exceptions.kt",
       "virtualPath": "<kswiftk-jvm>/exceptions.kt",
       "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "declarations/StackTrace.kt",
+      "virtualPath": "<kswiftk-jvm>/stack-trace.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/ExceptionsKt"
     },
     {
       "path": "declarations/Result.kt",
