@@ -167,6 +167,9 @@ public fun <T> compareBy(
 ): Comparator<T> = ComparisonSelectorList(arrayOf(selector1, selector2, selector3))
 
 public fun <T> compareBy(vararg selectors: (T) -> Comparable<*>?): Comparator<T> =
+    compareBySelectors(selectors)
+
+internal fun <T> compareBySelectors(selectors: Array<out (T) -> Comparable<*>?>): Comparator<T> =
     ComparisonSelectorList(selectors)
 
 public fun <T> compareByDescending(selector: (T) -> Comparable<*>?): Comparator<T> =
