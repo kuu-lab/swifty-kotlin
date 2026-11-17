@@ -57,8 +57,16 @@ extension JVMProgramBuilder {
             valueSignatures[name] = (outputSignature, inputSignature, logical.parameters)
         }
         for name in values.keys { resolveSignature(name) }
+        func importedCarrier(_ type: JVMValueType) -> JVMValueType? {
+            // The classfile adapters give the carrier descriptor. Nullable
+            // imported values need additional metadata about the underlying type.
+            guard !type.isNullable else { return nil }
+            return context.jvmImports?.importedValueCarrier(for: type)
+        }
         func physical(_ type: JVMValueType) -> JVMValueType {
-            guard let name = type.referenceName, let value = values[name] else { return type }
+            guard let name = type.referenceName, let value = values[name] else {
+                return importedCarrier(type) ?? type
+            }
             if !type.isNullable { return value.underlying }
             if let reference = value.underlying.referenceName, !value.underlying.isNullable { return .reference(reference, nullable: true) }
             return type
@@ -70,7 +78,7 @@ extension JVMProgramBuilder {
         func element(_ type: JVMValueType) -> String {
             if type.referenceName == "kotlin/Result" { return "_" }
             if let name = type.unsignedName { return "L" + name.replacingOccurrences(of: "/", with: ".") + (type.isNullable ? "?" : "") + ";" }
-            guard let name = type.referenceName, values[name] != nil else { return "_" }
+            guard let name = type.referenceName, values[name] != nil || importedCarrier(type) != nil else { return "_" }
             return "L" + name.replacingOccurrences(of: "/", with: ".").replacingOccurrences(of: "$", with: ".") + (type.isNullable ? "?" : "") + ";"
         }
         func builder(_ owner: String, _ name: String, _ params: [JVMValueType], _ result: JVMValueType, staticBody: Bool) throws -> JVMFunctionBuilder {
@@ -84,10 +92,10 @@ extension JVMProgramBuilder {
         }
         func convert(_ source: JVMValue, to target: JVMValueType, b: JVMFunctionBuilder) throws -> JVMValue {
             if source.type == target { return source }
-            let fromValue = source.type.referenceName.flatMap { values[$0] }
-            let toValue = target.referenceName.flatMap { values[$0] }
-            if let info = toValue, physical(target) != target {
-                let method = JVMForeignMethod(owner: info.name, name: "box-impl", descriptor: "(" + info.underlying.descriptor + ")L" + info.name + ";", parameters: [info.underlying], result: .reference(info.name, nullable: false), isStatic: true, isInterface: false, isAbstract: false)
+            let targetCarrier = physical(target)
+            if let name = target.referenceName, targetCarrier != target,
+               let carrier = values[name]?.underlying ?? importedCarrier(target) {
+                let method = JVMForeignMethod(owner: name, name: "box-impl", descriptor: "(" + carrier.descriptor + ")L" + name + ";", parameters: [carrier], result: .reference(name, nullable: false), isStatic: true, isInterface: false, isAbstract: false)
                 let result = try b.value(target)
                 let end = b.label()
                 if target.isNullable {
@@ -95,18 +103,19 @@ extension JVMProgramBuilder {
                     b.instructions += [.referenceCompare(.equal, source, null, check), .jumpIfFalse(check, nonnull), .constant(.null, result)]
                     b.jump(end); b.mark(nonnull)
                 }
-                b.instructions.append(.foreignCall(method, receiver: nil, arguments: [try b.convert(source, to: info.underlying)], result: result))
+                b.instructions.append(.foreignCall(method, receiver: nil, arguments: [try b.convert(source, to: carrier)], result: result))
                 if target.isNullable { b.mark(end) }
                 return result
             }
-            if let info = fromValue, physical(source.type) != source.type {
+            if let name = source.type.referenceName, physical(source.type) != source.type,
+               let carrier = values[name]?.underlying ?? importedCarrier(source.type) {
                 let result = try b.value(target), end = b.label()
                 if source.type.isNullable {
                     let check = try b.value(.boolean), null = try b.constant(.null, source.type), nonnull = b.label()
                     b.instructions += [.referenceCompare(.equal, source, null, check), .jumpIfFalse(check, nonnull), .constant(.null, result)]
                     b.jump(end); b.mark(nonnull)
                 }
-                let method = JVMForeignMethod(owner: info.name, name: "unbox-impl", descriptor: "()" + info.underlying.descriptor, parameters: [], result: info.underlying, isStatic: false, isInterface: false, isAbstract: false)
+                let method = JVMForeignMethod(owner: name, name: "unbox-impl", descriptor: "()" + carrier.descriptor, parameters: [], result: carrier, isStatic: false, isInterface: false, isAbstract: false)
                 b.instructions.append(.foreignCall(method, receiver: source, arguments: [], result: result))
                 if source.type.isNullable { b.mark(end) }
                 return result
@@ -145,7 +154,9 @@ extension JVMProgramBuilder {
             if values[owner] != nil && original.isConstructor { return [hidden(original)] }
             let isStatic = (original.access ?? 8) & 8 != 0
             let isDefault = ref.name.hasSuffix("$default")
-            let affected = original.jvmName != nil || ownValue != nil && !original.isConstructor || (ref.parameters + [ref.result]).contains { $0.unsignedName != nil || $0.referenceName.flatMap { values[$0] } != nil }
+            let affected = original.jvmName != nil || ownValue != nil && !original.isConstructor || (ref.parameters + [ref.result]).contains {
+                $0.unsignedName != nil || $0.referenceName.flatMap { values[$0] } != nil || importedCarrier($0) != nil
+            }
             guard affected else { return [original] }
             var name = ref.name.components(separatedBy: "$unsigned$")[0]
             let visibleName = original.sourceName ?? name
@@ -155,11 +166,18 @@ extension JVMProgramBuilder {
             if !original.isConstructor {
                 if let baseName { name = baseName + "$default" }
                 else {
-                    let hashArguments = ref.parameters.map(element).joined() + (original.isSuspend ? "_" : "")
-                    // The bundled Duration ABI predates return-type mangling for plus.
-                    let legacyDurationAddition = context.options.stdlibOnly && owner == "kotlin/time/Duration"
-                        && ref.name == "plus" && ref.parameters.map(\.referenceName) == [owner]
-                    let resultElement = fileFacades.contains(owner) || legacyDurationAddition ? "_" : element(ref.result)
+                    // The stdlib's Instant difference uses a return-only suffix.
+                    let legacyInstantDifference = context.options.stdlibOnly && owner == "kotlin/time/Instant"
+                        && ref.name == "minus" && ref.parameters.map(\.referenceName) == [owner]
+                    let hashArguments = legacyInstantDifference ? ""
+                        : ref.parameters.map(element).joined() + (original.isSuspend ? "_" : "")
+                    // The bundled time ABI predates return-type mangling for these operators.
+                    let legacyTimeOperator = context.options.stdlibOnly && (
+                        owner == "kotlin/time/Duration" && ["plus", "minus"].contains(ref.name) && ref.parameters.map(\.referenceName) == [owner]
+                        || owner == "kotlin/time/TimeSource$Monotonic$ValueTimeMark" && ["plus", "minus"].contains(ref.name)
+                            && (ref.parameters.map(\.referenceName) == [owner] || ref.parameters.map(\.referenceName) == ["kotlin/time/Duration"])
+                    )
+                    let resultElement = fileFacades.contains(owner) || legacyTimeOperator ? "_" : element(ref.result)
                     let hash = hashArguments + (resultElement == "_" ? "" : ":" + resultElement)
                     if hashArguments.contains("L") || resultElement != "_" { name += "-" + JVMNameHash.suffix(hash) }
                     else if ownValue != nil { name += "-impl" }
@@ -225,7 +243,7 @@ extension JVMProgramBuilder {
                 b.instructions.append(.returnValue(try returned.map { try convert($0, to: result, b: b) }))
             }
             var adapter = finish(b, original: original, reference: physicalRef, offset: ownValue != nil && !isStatic ? 1 : 0)
-            if original.isSuspend, let name = ref.result.referenceName, values[name] != nil,
+            if original.isSuspend, ref.result.referenceName != nil,
                physical(ref.result) != ref.result, physical(ref.result).referenceName != nil {
                 adapter.suspendValueResult = JVMSuspendValueResult(boxed: ref.result, underlying: physical(ref.result))
             }

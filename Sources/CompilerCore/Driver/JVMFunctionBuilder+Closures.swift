@@ -4,8 +4,9 @@ extension JVMProgramBuilder {
     func noteFunctionTypes(_ id: TypeID) {
         switch sema.types.kind(of: id) {
         case let .functionType(f):
-            functionArities.insert(f.params.count + (f.receiver == nil ? 0 : 1) + (f.isSuspend ? 1 : 0))
-            for t in [f.receiver].compactMap({ $0 }) + f.params + [f.returnType] { noteFunctionTypes(t) }
+            let inputs = f.contextReceivers + [f.receiver].compactMap { $0 } + f.params
+            functionArities.insert(inputs.count + (f.isSuspend ? 1 : 0))
+            for t in inputs + [f.returnType] { noteFunctionTypes(t) }
         case let .classType(t):
             for arg in t.args { switch arg { case let .invariant(t), let .out(t), let .in(t): noteFunctionTypes(t); case .star: break } }
         default: break
@@ -43,14 +44,36 @@ extension JVMFunctionBuilder {
         guard let type = program.sema.bindings.samUnderlyingFunctionType(for: id) ?? program.sema.bindings.exprType(for: id), case let .functionType(f) = program.sema.types.kind(of: type) else { return nil }
         return f
     }
-    func invoke(_ function: JVMValue, signature: FunctionType, arguments: [JVMValue], resultType: JVMValueType? = nil) throws -> JVMValue? {
-        let parameters = [signature.receiver].compactMap { $0 } + signature.params
+    func invoke(_ function: JVMValue, signature: FunctionType, arguments: [JVMValue], resultType: JVMValueType? = nil, at id: ExprID? = nil) throws -> JVMValue? {
+        let parameters = signature.contextReceivers + [signature.receiver].compactMap { $0 } + signature.params
+        var arguments = arguments
+        if let id, !signature.contextReceivers.isEmpty, arguments.count + signature.contextReceivers.count == parameters.count {
+            let symbols = program.sema.bindings.callableValueCallBinding(for: id)?.contextReceiverSymbols ?? []
+            let values = try signature.contextReceivers.enumerated().map { index, type in
+                try contextArgument(type, symbol: symbols.indices.contains(index) ? symbols[index] : nil, at: id)
+            }
+            arguments = values + arguments
+        }
         guard arguments.count == parameters.count, parameters.count <= 22 else { throw fail("JVM function-value argument count mismatch.") }
         program.functionArities.insert(parameters.count + (signature.isSuspend ? 1 : 0))
         let object: JVMValueType = .reference("java/lang/Object", nullable: true)
         var args: [JVMValue] = []
         for arg in arguments { args.append(try convert(arg, to: object)) }
         let result = try resultType ?? program.type(signature.returnType)
+        if let id, let callable = program.sema.bindings.callableValueCallBinding(for: id),
+           case let .localValue(symbol) = callable.target,
+           program.sema.composableFunctionParameters.contains(symbol) {
+            guard let composer = activeComposer else { throw fail("JVM Compose callback requires an active Composer.", id) }
+            let changed = try constant(.int(0), .int)
+            args.append(try convert(composer, to: object))
+            args.append(try convert(changed, to: object))
+            program.functionArities.insert(args.count)
+            let returned = try jdkCall("kotlin/jvm/functions/Function" + String(args.count), "invoke",
+                                       Array(repeating: object, count: args.count), object,
+                                       receiver: function, arguments: args, interface: true,
+                                       resolved: result == .unit ? object : result)
+            return result == .unit ? nil : returned
+        }
         if signature.isSuspend {
             var method = JVMForeignMethod(owner: "kotlin/jvm/functions/Function" + String(parameters.count + 1), name: "invoke", descriptor: "(" + Array(repeating: object.descriptor, count: parameters.count).joined() + ")" + object.descriptor, parameters: Array(repeating: object, count: parameters.count), result: object, isStatic: false, isInterface: true, isAbstract: true)
             method.isSuspend = true
@@ -75,7 +98,7 @@ extension JVMFunctionBuilder {
             values.append(receiver)
         }
         for arg in args { values.append(try requireValue(arg.expr)) }
-        return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id)))
+        return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id), at: id))
     }
     func extensionOrInvoke(_ receiver: ExprID, name: InternedString, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
         guard args.allSatisfy({ !$0.isSpread }) else { return nil }
@@ -87,7 +110,7 @@ extension JVMFunctionBuilder {
             let function = try requireValue(receiver)
             var values: [JVMValue] = []
             for arg in args { values.append(try requireValue(arg.expr)) }
-            return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id)))
+            return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id), at: id))
         }
         if let lambda = inlineArgument(name), functionType(lambda.id)?.receiver != nil {
             return JVMIntrinsicResult(value: try expandLambda(lambda, args: args, id: id, receiver: requireValue(receiver)))
@@ -125,7 +148,7 @@ extension JVMFunctionBuilder {
             let object = try requireValue(receiver), function = try readLocal(local)
             var values = [object]
             for arg in args { values.append(try requireValue(arg.expr)) }
-            return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id)))
+            return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id), at: id))
         }
         guard let binding = program.sema.bindings.callBinding(for: id), let signature = program.sema.symbols.functionSignature(for: binding.chosenCallee), signature.receiverType != nil, program.extensionSymbols.contains(binding.chosenCallee) else { return nil }
         if let reference = program.references[binding.chosenCallee] {
@@ -147,8 +170,8 @@ extension JVMFunctionBuilder {
         }
         return nil
     }
-    func closure(_ id: ExprID, destination: JVMValue? = nil, composable: Bool = false) throws -> JVMValue {
-        guard case let .lambdaLiteral(parameters, body, _, _) = arena.expr(id), let function = functionType(id), function.contextReceivers.isEmpty else { throw fail("Unsupported JVM lambda type or SAM conversion.", id) }
+    func closure(_ id: ExprID, destination: JVMValue? = nil, composable: Bool = false, capturedComposer: JVMValue? = nil) throws -> JVMValue {
+        guard case let .lambdaLiteral(parameters, body, _, _) = arena.expr(id), let function = functionType(id) else { throw fail("Unsupported JVM lambda type or SAM conversion.", id) }
         program.noteFunctionTypes(program.sema.bindings.exprType(for: id)!)
         let number = program.nextClosure; program.nextClosure += 1
         let container = owner?.name ?? program.facadeName
@@ -174,9 +197,13 @@ extension JVMFunctionBuilder {
         if let thisValue, !beforeDelegation { captures.append(("dispatch", thisValue)) }
         let extensionIndex: Int? = extensionValue != nil ? captures.count : nil
         if let extensionValue { captures.append(("extension", extensionValue)) }
+        let composerIndex = capturedComposer.map { _ in captures.count }
+        if let capturedComposer { captures.append(("composer", capturedComposer)) }
         let contexts = contextualReceivers.filter { !beforeDelegation || $0.value.slot != thisValue?.slot }.sorted { $0.key.rawValue < $1.key.rawValue }
         let contextIndex = captures.count
         for (i, receiver) in contexts.enumerated() { captures.append(("receiver\(i)", receiver.value)) }
+        let argumentIndex = captures.count
+        for (i, argument) in contextArguments.enumerated() { captures.append(("context\(i)", argument.value)) }
         // Escaping helpers receive resolved type tokens, so they never execute
         // an unresolved reified marker after the caller has finished inlining.
         let tokenIndex = captures.count
@@ -187,7 +214,7 @@ extension JVMFunctionBuilder {
             captures.append(("type\(i)Nullable", token.nullable))
             captures.append(("type\(i)MutableKind", token.mutableKind))
         }
-        let logicalInputs = try ([function.receiver].compactMap { $0 } + function.params).map(program.type)
+        let logicalInputs = try (function.contextReceivers + [function.receiver].compactMap { $0 } + function.params).map(program.type)
         let inputTypes = logicalInputs + (composable ? JVMCompose.suffix : [])
         let resultType = try program.type(function.returnType)
         let unitType = JVMValueType.reference("kotlin/Unit", nullable: false)
@@ -200,6 +227,7 @@ extension JVMFunctionBuilder {
         helper.backingProperty = backingProperty
         let values = try helperRef.parameters.map { try helper.value($0) }
         if composable { helper.activeComposer = values[captures.count + logicalInputs.count] }
+        if let composerIndex { helper.activeComposer = values[composerIndex] }
         for (i, entry) in captured.enumerated() {
             var local = entry.value
             if local.cell != nil { local.cell = values[i]; local = Local(value: try helper.value(entry.value.value.type), mutable: entry.value.mutable, cell: values[i], functionType: entry.value.functionType, symbol: entry.value.symbol) }
@@ -210,6 +238,7 @@ extension JVMFunctionBuilder {
         if let dispatchIndex { helper.thisValue = values[dispatchIndex] }
         if let extensionIndex { helper.extensionValue = values[extensionIndex] }
         for (i, entry) in contexts.enumerated() { helper.contextualReceivers[entry.key] = values[contextIndex + i] }
+        helper.contextArguments = contextArguments.enumerated().map { ($0.element.type, values[argumentIndex + $0.offset]) }
         for (i, type) in tokenTypes.enumerated() {
             if case let .typeParam(t) = program.sema.types.kind(of: type) {
                 let offset = tokenIndex + i * ReifiedRuntimeToken.captureWidth
@@ -217,6 +246,10 @@ extension JVMFunctionBuilder {
             }
         }
         var inputIndex = captures.count
+        for type in function.contextReceivers {
+            helper.contextArguments.append((type, values[inputIndex]))
+            inputIndex += 1
+        }
         if function.receiver != nil {
             helper.extensionValue = values[inputIndex]
             helper.contextualReceivers[SyntheticSymbolScheme.lambdaReceiverSymbol(for: id)] = values[inputIndex]

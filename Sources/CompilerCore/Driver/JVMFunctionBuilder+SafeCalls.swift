@@ -4,6 +4,7 @@ extension JVMFunctionBuilder {
         if let symbol = program.sema.bindings.callBinding(for: id)?.chosenCallee,
            let result = try resultCompanionCall(symbol, args: args, id: id) { return result.value }
         if !arena.isExplicitCall(id), let value = try nominalValue(id) { return value }
+        if !arena.isExplicitCall(id), let value = try readCompositionLocal(id, receiver: receiver) { return value }
         if !arena.isExplicitCall(id), context.interner.resolve(name) == "Companion",
            let receiverSymbol = program.sema.bindings.identifierSymbol(for: receiver),
            let value = try importedCompanionValue(for: receiverSymbol) { return value }
@@ -63,6 +64,11 @@ extension JVMFunctionBuilder {
             return try jdkCall("java/util/Comparator", "compare", [object, object], .int, receiver: comparator, arguments: values, interface: true)
         }
         let source = try requireValue(receiver)
+        if member == "not", source.type == .boolean, args.isEmpty, typeArgs.isEmpty {
+            let result = try value(.boolean)
+            instructions.append(.unary(.not, source, result))
+            return result
+        }
         let targets = Self.numericConversions
         guard source.type.isNumeric, args.isEmpty, typeArgs.isEmpty,
               let target = targets[context.interner.resolve(name)] else { throw fail("Unsupported JVM member: \(context.interner.resolve(name)).", id) }

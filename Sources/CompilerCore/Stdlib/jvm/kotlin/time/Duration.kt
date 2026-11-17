@@ -10,6 +10,14 @@ public value class Duration private constructor(private val rawValue: Long) : Co
     public val inWholeHours: Long get() = toLong(DurationUnit.HOURS)
     public val inWholeDays: Long get() = toLong(DurationUnit.DAYS)
 
+    @PublishedApi
+    internal val nanosecondsComponent: Int
+        get() {
+            if (isInfinite()) return 0
+            val scale = durationStorageScale(rawValue)
+            return ((durationValue(rawValue) % (NANOS_PER_SECOND / scale)) * scale).toInt()
+        }
+
     public fun isNegative(): Boolean = rawValue < 0L
     public fun isPositive(): Boolean = rawValue > 0L
     public fun isInfinite(): Boolean = durationIsInfinite(rawValue)
@@ -18,6 +26,12 @@ public value class Duration private constructor(private val rawValue: Long) : Co
     public override fun compareTo(other: Duration): Int = compareDurationRaw(rawValue, other.rawValue)
 
     public operator fun plus(other: Duration): Duration = Duration(addDurationRaw(rawValue, other.rawValue))
+
+    public operator fun minus(other: Duration): Duration = this + (-other)
+
+    public operator fun unaryMinus(): Duration = negated()
+
+    internal fun negated(): Duration = Duration(((-durationValue(rawValue)) shl 1) or (rawValue and 1L))
 
     public override fun toString(): String = durationToString(rawValue)
 

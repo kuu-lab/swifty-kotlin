@@ -168,6 +168,8 @@ extension JVMClasspathIndex {
                     val err: java.io.PrintStream get() = null!!
                     external fun getProperty(propertyName: kotlin.String): kotlin.String?
                     external fun getProperty(propertyName: kotlin.String, defaultValue: kotlin.String): kotlin.String
+                    external fun currentTimeMillis(): Long
+                    external fun nanoTime(): Long
                     external fun arraycopy(src: Any?, srcPos: Int, dest: Any?, destPos: Int, length: Int): Unit
                     external fun exit(status: Int): Unit
                 }
@@ -175,6 +177,8 @@ extension JVMClasspathIndex {
             """, 0x0011, "java/lang/Object", [
                 method("java/lang/System", "getProperty", [.string], .reference("java/lang/String", nullable: true), staticMember: true),
                 method("java/lang/System", "getProperty", [.string, .string], .reference("java/lang/String", nullable: false), staticMember: true),
+                method("java/lang/System", "currentTimeMillis", [], .long, staticMember: true),
+                method("java/lang/System", "nanoTime", [], .long, staticMember: true),
                 method("java/lang/System", "arraycopy", [object, .int, object, .int, .int], .unit, staticMember: true),
                 method("java/lang/System", "exit", [.int], .unit, staticMember: true),
             ]),
@@ -343,9 +347,16 @@ extension JVMClasspathIndex {
             ("java/util/Locale", """
             package java.util
             open class Locale {
-                companion object { val ROOT: Locale get() = null!! }
+                val language: String get() = null!!
+                companion object {
+                    val ROOT: Locale get() = null!!
+                    external fun forLanguageTag(languageTag: String): Locale
+                }
             }
-            """, 0x0001, "java/lang/Object", []),
+            """, 0x0001, "java/lang/Object", [
+                method("java/util/Locale", "getLanguage", [], .string),
+                method("java/util/Locale", "forLanguageTag", [.string], .reference("java/util/Locale", nullable: false), staticMember: true),
+            ]),
             ("java/util/TreeMap", """
             package java.util
             open class TreeMap<K, V> : SortedMap<K, V> {
@@ -497,6 +508,103 @@ extension JVMClasspathIndex {
             sourceClasses[file] = info
             classes[name] = info
         }
+        let randomName = "java/util/Random"
+        if classes[randomName] == nil {
+            let randomType = JVMValueType.reference(randomName, nullable: false)
+            let methods = [
+                method(randomName, "<init>", [], randomType),
+                method(randomName, "<init>", [.long], randomType),
+                method(randomName, "next", [.int], .int),
+                method(randomName, "nextInt", [], .int),
+                method(randomName, "nextInt", [.int], .int),
+                method(randomName, "nextLong", [], .long),
+                method(randomName, "nextBoolean", [], .boolean),
+                method(randomName, "nextDouble", [], .double),
+                method(randomName, "nextFloat", [], .float),
+                method(randomName, "nextBytes", [.reference("[B", nullable: false)], .unit),
+                method(randomName, "setSeed", [.long], .unit),
+            ]
+            let source = """
+                package java.util
+                open class Random {
+                    constructor()
+                    constructor(seed: Long)
+                    protected open fun next(bits: Int): Int = 0
+                    open fun nextInt(): Int = 0
+                    open fun nextInt(bound: Int): Int = 0
+                    open fun nextLong(): Long = 0L
+                    open fun nextBoolean(): Boolean = false
+                    open fun nextDouble(): Double = 0.0
+                    open fun nextFloat(): Float = 0.0f
+                    open fun nextBytes(bytes: ByteArray) {}
+                    open fun setSeed(seed: Long) {}
+                }
+                """
+            let info = JVMClassInfo(name: randomName, flags: 0x0001, superclass: "java/lang/Object",
+                                    interfaces: ["java/io/Serializable"], methods: methods)
+            let file = ctx.sourceManager.addFile(path: "<kswiftk-jvm>/platform/java/util/Random.kt",
+                                                 contents: Data(source.utf8), origin: .residualStdlib)
+            sourceClasses[file] = info
+            classes[randomName] = info
+        }
+        let instantName = "java/time/Instant"
+        if classes[instantName] == nil {
+            let instantType = JVMValueType.reference(instantName, nullable: false)
+            let methods = [
+                method(instantName, "now", [], instantType, staticMember: true),
+                method(instantName, "ofEpochSecond", [.long, .long], instantType, staticMember: true),
+                method(instantName, "getEpochSecond", [], .long),
+                method(instantName, "getNano", [], .int),
+            ]
+            let source = """
+                package java.time
+                class Instant private constructor() {
+                    fun getEpochSecond(): Long = 0L
+                    fun getNano(): Int = 0
+                    companion object {
+                        external fun now(): Instant
+                        external fun ofEpochSecond(epochSecond: Long, nanoAdjustment: Long): Instant
+                    }
+                }
+                """
+            let info = JVMClassInfo(name: instantName, flags: 0x0011, superclass: "java/lang/Object",
+                                    interfaces: [], methods: methods)
+            let file = ctx.sourceManager.addFile(path: "<kswiftk-jvm>/platform/java/time/Instant.kt",
+                                                 contents: Data(source.utf8), origin: .residualStdlib)
+            sourceClasses[file] = info
+            classes[instantName] = info
+        }
+        let durationName = "java/time/Duration"
+        if classes[durationName] == nil {
+            let durationType = JVMValueType.reference(durationName, nullable: false)
+            let methods = [
+                method(durationName, "ofSeconds", [.long, .long], durationType, staticMember: true),
+                method(durationName, "getSeconds", [], .long),
+                method(durationName, "getNano", [], .int),
+            ]
+            let source = """
+                package java.time
+                class Duration private constructor() {
+                    fun getSeconds(): Long = 0L
+                    fun getNano(): Int = 0
+                    companion object {
+                        external fun ofSeconds(seconds: Long, nanoAdjustment: Long): Duration
+                    }
+                }
+                """
+            let info = JVMClassInfo(name: durationName, flags: 0x0011, superclass: "java/lang/Object",
+                                    interfaces: [], methods: methods)
+            let file = ctx.sourceManager.addFile(path: "<kswiftk-jvm>/platform/java/time/Duration.kt",
+                                                 contents: Data(source.utf8), origin: .residualStdlib)
+            sourceClasses[file] = info
+            classes[durationName] = info
+        }
+        let closeableName = "java/io/Closeable"
+        if classes[closeableName] == nil {
+            classes[closeableName] = JVMClassInfo(name: closeableName, flags: 0x0601, superclass: nil,
+                                                interfaces: ["java/lang/AutoCloseable"], methods: [])
+        }
+
         // The generic Kotlin declaration provides the Java collection shape;
         // associate its implicit constructor with the real JDK owner so a
         // fully qualified `java.util.ArrayList()` call is emitted as `new`.
@@ -511,6 +619,74 @@ extension JVMClasspathIndex {
             )
             sourceClasses[file] = info
             classes[info.name] = info
+        }
+
+        // The stdlib-jar contracts in declarations/JavaCollections.kt describe
+        // the JDK abstract collection bases the kotlin.collections sources
+        // extend. Consumer builds resolve them from the real classpath; the
+        // stdlib-only build has no classpath, so register the same erased
+        // signatures when the file was injected and nothing provided them.
+        let javaCollectionsPath = "<kswiftk-jvm>/javaCollections.kt"
+        if ctx.sourceManager.fileIDs().contains(where: { ctx.sourceManager.path(of: $0) == javaCollectionsPath }) {
+            let collection: JVMValueType = .reference("java/util/Collection", nullable: false)
+            let set: JVMValueType = .reference("java/util/Set", nullable: false)
+            let iterator: JVMValueType = .reference("java/util/Iterator", nullable: false)
+            let listIterator: JVMValueType = .reference("java/util/ListIterator", nullable: false)
+            let collectionBases: [(String, [JVMForeignMethod])] = [
+                ("java/util/AbstractCollection", [
+                    method("java/util/AbstractCollection", "<init>", [], .reference("java/util/AbstractCollection", nullable: false)),
+                    method("java/util/AbstractCollection", "size", [], .int),
+                    method("java/util/AbstractCollection", "isEmpty", [], .boolean),
+                    method("java/util/AbstractCollection", "contains", [object], .boolean),
+                    method("java/util/AbstractCollection", "iterator", [], iterator),
+                ]),
+                ("java/util/AbstractSet", [
+                    method("java/util/AbstractSet", "<init>", [], .reference("java/util/AbstractSet", nullable: false)),
+                    method("java/util/AbstractSet", "size", [], .int),
+                    method("java/util/AbstractSet", "isEmpty", [], .boolean),
+                    method("java/util/AbstractSet", "contains", [object], .boolean),
+                    method("java/util/AbstractSet", "iterator", [], iterator),
+                ]),
+                ("java/util/AbstractList", [
+                    method("java/util/AbstractList", "<init>", [], .reference("java/util/AbstractList", nullable: false)),
+                    method("java/util/AbstractList", "size", [], .int),
+                    method("java/util/AbstractList", "isEmpty", [], .boolean),
+                    method("java/util/AbstractList", "contains", [object], .boolean),
+                    method("java/util/AbstractList", "get", [.int], object),
+                    method("java/util/AbstractList", "listIterator", [], listIterator),
+                    method("java/util/AbstractList", "listIterator", [.int], listIterator),
+                ]),
+                ("java/util/AbstractMap", [
+                    method("java/util/AbstractMap", "<init>", [], .reference("java/util/AbstractMap", nullable: false)),
+                    method("java/util/AbstractMap", "size", [], .int),
+                    method("java/util/AbstractMap", "isEmpty", [], .boolean),
+                    method("java/util/AbstractMap", "containsKey", [object], .boolean),
+                    method("java/util/AbstractMap", "get", [object], object),
+                    method("java/util/AbstractMap", "keySet", [], set),
+                    method("java/util/AbstractMap", "values", [], collection),
+                    method("java/util/AbstractMap", "entrySet", [], set),
+                ]),
+                ("java/util/ListIterator", [
+                    method("java/util/ListIterator", "hasPrevious", [], .boolean, interface: true),
+                    method("java/util/ListIterator", "previous", [], object, interface: true),
+                    method("java/util/ListIterator", "nextIndex", [], .int, interface: true),
+                    method("java/util/ListIterator", "previousIndex", [], .int, interface: true),
+                    method("java/util/ListIterator", "add", [object], .unit, interface: true),
+                    method("java/util/ListIterator", "set", [object], .unit, interface: true),
+                    method("java/util/ListIterator", "remove", [], .unit, interface: true),
+                ]),
+                ("java/util/RandomAccess", []),
+            ]
+            for (name, members) in collectionBases where classes[name] == nil {
+                let isInterface = name == "java/util/ListIterator" || name == "java/util/RandomAccess"
+                classes[name] = JVMClassInfo(
+                    name: name,
+                    flags: isInterface ? 0x0601 : 0x0401,
+                    superclass: isInterface ? nil : "java/lang/Object",
+                    interfaces: [],
+                    methods: members
+                )
+            }
         }
 
         // The bundled `kotlin.Comparator` declaration erases to the JDK

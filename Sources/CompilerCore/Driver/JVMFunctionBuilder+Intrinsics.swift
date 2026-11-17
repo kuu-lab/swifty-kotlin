@@ -26,9 +26,10 @@ extension JVMFunctionBuilder {
         var args: [JVMValue] = []
         for (arg, type) in zip(arguments, parameters) { args.append(try convert(arg, to: type)) }
         let method = JVMForeignMethod(owner: owner, name: name, descriptor: "(" + parameters.map(\.descriptor).joined() + ")" + resultType.descriptor, parameters: parameters, result: resultType, isStatic: receiver == nil, isInterface: interface, isAbstract: false)
-        let result = resultType == .unit ? nil : try value(resolved ?? resultType)
+        let logical = resolved ?? resultType
+        let result = resultType == .unit ? nil : try value(foreignResultType(resultType, resolved: logical))
         instructions.append(.foreignCall(method, receiver: receiver, arguments: args, result: result))
-        return result
+        return try result.map { try convert($0, to: logical) }
     }
     func constructJDK(_ name: String, parameters: [JVMValueType] = [], arguments: [JVMValue] = []) throws -> JVMValue {
         let object = try value(.reference(name, nullable: false))
@@ -306,6 +307,13 @@ extension JVMFunctionBuilder {
 
     func intrinsicMember(_ receiverID: ExprID, name: InternedString, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
         let member = context.interner.resolve(name)
+        if member == "readBytes", args.isEmpty, let callee = program.sema.bindings.callBinding(for: id)?.chosenCallee,
+           program.sema.symbols.externalLinkName(for: callee) == "__kk_input_stream_readAllBytes" {
+            return JVMIntrinsicResult(value: try jdkCall(
+                "kotlin/io/ByteStreamsKt", "readBytes", [.reference("java/io/InputStream", nullable: false)],
+                .reference("[B", nullable: false), arguments: [requireValue(receiverID)]
+            ))
+        }
         if let sourceType = try? program.expressionType(receiverID), sourceType.referenceName == "java/lang/Object" {
             let object = try requireValue(receiverID)
             // `x.toString()`/`hashCode()` on a nullable Any? resolve to the
@@ -457,8 +465,9 @@ extension JVMFunctionBuilder {
             let array: JVMValueType = .reference(owner == "[I" ? "[I" : "[Ljava/lang/Object;", nullable: false)
             return JVMIntrinsicResult(value: try jdkCall("kotlin/collections/ArraysKt", "getIndices", [array], .reference("kotlin/ranges/IntRange", nullable: false), arguments: [requireValue(receiverID)]))
         }
-        if owner == "[I", member == "lastIndex", args.isEmpty {
-            return JVMIntrinsicResult(value: try jdkCall("kotlin/collections/ArraysKt", "getLastIndex", [.reference("[I", nullable: false)], .int, arguments: [requireValue(receiverID)]))
+        if member == "lastIndex", args.isEmpty, owner == "[I" || owner.hasPrefix("[L") || owner.hasPrefix("[[") {
+            let array: JVMValueType = .reference(owner == "[I" ? "[I" : "[Ljava/lang/Object;", nullable: false)
+            return JVMIntrinsicResult(value: try jdkCall("kotlin/collections/ArraysKt", "getLastIndex", [array], .int, arguments: [requireValue(receiverID)]))
         }
         if owner.hasPrefix("["), member == "size", args.isEmpty {
             let source = try requireValue(receiverID), result = try value(.int)

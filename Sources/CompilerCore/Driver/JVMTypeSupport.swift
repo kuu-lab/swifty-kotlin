@@ -7,6 +7,7 @@ extension JVMClasspathIndex {
     static let exceptionNames: Set<String> = ["NoSuchElementException", "UnsupportedOperationException", "Throwable", "Error", "Exception", "RuntimeException", "IllegalArgumentException", "IllegalStateException", "IndexOutOfBoundsException", "ArrayIndexOutOfBoundsException", "ArithmeticException", "NumberFormatException", "NullPointerException", "ClassCastException", "NegativeArraySizeException", "OutOfMemoryError"]
     static func builtinName(_ name: String) -> String? {
         if name == "java/util/MapEntry" { return "java/util/Map$Entry" }
+        if name == "java/io/InputStream" { return name }
         if ["java/util/AbstractCollection", "java/util/RandomAccess", "java/util/AbstractList", "java/util/AbstractSet", "java/util/AbstractMap", "java/util/ListIterator"].contains(name) { return name }
         if name == "kotlin/collections/AbstractList" || name == "kotlin/collections/AbstractSet" { return name }
         if ["kotlin/Function", "kotlin/Lazy", "kotlin/LazyThreadSafetyMode", "kotlin/reflect/KProperty", "kotlin/reflect/KMutableProperty", "kotlin/NotImplementedError", "kotlin/UninitializedPropertyAccessException", "kotlin/properties/ReadOnlyProperty", "kotlin/properties/ReadWriteProperty", "kotlin/properties/Delegates"].contains(name) { return name }
@@ -79,7 +80,7 @@ extension JVMProgramBuilder {
         switch sema.types.kind(of: id) {
         case let .functionType(f):
             _ = try type(id)
-            return .function(try f.params.map(kotlinType), try kotlinType(f.returnType), receiver: try f.receiver.map(kotlinType), nullable: f.nullability != .nonNull, isSuspend: f.isSuspend)
+            return .function(try f.params.map(kotlinType), try kotlinType(f.returnType), receiver: try f.receiver.map(kotlinType), nullable: f.nullability != .nonNull, isSuspend: f.isSuspend, context: try f.contextReceivers.map(kotlinType))
         case .unit: return named("kotlin/Unit")
         case .nullableUnit: return named("kotlin/Unit", true)
         case let .nothing(nullability): return named("kotlin/Nothing", nullability == .nullable)
@@ -106,7 +107,7 @@ extension JVMProgramBuilder {
         switch sema.types.kind(of: id) {
         case let .functionType(f):
             let name = try type(id).referenceName!
-            let params = ([f.receiver].compactMap { $0 } + f.params)
+            let params = f.contextReceivers + [f.receiver].compactMap { $0 } + f.params
             func argument(_ t: TypeID) throws -> String { if case .unit = sema.types.kind(of: t) { return "Lkotlin/Unit;" }; return try signatureType(t, boxed: true) }
             return "L" + name + "<" + (try params.map { (parameterPosition ? "-" : "") + (try argument($0)) }).joined() + (f.isSuspend ? "-Lkotlin/coroutines/Continuation<-" + (try argument(f.returnType)) + ">;Ljava/lang/Object;" : (parameterPosition ? "+" : "") + (try argument(f.returnType))) + ">;"
         case let .kClassType(t): return "Lkotlin/reflect/KClass<" + (try signatureType(t.argument, boxed: true)) + ">;"
@@ -273,7 +274,8 @@ extension JVMProgramBuilder {
         f.genericSignature = (f.typeParameters.isEmpty ? "" : "<" + f.typeParameters.map(\.signature).joined() + ">") + "(" + (try ((f.kotlinReceiver == nil ? [] : [signature.receiverType].compactMap { $0 }) + signature.parameterTypes).map { try signatureType($0, parameterPosition: true) }).joined() + ")" + (f.isConstructor ? "V" : try signatureType(signature.returnType))
         if let symbol = sourceDeclaration?.key, jvmComposableFunctions.contains(symbol),
            let closing = f.genericSignature?.lastIndex(of: ")") {
-            f.genericSignature?.insert(contentsOf: JVMCompose.suffix.map(\.descriptor).joined(), at: closing)
+            let hiddenParameters = f.reference.parameters.dropFirst(signature.parameterTypes.count)
+            f.genericSignature?.insert(contentsOf: hiddenParameters.map(\.descriptor).joined(), at: closing)
         }
         if let declaration, declaration.valueParams.contains(where: \.isVararg) {
             let prefix = f.typeParameters.isEmpty ? "" : "<" + f.typeParameters.map(\.signature).joined() + ">"

@@ -120,7 +120,7 @@ public struct JVMValue {
     public let type: JVMValueType
 }
 
-public enum JVMConstant {
+public enum JVMConstant: Sendable {
     case int(Int32), long(Int64), float(Float), double(Double), boolean(Bool), string(String)
     case null
 }
@@ -254,7 +254,7 @@ public struct JVMProgram {
     public var typeAliases: [JVMTypeAlias] = []
 }
 
-public struct JVMForeignMethod {
+public struct JVMForeignMethod: Sendable {
     public let owner: String
     public let name: String
     public let descriptor: String
@@ -273,6 +273,9 @@ public struct JVMForeignMethod {
     // Classpath methods keep their physical descriptor until bound to a Kotlin call.
     var kotlinSuspendFunction: JVMKotlinSuspendFunction?
     var genericResultParameter: (name: String, classParameterIndices: Set<Int>)?
+    var kotlinOwnerResultParameter: String?
+    var kotlinConstructorParameterNames: [String]?
+    var kotlinCollisionSourceName: String?
     var kotlinFunction: JVMKotlinFunction?
     public var isConstructor: Bool { name == "<init>" }
 }
@@ -294,6 +297,7 @@ public struct JVMProperty {
     public var setter: JVMForeignMethod?
     public var field: JVMField?
     public var isImportedField = false
+    public var readsStaticField = false
     public let modifiers: Modifiers
     public var kotlinType: JVMKotlinType? = nil
     public var kotlinReceiver: JVMKotlinType? = nil
@@ -308,6 +312,7 @@ public struct JVMProperty {
     var isDirectField = false
     public var isGetterInline: Bool = false
     public var isSetterInline: Bool = false
+    var accessesForeignField = false
 }
 
 public struct JVMRecordComponent {
@@ -387,7 +392,7 @@ public indirect enum JVMKotlinType {
     case named(String, [JVMKotlinTypeArgument], nullable: Bool)
     case parameter(Int, nullable: Bool, definitelyNotNull: Bool)
     case flexible(JVMKotlinType, JVMKotlinType)
-    case function([JVMKotlinType], JVMKotlinType, receiver: JVMKotlinType?, nullable: Bool, isSuspend: Bool = false)
+    case function([JVMKotlinType], JVMKotlinType, receiver: JVMKotlinType?, nullable: Bool, isSuspend: Bool = false, context: [JVMKotlinType] = [])
 }
 public struct JVMKotlinTypeArgument {
     public let type: JVMKotlinType?
@@ -404,7 +409,7 @@ public struct JVMTypeParameter {
     public var isReified = false
 }
 
-public struct JVMAnnotation {
+public struct JVMAnnotation: Sendable {
     public let descriptor: String
     public var values: [(String, JVMAnnotationValue)]
     public var visible: Bool = true
@@ -412,7 +417,7 @@ public struct JVMAnnotation {
         self.descriptor = descriptor; self.values = values; self.visible = visible
     }
 }
-public indirect enum JVMAnnotationValue {
+public indirect enum JVMAnnotationValue: Sendable {
     case constant(JVMConstant)
     case integral(Int32, UInt8)
     case enumEntry(String, String)

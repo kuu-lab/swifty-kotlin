@@ -26,10 +26,13 @@ extension JVMFunctionBuilder {
         instructions.append(.getStatic(field, value)); return value
     }
     func importedCompanionValue(for ownerSymbol: SymbolID) throws -> JVMValue? {
-        guard let companion = program.sema.symbols.companionObjectSymbol(for: ownerSymbol) else { return nil }
+        let symbols = program.sema.symbols
+        guard let companion = symbols.companionObjectSymbol(for: ownerSymbol),
+              let companionSymbol = symbols.symbol(companion) else { return nil }
+        let fieldName = context.interner.resolve(companionSymbol.name)
         let owner = try program.className(ownerSymbol), companionName = try program.className(companion)
         guard let imported = context.jvmImports?.classes[owner],
-              let field = imported.fields.first(where: { $0.name == "Companion" && $0.isPublic && $0.isStatic && $0.descriptor == "L\(companionName);" }) else { return nil }
+              let field = imported.fields.first(where: { $0.name == fieldName && $0.isPublic && $0.isStatic && $0.descriptor == "L\(companionName);" }) else { return nil }
         let type = JVMValueType.reference(companionName, nullable: false), result = try value(type)
         instructions.append(.getStatic(JVMField(owner: owner, name: field.name, type: type, access: field.access), result))
         return result
@@ -81,6 +84,18 @@ extension JVMFunctionBuilder {
         if let plan = program.classes[symbol], plan.isObject { return try singleton(plan) }
         if let companion = program.sema.symbols.companionObjectSymbol(for: symbol), let plan = program.classes[companion], plan.isObject { return try singleton(plan) }
         if let result = try importedCompanionValue(for: symbol) { return result }
+        if let parent = program.sema.symbols.parentSymbol(for: symbol),
+           program.sema.symbols.companionObjectSymbol(for: parent) == symbol,
+           let result = try importedCompanionValue(for: parent) { return result }
+        if program.sema.symbols.symbol(symbol)?.kind == .object,
+           let owner = try? program.className(symbol), let imported = context.jvmImports?.classes[owner],
+           let singleton = imported.fields.first(where: {
+               $0.name == "INSTANCE" && $0.isPublic && $0.isStatic && $0.descriptor == "L\(owner);"
+           }) {
+            let type = JVMValueType.reference(owner, nullable: false), result = try value(type)
+            instructions.append(.getStatic(JVMField(owner: owner, name: singleton.name, type: type, access: singleton.access), result))
+            return result
+        }
         if let entry = program.sema.symbols.symbol(symbol), entry.kind == .field,
            let parent = program.sema.symbols.parentSymbol(for: symbol), let plan = program.classes[parent], plan.isEnum,
            plan.declaration!.enumEntries.contains(where: { $0.name == entry.name }) {
@@ -136,36 +151,8 @@ extension JVMFunctionBuilder {
             }
             return JVMIntrinsicResult(value: try jdkCall(plan.name, "copy", method.parameters, method.result, receiver: object, arguments: values, resolved: program.expressionType(id)))
         }
-        if receiver == nil, args.isEmpty,
-           let target = program.sema.bindings.callBinding(for: id)?.chosenCallee,
-           let symbol = program.sema.symbols.symbol(target), symbol.flags.contains(.synthetic),
-           context.interner.resolve(symbol.name) == "values" {
-            let parent = program.sema.symbols.parentSymbol(for: target)
-            // A resolved parent that is not in program.classes is an imported
-            // enum — falling back to self.owner would emit the current class's
-            // values(). Only fall back when there is no resolved parent at all.
-            let owner = parent.flatMap { program.classes[$0] } ?? (parent == nil ? self.owner : nil)
-            if let owner, let plan = owner.companionOwner.flatMap({ program.classes[$0] }) ?? (owner.isEnum ? owner : nil),
-               plan.isEnum {
-                return JVMIntrinsicResult(value: try jdkCall(plan.name, "values", [], program.enumValuesField(plan).type))
-            }
-        }
         guard let receiver, let name else { return nil }
         let receiverSymbol = program.sema.bindings.identifierSymbol(for: receiver)
-        if let receiverSymbol,
-           program.sema.symbols.symbol(receiverSymbol)?.kind == .enumClass,
-           let owner = try? program.className(receiverSymbol),
-           let imported = context.jvmImports?.classes[owner], imported.flags & 0x4000 != 0,
-           let method = imported.methods.first(where: {
-               switch name {
-               case "values": $0.isStatic && $0.name == name && $0.descriptor == "()[L\(owner);"
-               case "valueOf": $0.isStatic && $0.name == name && $0.descriptor == "(Ljava/lang/String;)L\(owner);"
-               default: false
-               }
-           }),
-           args.count == method.parameters.count {
-            return JVMIntrinsicResult(value: try foreign(method, receiver: nil, args: args, id: id))
-        }
         let enumPlan = receiverSymbol.flatMap { program.classes[$0] }
         if let plan = enumPlan, plan.isEnum, ["values", "valueOf", "entries"].contains(name) {
             let params: [JVMValueType] = name == "valueOf" ? [.string] : []

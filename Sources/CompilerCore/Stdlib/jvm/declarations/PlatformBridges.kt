@@ -1,4 +1,22 @@
 package kotlin.jvm.internal
+fun __jvmSuppressedExceptions(throwable: Throwable): Array<Throwable> = null!!
+
+fun __jvmFileName(file: java.io.File): String = null!!
+
+fun __jvmCloseResource(resource: java.io.Closeable) {}
+fun __jvmByteArrayOutputStream(size: Int): Any = null!!
+fun __jvmInputStreamAvailable(stream: java.io.InputStream): Int = 0
+fun __jvmInputStreamRead(stream: java.io.InputStream, buffer: ByteArray): Int = 0
+fun __jvmOutputStreamWrite(stream: Any, buffer: ByteArray, offset: Int, length: Int) {}
+fun __jvmOutputStreamToBytes(stream: Any): ByteArray = null!!
+fun __jvmCharDigit(character: Char, radix: Int): Int = 0
+
+fun __jvmStringWriter(): Any = null!!
+fun __jvmPrintWriter(writer: Any): Any = null!!
+fun __jvmPrintStackTrace(error: Throwable, writer: Any) {}
+fun __jvmThreadLocalRandom(): Any = null!!
+fun __jvmThreadLocalRandomNextInt(random: Any): Int = 0
+
 fun <T> __jvmNewList(): kotlin.collections.MutableList<T> = null!!
 fun <T> __jvmNewSet(): kotlin.collections.MutableSet<T> = null!!
 fun <K, V> __jvmNewMap(): kotlin.collections.MutableMap<K, V> = null!!
@@ -129,6 +147,8 @@ fun __jvmUIntString(value: Int): String = null!!
 fun __jvmULongString(value: Long): String = null!!
 fun __jvmUIntCompare(first: Int, second: Int): Int = 0
 fun __jvmULongCompare(first: Long, second: Long): Int = 0
+fun __jvmMonitorEnter(lock: Any) {}
+fun __jvmMonitorExit(lock: Any) {}
 fun __jvmClassName(type: Any): String = null!!
 fun __jvmClassSimpleName(type: Any): String = null!!
 fun __jvmClassModifiers(type: Any): Int = 0
@@ -175,6 +195,7 @@ fun __jvmDeepHash(values: Array<Any?>): Int = 0
 fun __jvmDeepString(values: Array<Any?>): String = null!!
 fun <T> __jvmCopyArray(array: Array<T>, size: Int): Array<T> = null!!
 fun __jvmUtf8String(bytes: ByteArray, charset: String): String = null!!
+fun __jvmUtf8Bytes(value: String, charset: String): ByteArray = null!!
 fun <T> __jvmUnmodifiableSet(value: Set<T>): Set<T> = null!!
 fun __jvmUIntDivide(first: Int, second: Int): Int = 0
 fun __jvmUIntRemainder(first: Int, second: Int): Int = 0

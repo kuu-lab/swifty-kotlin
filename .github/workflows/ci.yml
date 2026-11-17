@@ -1,10 +1,12 @@
 name: CI
 
-# Minimal gate for pull requests and the merge queue: repository checks, a
-# debug build of the compiler and every test target under strict concurrency,
-# and SmokeTests. The full verification suite (all test targets and the
-# kotlinc diff corpus at -O0/-O2) runs once every morning in
-# nightly-full.yml.
+# Minimal gate for pull requests and the merge queue: repository checks,
+# a single debug build of every source and test target, and SmokeTests.
+# A per-target build matrix was measured to add ~180 runner-minutes per PR
+# while surfacing the same shared-dependency compile errors, so the full
+# build is consolidated into one job. The full verification suite (all test
+# targets and the kotlinc diff corpus at -O0/-O2) runs once every morning
+# in nightly-full.yml.
 
 on:
   pull_request:

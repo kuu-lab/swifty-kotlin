@@ -1,6 +1,5 @@
 package kotlin.ranges
 
-import kotlin.internal.getProgressionLastElement
 class LongRange(first: Long, last: Long): LongProgression(first, last, 1L), ClosedRange<Long>, OpenEndRange<Long> {
     override fun iterator(): kotlin.collections.LongIterator = LongRangeIterator(first, last)
 
@@ -55,6 +54,22 @@ public open class LongProgression(public val first: Long, last: Long, public val
     companion object {
         public fun fromClosedRange(rangeStart: Long, rangeEnd: Long, step: Long): LongProgression = LongProgression(rangeStart, rangeEnd, step)
     }
+}
+
+// a mod b (in arithmetical sense)
+private fun progressionMod(a: Long, b: Long): Long {
+    val mod = a % b
+    return if (mod >= 0L) mod else mod + b
+}
+
+// (a - b) mod c
+private fun progressionDifferenceModulo(a: Long, b: Long, c: Long): Long =
+    progressionMod(progressionMod(a, c) - progressionMod(b, c), c)
+
+private fun getProgressionLastElement(start: Long, end: Long, step: Long): Long = when {
+    step > 0L -> if (start >= end) end else end - progressionDifferenceModulo(end, start, step)
+    step < 0L -> if (start <= end) end else end + progressionDifferenceModulo(start, end, -step)
+    else -> throw IllegalArgumentException("Step is zero.")
 }
 
 private class LongProgressionIterator(first: Long, private val last: Long, private val step: Long): kotlin.collections.LongIterator() {
