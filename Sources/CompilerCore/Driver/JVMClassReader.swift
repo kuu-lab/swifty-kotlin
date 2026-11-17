@@ -568,6 +568,7 @@ struct JVMClassReader {
                 }
                 method.annotations = methodInfo.annotations
                 method.annotationDefault = methodInfo.annotationDefault
+                method.genericSignature = methodInfo.signature
                 if isSyntheticConstructor { syntheticConstructors.append(method) }
                 else if isDefaultArgumentMethod { defaultArgumentMethods.append(method) }
                 else if access & 0x0040 != 0 { bridgeMethods.append(method) }
