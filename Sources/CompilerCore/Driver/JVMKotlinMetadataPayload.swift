@@ -49,13 +49,16 @@ struct JVMKotlinFunction {
     var isInfix = false
     var valueOperatorParameterDescriptors: [String]?
     var mangledMemberParameterDescriptors: [String]?
+    var mangledExtensionReceiverDescriptor: String?
     var isGenericFinalGetter = false
     var hasStableFinalParameters = false
 
     var leadingParameterCount: Int { contextParameters.count + (receiver == nil ? 0 : 1) }
     var composableParameters: Set<Int> {
         Set(parameters.indices.filter {
-            parameters[$0].sourceType.hasPrefix("@androidx.compose.runtime.Composable ")
+            let sourceType = parameters[$0].sourceType
+            return sourceType.hasPrefix("@androidx.compose.runtime.Composable ")
+                || sourceType.hasPrefix("@androidx.compose.runtime.Composable (")
         })
     }
     var hasInlineContextCallback: Bool {
@@ -530,6 +533,12 @@ struct JVMKotlinMetadataPayload {
                     return .reference("[" + element.descriptor, nullable: nullable)
                 }
             }
+            if let arity = functionArity(name) {
+                let suspend = name.hasPrefix("kotlin/SuspendFunction")
+                let physicalArity = arity + (suspend ? 1 : 0)
+                let interfaceArity = physicalArity > 22 ? "N" : String(physicalArity)
+                return .reference("kotlin/jvm/functions/Function" + interfaceArity, nullable: nullable)
+            }
             let binaryName = name.replacingOccurrences(of: ".", with: "$")
             let carrier = JVMClasspathIndex.builtinName(binaryName) ?? binaryName
             guard (try? JVMDescriptor.parse("()L" + carrier + ";")) != nil else { return nil }
@@ -635,6 +644,12 @@ struct JVMKotlinMetadataPayload {
                 && JVMKotlinFunction.valueOperators.contains(name) && descriptor != nil
             let isMangledMember = isFileFacade != true && receiver == nil && contextParameters.isEmpty
                 && jvmName?.hasPrefix(name + "-") == true && descriptor != nil && !isValueClass
+            let mangledExtensionReceiverDescriptor: String? = if isFileFacade != true, contextParameters.isEmpty,
+                jvmName?.hasPrefix(name + "-") == true, let receiver {
+                try Self.resultType(receiver, types: types, names: names)?.descriptor
+            } else {
+                nil
+            }
             let hasStableScalarParameters = hasStableFinalParameters && !isMangledMember
                 && parameters.allSatisfy { parameter in
                     parameter.sourceType == "kotlin.String"
@@ -687,6 +702,7 @@ struct JVMKotlinMetadataPayload {
                 isInfix: isInfix,
                 valueOperatorParameterDescriptors: isValueOperator ? logicalParameterDescriptors : nil,
                 mangledMemberParameterDescriptors: isMangledMember ? logicalParameterDescriptors : nil,
+                mangledExtensionReceiverDescriptor: mangledExtensionReceiverDescriptor,
                 isGenericFinalGetter: isGenericFinalGetter,
                 hasStableFinalParameters: hasStableScalarParameters
             ))

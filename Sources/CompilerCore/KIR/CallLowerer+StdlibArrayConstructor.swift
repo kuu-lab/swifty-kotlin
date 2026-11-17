@@ -176,17 +176,76 @@ extension CallLowerer {
             }
         } else {
             guard let actionExpr = evaluated[initializerIndex] else { return nil }
+            let actionResult = arena.appendTemporary(type: anyType)
             if let callableInfo = driver.ctx.callableValueInfo(for: actionExpr) {
-                let actionResult = arena.appendTemporary(type: anyType)
+                // The index lands in the callee's first declared parameter
+                // (or receiver, for an extension-function reference): a raw
+                // Int for `(Int) -> X` callees, but an erased `Any`-slot box
+                // for contravariant ones such as `(Any) -> Int`.
+                let needsBoxedIndex: Bool
+                if let signature = sema.symbols.functionSignature(for: callableInfo.symbol),
+                   let firstParam = signature.receiverType ?? signature.parameterTypes.first {
+                    if case .primitive(.int, _) = sema.types.kind(of: sema.types.makeNonNullable(firstParam)) {
+                        needsBoxedIndex = false
+                    } else {
+                        needsBoxedIndex = true
+                    }
+                } else {
+                    needsBoxedIndex = false
+                }
+                let indexArg: KIRExprID
+                if needsBoxedIndex {
+                    indexArg = boxValueForAnySlot(
+                        indexExpr,
+                        sourceType: intType,
+                        types: sema.types,
+                        symbols: sema.symbols,
+                        interner: interner,
+                        arena: arena,
+                        requireNonNull: true,
+                        sema: sema,
+                        into: &instructions
+                    )
+                } else {
+                    indexArg = indexExpr
+                }
                 instructions.append(.call(
                     symbol: callableInfo.symbol,
                     callee: callableInfo.callee,
-                    arguments: callableInfo.captureArguments + [indexExpr],
+                    arguments: callableInfo.captureArguments + [indexArg],
                     result: actionResult,
                     canThrow: true
                 ))
-                lambdaResultExpr = actionResult
+            } else {
+                // A plain function-typed value (parameter, property, ...)
+                // carries no KIRCallableValueInfo fast path; dispatch it
+                // through the generic runtime invoke so the initializer
+                // actually runs instead of silently leaving zero-init slots.
+                // kk_function_invoke's argument slot is an erased `Any`
+                // value, so the raw Int index must be boxed first — an init
+                // whose declared parameter is broader than Int (e.g.
+                // `(Any) -> Int`, accepted via parameter contravariance)
+                // would otherwise see a bare integer and `is`/member checks
+                // on it would misbehave. Mirrors the invoke-operator path.
+                let boxedIndex = boxValueForAnySlot(
+                    indexExpr,
+                    sourceType: intType,
+                    types: sema.types,
+                    symbols: sema.symbols,
+                    interner: interner,
+                    arena: arena,
+                    requireNonNull: true,
+                    sema: sema,
+                    into: &instructions
+                )
+                instructions.append(.call(
+                    callee: interner.intern("kk_function_invoke"),
+                    arguments: [actionExpr, boxedIndex],
+                    result: actionResult,
+                    canThrow: true
+                ))
             }
+            lambdaResultExpr = actionResult
         }
 
         if let lambdaResult = lambdaResultExpr {

@@ -64,6 +64,11 @@ extension JVMFunctionBuilder {
             return try jdkCall("java/util/Comparator", "compare", [object, object], .int, receiver: comparator, arguments: values, interface: true)
         }
         let source = try requireValue(receiver)
+        if member == "not", source.type == .boolean, args.isEmpty, typeArgs.isEmpty {
+            let result = try value(.boolean)
+            instructions.append(.unary(.not, source, result))
+            return result
+        }
         let targets = Self.numericConversions
         guard source.type.isNumeric, args.isEmpty, typeArgs.isEmpty,
               let target = targets[context.interner.resolve(name)] else { throw fail("Unsupported JVM member: \(context.interner.resolve(name)).", id) }

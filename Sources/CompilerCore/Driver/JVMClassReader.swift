@@ -1,6 +1,6 @@
 import Foundation
 
-struct JVMClassInfo: Sendable {
+struct JVMClassInfo {
     let name: String
     let flags: UInt16
     let superclass: String?
@@ -550,8 +550,10 @@ struct JVMClassReader {
             let isValueAdapter = hasKotlinMetadata && ["box-impl", "unbox-impl", "constructor-impl"].contains(methodName)
             let isReifiedGlanceAction = hasKotlinMetadata && name == "androidx/glance/action/StartActivityActionKt"
                 && methodName == "actionStartActivity" && descriptor == "(Landroidx/glance/action/ActionParameters;)Landroidx/glance/action/Action;"
+            let isReifiedWorkBuilder = hasKotlinMetadata && name == "androidx/work/OneTimeWorkRequestKt"
+                && methodName == "OneTimeWorkRequestBuilder" && descriptor == "()Landroidx/work/OneTimeWorkRequest$Builder;"
             if access & 0x0005 != 0,
-               (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod || isValueAdapter || isSyntheticConstructor || isReifiedGlanceAction), methodName != "<clinit>",
+               (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod || isValueAdapter || isSyntheticConstructor || isReifiedGlanceAction || isReifiedWorkBuilder), methodName != "<clinit>",
                let signature = try? (descriptorCache?.parse(descriptor) ?? JVMDescriptor.parse(descriptor)),
                signature.0.reduce(0, { $0 + $1.width }) <= (access & 8 != 0 ? 255 : 254) {
                 var method = JVMForeignMethod(owner: name, name: methodName, descriptor: descriptor,
@@ -561,6 +563,11 @@ struct JVMClassReader {
                 method.isProtected = access & 0x0004 != 0
                 method.isVarargs = access & 0x0080 != 0
                 method.genericResultParameter = Self.genericResultParameter(in: methodInfo.signature, method: method)
+                if name == "androidx/work/WorkRequest$Builder", let signature = methodInfo.signature {
+                    for parameter in ["B", "W"] where signature.hasSuffix(")T\(parameter);") {
+                        method.kotlinOwnerResultParameter = parameter
+                    }
+                }
                 method.annotations = methodInfo.annotations
                 method.annotationDefault = methodInfo.annotationDefault
                 if isSyntheticConstructor { syntheticConstructors.append(method) }
@@ -799,9 +806,8 @@ struct JVMClassReader {
     }
 }
 
-final class JVMDescriptorCache: @unchecked Sendable {
+final class JVMDescriptorCache {
     private static let maximumEntries = 2_048
-    private let lock = NSLock()
     private var entries: [String: ([JVMValueType], JVMValueType)] = [:]
 
     func parse(_ descriptor: String) throws -> ([JVMValueType], JVMValueType) {
@@ -810,23 +816,13 @@ final class JVMDescriptorCache: @unchecked Sendable {
         guard descriptor.utf8.allSatisfy({ $0 < 0x80 }) else {
             return try JVMDescriptor.parse(descriptor)
         }
-        lock.lock()
-        if let signature = entries[descriptor] {
-            lock.unlock()
-            return signature
-        }
-        lock.unlock()
+        if let signature = entries[descriptor] { return signature }
 
-        // Concurrent readers may parse the same descriptor; the results are
-        // identical, so the last store wins.
         let signature = try JVMDescriptor.parse(descriptor)
-
-        lock.lock()
         entries[descriptor] = signature
         if entries.count == Self.maximumEntries {
             entries.removeAll(keepingCapacity: true)
         }
-        lock.unlock()
         return signature
     }
 }
