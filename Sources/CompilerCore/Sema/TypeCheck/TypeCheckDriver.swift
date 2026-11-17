@@ -79,7 +79,18 @@ final class TypeCheckDriver {
     var publishedInferredPropertyDecls: Set<DeclID> = []
     /// Object headers published for forward references, with bodies still unchecked.
     var predeclaredObjectLiteralDecls: Set<DeclID> = []
-    var inferredReturnFunctions: [SymbolID: (function: FunDecl, context: TypeInferenceContext)] = [:]
+    /// Ordered log of local nominal decls (object literals, local
+    /// classes/objects, typealiases) whose member check committed. A
+    /// speculative inferred-return check can roll its diagnostics back and
+    /// retry the declaration later; the bound symbols survive the rollback,
+    /// so without `pendingLocalNominalRechecks` the `ensure*` early returns
+    /// would skip their member checks and lose any errors inside them.
+    var localNominalDeclChecks: [DeclID] = []
+    /// Nominal decls whose speculative member check was rolled back; the
+    /// local `ensure*` paths consume a declID here to re-run the full check
+    /// even though a symbol binding already exists.
+    var pendingLocalNominalRechecks: Set<DeclID> = []
+    var inferredReturnFunctions: [SymbolID: (function: FunDecl, context: TypeInferenceContext, baseLocals: LocalBindings)] = [:]
     var checkingInferredReturnFunctions: Set<SymbolID> = []
     var checkedInferredReturnFunctions: Set<SymbolID> = []
     var inferredPropertyDeclarations: [SymbolID: (declaration: DeclID, property: PropertyDecl, context: TypeInferenceContext, initialLocals: LocalBindings)] = [:]
