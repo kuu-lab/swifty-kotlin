@@ -241,6 +241,25 @@ struct RuntimeBigDecimalTests {
     }
 
     @Test
+    func testBigDecimalNominalTypeChecks() {
+        var thrown = 0
+        let value = withFlatString("10.5") { data, length, byteCount, hash in
+            __kk_string_toBigDecimal_flat(data, length, byteCount, hash, &thrown)
+        }
+        #expect(thrown == 0)
+
+        let bigDecimalToken = nominalTypeToken(for: "java.math.BigDecimal")
+        #expect(kk_op_is(value, bigDecimalToken) == 1)
+        #expect(kk_op_is(value, nominalTypeToken(for: "kotlin.Number")) == 1)
+        #expect(kk_op_is(value, nominalTypeToken(for: "kotlin.Comparable")) == 1)
+        #expect(kk_op_is(value, nominalTypeToken(for: "java.math.BigInteger")) == 0)
+
+        var castThrown = 0
+        #expect(kk_op_cast(value, bigDecimalToken, &castThrown) == value)
+        #expect(castThrown == 0)
+    }
+
+    @Test
     func testBigDecimalMathContextDivision() {
         func box(_ text: String) -> Int {
             var thrown = 0
