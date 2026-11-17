@@ -14,6 +14,9 @@ extension JVMBackendTests {
                 println(comparator.compare("a", "b") < 0)
                 println(comparator.compare("b", "a") > 0)
                 println(comparator.compare("a", "a"))
+                val by = compareBy<String>({ it.length }, { it })
+                println(by.compare("b", "a") > 0)
+                println(by.compare("z", "aa") < 0)
             }
             """
             try source.write(to: root.appendingPathComponent("Probe.kt"), atomically: true, encoding: .utf8)
@@ -22,8 +25,9 @@ extension JVMBackendTests {
             try #require(compiled.exitCode == 0, "\(compiled.stderr)")
             let bytecode = try javap(["-c", "-cp", app.path, "ProbeKt"])
             #expect(bytecode.stdout.contains("kotlin/comparisons/ComparisonsKt.naturalOrder"))
+            #expect(bytecode.stdout.contains("kotlin/comparisons/ComparisonsKt.compareBy"))
             let candidate = try java(["-cp", app.path + ":" + stdlib.path, "ProbeKt"])
-            #expect(candidate.stdout == "true\ntrue\n0\n")
+            #expect(candidate.stdout == "true\ntrue\n0\ntrue\ntrue\n")
         }
     }
 }
