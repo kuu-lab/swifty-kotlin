@@ -531,6 +531,12 @@ struct JVMKotlinMetadataPayload {
                     return .reference("[" + element.descriptor, nullable: nullable)
                 }
             }
+            if let arity = functionArity(name) {
+                let suspend = name.hasPrefix("kotlin/SuspendFunction")
+                let physicalArity = arity + (suspend ? 1 : 0)
+                let interfaceArity = physicalArity > 22 ? "N" : String(physicalArity)
+                return .reference("kotlin/jvm/functions/Function" + interfaceArity, nullable: nullable)
+            }
             let binaryName = name.replacingOccurrences(of: ".", with: "$")
             let carrier = JVMClasspathIndex.builtinName(binaryName) ?? binaryName
             guard (try? JVMDescriptor.parse("()L" + carrier + ";")) != nil else { return nil }

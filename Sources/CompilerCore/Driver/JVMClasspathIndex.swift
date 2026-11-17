@@ -25,6 +25,7 @@ final class JVMClasspathIndex {
     var composeStaticContracts: [FileID: (method: JVMForeignMethod, composable: JVMCompose.ImportedCall?)] = [:]
     var importedComposeCalls: [SymbolID: JVMCompose.ImportedCall] = [:]
     var glanceActivityFile: FileID?
+    var oneTimeWorkRequestBuilderFile: FileID?
     var composeContentSymbols: Set<SymbolID> = []
 
     private(set) var fallbackClassFiles: [(String, Data)] = []
@@ -317,14 +318,31 @@ final class JVMClasspathIndex {
             .sorted { ($0.innerName ?? "") < ($1.innerName ?? "") }
         var source = ""
         for entry in children {
-            guard let name = entry.innerName, let info = classes[entry.name],
-                  classes[owner].flatMap(kotlinCompanion)?.name != entry.name else { continue }
+            guard let name = entry.innerName, let info = classes[entry.name] else { continue }
+            // Classfile companions that Kotlin metadata does not declare are
+            // emitted by the synthetic companion block; metadata companions
+            // must be emitted here so their supertypes and nested classes
+            // stay visible.
+            if let ownerInfo = classes[owner],
+               kotlinCompanion(of: ownerInfo)?.name == entry.name,
+               kotlinMetadata(ownerInfo)?.companion == nil { continue }
             let typeParameters = info.classTypeParameterNames.isEmpty
                 ? ""
                 : "<" + info.classTypeParameterNames.map { "`\($0)`" }.joined(separator: ", ") + ">"
             let visibility = entry.access & 0x0007 == 0x0004 ? "protected " : ""
             if kotlinMetadata(info)?.isCompanion == true {
-                source += indentation + visibility + "companion object {\n"
+                source += indentation + visibility + "companion object"
+                if name != "Companion" { source += " `\(name)`" }
+                var parents: [String] = []
+                if let base = info.superclass, base != "java/lang/Object", classes[base] != nil,
+                   let superclass = superclassReference(base, child: info) {
+                    parents.append(superclass)
+                }
+                parents += info.interfaces.filter { classes[$0] != nil }.compactMap {
+                    supertypeReference($0, child: info)
+                }
+                if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
+                source += " {\n"
                 if let outer = classes[owner] {
                     source += staticFieldDeclarations(outer)
                 }
@@ -351,7 +369,10 @@ final class JVMClasspathIndex {
             } else {
                 let classKind = info.flags & 0x0400 != 0 ? "abstract class " : (info.flags & 0x0010 != 0 ? "class " : "open class ")
                 let isInner = entry.access & 0x0008 == 0
-                source += indentation + visibility + (isInner ? "inner " : "") + classKind + "`\(name)`\(typeParameters) private constructor()"
+                let constructor = info.methods.contains {
+                    $0.isConstructor && $0.parameters.isEmpty && !$0.isProtected
+                } ? "()" : " private constructor()"
+                source += indentation + visibility + (isInner ? "inner " : "") + classKind + "`\(name)`\(typeParameters)" + constructor
             }
             var parents: [String] = []
             if !info.isInterface, let base = info.superclass, classes[base] != nil,
@@ -474,7 +495,12 @@ final class JVMClasspathIndex {
             var next = info.superclass
             var superclass: String?
             var hiddenSegment = true
-            while let name = next, visited.insert(name).inserted, let base = hierarchyClasses[name] {
+            while let name = next, visited.insert(name).inserted {
+                if superclass == nil, mappedJavaException(name) != nil {
+                    superclass = name
+                    hiddenSegment = false
+                }
+                guard let base = hierarchyClasses[name] else { break }
                 let visible = classes[name] != nil
                 if visible && superclass == nil { superclass = name; hiddenSegment = false }
                 for method in base.methods where !method.isConstructor && (method.isStatic || hiddenSegment) {
@@ -561,7 +587,7 @@ final class JVMClasspathIndex {
     }
 
     private func isExposed(_ method: JVMForeignMethod) -> Bool {
-        if method.isReifiedGlanceAction { return false }
+        if method.isReifiedGlanceAction || method.isReifiedWorkBuilder { return false }
         let exposedName = method.sourceName
         // Exclude generated static forwarders. The companion's instance method
         // can still implement a user-declared factory interface.
@@ -670,6 +696,12 @@ final class JVMClasspathIndex {
             return base
         }
     }
+    private func mappedJavaException(_ name: String) -> String? {
+        guard name.hasPrefix("java/lang/"),
+              Self.exceptionNames.contains(String(name.dropFirst("java/lang/".count))) else { return nil }
+        return Self.jdkToKotlinTypeNames[name]
+    }
+
     /// Supertype positions keep the erased JDK name: Kotlin mapped types
     /// declare property-style members that Java method stubs cannot satisfy,
     /// so `extends`/`implements` clauses must name the interface the
@@ -682,6 +714,11 @@ final class JVMClasspathIndex {
         case "java/lang/String": return "kotlin.String"
         case "java/lang/Enum", "java/lang/Record": return nil
         default:
+            // Kotlin typealiases for the Java exception family share one
+            // throwable hierarchy, including imported Java subclasses.
+            if let mapped = mappedJavaException(name) {
+                return mapped
+            }
             // Covered classes get no stub, so an erased `java.*` supertype
             // would not resolve. When the JDK->Kotlin mapped-type table names
             // a provided Kotlin counterpart (kotlin.Number, kotlin.text
@@ -1059,6 +1096,7 @@ final class JVMClasspathIndex {
         defer { overrideSignaturesByOwner.removeAll() }
         injectComposeUIContracts(into: ctx)
         injectGlanceActivityAction(into: ctx)
+        injectOneTimeWorkRequestBuilder(into: ctx)
         let projectedComposeMethods = Set(composeStaticContracts.values.map { entry in
             entry.method.owner + "." + entry.method.name + entry.method.descriptor
         })
@@ -1208,9 +1246,12 @@ final class JVMClasspathIndex {
                 if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
                 source += " {\n"
                 source += memberDeclarations(info: info, members: info.methods, allowsCompanion: !isNonCancellable)
-                if info.name == Self.compositionLocal, compositionLocalGetter != nil,
+                if info.name == Self.compositionLocal, let getter = compositionLocalGetter,
                    let type = info.classTypeParameterNames.first {
-                    source += "@get:androidx.compose.runtime.Composable val current: `\(type)` get() = null!!\n"
+                    let readonly = getter.annotations.contains {
+                        $0.descriptor == "Landroidx/compose/runtime/ReadOnlyComposable;"
+                    } ? " @androidx.compose.runtime.ReadOnlyComposable" : ""
+                    source += "val current: `\(type)` @androidx.compose.runtime.Composable\(readonly) get() = null!!\n"
                 }
                 if info.name == Self.composeView, composeContentMethod != nil {
                     source += "external fun setContent(content: @androidx.compose.runtime.Composable () -> Unit): Unit\n"
