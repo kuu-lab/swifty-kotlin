@@ -552,11 +552,6 @@ struct JVMClassReader {
                 && methodName == "actionStartActivity" && descriptor == "(Landroidx/glance/action/ActionParameters;)Landroidx/glance/action/Action;"
             let isReifiedWorkBuilder = hasKotlinMetadata && name == "androidx/work/OneTimeWorkRequestKt"
                 && methodName == "OneTimeWorkRequestBuilder" && descriptor == "()Landroidx/work/OneTimeWorkRequest$Builder;"
-            let isSyntheticConstructor = hasKotlinMetadata && access & 0x1001 == 0x1001 && methodName == "<init>"
-                && descriptor.hasSuffix("Lkotlin/jvm/internal/DefaultConstructorMarker;)V")
-            let isValueAdapter = hasKotlinMetadata && ["box-impl", "unbox-impl", "constructor-impl"].contains(methodName)
-            let isReifiedGlanceAction = hasKotlinMetadata && name == "androidx/glance/action/StartActivityActionKt"
-                && methodName == "actionStartActivity" && descriptor == "(Landroidx/glance/action/ActionParameters;)Landroidx/glance/action/Action;"
             if access & 0x0005 != 0,
                (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod || isValueAdapter || isSyntheticConstructor || isReifiedGlanceAction || isReifiedWorkBuilder), methodName != "<clinit>",
                let signature = try? (descriptorCache?.parse(descriptor) ?? JVMDescriptor.parse(descriptor)),
