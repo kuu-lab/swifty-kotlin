@@ -85,4 +85,46 @@ struct ContextCallableReflectionTests {
         #expect(target.params.count == 3)
         #expect(arguments.compactMap { module.arena.exprType($0) } == target.params.map(\.type))
     }
+
+    @Test
+    func memberPropertyInvokerForwardsContextArguments() throws {
+        // KUU-4588: the KClass member-metadata invoker for a `context(...)`
+        // member property was registered with `parameterTypes: [receiver]`,
+        // so the generated thunk called the getter with only the dispatch
+        // receiver — emitting arity-invalid IR under -O2.
+        let ctx = makeContextFromSource("""
+        class Box<E>(val x: E)
+        class A<X, Y : Number> {
+            context(box: Box<X>, y: Y)
+            val p1: String get() = box.x.toString() + y.toString()
+        }
+        fun main() {
+            with(Box("O")) {
+                with(33) {
+                    println(A<String, Int>().p1)
+                }
+            }
+        }
+        """)
+        try runToKIR(ctx)
+        try #require(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let module = try #require(ctx.kir)
+        let getter = try #require(findAllKIRFunctions(in: module).first {
+            $0.name == KnownCompilerNames(interner: ctx.interner).get
+                && $0.params.count == 3
+        })
+        let invoker = try #require(findAllKIRFunctions(in: module).first { function in
+            ctx.interner.resolve(function.name).hasPrefix("kk_reflect_invoke_")
+                && function.body.contains { instruction in
+                    guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else { return false }
+                    return symbol == getter.symbol
+                }
+        })
+        let arguments = try #require(invoker.body.compactMap { instruction -> [KIRExprID]? in
+            guard case let .call(symbol, _, arguments, _, _, _, _, _) = instruction,
+                  symbol == getter.symbol else { return nil }
+            return arguments
+        }.first)
+        #expect(arguments.count == getter.params.count)
+    }
 }
