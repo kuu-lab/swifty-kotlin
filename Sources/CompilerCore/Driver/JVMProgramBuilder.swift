@@ -343,7 +343,8 @@ final class JVMProgramBuilder {
             }
             var defaults: [JVMFunction] = []
             for id in file.topLevelDecls {
-                if case let .funDecl(f) = ast.arena.decl(id), f.valueParams.contains(where: \.hasDefaultValue), let symbol = sema.bindings.declSymbol(for: id) { defaults.append(try defaultFunction(symbol: symbol, declaration: f, plan: nil)) }
+                if case let .funDecl(f) = ast.arena.decl(id), f.valueParams.contains(where: \.hasDefaultValue),
+                   let symbol = sema.bindings.declSymbol(for: id), !jvmComposableFunctions.contains(symbol) { defaults.append(try defaultFunction(symbol: symbol, declaration: f, plan: nil)) }
             }
             var facadeFunctions: [JVMFunction] = []
             if let plan = facadePlan {
@@ -684,6 +685,10 @@ final class JVMFunctionBuilder {
         // inliner does not erase an object passed to a lifted lambda helper.
         function.parameterDefaultFlags = declaration.valueParams.map(\.hasDefaultValue)
         function.parameterInlineFlags = declaration.valueParams.map { $0.isCrossinline || $0.isNoinline ? 8 : 0 }
+        if activeComposer != nil && declaration.valueParams.contains(where: \.hasDefaultValue) {
+            // Omitted non-null parameters arrive as null placeholders.
+            function.checksParameters = false
+        }
         function.handlers = handlers
         function.isConstructor = constructor; function.isAbstract = abstract
         return function
@@ -691,7 +696,13 @@ final class JVMFunctionBuilder {
     func build() throws -> JVMFunction {
         try prepareParameters()
         if declaration.modifiers.contains(.abstract) || (owner?.isInterface == true && declaration.body == .unit) { return finish(abstract: true) }
-        try beginComposableBody()
+        if let mask = try beginComposableBody() {
+            let inputs = declaration.valueParams.map { scopes[0][$0.name]!.value }
+            // Compose defaults may call composables. Evaluate them within the
+            // callee's composition with only earlier parameters in scope.
+            scopes[0].removeAll()
+            try program.applyDefaults(self, parameters: declaration.valueParams, inputs: inputs, masks: [mask])
+        }
         try prepareTailrec()
         // A function body may shadow a parameter, as ordinary nested blocks do.
         scopes.append([:])
@@ -801,7 +812,11 @@ final class JVMFunctionBuilder {
             if !scopes.contains(where: { $0[name] != nil }), let result = try textLibraryProperty(id) { return result }
             // Snapshot reads before evaluating later operands/arguments, which
             // may mutate the same source variable (for example f(x, x++)).
-            let local = try readLocal(lookup(name))
+            let binding = try lookup(name)
+            let local = try readLocal(binding)
+            if let symbol = binding.symbol, program.sema.composableFunctionParameters.contains(symbol) {
+                return local
+            }
             let type = try program.expressionType(id)
             return type == .unit ? local : try convert(local, to: type)
         case .localFunDecl:

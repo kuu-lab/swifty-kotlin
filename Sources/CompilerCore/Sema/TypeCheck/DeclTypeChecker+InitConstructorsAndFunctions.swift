@@ -69,7 +69,11 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine,
         baseLocals: LocalBindings = [:]
     ) {
-        let ctx = ctx.withoutSuspensionContext()
+        var defaultContext = ctx.withoutSuspensionContext()
+        if let function = ctx.suspensionContext.function, ctx.sema.composableFunctions.contains(function) {
+            defaultContext.defaultArgumentComposableFunction = function
+        }
+        let ctx = defaultContext
         let sema = ctx.sema
         var locals = baseLocals
         for (index, paramSymbol) in signature.valueParameterSymbols.enumerated() {

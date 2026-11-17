@@ -89,7 +89,8 @@ extension JVMFunctionBuilder {
             guard parameters.indices.contains(index), index == varargIndex || supplied[index] == nil else { throw fail("Invalid JVM argument mapping.", id) }
             if index != varargIndex { positionalCursor = max(positionalCursor, index + 1) }
             let evaluated: JVMValue?
-            if composableParameters.contains(index) {
+            if composableParameters.contains(index) || program.sema.composableLambdaExprs.contains(arg.expr)
+                && program.sema.bindings.identifierSymbol(for: arg.expr) == nil {
                 evaluated = try composeContent(arg.expr)
             } else if let composer = activeComposer, let importedFunction, importedFunction.hasInlineContextCallback,
                       importedFunction.parameters.indices.contains(index),
@@ -214,7 +215,9 @@ extension JVMFunctionBuilder {
         }
         let allTypes = reference?.parameters ?? method!.parameters
         let isComposable = program.jvmComposableFunctions.contains(symbol)
-        let types = Array(allTypes.dropFirst(prefix.count).dropLast(isComposable ? JVMCompose.suffix.count : 0))
+        let composeDefaults = isComposable && program.sourceParameters[symbol]?.contains(where: \.hasDefaultValue) == true
+        let composeSuffixCount = JVMCompose.suffix.count + (composeDefaults ? 1 : 0)
+        let types = Array(allTypes.dropFirst(prefix.count).dropLast(isComposable ? composeSuffixCount : 0))
         let signature = binding.flatMap { program.sema.symbols.functionSignature(for: $0.chosenCallee) }
         let contextParameterTypes = try (signature?.contextParameterTypes ?? []).map(program.type)
         guard types.count >= contextParameterTypes.count else { throw fail("JVM context parameter signature mismatch.", id) }
@@ -227,6 +230,13 @@ extension JVMFunctionBuilder {
         let importedDefaults = importedDefault != nil || importedConstructor?.defaults != nil || importedConstructorDefault != nil
             ? program.sema.symbols.functionSignature(for: symbol)?.valueParameterHasDefaultValues : nil
         let object = constructor ? try value(method!.result) : nil
+        var composableParameters = context.jvmImports?.importedComposableParameters[symbol] ?? []
+        if isComposable, let signature = program.sema.symbols.functionSignature(for: symbol) {
+            for (index, parameter) in signature.valueParameterSymbols.enumerated()
+                where program.sema.composableFunctionParameters.contains(parameter) {
+                composableParameters.insert(index)
+            }
+        }
         let ordered = try arguments(
             args,
             binding: binding,
@@ -234,7 +244,7 @@ extension JVMFunctionBuilder {
             declarations: defaultParameters,
             contextParameterTypes: contextParameterTypes,
             id: id,
-            composableParameters: context.jvmImports?.importedComposableParameters[symbol] ?? [],
+            composableParameters: composableParameters,
             importedDefaults: importedDefaults
         )
         for contextIndex in contextParameterTypes.indices {
@@ -270,6 +280,9 @@ extension JVMFunctionBuilder {
             values += usesDefaults ? try maskArguments(ordered.masks, constructor: true)
                 : [try constant(.null, .reference("kotlin/jvm/internal/DefaultConstructorMarker", nullable: true))]
             instructions.append(.foreignCall(target, receiver: object, arguments: values, result: nil))
+        } else if isComposable, let reference {
+            try composableCall(reference, symbol: symbol, arguments: values, result: result,
+                               defaults: composeDefaults ? ordered.masks.first : nil, at: id)
         } else if usesDefaults {
             if let importedDefault {
                 values += try maskArguments(ordered.masks, constructor: false)
@@ -292,8 +305,7 @@ extension JVMFunctionBuilder {
             if let receiver, isSuper(receiver) { method = try superMethod(method, receiver: receiver) }
             instructions.append(.foreignCall(method, receiver: object ?? dispatch, arguments: values, result: result))
         } else if let reference {
-            if isComposable { try composableCall(reference, symbol: symbol, arguments: values, result: result, at: id) }
-            else { instructions.append(.call(reference, values, result)) }
+            instructions.append(.call(reference, values, result))
         }
         return JVMIntrinsicResult(value: try object ?? result.map { try convert($0, to: resultType) })
     }
