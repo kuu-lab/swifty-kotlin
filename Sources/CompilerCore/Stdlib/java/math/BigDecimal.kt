@@ -227,8 +227,14 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
         }
     }
 
-    public fun divideToIntegralValue(divisor: BigDecimal, mathContext: MathContext): BigDecimal =
-        divideToIntegralValue(divisor).round(mathContext)
+    public fun divideToIntegralValue(divisor: BigDecimal, mathContext: MathContext): BigDecimal {
+        val quotient = divideToIntegralValue(divisor)
+        val rounded = quotient.round(mathContext)
+        if (rounded.compareTo(quotient) != 0) {
+            throw ArithmeticException("Division impossible")
+        }
+        return rounded
+    }
 
     /** Returns `(quotient, remainder)` for division by [divisor], like the JDK. */
     public fun divideAndRemainder(divisor: BigDecimal): Array<BigDecimal> {
@@ -353,11 +359,15 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
         return rounded
     }
 
-    public fun abs(): BigDecimal = if (signum() < 0) ZERO.subtract(this) else this
+    public fun abs(): BigDecimal = if (signum() < 0) negate() else this
 
     public fun abs(mathContext: MathContext): BigDecimal = abs().round(mathContext)
 
-    public fun negate(): BigDecimal = ZERO.subtract(this)
+    public fun negate(): BigDecimal {
+        if (signum() == 0) return this
+        val text = toString()
+        return if (text.startsWith("-")) BigDecimal(text.substring(1)) else BigDecimal("-" + text)
+    }
 
     public fun negate(mathContext: MathContext): BigDecimal = negate().round(mathContext)
 
@@ -372,8 +382,7 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
         if (compareTo(other) >= 0) this else other
 
     /** Returns one unit in the last place of this value, like the JDK `ulp`. */
-    public fun ulp(): BigDecimal =
-        if (signum() == 0) ONE else BigDecimal("1E" + (-scale().toLong()))
+    public fun ulp(): BigDecimal = BigDecimal("1E" + (-scale().toLong()))
 
     public fun byteValueExact(): Byte = toBigIntegerExact().byteValueExact()
 

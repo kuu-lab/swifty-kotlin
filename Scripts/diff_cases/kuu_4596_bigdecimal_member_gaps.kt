@@ -11,10 +11,25 @@ fun show(label: String, value: BigDecimal) {
     )
 }
 
+fun showDivideToIntegral(label: String, dividend: BigDecimal, divisor: BigDecimal, context: MathContext) {
+    try {
+        show(label, dividend.divideToIntegralValue(divisor, context))
+    } catch (e: ArithmeticException) {
+        println("$label ArithmeticException: ${e.message}")
+    }
+}
+
 fun main() {
     show("abs", BigDecimal("-5.00").abs())
     show("negate", BigDecimal("-5.00").negate())
     show("plus", BigDecimal("-5.00").plus())
+    show("negate-negative-scale", BigDecimal("1E+3").negate())
+    show("abs-negative-scale", BigDecimal("-1E+3").abs())
+    show("negate-trailing-zeros", BigDecimal("1.2300E+5").negate())
+    show("abs-trailing-zeros", BigDecimal("-1.2300E+5").abs())
+    show("negate-zero-scale", BigDecimal("0.00").negate())
+    show("negate-mc-negative-scale", BigDecimal("1E+3").negate(MathContext(2)))
+    show("abs-mc-negative-scale", BigDecimal("-1E+3").abs(MathContext(1)))
     show("plain-large", BigDecimal("1.2300E+5"))
     show("plain-small", BigDecimal("1E-10"))
     show("plain-zero", BigDecimal("0E+3"))
@@ -38,6 +53,9 @@ fun main() {
     show("divToInt-negative-scale", BigDecimal("1").divideToIntegralValue(BigDecimal("1.00")))
     show("divToInt-positive-scale", BigDecimal("0.01").divideToIntegralValue(BigDecimal("0.001")))
     show("divToInt-mc", BigDecimal("123.45").divideToIntegralValue(BigDecimal("1.2"), MathContext(3)))
+    show("divToInt-mc-scale-down", BigDecimal("120").divideToIntegralValue(BigDecimal.ONE, MathContext(2)))
+    show("divToInt-mc-scale-down-thousand", BigDecimal("1000").divideToIntegralValue(BigDecimal.ONE, MathContext(2)))
+    showDivideToIntegral("divToInt-mc-impossible", BigDecimal("123"), BigDecimal.ONE, MathContext(2))
 
     show("divide-mc-third", BigDecimal("1").divide(BigDecimal("3"), MathContext(3)))
     show("divide-mc-exact", BigDecimal("10").divide(BigDecimal("4"), MathContext(3)))
@@ -56,6 +74,8 @@ fun main() {
     show("max", BigDecimal("1.1").max(BigDecimal("1.01")))
     show("ulp", BigDecimal("1.23").ulp())
     show("ulp-negative-scale", BigDecimal("1E+3").ulp())
+    show("ulp-zero-scale", BigDecimal("0.00").ulp())
+    show("ulp-zero-negative-scale", BigDecimal("0E+3").ulp())
 
     println("intExact=${BigDecimal("1.0").intValueExact()}")
     println("longExact=${BigDecimal("123.0").longValueExact()}")
