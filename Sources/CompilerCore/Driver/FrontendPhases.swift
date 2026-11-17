@@ -389,6 +389,7 @@ public final class BuildASTPhase: CompilerPhase {
         let file: PerFileASTResult
         let arena: ASTArenaSnapshot
         let addedStrings: [String]
+        let diagnostics: [Diagnostic]
     }
 
     /// Every worker allocates in a private namespace. Publish only after all
@@ -403,7 +404,11 @@ public final class BuildASTPhase: CompilerPhase {
             let (fileID, cst, root) = syntaxTrees[index]
             let localArena = ASTArena()
             let localInterner = baselineInterner.makeWorkerInterner()
-            let phase = BuildASTPhase(diagnostics: ctx.diagnostics)
+            // Speculative expression parses roll back diagnostics by count. Keep
+            // each file on a private engine so parallel workers cannot truncate
+            // each other's checkpoints; publish deltas after the join below.
+            let fileDiagnostics = ctx.diagnostics.makeWorkerDiagnostics()
+            let phase = BuildASTPhase(diagnostics: fileDiagnostics)
             let file = phase.buildFileAST(
                 fileID: fileID, cst: cst, root: root,
                 interner: localInterner, arena: localArena,
@@ -412,7 +417,8 @@ public final class BuildASTPhase: CompilerPhase {
             results.store(WorkerASTResult(
                 file: file,
                 arena: localArena.snapshot(),
-                addedStrings: Array(localInterner.snapshotValues().dropFirst(sharedStringCount))
+                addedStrings: Array(localInterner.snapshotValues().dropFirst(sharedStringCount)),
+                diagnostics: fileDiagnostics.diagnostics
             ), at: index)
         }
 
@@ -437,7 +443,13 @@ public final class BuildASTPhase: CompilerPhase {
             completionGroup.wait()
         }
 
-        let orderedResults = results.orderedResults().map { worker in
+        let workerResults = results.orderedResults()
+        for worker in workerResults {
+            for diagnostic in worker.diagnostics {
+                ctx.diagnostics.emit(diagnostic)
+            }
+        }
+        let orderedResults = workerResults.map { worker in
             let strings = worker.addedStrings.map(ctx.interner.intern)
             let remapper = arena.appendFileSnapshot(
                 worker.arena, sharedStringCount: sharedStringCount, addedStrings: strings

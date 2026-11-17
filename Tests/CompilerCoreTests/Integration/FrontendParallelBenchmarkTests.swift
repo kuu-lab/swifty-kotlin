@@ -162,6 +162,33 @@ struct FrontendParallelBenchmarkTests {
         }
     }
 
+    @Test func testParallelBuildASTPreservesDiagnosticsAcrossFiles() throws {
+        var sources = generateSources(count: 12)
+        for index in 0 ..< 12 {
+            sources.append("""
+            package diag\(index)
+            fun broken\(index)(a: Int,): Int = a
+            """)
+        }
+        sources.append("""
+        package spec
+        fun speculate(): Int {
+            val x = 1
+            do x
+            return x
+        }
+        """)
+
+        let (sequential, _) = try runFrontendTimed(sources: sources, jobs: 1)
+        for iteration in 0 ..< 5 {
+            let (parallel, _) = try runFrontendTimed(sources: sources, jobs: 8)
+            #expect(
+                parallel.diagnostics.diagnostics == sequential.diagnostics.diagnostics,
+                "parallel BuildAST changed diagnostics (iteration \(iteration))"
+            )
+        }
+    }
+
     // MARK: - Benchmarks: 10 / 50 / 100 files
 
     @Test(arguments: [10, 50, 100])

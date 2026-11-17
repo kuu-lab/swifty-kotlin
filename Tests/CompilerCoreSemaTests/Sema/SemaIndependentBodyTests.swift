@@ -296,7 +296,7 @@ struct SemaIndependentBodyTests {
             end: SourceLocation(file: FileID(rawValue: 0), offset: 20)
         )
         parent.addSuppression(code: "KSWIFTK-TYPE-0002", range: range)
-        let worker = parent.makeSemaWorkerDiagnostics()
+        let worker = parent.makeWorkerDiagnostics()
         worker.error("KSWIFTK-TYPE-0002", "suppressed", range: range)
         #expect(worker.diagnostics.isEmpty)
         let checkpoint = worker.checkpoint()
