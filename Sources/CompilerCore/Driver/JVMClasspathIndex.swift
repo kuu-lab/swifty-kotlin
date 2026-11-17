@@ -319,14 +319,31 @@ final class JVMClasspathIndex {
             .sorted { ($0.innerName ?? "") < ($1.innerName ?? "") }
         var source = ""
         for entry in children {
-            guard let name = entry.innerName, let info = classes[entry.name],
-                  classes[owner].flatMap(kotlinCompanion)?.name != entry.name else { continue }
+            guard let name = entry.innerName, let info = classes[entry.name] else { continue }
+            // Classfile companions that Kotlin metadata does not declare are
+            // emitted by the synthetic companion block; metadata companions
+            // must be emitted here so their supertypes and nested classes
+            // stay visible.
+            if let ownerInfo = classes[owner],
+               kotlinCompanion(of: ownerInfo)?.name == entry.name,
+               kotlinMetadata(ownerInfo)?.companion == nil { continue }
             let typeParameters = info.classTypeParameterNames.isEmpty
                 ? ""
                 : "<" + info.classTypeParameterNames.map { "`\($0)`" }.joined(separator: ", ") + ">"
             let visibility = entry.access & 0x0007 == 0x0004 ? "protected " : ""
             if kotlinMetadata(info)?.isCompanion == true {
-                source += indentation + visibility + "companion object {\n"
+                source += indentation + visibility + "companion object"
+                if name != "Companion" { source += " `\(name)`" }
+                var parents: [String] = []
+                if let base = info.superclass, base != "java/lang/Object", classes[base] != nil,
+                   let superclass = superclassReference(base, child: info) {
+                    parents.append(superclass)
+                }
+                parents += info.interfaces.filter { classes[$0] != nil }.compactMap {
+                    supertypeReference($0, child: info)
+                }
+                if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
+                source += " {\n"
                 if let outer = classes[owner] {
                     source += staticFieldDeclarations(outer)
                 }
@@ -353,7 +370,10 @@ final class JVMClasspathIndex {
             } else {
                 let classKind = classKeyword(info)
                 let isInner = entry.access & 0x0008 == 0
-                source += indentation + visibility + (isInner ? "inner " : "") + classKind + "`\(name)`\(typeParameters) private constructor()"
+                let constructor = info.methods.contains {
+                    $0.isConstructor && $0.parameters.isEmpty && !$0.isProtected
+                } ? "()" : " private constructor()"
+                source += indentation + visibility + (isInner ? "inner " : "") + classKind + "`\(name)`\(typeParameters)" + constructor
             }
             var parents: [String] = []
             if !info.isInterface, let base = info.superclass, classes[base] != nil,
@@ -1827,6 +1847,7 @@ final class JVMClasspathIndex {
                     }
                     source += "external " + functionDeclaration(method) + "\n"
                 }
+                source += nestedClassDeclarations(of: companion.name)
             }
             source += "}\n"
         }
