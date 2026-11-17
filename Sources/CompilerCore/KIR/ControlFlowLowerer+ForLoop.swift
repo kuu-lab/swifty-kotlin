@@ -1152,10 +1152,15 @@ extension ControlFlowLowerer {
         // A non-reified generic `next()` result crosses the erased ABI boundary,
         // so Kotlin/JVM emits a checkcast where the loop variable claims it at
         // the substituted element type (KUU-4594). Keep the raw erased value
-        // until that check, mirroring `checkedErasedGenericCallResult`. Primitive
-        // elements keep the dedicated unbox path instead.
+        // until that check, mirroring `checkedErasedGenericCallResult`. Only a
+        // `next()` whose declared return is itself an erased type parameter
+        // crosses that boundary — a concrete return (including a value class)
+        // keeps its own representation. Primitive elements keep the unbox path.
+        let nextResultIsErased = sema.symbols.functionSignature(for: loopBinding.nextCall.chosenCallee)
+            .map { kirIsNonReifiedErasedReturnType($0.returnType, sema: sema) } ?? false
         let loopClaimType: TypeID? = {
-            guard let checkType = kirCheckableCastErasure(of: loopBinding.elementType, sema: sema),
+            guard nextResultIsErased,
+                  let checkType = kirCheckableCastErasure(of: loopBinding.elementType, sema: sema),
                   kirErasedBoundaryCheckable(checkType, sema: sema)
             else {
                 return nil
