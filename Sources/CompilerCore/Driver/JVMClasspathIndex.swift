@@ -354,7 +354,7 @@ final class JVMClasspathIndex {
                 source += indentation + visibility + (isInner ? "inner " : "") + classKind + "`\(name)`\(typeParameters) private constructor()"
             }
             var parents: [String] = []
-            if !info.isInterface, let base = info.superclass, classes[base] != nil || mappedJavaException(base) != nil,
+            if !info.isInterface, let base = info.superclass, classes[base] != nil,
                let mapped = superclassReference(base, child: info) {
                 parents.append(mapped)
             }
@@ -533,6 +533,7 @@ final class JVMClasspathIndex {
             imported.isKotlinObject = info.isKotlinObject
             imported.kotlinReadOnlyCollectionSupertypes = info.kotlinReadOnlyCollectionSupertypes
             imported.kotlinComparableSupertype = info.kotlinComparableSupertype
+            imported.kotlinParameterizedSupertypes = info.kotlinParameterizedSupertypes
             imported.kotlinLoweredConstructors = info.kotlinLoweredConstructors
             imported.kotlinValueClassConstructors = info.kotlinValueClassConstructors
             imported.annotations = info.annotations
@@ -734,6 +735,10 @@ final class JVMClasspathIndex {
     private func supertypeReference(_ name: String, child: JVMClassInfo) -> String? {
         if let collection = child.kotlinReadOnlyCollectionSupertypes[name] { return collection }
         if name == "java/lang/Comparable", let comparable = child.kotlinComparableSupertype { return comparable }
+        if let parent = classes[name], parent.methods.contains(where: { $0.kotlinFunction?.result.contains("->") == true }),
+           let source = child.kotlinParameterizedSupertypes[name.replacingOccurrences(of: "$", with: ".")] {
+            return source
+        }
         if name == "kotlin/coroutines/CoroutineContext$Key", let signature = child.genericSignature,
            let prefix = signature.range(of: "L" + name + "<L"),
            let end = signature[prefix.upperBound...].range(of: ";>;") {
@@ -1208,7 +1213,7 @@ final class JVMClasspathIndex {
                         ? "()" : "protected constructor()"
                 }
                 var parents: [String] = []
-                if !info.isInterface, let base = info.superclass, classes[base] != nil || mappedJavaException(base) != nil,
+                if !info.isInterface, let base = info.superclass, classes[base] != nil,
                    let mapped = superclassReference(base, child: info) {
                     parents.append(mapped)
                 }
@@ -1299,8 +1304,7 @@ final class JVMClasspathIndex {
                 || (types.count == 3 && types[0] == "kotlin.CharSequence" && types[1] == "kotlin.Int" && types[2] == "kotlin.Int")
         }
         /// JavaBeans accessor shape: `getX()` -> property `x` with candidate
-        /// setter `setX`; `isX()` -> property `isX` (no setter pairing, matching
-        /// the val-only emission below).
+        /// setter `setX`; `isX()` -> boolean property `isX` with setter `setX`.
         func propertyShape(_ method: JVMForeignMethod) -> (name: String, setterName: String?)? {
             guard method.kotlinSuspendFunction == nil, method.genericResultParameter == nil else { return nil }
             if method.name.hasPrefix("get"), method.name.count > 3 {
@@ -1308,8 +1312,8 @@ final class JVMClasspathIndex {
                 return (String(suffix.prefix(1)).lowercased() + suffix.dropFirst(),
                         "set" + String(suffix.prefix(1)).uppercased() + suffix.dropFirst())
             }
-            if method.name.hasPrefix("is"), method.name.count > 2, method.result == .boolean {
-                return (method.name, nil)
+            if method.name.hasPrefix("is"), method.name.dropFirst(2).first?.isUppercase == true, method.result == .boolean {
+                return (method.name, "set" + method.name.dropFirst(2))
             }
             return nil
         }
@@ -1439,6 +1443,16 @@ final class JVMClasspathIndex {
                 continue
             }
             var overrides = overridesParent(method, in: info)
+            if !overrides, method.kotlinFunction?.result.contains("->") == true,
+               !info.kotlinParameterizedSupertypes.isEmpty {
+                // A generic callback override can have a specialized JVM
+                // descriptor. Its bridge still matches the erased parent.
+                overrides = info.bridgeMethods.contains { bridge in
+                    bridge.name == method.name && bridge.parameters.count == method.parameters.count
+                        && bridge.result.descriptor == method.result.descriptor
+                        && overridesParent(bridge, in: info)
+                }
+            }
             if charSequenceBridged, method.name == "subSequence" { overrides = true }
             if charSequenceBridged, isCharSequenceGet(method) { overrides = true }
             if appendableBridged, isAppendableMember(method) { overrides = true }
@@ -1469,7 +1483,10 @@ final class JVMClasspathIndex {
             guard JVMProgramBuilder.isIdentifier(propertyName),
                   exposedKotlinProperties[propertyName] == nil,
                   !instanceFieldNames.contains(propertyName),
-                  !own.contains(where: { !$0.isStatic && !$0.isConstructor && $0.name == propertyName }) else { continue }
+                  !own.contains(where: {
+                      !$0.isStatic && !$0.isConstructor && $0.name == propertyName
+                          && memberKey($0) != memberKey(getter)
+                  }) else { continue }
             let propertyType = kotlinType(getter.result)
             if let setterName = shape.setterName,
                inheritsWiderMutableProperty(getter, propertyName: propertyName, setterName: setterName, type: propertyType) {
@@ -1670,7 +1687,32 @@ final class JVMClasspathIndex {
                 source += "val `\(name)`: \(type) get() = null!!\n"
             }
             for method in statics {
-                source += "external " + functionDeclaration(method) + "\n"
+                // @JvmStatic bridges do not carry the Kotlin companion's metadata.
+                let declaration = companion.flatMap { companion in
+                    companion.methods.first {
+                        !$0.isStatic && $0.name == method.name && $0.descriptor == method.descriptor
+                            && $0.kotlinFunction != nil && !overridesParent($0, in: companion)
+                    }
+                } ?? method
+                source += "external " + functionDeclaration(declaration) + "\n"
+            }
+            if let companion {
+                for (name, property) in companion.kotlinMemberProperties.sorted(by: { $0.key < $1.key })
+                    where exposeSuspendType(property.getter.result) && info.kotlinStaticProperties[name] == nil {
+                    source += "val `\(name)`: \(property.sourceType) get() = null!!\n"
+                }
+                for method in companion.methods where !method.isStatic && !method.isConstructor && isExposed(method) {
+                    if statics.contains(where: { $0.name == method.name && $0.descriptor == method.descriptor })
+                        && !overridesParent(method, in: companion) { continue }
+                    if companion.kotlinMemberProperties.values.contains(where: {
+                        $0.getter.name == method.name && $0.getter.descriptor == method.descriptor
+                    }) { continue }
+                    if overridesParent(method, in: companion)
+                        || ["toString()Ljava/lang/String;", "hashCode()I", "equals(Ljava/lang/Object;)Z"].contains(method.name + method.descriptor) {
+                        source += "override "
+                    }
+                    source += "external " + functionDeclaration(method) + "\n"
+                }
             }
             if let companion {
                 for (name, property) in companion.kotlinMemberProperties.sorted(by: { $0.key < $1.key })
@@ -1958,6 +2000,7 @@ final class JVMClasspathIndex {
                 markSourceTypes([property.result] + [property.receiver].compactMap { $0 })
             }
             markSourceTypes(info.kotlinMemberProperties.values.map(\.sourceType))
+            markSourceTypes(Array(info.kotlinParameterizedSupertypes.values))
             for (constructor, _, _) in info.kotlinLoweredConstructors {
                 markSourceTypes(constructor.parameters.map(\.sourceType))
             }

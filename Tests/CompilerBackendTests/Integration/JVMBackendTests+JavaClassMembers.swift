@@ -23,11 +23,14 @@ extension JVMBackendTests {
             public class Widget {
                 private String text = "";
                 private int count;
+                private boolean active;
                 public String getText() { return text; }
                 public void setText(String v) { text = v; }
                 public int getCount() { return count; }
                 public void setCount(int v) { count = v; }
                 public boolean isReady() { return count > 0; }
+                public boolean isActive() { return active; }
+                public void setActive(boolean value) { active = value; }
             }
             """,
             "Outer": """
@@ -88,6 +91,9 @@ extension JVMBackendTests {
                 w.count = 3
                 println(w.count)
                 println(w.isReady())
+                println(w.isReady)
+                w.isActive = true
+                println(w.isActive)
 
                 val o = Outer()
                 var seen = -1
@@ -106,7 +112,7 @@ extension JVMBackendTests {
             guard result.0 == 0 else { return }
             let output = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path
             let run = try java(["-cp", output + ":" + dependency.path, "HelloKt"])
-            #expect(run.stdout == "1\n0\nstatic-label\n1234567890123\ntrue\nhi\n3\ntrue\n42\n10\n")
+            #expect(run.stdout == "1\n0\nstatic-label\n1234567890123\ntrue\nhi\n3\ntrue\ntrue\ntrue\n42\n10\n")
             #expect(run.stderr.isEmpty)
         }
     }
