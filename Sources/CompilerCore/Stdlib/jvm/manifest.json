@@ -9,7 +9,9 @@
     "kotlin/io/encoding/Base64.kt",
     "kotlin/random/Random.kt",
     "kotlin/time/DurationEncoding.kt",
-    "kotlin/time/DurationUnit.kt"
+    "kotlin/time/DurationUnit.kt",
+    "kotlin/time/InstantFormatting.kt",
+    "kotlin/time/InstantParsing.kt"
   ],
   "declarations": [
     {
@@ -17,6 +19,13 @@
       "virtualPath": "<kswiftk-jvm>/random.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/random/RandomKt"
+    },
+    {
+      "path": "declarations/PlatformRandom.kt",
+      "virtualPath": "<kswiftk-jvm>/platform-random.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/random/PlatformRandomKt",
+      "consumerIdentifiers": ["asJavaRandom", "asKotlinRandom"]
     },
     {
       "path": "kotlin/time/DurationUnit.kt",
@@ -527,6 +536,12 @@
       "path": "declarations/Exceptions.kt",
       "virtualPath": "<kswiftk-jvm>/exceptions.kt",
       "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "declarations/StackTrace.kt",
+      "virtualPath": "<kswiftk-jvm>/stack-trace.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/ExceptionsKt"
     },
     {
       "path": "declarations/Result.kt",

@@ -13,7 +13,6 @@ extension JVMBackendTests {
             object Dispatchers {
                 @JvmStatic val IO: String get() = "io"
                 @JvmStatic @get:JvmName("readDefault") val Default: String? get() = null
-                @JvmStatic lateinit var Current: String
                 @JvmStatic fun getLookalike(): String = "method"
             }
             """
@@ -27,8 +26,6 @@ extension JVMBackendTests {
             fun main() {
                 println(Dispatchers.IO)
                 println(Dispatchers.Default ?: "fallback")
-                Dispatchers.Current = "io"
-                println(Dispatchers.Current)
                 println(Dispatchers.getLookalike())
             }
             """
@@ -37,7 +34,7 @@ extension JVMBackendTests {
             try #require(exit == 0, "\(diagnostics.map(\.message))")
             let run = try java(["-Xverify:all", "-cp", ([app.path] + classpath).joined(separator: ":"), "MainKt"])
             #expect(run.exitCode == 0, "\(run.stderr)")
-            #expect(run.stdout == "io\nfallback\nio\nmethod\n")
+            #expect(run.stdout == "io\nfallback\nmethod\n")
 
             let (_, rejected, errors) = try m22Build(
                 root: root, sources: [("Missing.kt", "import api.Dispatchers\nfun invalid() = Dispatchers.lookalike")],

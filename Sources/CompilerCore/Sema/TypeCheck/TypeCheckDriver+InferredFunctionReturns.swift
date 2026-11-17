@@ -134,7 +134,7 @@ extension TypeCheckDriver {
     /// properties register: a getter, setter, or delegate body keeps the
     /// source-order pass so a speculative check against placeholder types
     /// cannot skip the authoritative accessor-body diagnostics.
-    private func registerInferredMemberProperties(
+    func registerInferredMemberProperties(
         _ declIDs: [DeclID],
         context: TypeInferenceContext,
         initialLocals: LocalBindings
@@ -176,7 +176,8 @@ extension TypeCheckDriver {
 
     func registerInferredReturnFunction(
         for declarationID: DeclID,
-        context: TypeInferenceContext
+        context: TypeInferenceContext,
+        baseLocals: LocalBindings = [:]
     ) {
         guard case let .funDecl(function)? = ast.arena.decl(declarationID),
               function.returnType == nil,
@@ -185,7 +186,8 @@ extension TypeCheckDriver {
         else { return }
         inferredReturnFunctions[symbol] = (
             function,
-            context.with(currentDeclSymbol: symbol)
+            context.with(currentDeclSymbol: symbol),
+            baseLocals
         )
     }
 
@@ -202,13 +204,15 @@ extension TypeCheckDriver {
             // Use the declaration's file scope and receiver/parameter bindings,
             // never the caller's lambda locals or expected return type.
             let checkpoint = diagnostics.checkpoint()
+            let nominalDeclsCheckedBefore = localNominalDeclChecks.count
             let signature = sema.symbols.functionSignature(for: symbol)
             declChecker.typeCheckFunctionDecl(
                 declaration.function,
                 symbol: symbol,
                 ctx: declaration.context,
                 solver: solver,
-                diagnostics: diagnostics
+                diagnostics: diagnostics,
+                baseLocals: declaration.baseLocals
             )
             let errors = diagnostics.diagnostics.dropFirst(checkpoint).filter { $0.severity == .error }
             if !errors.isEmpty,
@@ -221,6 +225,13 @@ extension TypeCheckDriver {
                 if let signature { sema.symbols.setFunctionSignature(signature, for: symbol) }
                 checkedInferredReturnFunctions.remove(symbol)
                 deferredInferredReturnFunctions.insert(symbol)
+                // The rollback kept symbol bindings for nominal decls checked
+                // inside this run; force the retry to re-run their member
+                // checks so errors inside them — e.g. in an object literal
+                // returned by the function — are not lost with the rollback.
+                pendingLocalNominalRechecks.formUnion(
+                    localNominalDeclChecks[nominalDeclsCheckedBefore...]
+                )
             }
         }
     }
