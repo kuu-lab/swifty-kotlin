@@ -28,4 +28,26 @@ struct CodegenBackendNothingValueExceptionTests {
             #expect(result.stderr.isEmpty)
         }
     }
+
+    @Test
+    func definitelyNullNullAssertionThrowsNullPointerException() throws {
+        let source = try diffCaseSource("kuu4593_definitely_null_assertion_npe.kt", file: #filePath)
+        try withTemporaryFile(contents: source) { inputPath in
+            let outputPath = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: outputPath) }
+
+            let context = try runCodegenPipeline(
+                inputPath: inputPath,
+                moduleName: "DefinitelyNullNullAssertion",
+                emit: .executable,
+                outputPath: outputPath
+            )
+            try LinkPhase().run(context)
+            let result = try CommandRunner.run(executable: outputPath, arguments: [])
+            #expect(result.exitCode == 0, "\(result.stderr)")
+            #expect(result.stdout == "npe\n")
+            #expect(result.stderr.isEmpty)
+        }
+    }
 }

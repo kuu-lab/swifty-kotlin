@@ -216,8 +216,8 @@ extension ExprLowerer {
 
     private func isPotentialNothingValueProducer(_ expr: Expr?) -> Bool {
         switch expr {
-        case .nameRef, .call, .memberCall, .safeMemberCall, .indexedAccess,
-             .binary, .unaryExpr, .asCast, .nullAssert:
+        case .call, .memberCall, .safeMemberCall, .indexedAccess,
+             .binary, .unaryExpr, .asCast:
             true
         default:
             false
