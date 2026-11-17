@@ -169,6 +169,22 @@ struct JVMKotlinMetadataPayload {
         return result
     }
 
+    func parameterizedSupertypes(byteLimit: Int) throws -> [String: String] {
+        guard kind == 1, let major = version.first, (1...2).contains(major) else { return [:] }
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
+        var types = try TypeTable(declaration.message(30))
+        types.parameterNames = try Self.classTypeParameters(declaration, names: names)
+        let inline = try declaration.messages(6).map { (type: $0, nullable: $0.bool(3) == true) }
+        let indexed = try declaration.int32List(2).compactMap { types.resolve(index: $0) }
+        var result: [String: String] = [:]
+        for type in inline + indexed where type.type.has(2) {
+            guard let name = try names.resolve(type.type.int32(6)), !name.hasPrefix("kotlin/"),
+                  let source = try Self.sourceType(type, types: types, names: names) else { continue }
+            result[name] = source
+        }
+        return result
+    }
+
     func comparableSupertype(byteLimit: Int) throws -> String? {
         guard kind == 1, let major = version.first, (1...2).contains(major) else { return nil }
         let (declaration, names) = try declarationData(byteLimit: byteLimit)
