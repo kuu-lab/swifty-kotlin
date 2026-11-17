@@ -311,5 +311,20 @@ struct RuntimeBigDecimalTests {
         #expect(kk_number_to_primitive(value, 0, 5) == __kk_bignum_toByte(value))
         #expect(kk_number_to_primitive(value, 0, 6) == kk_int_to_char(__kk_bignum_toInt(value)))
     }
+
+    @Test
+    func testBigDecimalBoxAnswersNominalTypeChecks() {
+        var thrown = 0
+        let value = withFlatString("1.25") { data, length, byteCount, hash in
+            __kk_string_toBigDecimal_flat(data, length, byteCount, hash, &thrown)
+        }
+        #expect(thrown == 0)
+
+        #expect(kk_op_is(value, nominalTypeToken(for: "java.math.BigDecimal")) == 1)
+        #expect(kk_op_is(value, nominalTypeToken(for: "kotlin.Number")) == 1)
+        #expect(kk_op_is(value, nominalTypeToken(for: "kotlin.Comparable")) == 1)
+        #expect(kk_op_is(value, nominalTypeToken(for: "java.io.Serializable")) == 1)
+        #expect(kk_op_is(value, nominalTypeToken(for: "kotlin.CharSequence")) == 0)
+    }
 }
 #endif
