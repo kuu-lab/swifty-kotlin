@@ -126,6 +126,7 @@ struct TypeInferenceContext: CustomStringConvertible {
     var lambdaDepth: Int = 0
     /// Independent of return targets: initializers cannot inherit suspension.
     var suspensionContext = SuspensionContext()
+    var defaultArgumentComposableFunction: SymbolID?
     /// Return type of the nearest named function body. This remains unchanged
     /// while entering lambda literals so non-local return values are checked
     /// against the actual return target.
