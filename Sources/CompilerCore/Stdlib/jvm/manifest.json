@@ -3,8 +3,10 @@
   "commonSources": [
     "kotlin/Pair/Pair.kt",
     "kotlin/Function.kt",
+    "kotlin/IgnorableReturnValue.kt",
     "kotlin/Unit.kt",
     "kotlin/annotations/ExperimentalUnsignedTypes.kt",
+    "kotlin/io/encoding/Base64.kt",
     "kotlin/random/Random.kt",
     "kotlin/time/DurationEncoding.kt",
     "kotlin/time/DurationUnit.kt"
@@ -27,6 +29,49 @@
       "virtualPath": "<kswiftk-jvm>/duration.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/time/DurationKt"
+    },
+    {
+      "path": "declarations/DurationConversions.kt",
+      "virtualPath": "<kswiftk-jvm>/duration-conversions.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/time/jdk8/DurationConversionsJDK8Kt",
+      "consumerIdentifiers": ["toJavaDuration", "toKotlinDuration"]
+    },
+    {
+      "path": "declarations/Instant.kt",
+      "virtualPath": "<kswiftk-jvm>/instant.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/InstantConversions.kt",
+      "virtualPath": "<kswiftk-jvm>/instant-conversions.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/time/jdk8/InstantConversionsJDK8Kt",
+      "consumerIdentifiers": ["toJavaInstant", "toKotlinInstant"]
+    },
+    {
+      "path": "declarations/Clock.kt",
+      "virtualPath": "<kswiftk-jvm>/clock.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/CloseableUse.kt",
+      "virtualPath": "<kswiftk-jvm>/closeable-use.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/io/CloseableKt"
+    },
+    {
+      "path": "declarations/ByteStreams.kt",
+      "virtualPath": "<kswiftk-jvm>/byte-streams.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/io/ByteStreamsKt",
+      "consumerIdentifiers": ["readBytes"]
+    },
+    {
+      "path": "declarations/UStrings.kt",
+      "virtualPath": "<kswiftk-jvm>/unsigned-strings.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/text/UStringsKt"
     },
     {
       "path": "kotlin/Deprecation.kt",
@@ -89,18 +134,6 @@
       "virtualPath": "<kswiftk-jvm>/preconditions.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/PreconditionsKt"
-    },
-    {
-      "path": "kotlin/time/DurationUnit.kt",
-      "virtualPath": "<kswiftk-jvm>/durationUnit.kt",
-      "excludeFromStdlibBuild": true,
-      "commonSource": true
-    },
-    {
-      "path": "declarations/Duration.kt",
-      "virtualPath": "<kswiftk-jvm>/duration.kt",
-      "excludeFromStdlibBuild": true,
-      "runtimeFacade": "kotlin/time/DurationKt"
     },
     {
       "path": "declarations/KotlinTimeMeasureTime.kt",
@@ -275,8 +308,8 @@
       "runtimeFacade": "kotlin/text/StringsKt"
     },
     {
-      "path": "declarations/Utf8Decoding.kt",
-      "virtualPath": "<kswiftk-jvm>/utf8-decoding.kt",
+      "path": "declarations/Utf8Conversions.kt",
+      "virtualPath": "<kswiftk-jvm>/utf8-conversions.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/text/StringsKt"
     },

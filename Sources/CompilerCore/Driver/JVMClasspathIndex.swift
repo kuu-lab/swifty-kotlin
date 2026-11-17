@@ -161,13 +161,11 @@ final class JVMClasspathIndex {
                 && !entry.name.hasSuffix("module-info.class") && !entry.name.hasSuffix("package-info.class")
         }.sorted { $0.name < $1.name }
         if archiveJobs > 1 && entries.count >= 128 {
-            let batchSize = 64
-            let batchCount = (entries.count + batchSize - 1) / batchSize
-            let batches = try SemaPerFileExecutor.collect(count: batchCount, jobs: archiveJobs, cancelOnFirstError: true) { index in
-                let start = index * batchSize
-                let end = min(start + batchSize, entries.count)
-                return try entries[start ..< end].map { entry in
-                    try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: descriptorCache)
+            let ranges = archiveBatches(entries)
+            let batches = try SemaPerFileExecutor.collect(count: ranges.count, jobs: archiveJobs, cancelOnFirstError: true) { index in
+                let batchDescriptors = JVMDescriptorCache()
+                return try entries[ranges[index]].map { entry in
+                    try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: batchDescriptors)
                 }
             }
             for batch in batches {
@@ -178,6 +176,25 @@ final class JVMClasspathIndex {
                 insert(try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: descriptorCache))
             }
         }
+    }
+
+    private static func archiveBatches(_ entries: [ZipArchive.Entry]) -> [Range<Int>] {
+        let typicalCount = 64
+        let approximateBatchCount = (entries.count + typicalCount - 1) / typicalCount
+        let targetBytes = max(1, entries.reduce(0) { $0 + $1.uncompressedSize } / approximateBatchCount)
+        var ranges: [Range<Int>] = []
+        var start = 0
+        var bytes = 0
+        for (index, entry) in entries.enumerated() {
+            if index > start && (bytes + entry.uncompressedSize > targetBytes || index - start >= 2 * typicalCount) {
+                ranges.append(start ..< index)
+                start = index
+                bytes = 0
+            }
+            bytes += entry.uncompressedSize
+        }
+        ranges.append(start ..< entries.count)
+        return ranges
     }
 
     private static func readClass(
@@ -524,6 +541,7 @@ final class JVMClasspathIndex {
         if method.isStatic, method.annotations.contains(where: { $0.descriptor == JVMMetro.invoke }) { return false }
         guard method.isConstructor || JVMProgramBuilder.isIdentifier(exposedName) else { return false }
         if let function = method.kotlinFunction {
+            if method.kotlinComposeABI != nil { return hasComposeRuntime }
             guard function.parameters.count + (function.receiver == nil ? 0 : 1)
                 + (function.isSuspend ? 1 : 0) == method.parameters.count
             else { return false }
@@ -773,8 +791,9 @@ final class JVMClasspathIndex {
             var parameter = (element.isVararg ? "vararg val " : "val ") + name + ": " + type
             // Vararg defaults remain array literals in bytecode metadata; the
             // frontend consumes them directly, while source varargs may omit them.
-            if !element.isVararg, let value = element.defaultValue, let rendered = annotationValueSource(value, type: element.type) {
-                parameter += " = \(rendered)"
+            // Omitting an annotation vararg already supplies an empty array.
+            if let value = element.defaultValue, let rendered = annotationValueSource(value, type: element.type),
+               !element.isVararg || rendered != "[]" {                parameter += " = \(rendered)"
             }
             return parameter
         }.joined(separator: ", ")
@@ -995,6 +1014,9 @@ final class JVMClasspathIndex {
         activeCoveredNames = covered
         defer { overrideSignaturesByOwner.removeAll() }
         injectComposeUIContracts(into: ctx)
+        let projectedComposeMethods = Set(composeStaticContracts.values.map { entry in
+            entry.method.owner + "." + entry.method.name + entry.method.descriptor
+        })
         if hasMetroRuntime {
             metroDeclarationsFile = ctx.sourceManager.addFile(
                 path: JVMMetro.sourcePath, contents: Data(JVMMetro.source.utf8), origin: .residualStdlib
@@ -1020,7 +1042,9 @@ final class JVMClasspathIndex {
             let package = parts.dropLast().map { "`\($0)`" }.joined(separator: ".")
             var source = package.isEmpty ? "" : "package \(package)\n"
             let own = info.methods.filter(isExposed)
-            let statics = own.filter(\.isStatic)
+            let statics = own.filter {
+                $0.isStatic && !projectedComposeMethods.contains($0.owner + "." + $0.name + $0.descriptor)
+            }
             let isFileFacade = info.isKotlinFileFacade ?? short.hasSuffix("Kt")
             if info.isAnnotation && own.allSatisfy(\.isStatic) {
                 source += "annotation class `\(short)`\n"
@@ -1054,12 +1078,13 @@ final class JVMClasspathIndex {
                         source += "external " + functionDeclaration(method, asExtension: suspend.receiverIsNullable != nil) + "\n"
                         continue
                     }
-                    let defaults = info.isKotlinFileFacade == true && defaultArgumentMethod(for: method, in: info) != nil
-                    source += "external " + functionDeclaration(method, acceptsDefaults: defaults) + "\n"
-                    // A JVM file-facade descriptor does not distinguish a
-                    // top-level function from an extension receiver. Expose
-                    // the receiver form as well so Kotlin member syntax binds
-                    // to the same static method.
+                    let composeABI = method.kotlinComposeABI
+                    let defaults = composeABI?.defaults == 1
+                        || info.isKotlinFileFacade == true && defaultArgumentMethod(for: method, in: info) != nil
+                    let annotation = composeABI == nil ? "" : "@androidx.compose.runtime.Composable "
+                    source += annotation + "external " + functionDeclaration(method, acceptsDefaults: defaults) + "\n"
+                    // Preserve extension syntax for Java-authored facade
+                    // shims, where there is no Kotlin receiver metadata.
                     if info.isKotlinFileFacade == nil, method.kotlinFunction == nil,
                        kotlinFunction(method) == nil, let receiver = method.parameters.first,
                        case .reference = receiver, receiver.referenceName?.hasPrefix("[") != true {
@@ -1736,6 +1761,17 @@ final class JVMClasspathIndex {
             guard !["Z", "B", "C", "S", "I", "J", "F", "D"].contains(n), !n.isEmpty else { return [] }
             return [n]
         }
+        // Kotlin metadata can name types erased from the descriptor,
+        // such as a parameter of a Compose receiver lambda.
+        func markSourceTypes(_ sourceTypes: [String]) {
+            for type in sourceTypes {
+                let range = NSRange(type.startIndex..., in: type)
+                for match in Self.dottedPattern.matches(in: type, range: range) {
+                    guard let token = Range(match.range, in: type) else { continue }
+                    for name in normalizedToBinary[String(type[token])] ?? [] { markNeeded(name) }
+                }
+            }
+        }
         var edgeProcessed = Set<String>()
         func processEdges(_ name: String) {
             guard edgeProcessed.insert(name).inserted, let info = classes[name] else { return }
@@ -1754,18 +1790,12 @@ final class JVMClasspathIndex {
                         markNeeded(ref)
                     }
                 }
-                // Kotlin metadata can name types erased from the descriptor,
-                // such as a parameter of a Compose receiver lambda.
                 if let function = method.kotlinFunction {
-                    let sourceTypes = function.parameters.map(\.sourceType)
-                        + [function.result] + [function.receiver].compactMap { $0 }
-                    for type in sourceTypes {
-                        let range = NSRange(type.startIndex..., in: type)
-                        for match in Self.dottedPattern.matches(in: type, range: range) {
-                            guard let token = Range(match.range, in: type) else { continue }
-                            for name in normalizedToBinary[String(type[token])] ?? [] { markNeeded(name) }
-                        }
-                    }
+                    markSourceTypes(function.parameters.map(\.sourceType)
+                        + [function.result] + [function.receiver].compactMap { $0 })
+                }
+                if let function = method.kotlinSuspendFunction {
+                    markSourceTypes(function.parameters.compactMap(\.sourceType))
                 }
             }
             for field in info.fields where field.isStatic && field.isPublic && field.access & 0x1000 == 0 {
@@ -1896,16 +1926,20 @@ final class JVMClasspathIndex {
             let isVararg = method.isVarargs && index == types.count - 1
             let name: String
             let nullable: Bool
+            let suspendSourceType: String?
             if receiverInParameters && index == 0 {
                 name = "`$receiver`"
                 nullable = suspend?.receiverIsNullable == true
+                suspendSourceType = nil
             } else if let suspend {
                 let metadataIndex = index - (receiverInParameters ? 1 : 0)
                 name = useNames ? "`\(names[metadataIndex])`" : "p\(index)"
                 nullable = suspend.parameters[metadataIndex].isNullable
+                suspendSourceType = suspend.parameters[metadataIndex].sourceType
             } else {
                 name = "p\(index)"
                 nullable = false
+                suspendSourceType = nil
             }
             let parameterType: String
             if let generic = method.genericResultParameter, generic.classParameterIndices.contains(index) {
@@ -1916,7 +1950,8 @@ final class JVMClasspathIndex {
             } else {
                 parameterType = kotlinType(parameter)
             }
-            return (isVararg ? "vararg " : "") + name + ": " + parameterType + (nullable ? "?" : "")
+            return (isVararg ? "vararg " : "") + name + ": "
+                + (suspendSourceType ?? (parameterType + (nullable ? "?" : "")))
         }.joined(separator: ", ")
     }
 
