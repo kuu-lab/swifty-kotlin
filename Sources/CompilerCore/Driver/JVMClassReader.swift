@@ -779,16 +779,6 @@ struct JVMClassReader {
                 }
             }
         }
-        if name.hasSuffix("$Companion"), let metadata = classAttributes.kotlinMetadata,
-           let properties = try? metadata.staticPropertyCandidates(byteLimit: bytes.count) {
-            for property in properties {
-                guard let sourceType = property.sourceType, let getter = methods.first(where: {
-                    !$0.isStatic && !$0.isProtected && $0.name == property.getterName
-                        && $0.descriptor == property.getterDescriptor && $0.result != .unit
-                }) else { continue }
-                info.kotlinCompanionProperties[property.name] = (getter, sourceType)
-            }
-        }
         return info
     }
 

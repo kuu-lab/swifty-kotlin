@@ -1207,7 +1207,7 @@ final class JVMClasspathIndex {
                 }.compactMap { supertypeReference($0, child: info) }
                 if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
                 source += " {\n"
-                source += memberDeclarations(info: info, members: info.methods)
+                source += memberDeclarations(info: info, members: info.methods, allowsCompanion: !isNonCancellable)
                 if info.name == Self.compositionLocal, compositionLocalGetter != nil,
                    let type = info.classTypeParameterNames.first {
                     source += "@get:androidx.compose.runtime.Composable val current: `\(type)` get() = null!!\n"
@@ -1698,24 +1698,6 @@ final class JVMClasspathIndex {
                     source += "external " + functionDeclaration(method) + "\n"
                 }
             }
-            if let companion {
-                for (name, property) in companion.kotlinCompanionProperties.sorted(by: { $0.key < $1.key })
-                    where exposeSuspendType(property.getter.result) && info.kotlinStaticProperties[name] == nil {
-                    source += "val `\(name)`: \(property.sourceType) get() = null!!\n"
-                }
-                for method in companion.methods where !method.isStatic && !method.isConstructor && isExposed(method) {
-                    if statics.contains(where: { $0.name == method.name && $0.descriptor == method.descriptor })
-                        && !overridesParent(method, in: companion) { continue }
-                    if companion.kotlinCompanionProperties.values.contains(where: {
-                        $0.getter.name == method.name && $0.getter.descriptor == method.descriptor
-                    }) { continue }
-                    if overridesParent(method, in: companion)
-                        || ["toString()Ljava/lang/String;", "hashCode()I", "equals(Ljava/lang/Object;)Z"].contains(method.name + method.descriptor) {
-                        source += "override "
-                    }
-                    source += "external " + functionDeclaration(method) + "\n"
-                }
-            }
             source += "}\n"
         }
         return source
@@ -2121,7 +2103,9 @@ final class JVMClasspathIndex {
         }
         let whereClause = bounds.isEmpty ? "" : " where " + bounds.joined(separator: ", ")
         let inline = function.hasInlineContextCallback && !asFacadeMember ? "inline " : ""
-        return prefix + inline + (function.isSuspend ? "suspend " : "") + "fun \(generics)\(receiver)`\(function.name)`("
+        let operatorModifier = function.isOperator && !asFacadeMember ? "operator " : ""
+        let infix = function.isInfix && !asFacadeMember ? "infix " : ""
+        return prefix + inline + operatorModifier + infix + (function.isSuspend ? "suspend " : "") + "fun \(generics)\(receiver)`\(function.name)`("
             + parameters.joined(separator: ", ") + "): " + function.result + whereClause
     }
 
