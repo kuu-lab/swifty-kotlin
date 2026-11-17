@@ -219,6 +219,7 @@ final class JVMClasspathIndex {
         }
         return info
     }
+
     static func forEachClassFile(inDirectory directory: URL, _ body: (URL, String) throws -> Void) throws {
         let base = directory.resolvingSymlinksInPath()
         guard let enumerator = FileManager.default.enumerator(at: base, includingPropertiesForKeys: [.isRegularFileKey]) else {
@@ -1059,10 +1060,6 @@ final class JVMClasspathIndex {
         // java.lang.CharSequence; covering it keeps stub signatures and
         // supertypes on the same Kotlin nominal.
         covered.insert("java/lang/CharSequence")
-        // The frontend's CoroutineDispatcher contract already models its
-        // CoroutineContext supertypes. An erased stub cannot reconstruct
-        // the key passed to AbstractCoroutineContextElement or its generic overrides.
-        covered.insert("kotlinx/coroutines/CoroutineDispatcher")
         return covered
     }
 

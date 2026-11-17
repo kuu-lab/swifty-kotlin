@@ -55,7 +55,9 @@ struct JVMKotlinFunction {
     var leadingParameterCount: Int { contextParameters.count + (receiver == nil ? 0 : 1) }
     var composableParameters: Set<Int> {
         Set(parameters.indices.filter {
-            parameters[$0].sourceType.hasPrefix("@androidx.compose.runtime.Composable ")
+            let sourceType = parameters[$0].sourceType
+            return sourceType.hasPrefix("@androidx.compose.runtime.Composable ")
+                || sourceType.hasPrefix("@androidx.compose.runtime.Composable (")
         })
     }
     var hasInlineContextCallback: Bool {

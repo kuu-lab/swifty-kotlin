@@ -153,6 +153,18 @@
       "runtimeFacade": "kotlin/PreconditionsKt"
     },
     {
+      "path": "kotlin/time/DurationUnit.kt",
+      "virtualPath": "<kswiftk-jvm>/durationUnit.kt",
+      "excludeFromStdlibBuild": true,
+      "commonSource": true
+    },
+    {
+      "path": "declarations/Duration.kt",
+      "virtualPath": "<kswiftk-jvm>/duration.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/time/DurationKt"
+    },
+    {
       "path": "declarations/KotlinTimeMeasureTime.kt",
       "virtualPath": "<kswiftk-jvm>/kotlin-time-measure-time.kt",
       "excludeFromStdlibBuild": true,
@@ -231,11 +243,6 @@
       "path": "declarations/ReflectionPropertyException.kt",
       "virtualPath": "<kswiftk-jvm>/reflectionPropertyException.kt",
       "excludeFromStdlibBuild": true
-    },
-    {
-      "path": "declarations/JavaReflectionType.kt",
-      "virtualPath": "<kswiftk-jvm>/javaReflectionType.kt",
-      "excludeFromStdlibBuild": false
     },
     {
       "path": "declarations/JavaReflection.kt",
@@ -407,11 +414,6 @@
       "excludeFromStdlibBuild": true
     },
     {
-      "path": "kotlin/Synchronized.kt",
-      "virtualPath": "<kswiftk-jvm>/m20-synchronized-inline.kt",
-      "excludeFromStdlibBuild": true
-    },
-    {
       "path": "declarations/PairFunctions.kt",
       "virtualPath": "<kswiftk-jvm>/m20-pair-inline.kt",
       "excludeFromStdlibBuild": true
@@ -565,11 +567,6 @@
       "path": "declarations/Console.kt",
       "virtualPath": "<kswiftk-jvm>/console.kt",
       "excludeFromStdlibBuild": true
-    },
-    {
-      "path": "declarations/MonitorBridges.kt",
-      "virtualPath": "<kswiftk-jvm>/monitor-bridges.kt",
-      "excludeFromStdlibBuild": false
     },
     {
       "path": "declarations/PlatformBridges.kt",
