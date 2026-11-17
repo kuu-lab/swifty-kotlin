@@ -44,7 +44,10 @@
       "virtualPath": "<kswiftk-jvm>/duration-conversions.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/time/jdk8/DurationConversionsJDK8Kt",
-      "consumerIdentifiers": ["toJavaDuration", "toKotlinDuration"]
+      "consumerIdentifiers": [
+        "toJavaDuration",
+        "toKotlinDuration"
+      ]
     },
     {
       "path": "declarations/Instant.kt",
@@ -56,7 +59,10 @@
       "virtualPath": "<kswiftk-jvm>/instant-conversions.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/time/jdk8/InstantConversionsJDK8Kt",
-      "consumerIdentifiers": ["toJavaInstant", "toKotlinInstant"]
+      "consumerIdentifiers": [
+        "toJavaInstant",
+        "toKotlinInstant"
+      ]
     },
     {
       "path": "declarations/Clock.kt",
@@ -74,7 +80,9 @@
       "virtualPath": "<kswiftk-jvm>/byte-streams.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/io/ByteStreamsKt",
-      "consumerIdentifiers": ["readBytes"]
+      "consumerIdentifiers": [
+        "readBytes"
+      ]
     },
     {
       "path": "declarations/UStrings.kt",
@@ -225,11 +233,6 @@
       "excludeFromStdlibBuild": true
     },
     {
-      "path": "declarations/JavaReflectionType.kt",
-      "virtualPath": "<kswiftk-jvm>/javaReflectionType.kt",
-      "excludeFromStdlibBuild": false
-    },
-    {
       "path": "declarations/JavaReflection.kt",
       "virtualPath": "<kswiftk-jvm>/javaReflection.kt",
       "excludeFromStdlibBuild": false
@@ -317,12 +320,6 @@
       "runtimeFacade": "kotlin/text/StringsKt"
     },
     {
-      "path": "declarations/Utf8Conversions.kt",
-      "virtualPath": "<kswiftk-jvm>/utf8-conversions.kt",
-      "excludeFromStdlibBuild": true,
-      "runtimeFacade": "kotlin/text/StringsKt"
-    },
-    {
       "path": "declarations/StringBuilder.kt",
       "virtualPath": "<kswiftk-jvm>/m19-builder.kt",
       "excludeFromStdlibBuild": false
@@ -402,11 +399,6 @@
     {
       "path": "declarations/Pair.kt",
       "virtualPath": "<kswiftk-jvm>/m20-pairs.kt",
-      "excludeFromStdlibBuild": true
-    },
-    {
-      "path": "kotlin/Synchronized.kt",
-      "virtualPath": "<kswiftk-jvm>/m20-synchronized-inline.kt",
       "excludeFromStdlibBuild": true
     },
     {
@@ -563,11 +555,6 @@
       "path": "declarations/Console.kt",
       "virtualPath": "<kswiftk-jvm>/console.kt",
       "excludeFromStdlibBuild": true
-    },
-    {
-      "path": "declarations/MonitorBridges.kt",
-      "virtualPath": "<kswiftk-jvm>/monitor-bridges.kt",
-      "excludeFromStdlibBuild": false
     },
     {
       "path": "declarations/PlatformBridges.kt",

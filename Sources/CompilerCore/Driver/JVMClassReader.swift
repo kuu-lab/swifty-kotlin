@@ -1,6 +1,6 @@
 import Foundation
 
-struct JVMClassInfo: Sendable {
+struct JVMClassInfo {
     let name: String
     let flags: UInt16
     let superclass: String?
@@ -64,6 +64,8 @@ struct JVMForeignField {
     /// `ConstantValue` attribute payload for `static final` fields, when the
     /// classfile carries one. Used to emit Kotlin `const`-style literals.
     var constantValue: JVMFieldConstant?
+    /// Collected from a supertype rather than declared on this classfile.
+    var inherited = false
     var isStatic: Bool { access & 8 != 0 }
     var isPublic: Bool { access & 1 != 0 }
     var isFinal: Bool { access & 16 != 0 }
@@ -805,9 +807,8 @@ struct JVMClassReader {
     }
 }
 
-final class JVMDescriptorCache: @unchecked Sendable {
+final class JVMDescriptorCache {
     private static let maximumEntries = 2_048
-    private let lock = NSLock()
     private var entries: [String: ([JVMValueType], JVMValueType)] = [:]
 
     func parse(_ descriptor: String) throws -> ([JVMValueType], JVMValueType) {
@@ -816,23 +817,13 @@ final class JVMDescriptorCache: @unchecked Sendable {
         guard descriptor.utf8.allSatisfy({ $0 < 0x80 }) else {
             return try JVMDescriptor.parse(descriptor)
         }
-        lock.lock()
-        if let signature = entries[descriptor] {
-            lock.unlock()
-            return signature
-        }
-        lock.unlock()
+        if let signature = entries[descriptor] { return signature }
 
-        // Concurrent readers may parse the same descriptor; the results are
-        // identical, so the last store wins.
         let signature = try JVMDescriptor.parse(descriptor)
-
-        lock.lock()
         entries[descriptor] = signature
         if entries.count == Self.maximumEntries {
             entries.removeAll(keepingCapacity: true)
         }
-        lock.unlock()
         return signature
     }
 }
