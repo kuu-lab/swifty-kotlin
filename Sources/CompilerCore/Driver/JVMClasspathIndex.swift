@@ -158,11 +158,45 @@ final class JVMClasspathIndex {
         _ data: Data, descriptorCache: JVMDescriptorCache, _ insert: (JVMClassInfo) -> Void
     ) throws {
         let archive = try ZipArchive(data: data)
-        for entry in archive.entries.sorted(by: { $0.name < $1.name }) {
-            guard entry.name.hasSuffix(".class"), !entry.name.hasPrefix("META-INF/"),
-                  !entry.name.hasSuffix("module-info.class"), !entry.name.hasSuffix("package-info.class") else { continue }
-            insert(try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: descriptorCache))
+        let entries = archive.entries.filter { entry in
+            entry.name.hasSuffix(".class") && !entry.name.hasPrefix("META-INF/")
+                && !entry.name.hasSuffix("module-info.class") && !entry.name.hasSuffix("package-info.class")
+        }.sorted { $0.name < $1.name }
+        if archiveJobs > 1 && entries.count >= 128 {
+            let ranges = archiveBatches(entries)
+            let batches = try SemaPerFileExecutor.collect(count: ranges.count, jobs: archiveJobs, cancelOnFirstError: true) { index in
+                let batchDescriptors = JVMDescriptorCache()
+                return try entries[ranges[index]].map { entry in
+                    try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: batchDescriptors)
+                }
+            }
+            for batch in batches {
+                for info in batch { insert(info) }
+            }
+        } else {
+            for entry in entries {
+                insert(try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: descriptorCache))
+            }
         }
+    }
+
+    private static func archiveBatches(_ entries: [ZipArchive.Entry]) -> [Range<Int>] {
+        let typicalCount = 64
+        let approximateBatchCount = (entries.count + typicalCount - 1) / typicalCount
+        let targetBytes = max(1, entries.reduce(0) { $0 + $1.uncompressedSize } / approximateBatchCount)
+        var ranges: [Range<Int>] = []
+        var start = 0
+        var bytes = 0
+        for (index, entry) in entries.enumerated() {
+            if index > start && (bytes + entry.uncompressedSize > targetBytes || index - start >= 2 * typicalCount) {
+                ranges.append(start ..< index)
+                start = index
+                bytes = 0
+            }
+            bytes += entry.uncompressedSize
+        }
+        ranges.append(start ..< entries.count)
+        return ranges
     }
 
     private static func readClass(
