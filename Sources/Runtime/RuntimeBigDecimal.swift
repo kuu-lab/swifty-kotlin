@@ -8,6 +8,7 @@ private struct RuntimeBigDecimalParts {
 
 private enum RuntimeBigDecimalError: Error {
     case arithmetic(String)
+    case nonTerminating
 }
 
 private func runtimeBigDecimalParts(_ source: String) throws -> RuntimeBigDecimalParts {
@@ -304,6 +305,8 @@ private func runtimeArithmeticException(_ error: Error, outThrown: UnsafeMutable
     let message: String
     if case let RuntimeBigDecimalError.arithmetic(reason) = error {
         message = reason
+    } else if case RuntimeBigDecimalError.nonTerminating = error {
+        message = "Non-terminating decimal expansion; no exact representable decimal result"
     } else {
         message = "BigDecimal arithmetic error"
     }
@@ -434,9 +437,7 @@ private func runtimeExactDivide(
             fives += 1
             continue
         }
-        throw RuntimeBigDecimalError.arithmetic(
-            "Non-terminating decimal expansion; no exact representable decimal result"
-        )
+        throw RuntimeBigDecimalError.nonTerminating
     }
 
     var scale = max(twos, fives)
@@ -455,6 +456,133 @@ private func runtimeExactDivide(
         negative: lhs.negative != rhs.negative && numerator != "0",
         scale: resultScale
     )
+}
+
+private func runtimeRoundBigDecimalToPrecision(
+    _ parts: RuntimeBigDecimalParts,
+    precision: Int,
+    roundingMode: Int
+) throws -> RuntimeBigDecimalParts {
+    var result = parts
+    guard result.digits.count > precision else { return result }
+
+    let excessDigits = result.digits.count - precision
+    let targetScale = result.scale - excessDigits
+    guard (Int(Int32.min) ... Int(Int32.max)).contains(targetScale) else {
+        throw RuntimeBigDecimalError.arithmetic("BigDecimal scale out of range")
+    }
+    result = try runtimeSetBigDecimalScale(result, scale: targetScale, roundingMode: roundingMode)
+
+    while result.digits.count > precision {
+        let reducedScale = result.scale - 1
+        guard (Int(Int32.min) ... Int(Int32.max)).contains(reducedScale) else {
+            throw RuntimeBigDecimalError.arithmetic("BigDecimal scale out of range")
+        }
+        result = try runtimeSetBigDecimalScale(result, scale: reducedScale, roundingMode: 7)
+    }
+    return result
+}
+
+private func runtimeFloorLog10Ratio(_ lhs: String, _ rhs: String) -> Int {
+    let lengthDelta = lhs.count - rhs.count
+    let scaledLeft: String
+    let scaledRight: String
+    if lengthDelta >= 0 {
+        scaledLeft = lhs
+        scaledRight = rhs + String(repeating: "0", count: lengthDelta)
+    } else {
+        scaledLeft = lhs + String(repeating: "0", count: -lengthDelta)
+        scaledRight = rhs
+    }
+    return runtimeCompareMagnitudes(scaledLeft, scaledRight) >= 0 ? lengthDelta : lengthDelta - 1
+}
+
+private func runtimeRoundedMathContextDivide(
+    _ lhs: RuntimeBigDecimalParts,
+    _ rhs: RuntimeBigDecimalParts,
+    precision: Int,
+    roundingMode: Int
+) throws -> RuntimeBigDecimalParts {
+    let left = runtimeNormalizeMagnitude(lhs.digits)
+    let right = runtimeNormalizeMagnitude(rhs.digits)
+    let logRatio = runtimeFloorLog10Ratio(left, right)
+    let exponent = logRatio + (rhs.scale - lhs.scale)
+    let resultScale = precision - 1 - exponent
+    let shift = precision - 1 - logRatio
+
+    var numerator = left
+    var denominator = right
+    if shift >= 0 {
+        numerator += String(repeating: "0", count: shift)
+    } else {
+        denominator += String(repeating: "0", count: -shift)
+    }
+
+    var digits = try runtimeRoundedQuotient(
+        numerator,
+        denominator,
+        negative: lhs.negative != rhs.negative,
+        roundingMode: roundingMode
+    )
+    var scale = resultScale
+    if digits.count > precision {
+        digits.removeLast()
+        scale -= 1
+    }
+    return RuntimeBigDecimalParts(
+        digits: digits,
+        negative: lhs.negative != rhs.negative && digits != "0",
+        scale: scale
+    )
+}
+
+private func runtimeMathContextDivide(
+    _ lhs: RuntimeBigDecimalParts,
+    _ rhs: RuntimeBigDecimalParts,
+    precision: Int,
+    roundingMode: Int
+) throws -> RuntimeBigDecimalParts {
+    guard rhs.digits != "0" else {
+        throw RuntimeBigDecimalError.arithmetic("Division by zero")
+    }
+    let preferredScale = lhs.scale - rhs.scale
+    if lhs.digits == "0" {
+        return RuntimeBigDecimalParts(digits: "0", negative: false, scale: preferredScale)
+    }
+    if precision == 0 {
+        return try runtimeExactDivide(lhs, rhs)
+    }
+
+    do {
+        let exact = try runtimeExactDivide(lhs, rhs)
+        return try runtimeRoundBigDecimalToPrecision(exact, precision: precision, roundingMode: roundingMode)
+    } catch let error as RuntimeBigDecimalError {
+        switch error {
+        case .nonTerminating:
+            return try runtimeRoundedMathContextDivide(lhs, rhs, precision: precision, roundingMode: roundingMode)
+        case .arithmetic:
+            throw error
+        }
+    }
+}
+
+@_cdecl("__kk_bignum_divideMathContext")
+public func __kk_bignum_divideMathContext(
+    _ lhsRaw: Int,
+    _ rhsRaw: Int,
+    _ precision: Int,
+    _ roundingMode: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    return runtimeThrowingBridge(outThrown) {
+        do {
+            let lhs = try runtimeBigDecimalParts(runtimeBigDecimalValue(lhsRaw, caller: #function))
+            let rhs = try runtimeBigDecimalParts(runtimeBigDecimalValue(rhsRaw, caller: #function))
+            return try runtimeMakeBigDecimal(runtimeMathContextDivide(lhs, rhs, precision: precision, roundingMode: roundingMode))
+        } catch {
+            return runtimeArithmeticException(error, outThrown: outThrown)
+        }
+    }
 }
 
 @_cdecl("__kk_bignum_divide")

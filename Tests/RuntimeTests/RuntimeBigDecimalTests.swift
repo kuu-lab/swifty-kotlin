@@ -241,6 +241,34 @@ struct RuntimeBigDecimalTests {
     }
 
     @Test
+    func testBigDecimalMathContextDivision() {
+        func box(_ text: String) -> Int {
+            var thrown = 0
+            let raw = withFlatString(text) { data, length, byteCount, hash in
+                __kk_string_toBigDecimal_flat(data, length, byteCount, hash, &thrown)
+            }
+            #expect(thrown == 0)
+            return raw
+        }
+
+        var thrown = 0
+        let rounded = __kk_bignum_divideMathContext(box("1"), box("3"), 2, 4, &thrown)
+        #expect(thrown == 0)
+        #expect(stringValue(__kk_bignum_toString(rounded)) == "0.33")
+
+        let exact = __kk_bignum_divideMathContext(box("1"), box("2"), 2, 4, &thrown)
+        #expect(thrown == 0)
+        #expect(stringValue(__kk_bignum_toString(exact)) == "0.5")
+
+        let carried = __kk_bignum_divideMathContext(box("999"), box("10"), 2, 4, &thrown)
+        #expect(thrown == 0)
+        #expect(stringValue(__kk_bignum_toString(carried)) == "1.0E+2")
+
+        _ = __kk_bignum_divideMathContext(box("1"), box("3"), 0, 4, &thrown)
+        #expect(thrown != 0)
+    }
+
+    @Test
     func testBigDecimalSetScaleRoundingAndUnnecessaryMode() {
         func box(_ text: String) -> Int {
             var thrown = 0
