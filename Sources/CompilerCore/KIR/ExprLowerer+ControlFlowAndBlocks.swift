@@ -84,7 +84,12 @@ extension ExprLowerer {
             for: exprID,
             expr: ast.arena.expr(exprID),
             sema: sema
-        ) != nil, isPotentialNothingValueProducer(ast.arena.expr(exprID))
+        ) != nil, isPotentialNothingValueProducer(
+            ast.arena.expr(exprID),
+            exprID: exprID,
+            ast: ast,
+            sema: sema
+        )
         {
             // Native calls can still return a register for source-level Nothing.
             // Match JVM lowering by making that impossible normal edge throw.
@@ -214,13 +219,27 @@ extension ExprLowerer {
         return resultType
     }
 
-    private func isPotentialNothingValueProducer(_ expr: Expr?) -> Bool {
+    private func isPotentialNothingValueProducer(
+        _ expr: Expr?,
+        exprID: ExprID,
+        ast: ASTModule,
+        sema: SemaModule
+    ) -> Bool {
         switch expr {
         case .call, .memberCall, .safeMemberCall, .indexedAccess,
              .binary, .unaryExpr, .asCast:
-            true
+            return true
+        case .nameRef:
+            let symbol = sema.bindings.identifierSymbols[exprID]
+                ?? sema.bindings.callBindings[exprID]?.chosenCallee
+            guard let symbol,
+                  sema.symbols.symbol(symbol)?.kind == .property
+            else {
+                return false
+            }
+            return driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema)
         default:
-            false
+            return false
         }
     }
 
