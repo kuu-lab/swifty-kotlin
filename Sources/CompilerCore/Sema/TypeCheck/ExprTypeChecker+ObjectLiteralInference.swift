@@ -67,8 +67,10 @@ extension ExprTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
 
+        let pendingRecheck = driver.pendingLocalNominalRechecks.remove(declID) != nil
         if let existing = sema.bindings.declSymbols[declID],
-           driver.predeclaredObjectLiteralDecls.remove(declID) == nil
+           driver.predeclaredObjectLiteralDecls.remove(declID) == nil,
+           !pendingRecheck
         {
             return existing
         }
@@ -172,6 +174,9 @@ extension ExprTypeChecker {
             ctx: ctx
         )
         driver.predeclaredObjectLiteralDecls.remove(declID)
+        if driver.sourceManager?.origin(of: ctx.currentFileID)?.isBundledStdlib != true {
+            driver.localNominalDeclChecks.append(declID)
+        }
         let directSuperSymbols = sema.symbols.directSupertypes(for: objectSymbol)
         let inheritance = DataFlowSemaPhase()
 
@@ -393,6 +398,38 @@ extension ExprTypeChecker {
             implicitReceiverType: objectType,
             enclosingClassSymbol: objectSymbol,
             outerReceiverTypes: objectOuterReceiverTypes
+        )
+
+        // KUU-4595: an expression-bodied member function keeps the `Any`
+        // return placeholder collected in `collectObjectLiteralMemberFunctions`
+        // until its body is checked at the end of this pass, but member
+        // property initializers and `by lazy` lambdas below can already call
+        // it. Register each for the same on-demand return inference named
+        // members get, seeded with the outer locals the authoritative pass
+        // uses so a speculative check binds identical symbols — an unseeded
+        // check could resolve an outer local through the member scope and
+        // cache that binding permanently. Inferred member properties likewise
+        // stay `pending` until the source-order pass (or an on-demand read
+        // from an early-inferred function) resolves them.
+        let localMemberFunctionCtx = driver.helpers.localFunctionOptInContext(objectCtx)
+        for functionDeclID in objectDecl.memberFunctions {
+            driver.registerInferredReturnFunction(
+                for: functionDeclID,
+                context: localMemberFunctionCtx,
+                baseLocals: outerLocalsSnapshot
+            )
+        }
+        for propertyDeclID in objectDecl.memberProperties {
+            guard case let .propertyDecl(property)? = ast.arena.decl(propertyDeclID),
+                  property.type == nil,
+                  let symbol = propertySymbolsByDecl[propertyDeclID]
+            else { continue }
+            driver.pendingPropertyTypes.insert(symbol)
+        }
+        driver.registerInferredMemberProperties(
+            objectDecl.memberProperties,
+            context: objectCtx,
+            initialLocals: outerLocalsSnapshot
         )
 
         // Nested inner-class bodies can read properties from this receiver.
@@ -1026,6 +1063,12 @@ extension ExprTypeChecker {
                     baseLocals: accessorBaseLocals
                 )
             }
+
+            // This source-order pass just finalized the property's type;
+            // drop the demand-inference markers so later reads see the final
+            // type instead of scheduling another on-demand check.
+            driver.pendingPropertyTypes.remove(propertySymbol)
+            driver.deferredInferredProperties.remove(propertySymbol)
         }
     }
 
