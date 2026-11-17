@@ -93,7 +93,7 @@ final class TypeCheckSemaPhase: CompilerPhase {
         // crash with SIGBUS (signal 10). Run it on a big-stack thread so
         // recursion headroom is independent of the calling thread, matching
         // `BuildKIRPhase`'s handling of the same class of issue in lowering.
-        let work = TypeCheckWork(driver: driver, fileScopes: fileScopes, files: ast.files, frontendJobs: ctx.options.frontendFlags.contains("sema-parallel") ? ctx.frontendJobs : 1)
+        let work = TypeCheckWork(driver: driver, fileScopes: fileScopes, files: ast.files, frontendJobs: ctx.options.semaParallelEnabled ? ctx.frontendJobs : 1)
         // KUU-3779: while `type-check` runs, the scope-chain, overload
         // resolver, constraint solver and type system record hot-path
         // counters/timers into this collector. It is installed only when

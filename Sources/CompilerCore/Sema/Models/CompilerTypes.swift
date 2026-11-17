@@ -496,7 +496,7 @@ public struct CompilerOptions: Equatable {
     public static let defaultFrontendJobs = min(max(ProcessInfo.processInfo.activeProcessorCount, 1), 8)
 
     /// The number of frontend parallel jobs parsed from `-Xfrontend jobs=N`.
-    /// Controls BuildASTPhase concurrency and, with sema-parallel enabled,
+    /// Controls BuildASTPhase concurrency and, when `semaParallelEnabled`,
     /// independent Sema preparation/body workers. LexPhase and ParsePhase
     /// always submit all file tasks concurrently (unchanged from pre-PR
     /// behaviour). Returns `defaultFrontendJobs` when no valid jobs flag is
@@ -511,6 +511,14 @@ public struct CompilerOptions: Equatable {
             }
         }
         return Self.defaultFrontendJobs
+    }
+
+    /// Whether Sema may use independent preparation/body workers. Enabled by
+    /// default when `frontendJobs > 1`; `-Xfrontend sema-serial` forces the
+    /// serial path, and `-Xfrontend sema-parallel` remains accepted for
+    /// compatibility.
+    public var semaParallelEnabled: Bool {
+        frontendJobs > 1 && !frontendFlags.contains("sema-serial")
     }
 
     /// Thread-safety mode for `by lazy { }` delegates, parsed from

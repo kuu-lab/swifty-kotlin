@@ -194,6 +194,25 @@ struct CompilerOptionsTests {
         #expect(opts.frontendJobs == 4)
     }
 
+    // MARK: - semaParallelEnabled
+
+    @Test func testSemaParallelEnabledFollowsFrontendJobs() {
+        func options(_ flags: [String]) -> CompilerOptions {
+            CompilerOptions(
+                moduleName: "Test",
+                inputs: [],
+                outputPath: "/out",
+                emit: .kirDump,
+                target: defaultTargetTriple(),
+                frontendFlags: flags
+            )
+        }
+        #expect(options(["jobs=4"]).semaParallelEnabled)
+        #expect(!options(["jobs=1"]).semaParallelEnabled)
+        #expect(!options(["jobs=4", "sema-serial"]).semaParallelEnabled)
+        #expect(options(["jobs=4", "sema-parallel"]).semaParallelEnabled)
+    }
+
     // MARK: - lazyThreadSafetyMode
 
     @Test func testLazyThreadSafetyModeDefaultIsSynchronized() {

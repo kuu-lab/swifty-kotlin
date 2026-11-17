@@ -583,6 +583,7 @@ Kotlin/Native (および共通 IR) が生成する `.klib` も `-I` のサーチ
 - `DispatchQueue.concurrentPerform` で並列化し、`DispatchSemaphore` / `DispatchGroup` で並列度を制御（`Driver/FrontendPhases.swift`）
 - 並列実行後は `FileID` 順でソートし決定性を保証
 - 診断メッセージも `sortBySourceLocation()` でソース位置順に安定化
+- Sema の独立 body/準備ワーカーは `frontendJobs > 1` のとき既定で有効（`-Xfrontend sema-serial` で直列に戻せる。`-Xfrontend sema-parallel` は互換のため残す）
 
 Codegen の関数本体 emission は `-Xfrontend codegen-parallel` + `-Xfrontend jobs=N` でオプトイン並列化できる（`NativeEmitter+ParallelEmission.swift`）:
 
