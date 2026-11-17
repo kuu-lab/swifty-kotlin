@@ -10,40 +10,41 @@ private func runtimeSequenceBuilderYieldAllIterator(
     from collectionRaw: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    if runtimeSequenceBox(from: collectionRaw) != nil {
-        return kk_sequence_box_iterator(collectionRaw, outThrown)
-    }
+    return runtimeThrowingBridge(outThrown) {
+        if runtimeSequenceBox(from: collectionRaw) != nil {
+            return kk_sequence_box_iterator(collectionRaw, outThrown)
+        }
 
-    let isArray = runtimeArrayBox(from: collectionRaw).map { type(of: $0) == RuntimeArrayBox.self } ?? false
-    if runtimeListBox(from: collectionRaw) != nil
-        || isArray
-        || runtimeSetBox(from: collectionRaw) != nil
-        || runtimeRangeBox(from: collectionRaw) != nil
-    {
-        return kk_iterable_iterator(collectionRaw, outThrown)
-    }
+        let isArray = runtimeArrayBox(from: collectionRaw).map { type(of: $0) == RuntimeArrayBox.self } ?? false
+        if runtimeListBox(from: collectionRaw) != nil
+            || isArray
+            || runtimeSetBox(from: collectionRaw) != nil
+            || runtimeRangeBox(from: collectionRaw) != nil
+        {
+            return kk_iterable_iterator(collectionRaw, outThrown)
+        }
 
-    if let iterator = runtimeSourceIterableIterator(collectionRaw, outThrown: outThrown) {
-        return iterator
-    }
-    if (outThrown?.pointee ?? 0) != 0 {
-        return 0
-    }
+        if let iterator = runtimeSourceIterableIterator(collectionRaw, outThrown: outThrown) {
+            return iterator
+        }
+        if (outThrown?.pointee ?? 0) != 0 {
+            return 0
+        }
 
-    let sequenceIterator = kk_itable_lookup_dynamic(
-        collectionRaw,
-        Int(runtimeStableNominalTypeID(fqName: "kotlin.sequences.Sequence")),
-        0
-    )
-    if sequenceIterator != 0 {
-        let acquire = unsafeBitCast(
-            sequenceIterator,
-            to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+        let sequenceIterator = kk_itable_lookup_dynamic(
+            collectionRaw,
+            Int(runtimeStableNominalTypeID(fqName: "kotlin.sequences.Sequence")),
+            0
         )
-        return acquire(collectionRaw, outThrown)
+        if sequenceIterator != 0 {
+            let acquire = unsafeBitCast(
+                sequenceIterator,
+                to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+            )
+            return acquire(collectionRaw, outThrown)
+        }
+        return collectionRaw
     }
-    return collectionRaw
 }
 
 @_cdecl("__kk_sequence_builder_yield")
@@ -72,54 +73,55 @@ public func __kk_sequence_builder_yieldAll_checked(
     _ collectionRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    if let builder = runtimeIteratorBuilderBox(from: builderRaw) {
-        var thrown = 0
-        let iterator = runtimeSequenceBuilderYieldAllIterator(
-            from: collectionRaw,
-            outThrown: &thrown
-        )
-        if thrown != 0 {
+    return runtimeThrowingBridge(outThrown) {
+        if let builder = runtimeIteratorBuilderBox(from: builderRaw) {
+            var thrown = 0
+            let iterator = runtimeSequenceBuilderYieldAllIterator(
+                from: collectionRaw,
+                outThrown: &thrown
+            )
+            if thrown != 0 {
+                outThrown?.pointee = thrown
+                return 0
+            }
+            return builder.yieldAll(iterator, outThrown: outThrown)
+        }
+
+        if let proxy = runtimeCoroutineBuilderProxy(from: builderRaw) {
+            var thrown = 0
+            let iterator = runtimeSequenceBuilderYieldAllIterator(
+                from: collectionRaw,
+                outThrown: &thrown
+            )
+            if thrown != 0 {
+                outThrown?.pointee = thrown
+                return 0
+            }
+            return proxy.coroutine.yieldAll(iterator, outThrown: outThrown)
+        }
+
+        // Iterable ranges need an iterator before delegating to a legacy builder
+        // box. Their handles are objects, not scalar Int/Long values.
+        if runtimeRangeBox(from: collectionRaw) != nil,
+           runtimeSequenceBuilderBox(from: builderRaw) != nil
+        {
+            var thrown = 0
+            let iterator = kk_iterable_iterator(collectionRaw, &thrown)
+            if thrown != 0 {
+                outThrown?.pointee = thrown
+                return 0
+            }
+            while kk_iterator_hasNext(iterator, &thrown) != 0, thrown == 0 {
+                let value = kk_iterator_next(iterator, &thrown)
+                if thrown != 0 { break }
+                _ = __kk_sequence_builder_yield(builderRaw, value)
+            }
             outThrown?.pointee = thrown
             return 0
         }
-        return builder.yieldAll(iterator, outThrown: outThrown)
-    }
 
-    if let proxy = runtimeCoroutineBuilderProxy(from: builderRaw) {
-        var thrown = 0
-        let iterator = runtimeSequenceBuilderYieldAllIterator(
-            from: collectionRaw,
-            outThrown: &thrown
-        )
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            return 0
-        }
-        return proxy.coroutine.yieldAll(iterator, outThrown: outThrown)
+        return __kk_sequence_builder_yieldAll(builderRaw, collectionRaw)
     }
-
-    // Iterable ranges need an iterator before delegating to a legacy builder
-    // box. Their handles are objects, not scalar Int/Long values.
-    if runtimeRangeBox(from: collectionRaw) != nil,
-       runtimeSequenceBuilderBox(from: builderRaw) != nil
-    {
-        var thrown = 0
-        let iterator = kk_iterable_iterator(collectionRaw, &thrown)
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            return 0
-        }
-        while kk_iterator_hasNext(iterator, &thrown) != 0, thrown == 0 {
-            let value = kk_iterator_next(iterator, &thrown)
-            if thrown != 0 { break }
-            _ = __kk_sequence_builder_yield(builderRaw, value)
-        }
-        outThrown?.pointee = thrown
-        return 0
-    }
-
-    return __kk_sequence_builder_yieldAll(builderRaw, collectionRaw)
 }
 
 @_cdecl("__kk_sequence_builder_yieldAll")

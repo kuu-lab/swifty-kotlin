@@ -318,12 +318,14 @@ public func kk_future_invoke(
     _ valueRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeInvokeCollectionLambda1(
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        value: valueRaw,
-        outThrown: outThrown
-    )
+    return runtimeThrowingBridge(outThrown) {
+        runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            value: valueRaw,
+            outThrown: outThrown
+        )
+    }
 }
 
 @_cdecl("kk_future_result")

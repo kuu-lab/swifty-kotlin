@@ -616,7 +616,6 @@ struct TailrecLoweringTests {
 
             let module = try #require(ctx.kir)
 
-            // Find the fact function and verify it was optimized.
             let factFunction = try findKIRFunction(
                 named: "fact", in: module, interner: ctx.interner
             )

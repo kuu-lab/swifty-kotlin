@@ -56,7 +56,7 @@ extension JVMFunctionBuilder {
             return try localFunctionReference(id, symbol: symbol, receiver: receiver, plan: local)
         }
         let unbound = program.sema.bindings.isUnboundCallableRef(id)
-        if let property = program.properties[symbol] {
+        if let property = propertyBinding(id) {
             let extensionProperty = property.kotlinReceiver != nil
             let bound = extensionProperty
                 ? (unbound ? nil : try receiver.map(requireValue) ?? instance(id))

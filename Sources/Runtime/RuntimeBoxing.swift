@@ -295,15 +295,16 @@ public func kk_lateinit_get_or_throw(
     _ propertyName: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard value == runtimeNullSentinelInt else {
-        return value
+    return runtimeThrowingBridge(outThrown) {
+        guard value == runtimeNullSentinelInt else {
+            return value
+        }
+        let name = extractString(from: UnsafeMutableRawPointer(bitPattern: propertyName)) ?? "<unknown>"
+        outThrown?.pointee = runtimeAllocateUninitializedPropertyAccessException(
+            message: "lateinit property \(name) has not been initialized"
+        )
+        return runtimeNullSentinelInt
     }
-    let name = extractString(from: UnsafeMutableRawPointer(bitPattern: propertyName)) ?? "<unknown>"
-    outThrown?.pointee = runtimeAllocateUninitializedPropertyAccessException(
-        message: "lateinit property \(name) has not been initialized"
-    )
-    return runtimeNullSentinelInt
 }
 
 @_cdecl("kk_unbox_int")

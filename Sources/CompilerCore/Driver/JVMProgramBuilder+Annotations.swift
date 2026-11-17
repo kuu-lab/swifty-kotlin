@@ -262,6 +262,8 @@ extension JVMProgramBuilder {
                 KnownCompilerAnnotation.jvmInline.qualifiedName,
                 KnownCompilerAnnotation.jvmName.qualifiedName,
                 KnownCompilerAnnotation.jvmField.qualifiedName,
+                KnownCompilerAnnotation.jvmStatic.qualifiedName,
+                KnownCompilerAnnotation.jvmStatic.simpleName,
                 KnownCompilerAnnotation.jvmSynthetic.qualifiedName,
                 KnownCompilerAnnotation.suppress.qualifiedName,
                 KnownCompilerAnnotation.suppress.simpleName,
@@ -310,7 +312,10 @@ extension JVMProgramBuilder {
         return type
     }
     func recordsContain(_ symbol: SymbolID, _ annotation: KnownCompilerAnnotation) -> Bool {
-        sema.symbols.annotations(for: symbol).contains { $0.annotationFQName == annotation.qualifiedName }
+        recordsContain(symbol, annotation.qualifiedName)
+    }
+    func recordsContain(_ symbol: SymbolID, _ qualifiedName: String) -> Bool {
+        sema.symbols.annotations(for: symbol).contains { $0.annotationFQName == qualifiedName }
     }
     func decorateAnnotation(_ plan: JVMClassPlan, result: inout JVMClass) throws {
         if let container = try repeatableContainerName(plan.symbol) {

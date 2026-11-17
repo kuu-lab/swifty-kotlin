@@ -447,27 +447,28 @@ func runtimeCharRangeRandom(
     randomRaw: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let first = kk_unbox_char(range.first)
-    let until = kk_unbox_char(range.last) + 1
-    var randomThrown = 0
-    let value = runtimeRandomNextIntRange(
-        randomRaw,
-        from: first,
-        until: until,
-        outThrown: &randomThrown
-    )
-    guard randomThrown != 0 else {
-        return kk_box_char(value)
-    }
+    runtimeThrowingBridge(outThrown) {
+        let first = kk_unbox_char(range.first)
+        let until = kk_unbox_char(range.last) + 1
+        var randomThrown = 0
+        let value = runtimeRandomNextIntRange(
+            randomRaw,
+            from: first,
+            until: until,
+            outThrown: &randomThrown
+        )
+        guard randomThrown != 0 else {
+            return kk_box_char(value)
+        }
 
-    let throwable = runtimeThrowableBox(from: randomThrown)
-    if let error = throwable as? RuntimeIllegalArgumentExceptionBox {
-        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: error.message)
-    } else {
-        outThrown?.pointee = randomThrown
+        let throwable = runtimeThrowableBox(from: randomThrown)
+        if let error = throwable as? RuntimeIllegalArgumentExceptionBox {
+            outThrown?.pointee = runtimeAllocateNoSuchElementException(message: error.message)
+        } else {
+            outThrown?.pointee = randomThrown
+        }
+        return 0
     }
-    return 0
 }
 
 // MARK: - Range.random(Random) helpers
@@ -647,11 +648,12 @@ func runtimeSignedRangeRandom(
     randomRaw: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard !runtimeRangeIsEmpty(range) else {
-        return runtimeRangeRandomError(range, outThrown)
+    runtimeThrowingBridge(outThrown) {
+        guard !runtimeRangeIsEmpty(range) else {
+            return runtimeRangeRandomError(range, outThrown)
+        }
+        return runtimeRangeRandomSample(range, randomRaw: randomRaw)
     }
-    return runtimeRangeRandomSample(range, randomRaw: randomRaw)
 }
 
 func runtimeUnsignedRangeRandom(
@@ -659,21 +661,22 @@ func runtimeUnsignedRangeRandom(
     randomRaw: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard !runtimeRangeIsEmpty(range) else {
-        return runtimeRangeRandomError(range, outThrown)
+    runtimeThrowingBridge(outThrown) {
+        guard !runtimeRangeIsEmpty(range) else {
+            return runtimeRangeRandomError(range, outThrown)
+        }
+        return runtimeRangeRandomSample(range, randomRaw: randomRaw)
     }
-    return runtimeRangeRandomSample(range, randomRaw: randomRaw)
 }
 
 @_cdecl("kk_op_notnull")
 public func kk_op_notnull(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if value == runtimeNullSentinelInt {
-        outThrown?.pointee = runtimeAllocateNullPointerException(message: nil)
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        if value == runtimeNullSentinelInt {
+            throw RuntimeThrownHandle(runtimeAllocateNullPointerException(message: nil))
+        }
+        return value
     }
-    return value
 }
 
 /// `kk_op_notnull` variant carrying the JVM `checkNotNullExpressionValue`
@@ -681,15 +684,15 @@ public func kk_op_notnull(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?)
 /// platform-typed call result flows into a non-null position (KUU-4452).
 @_cdecl("kk_op_notnull_msg")
 public func kk_op_notnull_msg(_ value: Int, _ messageRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if value == runtimeNullSentinelInt {
-        outThrown?.pointee = runtimeAllocateNullPointerException(
-            message: runtimeStringBox(fromRaw: messageRaw)?.value,
-            messageRaw: runtimeThrowableStringMessageRaw(messageRaw)
-        )
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        if value == runtimeNullSentinelInt {
+            throw RuntimeThrownHandle(runtimeAllocateNullPointerException(
+                message: runtimeStringBox(fromRaw: messageRaw)?.value,
+                messageRaw: runtimeThrowableStringMessageRaw(messageRaw)
+            ))
+        }
+        return value
     }
-    return value
 }
 
 @_cdecl("kk_op_elvis")
@@ -719,73 +722,76 @@ public func __kk_op_downTo(_ lhs: Int, _ rhs: Int) -> Int {
 
 @_cdecl("__kk_op_step")
 public func __kk_op_step(_ rangeRaw: Int, _ stepValue: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    // Kotlin spec: step() requires a strictly positive argument (STDLIB-022).
-    guard stepValue > 0 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Step must be positive, was: \(stepValue)."
-        )
-        return rangeRaw
-    }
-    guard stepValue != Int.min else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Step must be positive, was: \(stepValue)."
-        )
-        return rangeRaw
-    }
+    // The invalid-step paths return the receiver range alongside the
+    // exception, so the error writes stay manual inside the bridge closure.
+    return runtimeThrowingBridge(outThrown) {
+        // Kotlin spec: step() requires a strictly positive argument (STDLIB-022).
+        guard stepValue > 0 else {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                message: "Step must be positive, was: \(stepValue)."
+            )
+            return rangeRaw
+        }
+        guard stepValue != Int.min else {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                message: "Step must be positive, was: \(stepValue)."
+            )
+            return rangeRaw
+        }
 
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        return rangeRaw
-    }
-    if range.step == 0 {
+        guard let range = runtimeRangeBox(from: rangeRaw) else {
+            return rangeRaw
+        }
+        if range.step == 0 {
+            return registerRuntimeObject(RuntimeRangeBox(
+                first: range.first,
+                last: range.last,
+                step: range.step,
+                kind: range.kind.progressionKind
+            ))
+        }
+        let nextStep = range.step < 0 ? (0 &- stepValue) : stepValue
+        // Align 'last' to the step like Kotlin's getProgressionLastElement:
+        // last is the final value in the progression that stays within the range.
+        // Guard empty ranges first — Kotlin returns 'last' unchanged for empty
+        // progressions (positive step: first > last; negative step: first < last).
+        // Use wrapping arithmetic (&-/&+) to avoid trapping on extreme Int ranges.
+        let alignedLast: Int
+        if nextStep > 0 {
+            guard range.first <= range.last else {
+                return registerRuntimeObject(RuntimeRangeBox(
+                    first: range.first,
+                    last: range.last,
+                    step: nextStep,
+                    kind: range.kind.progressionKind
+                ))
+            }
+            // Unsigned distance stays exact even when the span exceeds Int64
+            // range (e.g. Int.min..Int.max): a plain subtraction would wrap and
+            // misalign `last` away from the boundary.
+            let distance = UInt(bitPattern: range.last &- range.first)
+            let remainder = Int(bitPattern: distance % UInt(nextStep))
+            alignedLast = range.last &- remainder
+        } else {
+            guard range.first >= range.last else {
+                return registerRuntimeObject(RuntimeRangeBox(
+                    first: range.first,
+                    last: range.last,
+                    step: nextStep,
+                    kind: range.kind.progressionKind
+                ))
+            }
+            let distance = UInt(bitPattern: range.first &- range.last)
+            let remainder = Int(bitPattern: distance % UInt(bitPattern: 0 &- nextStep))
+            alignedLast = range.last &+ remainder
+        }
         return registerRuntimeObject(RuntimeRangeBox(
             first: range.first,
-            last: range.last,
-            step: range.step,
+            last: alignedLast,
+            step: nextStep,
             kind: range.kind.progressionKind
         ))
     }
-    let nextStep = range.step < 0 ? (0 &- stepValue) : stepValue
-    // Align 'last' to the step like Kotlin's getProgressionLastElement:
-    // last is the final value in the progression that stays within the range.
-    // Guard empty ranges first — Kotlin returns 'last' unchanged for empty
-    // progressions (positive step: first > last; negative step: first < last).
-    // Use wrapping arithmetic (&-/&+) to avoid trapping on extreme Int ranges.
-    let alignedLast: Int
-    if nextStep > 0 {
-        guard range.first <= range.last else {
-            return registerRuntimeObject(RuntimeRangeBox(
-                first: range.first,
-                last: range.last,
-                step: nextStep,
-                kind: range.kind.progressionKind
-            ))
-        }
-        // Unsigned distance stays exact even when the span exceeds Int64
-        // range (e.g. Int.min..Int.max): a plain subtraction would wrap and
-        // misalign `last` away from the boundary.
-        let distance = UInt(bitPattern: range.last &- range.first)
-        let remainder = Int(bitPattern: distance % UInt(nextStep))
-        alignedLast = range.last &- remainder
-    } else {
-        guard range.first >= range.last else {
-            return registerRuntimeObject(RuntimeRangeBox(
-                first: range.first,
-                last: range.last,
-                step: nextStep,
-                kind: range.kind.progressionKind
-            ))
-        }
-        let distance = UInt(bitPattern: range.first &- range.last)
-        let remainder = Int(bitPattern: distance % UInt(bitPattern: 0 &- nextStep))
-        alignedLast = range.last &+ remainder
-    }
-    return registerRuntimeObject(RuntimeRangeBox(
-        first: range.first,
-        last: alignedLast,
-        step: nextStep,
-        kind: range.kind.progressionKind
-    ))
 }
 
 private let runtimeIterableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(
@@ -829,91 +835,93 @@ func runtimeSourceIterableIterator(
 /// source iterator is acquired lazily and its exception reaches Kotlin catch.
 @_cdecl("kk_iterable_iterator")
 public func kk_iterable_iterator(_ iterableRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if runtimeIteratorBuilderBox(from: iterableRaw) != nil {
-        return iterableRaw
-    }
-    if runtimeSequenceBox(from: iterableRaw) != nil {
-        let elements = runtimeSequenceSourceElementsOrPanic(from: iterableRaw, caller: #function)
-        return registerRuntimeObject(RuntimeListIteratorBox(elements: elements))
-    }
-    if runtimeListBox(from: iterableRaw) != nil || runtimeSetBox(from: iterableRaw) != nil {
-        return kk_list_iterator(iterableRaw)
-    }
-    if let arrayBox = runtimeArrayBox(from: iterableRaw), type(of: arrayBox) == RuntimeArrayBox.self {
-        return kk_list_iterator(iterableRaw)
-    }
-    // Preserve the legacy compiler bridge for the old runtime-backed
-    // IndexingIterable representation while source-backed withIndex() uses the
-    // Kotlin IndexingIterable class above.
-    if runtimeIndexingIterableBox(from: iterableRaw) != nil {
-        return kk_indexing_iterable_iterator(iterableRaw)
-    }
-    if let sourceIterator = runtimeSourceIterableIterator(iterableRaw, outThrown: outThrown) {
-        return sourceIterator
-    }
-    guard let range = runtimeRangeBox(from: iterableRaw) else {
-        return 0
-    }
-    return registerRuntimeObject(
-        RuntimeRangeIteratorBox(
-            current: range.first,
-            last: range.last,
-            step: range.step,
-            kind: range.kind
+    return runtimeThrowingBridge(outThrown) {
+        if runtimeIteratorBuilderBox(from: iterableRaw) != nil {
+            return iterableRaw
+        }
+        if runtimeSequenceBox(from: iterableRaw) != nil {
+            let elements = runtimeSequenceSourceElementsOrPanic(from: iterableRaw, caller: #function)
+            return registerRuntimeObject(RuntimeListIteratorBox(elements: elements))
+        }
+        if runtimeListBox(from: iterableRaw) != nil || runtimeSetBox(from: iterableRaw) != nil {
+            return kk_list_iterator(iterableRaw)
+        }
+        if let arrayBox = runtimeArrayBox(from: iterableRaw), type(of: arrayBox) == RuntimeArrayBox.self {
+            return kk_list_iterator(iterableRaw)
+        }
+        // Preserve the legacy compiler bridge for the old runtime-backed
+        // IndexingIterable representation while source-backed withIndex() uses the
+        // Kotlin IndexingIterable class above.
+        if runtimeIndexingIterableBox(from: iterableRaw) != nil {
+            return kk_indexing_iterable_iterator(iterableRaw)
+        }
+        if let sourceIterator = runtimeSourceIterableIterator(iterableRaw, outThrown: outThrown) {
+            return sourceIterator
+        }
+        guard let range = runtimeRangeBox(from: iterableRaw) else {
+            return 0
+        }
+        return registerRuntimeObject(
+            RuntimeRangeIteratorBox(
+                current: range.first,
+                last: range.last,
+                step: range.step,
+                kind: range.kind
+            )
         )
-    )
+        }
 }
 
 @_cdecl("__kk_range_iterator")
 public func kk_range_iterator(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
-    outThrown?.pointee = 0
-    if runtimeIteratorBuilderBox(from: rangeRaw) != nil {
-        return rangeRaw
-    }
-    if runtimeSequenceBox(from: rangeRaw) != nil {
-        let elements = runtimeSequenceSourceElementsOrPanic(from: rangeRaw, caller: #function)
-        return registerRuntimeObject(RuntimeListIteratorBox(elements: elements))
-    }
-    if runtimeListBox(from: rangeRaw) != nil {
-        return kk_list_iterator(rangeRaw)
-    }
-    if runtimeSetBox(from: rangeRaw) != nil {
-        return kk_list_iterator(rangeRaw)
-    }
-    // `for (x in arrayOf(...))` (and other raw arrays: IntArray, ByteArray, ...)
-    // reaches this generic for-loop entry point same as List, when the iterable
-    // has no compile-time-resolved iterator (e.g. a generic Iterable<T>
-    // parameter); without this branch an array falls through to the range-box
-    // guard below, gets treated as an invalid range, and the loop silently
-    // iterates zero times (__kk_range_hasNext sees no RuntimeRangeIteratorBox).
-    // The exact-type check excludes RuntimeObjectBox, a RuntimeArrayBox subclass
-    // used for ordinary class instances.
-    if let arrayBox = runtimeArrayBox(from: rangeRaw), type(of: arrayBox) == RuntimeArrayBox.self {
-        return kk_list_iterator(rangeRaw)
-    }
-    // BUG-167: A source-implemented `Iterable` (e.g. `class C : Iterable<Int>`)
-    // reaches this entry point too, since its `iterator()` is only known
-    // dynamically. Dispatch it through the `kotlin.collections.Iterable` itable
-    // — the same shape `runtimeTraverseSourceSequenceObject` uses for
-    // `Sequence` — instead of treating the object as an invalid range.
-    if let sourceIterator = runtimeSourceIterableIterator(rangeRaw, outThrown: outThrown) {
-        return sourceIterator
-    }
-    if let outThrown, outThrown.pointee != 0 {
-        return 0
-    }
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        return 0
-    }
-    return registerRuntimeObject(
-        RuntimeRangeIteratorBox(
-            current: range.first,
-            last: range.last,
-            step: range.step,
-            kind: range.kind
+    return runtimeThrowingBridge(outThrown) {
+        if runtimeIteratorBuilderBox(from: rangeRaw) != nil {
+            return rangeRaw
+        }
+        if runtimeSequenceBox(from: rangeRaw) != nil {
+            let elements = runtimeSequenceSourceElementsOrPanic(from: rangeRaw, caller: #function)
+            return registerRuntimeObject(RuntimeListIteratorBox(elements: elements))
+        }
+        if runtimeListBox(from: rangeRaw) != nil {
+            return kk_list_iterator(rangeRaw)
+        }
+        if runtimeSetBox(from: rangeRaw) != nil {
+            return kk_list_iterator(rangeRaw)
+        }
+        // `for (x in arrayOf(...))` (and other raw arrays: IntArray, ByteArray, ...)
+        // reaches this generic for-loop entry point same as List, when the iterable
+        // has no compile-time-resolved iterator (e.g. a generic Iterable<T>
+        // parameter); without this branch an array falls through to the range-box
+        // guard below, gets treated as an invalid range, and the loop silently
+        // iterates zero times (__kk_range_hasNext sees no RuntimeRangeIteratorBox).
+        // The exact-type check excludes RuntimeObjectBox, a RuntimeArrayBox subclass
+        // used for ordinary class instances.
+        if let arrayBox = runtimeArrayBox(from: rangeRaw), type(of: arrayBox) == RuntimeArrayBox.self {
+            return kk_list_iterator(rangeRaw)
+        }
+        // BUG-167: A source-implemented `Iterable` (e.g. `class C : Iterable<Int>`)
+        // reaches this entry point too, since its `iterator()` is only known
+        // dynamically. Dispatch it through the `kotlin.collections.Iterable` itable
+        // — the same shape `runtimeTraverseSourceSequenceObject` uses for
+        // `Sequence` — instead of treating the object as an invalid range.
+        if let sourceIterator = runtimeSourceIterableIterator(rangeRaw, outThrown: outThrown) {
+            return sourceIterator
+        }
+        if let outThrown, outThrown.pointee != 0 {
+            return 0
+        }
+        guard let range = runtimeRangeBox(from: rangeRaw) else {
+            return 0
+        }
+        return registerRuntimeObject(
+            RuntimeRangeIteratorBox(
+                current: range.first,
+                last: range.last,
+                step: range.step,
+                kind: range.kind
+            )
         )
-    )
+        }
 }
 
 @_cdecl("__kk_range_hasNext")
@@ -999,36 +1007,37 @@ public func kk_range_for_in_next(_ iterRaw: Int) -> Int {
 
 @_cdecl("kk_iterator_hasNext")
 public func kk_iterator_hasNext(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
-    outThrown?.pointee = 0
-    let object = resolveRuntimeObjectHandle(iterRaw)
-    // KUU-3850: runtime-backed sequence iterators sit under every lazy
-    // Sequence<T> traversal; dispatch them directly instead of walking the
-    // remaining type checks plus a dynamic itable lookup per element.
-    if let sequenceIterator = object as? RuntimeSequenceIteratorBox {
-        return sequenceIterator.hasNext(outThrown: outThrown) ? 1 : 0
-    }
-    if let builder = object as? RuntimeIteratorBuilderBox {
-        return builder.probeHasNext(outThrown: outThrown) ? 1 : 0
-    }
-    if let rangeIterator = object as? RuntimeRangeIteratorBox {
-        return runtimeRangeIteratorHasNext(rangeIterator)
-    }
-    if object is RuntimeListIteratorBox {
-        return kk_list_iterator_hasNext(iterRaw)
-    }
-    if object is RuntimeMapIteratorBox {
-        return kk_map_iterator_hasNext(iterRaw)
-    }
-    if object is RuntimeIndexingIteratorBox {
-        return kk_indexing_iterable_hasNext(iterRaw)
-    }
-    if let result = runtimeBufferedLineIteratorHasNext(iterRaw) {
-        return result
-    }
-    if let objectResult = runtimeObjectIteratorMethodCall(iterRaw, methodSlot: 0, outThrown: outThrown) {
-        return objectResult
-    }
-    return 0
+    return runtimeThrowingBridge(outThrown) {
+        let object = resolveRuntimeObjectHandle(iterRaw)
+        // KUU-3850: runtime-backed sequence iterators sit under every lazy
+        // Sequence<T> traversal; dispatch them directly instead of walking the
+        // remaining type checks plus a dynamic itable lookup per element.
+        if let sequenceIterator = object as? RuntimeSequenceIteratorBox {
+            return sequenceIterator.hasNext(outThrown: outThrown) ? 1 : 0
+        }
+        if let builder = object as? RuntimeIteratorBuilderBox {
+            return builder.probeHasNext(outThrown: outThrown) ? 1 : 0
+        }
+        if let rangeIterator = object as? RuntimeRangeIteratorBox {
+            return runtimeRangeIteratorHasNext(rangeIterator)
+        }
+        if object is RuntimeListIteratorBox {
+            return kk_list_iterator_hasNext(iterRaw)
+        }
+        if object is RuntimeMapIteratorBox {
+            return kk_map_iterator_hasNext(iterRaw)
+        }
+        if object is RuntimeIndexingIteratorBox {
+            return kk_indexing_iterable_hasNext(iterRaw)
+        }
+        if let result = runtimeBufferedLineIteratorHasNext(iterRaw) {
+            return result
+        }
+        if let objectResult = runtimeObjectIteratorMethodCall(iterRaw, methodSlot: 0, outThrown: outThrown) {
+            return objectResult
+        }
+        return 0
+        }
 }
 
 /// Converts a raw range element into the representation an erased `T`/`T?`/
@@ -1073,66 +1082,67 @@ func runtimeRangeIterableElements(_ range: RuntimeRangeBox) -> [Int] {
 
 @_cdecl("kk_iterator_next")
 public func kk_iterator_next(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
-    outThrown?.pointee = 0
-    let object = resolveRuntimeObjectHandle(iterRaw)
-    // KUU-3850: see kk_iterator_hasNext — direct dispatch for runtime-backed
-    // sequence iterators. `RuntimeSequenceIteratorBox` never registers a
-    // CharIterator typeID, so the trailing char-boxing branch cannot apply.
-    if let sequenceIterator = object as? RuntimeSequenceIteratorBox {
-        return sequenceIterator.next(outThrown: outThrown)
-    }
-    if let builder = object as? RuntimeIteratorBuilderBox {
-        return builder.consumeNext(outThrown: outThrown)
-    }
-    if let rangeIterator = object as? RuntimeRangeIteratorBox {
-        if runtimeRangeIteratorHasNext(rangeIterator) == 0 {
-            return runtimeThrowIteratorExhausted(outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        let object = resolveRuntimeObjectHandle(iterRaw)
+        // KUU-3850: see kk_iterator_hasNext — direct dispatch for runtime-backed
+        // sequence iterators. `RuntimeSequenceIteratorBox` never registers a
+        // CharIterator typeID, so the trailing char-boxing branch cannot apply.
+        if let sequenceIterator = object as? RuntimeSequenceIteratorBox {
+            return sequenceIterator.next(outThrown: outThrown)
         }
-        let value = rangeIterator.advance()
-        // `Iterator<T>.next()` is an erased boundary.
-        switch rangeIterator.kind {
-        case .intRange, .intProgression:
-            return kk_box_int(value)
-        case .uintRange, .uintProgression:
-            return kk_box_uint(value)
-        default:
-            break
+        if let builder = object as? RuntimeIteratorBuilderBox {
+            return builder.consumeNext(outThrown: outThrown)
         }
-        return runtimeRangeErasedElement(value, kind: rangeIterator.kind)
-    }
-    if object is RuntimeListIteratorBox {
-        return kk_list_iterator_next(iterRaw, outThrown)
-    }
-    if object is RuntimeMapIteratorBox {
-        return kk_map_iterator_next(iterRaw, outThrown)
-    }
-    if object is RuntimeMutableMapIteratorBox {
-        return kk_mutable_map_iterator_next(iterRaw, outThrown)
-    }
-    if object is RuntimeIndexingIteratorBox {
-        return kk_indexing_iterable_next(iterRaw, outThrown)
-    }
-    if let result = runtimeBufferedLineIteratorNext(iterRaw, outThrown: outThrown) {
-        return result
-    }
-    if let objectResult = runtimeObjectIteratorMethodCall(iterRaw, methodSlot: 1, outThrown: outThrown) {
-        if let outThrown, outThrown.pointee != 0 {
+        if let rangeIterator = object as? RuntimeRangeIteratorBox {
+            if runtimeRangeIteratorHasNext(rangeIterator) == 0 {
+                return runtimeThrowIteratorExhausted(outThrown)
+            }
+            let value = rangeIterator.advance()
+            // `Iterator<T>.next()` is an erased boundary.
+            switch rangeIterator.kind {
+            case .intRange, .intProgression:
+                return kk_box_int(value)
+            case .uintRange, .uintProgression:
+                return kk_box_uint(value)
+            default:
+                break
+            }
+            return runtimeRangeErasedElement(value, kind: rangeIterator.kind)
+        }
+        if object is RuntimeListIteratorBox {
+            return kk_list_iterator_next(iterRaw, outThrown)
+        }
+        if object is RuntimeMapIteratorBox {
+            return kk_map_iterator_next(iterRaw, outThrown)
+        }
+        if object is RuntimeMutableMapIteratorBox {
+            return kk_mutable_map_iterator_next(iterRaw, outThrown)
+        }
+        if object is RuntimeIndexingIteratorBox {
+            return kk_indexing_iterable_next(iterRaw, outThrown)
+        }
+        if let result = runtimeBufferedLineIteratorNext(iterRaw, outThrown: outThrown) {
+            return result
+        }
+        if let objectResult = runtimeObjectIteratorMethodCall(iterRaw, methodSlot: 1, outThrown: outThrown) {
+            if let outThrown, outThrown.pointee != 0 {
+                return objectResult
+            }
+            // Iterator<T>.next() crosses an erased generic boundary. Source-backed
+            // primitive iterators return raw scalar words from their concrete
+            // methods, so box them before generic consumers store the value.
+            if let boxedPrimitive = runtimeBoxSourceIteratorPrimitiveValue(objectResult, iteratorRaw: iterRaw) {
+                return boxedPrimitive
+            }
+            // Source-backed CharIterator implementations return the raw Char scalar from their
+            // concrete method, so box it before generic consumers store the value.
+            if runtimeSourceIteratorValue(objectResult, iteratorRaw: iterRaw).tag == RuntimeValue.charTag {
+                return kk_box_char(objectResult)
+            }
             return objectResult
         }
-        // Iterator<T>.next() crosses an erased generic boundary. Source-backed
-        // primitive iterators return raw scalar words from their concrete
-        // methods, so box them before generic consumers store the value.
-        if let boxedPrimitive = runtimeBoxSourceIteratorPrimitiveValue(objectResult, iteratorRaw: iterRaw) {
-            return boxedPrimitive
+        return runtimeThrowIteratorExhausted(outThrown)
         }
-        // Source-backed CharIterator implementations return the raw Char scalar from their
-        // concrete method, so box it before generic consumers store the value.
-        if runtimeSourceIteratorValue(objectResult, iteratorRaw: iterRaw).tag == RuntimeValue.charTag {
-            return kk_box_char(objectResult)
-        }
-        return objectResult
-    }
-    return runtimeThrowIteratorExhausted(outThrown)
 }
 
 private func runtimeObjectIteratorMethodCall(
@@ -1276,60 +1286,62 @@ public func kk_range_contains(_ rangeRaw: Int, _ value: Int) -> Int {
 
 @_cdecl("__kk_range_endExclusive")
 public func kk_range_endExclusive(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_range_endExclusive")
-    }
-    outThrown?.pointee = 0
-    let reachesMaximum: Bool = switch range.kind {
-    case .charRange, .charProgression:
-        range.last == 0xFFFF
-    case .intRange, .intProgression:
-        range.last == Int(Int32.max)
-    case .longRange, .longProgression:
-        range.last == Int.max
-    case .uintRange, .uintProgression:
-        UInt32(truncatingIfNeeded: range.last) == UInt32.max
-    case .ulongRange, .ulongProgression:
-        UInt(bitPattern: range.last) == UInt.max
-    }
-    if reachesMaximum {
-        runtimeSetThrown(outThrown, runtimeAllocateIllegalStateException(
-            message: "Cannot return the exclusive upper bound of a range that includes MAX_VALUE."
-        ))
-        return runtimeExceptionCaughtSentinel
-    }
-    return range.last &+ 1
+    return runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeExceptionCaughtSentinel) {
+        guard let range = runtimeRangeBox(from: rangeRaw) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_range_endExclusive")
+        }
+        let reachesMaximum: Bool = switch range.kind {
+        case .charRange, .charProgression:
+            range.last == 0xFFFF
+        case .intRange, .intProgression:
+            range.last == Int(Int32.max)
+        case .longRange, .longProgression:
+            range.last == Int.max
+        case .uintRange, .uintProgression:
+            UInt32(truncatingIfNeeded: range.last) == UInt32.max
+        case .ulongRange, .ulongProgression:
+            UInt(bitPattern: range.last) == UInt.max
+        }
+        if reachesMaximum {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalStateException(
+                message: "Cannot return the exclusive upper bound of a range that includes MAX_VALUE."
+            ))
+        }
+        return range.last &+ 1
+        }
 }
 
 
 @_cdecl("__kk_range_take")
 public func kk_range_take(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_range_take")
-    }
-    outThrown?.pointee = 0
-    if n < 0 {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Requested element count \(n) is less than zero."
-        )
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    return RuntimeSignedRangeHOFKind.take(range, n)
+    return runtimeThrowingBridge(outThrown) {
+        guard let range = runtimeRangeBox(from: rangeRaw) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_range_take")
+        }
+        if n < 0 {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                message: "Requested element count \(n) is less than zero."
+            )
+            return registerRuntimeObject(RuntimeListBox(elements: []))
+        }
+        return RuntimeSignedRangeHOFKind.take(range, n)
+        }
 }
 
 @_cdecl("__kk_range_drop")
 public func kk_range_drop(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_range_drop")
-    }
-    outThrown?.pointee = 0
-    if n < 0 {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Requested element count \(n) is less than zero."
-        )
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    return RuntimeSignedRangeHOFKind.drop(range, n)
+    return runtimeThrowingBridge(outThrown) {
+        guard let range = runtimeRangeBox(from: rangeRaw) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in __kk_range_drop")
+        }
+        if n < 0 {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                message: "Requested element count \(n) is less than zero."
+            )
+            return registerRuntimeObject(RuntimeListBox(elements: []))
+        }
+        return RuntimeSignedRangeHOFKind.drop(range, n)
+        }
 }
 
 @_cdecl("__kk_range_average")
@@ -1351,40 +1363,41 @@ public func kk_range_sorted(_ rangeRaw: Int) -> Int {
 
 @_cdecl("__kk_char_range_step")
 public func __kk_char_range_step(_ rangeRaw: Int, _ stepValue: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard stepValue > 0 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Step must be positive, was: \(stepValue)."
-        )
-        return rangeRaw
-    }
-    guard stepValue != Int.min else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Step must be positive, was: \(stepValue)."
-        )
-        return rangeRaw
-    }
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        return rangeRaw
-    }
-    if range.step == 0 {
+    return runtimeThrowingBridge(outThrown) {
+        guard stepValue > 0 else {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                message: "Step must be positive, was: \(stepValue)."
+            )
+            return rangeRaw
+        }
+        guard stepValue != Int.min else {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                message: "Step must be positive, was: \(stepValue)."
+            )
+            return rangeRaw
+        }
+        guard let range = runtimeRangeBox(from: rangeRaw) else {
+            return rangeRaw
+        }
+        if range.step == 0 {
+            return registerRuntimeObject(RuntimeRangeBox(
+                first: range.first,
+                last: range.last,
+                step: range.step,
+                kind: .charProgression
+            ))
+        }
+        let first = kk_unbox_char(range.first)
+        let last = kk_unbox_char(range.last)
+        let nextStep = range.step < 0 ? (0 &- stepValue) : stepValue
+        let alignedLast = runtimeSignedProgressionLast(start: first, end: last, step: nextStep)
         return registerRuntimeObject(RuntimeRangeBox(
-            first: range.first,
-            last: range.last,
-            step: range.step,
+            first: first,
+            last: alignedLast,
+            step: nextStep,
             kind: .charProgression
         ))
-    }
-    let first = kk_unbox_char(range.first)
-    let last = kk_unbox_char(range.last)
-    let nextStep = range.step < 0 ? (0 &- stepValue) : stepValue
-    let alignedLast = runtimeSignedProgressionLast(start: first, end: last, step: nextStep)
-    return registerRuntimeObject(RuntimeRangeBox(
-        first: first,
-        last: alignedLast,
-        step: nextStep,
-        kind: .charProgression
-    ))
+        }
 }
 
 @_cdecl("__kk_char_range_toList")
@@ -1417,102 +1430,106 @@ public func kk_char_range_toList(_ rangeRaw: Int) -> Int {
 public func kk_char_range_forEach(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
                                   _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
-    guard let range = runtimeRangeBox(from: rangeRaw) else { return 0 }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    let first = kk_unbox_char(range.first)
-    let last = kk_unbox_char(range.last)
-    if range.step > 0 {
-        var current = first
-        while current <= last {
-            var thrown = 0
-            // Pass raw char value (Unicode scalar) — the lambda expects Char-typed values
-            _ = lambda(closureRaw, current, &thrown)
-            if thrown != 0 { outThrown?.pointee = thrown; return 0 }
-            if current == last { break }
-            current &+= range.step
+    runtimeThrowingBridge(outThrown) {
+        guard let range = runtimeRangeBox(from: rangeRaw) else { return 0 }
+        let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+        let first = kk_unbox_char(range.first)
+        let last = kk_unbox_char(range.last)
+        if range.step > 0 {
+            var current = first
+            while current <= last {
+                var thrown = 0
+                // Pass raw char value (Unicode scalar) — the lambda expects Char-typed values
+                _ = lambda(closureRaw, current, &thrown)
+                if thrown != 0 { throw RuntimeThrownHandle(thrown) }
+                if current == last { break }
+                current &+= range.step
+            }
+        } else if range.step < 0 {
+            var current = first
+            while current >= last {
+                var thrown = 0
+                _ = lambda(closureRaw, current, &thrown)
+                if thrown != 0 { throw RuntimeThrownHandle(thrown) }
+                if current == last { break }
+                current &+= range.step
+            }
         }
-    } else if range.step < 0 {
-        var current = first
-        while current >= last {
-            var thrown = 0
-            _ = lambda(closureRaw, current, &thrown)
-            if thrown != 0 { outThrown?.pointee = thrown; return 0 }
-            if current == last { break }
-            current &+= range.step
-        }
+        return 0
     }
-    return 0
 }
 
 @_cdecl("__kk_char_range_take")
 public func kk_char_range_take(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_char_range_take")
-    }
-    outThrown?.pointee = 0
-    if n < 0 {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Requested element count \(n) is less than zero."
-        )
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    guard n > 0 else { return registerRuntimeObject(RuntimeListBox(elements: [])) }
-    let first = kk_unbox_char(range.first)
-    let last = kk_unbox_char(range.last)
-    var elements: [Int] = []
-    var taken = 0
-    if range.step > 0 {
-        var current = first
-        while current <= last && taken < n {
-            elements.append(kk_box_char(current))
-            if current == last { break }
-            current &+= range.step
-            taken += 1
+    return runtimeThrowingBridge(outThrown) {
+        guard let range = runtimeRangeBox(from: rangeRaw) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_char_range_take")
         }
-    } else if range.step < 0 {
-        var current = first
-        while current >= last && taken < n {
-            elements.append(kk_box_char(current))
-            if current == last { break }
-            current &+= range.step
-            taken += 1
+        if n < 0 {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                message: "Requested element count \(n) is less than zero."
+            )
+            return registerRuntimeObject(RuntimeListBox(elements: []))
         }
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: elements))
+        guard n > 0 else { return registerRuntimeObject(RuntimeListBox(elements: [])) }
+        let first = kk_unbox_char(range.first)
+        let last = kk_unbox_char(range.last)
+        var elements: [Int] = []
+        var taken = 0
+        if range.step > 0 {
+            var current = first
+            while current <= last && taken < n {
+                elements.append(kk_box_char(current))
+                if current == last { break }
+                current &+= range.step
+                taken += 1
+            }
+        } else if range.step < 0 {
+            var current = first
+            while current >= last && taken < n {
+                elements.append(kk_box_char(current))
+                if current == last { break }
+                current &+= range.step
+                taken += 1
+            }
+        }
+        return registerRuntimeObject(RuntimeListBox(elements: elements))
+        }
 }
 
 @_cdecl("__kk_char_range_drop")
 public func kk_char_range_drop(_ rangeRaw: Int, _ n: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_char_range_drop")
-    }
-    outThrown?.pointee = 0
-    if n < 0 {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Requested element count \(n) is less than zero."
-        )
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    let first = kk_unbox_char(range.first)
-    let last = kk_unbox_char(range.last)
-    var elements: [Int] = []
-    var skipped = 0
-    if range.step > 0 {
-        var current = first
-        while current <= last {
-            if skipped >= n { elements.append(kk_box_char(current)) } else { skipped += 1 }
-            if current == last { break }
-            current &+= range.step
+    return runtimeThrowingBridge(outThrown) {
+        guard let range = runtimeRangeBox(from: rangeRaw) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_char_range_drop")
         }
-    } else if range.step < 0 {
-        var current = first
-        while current >= last {
-            if skipped >= n { elements.append(kk_box_char(current)) } else { skipped += 1 }
-            if current == last { break }
-            current &+= range.step
+        if n < 0 {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                message: "Requested element count \(n) is less than zero."
+            )
+            return registerRuntimeObject(RuntimeListBox(elements: []))
         }
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: elements))
+        let first = kk_unbox_char(range.first)
+        let last = kk_unbox_char(range.last)
+        var elements: [Int] = []
+        var skipped = 0
+        if range.step > 0 {
+            var current = first
+            while current <= last {
+                if skipped >= n { elements.append(kk_box_char(current)) } else { skipped += 1 }
+                if current == last { break }
+                current &+= range.step
+            }
+        } else if range.step < 0 {
+            var current = first
+            while current >= last {
+                if skipped >= n { elements.append(kk_box_char(current)) } else { skipped += 1 }
+                if current == last { break }
+                current &+= range.step
+            }
+        }
+        return registerRuntimeObject(RuntimeListBox(elements: elements))
+        }
 }
 
 @_cdecl("__kk_char_range_sorted")
@@ -1606,111 +1623,111 @@ func runtimeUnsignedProgressionLast(start: Int, end: Int, step: Int) -> Int {
 @_cdecl("__kk_int_progression_fromClosedRange")
 public func __kk_int_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStart: Int, _ rangeEnd: Int, _ step: Int,
                                                _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    _ = receiverRaw
-    guard step != 0 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be non-zero.")
-        return 0
-    }
-    guard step != Int(Int32.min) else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be greater than Int.MIN_VALUE to avoid overflow on negation.")
-        return 0
-    }
-    let alignedLast = runtimeSignedProgressionLast(start: rangeStart, end: rangeEnd, step: step)
-    return registerRuntimeObject(RuntimeRangeBox(
-        first: rangeStart,
-        last: alignedLast,
-        step: step,
-        kind: .intProgression
-    ))
+    return runtimeThrowingBridge(outThrown) {
+        _ = receiverRaw
+        guard step != 0 else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Step must be non-zero."))
+        }
+        guard step != Int(Int32.min) else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Step must be greater than Int.MIN_VALUE to avoid overflow on negation."))
+        }
+        let alignedLast = runtimeSignedProgressionLast(start: rangeStart, end: rangeEnd, step: step)
+        return registerRuntimeObject(RuntimeRangeBox(
+            first: rangeStart,
+            last: alignedLast,
+            step: step,
+            kind: .intProgression
+        ))
+        }
 }
 
 @_cdecl("__kk_long_progression_fromClosedRange")
 public func __kk_long_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStart: Int, _ rangeEnd: Int, _ step: Int,
                                                 _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    _ = receiverRaw
-    // For LongProgression, we use the same RuntimeRangeBox but treat values as Long
-    guard step != 0 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be non-zero.")
-        return 0
-    }
-    guard step != Int.min else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be greater than Long.MIN_VALUE to avoid overflow on negation.")
-        return 0
-    }
-    let alignedLast = runtimeSignedProgressionLast(start: rangeStart, end: rangeEnd, step: step)
-    return registerRuntimeObject(RuntimeRangeBox(
-        first: rangeStart,
-        last: alignedLast,
-        step: step,
-        kind: .longProgression
-    ))
+    return runtimeThrowingBridge(outThrown) {
+        _ = receiverRaw
+        // For LongProgression, we use the same RuntimeRangeBox but treat values as Long
+        guard step != 0 else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Step must be non-zero."))
+        }
+        guard step != Int.min else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Step must be greater than Long.MIN_VALUE to avoid overflow on negation."))
+        }
+        let alignedLast = runtimeSignedProgressionLast(start: rangeStart, end: rangeEnd, step: step)
+        return registerRuntimeObject(RuntimeRangeBox(
+            first: rangeStart,
+            last: alignedLast,
+            step: step,
+            kind: .longProgression
+        ))
+        }
 }
 
 @_cdecl("__kk_uint_progression_fromClosedRange")
 public func __kk_uint_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStart: Int, _ rangeEnd: Int, _ step: Int,
                                                 _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    _ = receiverRaw
-    // UIntProgression uses signed Int for step, UInt for range values
-    guard step != 0 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be non-zero.")
-        return 0
-    }
-    guard step != Int(Int32.min) else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be greater than Int.MIN_VALUE to avoid overflow on negation.")
-        return 0
-    }
-    let alignedLast = runtimeUnsignedProgressionLast(start: rangeStart, end: rangeEnd, step: step)
-    return registerRuntimeObject(RuntimeRangeBox(
-        first: rangeStart,
-        last: alignedLast,
-        step: step,
-        kind: .uintProgression
-    ))
+    return runtimeThrowingBridge(outThrown) {
+        _ = receiverRaw
+        // UIntProgression uses signed Int for step, UInt for range values
+        guard step != 0 else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Step must be non-zero."))
+        }
+        guard step != Int(Int32.min) else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Step must be greater than Int.MIN_VALUE to avoid overflow on negation."))
+        }
+        let alignedLast = runtimeUnsignedProgressionLast(start: rangeStart, end: rangeEnd, step: step)
+        return registerRuntimeObject(RuntimeRangeBox(
+            first: rangeStart,
+            last: alignedLast,
+            step: step,
+            kind: .uintProgression
+        ))
+        }
 }
 
 @_cdecl("__kk_ulong_progression_fromClosedRange")
 public func __kk_ulong_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStart: Int, _ rangeEnd: Int, _ step: Int,
                                                  _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    _ = receiverRaw
-    // ULongProgression uses signed Int for step, ULong for range values
-    guard step != 0 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be non-zero.")
-        return 0
-    }
-    guard step != Int.min else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be greater than Long.MIN_VALUE to avoid overflow on negation.")
-        return 0
-    }
-    let alignedLast = runtimeUnsignedProgressionLast(start: rangeStart, end: rangeEnd, step: step)
-    return registerRuntimeObject(RuntimeRangeBox(
-        first: rangeStart,
-        last: alignedLast,
-        step: step,
-        kind: .ulongProgression
-    ))
+    return runtimeThrowingBridge(outThrown) {
+        _ = receiverRaw
+        // ULongProgression uses signed Int for step, ULong for range values
+        guard step != 0 else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Step must be non-zero."))
+        }
+        guard step != Int.min else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Step must be greater than Long.MIN_VALUE to avoid overflow on negation."))
+        }
+        let alignedLast = runtimeUnsignedProgressionLast(start: rangeStart, end: rangeEnd, step: step)
+        return registerRuntimeObject(RuntimeRangeBox(
+            first: rangeStart,
+            last: alignedLast,
+            step: step,
+            kind: .ulongProgression
+        ))
+        }
 }
 
 @_cdecl("__kk_char_progression_fromClosedRange")
 public func __kk_char_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStart: Int, _ rangeEnd: Int, _ step: Int,
                                                 _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    _ = receiverRaw
-    guard step != 0 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be non-zero.")
-        return 0
-    }
-    guard step != Int(Int32.min) else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Step must be greater than Int.MIN_VALUE to avoid overflow on negation.")
-        return 0
-    }
-    let startChar = kk_unbox_char(rangeStart)
-    let endChar = kk_unbox_char(rangeEnd)
-    let alignedLast = runtimeSignedProgressionLast(start: startChar, end: endChar, step: step)
-    return registerRuntimeObject(RuntimeRangeBox(
-        first: startChar,
-        last: alignedLast,
-        step: step,
-        kind: .charProgression
-    ))
+    return runtimeThrowingBridge(outThrown) {
+        _ = receiverRaw
+        guard step != 0 else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Step must be non-zero."))
+        }
+        guard step != Int(Int32.min) else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Step must be greater than Int.MIN_VALUE to avoid overflow on negation."))
+        }
+        let startChar = kk_unbox_char(rangeStart)
+        let endChar = kk_unbox_char(rangeEnd)
+        let alignedLast = runtimeSignedProgressionLast(start: startChar, end: endChar, step: step)
+        return registerRuntimeObject(RuntimeRangeBox(
+            first: startChar,
+            last: alignedLast,
+            step: step,
+            kind: .charProgression
+        ))
+        }
 }
 
 

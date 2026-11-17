@@ -362,109 +362,110 @@ func runtimeInvokeSuspendFunction(
     continuation: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard functionRaw != 0 else {
-        outThrown?.pointee = runtimeAllocateNullPointerException(message: "")
-        return 0
-    }
-    if let box = runtimeFunctionValueBox(from: functionRaw), box.suspendEntryPoint != 0 {
-        var valueArguments = arguments
-        var explicitCompletion = 0
-        // KUU-3808 / KT-66098: through the erased non-suspend `FunctionN`
-        // view of a suspend function the completion continuation occupies
-        // the signature's last parameter slot, so `invoke(p1, ..., pN, cont)`
-        // arrives carrying `arity + 1` arguments. Peel the continuation off
-        // and run the body to its first real suspension, handing back the
-        // bare result (or COROUTINE_SUSPENDED) instead of driving the body
-        // to completion on an internal event loop. The suspend-ABI callers
-        // (`kk_suspend_function_invoke_*`) always pass a non-zero caller
-        // continuation, so this only matches `kk_function_invoke_*` calls.
-        if continuation == 0, arguments.count == box.arity + 1, let last = arguments.last {
-            guard runtimeIsContinuationArgument(last) else {
-                outThrown?.pointee = runtimeAllocateClassCastException(
-                    message: "Suspend function invoke expects kotlin.coroutines.Continuation as the last argument"
-                )
-                return 0
-            }
-            explicitCompletion = last
-            valueArguments = Array(arguments.dropLast())
-        }
-        guard box.arity == valueArguments.count else {
-            outThrown?.pointee = runtimeFunctionInvokeInvalidArity(expected: box.arity, actual: arguments.count)
+    return runtimeThrowingBridge(outThrown) {
+        guard functionRaw != 0 else {
+            outThrown?.pointee = runtimeAllocateNullPointerException(message: "")
             return 0
         }
-        if explicitCompletion != 0 {
-            let child = kk_create_coroutine_unintercepted(box.suspendEntryPoint, explicitCompletion)
-            for (index, argument) in ([box.closureRaw] + valueArguments).enumerated() {
+        if let box = runtimeFunctionValueBox(from: functionRaw), box.suspendEntryPoint != 0 {
+            var valueArguments = arguments
+            var explicitCompletion = 0
+            // KUU-3808 / KT-66098: through the erased non-suspend `FunctionN`
+            // view of a suspend function the completion continuation occupies
+            // the signature's last parameter slot, so `invoke(p1, ..., pN, cont)`
+            // arrives carrying `arity + 1` arguments. Peel the continuation off
+            // and run the body to its first real suspension, handing back the
+            // bare result (or COROUTINE_SUSPENDED) instead of driving the body
+            // to completion on an internal event loop. The suspend-ABI callers
+            // (`kk_suspend_function_invoke_*`) always pass a non-zero caller
+            // continuation, so this only matches `kk_function_invoke_*` calls.
+            if continuation == 0, arguments.count == box.arity + 1, let last = arguments.last {
+                guard runtimeIsContinuationArgument(last) else {
+                    outThrown?.pointee = runtimeAllocateClassCastException(
+                        message: "Suspend function invoke expects kotlin.coroutines.Continuation as the last argument"
+                    )
+                    return 0
+                }
+                explicitCompletion = last
+                valueArguments = Array(arguments.dropLast())
+            }
+            guard box.arity == valueArguments.count else {
+                outThrown?.pointee = runtimeFunctionInvokeInvalidArity(expected: box.arity, actual: arguments.count)
+                return 0
+            }
+            if explicitCompletion != 0 {
+                let child = kk_create_coroutine_unintercepted(box.suspendEntryPoint, explicitCompletion)
+                for (index, argument) in ([box.closureRaw] + valueArguments).enumerated() {
+                    _ = kk_coroutine_launcher_arg_set(child, Int64(index), Int64(argument))
+                }
+                return kk_start_coroutine_unintercepted_or_return(box.suspendEntryPoint, child, outThrown)
+            }
+            let child = kk_coroutine_continuation_new(box.suspendEntryPoint)
+            for (index, argument) in ([box.closureRaw] + arguments).enumerated() {
                 _ = kk_coroutine_launcher_arg_set(child, Int64(index), Int64(argument))
             }
-            return kk_start_coroutine_unintercepted_or_return(box.suspendEntryPoint, child, outThrown)
+            if runtimeContinuationState(from: continuation) != nil {
+                return kk_coroutine_call_direct_suspend(box.suspendEntryPoint, child, continuation)
+            }
+            return kk_kxmini_run_blocking_with_cont(box.suspendEntryPoint, child, outThrown)
         }
-        let child = kk_coroutine_continuation_new(box.suspendEntryPoint)
-        for (index, argument) in ([box.closureRaw] + arguments).enumerated() {
-            _ = kk_coroutine_launcher_arg_set(child, Int64(index), Int64(argument))
-        }
-        if runtimeContinuationState(from: continuation) != nil {
-            return kk_coroutine_call_direct_suspend(box.suspendEntryPoint, child, continuation)
-        }
-        return kk_kxmini_run_blocking_with_cont(box.suspendEntryPoint, child, outThrown)
-    }
 
-    // KUU-3802: a nominal `SuspendFunctionN` implementor has no callable box —
-    // codegen recorded the invoke launcher thunk in the interface's reserved
-    // itable slot. Drive it through the same child-continuation machinery the
-    // boxed path uses so suspensions, results, and thrown exceptions flow
-    // identically to a boxed suspend callable.
-    let objectEntryRaw = runtimeSuspendInvokeEntryPoint(
-        objectRaw: functionRaw,
-        arity: arguments.count
-    )
-    if objectEntryRaw != 0 {
-        let child = kk_coroutine_continuation_new(objectEntryRaw)
-        for (index, argument) in ([functionRaw] + arguments).enumerated() {
-            _ = kk_coroutine_launcher_arg_set(child, Int64(index), Int64(argument))
+        // KUU-3802: a nominal `SuspendFunctionN` implementor has no callable box —
+        // codegen recorded the invoke launcher thunk in the interface's reserved
+        // itable slot. Drive it through the same child-continuation machinery the
+        // boxed path uses so suspensions, results, and thrown exceptions flow
+        // identically to a boxed suspend callable.
+        let objectEntryRaw = runtimeSuspendInvokeEntryPoint(
+            objectRaw: functionRaw,
+            arity: arguments.count
+        )
+        if objectEntryRaw != 0 {
+            let child = kk_coroutine_continuation_new(objectEntryRaw)
+            for (index, argument) in ([functionRaw] + arguments).enumerated() {
+                _ = kk_coroutine_launcher_arg_set(child, Int64(index), Int64(argument))
+            }
+            if runtimeContinuationState(from: continuation) != nil {
+                return kk_coroutine_call_direct_suspend(objectEntryRaw, child, continuation)
+            }
+            return kk_kxmini_run_blocking_with_cont(objectEntryRaw, child, outThrown)
         }
-        if runtimeContinuationState(from: continuation) != nil {
-            return kk_coroutine_call_direct_suspend(objectEntryRaw, child, continuation)
-        }
-        return kk_kxmini_run_blocking_with_cont(objectEntryRaw, child, outThrown)
-    }
 
-    // KUU-3884: an erased `Function{n+1}` value (`(P1..Pn, Continuation<R>)
-    // -> Any?`, the JVM shape) has no CPS entry of its own. Drive it through
-    // the generic erased-suspend entry point, which appends the child
-    // continuation as the last invoke argument and reads the return like a
-    // suspend call. Slot 0 spills the value itself.
-    if runtimeErasedSuspendShape(functionRaw: functionRaw, arity: arguments.count) {
-        let entryRaw = runtimeErasedSuspendFunctionEntryPointRaw
-        let child = kk_coroutine_continuation_new(entryRaw)
-        for (index, argument) in ([functionRaw] + arguments).enumerated() {
-            _ = kk_coroutine_launcher_arg_set(child, Int64(index), Int64(argument))
+        // KUU-3884: an erased `Function{n+1}` value (`(P1..Pn, Continuation<R>)
+        // -> Any?`, the JVM shape) has no CPS entry of its own. Drive it through
+        // the generic erased-suspend entry point, which appends the child
+        // continuation as the last invoke argument and reads the return like a
+        // suspend call. Slot 0 spills the value itself.
+        if runtimeErasedSuspendShape(functionRaw: functionRaw, arity: arguments.count) {
+            let entryRaw = runtimeErasedSuspendFunctionEntryPointRaw
+            let child = kk_coroutine_continuation_new(entryRaw)
+            for (index, argument) in ([functionRaw] + arguments).enumerated() {
+                _ = kk_coroutine_launcher_arg_set(child, Int64(index), Int64(argument))
+            }
+            if runtimeContinuationState(from: continuation) != nil {
+                return kk_coroutine_call_direct_suspend(entryRaw, child, continuation)
+            }
+            return kk_kxmini_run_blocking_with_cont(entryRaw, child, outThrown)
         }
-        if runtimeContinuationState(from: continuation) != nil {
-            return kk_coroutine_call_direct_suspend(entryRaw, child, continuation)
-        }
-        return kk_kxmini_run_blocking_with_cont(entryRaw, child, outThrown)
-    }
 
-    // Legacy raw thunks and synchronous callbacks retain their ordinary ABI.
-    let callerState = runtimeContinuationState(from: continuation)
-    var thrown = 0
-    let result: Int
-    switch arguments.count {
-    case 0: result = kk_function_invoke_0(functionRaw, &thrown)
-    case 1: result = kk_function_invoke(functionRaw, arguments[0], &thrown)
-    case 2: result = kk_function_invoke_2(functionRaw, arguments[0], arguments[1], &thrown)
-    case 3: result = kk_function_invoke_3(functionRaw, arguments[0], arguments[1], arguments[2], &thrown)
-    case 4: result = kk_function_invoke_4(functionRaw, arguments[0], arguments[1], arguments[2], arguments[3], &thrown)
-    case 5: result = kk_function_invoke_5(functionRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], &thrown)
-    default: result = kk_function_invoke_6(functionRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], &thrown)
+        // Legacy raw thunks and synchronous callbacks retain their ordinary ABI.
+        let callerState = runtimeContinuationState(from: continuation)
+        var thrown = 0
+        let result: Int
+        switch arguments.count {
+        case 0: result = kk_function_invoke_0(functionRaw, &thrown)
+        case 1: result = kk_function_invoke(functionRaw, arguments[0], &thrown)
+        case 2: result = kk_function_invoke_2(functionRaw, arguments[0], arguments[1], &thrown)
+        case 3: result = kk_function_invoke_3(functionRaw, arguments[0], arguments[1], arguments[2], &thrown)
+        case 4: result = kk_function_invoke_4(functionRaw, arguments[0], arguments[1], arguments[2], arguments[3], &thrown)
+        case 5: result = kk_function_invoke_5(functionRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], &thrown)
+        default: result = kk_function_invoke_6(functionRaw, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4], arguments[5], &thrown)
+        }
+        if result != Int(bitPattern: kk_coroutine_suspended()) {
+            callerState?.thrownException = thrown
+        }
+        outThrown?.pointee = thrown
+        return result
     }
-    if result != Int(bitPattern: kk_coroutine_suspended()) {
-        callerState?.thrownException = thrown
-    }
-    outThrown?.pointee = thrown
-    return result
 }
 
 private func runtimeCreateFunctionValue(
@@ -505,16 +506,18 @@ public func kk_function_invoke(
     _ arg: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    if runtimeFunctionNeedsDispatch(functionRaw) {
-        if let driven = runtimeInvokeSuspendBoxIfNeeded(functionRaw, arguments: [arg], outThrown: outThrown) {
-            return driven
+    return runtimeThrowingBridge(outThrown) {
+        if runtimeFunctionNeedsDispatch(functionRaw) {
+            if let driven = runtimeInvokeSuspendBoxIfNeeded(functionRaw, arguments: [arg], outThrown: outThrown) {
+                return driven
+            }
+            guard let pair = runtimeFunctionInvocationPair(functionRaw, arity: 1, outThrown: outThrown) else { return 0 }
+            let function = unsafeBitCast(pair.fnPtr, to: KKClosureFunctionEntryPoint1.self)
+            return function(pair.closureRaw, arg, outThrown)
         }
-        guard let pair = runtimeFunctionInvocationPair(functionRaw, arity: 1, outThrown: outThrown) else { return 0 }
-        let function = unsafeBitCast(pair.fnPtr, to: KKClosureFunctionEntryPoint1.self)
-        return function(pair.closureRaw, arg, outThrown)
+        let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint1.self)
+        return function(arg, outThrown)
     }
-    let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint1.self)
-    return function(arg, outThrown)
 }
 
 @_cdecl("kk_function_invoke_0")
@@ -522,16 +525,18 @@ public func kk_function_invoke_0(
     _ functionRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    if runtimeFunctionNeedsDispatch(functionRaw) {
-        if let driven = runtimeInvokeSuspendBoxIfNeeded(functionRaw, arguments: [], outThrown: outThrown) {
-            return driven
+    return runtimeThrowingBridge(outThrown) {
+        if runtimeFunctionNeedsDispatch(functionRaw) {
+            if let driven = runtimeInvokeSuspendBoxIfNeeded(functionRaw, arguments: [], outThrown: outThrown) {
+                return driven
+            }
+            guard let pair = runtimeFunctionInvocationPair(functionRaw, arity: 0, outThrown: outThrown) else { return 0 }
+            let function = unsafeBitCast(pair.fnPtr, to: KKClosureThunkEntryPoint.self)
+            return function(pair.closureRaw, outThrown)
         }
-        guard let pair = runtimeFunctionInvocationPair(functionRaw, arity: 0, outThrown: outThrown) else { return 0 }
-        let function = unsafeBitCast(pair.fnPtr, to: KKClosureThunkEntryPoint.self)
-        return function(pair.closureRaw, outThrown)
+        let function = unsafeBitCast(functionRaw, to: KKThunkEntryPoint.self)
+        return function(outThrown)
     }
-    let function = unsafeBitCast(functionRaw, to: KKThunkEntryPoint.self)
-    return function(outThrown)
 }
 
 @_cdecl("kk_function_invoke_2")
@@ -541,16 +546,18 @@ public func kk_function_invoke_2(
     _ arg2: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    if runtimeFunctionNeedsDispatch(functionRaw) {
-        if let driven = runtimeInvokeSuspendBoxIfNeeded(functionRaw, arguments: [arg1, arg2], outThrown: outThrown) {
-            return driven
+    return runtimeThrowingBridge(outThrown) {
+        if runtimeFunctionNeedsDispatch(functionRaw) {
+            if let driven = runtimeInvokeSuspendBoxIfNeeded(functionRaw, arguments: [arg1, arg2], outThrown: outThrown) {
+                return driven
+            }
+            guard let pair = runtimeFunctionInvocationPair(functionRaw, arity: 2, outThrown: outThrown) else { return 0 }
+            let function = unsafeBitCast(pair.fnPtr, to: KKClosureFunctionEntryPoint2.self)
+            return function(pair.closureRaw, arg1, arg2, outThrown)
         }
-        guard let pair = runtimeFunctionInvocationPair(functionRaw, arity: 2, outThrown: outThrown) else { return 0 }
-        let function = unsafeBitCast(pair.fnPtr, to: KKClosureFunctionEntryPoint2.self)
-        return function(pair.closureRaw, arg1, arg2, outThrown)
+        let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint2.self)
+        return function(arg1, arg2, outThrown)
     }
-    let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint2.self)
-    return function(arg1, arg2, outThrown)
 }
 
 @_cdecl("kk_function_invoke_3")
@@ -561,16 +568,18 @@ public func kk_function_invoke_3(
     _ arg3: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    if runtimeFunctionNeedsDispatch(functionRaw) {
-        if let driven = runtimeInvokeSuspendBoxIfNeeded(functionRaw, arguments: [arg1, arg2, arg3], outThrown: outThrown) {
-            return driven
+    return runtimeThrowingBridge(outThrown) {
+        if runtimeFunctionNeedsDispatch(functionRaw) {
+            if let driven = runtimeInvokeSuspendBoxIfNeeded(functionRaw, arguments: [arg1, arg2, arg3], outThrown: outThrown) {
+                return driven
+            }
+            guard let pair = runtimeFunctionInvocationPair(functionRaw, arity: 3, outThrown: outThrown) else { return 0 }
+            let function = unsafeBitCast(pair.fnPtr, to: KKClosureFunctionEntryPoint3.self)
+            return function(pair.closureRaw, arg1, arg2, arg3, outThrown)
         }
-        guard let pair = runtimeFunctionInvocationPair(functionRaw, arity: 3, outThrown: outThrown) else { return 0 }
-        let function = unsafeBitCast(pair.fnPtr, to: KKClosureFunctionEntryPoint3.self)
-        return function(pair.closureRaw, arg1, arg2, arg3, outThrown)
+        let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint3.self)
+        return function(arg1, arg2, arg3, outThrown)
     }
-    let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint3.self)
-    return function(arg1, arg2, arg3, outThrown)
 }
 
 @_cdecl("kk_function_invoke_4")
@@ -582,18 +591,20 @@ public func kk_function_invoke_4(
     _ arg4: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    if runtimeFunctionNeedsDispatch(functionRaw) {
-        if let driven = runtimeInvokeSuspendBoxIfNeeded(
-            functionRaw, arguments: [arg1, arg2, arg3, arg4], outThrown: outThrown
-        ) {
-            return driven
+    return runtimeThrowingBridge(outThrown) {
+        if runtimeFunctionNeedsDispatch(functionRaw) {
+            if let driven = runtimeInvokeSuspendBoxIfNeeded(
+                functionRaw, arguments: [arg1, arg2, arg3, arg4], outThrown: outThrown
+            ) {
+                return driven
+            }
+            guard let pair = runtimeFunctionInvocationPair(functionRaw, arity: 4, outThrown: outThrown) else { return 0 }
+            let function = unsafeBitCast(pair.fnPtr, to: KKClosureFunctionEntryPoint4.self)
+            return function(pair.closureRaw, arg1, arg2, arg3, arg4, outThrown)
         }
-        guard let pair = runtimeFunctionInvocationPair(functionRaw, arity: 4, outThrown: outThrown) else { return 0 }
-        let function = unsafeBitCast(pair.fnPtr, to: KKClosureFunctionEntryPoint4.self)
-        return function(pair.closureRaw, arg1, arg2, arg3, arg4, outThrown)
+        let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint4.self)
+        return function(arg1, arg2, arg3, arg4, outThrown)
     }
-    let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint4.self)
-    return function(arg1, arg2, arg3, arg4, outThrown)
 }
 
 @_cdecl("kk_function_invoke_5")
@@ -606,18 +617,20 @@ public func kk_function_invoke_5(
     _ arg5: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    if runtimeFunctionNeedsDispatch(functionRaw) {
-        if let driven = runtimeInvokeSuspendBoxIfNeeded(
-            functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5], outThrown: outThrown
-        ) {
-            return driven
+    return runtimeThrowingBridge(outThrown) {
+        if runtimeFunctionNeedsDispatch(functionRaw) {
+            if let driven = runtimeInvokeSuspendBoxIfNeeded(
+                functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5], outThrown: outThrown
+            ) {
+                return driven
+            }
+            guard let pair = runtimeFunctionInvocationPair(functionRaw, arity: 5, outThrown: outThrown) else { return 0 }
+            let function = unsafeBitCast(pair.fnPtr, to: KKClosureFunctionEntryPoint5.self)
+            return function(pair.closureRaw, arg1, arg2, arg3, arg4, arg5, outThrown)
         }
-        guard let pair = runtimeFunctionInvocationPair(functionRaw, arity: 5, outThrown: outThrown) else { return 0 }
-        let function = unsafeBitCast(pair.fnPtr, to: KKClosureFunctionEntryPoint5.self)
-        return function(pair.closureRaw, arg1, arg2, arg3, arg4, arg5, outThrown)
+        let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint5.self)
+        return function(arg1, arg2, arg3, arg4, arg5, outThrown)
     }
-    let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint5.self)
-    return function(arg1, arg2, arg3, arg4, arg5, outThrown)
 }
 
 @_cdecl("kk_function_invoke_6")
@@ -631,18 +644,20 @@ public func kk_function_invoke_6(
     _ arg6: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    if runtimeFunctionNeedsDispatch(functionRaw) {
-        if let driven = runtimeInvokeSuspendBoxIfNeeded(
-            functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6], outThrown: outThrown
-        ) {
-            return driven
+    return runtimeThrowingBridge(outThrown) {
+        if runtimeFunctionNeedsDispatch(functionRaw) {
+            if let driven = runtimeInvokeSuspendBoxIfNeeded(
+                functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6], outThrown: outThrown
+            ) {
+                return driven
+            }
+            guard let pair = runtimeFunctionInvocationPair(functionRaw, arity: 6, outThrown: outThrown) else { return 0 }
+            let function = unsafeBitCast(pair.fnPtr, to: KKClosureFunctionEntryPoint6.self)
+            return function(pair.closureRaw, arg1, arg2, arg3, arg4, arg5, arg6, outThrown)
         }
-        guard let pair = runtimeFunctionInvocationPair(functionRaw, arity: 6, outThrown: outThrown) else { return 0 }
-        let function = unsafeBitCast(pair.fnPtr, to: KKClosureFunctionEntryPoint6.self)
-        return function(pair.closureRaw, arg1, arg2, arg3, arg4, arg5, arg6, outThrown)
+        let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint6.self)
+        return function(arg1, arg2, arg3, arg4, arg5, arg6, outThrown)
     }
-    let function = unsafeBitCast(functionRaw, to: KKFunctionEntryPoint6.self)
-    return function(arg1, arg2, arg3, arg4, arg5, arg6, outThrown)
 }
 
 private func runtimeInvokeHighArityFunctionValue(
@@ -832,7 +847,9 @@ public func kk_function_invoke_7(
     _ arg7: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7], outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7], outThrown: outThrown)
+    }
 }
 
 @_cdecl("kk_function_invoke_8")
@@ -848,7 +865,9 @@ public func kk_function_invoke_8(
     _ arg8: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8], outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8], outThrown: outThrown)
+    }
 }
 
 @_cdecl("kk_function_invoke_9")
@@ -865,7 +884,9 @@ public func kk_function_invoke_9(
     _ arg9: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9], outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9], outThrown: outThrown)
+    }
 }
 
 @_cdecl("kk_function_invoke_10")
@@ -883,7 +904,9 @@ public func kk_function_invoke_10(
     _ arg10: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10], outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10], outThrown: outThrown)
+    }
 }
 
 @_cdecl("kk_function_invoke_11")
@@ -902,7 +925,9 @@ public func kk_function_invoke_11(
     _ arg11: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11], outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11], outThrown: outThrown)
+    }
 }
 
 @_cdecl("kk_function_invoke_12")
@@ -922,7 +947,9 @@ public func kk_function_invoke_12(
     _ arg12: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12], outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12], outThrown: outThrown)
+    }
 }
 
 @_cdecl("kk_function_invoke_13")
@@ -943,7 +970,9 @@ public func kk_function_invoke_13(
     _ arg13: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13], outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13], outThrown: outThrown)
+    }
 }
 
 @_cdecl("kk_function_invoke_14")
@@ -965,7 +994,9 @@ public func kk_function_invoke_14(
     _ arg14: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14], outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14], outThrown: outThrown)
+    }
 }
 
 @_cdecl("kk_function_invoke_15")
@@ -988,7 +1019,9 @@ public func kk_function_invoke_15(
     _ arg15: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15], outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15], outThrown: outThrown)
+    }
 }
 
 @_cdecl("kk_function_invoke_16")
@@ -1012,7 +1045,9 @@ public func kk_function_invoke_16(
     _ arg16: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16], outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16], outThrown: outThrown)
+    }
 }
 
 @_cdecl("kk_function_invoke_17")
@@ -1037,7 +1072,9 @@ public func kk_function_invoke_17(
     _ arg17: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17], outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17], outThrown: outThrown)
+    }
 }
 
 @_cdecl("kk_function_invoke_18")
@@ -1063,7 +1100,9 @@ public func kk_function_invoke_18(
     _ arg18: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18], outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18], outThrown: outThrown)
+    }
 }
 
 @_cdecl("kk_function_invoke_19")
@@ -1090,7 +1129,9 @@ public func kk_function_invoke_19(
     _ arg19: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18, arg19], outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18, arg19], outThrown: outThrown)
+    }
 }
 
 @_cdecl("kk_function_invoke_20")
@@ -1118,7 +1159,9 @@ public func kk_function_invoke_20(
     _ arg20: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18, arg19, arg20], outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18, arg19, arg20], outThrown: outThrown)
+    }
 }
 
 @_cdecl("kk_function_invoke_21")
@@ -1147,7 +1190,9 @@ public func kk_function_invoke_21(
     _ arg21: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18, arg19, arg20, arg21], outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18, arg19, arg20, arg21], outThrown: outThrown)
+    }
 }
 
 @_cdecl("kk_function_invoke_22")
@@ -1177,7 +1222,9 @@ public func kk_function_invoke_22(
     _ arg22: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18, arg19, arg20, arg21, arg22], outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeInvokeHighArityFunctionValue(functionRaw, arguments: [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18, arg19, arg20, arg21, arg22], outThrown: outThrown)
+    }
 }
 
 @_cdecl("kk_function_create_0")
@@ -1186,10 +1233,12 @@ public func kk_function_create_0(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    // A function-valued parameter may already be boxed when it is captured by
-    // another lambda. Keep boxing idempotent so the outer closure does not
-    // turn the inner function object into a function pointer.
-    runtimeCreateFunctionValue(bodyRaw: bodyRaw, closureRaw: closureRaw, arity: 0, outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        // A function-valued parameter may already be boxed when it is captured by
+        // another lambda. Keep boxing idempotent so the outer closure does not
+        // turn the inner function object into a function pointer.
+        runtimeCreateFunctionValue(bodyRaw: bodyRaw, closureRaw: closureRaw, arity: 0, outThrown: outThrown)
+    }
 }
 
 @_cdecl("kk_function_create_1")
@@ -1198,7 +1247,9 @@ public func kk_function_create_1(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeCreateFunctionValue(bodyRaw: bodyRaw, closureRaw: closureRaw, arity: 1, outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeCreateFunctionValue(bodyRaw: bodyRaw, closureRaw: closureRaw, arity: 1, outThrown: outThrown)
+    }
 }
 
 // A callable value forwarded as an ordinary argument (e.g. a bundled
@@ -1227,7 +1278,9 @@ public func kk_function_create_2(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeCreateFunctionValue(bodyRaw: bodyRaw, closureRaw: closureRaw, arity: 2, outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeCreateFunctionValue(bodyRaw: bodyRaw, closureRaw: closureRaw, arity: 2, outThrown: outThrown)
+    }
 }
 
 @_cdecl("kk_function_create_3")
@@ -1236,7 +1289,9 @@ public func kk_function_create_3(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeCreateFunctionValue(bodyRaw: bodyRaw, closureRaw: closureRaw, arity: 3, outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeCreateFunctionValue(bodyRaw: bodyRaw, closureRaw: closureRaw, arity: 3, outThrown: outThrown)
+    }
 }
 
 @_cdecl("kk_function_create_4")
@@ -1245,7 +1300,9 @@ public func kk_function_create_4(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeCreateFunctionValue(bodyRaw: bodyRaw, closureRaw: closureRaw, arity: 4, outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeCreateFunctionValue(bodyRaw: bodyRaw, closureRaw: closureRaw, arity: 4, outThrown: outThrown)
+    }
 }
 
 @_cdecl("kk_function_create_5")
@@ -1254,7 +1311,9 @@ public func kk_function_create_5(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeCreateFunctionValue(bodyRaw: bodyRaw, closureRaw: closureRaw, arity: 5, outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeCreateFunctionValue(bodyRaw: bodyRaw, closureRaw: closureRaw, arity: 5, outThrown: outThrown)
+    }
 }
 
 @_cdecl("kk_function_create_6")
@@ -1263,5 +1322,7 @@ public func kk_function_create_6(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeCreateFunctionValue(bodyRaw: bodyRaw, closureRaw: closureRaw, arity: 6, outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        runtimeCreateFunctionValue(bodyRaw: bodyRaw, closureRaw: closureRaw, arity: 6, outThrown: outThrown)
+    }
 }

@@ -712,15 +712,18 @@ func runtimeRangeChunkedEntry<Kind: RuntimeRangeHOFKind>(
     _ outThrown: UnsafeMutablePointer<Int>?,
     functionName: String
 ) -> Int {
-    outThrown?.pointee = 0
-    guard size > 0 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "size \(size) must be greater than zero."
-        )
-        return runtimeRangeList([])
-    }
-    return runtimeRangeEntry(kind, rangeRaw, functionName: functionName) { range in
-        Kind.chunked(range, size)
+    // The invalid-size path returns an empty list box alongside the
+    // exception, so the error write stays manual inside the bridge closure.
+    return runtimeThrowingBridge(outThrown) {
+        guard size > 0 else {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                message: "size \(size) must be greater than zero."
+            )
+            return runtimeRangeList([])
+        }
+        return runtimeRangeEntry(kind, rangeRaw, functionName: functionName) { range in
+            Kind.chunked(range, size)
+        }
     }
 }
 
@@ -733,15 +736,16 @@ func runtimeRangeWindowedEntry<Kind: RuntimeRangeHOFKind>(
     _ outThrown: UnsafeMutablePointer<Int>?,
     functionName: String
 ) -> Int {
-    outThrown?.pointee = 0
-    guard size > 0, step > 0 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Both size \(size) and step \(step) must be greater than zero."
-        )
-        return runtimeRangeList([])
-    }
-    return runtimeRangeEntry(kind, rangeRaw, functionName: functionName) { range in
-        Kind.windowed(range, size, step, partialWindows)
+    return runtimeThrowingBridge(outThrown) {
+        guard size > 0, step > 0 else {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                message: "Both size \(size) and step \(step) must be greater than zero."
+            )
+            return runtimeRangeList([])
+        }
+        return runtimeRangeEntry(kind, rangeRaw, functionName: functionName) { range in
+            Kind.windowed(range, size, step, partialWindows)
+        }
     }
 }
 
@@ -753,15 +757,16 @@ private func runtimeRangeCountEntry<Kind: RuntimeRangeHOFKind>(
     functionName: String,
     operation: (RuntimeRangeBox, Int) -> Int
 ) -> Int {
-    outThrown?.pointee = 0
-    guard count >= 0 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Requested element count \(count) is less than zero."
-        )
-        return runtimeRangeList([])
-    }
-    return runtimeRangeEntry(kind, rangeRaw, functionName: functionName) { range in
-        operation(range, count)
+    return runtimeThrowingBridge(outThrown) {
+        guard count >= 0 else {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                message: "Requested element count \(count) is less than zero."
+            )
+            return runtimeRangeList([])
+        }
+        return runtimeRangeEntry(kind, rangeRaw, functionName: functionName) { range in
+            operation(range, count)
+        }
     }
 }
 
@@ -797,9 +802,10 @@ func runtimeRangeFirstOrLastOrThrow<Kind: RuntimeRangeHOFKind>(
     _ outThrown: UnsafeMutablePointer<Int>?,
     functionName: String
 ) -> Int {
-    outThrown?.pointee = 0
-    return runtimeRangeEntry(Kind.self, rangeRaw, functionName: functionName) { range in
-        Kind.firstOrLastOrThrow(range, wantLast: wantLast, outThrown)
+    runtimeThrowingBridge(outThrown) {
+        runtimeRangeEntry(Kind.self, rangeRaw, functionName: functionName) { range in
+            Kind.firstOrLastOrThrow(range, wantLast: wantLast, outThrown)
+        }
     }
 }
 
@@ -884,8 +890,9 @@ func runtimeRangeRandomEntry<Kind: RuntimeRangeHOFKind>(
     _ outThrown: UnsafeMutablePointer<Int>?,
     functionName: String
 ) -> Int {
-    outThrown?.pointee = 0
-    return runtimeRangeEntry(kind, rangeRaw, functionName: functionName) { range in
-        Kind.random(range, randomRaw: randomRaw, outThrown: outThrown)
+    runtimeThrowingBridge(outThrown) {
+        runtimeRangeEntry(kind, rangeRaw, functionName: functionName) { range in
+            Kind.random(range, randomRaw: randomRaw, outThrown: outThrown)
+        }
     }
 }

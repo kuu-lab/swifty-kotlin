@@ -2,17 +2,18 @@ import Foundation
 
 @_cdecl("__kk_synchronized")
 public func __kk_synchronized(_ lock: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let nsLock = runtimeAcquireLock(for: lock)
-    defer { runtimeReleaseLock(for: lock, lock: nsLock) }
+    return runtimeThrowingBridge(outThrown) {
+        let nsLock = runtimeAcquireLock(for: lock)
+        defer { runtimeReleaseLock(for: lock, lock: nsLock) }
 
-    var thrown = 0
-    let result = runtimeInvokeClosureThunk(fnPtr: fnPtr, closureRaw: closureRaw, outThrown: &thrown)
-    if thrown != 0 {
-        outThrown?.pointee = thrown
-        return 0
+        var thrown = 0
+        let result = runtimeInvokeClosureThunk(fnPtr: fnPtr, closureRaw: closureRaw, outThrown: &thrown)
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return 0
+        }
+        return result
     }
-    return result
 }
 
 private let runtimeLockStorage = NSLock()

@@ -44,12 +44,22 @@ extension JVMProgramBuilder {
                 }
                 continue
             }
+            if node.name == "Suppress" || node.name == "kotlin.Suppress" {
+                // A user-defined `demo.Suppress` must keep its arguments, so
+                // only drop the annotation once it resolves to kotlin.Suppress;
+                // an unresolvable Suppress preserves the previous skip.
+                let isKotlinSuppress = annotationOwner(node, symbol: symbol)
+                    .flatMap { sema.symbols.symbol($0) }
+                    .map { $0.fqName.map(context.interner.resolve).joined(separator: ".") == "kotlin.Suppress" } ?? true
+                if isKotlinSuppress { continue }
+            }
             guard let owner = annotationOwner(node, symbol: symbol), let info = sema.symbols.symbol(owner) else { throw JVMFrontendError(message: "Unresolved JVM parameter annotation: " + node.name) }
             // kotlin.internal.* annotations are compile-time-only markers;
             // consumer compiles inject them as residual-stdlib declarations
             // that are never emitted, so there is no classfile plan to attach
             // (mirrors the skip in annotations(for:)).
             let annotationFqName = info.fqName.map(context.interner.resolve).joined(separator: ".")
+            if annotationFqName == "kotlin.OptIn" { continue }
             if isPlanlessKotlinInternalAnnotation(annotationFqName, owner: owner) { continue }
             guard annotationPlan(owner) != nil else { throw JVMFrontendError(message: "Unsupported JVM parameter annotation: " + node.name) }
             if var tokens = node.constructionTokens, let last = tokens.last {
@@ -117,7 +127,12 @@ extension JVMProgramBuilder {
     }
 
     func annotationOwner(_ node: AnnotationNode, symbol: SymbolID) -> SymbolID? {
-        guard let file = ast.files.first(where: { context.sourceManager.origin(of: $0.fileID) == .user }) else { return nil }
+        // Resolve against the file the annotation was written in; using the
+        // first user file's imports would misresolve a same-named annotation
+        // declared there (e.g. a custom `Suppress` shadowing kotlin.Suppress).
+        let nodeFileID = node.constructionTokens?.first?.range.start.file
+        guard let file = ast.files.first(where: { $0.fileID == nodeFileID && context.sourceManager.origin(of: $0.fileID) == .user })
+                ?? ast.files.first(where: { context.sourceManager.origin(of: $0.fileID) == .user }) else { return nil }
         return resolveAnnotationSymbol(named: node.name, in: file, symbols: sema.symbols, interner: context.interner, types: sema.types, enclosingFQName: Array((sema.symbols.symbol(symbol)?.fqName ?? []).dropLast()))
     }
     func annotationTargets(_ owner: SymbolID) -> Set<String> {

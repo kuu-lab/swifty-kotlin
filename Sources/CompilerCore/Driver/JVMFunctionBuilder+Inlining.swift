@@ -14,6 +14,7 @@ extension JVMFunctionBuilder {
         let returns: [InlineReturn]
         let arguments: [InternedString: InlineLambda]
         let lexicalLambda: ExprID?
+        let stack: [SymbolID: Int]
     }
     func inlineArgument(_ name: InternedString) -> InlineLambda? {
         // A block-local function value can shadow an inline parameter.
@@ -23,7 +24,10 @@ extension JVMFunctionBuilder {
     func inlineCall(_ args: [CallArgument], receiver: ExprID? = nil, receiverValue: JVMValue? = nil, id: ExprID, expectedResult: JVMValueType? = nil) throws -> JVMIntrinsicResult? {
         guard let binding = program.sema.bindings.callBinding(for: id),
               let declaration = program.inlineDeclarations[binding.chosenCallee] else { return nil }
-        guard !inlineStack.contains(binding.chosenCallee),
+        // Nested user-level calls to the same inline function (e.g. synchronized
+        // inside synchronized's lambda) are legal; only unbounded self-expansion
+        // must fail, so bound re-entry depth instead of rejecting outright.
+        guard (inlineStack[binding.chosenCallee] ?? 0) < 8,
               args.allSatisfy({ !$0.isSpread }) else { throw fail("Recursive or unsupported JVM inline call.", id) }
         let savedScopes = scopes, savedThis = thisValue, savedReceiver = extensionValue, savedContexts = contextualReceivers
         let savedArguments = inlineArguments, savedReturns = inlineReturns, savedLambda = lambdaID
@@ -46,16 +50,36 @@ extension JVMFunctionBuilder {
             guard declaration.valueParams.indices.contains(i), supplied.insert(i).inserted else { throw fail("Invalid inline argument mapping.", id) }
             let parameter = declaration.valueParams[i]
             if !parameter.isNoinline && !parameter.isCrossinline, case .lambdaLiteral = arena.expr(argument.expr) {
-                lambdas[parameter.name] = InlineLambda(id: argument.expr, scopes: scopes, dispatch: thisValue, receiver: extensionValue, contexts: contextualReceivers, returns: inlineReturns, arguments: inlineArguments, lexicalLambda: lambdaID)
+                lambdas[parameter.name] = InlineLambda(id: argument.expr, scopes: scopes, dispatch: thisValue, receiver: extensionValue, contexts: contextualReceivers, returns: inlineReturns, arguments: inlineArguments, lexicalLambda: lambdaID, stack: inlineStack)
             } else if !parameter.isNoinline && !parameter.isCrossinline, case let .nameRef(name, _) = arena.expr(argument.expr), let forwarded = inlineArgument(name) {
                 lambdas[parameter.name] = forwarded
             } else {
-                let source = try requireValue(argument.expr), snapshot = try value(source.type)
+                let source = try requireValue(argument.expr)
+                var snapshot = try value(source.type)
                 instructions.append(.copy(source, snapshot))
                 var local = Local(value: snapshot, mutable: false)
                 if let signature = program.sema.symbols.functionSignature(for: binding.chosenCallee) {
                     local.symbol = signature.valueParameterSymbols.indices.contains(i) ? signature.valueParameterSymbols[i] : nil
-                    if case let .functionType(f) = program.sema.types.kind(of: signature.parameterTypes[i]) { local.functionType = f }
+                    if signature.parameterTypes.indices.contains(i) {
+                        if case let .functionType(f) = program.sema.types.kind(of: signature.parameterTypes[i]) { local.functionType = f }
+                        // Box a primitive argument once when the parameter is
+                        // declared as a reference type. Otherwise every read of
+                        // the inlined parameter re-boxes, so e.g. synchronized's
+                        // lock would monitor-enter/-exit different objects.
+                        // Resolve declared types against THIS call's type
+                        // arguments: program.inlineTypeArguments still holds the
+                        // enclosing inline frame's mapping here.
+                        var innerMapping: [SymbolID: TypeID] = [:]
+                        let symbols = signature.typeParameterSymbols
+                        let arguments = binding.substitutedTypeArguments
+                        let selected = symbols.count == arguments.count ? symbols : Array(symbols.suffix(arguments.count))
+                        for (symbol, type) in zip(selected, arguments) { innerMapping[symbol] = program.specialized(type) }
+                        let declared = try program.type(program.specialized(signature.parameterTypes[i], mapping: innerMapping))
+                        if case .reference = declared, snapshot.type.referenceName == nil {
+                            snapshot = try convert(snapshot, to: declared)
+                            local = Local(value: snapshot, mutable: false, functionType: local.functionType, symbol: local.symbol)
+                        }
+                    }
                 }
                 parameters[parameter.name] = local
             }
@@ -81,17 +105,21 @@ extension JVMFunctionBuilder {
             contextualReceivers[SyntheticSymbolScheme.receiverParameterSymbol(for: owner)] = dispatch
         }
         if let receiver = extensionReceiver ?? dispatch { contextualReceivers[SyntheticSymbolScheme.receiverParameterSymbol(for: binding.chosenCallee)] = receiver }
-        inlineStack.insert(binding.chosenCallee)
+        inlineStack[binding.chosenCallee, default: 0] += 1
         defer {
             program.inlineTypeArguments = savedTypes
             scopes = savedScopes; thisValue = savedThis; extensionValue = savedReceiver; contextualReceivers = savedContexts
             inlineArguments = savedArguments; inlineReturns = savedReturns; lambdaID = savedLambda
-            inlineStack.remove(binding.chosenCallee)
+            if let depth = inlineStack[binding.chosenCallee], depth > 1 {
+                inlineStack[binding.chosenCallee] = depth - 1
+            } else {
+                inlineStack.removeValue(forKey: binding.chosenCallee)
+            }
         }
         for (i, parameter) in declaration.valueParams.enumerated() where !supplied.contains(i) {
             guard let expression = parameter.defaultValue else { throw fail("Missing inline default expression.", id) }
             if !parameter.isNoinline && !parameter.isCrossinline, case .lambdaLiteral = arena.expr(expression) {
-                inlineArguments[parameter.name] = InlineLambda(id: expression, scopes: scopes, dispatch: thisValue, receiver: extensionValue, contexts: contextualReceivers, returns: inlineReturns, arguments: inlineArguments, lexicalLambda: lambdaID)
+                inlineArguments[parameter.name] = InlineLambda(id: expression, scopes: scopes, dispatch: thisValue, receiver: extensionValue, contexts: contextualReceivers, returns: inlineReturns, arguments: inlineArguments, lexicalLambda: lambdaID, stack: inlineStack)
             } else {
                 let returned = try self.expression(expression)
                 if terminated { return JVMIntrinsicResult(value: nil) }
@@ -136,7 +164,10 @@ extension JVMFunctionBuilder {
         let savedArguments = inlineArguments, savedReturns = inlineReturns, savedLambda = lambdaID
         scopes = lambda.scopes + [[:]]; thisValue = lambda.dispatch; extensionValue = lambda.receiver; contextualReceivers = lambda.contexts
         inlineArguments = lambda.arguments; inlineReturns = lambda.returns; lambdaID = lambda.lexicalLambda
+        let savedStack = inlineStack
+        inlineStack = lambda.stack
         defer {
+            inlineStack = savedStack
             scopes = savedScopes; thisValue = savedThis; extensionValue = savedReceiver; contextualReceivers = savedContexts
             inlineArguments = savedArguments; inlineReturns = savedReturns; lambdaID = savedLambda
         }
