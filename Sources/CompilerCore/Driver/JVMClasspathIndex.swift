@@ -1717,24 +1717,6 @@ final class JVMClasspathIndex {
                     source += "external " + functionDeclaration(method) + "\n"
                 }
             }
-            if let companion {
-                for (name, property) in companion.kotlinMemberProperties.sorted(by: { $0.key < $1.key })
-                    where exposeSuspendType(property.getter.result) && info.kotlinStaticProperties[name] == nil {
-                    source += "val `\(name)`: \(property.sourceType) get() = null!!\n"
-                }
-                for method in companion.methods where !method.isStatic && !method.isConstructor && isExposed(method) {
-                    if statics.contains(where: { $0.name == method.name && $0.descriptor == method.descriptor })
-                        && !overridesParent(method, in: companion) { continue }
-                    if companion.kotlinMemberProperties.values.contains(where: {
-                        $0.getter.name == method.name && $0.getter.descriptor == method.descriptor
-                    }) { continue }
-                    if overridesParent(method, in: companion)
-                        || ["toString()Ljava/lang/String;", "hashCode()I", "equals(Ljava/lang/Object;)Z"].contains(method.name + method.descriptor) {
-                        source += "override "
-                    }
-                    source += "external " + functionDeclaration(method) + "\n"
-                }
-            }
             source += "}\n"
         }
         return source
