@@ -19,6 +19,7 @@ struct JVMClassInfo: Sendable {
     var isKotlinObject = false
     var kotlinReadOnlyCollectionSupertypes: [String: String] = [:]
     var kotlinComparableSupertype: String?
+    var kotlinParameterizedSupertypes: [String: String] = [:]
     var kotlinLoweredConstructors: [(source: JVMKotlinValueConstructor, entry: JVMForeignMethod, defaults: JVMForeignMethod?)] = []
     var kotlinValueClassConstructors: [(source: JVMKotlinValueConstructor, adapter: JVMForeignMethod)] = []
     var annotations: [JVMAnnotation] = []
@@ -702,6 +703,9 @@ struct JVMClassReader {
         info.isKotlinMultifilePart = classAttributes.kotlinMetadata?.isMultifilePart == true
         info.genericSignature = classAttributes.signature
         info.kotlinReadOnlyCollectionSupertypes = readOnlyCollectionSupertypes
+        if !functionTypeMemberNames.isEmpty, let metadata = classAttributes.kotlinMetadata {
+            info.kotlinParameterizedSupertypes = (try? metadata.parameterizedSupertypes(byteLimit: bytes.count)) ?? [:]
+        }
         if hasValueAdapters, interfaces.contains("java/lang/Comparable"), let metadata = classAttributes.kotlinMetadata {
             info.kotlinComparableSupertype = try? metadata.comparableSupertype(byteLimit: bytes.count)
         }
