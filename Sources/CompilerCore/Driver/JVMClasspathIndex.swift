@@ -992,6 +992,13 @@ final class JVMClasspathIndex {
             guard let typeName = annotationDescriptorTypeName(descriptor) else { return nil }
             return typeName + "." + (JVMProgramBuilder.isIdentifier(name) ? name : "`\(name)`")
         case let .classType(descriptor):
+            if descriptor.hasPrefix("L"), descriptor.hasSuffix(";"),
+               let target = hierarchyClasses[String(descriptor.dropFirst().dropLast())],
+               target.flags & 0x0001 == 0 {
+                // Keep the physical default on the original annotation; a
+                // source placeholder cannot reference its inaccessible type.
+                return "null!!"
+            }
             guard let typeName = kotlinClassLiteralType(descriptor) else { return nil }
             return typeName + "::class"
         case let .annotation(annotation):
@@ -1851,7 +1858,6 @@ final class JVMClasspathIndex {
         "java/lang/Byte": "kotlin.Byte",
         "java/lang/Short": "kotlin.Short",
         "java/lang/Character": "kotlin.Char",
-        "java/lang/Void": "kotlin.Unit",
         "java/lang/Number": "kotlin.Number",
         "java/lang/StringBuilder": "kotlin.text.StringBuilder",
         "java/lang/Appendable": "kotlin.text.Appendable",
@@ -2547,6 +2553,9 @@ final class JVMClasspathIndex {
             return
         }
         methods[symbol.id] = method
+        if info.isKotlinFileFacade == nil, method.kotlinFunction == nil {
+            sema.symbols.markJVMJavaMethod(symbol.id)
+        }
         // Keep the authored Kotlin types on the declaration of this JVM
         // stdlib base so imported methods can satisfy Kotlin List members.
         if ctx.sourceManager.path(of: site.start.file) != "<kswiftk-jvm>/abstractList.kt" {

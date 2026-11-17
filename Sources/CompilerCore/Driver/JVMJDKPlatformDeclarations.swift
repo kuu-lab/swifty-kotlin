@@ -91,6 +91,7 @@ extension JVMClasspathIndex {
             package java.lang
             class String(value: kotlin.String) {
                 companion object {
+                    val CASE_INSENSITIVE_ORDER: kotlin.Comparator<kotlin.String> get() = null!!
                     external fun valueOf(value: Boolean): String
                     external fun valueOf(value: Char): String
                     external fun valueOf(value: CharArray): String
@@ -210,6 +211,8 @@ extension JVMClasspathIndex {
             package java.lang
             class Integer private constructor() {
                 companion object {
+                    const val MAX_VALUE: Int = 2147483647
+                    const val MIN_VALUE: Int = -2147483647 - 1
                     external fun parseInt(value: String): Int
                     external fun parseInt(value: String, radix: Int): Int
                 }
@@ -344,17 +347,40 @@ extension JVMClasspathIndex {
                 method("java/util/SortedSet", "tailSet", [object], .reference("java/util/SortedSet", nullable: false), interface: true),
                 method("java/util/SortedSet", "subSet", [object, object], .reference("java/util/SortedSet", nullable: false), interface: true),
             ]),
+            ("java/lang/Void", """
+            package java.lang
+            class Void private constructor()
+            """, 0x0011, "java/lang/Object", []),
+            ("java/lang/reflect/Field", """
+            package java.lang.reflect
+            class Field private constructor() {
+                var isAccessible: Boolean get() = false set(value) {}
+                external fun setBoolean(receiver: Any?, value: Boolean)
+                external fun setInt(receiver: Any?, value: Int)
+            }
+            """, 0x0011, "java/lang/reflect/AccessibleObject", [
+                method("java/lang/reflect/Field", "isAccessible", [], .boolean),
+                method("java/lang/reflect/Field", "setAccessible", [.boolean], .unit),
+                method("java/lang/reflect/Field", "setBoolean", [object, .boolean], .unit),
+                method("java/lang/reflect/Field", "setInt", [object, .int], .unit),
+            ]),
             ("java/util/Locale", """
             package java.util
             open class Locale {
                 val language: String get() = null!!
                 companion object {
                     val ROOT: Locale get() = null!!
+                    val US: Locale get() = null!!
+                    val JAPAN: Locale get() = null!!
+                    val JAPANESE: Locale get() = null!!
+                    val ENGLISH: Locale get() = null!!
+                    external fun getDefault(): Locale
                     external fun forLanguageTag(languageTag: String): Locale
                 }
             }
             """, 0x0001, "java/lang/Object", [
                 method("java/util/Locale", "getLanguage", [], .string),
+                method("java/util/Locale", "getDefault", [], .reference("java/util/Locale", nullable: false), staticMember: true),
                 method("java/util/Locale", "forLanguageTag", [.string], .reference("java/util/Locale", nullable: false), staticMember: true),
             ]),
             ("java/util/TreeMap", """
@@ -502,6 +528,12 @@ extension JVMClasspathIndex {
             var info = JVMClassInfo(name: name, flags: flags, superclass: superclass, interfaces: [], methods: methods)
             if name == "java/lang/System" {
                 info.fields = ["out", "err"].map { JVMForeignField(name: $0, descriptor: "Ljava/io/PrintStream;", access: 0x19) }
+            }
+            if name == "java/lang/String" {
+                info.fields = [JVMForeignField(name: "CASE_INSENSITIVE_ORDER", descriptor: "Ljava/util/Comparator;", access: 0x0019)]
+            }
+            if name == "java/util/Locale" {
+                info.fields = ["ROOT", "US", "JAPAN", "JAPANESE", "ENGLISH"].map { JVMForeignField(name: $0, descriptor: "Ljava/util/Locale;", access: 0x0019) }
             }
             let path = "<kswiftk-jvm>/platform/" + name + ".kt"
             let file = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8), origin: .residualStdlib)
