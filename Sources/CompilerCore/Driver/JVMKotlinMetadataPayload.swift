@@ -113,7 +113,6 @@ struct JVMKotlinMetadataPayload {
     var multifileParts: [String] { kind == 4 ? data1 : [] }
     var isMultifilePart: Bool { kind == 5 }
 
-
     func functionTable(byteLimit: Int) throws -> FunctionTable? {
         guard kind != 4, let isFileFacade, let major = version.first, (1...2).contains(major) else { return nil }
         let bytes = try decodedData(limit: byteLimit)
@@ -525,7 +524,7 @@ struct JVMKotlinMetadataPayload {
     /// Functions whose Kotlin signature cannot be recovered from the erased JVM
     /// descriptor, plus every top-level file-facade function so lazy classpath
     /// roots can be found by callable name.
-    func functions(in table: FunctionTable, isValueClass: Bool = false, hasReadOnlyListSupertype: Bool = false) throws -> [JVMKotlinFunction] {
+    func functions(in table: FunctionTable, isValueClass: Bool = false, hasReadOnlyListSupertype: Bool = false, functionTypeMemberNames: Set<String> = []) throws -> [JVMKotlinFunction] {
         let names = table.names
         let classTypes = table.types
         let ownerTypeParameters = table.ownerTypeParameters
@@ -548,7 +547,9 @@ struct JVMKotlinMetadataPayload {
             }
             var types = try function.message(30).map(TypeTable.init) ?? classTypes
             let isFinal = (flags >> 4) & 3 == 0
-            if isInfix || isSubList || isFinal { types.parameterNames = ownerTypeParameters }
+            if isInfix || isSubList || isFinal || functionTypeMemberNames.contains(jvmName ?? name) {
+                types.parameterNames = ownerTypeParameters
+            }
             let typeParameterMessages = try function.messages(4)
             guard typeParameterMessages.isEmpty || isFileFacade == true else { continue }
             let parameterIDs = try typeParameterMessages.compactMap { parameter -> Int32? in
