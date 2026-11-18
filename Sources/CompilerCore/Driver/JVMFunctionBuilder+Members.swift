@@ -518,6 +518,12 @@ extension JVMProgramBuilder {
             if plan.isFacade { f.access = (f.isPrivate ? 2 : 1) | 8 | 16; f.isSynthetic = false }
             f.typeParameters = accessorTypeParameters
             let setter = f.reference.result == .unit
+            if let symbol = propertySymbol {
+                f.isSynchronized = sema.symbols.annotations(for: symbol).contains {
+                    $0.annotationFQName == KnownCompilerAnnotation.jvmSynchronized.qualifiedName
+                        && $0.useSiteTarget == (setter ? "set" : "get")
+                }
+            }
             if declaration.receiverType != nil {
                 f.javaParameters.append(JVMMethodParameter("$this$" + property.name))
             }

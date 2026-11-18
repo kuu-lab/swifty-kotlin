@@ -218,6 +218,7 @@ public struct JVMFunction {
     public var parameterDefaultFlags: [Bool] = []
     public var kotlinParameterOffset = 0
     public var isInline = false
+    public var isSynchronized = false
     public var callsInPlaceEffects: [Int: InvocationKind] = [:]
     public var inlineContinuation: JVMValue? = nil
     public var inlineSuspendValueResults: [String: JVMSuspendValueResult] = [:]
