@@ -485,13 +485,16 @@ final class JVMMethodEmitter {
     func stackMaps(codeSize: Int) throws -> Data? {
         let offsets = assembler.frames.sorted()
         guard !offsets.isEmpty else { return nil }
+        let allocationSlots = Set(function.instructions.compactMap { instruction -> Int? in
+            if case let .allocate(_, object) = instruction { return object.slot }
+            return nil
+        })
         var bytes = JVMBytes(); bytes.u2(UInt16(offsets.count))
         var previous = -1
         for offset in offsets {
             guard offset < codeSize else { throw JVMEmissionError.limit("JVM stack-map frame is outside method code.") }
             bytes.u1(255); bytes.u2(UInt16(offset - previous - 1))
             bytes.u2(UInt16(function.locals.count))
-            let allocationSlots = Set(function.instructions.compactMap { instruction -> Int? in if case let .allocate(_, object) = instruction { return object.slot }; return nil })
             for value in function.locals {
                 if handlerOffsets.contains(offset), allocationSlots.contains(value.slot), !(preservedHandlerSlots[offset]?.contains(value.slot) ?? false) { bytes.u1(0); continue }
                 if let allocation = frameUninitialized[offset]?[value.slot] {
