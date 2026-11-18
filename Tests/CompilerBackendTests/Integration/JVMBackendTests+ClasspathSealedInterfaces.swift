@@ -52,5 +52,35 @@ extension JVMBackendTests {
             #expect(partialErrors.filter { $0.severity == .error }.map(\.code) == ["KSWIFTK-SEMA-0004"])
         }
     }
+
+    @Test
+    func importedSealedInterfaceSupportsPackageQualifiedReferences() throws {
+        let own = try ownStdlibLibrary()
+        try withWorkspace { root in
+            let provider = """
+            package fixture
+            sealed interface SizeMode {
+                data object Exact : SizeMode
+                data class Responsive(val width: Int) : SizeMode
+            }
+            """
+            try provider.write(to: root.appendingPathComponent("Provider.kt"), atomically: true, encoding: .utf8)
+            let library = root.appendingPathComponent("provider.jar")
+            let compiled = try jvmTool("kotlinc", ["Provider.kt", "-d", library.path], root: root)
+            try #require(compiled.exitCode == 0, "\(compiled.stderr)")
+            let classpath = [library.path, own.path]
+            let source = """
+            fun main() {
+                val a = fixture.SizeMode.Exact
+                println(fixture.SizeMode.Responsive(3).width)
+                println(a === fixture.SizeMode.Exact)
+            }
+            """
+            let (app, exit, diagnostics) = try m22Build(root: root, sources: [("Main.kt", source)], name: "app.jar", classpath: classpath)
+            try #require(exit == 0, "\(diagnostics.map(\.message))")
+            let run = try java(["-Xverify:all", "-cp", ([app.path] + classpath).joined(separator: ":"), "MainKt"])
+            #expect(run.stdout == "3\ntrue\n")
+        }
+    }
 }
 #endif

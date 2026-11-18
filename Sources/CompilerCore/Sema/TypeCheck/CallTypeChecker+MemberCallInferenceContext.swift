@@ -302,6 +302,16 @@ extension CallTypeChecker {
               locals[receiverPath[0]] == nil
         else { return nil }
 
+        let fqnPath = receiverPath + [request.calleeName]
+        let receiverNamesClassifier = request.sema.symbols.lookupAll(fqName: receiverPath).contains(where: { candidate in
+            guard let symbol = request.ctx.cachedSymbol(candidate) else { return false }
+            switch symbol.kind {
+            case .class, .interface, .object, .enumClass, .annotationClass:
+                return true
+            default:
+                return false
+            }
+        })
         // A receiver path that itself names a declared class/interface/object/
         // enum (e.g. a singleton `object`, or a class with a companion) is a
         // type-qualified member access, not a package-qualified top-level
@@ -313,19 +323,26 @@ extension CallTypeChecker {
         // leaves trailing lambda parameters without an expected type. Bail
         // out here so the regular member-call path (which defers lambda
         // inference until overload resolution picks a signature) handles it.
-        if request.sema.symbols.lookupAll(fqName: receiverPath).contains(where: { candidate in
-            guard let symbol = request.ctx.cachedSymbol(candidate) else { return false }
-            switch symbol.kind {
-            case .class, .interface, .object, .enumClass, .annotationClass:
-                return true
-            default:
-                return false
-            }
-        }) {
+        // A package-qualified classifier qualifier is the exception:
+        // `fixture.SizeMode.Responsive(3)` has no value receiver to infer, so
+        // the constructor must be resolved from the FQN path directly.
+        let packageQualifiedConstructibleClassifier = receiverNamesClassifier
+            && receiverPath.count > 1
+            && request.sema.symbols.lookupAll(fqName: [receiverPath[0]]).contains(where: {
+                request.sema.symbols.symbol($0)?.kind == .package
+            })
+            && request.sema.symbols.lookupAll(fqName: fqnPath).contains(where: { candidate in
+                guard let symbol = request.ctx.cachedSymbol(candidate) else { return false }
+                switch symbol.kind {
+                case .class, .enumClass, .annotationClass:
+                    return true
+                default:
+                    return false
+                }
+            })
+        if receiverNamesClassifier, !packageQualifiedConstructibleClassifier {
             return nil
         }
-
-        let fqnPath = receiverPath + [request.calleeName]
         var fqnCandidates = request.sema.symbols.lookupAll(fqName: fqnPath).filter { candidate in
             guard let symbol = request.ctx.cachedSymbol(candidate) else { return false }
             return symbol.kind == .function || symbol.kind == .constructor
