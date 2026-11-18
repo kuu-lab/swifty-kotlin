@@ -974,6 +974,8 @@ extension DeclTypeChecker {
                 return enumEntryType
             }
             return safePrecheckMemberCall(exprID, in: ctx, locals: locals)
+        case .safeMemberCall:
+            return safePrecheckSafeMemberCall(exprID, in: ctx, locals: locals)
         default:
             // Arbitrary control flow, mutation, and delegates are deliberately
             // left on the normal declaration-order path.
@@ -1763,6 +1765,34 @@ extension DeclTypeChecker {
             args: [.invariant(elementType)],
             nullability: .nonNull
         )))
+    }
+
+    /// `receiver?.property` has the same statically known property type as a
+    /// member read, made nullable by the safe call. Only zero-argument property
+    /// reads are probed here; calls stay on the normal pass.
+    private func safePrecheckSafeMemberCall(
+        _ exprID: ExprID,
+        in ctx: TypeInferenceContext,
+        locals: LocalBindings
+    ) -> TypeID? {
+        guard case let .safeMemberCall(receiver, name, typeArgs, args, _)? = ctx.ast.arena.expr(exprID),
+              typeArgs.isEmpty,
+              args.isEmpty,
+              !ctx.ast.arena.isExplicitCall(exprID),
+              let receiverType = safePrecheckExpressionType(receiver, in: ctx, locals: locals)
+        else {
+            return nil
+        }
+        let nonNullReceiverType = ctx.sema.types.makeNonNullable(receiverType)
+        guard let property = driver.helpers.lookupMemberProperty(
+            named: name,
+            receiverType: nonNullReceiverType,
+            sema: ctx.sema
+        ), isSafePrecheckValueType(property.type, in: ctx) else {
+            return nil
+        }
+        let resultType = ctx.sema.types.makeNullable(property.type)
+        return isSafePrecheckValueType(resultType, in: ctx) ? resultType : nil
     }
 
     private func safePrecheckMemberCall(
