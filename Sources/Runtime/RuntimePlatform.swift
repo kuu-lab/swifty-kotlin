@@ -23,11 +23,10 @@ private enum RuntimePlatformCpuArchitecture: Int {
     case wasm32 = 7
 }
 
-// MemoryModel ordinals match Kotlin stdlib MemoryModel enum:
-// STRICT=0, RELAXED=1, EXPERIMENTAL=2
+// MemoryModel ordinal matches Kotlin stdlib MemoryModel.EXPERIMENTAL = 2;
+// Kotlin 2.3.10 exposes only EXPERIMENTAL at runtime, so the other cases
+// (STRICT = 0, RELAXED = 1) have no producer.
 private enum RuntimePlatformMemoryModel: Int {
-    case strict = 0
-    case relaxed = 1
     case experimental = 2
 }
 
