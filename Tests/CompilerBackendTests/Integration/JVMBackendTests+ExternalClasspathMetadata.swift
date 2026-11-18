@@ -68,6 +68,37 @@ extension JVMBackendTests {
         return root.appendingPathComponent("target-annotations.jar")
     }
 
+    private func externalJavaPartialAnnotationJar(_ root: URL) throws -> URL {
+        let fixture = root.appendingPathComponent("fixture", isDirectory: true)
+        try FileManager.default.createDirectory(at: fixture, withIntermediateDirectories: true)
+        try """
+        package fixture;
+        public enum MissingEnum { ONE }
+        """.write(to: fixture.appendingPathComponent("MissingEnum.java"), atomically: true, encoding: .utf8)
+        try """
+        package fixture;
+        public @interface OptionalAnnotation {
+            MissingEnum value();
+            int count() default 1;
+        }
+        """.write(to: fixture.appendingPathComponent("OptionalAnnotation.java"), atomically: true, encoding: .utf8)
+        _ = try jvmTool("javac", ["--release", "21", "-d", "annotation-classes", "fixture/MissingEnum.java", "fixture/OptionalAnnotation.java"], root: root)
+        _ = try jvmTool("jar", ["cf", "partial-annotations.jar", "-C", "annotation-classes", "fixture/OptionalAnnotation.class"], root: root)
+        return root.appendingPathComponent("partial-annotations.jar")
+    }
+
+    private func externalJavaMarkerKtAnnotationJar(_ root: URL) throws -> URL {
+        let fixture = root.appendingPathComponent("fixture", isDirectory: true)
+        try FileManager.default.createDirectory(at: fixture, withIntermediateDirectories: true)
+        try """
+        package fixture;
+        public @interface MarkerKt {}
+        """.write(to: fixture.appendingPathComponent("MarkerKt.java"), atomically: true, encoding: .utf8)
+        _ = try jvmTool("javac", ["--release", "21", "-d", "annotation-classes", "fixture/MarkerKt.java"], root: root)
+        _ = try jvmTool("jar", ["cf", "marker-kt-annotations.jar", "-C", "annotation-classes", "."], root: root)
+        return root.appendingPathComponent("marker-kt-annotations.jar")
+    }
+
     private func externalJavaValueAnnotationJar(_ root: URL) throws -> URL {
         let fixture = root.appendingPathComponent("fixture", isDirectory: true)
         try FileManager.default.createDirectory(at: fixture, withIntermediateDirectories: true)
@@ -203,6 +234,31 @@ extension JVMBackendTests {
             #expect(rejected.1.contains {
                 $0.severity == .error && $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET"
             }, "\(rejected.1.map(\.message))")
+        }
+    }
+
+    @Test
+    func javaPartialClasspathAnnotationOmitsUnavailableElementTypes() throws {
+        try withWorkspace { root in
+            let annotations = try externalJavaPartialAnnotationJar(root)
+            let compiled = try compile("fun main() {}", root: root, mode: .jvmJar, classpath: [annotations.path])
+            try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
+        }
+    }
+
+    @Test
+    func javaMarkerAnnotationNamedKtRemainsAnnotation() throws {
+        try withWorkspace { root in
+            let annotations = try externalJavaMarkerKtAnnotationJar(root)
+            let compiled = try compile("""
+            import fixture.MarkerKt
+
+            @MarkerKt
+            class Example
+
+            fun main() {}
+            """, root: root, mode: .jvmJar, classpath: [annotations.path])
+            try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
         }
     }
 

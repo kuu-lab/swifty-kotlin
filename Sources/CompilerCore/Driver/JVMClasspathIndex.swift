@@ -935,7 +935,8 @@ final class JVMClasspathIndex {
         if let targets = kotlinAnnotationTargets(info.annotations) ?? javaAnnotationTargets(info.annotations), !targets.isEmpty {
             lines.append("@kotlin.annotation.Target(" + targets.map { "kotlin.annotation.AnnotationTarget." + $0 }.joined(separator: ", ") + ")")
         }
-        let parameters = annotationElements(of: info).enumerated().compactMap { index, element -> String? in
+        let elements = annotationElements(of: info).filter { expose($0.type) }
+        let parameters = elements.enumerated().compactMap { index, element -> String? in
             let type = element.isVararg ? annotationVarargElementKotlinType(element.type) : annotationElementKotlinType(element.type)
             guard let type else { return nil }
             let name = JVMProgramBuilder.isIdentifier(element.name) ? "`\(element.name)`" : "p\(index)"
@@ -1229,7 +1230,7 @@ final class JVMClasspathIndex {
                 !isContextIsActive($0.source, $0.getter)
                     && $0.getter.parameters.allSatisfy(exposeSuspendType) && exposeSuspendType($0.getter.result)
             }
-            let isFileFacade = info.isKotlinFileFacade ?? short.hasSuffix("Kt")
+            let isFileFacade = info.isKotlinFileFacade ?? (short.hasSuffix("Kt") && !info.isAnnotation)
             if info.flags & 0x4000 != 0 {
                 source += enumDeclaration(info, name: short)
             } else if isComposer {
@@ -2008,7 +2009,7 @@ final class JVMClasspathIndex {
             let short = parts.last!
             if !name.contains("$") {
                 lazyTopLevelByPackage[package, default: []].append((short, name))
-                if let info = classes[name], info.isKotlinFileFacade ?? short.hasSuffix("Kt") {
+                if let info = classes[name], info.isKotlinFileFacade ?? (short.hasSuffix("Kt") && !info.isAnnotation) {
                     for method in info.methods where method.isStatic && isExposed(method) {
                         lazyTopLevelFunctionsByPackage[package, default: []].append((method.sourceName, name))
                     }
