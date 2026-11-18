@@ -7,12 +7,17 @@ func resolveAnnotationSymbol(
     enclosingSymbol: SymbolID? = nil,
     enclosingFQName: [InternedString] = [],
     lexicalEnclosingFQNames: [[InternedString]] = [],
-    allowGlobalShortNameFallback: Bool = true
+    allowGlobalShortNameFallback: Bool = true,
+    expandTypeAliases: Bool = true
 ) -> SymbolID? {
     let parts = rawName.split(separator: ".").map(String.init)
 
     func annotationClass(at path: [InternedString]) -> SymbolID? {
         guard var symbol = symbols.lookup(fqName: path) else { return nil }
+        if !expandTypeAliases {
+            guard let kind = symbols.symbol(symbol)?.kind else { return nil }
+            return kind == .annotationClass || kind == .typeAlias ? symbol : nil
+        }
         var visited: Set<SymbolID> = []
         while symbols.symbol(symbol)?.kind == .typeAlias {
             guard visited.insert(symbol).inserted, let types,

@@ -1160,10 +1160,25 @@ extension DataFlowSemaPhase {
 
         let inner = Array(tokens[(typeArgumentsStart + 1)..<(typeArgumentsEnd - 1)])
         let arguments = splitAnnotationTypeArguments(inner)
-        let expectedCount = resolutionContext.types.nominalTypeParameterSymbols(for: annotationSymbolID).count
+        let typeConstructorSymbolID = resolveAnnotationSymbol(
+            named: annotation.name,
+            in: file,
+            symbols: symbols,
+            interner: interner,
+            types: resolutionContext.types,
+            enclosingFQName: resolutionContext.enclosingFQName,
+            lexicalEnclosingFQNames: resolutionContext.lexicalEnclosingFQNames,
+            expandTypeAliases: false
+        ) ?? annotationSymbolID
+        let expectedCount: Int
+        if symbols.symbol(typeConstructorSymbolID)?.kind == .typeAlias {
+            expectedCount = symbols.typeAliasTypeParameters(for: typeConstructorSymbolID).count
+        } else {
+            expectedCount = resolutionContext.types.nominalTypeParameterSymbols(for: typeConstructorSymbolID).count
+        }
         if arguments.count != expectedCount {
             diagnostics.error(
-                "KSWIFTK-SEMA-ANNOTATION-TYPE-ARGUMENTS",
+                "KSWIFTK-SEMA-0495",
                 "Type argument count mismatch for annotation class \(annotation.name): expected \(expectedCount), got \(arguments.count).",
                 range: tokens[typeArgumentsStart].range
             )
@@ -1188,7 +1203,7 @@ extension DataFlowSemaPhase {
                   parsed.consumed == argumentTokens.count
             else {
                 diagnostics.error(
-                    "KSWIFTK-SEMA-ANNOTATION-TYPE-ARGUMENTS",
+                    "KSWIFTK-SEMA-0495",
                     "Invalid type argument for annotation class \(annotation.name).",
                     range: argument.first?.range
                 )

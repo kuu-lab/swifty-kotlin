@@ -234,7 +234,10 @@ struct TypedAnnotationMetadataTests {
     @Test func typePositionAnnotationTypeArgumentsAreValidated() throws {
         let valid = """
         annotation class TA<T>
+        annotation class Pair<T, U>
+        typealias Dup<T> = Pair<T, T>
         fun ok(x: @TA<Int> Int): Int = x
+        fun alias(x: @Dup<Int> Int): Int = x
         class Foo<T> {
             fun f(x: @TA<T> Int): Int = x
         }
@@ -254,7 +257,7 @@ struct TypedAnnotationMetadataTests {
         let invalidContext = makeBoundIdentityContext(invalid)
         try runSema(invalidContext)
         #expect(invalidContext.diagnostics.hasError, "\(invalidContext.diagnostics.diagnostics)")
-        #expect(invalidContext.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-TYPE-ARGUMENTS" }.count >= 2)
+        #expect(invalidContext.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0495" }.count >= 2)
         #expect(invalidContext.diagnostics.diagnostics.contains { $0.message.contains("Unresolved type 'Missing'") })
     }
 }
