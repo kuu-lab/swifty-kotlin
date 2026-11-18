@@ -38,6 +38,10 @@ fun main() {
     show("eng-hundred", BigDecimal("1E+2"))
     show("eng-small", BigDecimal("1E-7"))
     show("eng-zero", BigDecimal("0E+1"))
+    show("eng-zero-neg7", BigDecimal("0E-7"))
+    show("eng-zero-neg8", BigDecimal("0E-8"))
+    show("eng-zero-neg9", BigDecimal("0E-9"))
+    show("eng-zero-neg10", BigDecimal("0E-10"))
 
     val boxed = arrayOf(BigDecimal("1.2"), BigDecimal("3.4"))
     println("array-box first=${boxed[0]} second=${boxed[1]} second-scale=${boxed[1].scale()}")

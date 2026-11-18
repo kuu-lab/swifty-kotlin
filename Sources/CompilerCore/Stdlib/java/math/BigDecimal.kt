@@ -148,24 +148,23 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
      * adjusted only as needed to represent the integral value exactly.
      */
     public fun divideToIntegralValue(divisor: BigDecimal): BigDecimal {
-        val quotient = divide(divisor, 0, RoundingMode.DOWN)
-        val preferredScaleLong = scale().toLong() - divisor.scale().toLong()
-        if (preferredScaleLong < Int.MIN_VALUE || preferredScaleLong > Int.MAX_VALUE) {
+        val integral = divide(divisor, 0, RoundingMode.DOWN)
+        var resultScale = scale().toLong() - divisor.scale().toLong()
+        if (integral.signum() != 0) {
+            val digits = integral.unscaledValue().abs().toString()
+            var trailingZeros = 0
+            var index = digits.length - 1
+            while (index >= 0 && digits[index] == '0') {
+                trailingZeros++
+                index--
+            }
+            val minimumScale = -trailingZeros.toLong()
+            if (resultScale < minimumScale) resultScale = minimumScale
+        }
+        if (resultScale < Int.MIN_VALUE || resultScale > Int.MAX_VALUE) {
             throw ArithmeticException("BigDecimal scale out of range")
         }
-        val preferredScale = preferredScaleLong.toInt()
-        if (quotient.signum() == 0) {
-            return BigDecimal("0E" + (-preferredScale.toLong()))
-        }
-        if (preferredScale >= 0) {
-            return quotient.setScale(preferredScale)
-        }
-        val stripped = quotient.stripTrailingZeros()
-        return if (stripped.scale() <= preferredScale) {
-            stripped.setScale(preferredScale, RoundingMode.UNNECESSARY)
-        } else {
-            stripped
-        }
+        return integral.setScale(resultScale.toInt(), RoundingMode.UNNECESSARY)
     }
 
     public fun divideToIntegralValue(divisor: BigDecimal, mathContext: MathContext): BigDecimal {
@@ -248,11 +247,7 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
     public fun signum(): Int = compareTo(ZERO)
 
     /** Returns a `BigDecimal` whose value is `(-this)`. */
-    public fun negate(): BigDecimal {
-        if (signum() == 0) return this
-        val text = toString()
-        return if (text.startsWith("-")) BigDecimal(text.substring(1)) else BigDecimal("-" + text)
-    }
+    public fun negate(): BigDecimal = multiply(BigDecimal("-1"))
 
     public fun abs(): BigDecimal = if (signum() < 0) negate() else this
 
@@ -294,7 +289,8 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
             if (shift == 0) return plain
             val newExponent = exponent + shift
             val mantissa = "0" + (if (shift > 0) "." + "0".repeat(shift) else "")
-            return mantissa + "E+" + newExponent
+            val exponentText = if (newExponent >= 0) "+" + newExponent else newExponent.toString()
+            return mantissa + "E" + exponentText
         }
         val shift = ((exponent % 3) + 3) % 3
         if (shift == 0) return plain
