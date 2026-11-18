@@ -2172,6 +2172,26 @@ final class JVMClasspathIndex {
                 if let function = method.kotlinSuspendFunction {
                     markSourceTypes(function.parameters.compactMap(\.sourceType) + [function.sourceResult].compactMap { $0 })
                 }
+                // Regular member functions keep their Kotlin signature types
+                // only in the class's @Metadata; emitted stubs render those
+                // source types (e.g. `Class<out T>` arguments erased from the
+                // JVM descriptor), so the closure must follow them as well.
+                if method.kotlinSuspendFunction == nil, let function = kotlinFunction(method) {
+                    var names = Set<String>()
+                    for parameter in function.parameters {
+                        Self.kotlinMetadataClassNames(parameter.varargType ?? parameter.type, into: &names)
+                    }
+                    Self.kotlinMetadataClassNames(function.result, into: &names)
+                    if let receiver = function.receiver {
+                        Self.kotlinMetadataClassNames(receiver, into: &names)
+                    }
+                    for parameter in function.typeParameters {
+                        for bound in parameter.bounds {
+                            Self.kotlinMetadataClassNames(bound, into: &names)
+                        }
+                    }
+                    for name in names { markNeeded(name) }
+                }
             }
             for field in info.fields where (field.isStatic || info.isRuntimeInstanceField(field)) && field.isPublic && field.access & 0x1000 == 0 {
                 guard let type = try? JVMDescriptor.parse("()" + field.descriptor).1,
