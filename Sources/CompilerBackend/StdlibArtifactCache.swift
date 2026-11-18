@@ -483,8 +483,35 @@ public enum StdlibArtifactCache {
             }
             inlineNames = inlineKIRMangledNames(metadataText: metadataText)
         }
+        // Inline-KIR blob file names are single path components: either a
+        // safe-ASCII mangled name or a decimal FNV hash, always suffixed
+        // ".kirbin" — never a separator or a bare "..". The inline directory
+        // itself was already resolved and containment-checked above, so the
+        // per-blob `containedURL` walk (which resolves symlinks on every
+        // component, ~2k times per compile) is redundant for these names.
+        let inlineDirPath = inlineURL.path
         for mangledName in inlineNames {
-            let blobRelativePath = inlineKIRDir + "/" + MetadataEncoder.inlineKIRFileName(for: mangledName)
+            let fileName = MetadataEncoder.inlineKIRFileName(for: mangledName)
+            let blobPath = inlineDirPath + "/" + fileName
+            var info = stat()
+            if !fileName.contains("/"),
+               blobPath.withCString({ lstat($0, &info) }) == 0
+            {
+                let fileType = info.st_mode & S_IFMT
+                if fileType == S_IFREG { continue }
+                if fileType != S_IFLNK {
+                    return .invalid(
+                        "inline KIR blob for '\(mangledName)' is missing or is not a regular file"
+                    )
+                }
+                // A symlink may point outside the artifact: fall through to
+                // the strict containment check so it is rejected as before.
+            } else if !fileName.contains("/"), !fileManager.fileExists(atPath: blobPath) {
+                return .invalid(
+                    "inline KIR blob for '\(mangledName)' is missing or is not a regular file"
+                )
+            }
+            let blobRelativePath = inlineKIRDir + "/" + fileName
             guard let blobURL = CompilerFileSystem.containedURL(relativePath: blobRelativePath, under: rootURL),
                   CompilerFileSystem.isRegularFile(at: blobURL)
             else {
