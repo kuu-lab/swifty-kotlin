@@ -1412,10 +1412,28 @@ final class JVMClasspathIndex {
             return (types.count == 1 && ["kotlin.Char", "kotlin.CharSequence"].contains(types[0]))
                 || (types.count == 3 && types[0] == "kotlin.CharSequence" && types[1] == "kotlin.Int" && types[2] == "kotlin.Int")
         }
+        // Java collection/map contracts expose `size()` to Kotlin as the
+        // read-only `size` property. Keep the erased `size()` method callable
+        // as well, matching the existing JavaBeans dual-access shape.
+        func isJavaCollectionOrMap(_ name: String, visited: Set<String>) -> Bool {
+            if name == "java/util/Collection" || name == "java/util/Map" { return true }
+            guard !visited.contains(name), let info = hierarchyClasses[name] else { return false }
+            let nextVisited = visited.union([name])
+            return ([info.superclass].compactMap { $0 } + info.interfaces).contains {
+                isJavaCollectionOrMap($0, visited: nextVisited)
+            }
+        }
+        func isJavaCollectionSizeMethod(_ method: JVMForeignMethod) -> Bool {
+            guard method.name == "size", !method.isStatic, !method.isConstructor,
+                  method.parameters.isEmpty, kotlinType(method.result) == "kotlin.Int"
+            else { return false }
+            return isJavaCollectionOrMap(method.owner, visited: [])
+        }
         /// JavaBeans accessor shape: `getX()` -> property `x` with candidate
         /// setter `setX`; `isX()` -> boolean property `isX` with setter `setX`.
         func propertyShape(_ method: JVMForeignMethod) -> (name: String, setterName: String?)? {
             guard method.kotlinSuspendFunction == nil, method.genericResultParameter == nil else { return nil }
+            if isJavaCollectionSizeMethod(method) { return ("size", nil) }
             if method.name.hasPrefix("get"), method.name.count > 3 {
                 let suffix = String(method.name.dropFirst(3))
                 return (String(suffix.prefix(1)).lowercased() + suffix.dropFirst(),
