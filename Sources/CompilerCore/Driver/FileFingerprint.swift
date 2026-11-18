@@ -2,8 +2,6 @@ import Foundation
 
 #if canImport(CryptoKit)
 import CryptoKit
-#elseif canImport(Crypto)
-import Crypto
 #endif
 
 /// The content hash is the comparison key; mtime is retained as diagnostic
@@ -46,7 +44,7 @@ public struct FileFingerprint: Equatable, Codable {
     }
 
     static func sha256Bytes(_ data: Data) -> [UInt8] {
-#if canImport(CryptoKit) || canImport(Crypto)
+#if canImport(CryptoKit)
         return Array(SHA256.hash(data: data))
 #else
         return data.withUnsafeBytes { sha256(input: $0) }
