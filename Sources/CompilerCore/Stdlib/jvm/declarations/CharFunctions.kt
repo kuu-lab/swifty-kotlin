@@ -1,4 +1,6 @@
 package kotlin.text
+public inline operator fun Char.inc(): Char = (this.code + 1).toChar()
+public inline operator fun Char.dec(): Char = (this.code - 1).toChar()
 fun Char.isDigit(): Boolean = false
 fun Char.isLowerCase(): Boolean = false
 fun Char.isUpperCase(): Boolean = false

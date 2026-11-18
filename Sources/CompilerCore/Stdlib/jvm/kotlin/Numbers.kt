@@ -1,7 +1,45 @@
 @file:kotlin.jvm.JvmName("NumbersKt")
 package kotlin
 
+public inline operator fun Int.inc(): Int = this + 1
+
 public inline operator fun Int.dec(): Int = this - 1
+
+public inline operator fun Long.inc(): Long = this + 1L
+
+public inline operator fun Long.dec(): Long = this - 1L
+
+public inline operator fun Byte.inc(): Byte = (this + 1).toByte()
+
+public inline operator fun Byte.dec(): Byte = (this - 1).toByte()
+
+public inline operator fun Short.inc(): Short = (this + 1).toShort()
+
+public inline operator fun Short.dec(): Short = (this - 1).toShort()
+
+public inline operator fun Float.inc(): Float = this + 1.0f
+
+public inline operator fun Float.dec(): Float = this - 1.0f
+
+public inline operator fun Double.inc(): Double = this + 1.0
+
+public inline operator fun Double.dec(): Double = this - 1.0
+
+public inline operator fun UInt.inc(): UInt = this + 1u
+
+public inline operator fun UInt.dec(): UInt = this - 1u
+
+public inline operator fun ULong.inc(): ULong = this + 1uL
+
+public inline operator fun ULong.dec(): ULong = this - 1uL
+
+public inline operator fun UByte.inc(): UByte = (this.toUInt() + 1u).toUByte()
+
+public inline operator fun UByte.dec(): UByte = (this.toUInt() - 1u).toUByte()
+
+public inline operator fun UShort.inc(): UShort = (this.toUInt() + 1u).toUShort()
+
+public inline operator fun UShort.dec(): UShort = (this.toUInt() - 1u).toUShort()
 
 public inline fun Double.isNaN(): Boolean = this != this
 public inline fun Float.isNaN(): Boolean = this != this
