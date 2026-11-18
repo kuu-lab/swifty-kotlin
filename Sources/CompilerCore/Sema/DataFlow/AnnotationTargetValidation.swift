@@ -1131,11 +1131,37 @@ extension DataFlowSemaPhase {
             guard let name = symbols.symbol(parameter)?.name else { return }
             result[name] = parameter
         }
-        for id in chain.reversed() {
+        func isNominalBoundary(_ id: SymbolID) -> Bool {
+            guard let kind = symbols.symbol(id)?.kind else { return false }
+            switch kind {
+            case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
+                return true
+            default:
+                return false
+            }
+        }
+        func addTypeParameters(of id: SymbolID) {
             for parameter in types.nominalTypeParameterSymbols(for: id) { add(parameter) }
+            if symbols.symbol(id)?.kind == .typeAlias {
+                for parameter in symbols.typeAliasTypeParameters(for: id) { add(parameter) }
+            }
             if let signature = symbols.functionSignature(for: id) {
                 for parameter in signature.typeParameterSymbols { add(parameter) }
             }
+        }
+        guard let first = chain.first else { return result }
+        addTypeParameters(of: first)
+        var child = first
+        var index = 1
+        while index < chain.count {
+            let parent = chain[index]
+            let childCapturesParent = isNominalBoundary(child)
+                ? symbols.symbol(child)?.flags.contains(.innerClass) == true
+                : true
+            if !childCapturesParent { break }
+            addTypeParameters(of: parent)
+            child = parent
+            index += 1
         }
         return result
     }

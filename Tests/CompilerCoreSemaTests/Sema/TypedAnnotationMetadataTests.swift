@@ -242,6 +242,11 @@ struct TypedAnnotationMetadataTests {
             fun f(x: @TA<T> Int): Int = x
         }
         fun <T> g(x: @TA<T> Int): Int = x
+        class Outer<T> {
+            inner class Inner {
+                fun f(x: @TA<T> Int): Int = x
+            }
+        }
         """
         let validContext = makeBoundIdentityContext(valid)
         try runSema(validContext)
@@ -253,11 +258,20 @@ struct TypedAnnotationMetadataTests {
         fun badPlain(x: @Plain<Int> Int) {}
         fun badArity(x: @TA<Int, String> Int) {}
         fun badMissing(x: @TA<Missing> Int) {}
+        class Outer<T> {
+            class Nested {
+                fun badNested(x: @TA<T> Int) {}
+            }
+            companion object {
+                fun badCompanion(x: @TA<T> Int) {}
+            }
+        }
         """
         let invalidContext = makeBoundIdentityContext(invalid)
         try runSema(invalidContext)
         #expect(invalidContext.diagnostics.hasError, "\(invalidContext.diagnostics.diagnostics)")
         #expect(invalidContext.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0495" }.count >= 2)
         #expect(invalidContext.diagnostics.diagnostics.contains { $0.message.contains("Unresolved type 'Missing'") })
+        #expect(invalidContext.diagnostics.diagnostics.contains { $0.message.contains("Unresolved type 'T'") })
     }
 }
