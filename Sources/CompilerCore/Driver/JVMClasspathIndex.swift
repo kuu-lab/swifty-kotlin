@@ -319,14 +319,31 @@ final class JVMClasspathIndex {
             .sorted { ($0.innerName ?? "") < ($1.innerName ?? "") }
         var source = ""
         for entry in children {
-            guard let name = entry.innerName, let info = classes[entry.name],
-                  classes[owner].flatMap(kotlinCompanion)?.name != entry.name else { continue }
+            guard let name = entry.innerName, let info = classes[entry.name] else { continue }
+            // Classfile companions that Kotlin metadata does not declare are
+            // emitted by the synthetic companion block; metadata companions
+            // must be emitted here so their supertypes and nested classes
+            // stay visible.
+            if let ownerInfo = classes[owner],
+               kotlinCompanion(of: ownerInfo)?.name == entry.name,
+               kotlinMetadata(ownerInfo)?.companion == nil { continue }
             let typeParameters = info.classTypeParameterNames.isEmpty
                 ? ""
                 : "<" + info.classTypeParameterNames.map { "`\($0)`" }.joined(separator: ", ") + ">"
             let visibility = entry.access & 0x0007 == 0x0004 ? "protected " : ""
             if kotlinMetadata(info)?.isCompanion == true {
-                source += indentation + visibility + "companion object {\n"
+                source += indentation + visibility + "companion object"
+                if name != "Companion" { source += " `\(name)`" }
+                var parents: [String] = []
+                if let base = info.superclass, base != "java/lang/Object", classes[base] != nil,
+                   let superclass = superclassReference(base, child: info) {
+                    parents.append(superclass)
+                }
+                parents += info.interfaces.filter { classes[$0] != nil }.compactMap {
+                    supertypeReference($0, child: info)
+                }
+                if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
+                source += " {\n"
                 if let outer = classes[owner] {
                     source += staticFieldDeclarations(outer)
                 }
@@ -344,16 +361,19 @@ final class JVMClasspathIndex {
                 continue
             }
             let isSealedObject = info.isKotlinObject
-                && classes[owner].map { sealedInterfaceSubclasses(of: $0).contains(info.name) } == true
+                && classes[owner].map { sealedSubclasses(of: $0).contains(info.name) } == true
                 && !info.methods.contains { $0.isStatic && isExposed($0) }
             if isSealedObject {
                 source += indentation + visibility + "object `\(name)`"
             } else if info.isInterface {
                 source += indentation + visibility + interfaceKeyword(info) + " `\(name)`" + typeParameters
             } else {
-                let classKind = info.flags & 0x0400 != 0 ? "abstract class " : (info.flags & 0x0010 != 0 ? "class " : "open class ")
+                let classKind = classKeyword(info)
                 let isInner = entry.access & 0x0008 == 0
-                source += indentation + visibility + (isInner ? "inner " : "") + classKind + "`\(name)`\(typeParameters) private constructor()"
+                let constructor = info.methods.contains {
+                    $0.isConstructor && $0.parameters.isEmpty && !$0.isProtected
+                } ? "()" : " private constructor()"
+                source += indentation + visibility + (isInner ? "inner " : "") + classKind + "`\(name)`\(typeParameters)" + constructor
             }
             var parents: [String] = []
             if !info.isInterface, let base = info.superclass, classes[base] != nil,
@@ -386,15 +406,21 @@ final class JVMClasspathIndex {
         }.joined()
     }
 
-    private func sealedInterfaceSubclasses(of info: JVMClassInfo) -> [String] {
+    private func sealedSubclasses(of info: JVMClassInfo) -> [String] {
         // The owner stub emits its nested subclasses together. Only that
         // complete set can establish exhaustiveness without loading other stubs.
-        let children = info.kotlinSealedInterfaceSubclasses
+        let children = info.kotlinSealedSubclasses
         return children.allSatisfy { innerClassMetadata[$0]?.outerName == info.name && classes[$0] != nil } ? children : []
     }
 
+    private func classKeyword(_ info: JVMClassInfo) -> String {
+        if !sealedSubclasses(of: info).isEmpty { return "sealed class " }
+        if info.flags & 0x0400 != 0 { return "abstract class " }
+        return info.flags & 0x0010 != 0 ? "class " : "open class "
+    }
+
     private func interfaceKeyword(_ info: JVMClassInfo) -> String {
-        if !sealedInterfaceSubclasses(of: info).isEmpty { return "sealed interface" }
+        if !sealedSubclasses(of: info).isEmpty { return "sealed interface" }
         if !info.kotlinReadOnlyCollectionSupertypes.isEmpty { return "interface" }
         return isSAM(info.name) ? "fun interface" : "interface"
     }
@@ -549,11 +575,10 @@ final class JVMClasspathIndex {
             imported.hasInnerClassesAttribute = info.hasInnerClassesAttribute
             imported.hasEnclosingMethod = info.hasEnclosingMethod
             imported.isKotlinFileFacade = info.isKotlinFileFacade
-            imported.kotlinSealedInterfaceSubclasses = info.kotlinSealedInterfaceSubclasses
+            imported.kotlinSealedSubclasses = info.kotlinSealedSubclasses
             imported.isKotlinObject = info.isKotlinObject
             imported.kotlinReadOnlyCollectionSupertypes = info.kotlinReadOnlyCollectionSupertypes
             imported.kotlinComparableSupertype = info.kotlinComparableSupertype
-            imported.kotlinParameterizedSupertypes = info.kotlinParameterizedSupertypes
             imported.kotlinLoweredConstructors = info.kotlinLoweredConstructors
             imported.kotlinValueClassConstructors = info.kotlinValueClassConstructors
             imported.annotations = info.annotations
@@ -992,6 +1017,13 @@ final class JVMClasspathIndex {
             guard let typeName = annotationDescriptorTypeName(descriptor) else { return nil }
             return typeName + "." + (JVMProgramBuilder.isIdentifier(name) ? name : "`\(name)`")
         case let .classType(descriptor):
+            if descriptor.hasPrefix("L"), descriptor.hasSuffix(";"),
+               let target = hierarchyClasses[String(descriptor.dropFirst().dropLast())],
+               target.flags & 0x0001 == 0 {
+                // Keep the physical default on the original annotation; a
+                // source placeholder cannot reference its inaccessible type.
+                return "null!!"
+            }
             guard let typeName = kotlinClassLiteralType(descriptor) else { return nil }
             return typeName + "::class"
         case let .annotation(annotation):
@@ -1259,7 +1291,7 @@ final class JVMClasspathIndex {
                     }
                 }
                 else {
-                    source += info.flags & 0x0400 != 0 ? "abstract class " : (info.flags & 0x0010 != 0 ? "class " : "open class ")
+                    source += classKeyword(info)
                     source += "`\(short)`"
                     if !info.classTypeParameterNames.isEmpty {
                         source += "<" + info.classTypeParameterNames.map { "`\($0)`" }.joined(separator: ", ") + ">"
@@ -1815,6 +1847,7 @@ final class JVMClasspathIndex {
                     }
                     source += "external " + functionDeclaration(method) + "\n"
                 }
+                source += nestedClassDeclarations(of: companion.name)
             }
             source += "}\n"
         }
@@ -1851,7 +1884,6 @@ final class JVMClasspathIndex {
         "java/lang/Byte": "kotlin.Byte",
         "java/lang/Short": "kotlin.Short",
         "java/lang/Character": "kotlin.Char",
-        "java/lang/Void": "kotlin.Unit",
         "java/lang/Number": "kotlin.Number",
         "java/lang/StringBuilder": "kotlin.text.StringBuilder",
         "java/lang/Appendable": "kotlin.text.Appendable",
@@ -2547,6 +2579,9 @@ final class JVMClasspathIndex {
             return
         }
         methods[symbol.id] = method
+        if info.isKotlinFileFacade == nil, method.kotlinFunction == nil {
+            sema.symbols.markJVMJavaMethod(symbol.id)
+        }
         // Keep the authored Kotlin types on the declaration of this JVM
         // stdlib base so imported methods can satisfy Kotlin List members.
         if ctx.sourceManager.path(of: site.start.file) != "<kswiftk-jvm>/abstractList.kt" {

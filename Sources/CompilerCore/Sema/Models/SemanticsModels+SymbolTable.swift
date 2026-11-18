@@ -348,6 +348,7 @@ public final class SymbolTable {
     private var pendingTypeParameterBoundConflictChecks: [(symbol: SymbolID, declSite: SourceRange?)] = []
     private var pendingTypeArgumentBoundChecks: [PendingTypeArgumentBoundCheck] = []
     private var sourceFileIDs: [SymbolID: FileID] = [:]
+    private var jvmJavaMethods: Set<SymbolID> = []
     /// Selected symbols imported from the validated stdlib artifact, including
     /// indexed declarations whose bodies have not been materialized yet.
     private var importedStdlibSymbolIDs: Set<SymbolID> = []
@@ -494,6 +495,7 @@ public final class SymbolTable {
         worker.fqNameListVersions = fqNameListVersions
         worker.byDeclSite = byDeclSite
         worker.functionSignatures = functionSignatures
+        worker.jvmJavaMethods = jvmJavaMethods
         worker.valueParameterOwners = valueParameterOwners
         worker.propertyTypes = propertyTypes
         worker.propertyHasCustomGetter = propertyHasCustomGetter
@@ -2209,6 +2211,10 @@ public final class SymbolTable {
         guard let imported = self.symbol(symbol) else { return false }
         return imported.visibility == .public || imported.visibility == .protected
     }
+
+    func markJVMJavaMethod(_ symbol: SymbolID) { jvmJavaMethods.insert(symbol) }
+
+    func isJVMJavaMethod(_ symbol: SymbolID) -> Bool { jvmJavaMethods.contains(symbol) }
 
     public func setSourceFileID(_ fileID: FileID, for symbol: SymbolID) {
         sourceFileIDs[symbol] = fileID
