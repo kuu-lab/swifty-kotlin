@@ -687,6 +687,11 @@ extension DeclTypeChecker {
                   ast: ctx.ast,
                   interner: ctx.interner
               ) == .lazy,
+              precheckableDelegateArgumentsAreSafe(
+                  delegateExpression,
+                  in: ctx,
+                  locals: initialLocals
+              ),
               let bodyExpr = precheckableDelegateBodyExpr(property.delegateBody),
               let type = safePrecheckExpressionType(
                   bodyExpr,
@@ -711,6 +716,36 @@ extension DeclTypeChecker {
             return exprs.count == 1 ? exprs[0] : nil
         default:
             return nil
+        }
+    }
+
+    /// The lazy precheck type-checks the whole delegate expression, not just
+    /// the lambda body, so every non-lambda argument must already be safe.
+    /// Otherwise `lazy(mode = mode) { 41 }` could run early while `mode` still
+    /// holds the member placeholder and keep a diagnostic the source-order
+    /// pass would have resolved.
+    private func precheckableDelegateArgumentsAreSafe(
+        _ delegateExpression: ExprID,
+        in ctx: TypeInferenceContext,
+        locals: LocalBindings
+    ) -> Bool {
+        let args: [CallArgument]
+        switch ctx.ast.arena.expr(delegateExpression) {
+        case let .call(_, _, callArgs, _):
+            args = callArgs
+        case let .memberCall(_, _, _, memberArgs, _):
+            args = memberArgs
+        default:
+            return false
+        }
+        guard let last = args.last,
+              case .lambdaLiteral? = ctx.ast.arena.expr(last.expr)
+        else {
+            return false
+        }
+        return args.dropLast().allSatisfy { argument in
+            !argument.isSpread
+                && safePrecheckExpressionType(argument.expr, in: ctx, locals: locals) != nil
         }
     }
 
@@ -1664,7 +1699,8 @@ extension DeclTypeChecker {
                 named: name,
                 receiverType: receiverType,
                 sema: ctx.sema
-            ), isSafePrecheckValueType(property.type, in: ctx) {
+            ), canPrecheckPropertyRead(property.symbol, in: ctx),
+                isSafePrecheckValueType(property.type, in: ctx) {
                 return property.type
             }
             // The bundled kotlin.<Name>Array classes declare no `size`
