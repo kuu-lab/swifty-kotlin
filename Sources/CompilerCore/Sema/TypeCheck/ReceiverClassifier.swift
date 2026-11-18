@@ -278,6 +278,38 @@ struct ReceiverClassifier {
         }
     }
 
+    /// Bound-aware Sequence predicate for overload discrimination: unlike
+    /// `isSequenceLikeType`, this follows nominal subtypes and type-parameter
+    /// upper bounds, so `S : Sequence<T>` and Sequence implementations select
+    /// the Sequence overload instead of falling through to Iterable.
+    func isSequenceSubtypeType(_ type: TypeID) -> Bool {
+        isNominalSubtypeType(type, fqName: [
+            interner.intern("kotlin"),
+            interner.intern("sequences"),
+            interner.intern("Sequence"),
+        ])
+    }
+
+    /// Bound-aware Iterable predicate matching `isIterableLikeType`'s nominal
+    /// subtype rule without its receiver-path range exclusions.
+    func isIterableSubtypeType(_ type: TypeID) -> Bool {
+        isNominalSubtypeType(type, fqName: [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Iterable"),
+        ])
+    }
+
+    private func isNominalSubtypeType(_ type: TypeID, fqName: [InternedString]) -> Bool {
+        guard let target = sema.symbols.lookupNominal(fqName: fqName) else {
+            return false
+        }
+        return classTypes(of: type).contains { classType, _ in
+            classType.classSymbol == target
+                || sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: target)
+        }
+    }
+
     func isCollectionLikeType(_ type: TypeID) -> Bool {
         classTypes(of: type).contains { _, symbol in
             matchesKnownSymbol(symbol) { knownNames, symbol in

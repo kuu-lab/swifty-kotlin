@@ -506,10 +506,10 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 let rawLambdaReturnType = inferredLambdaReturnType(argExpr: args[1].expr, ast: ast, sema: sema)
                 let flattenedElementType = flatMapTransformElementType(lambdaArgExpr: args[1].expr, returnType: rawLambdaReturnType)
                 let expectedElementType = flattenedElementType == sema.types.anyType ? destinationElementType : flattenedElementType
-                let returnsSequence = receiverClassifier.isSequenceLikeType(rawLambdaReturnType)
+                let returnsSequence = receiverClassifier.isSequenceSubtypeType(rawLambdaReturnType)
                 let expectedReturnContainer: SymbolID? = if returnsSequence {
                     lookupStdlibSymbol("Sequence", symbols: sema.symbols, interner: interner)
-                } else if receiverClassifier.isIterableLikeType(rawLambdaReturnType) {
+                } else if receiverClassifier.isIterableSubtypeType(rawLambdaReturnType) {
                     lookupStdlibSymbol("Iterable", symbols: sema.symbols, interner: interner)
                 } else {
                     nil
@@ -529,6 +529,10 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                         isSuspend: lambdaFunctionType.isSuspend,
                         nullability: .nonNull
                     )))
+                    let lambdaRange = ast.arena.exprRange(args[1].expr)
+                    let firstPassLambdaDiagnostics = lambdaRange.map {
+                        sema.diagnostics.removeErrorDiagnostics(containedIn: $0)
+                    } ?? []
                     let diagnosticsCheckpoint = sema.diagnostics.checkpoint()
                     var trialLocals = locals
                     _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &trialLocals, expectedType: expectedLambdaType)
@@ -537,11 +541,11 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     }
                     if emittedError {
                         sema.diagnostics.rollback(to: diagnosticsCheckpoint)
+                        for diagnostic in firstPassLambdaDiagnostics {
+                            sema.diagnostics.emit(diagnostic)
+                        }
                         _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: effectiveLambdaExpectedType)
                     } else {
-                        if let lambdaRange = ast.arena.exprRange(args[1].expr) {
-                            sema.diagnostics.removeErrorDiagnostics(containedIn: lambdaRange)
-                        }
                         locals = trialLocals
                     }
                 }
@@ -789,7 +793,13 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     } else if calleeStr == "mapNotNullTo" || calleeStr == "mapIndexedNotNullTo" {
                         resultElementType = sema.types.makeNonNullable(rawLambdaReturnType)
                     } else if calleeStr == "flatMapTo" || calleeStr == "flatMapIndexedTo" {
-                        sequenceTransformReturnsSequence = receiverClassifier.isSequenceLikeType(rawLambdaReturnType)
+                        let returnsSequence = receiverClassifier.isSequenceSubtypeType(rawLambdaReturnType)
+                        let returnsIterable = !returnsSequence && receiverClassifier.isIterableSubtypeType(rawLambdaReturnType)
+                        guard returnsSequence || returnsIterable else {
+                            didReturnNil = true
+                            return nil
+                        }
+                        sequenceTransformReturnsSequence = returnsSequence
                         resultElementType = flatMapTransformElementType(lambdaArgExpr: args[1].expr, returnType: rawLambdaReturnType)
                     } else {
                         resultElementType = extractListElementType(rawLambdaReturnType, sema: sema, interner: interner)
