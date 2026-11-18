@@ -169,9 +169,31 @@ extension JVMFunctionBuilder {
            program.sema.symbols.symbol(symbol)?.kind == .enumClass,
            ["values", "valueOf", "entries"].contains(name)
         {
+            let sema = program.sema
+            let selected = sema.bindings.identifierSymbol(for: id) ?? sema.bindings.callBinding(for: id)?.chosenCallee
+            let syntheticEnumMember: Bool
+            if name == "entries" {
+                let propertyID = selected.flatMap { sema.symbols.propertySymbol(forAccessor: $0) ?? $0 }
+                let property = propertyID.flatMap { sema.symbols.symbol($0) }
+                syntheticEnumMember = property?.kind == .property
+                    && property?.flags.contains(.synthetic) == true
+                    && property?.flags.contains(.static) == true
+            } else {
+                let callee = sema.bindings.callBinding(for: id)?.chosenCallee
+                let expectedArity = name == "valueOf" ? 1 : 0
+                syntheticEnumMember = callee.flatMap({ sema.symbols.symbol($0) })?.flags.contains(.synthetic) == true
+                    && callee.flatMap({ sema.symbols.functionSignature(for: $0) })?.parameterTypes.count == expectedArity
+            }
+            guard syntheticEnumMember else { return nil }
             let params: [JVMValueType] = name == "valueOf" ? [.string] : []
             guard args.count == params.count, args.allSatisfy({ $0.label == nil && !$0.isSpread }) else { throw fail("Unsupported JVM enum static call.", id) }
             let owner = try program.className(symbol)
+            if name == "entries" {
+                let declaresGetEntries = context.jvmImports?.classes[owner]?.methods.contains {
+                    $0.name == "getEntries" && $0.isStatic && $0.descriptor == "()Lkotlin/enums/EnumEntries;"
+                } ?? false
+                guard declaresGetEntries else { return nil }
+            }
             let enumType = JVMValueType.reference(owner, nullable: false)
             let result: JVMValueType = switch name {
             case "entries": .reference("kotlin/enums/EnumEntries", nullable: false)
