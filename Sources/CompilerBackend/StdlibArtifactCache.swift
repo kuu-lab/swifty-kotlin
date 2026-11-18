@@ -483,12 +483,22 @@ public enum StdlibArtifactCache {
             }
             inlineNames = inlineKIRMangledNames(metadataText: metadataText)
         }
-        // Inline-KIR blob file names are single path components: either a
-        // safe-ASCII mangled name or a decimal FNV hash, always suffixed
-        // ".kirbin" — never a separator or a bare "..". The inline directory
-        // itself was already resolved and containment-checked above, so the
-        // per-blob `containedURL` walk (which resolves symlinks on every
-        // component, ~2k times per compile) is redundant for these names.
+        // Inline-KIR blob validation. Two invariants make the fast path safe:
+        //  - `MetadataEncoder.inlineKIRFileName` always yields a single path
+        //    component (a safe-ASCII mangled name or a decimal FNV hash, with a
+        //    ".kirbin" suffix) — never a separator or a bare "..".
+        //  - `inlineURL` was already resolved and containment-checked above, so
+        //    `inlineDirPath` cannot escape the artifact.
+        // A regular file (`lstat` reports S_IFREG, i.e. not a symlink) at
+        // `inlineDirPath/<fileName>` is therefore guaranteed to be contained and
+        // regular — exactly what the strict check below would conclude — so it
+        // can be accepted with one `lstat` instead of a per-blob `containedURL`
+        // walk that resolves symlinks on every component (~2k times per compile).
+        // Every ambiguous case — a symlink (which may resolve outside the
+        // artifact), a non-regular file, a missing blob, or a defensive filename
+        // containing "/" — falls through to the strict `containedURL` +
+        // `isRegularFile` check, preserving the original containment and
+        // regular-file validation unchanged.
         let inlineDirPath = inlineURL.path
         for mangledName in inlineNames {
             let fileName = MetadataEncoder.inlineKIRFileName(for: mangledName)
