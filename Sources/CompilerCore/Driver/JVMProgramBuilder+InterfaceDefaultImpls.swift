@@ -187,15 +187,6 @@ extension JVMProgramBuilder {
         return helper
     }
 
-    func interfaceIsSubtype(_ child: JVMClassPlan, of parent: JVMClassPlan, visited: Set<SymbolID> = []) -> Bool {
-        if child.symbol == parent.symbol { return true }
-        guard !visited.contains(child.symbol) else { return false }
-        let visited = visited.union([child.symbol])
-        return sourceInterfaceParents(of: child.symbol).contains { candidate in
-            candidate.symbol == parent.symbol || interfaceIsSubtype(candidate, of: parent, visited: visited)
-        }
-    }
-
     func inheritedClassMethodSignatures(_ plan: JVMClassPlan, includeInterfaceDefaults: Bool = true, visited: Set<SymbolID> = []) -> Set<String> {
         guard !visited.contains(plan.symbol) else { return [] }
         let visited = visited.union([plan.symbol])

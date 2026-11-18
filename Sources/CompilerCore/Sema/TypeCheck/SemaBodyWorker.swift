@@ -7,7 +7,7 @@ final class SemaBodyWorker: @unchecked Sendable {
     let driver: TypeCheckDriver
 
     init(parent: TypeCheckDriver, copyingBindings: Bool = false) {
-        let diagnostics = parent.diagnostics.makeSemaWorkerDiagnostics()
+        let diagnostics = parent.diagnostics.makeWorkerDiagnostics()
         let interner = parent.interner.makeSemaWorkerInterner()
         let types = parent.sema.types.makeSemaWorkerTypes()
         let symbols = parent.sema.symbols.makeSemaWorkerSymbols()

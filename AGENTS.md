@@ -4,7 +4,7 @@ AI 向けクイックリファレンス。詳細なアーキテクチャ・ナ�
 
 ## プロジェクト概要
 
-KSwiftK は Swift で書かれた Kotlin コンパイラ。Kotlin 2.4.20 stable をターゲットとし、LLVM 経由で macOS ネイティブ実行ファイルを生成する。実行バイナリは `kswiftc`（LSP サーバ `kswift-lsp` も生成）。
+KSwiftK は Swift で書かれた Kotlin コンパイラ。Kotlin 2.4.20 stable をターゲットとし、emit mode に応じて LLVM / Wasm / JVM バックエンドでネイティブ・WebAssembly・JVM/Android 成果物を生成する。実行バイナリは `kswiftc`（LSP サーバ `kswift-lsp` も生成）。
 
 ## ビルド & テストコマンド
 
@@ -128,15 +128,16 @@ gh stack merge                            # 下から順に原子的マージ
 ## アーキテクチャ概要
 
 ```
-LoadSources → Lex → Parse → BuildAST → SemaPasses → BuildKIR → Lowering → Codegen → Link
+native/wasm: LoadSources → Lex → Parse → BuildAST → Sema → BuildKIR → Lowering → Codegen → Link
+JVM:         LoadSources → JVMPreparation → Lex → Parse → BuildAST → JVMSourceValidation → Sema → JVMFrontend → Codegen
 ```
 
 モジュール構成:
 
-- `CompilerCore` — フロントエンド（Lex〜Lowering）、LLVM 非依存
-- `CompilerBackend` — Codegen + Link。LLVM は `LLVMCAPIBindings+Loading.swift` で `libLLVM` を dlopen する動的ロード方式（システムターゲットなし）
+- `CompilerCore` — フロントエンド（Lex〜Lowering + JVM frontend）、LLVM 非依存
+- `CompilerBackend` — Native/Wasm Codegen + Link と JVM classfile/JAR/DEX/APK emission。LLVM は `LLVMCAPIBindings+Loading.swift` で `libLLVM` を dlopen する動的ロード方式（システムターゲットなし）。JVM/Wasm は LLVM 非依存
 - `KSwiftKCLI` → `kswiftc` / `LSPServer` + `KSwiftLSPCLI` → `kswift-lsp`
-- `Runtime` — GC・coroutine・boxing / `RuntimeABI` — ABI 契約の共有境界
+- `Runtime` — GC・coroutine・boxing / `RuntimeABI` — ABI 契約の共有境界 / `RuntimeCAtomics`・`CSQLite` — atomic shim と SQLite C API
 - `GoldenHarnessSupport` / `GoldenHarnessWorker` — ゴールデンテストハーネス
 - `Sources/CompilerCore/Stdlib/kotlin/`（`kotlinx/` も同階層） — Kotlin ソース化された stdlib。`Bundle.module` リソースとして同梱。docs では `Stdlib/kotlin/...` と短縮表記する（[`docs/stdlib-pipeline.md`](docs/stdlib-pipeline.md)）
 - `CompilerTestSupport` / `TestStdlibCache` — テスト共有ヘルパーと、bundled stdlib を一度だけ `.kklib` にプリコンパイルして全テストで再利用するキャッシュ

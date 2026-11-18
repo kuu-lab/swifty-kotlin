@@ -7,7 +7,7 @@ public enum DiagnosticSeverity: Hashable, Sendable {
     case info
 }
 
-public struct Diagnostic: Hashable {
+public struct Diagnostic: Hashable, Sendable {
     public let severity: DiagnosticSeverity
     public let code: String
     public let message: String
@@ -68,7 +68,7 @@ public final class DiagnosticEngine: @unchecked Sendable {
 
     /// Workers own speculative diagnostics and inherit only suppression policy.
     /// The parent applies deduplication and per-file limits when joining deltas.
-    func makeSemaWorkerDiagnostics() -> DiagnosticEngine {
+    func makeWorkerDiagnostics() -> DiagnosticEngine {
         lock.lock()
         defer { lock.unlock() }
         let worker = DiagnosticEngine(maxDiagnosticsPerFile: Int.max)

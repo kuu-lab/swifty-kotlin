@@ -395,14 +395,62 @@ extension ExprTypeChecker {
             ownerScope: classScope,
             ctx: ctx
         )
-        let classCtx = ctx.withoutSuspensionContext().withOuterReceiver(
-            label: classDecl.name,
-            type: classType
-        ).copying(
-            scope: classScope,
-            implicitReceiverType: classType,
-            enclosingClassSymbol: classSymbol
-        )
+        // A function-local nominal captures the enclosing function's receiver
+        // *value*. The enclosing class's outer-receiver entry normally carries
+        // the class symbol — a `this@Class` label placeholder — which cannot
+        // root the smart-cast flow reference, because those are keyed by the
+        // receiver value symbol (`receiverParameterSymbol(for:)`). Resolve that
+        // entry to the enclosing function's receiver parameter so stable
+        // property smart casts on the captured `this` survive into the local
+        // nominal's member bodies (KUU-4605).
+        //
+        // Only rewrite when `receiverParameterSymbol(for:)` denotes the
+        // enclosing class instance. That holds for a plain member function —
+        // including when the local class sits inside a lambda that has its own
+        // receiver, because a lambda does not change `enclosingFunctionSymbol`
+        // — whose declared receiver type is the enclosing class. It does NOT
+        // hold for a member *extension* function (its `this` is the extension
+        // receiver, e.g. `String`, not the `this@Outer` dispatch receiver) or
+        // for a receiver-less local function (which has no `this` at all, so
+        // `receiverParameterSymbol(for:)` would name a non-existent receiver
+        // and the instance would not be captured). Rewriting there would bind
+        // the outer entry to the wrong value, so skip it. Default to skipping:
+        // only a concrete class receiver type matching the enclosing class
+        // proves the receiver parameter is the captured instance.
+        var memberOuterReceiverTypes = ctx.outerReceiverTypes
+        if let enclosingFunctionSymbol = ctx.enclosingFunctionSymbol,
+           let enclosingClassSymbol = ctx.enclosingClassSymbol
+        {
+            var receiverIsEnclosingClassInstance = false
+            if let signature = sema.symbols.functionSignature(for: enclosingFunctionSymbol),
+               let receiverType = signature.receiverType,
+               case let .classType(receiverClass) = sema.types.kind(of: receiverType)
+            {
+                receiverIsEnclosingClassInstance = receiverClass.classSymbol == enclosingClassSymbol
+            }
+            if receiverIsEnclosingClassInstance {
+                let receiverValueSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: enclosingFunctionSymbol)
+                for index in memberOuterReceiverTypes.indices {
+                    let entry = memberOuterReceiverTypes[index]
+                    guard entry.symbol == enclosingClassSymbol,
+                          case let .classType(entryClassType) = sema.types.kind(of: entry.type),
+                          entryClassType.classSymbol == enclosingClassSymbol
+                    else {
+                        continue
+                    }
+                    memberOuterReceiverTypes[index].symbol = receiverValueSymbol
+                }
+            }
+        }
+        let classCtx = ctx.copying(outerReceiverTypes: memberOuterReceiverTypes)
+            .withoutSuspensionContext().withOuterReceiver(
+                label: classDecl.name,
+                type: classType
+            ).copying(
+                scope: classScope,
+                implicitReceiverType: classType,
+                enclosingClassSymbol: classSymbol
+            )
 
         // Enclosing nominal scopes (innermost → outermost) for the
         // inner-class supertype receiver check below and the deferred
@@ -1008,10 +1056,17 @@ extension ExprTypeChecker {
             ast: ast,
             sema: sema
         ))
+        // Nested inner-class member bodies resolve outer receivers through the
+        // rewritten `memberOuterReceiverTypes` (see above), so the capture
+        // candidate set must include those receiver value symbols as well as the
+        // original tower symbols; otherwise a receiver referenced only from a
+        // nested inner class would be dropped (KUU-4605).
         capturedSymbols.formUnion(collectNestedInnerClassCaptures(
             classDecl.nestedClasses,
             outerReceiverSymbols: Set(
-                ctx.outerReceiverTypes.compactMap(\.symbol) + ctx.implicitReceiverStack.map(\.symbol)
+                ctx.outerReceiverTypes.compactMap(\.symbol)
+                    + memberOuterReceiverTypes.compactMap(\.symbol)
+                    + ctx.implicitReceiverStack.map(\.symbol)
             ),
             superConstructorCaptureSymbols: captureOuterSymbols,
             ast: ast,
