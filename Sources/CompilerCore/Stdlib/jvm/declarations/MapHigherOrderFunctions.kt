@@ -11,18 +11,6 @@ public inline fun <K, V> Map<out K, V>?.isNullOrEmpty(): Boolean {
     return value.isEmpty()
 }
 
-public inline fun <K, V> Map<K, V>.forEach(action: (Map.Entry<K, V>) -> Unit) {
-    for (entry in this.entries) {
-        action(entry)
-    }
-}
-
-public inline fun <K, V> Map<K, V>.forEach(action: (K, V) -> Unit) {
-    for (entry in this.entries) {
-        action(entry.key, entry.value)
-    }
-}
-
 public inline fun <K, V> Map<K, V>.getOrElse(key: K, defaultValue: () -> V): V {
     val value = this[key]
     if (value != null) return value

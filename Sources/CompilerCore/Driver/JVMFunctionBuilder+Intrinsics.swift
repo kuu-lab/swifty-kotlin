@@ -537,9 +537,6 @@ extension JVMFunctionBuilder {
                ["java/util/Collection", "java/util/List", "java/util/Set", "java/util/Map"].contains(owner) {
                 return try collectionIsNullOrEmpty(receiverID, owner: owner, id: id)
             }
-            if member == "forEach", owner == "java/util/Map", args.count == 1 {
-                return try mapForEach(receiverID, args: args, id: id)
-            }
             let isIteratorRemove = owner == "java/util/Iterator" && member == "remove"
             // Sema's chosen callee is authoritative for member vs extension:
             // when it picked a Kotlin extension, the fixed JDK member signature
