@@ -515,9 +515,7 @@ private struct JVMSourceGrammar {
             }
             if take(.keyword(.finally)) { handled = true; try block() }
             guard handled else { throw Unsupported() }
-            return
-        }
-        if take(.keyword(.when)) {
+        } else if take(.keyword(.when)) {
             let hasSubject = kind == .symbol(.lParen)
             if hasSubject {
                 try require(.symbol(.lParen))
