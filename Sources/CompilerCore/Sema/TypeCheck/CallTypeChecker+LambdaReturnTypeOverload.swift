@@ -588,16 +588,23 @@ extension CallTypeChecker {
                 hasExpectedTypeOverride = false
             }
             if let argumentExpr = ast.arena.expr(argument.expr) {
-                let narrowedCandidates = narrowedCallCandidates(
-                    candidates: candidates,
-                    args: args,
-                    callRange: callRange,
-                    inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
-                    receiverType: receiverType,
-                    boundObjectDispatchReceiverCandidates: boundObjectDispatchReceiverCandidates,
-                    ctx: ctx
-                )
-                let expectedTypeCandidates = narrowedCandidates.isEmpty ? candidates : narrowedCandidates
+                var narrowedCandidatesStorage: [SymbolID]?
+                func narrowedExpectedCandidates() -> [SymbolID] {
+                    if let narrowedCandidatesStorage {
+                        return narrowedCandidatesStorage.isEmpty ? candidates : narrowedCandidatesStorage
+                    }
+                    let narrowedCandidates = narrowedCallCandidates(
+                        candidates: candidates,
+                        args: args,
+                        callRange: callRange,
+                        inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                        receiverType: receiverType,
+                        boundObjectDispatchReceiverCandidates: boundObjectDispatchReceiverCandidates,
+                        ctx: ctx
+                    )
+                    narrowedCandidatesStorage = narrowedCandidates
+                    return narrowedCandidates.isEmpty ? candidates : narrowedCandidates
+                }
 
                 if hasExpectedTypeOverride {
                     if case .lambdaLiteral = argumentExpr {
@@ -606,14 +613,14 @@ extension CallTypeChecker {
                             at: index,
                             label: argument.label,
                             args: args,
-                            candidates: expectedTypeCandidates,
+                            candidates: narrowedExpectedCandidates(),
                             ctx: ctx
                         )
                         let expectation = lambdaLiteralExpectedType(
                             at: index,
                             args: args,
                             callRange: callRange,
-                            candidates: expectedTypeCandidates,
+                            candidates: narrowedExpectedCandidates(),
                             explicitTypeArgs: explicitTypeArgs,
                             receiverType: receiverType,
                             inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
@@ -633,14 +640,14 @@ extension CallTypeChecker {
                     contextualArgExpectedTypes[index] = uniformNumericLiteralParameterType(
                         at: index,
                         argumentLabel: argument.label,
-                        candidates: expectedTypeCandidates,
+                        candidates: narrowedExpectedCandidates(),
                         sema: sema
                     )
                 case .uintLiteral:
                     contextualArgExpectedTypes[index] = uniformUnsignedLiteralParameterType(
                         at: index,
                         argumentLabel: argument.label,
-                        candidates: expectedTypeCandidates,
+                        candidates: narrowedExpectedCandidates(),
                         sema: sema
                     )
                 case .unaryExpr(let op, let operandID, _):
@@ -650,7 +657,7 @@ extension CallTypeChecker {
                         contextualArgExpectedTypes[index] = uniformNumericLiteralParameterType(
                             at: index,
                             argumentLabel: argument.label,
-                            candidates: expectedTypeCandidates,
+                            candidates: narrowedExpectedCandidates(),
                             sema: sema
                         )
                     }
@@ -662,7 +669,7 @@ extension CallTypeChecker {
                         argumentLabel: argument.label,
                         args: args,
                         callRange: callRange,
-                        expectedCandidates: expectedTypeCandidates,
+                        expectedCandidates: narrowedExpectedCandidates(),
                         callCandidates: candidates,
                         explicitTypeArgs: explicitTypeArgs,
                         receiverType: receiverType,
@@ -677,7 +684,7 @@ extension CallTypeChecker {
                         argumentLabel: argument.label,
                         args: args,
                         callRange: callRange,
-                        expectedCandidates: expectedTypeCandidates,
+                        expectedCandidates: narrowedExpectedCandidates(),
                         callCandidates: candidates,
                         explicitTypeArgs: explicitTypeArgs,
                         receiverType: receiverType,
@@ -690,7 +697,7 @@ extension CallTypeChecker {
                     contextualArgExpectedTypes[index] = uniformContextualParameterType(
                         for: argument,
                         at: index,
-                        candidates: expectedTypeCandidates,
+                        candidates: narrowedExpectedCandidates(),
                         ctx: ctx
                     )
                 case let .binary(op, _, _, _) where op == .elvis:
@@ -701,7 +708,7 @@ extension CallTypeChecker {
                     contextualArgExpectedTypes[index] = uniformContextualParameterType(
                         for: argument,
                         at: index,
-                        candidates: expectedTypeCandidates,
+                        candidates: narrowedExpectedCandidates(),
                         receiverType: receiverType ?? ctx.implicitReceiverType,
                         ctx: ctx
                     )
@@ -712,14 +719,14 @@ extension CallTypeChecker {
                         at: index,
                         label: argument.label,
                         args: args,
-                        candidates: expectedTypeCandidates,
+                        candidates: narrowedExpectedCandidates(),
                         ctx: ctx
                     )
                     let expectation = lambdaLiteralExpectedType(
                         at: index,
                         args: args,
                         callRange: callRange,
-                        candidates: expectedTypeCandidates,
+                        candidates: narrowedExpectedCandidates(),
                         explicitTypeArgs: explicitTypeArgs,
                         receiverType: receiverType,
                         inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
@@ -742,7 +749,7 @@ extension CallTypeChecker {
                         callResultType: ctx.isElvisBranchExpectedTypeHint
                             ? contextualCallResultType.map { sema.types.makeNullable($0) }
                             : contextualCallResultType,
-                        candidates: expectedTypeCandidates,
+                        candidates: narrowedExpectedCandidates(),
                         argumentIndex: index,
                         argumentLabel: argument.label,
                         args: args,
@@ -750,8 +757,8 @@ extension CallTypeChecker {
                         sema: sema
                     )
                     contextualArgExpectedTypes[index] = contextualLambdaType
-                    if let contextualLambdaType, expectedTypeCandidates.count == 1,
-                       let candidate = expectedTypeCandidates.first,
+                    if let contextualLambdaType, narrowedExpectedCandidates().count == 1,
+                       let candidate = narrowedExpectedCandidates().first,
                        let signature = sema.symbols.functionSignature(for: candidate)
                     {
                         contextualArgExpectedTypes[index] = applyDispatchReceiverClassTypeArgs(
@@ -766,11 +773,11 @@ extension CallTypeChecker {
                     let perCandidateResultType = ctx.isElvisBranchExpectedTypeHint
                         ? contextualCallResultType.map { sema.types.makeNullable($0) }
                         : contextualCallResultType
-                    if expectedTypeCandidates.count > 1,
+                    if narrowedExpectedCandidates().count > 1,
                        let perCandidateResultType
                     {
                         var candidateExpectedTypes: [TypeID] = []
-                        for candidate in expectedTypeCandidates {
+                        for candidate in narrowedExpectedCandidates() {
                             guard let signature = sema.symbols.functionSignature(for: candidate),
                                   let specialized = contextualLambdaExpectedTypeForCandidate(
                                       signature: signature,
@@ -796,7 +803,7 @@ extension CallTypeChecker {
                         at: index,
                         args: args,
                         callRange: callRange,
-                        candidates: expectedTypeCandidates,
+                        candidates: narrowedExpectedCandidates(),
                         sema: sema,
                         ctx: ctx
                     ) {
