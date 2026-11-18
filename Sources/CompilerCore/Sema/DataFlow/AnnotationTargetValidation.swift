@@ -1132,8 +1132,9 @@ extension DataFlowSemaPhase {
             result[name] = parameter
         }
         func isNominalBoundary(_ id: SymbolID) -> Bool {
-            guard let kind = symbols.symbol(id)?.kind else { return false }
-            switch kind {
+            guard let symbol = symbols.symbol(id) else { return false }
+            if symbol.flags.contains(.localDeclSynthetic) { return false }
+            switch symbol.kind {
             case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
                 return true
             default:

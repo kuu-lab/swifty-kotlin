@@ -247,6 +247,13 @@ struct TypedAnnotationMetadataTests {
                 fun f(x: @TA<T> Int): Int = x
             }
         }
+        class OuterWithLocal<T> {
+            fun make() {
+                class Local {
+                    fun f(x: @TA<T> Int): Int = x
+                }
+            }
+        }
         """
         let validContext = makeBoundIdentityContext(valid)
         try runSema(validContext)
@@ -261,6 +268,11 @@ struct TypedAnnotationMetadataTests {
         class Outer<T> {
             class Nested {
                 fun badNested(x: @TA<T> Int) {}
+                fun make() {
+                    class Local {
+                        fun badLocal(x: @TA<T> Int) {}
+                    }
+                }
             }
             companion object {
                 fun badCompanion(x: @TA<T> Int) {}
