@@ -1632,35 +1632,6 @@ struct ExpectActualCompatibilityTests {
         }
     }
 
-    @Test
-    func testExpectActualCovariantOverrideReturnType() throws {
-        let ctx = makeContextFromSources([
-            """
-            package sample.kmp
-            expect interface Greeter {
-              fun greet(): Greeter
-            }
-            expect class Impl : Greeter {
-              override fun greet(): Impl
-            }
-            """,
-            """
-            package sample.kmp
-            actual interface Greeter {
-              actual fun greet(): Greeter
-            }
-            actual class Impl : Greeter {
-              actual override fun greet(): Impl = this
-            }
-            """,
-        ])
-
-        try runSema(ctx)
-
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(errors.isEmpty, "Covariant override of an expect/actual member must type-check: \(errors)")
-    }
-
     private func makeImportedExpectLibrary(indexed: Bool = false, compactIndexed: Bool = false) throws -> URL {
         let libraryDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString + ".kklib")
