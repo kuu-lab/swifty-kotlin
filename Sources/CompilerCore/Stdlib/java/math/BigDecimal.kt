@@ -60,6 +60,13 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
         roundingMode: Int
     ): BigDecimal
 
+    @KsSymbolName("__kk_bignum_divideMathContext")
+    private external fun __kk_bignum_divideMathContext(
+        other: BigDecimal,
+        precision: Int,
+        roundingMode: Int
+    ): BigDecimal
+
     @KsSymbolName("__kk_bignum_setScale")
     private external fun __kk_bignum_setScale(scale: Int, roundingMode: Int): BigDecimal
 
@@ -115,6 +122,9 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
         roundingMode: RoundingMode
     ): BigDecimal = __kk_bignum_divideAtScale(divisor, scale, roundingMode.runtimeCode())
 
+    public fun divide(divisor: BigDecimal, mathContext: MathContext): BigDecimal =
+        __kk_bignum_divideMathContext(divisor, mathContext.precision, mathContext.roundingMode.runtimeCode())
+
     @Deprecated("Use divide(divisor, roundingMode: RoundingMode) instead.")
     public fun divide(divisor: BigDecimal, roundingMode: Int): BigDecimal =
         __kk_bignum_divideAtScale(divisor, scale(), roundingMode)
@@ -124,13 +134,44 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
         __kk_bignum_divideAtScale(divisor, scale, roundingMode)
 
     /**
+     * Returns the quotient of `this / divisor` rounded toward zero, with the
+     * JDK `divideToIntegralValue` preferred scale `this.scale() - divisor.scale()`
+     * adjusted only as needed to represent the integral value exactly.
+     */
+    private fun divideToIntegralValue(divisor: BigDecimal): BigDecimal {
+        val integral = divide(divisor, 0, RoundingMode.DOWN)
+        var resultScale = scale().toLong() - divisor.scale().toLong()
+        if (integral.signum() != 0) {
+            val digits = integral.unscaledValue().abs().toString()
+            var trailingZeros = 0
+            var index = digits.length - 1
+            while (index >= 0 && digits[index] == '0') {
+                trailingZeros++
+                index--
+            }
+            val minimumScale = -trailingZeros.toLong()
+            if (resultScale < minimumScale) resultScale = minimumScale
+        }
+        if (resultScale < Int.MIN_VALUE || resultScale > Int.MAX_VALUE) {
+            throw ArithmeticException("BigDecimal scale out of range")
+        }
+        return integral.setScale(resultScale.toInt(), RoundingMode.UNNECESSARY)
+    }
+
+    /** Returns a two-element array containing the quotient and remainder of `this / divisor`. */
+    public fun divideAndRemainder(divisor: BigDecimal): Array<BigDecimal> {
+        val quotient = divideToIntegralValue(divisor)
+        return arrayOf(quotient, subtract(quotient.multiply(divisor)))
+    }
+
+    /**
      * Returns a `BigDecimal` whose value is `(this % divisor)`. Like the JDK,
      * the result is `this - divideToIntegralValue(divisor) * divisor`, so its
      * sign follows this value and its scale is `max(this.scale(),
      * divisor.scale())` adjusted by the subtraction.
      */
     public fun remainder(divisor: BigDecimal): BigDecimal =
-        subtract(divide(divisor, 0, RoundingMode.DOWN).multiply(divisor))
+        subtract(divideToIntegralValue(divisor).multiply(divisor))
 
     public fun setScale(newScale: Int): BigDecimal =
         __kk_bignum_setScale(newScale, RoundingMode.UNNECESSARY.runtimeCode())
@@ -186,6 +227,40 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
 
     /** Returns -1, 0, or 1 as this value is negative, zero, or positive. */
     public fun signum(): Int = compareTo(ZERO)
+
+    /** Returns a `BigDecimal` whose value is `(-this)`. */
+    public fun negate(): BigDecimal = multiply(BigDecimal("-1"))
+
+    /** Returns a `BigDecimal` whose value is the absolute value of this `BigDecimal`. */
+    public fun abs(): BigDecimal = if (signum() < 0) negate() else this
+
+    /** Returns the string representation of this `BigDecimal` without an exponent. */
+    public fun toPlainString(): String {
+        val sign = signum()
+        val valueScale = scale()
+        if (sign == 0) {
+            return if (valueScale > 0) "0." + "0".repeat(valueScale) else "0"
+        }
+        val digits = unscaledValue().abs().toString()
+        val body: String
+        if (valueScale == 0) {
+            body = digits
+        } else if (valueScale > 0) {
+            if (digits.length > valueScale) {
+                val point = digits.length - valueScale
+                body = digits.substring(0, point) + "." + digits.substring(point)
+            } else {
+                body = "0." + "0".repeat(valueScale - digits.length) + digits
+            }
+        } else {
+            val zeroCount = -valueScale.toLong()
+            if (zeroCount > Int.MAX_VALUE.toLong()) {
+                throw ArithmeticException("BigDecimal scale out of range")
+            }
+            body = digits + "0".repeat(zeroCount.toInt())
+        }
+        return if (sign < 0) "-" + body else body
+    }
 
     /** The unscaled integer value carried by this `BigDecimal`. */
     public fun unscaledValue(): BigInteger = BigInteger(movePointRight(scale()).toString())

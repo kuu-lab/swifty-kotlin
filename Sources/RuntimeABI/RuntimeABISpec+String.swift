@@ -271,6 +271,7 @@ public extension RuntimeABISpec {
         stringABI.th("__kk_bignum_multiply", "lhsRaw rhsRaw outThrown"),
         stringABI.th("__kk_bignum_divide", "lhsRaw rhsRaw outThrown"),
         stringABI.th("__kk_bignum_divideAtScale", "lhsRaw rhsRaw scale roundingMode outThrown"),
+        stringABI.th("__kk_bignum_divideMathContext", "lhsRaw rhsRaw precision roundingMode outThrown"),
         stringABI.th("__kk_bignum_setScale", "valueRaw scale roundingMode outThrown"),
         stringABI.nt("__kk_bignum_scale", "valueRaw"),
         stringABI.nt("__kk_bignum_toDouble", "numRaw"),

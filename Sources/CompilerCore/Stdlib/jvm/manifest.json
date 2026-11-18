@@ -407,6 +407,11 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "kotlin/Synchronized.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-synchronized-inline.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "declarations/PairFunctions.kt",
       "virtualPath": "<kswiftk-jvm>/m20-pair-inline.kt",
       "excludeFromStdlibBuild": true
