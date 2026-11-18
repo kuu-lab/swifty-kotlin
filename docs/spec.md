@@ -13,7 +13,7 @@
 * **Kotlin 2.4.20 の stable 範囲**を対象（公式 Grammar は “latest stable で experimental 無効ルール除外” を明示） ([Kotlin][1])
 * セマンティクスは Kotlin/Core を基準（式・宣言・型・オーバーロード解決） ([Kotlin][2])
 * Coroutines は Kotlin spec の CPS 変換モデルを実装（`Continuation<T>` 追加引数 + `Any?` 戻り、suspend/return 判定） ([Kotlin][3])
-* 実行環境は **macOS のみ**。開発は Xcode 26（Swift 6.2）を基準 ([Apple Developer][4])
+* 実行環境は **macOS / Linux**。開発・CI は Swift 6.3（Swift language mode 6）を基準
 
 ---
 
@@ -319,18 +319,14 @@ public protocol CompilerPhase {
 }
 ```
 
-* `CompilerDriver` は以下順で frontend/core Phase を実行し、失敗時は診断を出して停止：
+* `CompilerDriver` は emit mode で frontend/core Phase を分岐する。Lexer / Parser / BuildAST は共通で、失敗時は診断を出して停止：
 
-  1. LoadSources
-  2. Lex
-  3. Parse
-  4. BuildAST
-  5. Sema
-  6. BuildKIR
-  7. Lowering
+  - native / wasm: LoadSources → Lex → Parse → BuildAST → Sema → BuildKIR → Lowering
+  - JVM (`class|jar|dex|apk`): LoadSources → JVMPreparation → Lex → Parse → BuildAST → JVMSourceValidation → Sema → JVMFrontend
 
 * `emit == .kirDump` では driver が KIR dump を直接書き出す。
-* それ以外の backend は `Sources/CompilerBackend/BackendPhaseProvider.swift` の `makeBackendPhases()` が `Codegen` → `Link` を追加する。`Link` は `emit == .executable` の場合だけ動く。
+* `--run` は `KIRInterpreter` を先に試し、未対応なら native Codegen + Link + 実行へフォールバックする。
+* それ以外の backend は `Sources/CompilerBackend/BackendPhaseProvider.swift` の `makeBackendPhases()` が `Codegen` → `Link` を追加する。`Link` は `emit == .executable` かつ非 wasm の場合だけ動く。
 
 ---
 

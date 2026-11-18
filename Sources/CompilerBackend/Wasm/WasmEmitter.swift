@@ -181,9 +181,6 @@ final class WasmModuleContext {
         /// `StringBuilder` accumulator box: `{str@16}` — contents materialize
         /// through `__kk_string_concat_flat` on append.
         static let stringBuilderTypeID: Int64 = -9_029
-        /// `lazy {}` delegate box: `{state@16, value@24, fnSlot@32}` —
-        /// state 0 = uninitialized, 1 = initialized.
-        static let lazyBoxTypeID: Int64 = -9_030
         static let unsignedRangeIteratorTypeID: Int64 = -9_031
         /// Data-class marker bit OR'd into a type record's s3 slot by
         /// `kk_runtime_register_data_class`; the low bits carry the

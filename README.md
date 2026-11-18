@@ -1,13 +1,13 @@
 # KSwiftK
 
-**KSwiftK** は Swift で書かれた Kotlin コンパイラです。Kotlin 2.4.20 stable の機能をターゲットとし、LLVM 経由で macOS ネイティブ実行ファイルを生成します。
+**KSwiftK** は Swift で書かれた Kotlin コンパイラです。Kotlin 2.4.20 stable の機能をターゲットとし、emit mode に応じて LLVM / Wasm / JVM バックエンドでネイティブ・WebAssembly・JVM/Android 成果物を生成します。
 
 | 属性 | 値 |
 |---|---|
-| 実装言語 | Swift 6.2 (Swift language mode 6) / macOS 12+ |
+| 実装言語 | Swift 6.3 (Swift language mode 6) / macOS 12+ |
 | ビルドシステム | SwiftPM |
 | 出力バイナリ | `kswiftc` |
-| ターゲット | Kotlin 2.4.20 stable, macOS arm64/x86_64 |
+| ターゲット | Kotlin 2.4.20 stable; native (macOS/Linux), wasm32-wasi, JVM/Android |
 
 ---
 
@@ -65,7 +65,8 @@ bash Scripts/diff_kotlinc.sh Scripts/diff_cases        # kotlinc との差分回
 ## コンパイルパイプライン
 
 ```
-LoadSources → Lex → Parse → BuildAST → SemaPasses → BuildKIR → Lowering → Codegen → Link
+native/wasm: LoadSources → Lex → Parse → BuildAST → Sema → BuildKIR → Lowering → Codegen → Link
+JVM:         LoadSources → JVMPreparation → Lex → Parse → BuildAST → JVMSourceValidation → Sema → JVMFrontend → Codegen
 ```
 
 詳細は [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) を参照してください。
