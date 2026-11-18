@@ -233,6 +233,9 @@ final class LocalDeclTypeChecker {
             sema.symbols.setAnnotations(localDeclAnnotationRecords, for: localSymbol)
         }
         locals[name] = (localType, localSymbol, isMutable, initializer != nil)
+        if isDelegated {
+            locals.delegatedLocalSymbols.insert(localSymbol)
+        }
         if !isMutable, !isDelegated, let initializer {
             locals.immutableLocalInitializers[localSymbol] = initializer
         }
