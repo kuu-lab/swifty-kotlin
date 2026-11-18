@@ -550,6 +550,40 @@ extension JVMFunctionBuilder {
             }
             let source = try convert(requireValue(receiverID), to: .reference(owner, nullable: false))
             let result = try program.expressionType(id)
+            if member == "forEach", owner == "java/util/Map" {
+                guard args.count == 1, !args[0].isSpread,
+                      let signature = functionType(args[0].expr),
+                      signature.params.count == 1 || signature.params.count == 2
+                else { throw fail("JVM Map forEach requires a callback.", id) }
+                let entries = try jdkCall("java/util/Map", "entrySet", [], .reference("java/util/Set", nullable: false), receiver: source, interface: true)!
+                let iterator = try jdkCall("java/lang/Iterable", "iterator", [], .reference("java/util/Iterator", nullable: false), receiver: entries, interface: true)!
+                // Capture an entry-lambda literal before it is lowered as a closure so a
+                // non-local return inlines into the enclosing function, matching kotlinc.
+                // The two-argument (K, V) overload is not inline in Kotlin, so it keeps
+                // the closure path and rejects a non-local return like kotlinc does.
+                let inlined: InlineLambda? = {
+                    guard signature.params.count == 1, case .lambdaLiteral = arena.expr(args[0].expr) else { return nil }
+                    return InlineLambda(id: args[0].expr, scopes: scopes, dispatch: thisValue, receiver: extensionValue, contexts: contextualReceivers, returns: inlineReturns, arguments: inlineArguments, lexicalLambda: lambdaID, stack: inlineStack)
+                }()
+                let callback = inlined == nil ? try requireValue(args[0].expr) : nil
+                let test = label(), end = label()
+                mark(test)
+                let hasNext = try jdkCall("java/util/Iterator", "hasNext", [], .boolean, receiver: iterator, interface: true)!
+                instructions.append(.jumpIfFalse(hasNext, end))
+                let entry = try jdkCall("java/util/Iterator", "next", [], object, receiver: iterator, interface: true)!
+                if signature.params.count == 2 {
+                    let key = try jdkCall("java/util/Map$Entry", "getKey", [], object, receiver: entry, interface: true)!
+                    let value = try jdkCall("java/util/Map$Entry", "getValue", [], object, receiver: entry, interface: true)!
+                    _ = try invoke(callback!, signature: signature, arguments: [key, value], resultType: .unit)
+                } else if let inlined {
+                    _ = try expandLambda(inlined, values: [try convert(entry, to: program.type(signature.params[0]))], id: id)
+                } else {
+                    _ = try invoke(callback!, signature: signature, arguments: [entry], resultType: .unit)
+                }
+                if !terminated { jump(test) }
+                mark(end)
+                return JVMIntrinsicResult(value: nil)
+            }
             var values: [JVMValue] = []
             for arg in args { values.append(try requireValue(arg.expr)) }
             let parameters: [JVMValueType], returns: JVMValueType, actual: String
@@ -618,28 +652,6 @@ extension JVMFunctionBuilder {
                 instructions.append(.copy(try convert(defaultValue, to: result), answer))
                 mark(end)
                 return JVMIntrinsicResult(value: answer)
-            case "forEach":
-                guard owner == "java/util/Map", values.count == 1,
-                      let signature = functionType(args[0].expr),
-                      signature.params.count == 1 || signature.params.count == 2
-                else { throw fail("JVM Map forEach requires a callback.", id) }
-                let entries = try jdkCall("java/util/Map", "entrySet", [], .reference("java/util/Set", nullable: false), receiver: source, interface: true)!
-                let iterator = try jdkCall("java/lang/Iterable", "iterator", [], .reference("java/util/Iterator", nullable: false), receiver: entries, interface: true)!
-                let test = label(), end = label()
-                mark(test)
-                let hasNext = try jdkCall("java/util/Iterator", "hasNext", [], .boolean, receiver: iterator, interface: true)!
-                instructions.append(.jumpIfFalse(hasNext, end))
-                let entry = try jdkCall("java/util/Iterator", "next", [], object, receiver: iterator, interface: true)!
-                if signature.params.count == 2 {
-                    let key = try jdkCall("java/util/Map$Entry", "getKey", [], object, receiver: entry, interface: true)!
-                    let value = try jdkCall("java/util/Map$Entry", "getValue", [], object, receiver: entry, interface: true)!
-                    _ = try invoke(values[0], signature: signature, arguments: [key, value], resultType: .unit)
-                } else {
-                    _ = try invoke(values[0], signature: signature, arguments: [entry], resultType: .unit)
-                }
-                jump(test)
-                mark(end)
-                return JVMIntrinsicResult(value: nil)
             case "containsAll": actual = member; parameters = [.reference("java/util/Collection", nullable: false)]; returns = .boolean
             case "isEmpty", "hasNext", "hasPrevious": actual = member; parameters = []; returns = .boolean
             case "nextIndex", "previousIndex": actual = member; parameters = []; returns = .int
