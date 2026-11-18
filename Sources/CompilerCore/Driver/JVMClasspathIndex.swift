@@ -1429,12 +1429,13 @@ final class JVMClasspathIndex {
                 pairedGetters.insert(memberKey(getter))
             }
         }
-        // Interface stubs render every accessor pair as an abstract property,
-        // so concrete classes must implement each one — including members the
-        // classfile simply lacks (android.jar's java.time stubs are
-        // incomplete). Collect the transitive interface property requirements;
-        // the getter loop consults them for mutability and a later pass emits
-        // `override` stubs for properties nothing implements.
+        // Interface stubs render abstract accessors as abstract properties and
+        // Java default accessors as concrete ones, so concrete classes must
+        // implement the abstract requirements — including members the classfile
+        // simply lacks (android.jar's java.time stubs are incomplete). Collect
+        // the transitive interface property requirements; the getter loop
+        // consults them for mutability and a later pass emits `override` stubs
+        // for properties nothing implements.
         struct PropertyRequirement { var type: String; var isVar: Bool }
         var requiredProps: [String: PropertyRequirement] = [:]
         var requiredVisited: Set<String> = []
@@ -1621,8 +1622,18 @@ final class JVMClasspathIndex {
             if info.isInterface {
                 // Abstract: a concrete interface property would make every
                 // diamond inherit two implementations (KSWIFTK-SEMA-0171).
-                let kind = pairedGetters.contains(memberKey(getter)) ? "var" : "val"
-                if kotlinProperty?.isAbstract == false {
+                // Java default accessors are already concrete in the classfile,
+                // so keep their Kotlin projection concrete as well. A concrete
+                // Java getter with an abstract setter still exposes a mutable
+                // property: accesses bind to the classfile accessors while the
+                // abstract setter remains a function requirement.
+                let setter = shape.setterName.flatMap { setterName in
+                    own.first(where: { matchesSetter($0, name: setterName, type: propertyType) })
+                }
+                let kind = setter != nil ? "var" : "val"
+                let hasConcreteAccessors = !getter.isAbstract && (setter == nil || setter?.isAbstract == false)
+                let concreteJavaProjection = metadata == nil && !getter.isAbstract
+                if kotlinProperty?.isAbstract == false || hasConcreteAccessors || concreteJavaProjection {
                     source += modifiers + kind + " `\(propertyName)`: \(propertyType) get() = null!!"
                     if kind == "var" { source += " set(value) {}" }
                     source += "\n"
