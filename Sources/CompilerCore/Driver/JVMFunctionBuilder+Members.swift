@@ -104,6 +104,19 @@ extension JVMFunctionBuilder {
         return nil
     }
 
+    func javaImportedTypeInherits(_ name: String, _ target: String) -> Bool {
+        guard let imports = context.jvmImports else { return false }
+        var visited: Set<String> = []
+        var pending = [name]
+        while let current = pending.popLast() {
+            if current == target { return true }
+            guard visited.insert(current).inserted, let info = imports.classes[current] else { continue }
+            if let superclass = info.superclass { pending.append(superclass) }
+            pending.append(contentsOf: info.interfaces)
+        }
+        return false
+    }
+
     func propertyBinding(_ id: ExprID) -> JVMProperty? {
         let sema = program.sema
         func sourceProperty(for candidate: SymbolID) -> JVMProperty? {
@@ -185,18 +198,33 @@ extension JVMFunctionBuilder {
                    sema.symbols.symbol(parent)?.kind == .object {
                     return JVMProperty(name: name, type: type, getter: getter, setter: nil, field: nil, modifiers: [.public])
                 }
+                let javaMapViewMethod: String? = {
+                    guard context.jvmImports?.isJavaConcurrentMapClass(owner) == true else { return nil }
+                    switch name {
+                    case "keys": return "keySet"
+                    case "values": return "values"
+                    case "entries": return "entrySet"
+                    default: return nil
+                    }
+                }()
                 let names: [String]
-                if info.flags & 0x2000 != 0 || (owner.hasPrefix("java/util/") && name == "size") {
-                    names = [name]
+                if info.flags & 0x2000 != 0 || javaMapViewMethod != nil || (owner.hasPrefix("java/util/") && name == "size") {
+                    names = [javaMapViewMethod ?? name]
                 } else {
                     names = name.hasPrefix("is") && name.count > 2 ? [name, "get" + capital] : ["get" + capital]
+                }
+                let acceptsGetterResult = { (method: JVMForeignMethod) -> Bool in
+                    if method.result.descriptor == type.descriptor { return true }
+                    guard javaMapViewMethod != nil, let target = type.referenceName,
+                          let resultName = method.result.referenceName else { return false }
+                    return self.javaImportedTypeInherits(resultName, target)
                 }
                 // Companion members compile to static methods on the outer
                 // classfile; instance members stay virtual.
                 let imported = info.methods.first(where: {
-                    names.contains($0.name) && !$0.isStatic && !$0.isConstructor && $0.parameters.isEmpty && $0.result.descriptor == type.descriptor
+                    names.contains($0.name) && !$0.isStatic && !$0.isConstructor && $0.parameters.isEmpty && acceptsGetterResult($0)
                 }) ?? info.methods.first(where: {
-                    names.contains($0.name) && $0.isStatic && $0.parameters.isEmpty && $0.result.descriptor == type.descriptor
+                    names.contains($0.name) && $0.isStatic && $0.parameters.isEmpty && acceptsGetterResult($0)
                 })
                 if let imported {
                     var getter = JVMForeignMethod(

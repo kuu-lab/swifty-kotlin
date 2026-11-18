@@ -673,6 +673,23 @@ final class JVMClasspathIndex {
     }
     func hasClassFile(_ name: String) -> Bool { hierarchyClasses[name] != nil }
 
+    /// Java `ConcurrentMap` is Kotlin's mutable-map surface; its JDK classes
+    /// still come from classfiles, but their stubs must satisfy `MutableMap`.
+    func isJavaConcurrentMapClass(_ name: String) -> Bool {
+        var visited: Set<String> = []
+        var pending = [name]
+        while let current = pending.popLast() {
+            guard visited.insert(current).inserted, let info = classes[current] else { continue }
+            if current == "java/util/concurrent/ConcurrentMap"
+                || info.interfaces.contains("java/util/concurrent/ConcurrentMap") {
+                return true
+            }
+            if let superclass = info.superclass { pending.append(superclass) }
+            pending.append(contentsOf: info.interfaces)
+        }
+        return false
+    }
+
     private(set) var projectsCoroutineContextIsActive = false
 
     func metroFactoryInstance(_ factory: String) -> JVMField? {
@@ -823,6 +840,12 @@ final class JVMClasspathIndex {
     }
 
     private func supertypeReference(_ name: String, child: JVMClassInfo) -> String? {
+        if name == "java/util/Map", child.name == "java/util/concurrent/ConcurrentMap" {
+            let arguments = child.classTypeParameterNames
+            return "kotlin.collections.MutableMap<"
+                + (arguments.isEmpty ? ["kotlin.Any", "kotlin.Any"] : arguments).joined(separator: ", ")
+                + ">"
+        }
         if let collection = child.kotlinReadOnlyCollectionSupertypes[name] { return collection }
         if name == "java/lang/Comparable", let comparable = child.kotlinComparableSupertype { return comparable }
         if let parent = classes[name], parent.methods.contains(where: { $0.kotlinFunction?.result.contains("->") == true }),
@@ -1404,6 +1427,15 @@ final class JVMClasspathIndex {
         /// setter `setX`; `isX()` -> boolean property `isX` with setter `setX`.
         func propertyShape(_ method: JVMForeignMethod) -> (name: String, setterName: String?)? {
             guard method.kotlinSuspendFunction == nil, method.genericResultParameter == nil else { return nil }
+            if isJavaConcurrentMapClass(info.name) {
+                switch method.name {
+                case "keySet": return ("keys", nil)
+                case "values": return ("values", nil)
+                case "entrySet": return ("entries", nil)
+                case "size" where method.result == .int: return ("size", nil)
+                default: break
+                }
+            }
             if method.name.hasPrefix("get"), method.name.count > 3 {
                 let suffix = String(method.name.dropFirst(3))
                 return (String(suffix.prefix(1)).lowercased() + suffix.dropFirst(),
@@ -1613,7 +1645,22 @@ final class JVMClasspathIndex {
                       !$0.isStatic && !$0.isConstructor && $0.name == propertyName
                           && memberKey($0) != memberKey(getter)
                   }) else { continue }
-            let propertyType = kotlinType(getter.result)
+            var propertyType = kotlinType(getter.result)
+            if isJavaConcurrentMapClass(info.name) {
+                let typeParameters = info.classTypeParameterNames
+                let key = typeParameters.count > 0 ? typeParameters[0] : "kotlin.Any"
+                let value = typeParameters.count > 1 ? typeParameters[1] : "kotlin.Any"
+                switch (getter.name, propertyName) {
+                case ("keySet", "keys"):
+                    propertyType = "kotlin.collections.MutableSet<\(key)>"
+                case ("values", "values"):
+                    propertyType = "kotlin.collections.MutableCollection<\(value)>"
+                case ("entrySet", "entries"):
+                    propertyType = "kotlin.collections.MutableSet<kotlin.collections.MutableMap.MutableEntry<\(key), \(value)>>"
+                default:
+                    break
+                }
+            }
             if let setterName = shape.setterName,
                inheritsWiderMutableProperty(getter, propertyName: propertyName, setterName: setterName, type: propertyType) {
                 continue
@@ -1621,7 +1668,10 @@ final class JVMClasspathIndex {
             var modifiers = ""
             if getter.isProtected && !info.isInterface { modifiers += "protected " }
             if !info.isInterface && getter.isFinal { modifiers += "final " }
-            if overridesParent(getter, in: info) { modifiers += "override " }
+            let isConcurrentMapView = isJavaConcurrentMapClass(info.name)
+                && ["keys", "values", "entries", "size"].contains(propertyName)
+            if isConcurrentMapView { modifiers += "override " }
+            else if overridesParent(getter, in: info) { modifiers += "override " }
             else if !info.isInterface && !getter.isFinal { modifiers += "open " }
             if info.isInterface {
                 // Abstract: a concrete interface property would make every
