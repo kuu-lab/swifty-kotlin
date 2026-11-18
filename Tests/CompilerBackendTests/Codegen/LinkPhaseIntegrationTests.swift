@@ -120,7 +120,7 @@ struct LinkPhaseIntegrationTests {
         let manifest = #"{"formatVersion":1,"moduleName":"ExternalObject","objects":["objects/external.o"]}"#
         try manifest.write(to: libraryDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
 
-        let linkedObjects = LinkPhase().discoverLibraryObjects(searchPaths: [libraryDir.path])
+        let linkedObjects = LinkPhase().discoverLibraryLinkInputs(searchPaths: [libraryDir.path], target: nil).objects
         #expect(linkedObjects.isEmpty)
     }
 

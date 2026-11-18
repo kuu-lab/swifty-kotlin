@@ -17,7 +17,7 @@ struct LibraryStdlibCallTests {
         // A source-mode consumer of an artifact-backed producer must still link
         // that producer's stdlib dependency without importing its metadata.
         let dependencyArchive = directory.appendingPathComponent("libStdlibDependency.a").path
-        let dependencyObjects = LinkPhase().discoverLibraryObjects(searchPaths: [stdlib])
+        let dependencyObjects = LinkPhase().discoverLibraryLinkInputs(searchPaths: [stdlib], target: nil).objects
         try #require(!dependencyObjects.isEmpty)
         let archiveResult = try CommandRunner.run(
             executable: CommandRunner.resolveExecutable("ar", fallback: "/usr/bin/ar"),

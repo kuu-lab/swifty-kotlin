@@ -367,10 +367,6 @@ final class LinkPhase: CompilerPhase {
         return CodegenRuntimeSupport.targetTripleString(target)
     }
 
-    func discoverLibraryObjects(searchPaths: [String]) -> [String] {
-        discoverLibraryLinkInputs(searchPaths: searchPaths, target: nil).objects
-    }
-
     func discoverLibraryLinkInputs(
         searchPaths: [String],
         target: TargetTriple?
