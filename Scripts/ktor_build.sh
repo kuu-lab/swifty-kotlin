@@ -137,8 +137,13 @@ ensure_cached_revision() {
     echo "ktor_build: error: failed to check out '$tag' in $dest; cache left at '${current:-<no tag>}'." >&2
     return 1
   fi
-  CACHE_REVISIONS_CHANGED=1
-  echo "ktor_build: updated cache $dest: '${current:-<no tag>}' -> '$tag'." >&2
+  # Branch requests re-fetch on every online run; when the remote has not
+  # moved the checkout lands on the same commit and the compiled artifacts
+  # are still valid, so only an actual revision change invalidates them.
+  if [[ "$(git -C "$dest" rev-parse HEAD)" != "$head" ]]; then
+    CACHE_REVISIONS_CHANGED=1
+    echo "ktor_build: updated cache $dest: '${current:-<no tag>}' -> '$tag'." >&2
+  fi
 }
 
 clone_sparse() {

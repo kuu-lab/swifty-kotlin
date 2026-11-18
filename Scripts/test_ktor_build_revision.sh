@@ -21,8 +21,9 @@
 #      previous revision, but keep reusing fresh ones
 #   7. several tags on one commit all match offline (compared by commit ID,
 #      not by the single tag name `git describe` happens to return)
-#   8. a branch request tracks remote advances when online and still compiles
-#      from the warm cache offline
+#   8. a branch request tracks remote advances when online, keeps its
+#      artifacts when unchanged, and still compiles from the warm cache
+#      offline
 #   9. a dirty cache refuses to switch revisions, preserving local changes
 set -euo pipefail
 
@@ -281,6 +282,14 @@ expect_success "warm run tracks the advanced branch"
 [[ "$(git -C "$CACHE_DIR/ktor" rev-parse HEAD)" == \
   "$(git -C "$FIX/remotes/ktor.git" rev-parse moving)" ]] \
   || fail "branch advance was not picked up"
+
+# Re-running an unchanged branch re-fetches but lands on the same commit, so
+# the compiled dependency artifacts must survive for single-module runs.
+probe --module ktor_utils
+expect_success "unchanged branch run keeps dependency artifacts"
+grep -q 'ktor_io\.kklib' "$STUB_LOG" \
+  || fail "unchanged branch run dropped the ktor_io.kklib dependency link"
+[[ -d "$OUT_DIR/ktor_io.kklib" ]] || fail "ktor_io.kklib was deleted by an unchanged branch run"
 
 mv "$FIX/remotes" "$FIX/remotes.hidden"
 probe --module ktor_io
