@@ -109,7 +109,7 @@ default_dependency_version() {
 
 check_dependency_pin() {
   local script_var="$1" aliases="$2" expected hit content var value
-  local pin_line_regex="^[[:space:]]*([A-Za-z0-9_]+):[[:space:]]*['\"]?([0-9][0-9A-Za-z.+-]*)['\"]?[[:space:]]*$"
+  local pin_line_regex="^[[:space:]]*([A-Za-z0-9_]+):[[:space:]]*['\"]?([0-9][0-9A-Za-z.+-]*)['\"]?[[:space:]]*(#.*)?$"
   if ! expected="$(default_dependency_version "$script_var")"; then
     echo "FAIL: could not read default ${script_var} from ${DIFF_KOTLINC_SCRIPT}" >&2
     exit 1
@@ -132,5 +132,18 @@ check_dependency_pin KOTLINC_COROUTINES_VERSION 'KOTLINX_COROUTINES_VERSION|KOTL
 check_dependency_pin KOTLINC_KOTLINX_IO_VERSION 'KOTLINX_IO_VERSION|KOTLINC_KOTLINX_IO_VERSION'
 check_dependency_pin KOTLINC_ATOMICFU_VERSION 'KOTLINC_ATOMICFU_VERSION'
 check_dependency_pin KOTLINC_SERIALIZATION_VERSION 'KOTLINC_SERIALIZATION_VERSION'
+
+# A valid YAML line comment must not let a drifted override slip past the check.
+reject_ci_dir="$TEMP_DIR/reject-ci"
+mkdir -p "$reject_ci_dir/workflows"
+cat >"$reject_ci_dir/workflows/nightly-full.yml" <<'EOF'
+env:
+  KOTLINX_COROUTINES_VERSION: "1.10.2" # pinned reference
+EOF
+if ( CI_DIR="$reject_ci_dir"; check_dependency_pin KOTLINC_COROUTINES_VERSION 'KOTLINX_COROUTINES_VERSION|KOTLINC_COROUTINES_VERSION' ) 2>"$TEMP_DIR/reject.log"; then
+  echo 'FAIL: commented CI pin drift was accepted' >&2
+  exit 1
+fi
+grep -F 'selects 1.10.2' "$TEMP_DIR/reject.log" >/dev/null
 
 echo 'PASS diff_kotlinc dependency selection and CI pin consistency'
