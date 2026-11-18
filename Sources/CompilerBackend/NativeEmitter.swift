@@ -184,7 +184,7 @@ struct NativeEmitter {
         let lambdaSymbols = Set(module.arena.declarations.compactMap { declaration -> SymbolID? in
             guard case let .function(function) = declaration else { return nil }
             guard interner.resolve(function.name).hasPrefix("kk_lambda_")
-                || symbols?.isAnonymousFunction(function.symbol, interner: interner) == true
+                || symbols?.isAnonymousFunction(function.symbol) == true
             else { return nil }
             return function.symbol
         })
@@ -202,7 +202,7 @@ struct NativeEmitter {
         })
         let anonymousFunctionSymbols = Set(module.arena.declarations.compactMap { declaration -> SymbolID? in
             guard case let .function(function) = declaration else { return nil }
-            guard symbols?.isAnonymousFunction(function.symbol, interner: interner) == true
+            guard symbols?.isAnonymousFunction(function.symbol) == true
             else { return nil }
             return function.symbol
         })

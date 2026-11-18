@@ -1583,7 +1583,7 @@ extension ExprTypeChecker {
                 else {
                     return false
                 }
-                let isAnonymous = sema.symbols.isAnonymousFunction(symbolID, interner: interner)
+                let isAnonymous = sema.symbols.isAnonymousFunction(symbolID)
                 return signature.receiverType == nil || isAnonymous
             })
             candidates = localFunctionCandidates.isEmpty
@@ -1616,7 +1616,7 @@ extension ExprTypeChecker {
                let localSymbol = ctx.cachedSymbol(local.symbol),
                localSymbol.kind == .function,
                (sema.symbols.functionSignature(for: local.symbol)?.receiverType == nil
-                   || sema.symbols.isAnonymousFunction(local.symbol, interner: interner))
+                   || sema.symbols.isAnonymousFunction(local.symbol))
             {
                 candidates = [local.symbol]
             }

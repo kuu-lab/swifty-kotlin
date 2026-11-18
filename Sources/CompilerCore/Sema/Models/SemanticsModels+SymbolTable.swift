@@ -19,7 +19,7 @@ extension SymbolTable {
     /// Anonymous function literals are represented by local functions carrying
     /// the dedicated synthetic marker, independent of any source label used as
     /// the display/link name.
-    public func isAnonymousFunction(_ symbolID: SymbolID, interner: StringInterner) -> Bool {
+    public func isAnonymousFunction(_ symbolID: SymbolID) -> Bool {
         guard let symbol = symbol(symbolID) else { return false }
         return symbol.kind == .function
             && symbol.flags.contains(.localFunction)

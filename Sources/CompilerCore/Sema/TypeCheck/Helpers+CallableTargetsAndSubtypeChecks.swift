@@ -188,8 +188,8 @@ extension TypeCheckHelpers {
             }
         }
         let isAnonymous: Bool
-        if let targetSymbol, let interner {
-            isAnonymous = sema.symbols.isAnonymousFunction(targetSymbol, interner: interner)
+        if let targetSymbol, interner != nil {
+            isAnonymous = sema.symbols.isAnonymousFunction(targetSymbol)
         } else {
             isAnonymous = false
         }
@@ -729,8 +729,8 @@ extension TypeCheckHelpers {
 
             let types = sema.types
             let isAnonymousExtension: Bool
-            if let targetSymbol, let interner {
-                isAnonymousExtension = sema.symbols.isAnonymousFunction(targetSymbol, interner: interner)
+            if let targetSymbol, interner != nil {
+                isAnonymousExtension = sema.symbols.isAnonymousFunction(targetSymbol)
             } else {
                 isAnonymousExtension = false
             }

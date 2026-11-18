@@ -2371,7 +2371,7 @@ extension LambdaLowerer {
         }
         if refKind == .functionRef {
             let anonymous = targetSymbol.map {
-                sema.symbols.isAnonymousFunction($0, interner: interner)
+                sema.symbols.isAnonymousFunction($0)
             } ?? false
             let functionType: FunctionType? = if case let .functionType(type) = sema.types.kind(of: callableType) {
                 type

@@ -33,7 +33,7 @@ struct AnonymousFunctionBlockTrailingExpressionTests {
             }
             #expect(anonymousFunctions.count == 4)
             #expect(anonymousFunctions.allSatisfy {
-                sema.symbols.isAnonymousFunction($0.id, interner: context.interner)
+                sema.symbols.isAnonymousFunction($0.id)
             })
         }
     }
