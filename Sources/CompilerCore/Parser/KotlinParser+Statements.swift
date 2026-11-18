@@ -1059,15 +1059,10 @@ extension KotlinParser {
             cursor += 2
         }
         if stream.peek(cursor).kind == .symbol(.lessThan) {
-            let typeArgumentsEnd = offsetPastBalancedGroup(
+            guard let typeArgumentsEnd = offsetPastAnnotationTypeArguments(
                 from: cursor,
-                open: .symbol(.lessThan),
-                close: .symbol(.greaterThan),
                 maxDistance: Self.declarationLookaheadWorkLimit - work
-            )
-            guard typeArgumentsEnd > cursor,
-                  stream.peek(typeArgumentsEnd - 1).kind == .symbol(.greaterThan)
-            else {
+            ) else {
                 return .incomplete
             }
             work += typeArgumentsEnd - cursor

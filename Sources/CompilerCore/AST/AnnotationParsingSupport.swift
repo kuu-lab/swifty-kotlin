@@ -122,26 +122,88 @@ enum AnnotationParsingSupport {
         )
     }
 
-    private static func endOfAngleBracketGroup(in tokens: [Token], at start: Int) -> Int? {
-        var depth = 0
+    /// Offset just past a balanced annotation type-argument list. Angle
+    /// brackets inside nested argument brackets do not terminate the list,
+    /// and a newline followed by a declaration keyword is a recovery boundary
+    /// for an unclosed list.
+    static func endOfAngleBracketGroup(in tokens: [Token], at start: Int) -> Int? {
+        var angleDepth = 0
+        var parenDepth = 0
+        var bracketDepth = 0
+        var braceDepth = 0
+        var templateDepth = 0
         var index = start
+
         while index < tokens.count {
-            switch tokens[index].kind {
-            case .symbol(.lessThan):
-                depth += 1
-            case .symbol(.greaterThan):
-                depth -= 1
-                if depth == 0 {
-                    return index + 1
-                }
-            case .eof:
+            let token = tokens[index]
+            if token.kind == .eof {
                 return nil
+            }
+            if angleDepth == 1,
+               parenDepth == 0,
+               bracketDepth == 0,
+               braceDepth == 0,
+               templateDepth == 0,
+               isAngleBracketRecoveryBoundary(in: tokens, at: index)
+            {
+                return nil
+            }
+
+            switch token.kind {
+            case .symbol(.lessThan):
+                if parenDepth == 0, bracketDepth == 0, braceDepth == 0, templateDepth == 0 {
+                    angleDepth += 1
+                }
+            case .symbol(.greaterThan):
+                if parenDepth == 0, bracketDepth == 0, braceDepth == 0, templateDepth == 0,
+                   angleDepth > 0
+                {
+                    angleDepth -= 1
+                    if angleDepth == 0 {
+                        return index + 1
+                    }
+                }
+            case .symbol(.lParen):
+                parenDepth += 1
+            case .symbol(.rParen):
+                parenDepth = max(0, parenDepth - 1)
+            case .symbol(.lBracket):
+                bracketDepth += 1
+            case .symbol(.rBracket):
+                bracketDepth = max(0, bracketDepth - 1)
+            case .symbol(.lBrace):
+                braceDepth += 1
+            case .symbol(.rBrace):
+                braceDepth = max(0, braceDepth - 1)
+            case .templateExprStart:
+                templateDepth += 1
+            case .templateExprEnd:
+                templateDepth = max(0, templateDepth - 1)
             default:
                 break
             }
             index += 1
         }
         return nil
+    }
+
+    private static func isAngleBracketRecoveryBoundary(in tokens: [Token], at index: Int) -> Bool {
+        let token = tokens[index]
+        guard token.leadingTrivia.contains(.newline) else {
+            return false
+        }
+        switch token.kind {
+        case .keyword(.class),
+             .keyword(.interface),
+             .keyword(.val),
+             .keyword(.var),
+             .keyword(.typealias),
+             .keyword(.fun),
+             .keyword(.object):
+            return true
+        default:
+            return false
+        }
     }
 
     /// Decides whether a `(` following an annotation name opens its argument

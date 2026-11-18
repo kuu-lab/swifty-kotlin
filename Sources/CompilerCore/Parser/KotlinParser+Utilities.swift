@@ -85,16 +85,79 @@ extension KotlinParser {
         guard stream.peek().kind == .symbol(.lessThan) else {
             return
         }
-        let end = offsetPastBalancedGroup(
-            from: 0,
-            open: .symbol(.lessThan),
-            close: .symbol(.greaterThan)
-        )
-        guard end > 0, stream.peek(end - 1).kind == .symbol(.greaterThan) else {
+        guard let end = offsetPastAnnotationTypeArguments(from: 0) else {
             return
         }
         for _ in 0..<end {
             _ = consumeToken(into: &children, range: &range)
+        }
+    }
+
+    /// Offset just past a balanced annotation type-argument list. Angle
+    /// brackets inside nested argument brackets do not terminate the list, and
+    /// a newline followed by a declaration keyword is a recovery boundary for
+    /// an unclosed list.
+    func offsetPastAnnotationTypeArguments(from offset: Int, maxDistance: Int? = nil) -> Int? {
+        var cursor = offset
+        var angleDepth = 0
+        var parenDepth = 0
+        var bracketDepth = 0
+        var braceDepth = 0
+        var templateDepth = 0
+
+        while true {
+            if let maxDistance, cursor - offset >= maxDistance {
+                return nil
+            }
+            let token = stream.peek(cursor)
+            if token.kind == .eof {
+                return nil
+            }
+            if angleDepth == 1,
+               parenDepth == 0,
+               bracketDepth == 0,
+               braceDepth == 0,
+               templateDepth == 0,
+               hasLeadingNewline(token),
+               isAnnotationArgumentRecoveryBoundary(at: cursor)
+            {
+                return nil
+            }
+
+            switch token.kind {
+            case .symbol(.lessThan):
+                if parenDepth == 0, bracketDepth == 0, braceDepth == 0, templateDepth == 0 {
+                    angleDepth += 1
+                }
+            case .symbol(.greaterThan):
+                if parenDepth == 0, bracketDepth == 0, braceDepth == 0, templateDepth == 0,
+                   angleDepth > 0
+                {
+                    angleDepth -= 1
+                    if angleDepth == 0 {
+                        return cursor + 1
+                    }
+                }
+            case .symbol(.lParen):
+                parenDepth += 1
+            case .symbol(.rParen):
+                parenDepth = max(0, parenDepth - 1)
+            case .symbol(.lBracket):
+                bracketDepth += 1
+            case .symbol(.rBracket):
+                bracketDepth = max(0, bracketDepth - 1)
+            case .symbol(.lBrace):
+                braceDepth += 1
+            case .symbol(.rBrace):
+                braceDepth = max(0, braceDepth - 1)
+            case .templateExprStart:
+                templateDepth += 1
+            case .templateExprEnd:
+                templateDepth = max(0, templateDepth - 1)
+            default:
+                break
+            }
+            cursor += 1
         }
     }
 
@@ -169,17 +232,9 @@ extension KotlinParser {
               isIdentifierLike(stream.peek(cursor + 1).kind) {
             cursor += 2
         }
-        if stream.peek(cursor).kind == .symbol(.lessThan) {
-            let typeArgumentsEnd = offsetPastBalancedGroup(
-                from: cursor,
-                open: .symbol(.lessThan),
-                close: .symbol(.greaterThan)
-            )
-            guard typeArgumentsEnd > cursor,
-                  stream.peek(typeArgumentsEnd - 1).kind == .symbol(.greaterThan)
-            else {
-                return nil
-            }
+        if stream.peek(cursor).kind == .symbol(.lessThan),
+           let typeArgumentsEnd = offsetPastAnnotationTypeArguments(from: cursor)
+        {
             cursor = typeArgumentsEnd
         }
         if stream.peek(cursor).kind == .symbol(.lParen) {
@@ -365,14 +420,7 @@ extension KotlinParser {
                     offset += 2
                 }
                 if stream.peek(offset).kind == .symbol(.lessThan) {
-                    let typeArgumentsEnd = offsetPastBalancedGroup(
-                        from: offset,
-                        open: .symbol(.lessThan),
-                        close: .symbol(.greaterThan)
-                    )
-                    guard typeArgumentsEnd > offset,
-                          stream.peek(typeArgumentsEnd - 1).kind == .symbol(.greaterThan)
-                    else {
+                    guard let typeArgumentsEnd = offsetPastAnnotationTypeArguments(from: offset) else {
                         return nil
                     }
                     offset = typeArgumentsEnd

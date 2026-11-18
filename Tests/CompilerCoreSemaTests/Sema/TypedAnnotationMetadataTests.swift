@@ -151,6 +151,31 @@ struct TypedAnnotationMetadataTests {
         }
     }
 
+    @Test func genericAnnotationApplicationsKeepExplicitTypeArguments() throws {
+        TestStdlibCache.shared.prepare()
+        let source = """
+        annotation class TypeParceler<T, P>
+        class Date
+        class DateParceler
+        @TypeParceler<Date, DateParceler>() class HistoryEntry
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let context = makeCompilationContext(inputs: paths, allowDefaultStdlibLibrary: true)
+            try runSema(context)
+            #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+            let sema = try #require(context.sema)
+            let symbol = try #require(sema.symbols.lookup(fqName: [context.interner.intern("HistoryEntry")]))
+            let factory = try #require(sema.symbols.annotations(for: symbol).first?.factorySymbol)
+            let expression = try #require(sema.bindings.annotationFactoryExpressions[factory])
+            let ast = try #require(context.ast)
+            guard case let .call(_, typeArgs, _, _) = ast.arena.expr(expression) else {
+                Issue.record("expected annotation factory construction call")
+                return
+            }
+            #expect(typeArgs.count == 2)
+        }
+    }
+
     @Test func nonconstantAnnotationArgumentsAndNonannotationLookupAreRejected() throws {
         TestStdlibCache.shared.prepare()
         let source = """

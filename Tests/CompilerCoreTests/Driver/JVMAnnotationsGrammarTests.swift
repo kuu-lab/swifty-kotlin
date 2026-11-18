@@ -23,6 +23,21 @@ import Testing
         #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
     }
 
+    @Test
+    func acceptsGenericAnnotationApplications() throws {
+        let source = """
+        annotation class TypeParceler<T, P>
+        class Date
+        class DateParceler
+        @TypeParceler<Date, DateParceler>()
+        class HistoryEntry
+        """
+        let context = makeContextFromSource(source, emit: .jvmJar)
+        try LexPhase().run(context)
+        try JVMSourceValidationPhase().run(context)
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+    }
+
     @Test(arguments: [
         "fun value(): Int = @",
         "fun value(): Int = @A",

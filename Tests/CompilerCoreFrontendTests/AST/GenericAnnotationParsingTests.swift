@@ -39,5 +39,34 @@ struct GenericAnnotationParsingTests {
         #expect(parsed.annotation.constructionTokens?.contains { $0.kind == .symbol(.lessThan) } == true)
         #expect(parsed.annotation.constructionTokens?.contains { $0.kind == .symbol(.rParen) } == true)
     }
+
+    @Test
+    func unclosedAnnotationTypeArgumentsStopAtDeclarationBoundary() {
+        let parsed = parse("""
+        @A<Missing
+        class C
+        val ok = 2 > 1
+        """)
+
+        #expect(parsed.arena.nodes.filter { $0.kind == .classDecl }.count == 1)
+        #expect(parsed.arena.nodes.filter { $0.kind == .propertyDecl }.count == 1)
+    }
+
+    @Test
+    func annotationTypeArgumentsIgnoreOperatorsInsideBrackets() throws {
+        let (tokens, interner, diagnostics) = lex("@TA<@Flag(2 > 1) String> val x: Int")
+        #expect(!diagnostics.hasError)
+
+        let parsed = try #require(AnnotationParsingSupport.parseAnnotation(
+            from: tokens,
+            start: 0,
+            interner: interner,
+            allowUseSiteTarget: true
+        ))
+
+        #expect(parsed.annotation.name == "TA")
+        #expect(parsed.annotation.arguments.isEmpty)
+        #expect(tokens[parsed.nextIndex].kind == .keyword(.val))
+    }
 }
 #endif

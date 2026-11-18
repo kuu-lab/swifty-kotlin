@@ -55,19 +55,22 @@ extension DeclTypeChecker {
             }
             if hasDedicatedJSArgumentValidation { continue }
 
-            if !tokens.contains(where: { $0.kind == .symbol(.lParen) }) {
+            var constructionParts = annotationConstructionNameEndAndArgumentStart(tokens)
+            if constructionParts.argumentStart == nil {
                 tokens.append(Token(kind: .symbol(.lParen), range: last.range))
                 tokens.append(Token(kind: .symbol(.rParen), range: last.range))
+                constructionParts = annotationConstructionNameEndAndArgumentStart(tokens)
             }
             // A fully qualified classifier is already resolved by the header
             // pass. Replay it through a local alias so package components are
             // not reinterpreted as ordinary expressions. Keep the source name
             // in that alias for diagnostics, and leave simple names unchanged.
+            // Replace only the qualified name so explicit type arguments survive.
             let constructionScope: Scope
             if annotation.name.contains(".") {
                 let alias = ctx.interner.intern(annotation.name)
-                guard let argumentStart = tokens.firstIndex(where: { $0.kind == .symbol(.lParen) }) else { continue }
-                tokens.replaceSubrange(0..<argumentStart, with: [Token(kind: .identifier(alias), range: first.range)])
+                guard constructionParts.argumentStart != nil else { continue }
+                tokens.replaceSubrange(0..<constructionParts.nameEnd, with: [Token(kind: .identifier(alias), range: first.range)])
                 let scope = BaseScope(parent: ctx.scope, symbols: sema.symbols)
                 scope.insertWithAlias(annotationSymbol, asName: alias)
                 constructionScope = scope
@@ -136,24 +139,56 @@ extension DeclTypeChecker {
         sema.symbols.setAnnotations(records, for: symbol)
     }
 
+    private func annotationConstructionNameEndAndArgumentStart(_ tokens: [Token]) -> (nameEnd: Int, argumentStart: Int?) {
+        var index = 0
+        guard index < tokens.count, tokens[index].kind.isLabelName else {
+            return (0, nil)
+        }
+        index += 1
+        while index + 1 < tokens.count,
+              tokens[index].kind == .symbol(.dot),
+              tokens[index + 1].kind.isLabelName
+        {
+            index += 2
+        }
+        let nameEnd = index
+        var cursor = nameEnd
+        if cursor < tokens.count,
+           tokens[cursor].kind == .symbol(.lessThan),
+           let typeArgumentsEnd = AnnotationParsingSupport.endOfAngleBracketGroup(in: tokens, at: cursor)
+        {
+            cursor = typeArgumentsEnd
+        }
+        let argumentStart = cursor < tokens.count && tokens[cursor].kind == .symbol(.lParen)
+            ? cursor
+            : nil
+        return (nameEnd, argumentStart)
+    }
+
     private func resolvedAnnotationConstruction(
         _ expression: ExprID,
         annotationClass: SymbolID,
         ctx: TypeInferenceContext
     ) -> ExprID? {
+        let typeArgs: [TypeRefID]
         let arguments: [CallArgument]
         let range: SourceRange
         switch ctx.ast.arena.expr(expression) {
-        case let .call(_, _, arguments_, range_), let .memberCall(_, _, _, arguments_, range_):
-            arguments = arguments_
-            range = range_
+        case let .call(_, callTypeArgs, callArguments, callRange):
+            typeArgs = callTypeArgs
+            arguments = callArguments
+            range = callRange
+        case let .memberCall(_, _, memberTypeArgs, memberArguments, memberRange):
+            typeArgs = memberTypeArgs
+            arguments = memberArguments
+            range = memberRange
         default:
             return nil
         }
         guard let annotationName = ctx.sema.symbols.symbol(annotationClass)?.name else { return nil }
         let callee = ctx.ast.arena.appendExpr(.nameRef(annotationName, range))
         let construction = ctx.ast.arena.appendExpr(.call(
-            callee: callee, typeArgs: [], args: arguments, range: range
+            callee: callee, typeArgs: typeArgs, args: arguments, range: range
         ))
         return construction
     }
