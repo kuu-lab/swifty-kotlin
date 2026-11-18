@@ -1,9 +1,9 @@
 /// Proves effective immutability before flow inference, including deferred writes
-/// in closures. A local with any reassignment is conservatively excluded.
+/// in closures. A local with any effective reassignment is conservatively excluded.
 final class LocalVariableStabilityAnalyzer {
     private var analyzedRoots: Set<ExprID> = []
     private var declarations: Set<ExprID> = []
-    private var reassigned: Set<ExprID> = []
+    private var reassigned: [ExprID: Set<ExprID>] = [:]
     var inPlaceLambdaScopes: Set<ExprID> = []
     private var mutationValues: [ExprID: [ExprID: (scopes: [ExprID], value: ExprID?)]] = [:]
     private var mutationScopes: [ExprID: Set<[ExprID]>] = [:]
@@ -12,7 +12,7 @@ final class LocalVariableStabilityAnalyzer {
     var currentLocalFunctionScope: ExprID?
     private var closureScopes: [ExprID] = []
     private var flowBarrierScopes: [ExprID] = []
-    private var flowBarrierReassignments: [ExprID: Set<ExprID>] = [:]
+    private var flowBarrierReassignments: [ExprID: [ExprID: Set<ExprID>]] = [:]
     private var lambdaCalls: [ExprID: (call: ExprID, argument: Int)] = [:]
     // Only writes from a deeper deferred scope invalidate local smart casts.
     private var declarationDepths: [ExprID: Int] = [:]
@@ -76,11 +76,35 @@ final class LocalVariableStabilityAnalyzer {
     }
 
     func isNeverReassigned(_ declaration: ExprID) -> Bool {
-        declarations.contains(declaration) && !reassigned.contains(declaration)
+        declarations.contains(declaration) && (reassigned[declaration] ?? []).isEmpty
     }
 
     func isReassigned(_ declaration: ExprID, within expression: ExprID) -> Bool {
-        flowBarrierReassignments[expression]?.contains(declaration) == true
+        guard let assignments = flowBarrierReassignments[expression]?[declaration] else { return false }
+        let active = reassigned[declaration] ?? []
+        return assignments.contains { active.contains($0) }
+    }
+
+    /// A resolved in-place compound assignment mutates the receiver without rebinding
+    /// the local, so it is not a reassignment for stability purposes.
+    func markCompoundAssignmentAsInPlace(_ expression: ExprID, declaration: ExprID) {
+        guard var active = reassigned[declaration], active.contains(expression) else { return }
+        active.remove(expression)
+        if active.isEmpty {
+            reassigned.removeValue(forKey: declaration)
+        } else {
+            reassigned[declaration] = active
+        }
+
+        mutationValues[declaration]?.removeValue(forKey: expression)
+        if mutationValues[declaration]?.isEmpty == true {
+            mutationValues.removeValue(forKey: declaration)
+        }
+        if let mutations = mutationValues[declaration] {
+            mutationScopes[declaration] = Set(mutations.values.map { $0.scopes })
+        } else {
+            mutationScopes.removeValue(forKey: declaration)
+        }
     }
 
     func analyze(_ body: FunctionBody, ast: ASTModule) {
@@ -136,9 +160,9 @@ final class LocalVariableStabilityAnalyzer {
             for name in names.compactMap({ $0 }) { locals[name] = id }
         case let .localAssign(name, value, _), let .compoundAssign(_, name, value, _):
             if let declaration = locals[name] {
-                reassigned.insert(declaration)
+                reassigned[declaration, default: []].insert(id)
                 for loop in flowBarrierScopes {
-                    flowBarrierReassignments[loop, default: []].insert(declaration)
+                    flowBarrierReassignments[loop, default: [:]][declaration, default: []].insert(id)
                 }
                 if let depth = declarationDepths[declaration], depth < closureScopes.count {
                     let scopes = Array(closureScopes.dropFirst(depth))
