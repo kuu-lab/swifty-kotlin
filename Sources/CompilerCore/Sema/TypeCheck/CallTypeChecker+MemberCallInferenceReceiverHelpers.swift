@@ -467,6 +467,25 @@ extension CallTypeChecker {
         if sema.types.isSubtype(actual, declared) {
             return true
         }
+        // `T & Any` is the definitely-non-null view of a type parameter whose
+        // upper bound may be nullable. That value can use the non-null
+        // projection of the bound, while bare `T`/`T?` remain nullable here.
+        if case let .intersection(parts) = sema.types.kind(of: actual),
+           !sema.types.canHoldNull(callSiteReceiver),
+           parts.contains(where: { part in
+               guard case let .typeParam(typeParam) = sema.types.kind(of: part) else {
+                   return false
+               }
+               return typeParameterHasNonNullUpperBoundMatchingReceiver(
+                   typeParam.symbol,
+                   declaredReceiver: declaredReceiver,
+                   declaredNonNull: declared,
+                   sema: sema
+               )
+           })
+        {
+            return true
+        }
         // A smart-cast intersection (e.g. `R & List<*>` after
         // `x != null && x is List<*>`) is a subtype of each of its parts,
         // so an extension whose declared receiver matches any single part
@@ -665,6 +684,30 @@ extension CallTypeChecker {
             return typeArgumentLikeMatch(actual: actualKClass.argument, declared: declaredKClass.argument)
         }
         return false
+    }
+
+    private func typeParameterHasNonNullUpperBoundMatchingReceiver(
+        _ symbol: SymbolID,
+        declaredReceiver: TypeID,
+        declaredNonNull: TypeID,
+        sema: SemaModule
+    ) -> Bool {
+        guard case let .classType(declaredClass) = sema.types.kind(of: declaredNonNull) else {
+            return false
+        }
+        return sema.symbols.typeParameterUpperBounds(for: symbol).contains { bound in
+            let nonNullBound = sema.types.makeNonNullable(bound)
+            guard case let .classType(boundClass) = sema.types.kind(of: nonNullBound),
+                  boundClass.classSymbol == declaredClass.classSymbol,
+                  sema.types.nullabilitySubtype(
+                      sema.types.nullability(of: nonNullBound),
+                      sema.types.nullability(of: declaredReceiver)
+                  )
+            else {
+                return false
+            }
+            return true
+        }
     }
 
     func tryBuiltinFlowMemberCall(
