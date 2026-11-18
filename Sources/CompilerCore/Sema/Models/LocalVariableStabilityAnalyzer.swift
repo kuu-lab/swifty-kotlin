@@ -161,17 +161,15 @@ final class LocalVariableStabilityAnalyzer {
             closureScopes.append(id)
             scoped(body, hiding: params)
             closureScopes.removeLast()
-        case let .localFunDecl(name, _, params, _, body, _, _, _, _):
+        case let .localFunDecl(_, _, params, _, body, _, _, _, _):
             closureScopes.append(id)
             var scope = locals
             for param in params {
                 if let value = param.defaultValue { visit(value, ast: ast, locals: &scope) }
                 scope.removeValue(forKey: param.name)
             }
-            scope.removeValue(forKey: name)
             visitBody(body, ast: ast, locals: scope)
             closureScopes.removeLast()
-            locals.removeValue(forKey: name)
         case let .forExpr(variable, iterable, body, _, _):
             children([iterable])
             flowBarrierScopes.append(id)
