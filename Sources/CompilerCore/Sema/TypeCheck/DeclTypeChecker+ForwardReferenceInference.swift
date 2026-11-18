@@ -323,6 +323,7 @@ extension DeclTypeChecker {
                    )
                 {
                     let diagnosticSnapshot = diagnostics.count
+                    let nominalDeclsCheckedBefore = driver.localNominalDeclChecks.count
                     typeCheckBoundPropertyDecl(
                         property,
                         declID: declID,
@@ -336,6 +337,7 @@ extension DeclTypeChecker {
                     // Publish only the inferred type; diagnostics belong to the
                     // authoritative pass, which re-emits them in source order.
                     diagnostics.truncate(to: diagnosticSnapshot)
+                    driver.markLocalNominalRechecks(since: nominalDeclsCheckedBefore)
                     didPrecheckProperty = true
                     continue
                 }
@@ -426,8 +428,12 @@ extension DeclTypeChecker {
         // The declaration is not marked as checked, so the authoritative pass
         // rechecks it and owns all of its diagnostics. Roll back anything the
         // speculative initializer inference emitted to avoid duplicates.
+        let nominalDeclsCheckedBefore = driver.localNominalDeclChecks.count
         let diagnosticSnapshot = ctx.sema.diagnostics.count
-        defer { ctx.sema.diagnostics.truncate(to: diagnosticSnapshot) }
+        defer {
+            ctx.sema.diagnostics.truncate(to: diagnosticSnapshot)
+            driver.markLocalNominalRechecks(since: nominalDeclsCheckedBefore)
+        }
         var locals = initialLocals
         let inferredType = driver.inferExpr(
             initializer,

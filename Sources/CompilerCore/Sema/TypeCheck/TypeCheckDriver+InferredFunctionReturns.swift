@@ -229,9 +229,7 @@ extension TypeCheckDriver {
                 // inside this run; force the retry to re-run their member
                 // checks so errors inside them — e.g. in an object literal
                 // returned by the function — are not lost with the rollback.
-                pendingLocalNominalRechecks.formUnion(
-                    localNominalDeclChecks[nominalDeclsCheckedBefore...]
-                )
+                markLocalNominalRechecks(since: nominalDeclsCheckedBefore)
             }
         }
     }
