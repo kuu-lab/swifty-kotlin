@@ -29,6 +29,7 @@
 #  10. a dirty cache refuses to switch revisions, preserving local changes
 #  11. switching KTOR_BUILD_CACHE_DIR with a shared output dir drops
 #      dependency artifacts built from another revision
+#  12. an unknown --module name fails before touching caches or artifacts
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
@@ -367,5 +368,21 @@ expect_success "single-module run after the full rebuild"
 grep -q 'ktor_io\.kklib' "$STUB_LOG" \
   || fail "matching dependency artifact was not reused after the cache switch"
 echo "ok: switching source caches drops foreign-revision artifacts"
+
+# 12. An unknown --module name is rejected before the cache sync or the
+#     shared output dir's artifact invalidation run: a typo must not delete
+#     artifacts built from another revision's cache.
+[[ -d "$OUT_DIR/ktor_io.kklib" ]] || fail "precondition: ktor_io.kklib missing"
+KTOR_TAG="2.0.0"
+PROBE_CACHE_DIR="$CACHE_DIR2" probe --module nope
+expect_failure "unknown module name"
+[[ -d "$OUT_DIR/ktor_io.kklib" ]] || fail "unknown-module run dropped shared artifacts"
+[[ -d "$OUT_DIR/ktor_utils.kklib" ]] || fail "unknown-module run dropped shared artifacts"
+KTOR_TAG="1.0.0"
+probe --module ktor_utils
+expect_success "single-module run after the rejected typo"
+grep -q 'ktor_io\.kklib' "$STUB_LOG" \
+  || fail "dependency artifact was not reused after the rejected typo"
+echo "ok: unknown module names fail before touching caches or artifacts"
 
 echo "PASS: ktor_build.sh honors requested revisions with a warm cache"

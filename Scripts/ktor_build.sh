@@ -67,8 +67,43 @@ USAGE
   esac
 done
 
+# Module name -> source roots (space-separated, relative to $CACHE_DIR).
+module_sources() {
+  case "$1" in
+    kotlinx_io) echo "kotlinx-io/core/common/src kotlinx-io/bytestring/common/src" ;;
+    ktor_io) echo "ktor/ktor-io/common/src" ;;
+    ktor_utils) echo "ktor/ktor-utils/common/src" ;;
+    ktor_http) echo "ktor/ktor-http/common/src" ;;
+    *) echo "" ;;
+  esac
+}
+
+# Module name -> module dependencies (space-separated). A dependency is wired
+# with `-I <dep>.kklib` when its artifact from a previous module compile exists
+# in $OUT_DIR, so single-module runs degrade gracefully to the unresolved
+# imports the module would see without its dependencies.
+# kotlinx_io is intentionally not linked into downstream modules: the bundled
+# stdlib now provides kotlinx.io.* and takes ownership over an explicitly
+# imported upstream module (KSWIFTK-LIB-0031), which breaks resolution.
+module_deps() {
+  case "$1" in
+    kotlinx_io) echo "" ;;
+    ktor_io) echo "" ;;
+    ktor_utils) echo "ktor_io" ;;
+    ktor_http) echo "ktor_io ktor_utils" ;;
+    *) echo "" ;;
+  esac
+}
+
 if [[ ! -x "$KSWIFTC" ]]; then
   echo "kswiftc not found at $KSWIFTC. Run 'swift build' first." >&2
+  exit 1
+fi
+
+# An unknown module name is rejected before the cache or the shared output
+# dir's artifacts are touched.
+if [[ -n "$ONLY_MODULE" && -z "$(module_sources "$ONLY_MODULE")" ]]; then
+  echo "Unknown module: $ONLY_MODULE" >&2
   exit 1
 fi
 
@@ -183,34 +218,6 @@ if [[ -n "$ktorn_io_head" && -n "$ktor_head" ]]; then
   fi
   printf '%s\n' "$new_stamp" > "$source_stamp"
 fi
-
-# Module name -> source roots (space-separated, relative to $CACHE_DIR).
-module_sources() {
-  case "$1" in
-    kotlinx_io) echo "kotlinx-io/core/common/src kotlinx-io/bytestring/common/src" ;;
-    ktor_io) echo "ktor/ktor-io/common/src" ;;
-    ktor_utils) echo "ktor/ktor-utils/common/src" ;;
-    ktor_http) echo "ktor/ktor-http/common/src" ;;
-    *) echo "" ;;
-  esac
-}
-
-# Module name -> module dependencies (space-separated). A dependency is wired
-# with `-I <dep>.kklib` when its artifact from a previous module compile exists
-# in $OUT_DIR, so single-module runs degrade gracefully to the unresolved
-# imports the module would see without its dependencies.
-# kotlinx_io is intentionally not linked into downstream modules: the bundled
-# stdlib now provides kotlinx.io.* and takes ownership over an explicitly
-# imported upstream module (KSWIFTK-LIB-0031), which breaks resolution.
-module_deps() {
-  case "$1" in
-    kotlinx_io) echo "" ;;
-    ktor_io) echo "" ;;
-    ktor_utils) echo "ktor_io" ;;
-    ktor_http) echo "ktor_io ktor_utils" ;;
-    *) echo "" ;;
-  esac
-}
 
 # Compile in dependency order unless a single module was requested.
 MODULES="kotlinx_io ktor_io ktor_utils ktor_http"
