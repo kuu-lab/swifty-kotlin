@@ -653,24 +653,25 @@ private func runtimeMutableMapPut(
     countAsAccess: Bool,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let map = runtimeMapBox(from: mapRaw) else {
-        return runtimeSourceMutableMapPut(mapRaw, key: key, value: value, outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        guard let map = runtimeMapBox(from: mapRaw) else {
+            return runtimeSourceMutableMapPut(mapRaw, key: key, value: value, outThrown: outThrown)
+                ?? runtimeNullSentinelInt
+        }
+        if runtimeThrowIfReadOnlyMap(map, outThrown) {
+            return runtimeNullSentinelInt
+        }
+        // Identity maps retain boxed reference handles, including boxed Char.
+        let runtimeKey = map.usesReferenceEquality ? RuntimeValue(raw: key) : runtimeValueFromCollectionABI(key)
+        let runtimeValue = map.usesReferenceEquality ? RuntimeValue(raw: value) : runtimeValueFromCollectionABI(value)
+        guard map.acceptsInsertion(rawKey: runtimeKey.legacyRawValue) else {
+            runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Key outside range view"))
+            return runtimeNullSentinelInt
+        }
+        return map.put(key: runtimeKey, value: runtimeValue, countAsAccess: countAsAccess)
+            .map(runtimeCollectionABIValue)
             ?? runtimeNullSentinelInt
     }
-    if runtimeThrowIfReadOnlyMap(map, outThrown) {
-        return runtimeNullSentinelInt
-    }
-    // Identity maps retain boxed reference handles, including boxed Char.
-    let runtimeKey = map.usesReferenceEquality ? RuntimeValue(raw: key) : runtimeValueFromCollectionABI(key)
-    let runtimeValue = map.usesReferenceEquality ? RuntimeValue(raw: value) : runtimeValueFromCollectionABI(value)
-    guard map.acceptsInsertion(rawKey: runtimeKey.legacyRawValue) else {
-        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Key outside range view"))
-        return runtimeNullSentinelInt
-    }
-    return map.put(key: runtimeKey, value: runtimeValue, countAsAccess: countAsAccess)
-        .map(runtimeCollectionABIValue)
-        ?? runtimeNullSentinelInt
 }
 
 @_cdecl("__kk_mutable_map_remove")
