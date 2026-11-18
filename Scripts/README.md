@@ -382,7 +382,7 @@ directory and downloads JVM reference jars from Maven Central:
 
 | Import | Artifact | Default version |
 |---|---|---|
-| `kotlinx.coroutines` | `kotlinx-coroutines-core-jvm` | 1.10.2 |
+| `kotlinx.coroutines` | `kotlinx-coroutines-core-jvm` | 1.11.0 |
 | `kotlinx.io` | `kotlinx-io-core-jvm` | 0.9.2 |
 | `kotlinx.io.bytestring` | Both io core and `kotlinx-io-bytestring-jvm` | 0.9.2 |
 | `kotlinx.atomicfu` | `atomicfu-jvm` | 0.33.0 |
@@ -398,7 +398,7 @@ jar with `--kotlinc-classpath`.
 You can control the cached path and version with:
 
 ```bash
-export KOTLINC_COROUTINES_VERSION=1.10.2
+export KOTLINC_COROUTINES_VERSION=1.11.0
 export KOTLINC_KOTLINX_IO_VERSION=0.9.2
 export KOTLINC_ATOMICFU_VERSION=0.33.0
 export KOTLINC_DEP_DIR=/path/to/.runtime-build/deps
