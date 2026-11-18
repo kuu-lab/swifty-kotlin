@@ -89,10 +89,25 @@ final class JVMClasspathIndex {
         result.requiredLazyClassNames = requiredLazyClassNames
         let descriptors = JVMDescriptorCache()
         var seen: Set<String> = []
+        let collectKotlinDemand = archiveCache == nil
+        var kotlinDemandQueue: [String] = []
+        var kotlinDemandQueued: Set<String> = []
+        var kotlinArchiveEntries: [String: (path: String, entryName: String, isLazy: Bool)] = [:]
+
+        func noteKotlinReferences(_ info: JVMClassInfo) {
+            guard collectKotlinDemand else { return }
+            for name in Self.referencedKotlinClassNames(in: info) where !seen.contains(name) {
+                if kotlinDemandQueued.insert(name).inserted {
+                    kotlinDemandQueue.append(name)
+                }
+            }
+        }
+
         func insert(_ info: JVMClassInfo, isLazy: Bool = false) {
             guard seen.insert(info.name).inserted else { return }
             result.hierarchyClasses[info.name] = info
             if isLazy { result.lazyClassNames.insert(info.name) }
+            noteKotlinReferences(info)
         }
         for classFile in platformClassFiles {
             insert(try Self.readClass(Array(classFile.contents), path: classFile.path, descriptorCache: descriptors))
@@ -119,7 +134,11 @@ final class JVMClasspathIndex {
                     }
                     classes.forEach { insert($0, isLazy: isLazy) }
                 } else {
-                    try readArchive(data, descriptorCache: descriptors, archiveJobs: archiveJobs) { insert($0, isLazy: isLazy) }
+                    try Self.readArchiveDemand(
+                        data, path: path, descriptorCache: descriptors, archiveJobs: archiveJobs, isLazy: isLazy,
+                        insert: { info in insert(info, isLazy: isLazy) },
+                        kotlinEntries: &kotlinArchiveEntries
+                    )
                 }
             }
         }
@@ -128,6 +147,29 @@ final class JVMClasspathIndex {
         for (path, data) in fallbackClassFiles where !seen.contains(String(path.dropLast(".class".count))) {
             insert(try readClass(Array(data), path: path, descriptorCache: descriptors))
             result.fallbackClassFiles.append((path, data))
+        }
+        // Covered kotlin/* archive entries are not stubs, but dependency
+        // signatures and supertypes still need the referenced classfiles.
+        // Decode only those entries, recursively, instead of every kotlin/*
+        // class in the classpath archives.
+        var kotlinDemandIndex = 0
+        var demandArchives: [String: ZipArchive] = [:]
+        while kotlinDemandIndex < kotlinDemandQueue.count {
+            let name = kotlinDemandQueue[kotlinDemandIndex]
+            kotlinDemandIndex += 1
+            guard !seen.contains(name), let pending = kotlinArchiveEntries[name] else { continue }
+            let archive: ZipArchive
+            if let cached = demandArchives[pending.path] {
+                archive = cached
+            } else {
+                archive = try ZipArchive(data: Data(contentsOf: URL(fileURLWithPath: pending.path)))
+                demandArchives[pending.path] = archive
+            }
+            guard let entry = archive.entry(named: pending.entryName) else { continue }
+            insert(
+                try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: descriptors),
+                isLazy: pending.isLazy
+            )
         }
         result.linkKotlinMultifileFacades()
         result.indexInnerClasses()
@@ -167,6 +209,13 @@ final class JVMClasspathIndex {
             entry.name.hasSuffix(".class") && !entry.name.hasPrefix("META-INF/")
                 && !entry.name.hasSuffix("module-info.class") && !entry.name.hasSuffix("package-info.class")
         }.sorted { $0.name < $1.name }
+        try decodeArchiveEntries(archive, entries: entries, descriptorCache: descriptorCache, archiveJobs: archiveJobs, insert: insert)
+    }
+
+    private static func decodeArchiveEntries(
+        _ archive: ZipArchive, entries: [ZipArchive.Entry], descriptorCache: JVMDescriptorCache,
+        archiveJobs: Int, insert: (JVMClassInfo) -> Void
+    ) throws {
         if archiveJobs > 1 && entries.count >= 128 {
             let ranges = archiveBatches(entries)
             let batches = try SemaPerFileExecutor.collect(count: ranges.count, jobs: archiveJobs, cancelOnFirstError: true) { index in
@@ -183,6 +232,117 @@ final class JVMClasspathIndex {
                 insert(try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: descriptorCache))
             }
         }
+    }
+
+    private static func readArchiveDemand(
+        _ data: Data, path: String, descriptorCache: JVMDescriptorCache, archiveJobs: Int, isLazy: Bool,
+        insert: (JVMClassInfo) -> Void,
+        kotlinEntries: inout [String: (path: String, entryName: String, isLazy: Bool)]
+    ) throws {
+        let archive = try ZipArchive(data: data)
+        var eager: [ZipArchive.Entry] = []
+        for entry in archive.entries.sorted(by: { $0.name < $1.name }) {
+            guard entry.name.hasSuffix(".class"), !entry.name.hasPrefix("META-INF/"),
+                  !entry.name.hasSuffix("module-info.class"), !entry.name.hasSuffix("package-info.class")
+            else { continue }
+            if entry.name.hasPrefix("kotlin/") {
+                let name = String(entry.name.dropLast(".class".count))
+                if kotlinEntries[name] == nil {
+                    kotlinEntries[name] = (path: path, entryName: entry.name, isLazy: isLazy)
+                }
+            } else {
+                eager.append(entry)
+            }
+        }
+        try decodeArchiveEntries(archive, entries: eager, descriptorCache: descriptorCache, archiveJobs: archiveJobs, insert: insert)
+    }
+
+    private static func referencedKotlinClassNames(in info: JVMClassInfo) -> Set<String> {
+        var result: Set<String> = []
+        func add(_ name: String?) {
+            guard let name else { return }
+            if name.hasPrefix("kotlin/") {
+                result.insert(name)
+            } else if name.hasPrefix("[") {
+                result.formUnion(kotlinClassNames(in: name))
+            }
+        }
+        func addDescriptor(_ descriptor: String) {
+            result.formUnion(kotlinClassNames(in: descriptor))
+        }
+        func addAnnotationValue(_ value: JVMAnnotationValue) {
+            switch value {
+            case let .enumEntry(descriptor, _), let .classType(descriptor):
+                addDescriptor(descriptor)
+            case let .annotation(annotation):
+                addAnnotation(annotation)
+            case let .array(elements):
+                elements.forEach(addAnnotationValue)
+            default:
+                break
+            }
+        }
+        func addAnnotation(_ annotation: JVMAnnotation) {
+            addDescriptor(annotation.descriptor)
+            for (_, value) in annotation.values { addAnnotationValue(value) }
+        }
+        func addMethod(_ method: JVMForeignMethod) {
+            addDescriptor(method.descriptor)
+            for parameter in method.parameters { add(parameter.referenceName) }
+            add(method.result.referenceName)
+            method.annotations.forEach(addAnnotation)
+            if let annotationDefault = method.annotationDefault { addAnnotationValue(annotationDefault) }
+        }
+        add(info.superclass)
+        info.interfaces.forEach { add($0) }
+        for inner in info.innerClasses {
+            add(inner.name)
+            add(inner.outerName)
+        }
+        info.kotlinSealedSubclasses.forEach { add($0) }
+        info.kotlinMultifileParts.forEach { add($0) }
+        info.kotlinReadOnlyCollectionSupertypes.keys.forEach { add($0) }
+        add(info.kotlinComparableSupertype)
+        for method in info.methods + info.bridgeMethods + info.defaultArgumentMethods { addMethod(method) }
+        for lowered in info.kotlinLoweredConstructors {
+            addMethod(lowered.entry)
+            if let defaults = lowered.defaults { addMethod(defaults) }
+        }
+        for value in info.kotlinValueClassConstructors { addMethod(value.adapter) }
+        for property in info.kotlinStaticProperties.values { addMethod(property.getter) }
+        for property in info.kotlinMemberProperties.values { addMethod(property.getter) }
+        for property in info.kotlinTopLevelProperties { addMethod(property.getter) }
+        for field in info.fields { addDescriptor(field.descriptor) }
+        info.annotations.forEach(addAnnotation)
+        if let signature = info.genericSignature { addDescriptor(signature) }
+        return result
+    }
+
+    private static func kotlinClassNames(in descriptor: String) -> Set<String> {
+        var names: Set<String> = []
+        var searchStart = descriptor.startIndex
+        while let marker = descriptor.range(of: "Lkotlin/", range: searchStart ..< descriptor.endIndex) {
+            var cursor = marker.lowerBound
+            var raw = ""
+            while cursor < descriptor.endIndex {
+                let character = descriptor[cursor]
+                if character.isLetter || character.isNumber || character == "/" || character == "$"
+                    || character == "_" || character == "." {
+                    raw.append(character)
+                    cursor = descriptor.index(after: cursor)
+                } else { break }
+            }
+            let name = String(raw.dropFirst())
+            guard name.hasPrefix("kotlin/") else {
+                searchStart = cursor > marker.lowerBound ? cursor : descriptor.index(after: marker.lowerBound)
+                continue
+            }
+            names.insert(name)
+            let binaryName = name.replacingOccurrences(of: ".", with: "$")
+            if binaryName != name { names.insert(binaryName) }
+            searchStart = cursor > marker.lowerBound ? cursor : descriptor.index(after: marker.lowerBound)
+        }
+        return names
     }
 
     private static func archiveBatches(_ entries: [ZipArchive.Entry]) -> [Range<Int>] {
