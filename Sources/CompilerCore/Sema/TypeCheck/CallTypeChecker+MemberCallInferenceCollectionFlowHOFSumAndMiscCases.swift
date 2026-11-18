@@ -697,20 +697,21 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 sema.types.anyType
             }
             let isFloatingPointSelector = selectorType == sema.types.doubleType || selectorType == sema.types.floatType
+            let usesFloatingPointIterableAggregate = isFloatingPointSelector && explicitTypeArgs.count <= 1
             if isMapReceiver, calleeStr == "maxOf" || calleeStr == "minOf" {
                 if bindBundledMapSourceFunction(matchingLambdaReturnType: selectorType, locals: &locals),
                    let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef
                 {
                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                 }
-            } else if !isFloatingPointSelector,
+            } else if !usesFloatingPointIterableAggregate,
                       bindBundledListSourceFunction(typeArguments: [collectionElementType, selectorType])
             {
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                 }
             }
-            let sourceTypeArguments = isFloatingPointSelector
+            let sourceTypeArguments = usesFloatingPointIterableAggregate
                 ? [collectionElementType]
                 : [collectionElementType, selectorType]
             sourceBackedIterableAggregateTypeArguments = sourceTypeArguments
@@ -786,6 +787,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 }
             }
             let isFloatingPointSelector = selectorType == sema.types.doubleType || selectorType == sema.types.floatType
+            let usesFloatingPointIterableAggregate = isFloatingPointSelector && explicitTypeArgs.count <= 1
             resultType = sema.types.makeNullable(selectorType)
             if isMapReceiver, calleeStr == "maxOfOrNull" || calleeStr == "minOfOrNull" {
                 if bindBundledMapSourceFunction(matchingLambdaReturnType: selectorType, locals: &locals),
@@ -793,14 +795,14 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 {
                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                 }
-            } else if !isFloatingPointSelector,
+            } else if !usesFloatingPointIterableAggregate,
                       bindBundledListSourceFunction(typeArguments: [collectionElementType, selectorType])
             {
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                 }
             }
-            let sourceTypeArguments = isFloatingPointSelector
+            let sourceTypeArguments = usesFloatingPointIterableAggregate
                 ? [collectionElementType]
                 : [collectionElementType, selectorType]
             sourceBackedIterableAggregateTypeArguments = sourceTypeArguments
