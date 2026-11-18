@@ -4,7 +4,10 @@ set -euo pipefail
 # Compiles pinned snapshots of Ktor's core modules (and their kotlinx-io
 # dependency) with kswiftc to track how close this compiler is to building
 # real-world Kotlin Multiplatform code. Fetches sources into a cache dir
-# outside the repo (git is not vendored), compiles each module with
+# outside the repo (git is not vendored), re-points a warm cache checkout to
+# the requested KTOR_TAG / KOTLINX_IO_TAG before compiling (failing loudly
+# instead of compiling stale sources when the revision cannot be fetched),
+# compiles each module with
 # `--emit library`, and writes a TSV of diagnostic-code counts per module.
 #
 # This is a diagnostic probe, not a golden/regression test: it does not run
@@ -68,10 +71,53 @@ fi
 
 mkdir -p "$CACHE_DIR" "$OUT_DIR"
 
+# Prints the exact tag of the commit checked out in $1, or nothing when HEAD
+# is not exactly at a tag.
+checked_out_tag() {
+  git -C "$1" describe --tags --exact-match HEAD 2>/dev/null || true
+}
+
+# Re-points an existing cache checkout at the requested revision instead of
+# silently compiling whatever was fetched earlier. The fast path touches no
+# network, so a warm cache matching the request keeps working offline. On a
+# mismatch the checkout is only switched when it is clean; if the requested
+# revision cannot be fetched (offline or unknown ref) the probe fails and the
+# cached checkout is left untouched.
+ensure_cached_revision() {
+  local url="$1" tag="$2" dest="$3"
+  local current fetched_ref
+  current="$(checked_out_tag "$dest")"
+  if [[ "$current" == "$tag" ]]; then
+    return 0
+  fi
+  if [[ -n "$(git -C "$dest" status --porcelain)" ]]; then
+    echo "ktor_build: error: $dest has local changes; refusing to switch from '${current:-<no tag>}' to '$tag'." >&2
+    echo "ktor_build:       commit or stash them, or point KTOR_BUILD_CACHE_DIR at a different directory." >&2
+    return 1
+  fi
+  fetched_ref=""
+  if git -C "$dest" fetch --depth 1 origin "+refs/tags/$tag:refs/tags/$tag" 2>/dev/null; then
+    fetched_ref="$tag"
+  elif git -C "$dest" fetch --depth 1 origin "+refs/heads/$tag:refs/remotes/origin/$tag" 2>/dev/null; then
+    fetched_ref="origin/$tag"
+  fi
+  if [[ -z "$fetched_ref" ]]; then
+    echo "ktor_build: error: cannot fetch '$tag' from $url (offline or unknown ref?)." >&2
+    echo "ktor_build:       cache left at '${current:-<no tag>}'; refusing to compile it as '$tag'." >&2
+    return 1
+  fi
+  if ! git -C "$dest" checkout -q --detach "$fetched_ref"; then
+    echo "ktor_build: error: failed to check out '$tag' in $dest; cache left at '${current:-<no tag>}'." >&2
+    return 1
+  fi
+  echo "ktor_build: updated cache $dest: '${current:-<no tag>}' -> '$tag'." >&2
+}
+
 clone_sparse() {
   local url="$1" tag="$2" dest="$3" paths="$4"
   if [[ -d "$dest/.git" ]]; then
-    return 0
+    ensure_cached_revision "$url" "$tag" "$dest"
+    return
   fi
   git clone --depth 1 --filter=blob:none --sparse -b "$tag" "$url" "$dest"
   ( cd "$dest" && git sparse-checkout set $paths )
