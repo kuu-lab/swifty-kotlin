@@ -405,27 +405,28 @@ extension ExprTypeChecker {
         // nominal's member bodies (KUU-4605).
         //
         // Only rewrite when `receiverParameterSymbol(for:)` denotes the
-        // enclosing class instance. For a plain member function its `this` is
-        // the class instance — including when the local class sits inside a
-        // lambda that has its own receiver, because a lambda does not change
-        // `enclosingFunctionSymbol`. For a member *extension* function `this`
-        // is the extension receiver (e.g. `String`), a different value from
-        // the `this@Outer` dispatch receiver that owns the captured property,
-        // so rewriting there would bind the outer entry to the wrong instance;
-        // skip it. The function's declared receiver type tells the two apart.
+        // enclosing class instance. That holds for a plain member function —
+        // including when the local class sits inside a lambda that has its own
+        // receiver, because a lambda does not change `enclosingFunctionSymbol`
+        // — whose declared receiver type is the enclosing class. It does NOT
+        // hold for a member *extension* function (its `this` is the extension
+        // receiver, e.g. `String`, not the `this@Outer` dispatch receiver) or
+        // for a receiver-less local function (which has no `this` at all, so
+        // `receiverParameterSymbol(for:)` would name a non-existent receiver
+        // and the instance would not be captured). Rewriting there would bind
+        // the outer entry to the wrong value, so skip it. Default to skipping:
+        // only a concrete class receiver type matching the enclosing class
+        // proves the receiver parameter is the captured instance.
         var memberOuterReceiverTypes = ctx.outerReceiverTypes
         if let enclosingFunctionSymbol = ctx.enclosingFunctionSymbol,
            let enclosingClassSymbol = ctx.enclosingClassSymbol
         {
-            var receiverIsEnclosingClassInstance = true
+            var receiverIsEnclosingClassInstance = false
             if let signature = sema.symbols.functionSignature(for: enclosingFunctionSymbol),
-               let receiverType = signature.receiverType
+               let receiverType = signature.receiverType,
+               case let .classType(receiverClass) = sema.types.kind(of: receiverType)
             {
-                if case let .classType(receiverClass) = sema.types.kind(of: receiverType) {
-                    receiverIsEnclosingClassInstance = receiverClass.classSymbol == enclosingClassSymbol
-                } else {
-                    receiverIsEnclosingClassInstance = false
-                }
+                receiverIsEnclosingClassInstance = receiverClass.classSymbol == enclosingClassSymbol
             }
             if receiverIsEnclosingClassInstance {
                 let receiverValueSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: enclosingFunctionSymbol)

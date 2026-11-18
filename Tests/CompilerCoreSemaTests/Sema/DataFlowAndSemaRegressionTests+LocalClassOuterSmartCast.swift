@@ -125,6 +125,30 @@ extension DataFlowAndSemaRegressionTests {
             }
         }
         """,
+        // sample6 — a receiver-less local function inside a receiver lambda
+        // inside a member function. `enclosingFunctionSymbol` becomes the
+        // local function, which has no `this`, so the rewrite must NOT bind
+        // the outer entry to a non-existent receiver; kswiftc conservatively
+        // rejects (SEMA-0468) rather than miscompile the captured instance.
+        """
+        package lcs6
+        class Outer {
+            val stable: String? = "ok"
+            fun f() {
+                if (stable != null) {
+                    with("lambda") {
+                        fun local() {
+                            class Local {
+                                fun read() = stable
+                            }
+                            val s: String = Local().read()
+                        }
+                        local()
+                    }
+                }
+            }
+        }
+        """,
     ]
 
     private static nonisolated(unsafe) var _localClassOuterSmartCastCtx: (CompilationContext, [String])?
@@ -151,11 +175,12 @@ extension DataFlowAndSemaRegressionTests {
             let diagnostics = diagnosticsForPath(paths[index], in: ctx)
             #expect(diagnostics.isEmpty, "sample\(index) unexpected diagnostics: \(diagnostics.map(\.code))")
         }
-        // samples 3 (mutable property) and 5 (member extension) must keep
-        // reporting SEMA-0468: the mutable property legitimately blocks the
-        // cast, and the extension receiver is a different value from the
-        // `Outer` dispatch receiver, so the cast is conservatively rejected.
-        for index in [3, 5] {
+        // samples 3 (mutable), 5 (member extension) and 6 (receiver-less local
+        // function) must keep reporting SEMA-0468: the mutable property
+        // legitimately blocks the cast, and the extension/local-function
+        // receivers are not the `Outer` instance, so the cast is conservatively
+        // rejected rather than risk reading the wrong receiver.
+        for index in [3, 5, 6] {
             let diagnostics = diagnosticsForPath(paths[index], in: ctx)
             #expect(
                 diagnostics.contains { $0.code == "KSWIFTK-SEMA-0468" },
