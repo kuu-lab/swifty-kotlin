@@ -21,7 +21,9 @@
 #      previous revision, but keep reusing fresh ones
 #   7. several tags on one commit all match offline (compared by commit ID,
 #      not by the single tag name `git describe` happens to return)
-#   8. a dirty cache refuses to switch revisions, preserving local changes
+#   8. a branch request tracks remote advances when online and still compiles
+#      from the warm cache offline
+#   9. a dirty cache refuses to switch revisions, preserving local changes
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
@@ -92,6 +94,9 @@ EOF
 git add -A
 git commit -qm "ktor fixture v2"
 git tag 2.0.0
+# A moving branch at the v1 commit: branch requests must re-fetch online
+# instead of matching a stale local ref forever.
+git branch moving 1.0.0
 git clone -q --bare "$FIX/work-ktor" "$FIX/remotes/ktor.git"
 
 # kotlinx-io fixture: single tag 0.1.0 (same revision-sync code path).
@@ -257,7 +262,33 @@ mv "$FIX/remotes.hidden" "$FIX/remotes"
   || fail "offline multi-tag runs moved HEAD"
 echo "ok: multi-tag commits match offline by commit, not by tag name"
 
-# 8. A dirty cache refuses to switch revisions, preserving local changes.
+# 8. A branch request tracks remote advances when online and still compiles
+#    from the warm cache offline: branches are moving targets, so only tags
+#    get the network-free fast path.
+KTOR_TAG="moving"
+probe --module ktor_io
+expect_success "branch request re-points the warm cache"
+[[ "$(git -C "$CACHE_DIR/ktor" rev-parse HEAD)" == \
+  "$(git -C "$FIX/remotes/ktor.git" rev-parse moving)" ]] \
+  || fail "branch checkout does not match the remote branch"
+
+git -C "$FIX/work-ktor" checkout -q moving
+printf '\n// branch advance\n' >> "$FIX/work-ktor/ktor-io/common/src/Common.kt"
+git -C "$FIX/work-ktor" commit -qam "advance moving branch"
+git -C "$FIX/work-ktor" push -q "$FIX/remotes/ktor.git" moving
+probe --module ktor_io
+expect_success "warm run tracks the advanced branch"
+[[ "$(git -C "$CACHE_DIR/ktor" rev-parse HEAD)" == \
+  "$(git -C "$FIX/remotes/ktor.git" rev-parse moving)" ]] \
+  || fail "branch advance was not picked up"
+
+mv "$FIX/remotes" "$FIX/remotes.hidden"
+probe --module ktor_io
+expect_success "offline run on a warm branch cache"
+mv "$FIX/remotes.hidden" "$FIX/remotes"
+echo "ok: branch requests track remote advances and work offline"
+
+# 9. A dirty cache refuses to switch revisions, preserving local changes.
 head_before="$(git -C "$CACHE_DIR/ktor" rev-parse HEAD)"
 printf '\n// local probe edit\n' >> "$CACHE_DIR/ktor/ktor-io/common/src/V1Only.kt"
 KTOR_TAG="2.0.0"

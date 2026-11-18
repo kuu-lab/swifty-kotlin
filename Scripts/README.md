@@ -715,14 +715,15 @@ diagnostic probe, not a CI-wired regression test — a module failing to
 compile is expected until the remaining gaps close.
 
 A warm cache checkout is re-pointed to the requested `KTOR_TAG` /
-`KOTLINX_IO_TAG` before compiling: matched by commit ID (so several tags on
-one commit all count, offline included), fetched on demand when the
-revision differs, skipped entirely when it already matches (so offline
-warm-cache runs keep working), and a hard failure — leaving the cache
-untouched — when the requested revision cannot be fetched or the cache has
-local changes. Any revision change also drops previously compiled `.kklib`
-module artifacts so `--module` runs never link dependencies built from
-older sources. `--no-fetch` keeps its explicit
+`KOTLINX_IO_TAG` before compiling: a requested tag whose commit already
+matches HEAD is reused without network access (several tags on one commit
+all count, so offline warm-cache runs keep working); anything else is
+fetched on demand — branch requests always re-fetch so they track remote
+advances — and it is a hard failure, leaving the cache untouched, when the
+requested revision cannot be fetched and the cache is not already at it,
+or when the cache has local changes. Any revision change also drops
+previously compiled `.kklib` module artifacts so `--module` runs never link
+dependencies built from older sources. `--no-fetch` keeps its explicit
 reuse-whatever-is-cached semantics. `Scripts/test_ktor_build_revision.sh`
 covers this behavior and is picked up by `Scripts/test_all.sh`.
 

@@ -76,35 +76,42 @@ mkdir -p "$CACHE_DIR" "$OUT_DIR"
 
 # Prints the exact tag of the commit checked out in $1, or nothing when HEAD
 # is not exactly at a tag. Display only: several tags can name the same
-# commit, so matching uses resolve_cached_revision instead.
+# commit, so matching uses commit IDs instead.
 checked_out_tag() {
   git -C "$1" describe --tags --exact-match HEAD 2>/dev/null || true
 }
 
-# Prints the commit SHA the requested revision resolves to in the local cache
-# repo (tag, branch, or origin/* branch), or nothing when the revision is
-# unknown locally.
-resolve_cached_revision() {
-  local dest="$1" ref="$2"
-  git -C "$dest" rev-parse --verify --quiet "$ref^{commit}" 2>/dev/null \
-    || git -C "$dest" rev-parse --verify --quiet "origin/$ref^{commit}" 2>/dev/null \
-    || true
+# Returns 0 when HEAD in $1 is already the commit the requested revision
+# resolves to locally — via its tag, local branch, or origin/* branch — so
+# several tags, or a previously fetched branch, on one commit all count.
+cached_revision_matches() {
+  local dest="$1" ref="$2" head candidate sha
+  head="$(git -C "$dest" rev-parse HEAD)"
+  for candidate in "refs/tags/$ref" "refs/heads/$ref" "refs/remotes/origin/$ref"; do
+    sha="$(git -C "$dest" rev-parse --verify --quiet "$candidate^{commit}" 2>/dev/null || true)"
+    if [[ -n "$sha" && "$sha" == "$head" ]]; then
+      return 0
+    fi
+  done
+  return 1
 }
 
 # Re-points an existing cache checkout at the requested revision instead of
-# silently compiling whatever was fetched earlier. The fast path compares
-# commits rather than tag names — several tags can point at HEAD's commit —
-# and touches no network, so a warm cache matching the request keeps working
-# offline. On a mismatch the checkout is only switched when it is clean; if
-# the requested revision cannot be fetched (offline or unknown ref) the probe
-# fails and the cached checkout is left untouched.
+# silently compiling whatever was fetched earlier. The fast path applies to
+# pinned tags only: a local tag ref pointing at HEAD's commit needs no
+# network, so offline warm-cache runs keep working and several tags on one
+# commit all match. Branch requests are moving targets and always re-fetch
+# when possible. On a mismatch the checkout is only switched when it is
+# clean; if the requested revision cannot be fetched (offline or unknown
+# ref), a warm cache already at that revision is still accepted and anything
+# else fails, leaving the cached checkout untouched.
 ensure_cached_revision() {
   local url="$1" tag="$2" dest="$3"
-  local current head requested fetched_ref
+  local current head tag_sha fetched_ref
   current="$(checked_out_tag "$dest")"
   head="$(git -C "$dest" rev-parse HEAD)"
-  requested="$(resolve_cached_revision "$dest" "$tag")"
-  if [[ -n "$requested" && "$requested" == "$head" ]]; then
+  tag_sha="$(git -C "$dest" rev-parse --verify --quiet "refs/tags/$tag^{commit}" 2>/dev/null || true)"
+  if [[ -n "$tag_sha" && "$tag_sha" == "$head" ]]; then
     return 0
   fi
   if [[ -n "$(git -C "$dest" status --porcelain)" ]]; then
@@ -119,6 +126,9 @@ ensure_cached_revision() {
     fetched_ref="origin/$tag"
   fi
   if [[ -z "$fetched_ref" ]]; then
+    if cached_revision_matches "$dest" "$tag"; then
+      return 0
+    fi
     echo "ktor_build: error: cannot fetch '$tag' from $url (offline or unknown ref?)." >&2
     echo "ktor_build:       cache left at '${current:-<no tag>}'; refusing to compile it as '$tag'." >&2
     return 1
