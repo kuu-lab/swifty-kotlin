@@ -1623,13 +1623,17 @@ final class JVMClasspathIndex {
                 // Abstract: a concrete interface property would make every
                 // diamond inherit two implementations (KSWIFTK-SEMA-0171).
                 // Java default accessors are already concrete in the classfile,
-                // so keep their Kotlin projection concrete as well.
+                // so keep their Kotlin projection concrete as well. A concrete
+                // Java getter with an abstract setter still exposes a mutable
+                // property: accesses bind to the classfile accessors while the
+                // abstract setter remains a function requirement.
                 let setter = shape.setterName.flatMap { setterName in
                     own.first(where: { matchesSetter($0, name: setterName, type: propertyType) })
                 }
                 let kind = setter != nil ? "var" : "val"
                 let hasConcreteAccessors = !getter.isAbstract && (setter == nil || setter?.isAbstract == false)
-                if kotlinProperty?.isAbstract == false || hasConcreteAccessors {
+                let concreteJavaProjection = metadata == nil && !getter.isAbstract
+                if kotlinProperty?.isAbstract == false || hasConcreteAccessors || concreteJavaProjection {
                     source += modifiers + kind + " `\(propertyName)`: \(propertyType) get() = null!!"
                     if kind == "var" { source += " set(value) {}" }
                     source += "\n"

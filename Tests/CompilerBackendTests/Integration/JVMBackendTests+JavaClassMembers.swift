@@ -206,7 +206,18 @@ extension JVMBackendTests {
             let source = """
             import dep.Typed
             abstract class AbsTyped : Typed
-            fun main() {}
+            class ImplTyped : Typed {
+                private var value: String = "impl"
+                override fun getTypeName(): String = value
+                override fun setTypeName(value: String) { this.value = value }
+            }
+            fun main() {
+                val impl = ImplTyped()
+                impl.setTypeName("changed")
+                println(impl.typeName)
+                impl.typeName = "via-property"
+                println(impl.getTypeName())
+            }
             """
             let classpath = mode == .jvmJar ? root.appendingPathComponent("deps.jar").path : root.appendingPathComponent("deps").path
             let result = try compile(source, root: root, mode: mode, classpath: [classpath])
@@ -214,9 +225,13 @@ extension JVMBackendTests {
             guard result.0 == 0 else { return }
             let output = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path
 
-            let implementation = try jvmTool("javap", ["-p", "-classpath", output + ":" + classpath, "AbsTyped"], root: root).stdout
+            let implementation = try jvmTool("javap", ["-p", "-classpath", output + ":" + classpath, "ImplTyped"], root: root).stdout
             #expect(implementation.contains("getTypeName()"))
-            #expect(!implementation.contains("setTypeName"))
+            #expect(implementation.contains("setTypeName(java.lang.String)"))
+
+            let run = try java(["-cp", output + ":" + classpath, "HelloKt"])
+            #expect(run.stdout == "changed\nvia-property\n")
+            #expect(run.stderr.isEmpty)
         }
     }
 }
