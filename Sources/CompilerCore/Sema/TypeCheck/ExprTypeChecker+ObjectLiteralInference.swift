@@ -362,6 +362,29 @@ extension ExprTypeChecker {
         // and capture analysis find it; entries without a symbol stay
         // type-only (`this@Label` typing) as before.
         var objectOuterReceiverTypes = ctx.outerReceiverTypes
+        // A function-local nominal captures the enclosing function's receiver
+        // *value*. The enclosing class's outer-receiver entry normally carries
+        // the class symbol — a `this@Class` label placeholder — which cannot
+        // root the smart-cast flow reference, because those are keyed by the
+        // receiver value symbol (`receiverParameterSymbol(for:)`). Resolve that
+        // entry to the enclosing function's receiver parameter so stable
+        // property smart casts on the captured `this` survive into the object
+        // literal's member bodies (KUU-4606).
+        if let enclosingFunctionSymbol = ctx.enclosingFunctionSymbol,
+           let enclosingClassSymbol = ctx.enclosingClassSymbol
+        {
+            let receiverValueSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: enclosingFunctionSymbol)
+            for index in objectOuterReceiverTypes.indices {
+                let entry = objectOuterReceiverTypes[index]
+                guard entry.symbol == enclosingClassSymbol,
+                      case let .classType(entryClassType) = sema.types.kind(of: entry.type),
+                      entryClassType.classSymbol == enclosingClassSymbol
+                else {
+                    continue
+                }
+                objectOuterReceiverTypes[index].symbol = receiverValueSymbol
+            }
+        }
         if let thisBinding = outerLocalsSnapshot[ctx.interner.intern("this")] {
             // The stack may name the same receiver under several labels (the
             // class itself and each enclosing member function), so fill every
