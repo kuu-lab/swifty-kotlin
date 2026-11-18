@@ -9,6 +9,7 @@ private struct AnnotationTargetResolutionContext {
     var hasInferredBodies = false
     var enclosingFQName: [InternedString] = []
     var lexicalEnclosingFQNames: [[InternedString]] = []
+    var localTypeParameters: [InternedString: SymbolID] = [:]
 
     func within(_ owner: [InternedString]) -> Self {
         var nested = self
@@ -480,7 +481,12 @@ extension DataFlowSemaPhase {
         if let ownerSymbol {
             resolutionContext.enclosingFQName = Array(ownerSymbol.fqName.dropLast())
         }
-        let memberResolutionContext = resolutionContext.within(ownerSymbol?.fqName ?? [])
+        var memberResolutionContext = resolutionContext.within(ownerSymbol?.fqName ?? [])
+        if let symbolID {
+            memberResolutionContext.localTypeParameters = localTypeParameters(
+                for: symbolID, symbols: symbols, types: resolutionContext.types
+            )
+        }
 
         let isJvmRecord = decl.annotations.contains { annotation in
             guard let annotationID = resolveAnnotationSymbol(
@@ -1109,6 +1115,31 @@ extension DataFlowSemaPhase {
         }
     }
 
+    private func localTypeParameters(
+        for symbolID: SymbolID,
+        symbols: SymbolTable,
+        types: TypeSystem
+    ) -> [InternedString: SymbolID] {
+        var chain: [SymbolID] = []
+        var current: SymbolID? = symbolID
+        while let id = current {
+            chain.append(id)
+            current = symbols.parentSymbol(for: id)
+        }
+        var result: [InternedString: SymbolID] = [:]
+        func add(_ parameter: SymbolID) {
+            guard let name = symbols.symbol(parameter)?.name else { return }
+            result[name] = parameter
+        }
+        for id in chain.reversed() {
+            for parameter in types.nominalTypeParameterSymbols(for: id) { add(parameter) }
+            if let signature = symbols.functionSignature(for: id) {
+                for parameter in signature.typeParameterSymbols { add(parameter) }
+            }
+        }
+        return result
+    }
+
     private func validateTypeAnnotationTypeArguments(
         annotation: AnnotationNode,
         annotationSymbolID: SymbolID,
@@ -1170,6 +1201,7 @@ extension DataFlowSemaPhase {
                 types: resolutionContext.types,
                 interner: interner,
                 sourceManager: resolutionContext.sourceManager,
+                localTypeParameters: resolutionContext.localTypeParameters,
                 relativeOwnerFQName: resolutionContext.enclosingFQName,
                 currentPackageFQName: file.packageFQName,
                 imports: file.imports,

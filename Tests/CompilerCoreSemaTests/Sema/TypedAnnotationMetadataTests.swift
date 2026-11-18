@@ -235,6 +235,10 @@ struct TypedAnnotationMetadataTests {
         let valid = """
         annotation class TA<T>
         fun ok(x: @TA<Int> Int): Int = x
+        class Foo<T> {
+            fun f(x: @TA<T> Int): Int = x
+        }
+        fun <T> g(x: @TA<T> Int): Int = x
         """
         let validContext = makeBoundIdentityContext(valid)
         try runSema(validContext)
