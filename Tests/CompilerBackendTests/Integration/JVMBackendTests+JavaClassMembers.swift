@@ -225,6 +225,10 @@ extension JVMBackendTests {
             guard result.0 == 0 else { return }
             let output = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path
 
+            let abstractImplementation = try jvmTool("javap", ["-p", "-c", "-classpath", output + ":" + classpath, "AbsTyped"], root: root).stdout
+            #expect(abstractImplementation.contains("InterfaceMethod dep/Typed.getTypeName"))
+            #expect(!abstractImplementation.contains("InterfaceMethod dep/Typed.setTypeName"))
+
             let implementation = try jvmTool("javap", ["-p", "-classpath", output + ":" + classpath, "ImplTyped"], root: root).stdout
             #expect(implementation.contains("getTypeName()"))
             #expect(implementation.contains("setTypeName(java.lang.String)"))

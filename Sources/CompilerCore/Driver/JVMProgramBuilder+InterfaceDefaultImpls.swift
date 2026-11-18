@@ -247,6 +247,18 @@ extension JVMProgramBuilder {
         }
     }
 
+    func foreignInterfaceDefaultAccessorIsConcrete(_ accessor: JVMForeignMethod, owner: String) -> Bool {
+        guard let imports = context.jvmImports,
+              let info = imports.classes[owner],
+              info.isInterface else { return true }
+        if imports.kotlinMetadata(info) != nil { return true }
+        guard let method = info.methods.first(where: {
+            $0.name == accessor.name && $0.descriptor == accessor.descriptor
+                && !$0.isStatic && !$0.isConstructor
+        }) else { return true }
+        return !method.isAbstract || imports.kotlinFunction(method)?.isAbstract == false
+    }
+
     func foreignInterfaceDefaultMethods(for symbol: SymbolID, visited: Set<SymbolID> = []) -> [String: (method: JVMForeignMethod, owner: String)] {
         if let cached = foreignInterfaceDefaultMethodsCache[symbol] { return cached }
         var visited = visited
@@ -286,7 +298,8 @@ extension JVMProgramBuilder {
             if (try? prepareProperties(propertyPlan, ids: declaration.memberProperties)) != nil {
                 for (_, _, property) in propertyPlan.properties {
                     let accessors = [property.getter] + (property.setter.map { [$0] } ?? [])
-                    for accessor in accessors where !accessor.isAbstract && !accessor.isSpecial {
+                    for accessor in accessors where !accessor.isAbstract && !accessor.isSpecial
+                        && foreignInterfaceDefaultAccessorIsConcrete(accessor, owner: owner) {
                         methods[jvmMemberKey(accessor)] = (accessor, owner)
                     }
                 }
