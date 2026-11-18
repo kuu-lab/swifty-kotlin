@@ -696,18 +696,21 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             } else {
                 sema.types.anyType
             }
+            let isFloatingPointSelector = selectorType == sema.types.doubleType || selectorType == sema.types.floatType
             if isMapReceiver, calleeStr == "maxOf" || calleeStr == "minOf" {
                 if bindBundledMapSourceFunction(matchingLambdaReturnType: selectorType, locals: &locals),
                    let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef
                 {
                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                 }
-            } else if bindBundledListSourceFunction(typeArguments: [collectionElementType, selectorType]) {
+            } else if !isFloatingPointSelector,
+                      bindBundledListSourceFunction(typeArguments: [collectionElementType, selectorType])
+            {
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                 }
             }
-            let sourceTypeArguments = selectorType == sema.types.doubleType || selectorType == sema.types.floatType
+            let sourceTypeArguments = isFloatingPointSelector
                 ? [collectionElementType]
                 : [collectionElementType, selectorType]
             sourceBackedIterableAggregateTypeArguments = sourceTypeArguments
@@ -782,6 +785,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     }
                 }
             }
+            let isFloatingPointSelector = selectorType == sema.types.doubleType || selectorType == sema.types.floatType
             resultType = sema.types.makeNullable(selectorType)
             if isMapReceiver, calleeStr == "maxOfOrNull" || calleeStr == "minOfOrNull" {
                 if bindBundledMapSourceFunction(matchingLambdaReturnType: selectorType, locals: &locals),
@@ -789,12 +793,14 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 {
                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                 }
-            } else if bindBundledListSourceFunction(typeArguments: [collectionElementType, selectorType]) {
+            } else if !isFloatingPointSelector,
+                      bindBundledListSourceFunction(typeArguments: [collectionElementType, selectorType])
+            {
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                 }
             }
-            let sourceTypeArguments = selectorType == sema.types.doubleType || selectorType == sema.types.floatType
+            let sourceTypeArguments = isFloatingPointSelector
                 ? [collectionElementType]
                 : [collectionElementType, selectorType]
             sourceBackedIterableAggregateTypeArguments = sourceTypeArguments

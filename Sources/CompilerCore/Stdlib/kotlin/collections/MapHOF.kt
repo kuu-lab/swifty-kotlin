@@ -507,6 +507,7 @@ public inline fun <K, V, R : Comparable<R>> Map<K, V>.maxByOrNull(
     val iterator = this.entries.iterator()
     if (!iterator.hasNext()) return null
     var maxEntry = iterator.next()
+    if (!iterator.hasNext()) return maxEntry
     var maxValue = selector(maxEntry)
     while (iterator.hasNext()) {
         val entry = iterator.next()
@@ -525,6 +526,7 @@ public inline fun <K, V, R : Comparable<R>> Map<K, V>.minByOrNull(
     val iterator = this.entries.iterator()
     if (!iterator.hasNext()) return null
     var minEntry = iterator.next()
+    if (!iterator.hasNext()) return minEntry
     var minValue = selector(minEntry)
     while (iterator.hasNext()) {
         val entry = iterator.next()
