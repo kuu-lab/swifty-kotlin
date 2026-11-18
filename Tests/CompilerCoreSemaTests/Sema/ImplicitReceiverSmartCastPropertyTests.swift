@@ -178,5 +178,75 @@ struct ImplicitReceiverSmartCastPropertyTests {
         try runSema(ctx)
         #expect(ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
+
+    // KUU-4607: the deferred local-function body keeps stable property flow
+    // facts from its declaration site instead of starting from an empty state.
+    @Test(arguments: [
+        "fun g(): String = p",
+        "fun g() = p",
+        "fun g(): String { return p }",
+    ])
+    func outerClassValMemberSmartCastsInsideLocalFunction(body: String) throws {
+        let ctx = makeContextFromSource("""
+        class C {
+            val p: String? = "ok"
+            fun f() {
+                if (p != null) {
+                    \(body)
+                    val s: String = g()
+                }
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func topLevelValPropertySmartCastsInsideLocalFunction() throws {
+        let ctx = makeContextFromSource("""
+        val top: String? = "ok"
+        fun f() {
+            if (top != null) {
+                fun g() = top
+                val s: String = g()
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test(arguments: [
+        // A mutable member property is not a stable smart-cast reference.
+        """
+        class C {
+            var p: String? = "ok"
+            fun f() {
+                if (p != null) {
+                    fun g() = p
+                    val s: String = g()
+                }
+            }
+        }
+        """,
+        // A custom getter can return a different value per call.
+        """
+        class C(private val raw: String?) {
+            val p: String? get() = raw
+            fun f() {
+                if (p != null) {
+                    fun g() = p
+                    val s: String = g()
+                }
+            }
+        }
+        """,
+    ])
+    func unstableOuterMemberDoesNotSmartCastInsideLocalFunction(body: String) throws {
+        let ctx = makeContextFromSource(body)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif
