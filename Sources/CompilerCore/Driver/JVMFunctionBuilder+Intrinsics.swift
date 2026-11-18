@@ -539,7 +539,7 @@ extension JVMFunctionBuilder {
             // below would miscompile the call (e.g. Collection.removeAll for
             // MutableCollection.removeAll(Array)). Members that keep bespoke
             // intrinsic lowering for their extension callees stay on this path.
-            if !["filterKeys", "filterValues", "mapKeys", "mapValues", "getOrElse", "getOrPut"].contains(member),
+            if !["filterKeys", "filterValues", "mapKeys", "mapValues", "getOrElse", "getOrPut", "forEach"].contains(member),
                collectionCallIsExtension(id) {
                 return nil
             }
@@ -618,6 +618,28 @@ extension JVMFunctionBuilder {
                 instructions.append(.copy(try convert(defaultValue, to: result), answer))
                 mark(end)
                 return JVMIntrinsicResult(value: answer)
+            case "forEach":
+                guard owner == "java/util/Map", values.count == 1,
+                      let signature = functionType(args[0].expr),
+                      signature.params.count == 1 || signature.params.count == 2
+                else { throw fail("JVM Map forEach requires a callback.", id) }
+                let entries = try jdkCall("java/util/Map", "entrySet", [], .reference("java/util/Set", nullable: false), receiver: source, interface: true)!
+                let iterator = try jdkCall("java/lang/Iterable", "iterator", [], .reference("java/util/Iterator", nullable: false), receiver: entries, interface: true)!
+                let test = label(), end = label()
+                mark(test)
+                let hasNext = try jdkCall("java/util/Iterator", "hasNext", [], .boolean, receiver: iterator, interface: true)!
+                instructions.append(.jumpIfFalse(hasNext, end))
+                let entry = try jdkCall("java/util/Iterator", "next", [], object, receiver: iterator, interface: true)!
+                if signature.params.count == 2 {
+                    let key = try jdkCall("java/util/Map$Entry", "getKey", [], object, receiver: entry, interface: true)!
+                    let value = try jdkCall("java/util/Map$Entry", "getValue", [], object, receiver: entry, interface: true)!
+                    _ = try invoke(values[0], signature: signature, arguments: [key, value], resultType: .unit)
+                } else {
+                    _ = try invoke(values[0], signature: signature, arguments: [entry], resultType: .unit)
+                }
+                jump(test)
+                mark(end)
+                return JVMIntrinsicResult(value: nil)
             case "containsAll": actual = member; parameters = [.reference("java/util/Collection", nullable: false)]; returns = .boolean
             case "isEmpty", "hasNext", "hasPrevious": actual = member; parameters = []; returns = .boolean
             case "nextIndex", "previousIndex": actual = member; parameters = []; returns = .int

@@ -51,5 +51,43 @@ extension JVMBackendTests {
             #expect(consumer.stderr.isEmpty)
         }
     }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func mapForEachSupportsEntryDestructuring(mode: EmitMode) throws {
+        let source = """
+        fun main() {
+            val analytics = mapOf("view" to 3, "click" to 1)
+            analytics.forEach { (dest, events) -> println("$dest:$events") }
+            analytics.forEach { entry -> println("${entry.key}=${entry.value}") }
+            analytics.forEach { dest, events -> println("[$dest]=$events") }
+        }
+        """
+        let expected = "view:3\nclick:1\nview=3\nclick=1\n[view]=3\n[click]=1\n"
+
+        try withWorkspace { root in
+            let runtime = try m11Runtime()
+            let app = try m22Build(
+                root: root,
+                sources: [("Main.kt", source)],
+                name: mode == .jvmJar ? "map-foreach.jar" : "map-foreach-classes",
+                mode: mode,
+                classpath: runtime.components(separatedBy: ":")
+            )
+            try #require(app.1 == 0, "\(app.2.map(\.message))")
+
+            let candidate = try java(["-cp", app.0.path + ":" + runtime, "MainKt"])
+            #expect(candidate.stdout == expected)
+            #expect(candidate.stderr.isEmpty)
+
+            _ = try jvmTool(
+                "kotlinc",
+                ["-cp", runtime, "Main.kt", "-d", "consumer.jar"],
+                root: root
+            )
+            let consumer = try java(["-cp", root.appendingPathComponent("consumer.jar").path + ":" + runtime, "MainKt"])
+            #expect(consumer.stdout == expected)
+            #expect(consumer.stderr.isEmpty)
+        }
+    }
 }
 #endif
