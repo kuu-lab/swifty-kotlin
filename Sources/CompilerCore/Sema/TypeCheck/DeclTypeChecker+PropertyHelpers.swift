@@ -58,6 +58,35 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine,
         baseLocals: LocalBindings = [:]
     ) -> TypeID? {
+        // An explicit getter return type must equal the property type, matching
+        // kotlinc ("getter return type must be equal to the type of the
+        // property"). When the property type is absent the builder has already
+        // adopted the getter's return type, so both sides resolve identically.
+        if property.type != nil,
+           let getterReturnTypeRef = getter.returnType,
+           let declaredType = inferredPropertyType,
+           declaredType != accessorCtx.sema.types.errorType
+        {
+            let getterReturnType = driver.helpers.resolveTypeRef(
+                getterReturnTypeRef,
+                ast: accessorCtx.ast,
+                sema: accessorCtx.sema,
+                interner: accessorCtx.interner,
+                scope: accessorCtx.scope,
+                diagnostics: diagnostics,
+                inferenceContext: accessorCtx,
+                usageRange: getter.range
+            )
+            if getterReturnType != accessorCtx.sema.types.errorType,
+               getterReturnType != declaredType
+            {
+                diagnostics.error(
+                    "KSWIFTK-SEMA-0469",
+                    "Getter return type must match the property type.",
+                    range: getter.range
+                )
+            }
+        }
         // A bodyless accessor uses the property's default getter. It does not
         // have a Unit-valued function body to constrain against the property.
         guard getter.body != .unit else { return inferredPropertyType }

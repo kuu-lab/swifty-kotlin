@@ -40,5 +40,34 @@ import Testing
         try JVMSourceValidationPhase().run(context)
         #expect(context.diagnostics.hasError)
     }
+
+    @Test(arguments: [
+        // Getters cannot declare parameters; only setters take the value.
+        "val x get(unused: Int): Int = 1",
+        "class A { val x get(unused: Int) { return 1 } }",
+        "class A { val x get(unused: Int): Int { return 1 } }",
+    ])
+    func rejectsGetterParameters(source: String) throws {
+        let context = makeContextFromSource(source, emit: .jvmJar)
+        try LexPhase().run(context)
+        try ParsePhase().run(context)
+        try JVMSourceValidationPhase().run(context)
+        try BuildASTPhase().run(context)
+        #expect(context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+    }
+
+    @Test(arguments: [
+        "val x get() = 1",
+        "class A { val x: Int get() = 1 }",
+        "class A { var x: Int = 0 get() = field set(value) { field = value } }",
+    ])
+    func acceptsParameterlessAccessors(source: String) throws {
+        let context = makeContextFromSource(source, emit: .jvmJar)
+        try LexPhase().run(context)
+        try ParsePhase().run(context)
+        try JVMSourceValidationPhase().run(context)
+        try BuildASTPhase().run(context)
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+    }
 }
 #endif
