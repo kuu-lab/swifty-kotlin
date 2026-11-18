@@ -8,7 +8,7 @@ struct CompoundAssignStableReceiverSmartCastTests {
     // KUU-4608: an in-place `plusAssign` mutates the receiver without rebinding
     // the captured local, so the stable member smart cast remains valid.
     @Test func inPlacePlusAssignKeepsCapturedMemberSmartCast() throws {
-        let ctx = makeContextFromSource("""
+        _ = try semaContext(from: """
         class Box(val s: String?)
         operator fun Box.plusAssign(i: Int) {}
         fun test() {
@@ -21,12 +21,10 @@ struct CompoundAssignStableReceiverSmartCastTests {
             println(read())
         }
         """)
-        try runSema(ctx)
-        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
     }
 
     @Test func inPlacePlusAssignKeepsDirectMemberSmartCast() throws {
-        let ctx = makeContextFromSource("""
+        _ = try semaContext(from: """
         class Box(val s: String?)
         operator fun Box.plusAssign(i: Int) {}
         fun test() {
@@ -38,27 +36,26 @@ struct CompoundAssignStableReceiverSmartCastTests {
             }
         }
         """)
-        try runSema(ctx)
-        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
     }
 
     // The `plus` fallback is `b = b.plus(1)`, an actual rebinding that can
     // replace the receiver, so the earlier member smart cast must stay invalid.
     @Test func plusFallbackStillInvalidatesMemberSmartCast() throws {
-        let ctx = makeContextFromSource("""
-        class Box(val s: String?)
-        operator fun Box.plus(i: Int): Box = this
-        fun test() {
-            var b = Box("ok")
-            if (b.s != null) {
-                b += 1
-                val y: String = b.s
-                println(y)
+        _ = try semaContext(
+            from: """
+            class Box(val s: String?)
+            operator fun Box.plus(i: Int): Box = this
+            fun test() {
+                var b = Box("ok")
+                if (b.s != null) {
+                    b += 1
+                    val y: String = b.s
+                    println(y)
+                }
             }
-        }
-        """)
-        try runSema(ctx)
-        #expect(ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+            """,
+            expecting: [.error("KSWIFTK-SEMA-0468", containing: "Initializer type mismatch.")]
+        )
     }
 }
 #endif
