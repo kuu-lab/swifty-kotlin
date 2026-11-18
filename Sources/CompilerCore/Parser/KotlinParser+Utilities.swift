@@ -169,7 +169,6 @@ extension KotlinParser {
 
         let parsesValueParameters = allowsValueParameters
             && opening == .lParen && closing == .rParen
-        var atValueParameterStart = true
         var valueParameterPrefixEnd: Int?
         var valueParameterTypeArgumentDepth = 0
         var valueParameterInDefaultValue = false
@@ -183,10 +182,12 @@ extension KotlinParser {
                 _ = consumeToken(into: &children, range: &range)
                 return arena.appendNode(kind: .statement, range: range.value ?? invalidRange, children)
             }
-            // A proven parameter prefix or anonymous default expression may
-            // cross a declaration-looking newline. Keep recovery boundaries
-            // for a missing ')' and following named declarations.
-            if parsesValueParameters, closingSymbols.count == 1, atValueParameterStart,
+            // A proven parameter prefix — including annotations or modifiers
+            // split across newlines inside one parameter — or an anonymous
+            // default expression may cross a declaration-looking newline.
+            // Keep recovery boundaries for a missing ')' and following named
+            // declarations.
+            if parsesValueParameters, closingSymbols.count == 1,
                hasLeadingNewline(token), isLikelyTopLevelDeclarationStart(token) {
                 valueParameterPrefixEnd = lookaheadValueParameterPrefixEnd()
             }
@@ -210,11 +211,9 @@ extension KotlinParser {
                 // A generic type's comma is not a new parameter. Conversely,
                 // '<' in a default expression may be a comparison, not a type.
                 if token.kind == .symbol(.comma), valueParameterTypeArgumentDepth == 0 {
-                    atValueParameterStart = true
                     valueParameterPrefixEnd = nil
                     valueParameterInDefaultValue = false
                 } else {
-                    atValueParameterStart = false
                     if token.kind == .symbol(.assign) {
                         valueParameterInDefaultValue = true
                     } else if token.kind == .symbol(.lessThan) {
