@@ -312,6 +312,7 @@ private struct JVMSourceGrammar {
                 }
                 if take(.softKeyword(.get)) {
                     try parameters()
+                    if take(.symbol(.colon)) { try type() }
                 } else if take(.softKeyword(.set)) {
                     if take(.symbol(.lParen)) {
                         try name()
