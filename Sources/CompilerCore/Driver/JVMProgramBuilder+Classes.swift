@@ -354,9 +354,13 @@ extension JVMProgramBuilder {
         }
     }
     func emitClasses() throws -> [JVMClass] {
-        var results: [JVMClass] = [], emitted: Set<SymbolID> = []
-        while let plan = classes.values.filter({ !emitted.contains($0.symbol) && (!$0.isAnonymous || $0.anonymousSuper != nil) }).sorted(by: { ($0.isAnonymous ? 1 : 0, $0.name) < ($1.isAnonymous ? 1 : 0, $1.name) }).first {
-            emitted.insert(plan.symbol)
+        var results: [JVMClass] = []
+        // `classes` is fully populated by prepareClasses before emission, so the
+        // deterministic emission order can be computed once instead of re-sorting
+        // every plan on each iteration.
+        let orderedPlans = classes.values.filter { !$0.isAnonymous || $0.anonymousSuper != nil }
+            .sorted { ($0.isAnonymous ? 1 : 0, $0.name) < ($1.isAnonymous ? 1 : 0, $1.name) }
+        for plan in orderedPlans {
             var functions: [JVMFunction] = []
             for (declaration, method) in plan.methods {
                 let builder = JVMFunctionBuilder(program: self, declaration: declaration, reference: JVMFunctionReference(name: method.name, parameters: method.parameters, result: method.result), owner: plan)
