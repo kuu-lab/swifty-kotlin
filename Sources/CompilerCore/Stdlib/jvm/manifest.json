@@ -153,18 +153,6 @@
       "runtimeFacade": "kotlin/PreconditionsKt"
     },
     {
-      "path": "kotlin/time/DurationUnit.kt",
-      "virtualPath": "<kswiftk-jvm>/durationUnit.kt",
-      "excludeFromStdlibBuild": true,
-      "commonSource": true
-    },
-    {
-      "path": "declarations/Duration.kt",
-      "virtualPath": "<kswiftk-jvm>/duration.kt",
-      "excludeFromStdlibBuild": true,
-      "runtimeFacade": "kotlin/time/DurationKt"
-    },
-    {
       "path": "declarations/KotlinTimeMeasureTime.kt",
       "virtualPath": "<kswiftk-jvm>/kotlin-time-measure-time.kt",
       "excludeFromStdlibBuild": true,
