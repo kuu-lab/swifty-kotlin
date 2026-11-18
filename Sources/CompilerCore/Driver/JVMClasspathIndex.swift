@@ -2347,19 +2347,21 @@ final class JVMClasspathIndex {
             receiver = kotlinType(type) + (suspend?.receiverIsNullable == true ? "?." : ".")
         }
         let javaTypes = javaGenericTypes(method)
-        let result = method.kotlinOwnerResultParameter.map { "`\($0)`" }
-            ?? method.genericResultParameter.map { "`\($0.name)`" }
-            ?? suspend?.sourceResult
-            ?? javaTypes?.result
-            ?? classTypeVariableSubstitution(for: method)?.result.map { "`\($0)`" }
-            ?? (kotlinType(method.sourceResult) + (suspend != nil && method.sourceResult.isNullable ? "?" : ""))
+        let classTypeVariables = classTypeVariableSubstitution(for: method)
+        let ownerResult = method.kotlinOwnerResultParameter.map { "`\($0)`" }
+        let genericResult = method.genericResultParameter.map { "`\($0.name)`" }
+        let javaResult = javaTypes?.result
+        let classVariableResult = classTypeVariables?.result.map { "`\($0)`" }
+        let erasedResult = kotlinType(method.sourceResult) + (suspend != nil && method.sourceResult.isNullable ? "?" : "")
+        let result = ownerResult ?? genericResult ?? suspend?.sourceResult
+            ?? javaResult ?? classVariableResult ?? erasedResult
         let generic = method.genericResultParameter.map { parameter -> String in
             let resultType = kotlinType(method.result)
             let bound = resultType == "kotlin.Any" ? "kotlin.Any?" : resultType
             return "<`\(parameter.name)`: \(bound)> "
         } ?? ""
         let modifier = suspend == nil ? "" : "suspend "
-        return modifier + "fun " + generic + "\(receiver)`\(method.sourceName)`(" + parameters(method, droppingReceiver: asExtension, javaTypes: javaTypes?.parameters) + "): " + result
+        return modifier + "fun " + generic + "\(receiver)`\(method.sourceName)`(" + parameters(method, droppingReceiver: asExtension, javaTypes: javaTypes?.parameters, classTypeVariables: classTypeVariables) + "): " + result
     }
 
     private func kotlinFunctionDeclaration(_ function: JVMKotlinFunction, asFacadeMember: Bool, acceptsDefaults: Bool) -> String {
@@ -2415,7 +2417,7 @@ final class JVMClasspathIndex {
             + "fun " + generics + receiver + "`\(function.name)`(" + parameters.joined(separator: ", ") + "): " + type(function.result)
     }
 
-    private func parameters(_ method: JVMForeignMethod, droppingReceiver: Bool = false, javaTypes: [String]? = nil) -> String {
+    private func parameters(_ method: JVMForeignMethod, droppingReceiver: Bool = false, javaTypes: [String]? = nil, classTypeVariables: (parameters: [Int: String], result: String?)? = nil) -> String {
         let suspend = method.kotlinSuspendFunction
         let types = method.sourceParameters.dropFirst(droppingReceiver ? 1 : 0)
         let receiverInParameters = suspend?.receiverIsNullable != nil && !droppingReceiver
@@ -2444,7 +2446,7 @@ final class JVMClasspathIndex {
             let parameterType: String
             if let generic = method.genericResultParameter, generic.classParameterIndices.contains(index) {
                 parameterType = "java.lang.Class<`\(generic.name)`>"
-            } else if let variable = classTypeVariableSubstitution(for: method)?.parameters[index] {
+            } else if let variable = classTypeVariables?.parameters[index] ?? classTypeVariableSubstitution(for: method)?.parameters[index] {
                 parameterType = "`\(variable)`"
             } else if isVararg, let name = parameter.referenceName, name.hasPrefix("["),
                let element = try? JVMDescriptor.parse("()" + String(name.dropFirst())).1 {
