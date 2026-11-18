@@ -2637,7 +2637,7 @@ final class JVMClasspathIndex {
             // signature references.
             markSourceTypes(Array(info.kotlinSupertypes.values))
             if let signature = info.genericSignature {
-                for supertype in javaSignatureSupertypes(signature) where supertype.binary == "java/lang/Comparable" {
+                for supertype in javaSignatureSupertypes(signature) {
                     for reference in supertype.referencedClasses
                     where lazyClassNames.contains(reference) && isInjected(reference) {
                         markNeeded(reference)
