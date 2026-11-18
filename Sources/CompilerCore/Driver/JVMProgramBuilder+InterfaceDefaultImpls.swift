@@ -344,13 +344,14 @@ extension JVMProgramBuilder {
             let interfaceType = JVMValueType.reference(candidate.owner, nullable: false)
             let parameters = [interfaceType] + candidate.method.parameters
             let defaultDescriptor = "(" + parameters.map(\.descriptor).joined() + ")" + candidate.method.result.descriptor
+            let dispatchOwner = candidate.source ? candidate.owner : (try? className(candidate.symbol)) ?? candidate.owner
             if !candidate.source,
                let legacyDefault = context.jvmImports?.classes[candidate.owner + "$DefaultImpls"]?.methods.first(where: {
                 $0.isStatic && $0.name == candidate.method.name && $0.descriptor == defaultDescriptor
             }) {
                 target = legacyDefault
             } else {
-                target = interfaceDefaultDispatchMethod(candidate.method, owner: candidate.owner, special: true)
+                target = interfaceDefaultDispatchMethod(candidate.method, owner: dispatchOwner, special: true)
             }
             var function = forwarder(
                 owner: plan.name,

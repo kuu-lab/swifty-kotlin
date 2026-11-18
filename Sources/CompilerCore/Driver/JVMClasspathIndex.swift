@@ -1624,8 +1624,12 @@ final class JVMClasspathIndex {
                 // diamond inherit two implementations (KSWIFTK-SEMA-0171).
                 // Java default accessors are already concrete in the classfile,
                 // so keep their Kotlin projection concrete as well.
-                let kind = pairedGetters.contains(memberKey(getter)) ? "var" : "val"
-                if kotlinProperty?.isAbstract == false || !getter.isAbstract {
+                let setter = shape.setterName.flatMap { setterName in
+                    own.first(where: { matchesSetter($0, name: setterName, type: propertyType) })
+                }
+                let kind = setter != nil ? "var" : "val"
+                let hasConcreteAccessors = !getter.isAbstract && (setter == nil || setter?.isAbstract == false)
+                if kotlinProperty?.isAbstract == false || hasConcreteAccessors {
                     source += modifiers + kind + " `\(propertyName)`: \(propertyType) get() = null!!"
                     if kind == "var" { source += " set(value) {}" }
                     source += "\n"

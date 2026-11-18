@@ -147,5 +147,77 @@ extension JVMBackendTests {
             #expect(run.stderr.isEmpty)
         }
     }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func javaIndirectInterfaceDefaultGetterUsesDirectSuperinterface(mode: EmitMode) throws {
+        try withWorkspace { root in
+            for (name, source) in [
+                "A": """
+                package dep;
+                public interface A { default String getTypeName() { return "indirect"; } }
+                """,
+                "B": """
+                package dep;
+                public interface B extends A {}
+                """,
+            ] {
+                try source.write(to: root.appendingPathComponent(name + ".java"), atomically: true, encoding: .utf8)
+            }
+            _ = try jvmTool("javac", ["--release", "8", "-d", "deps", "A.java", "B.java"], root: root)
+            _ = try jvmTool("jar", ["cf", "deps.jar", "-C", "deps", "."], root: root)
+
+            let source = """
+            import dep.B
+            class KotlinB : B
+            fun main() {
+                println(KotlinB().typeName)
+            }
+            """
+            let classpath = mode == .jvmJar ? root.appendingPathComponent("deps.jar").path : root.appendingPathComponent("deps").path
+            let result = try compile(source, root: root, mode: mode, classpath: [classpath])
+            #expect(result.0 == 0, "\(result.1.map(\.message))")
+            guard result.0 == 0 else { return }
+            let output = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path
+
+            let implementation = try jvmTool("javap", ["-p", "-c", "-classpath", output + ":" + classpath, "KotlinB"], root: root).stdout
+            #expect(implementation.contains("InterfaceMethod dep/B.getTypeName"))
+            #expect(!implementation.contains("InterfaceMethod dep/A.getTypeName"))
+
+            let run = try java(["-cp", output + ":" + classpath, "HelloKt"])
+            #expect(run.stdout == "indirect\n")
+            #expect(run.stderr.isEmpty)
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func javaDefaultGetterWithAbstractSetterDoesNotEmitSetterForwarder(mode: EmitMode) throws {
+        try withWorkspace { root in
+            let javaSource = """
+            package dep;
+            public interface Typed {
+                default String getTypeName() { return "typed"; }
+                void setTypeName(String value);
+            }
+            """
+            try javaSource.write(to: root.appendingPathComponent("Typed.java"), atomically: true, encoding: .utf8)
+            _ = try jvmTool("javac", ["--release", "8", "-d", "deps", "Typed.java"], root: root)
+            _ = try jvmTool("jar", ["cf", "deps.jar", "-C", "deps", "."], root: root)
+
+            let source = """
+            import dep.Typed
+            abstract class AbsTyped : Typed
+            fun main() {}
+            """
+            let classpath = mode == .jvmJar ? root.appendingPathComponent("deps.jar").path : root.appendingPathComponent("deps").path
+            let result = try compile(source, root: root, mode: mode, classpath: [classpath])
+            #expect(result.0 == 0, "\(result.1.map(\.message))")
+            guard result.0 == 0 else { return }
+            let output = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path
+
+            let implementation = try jvmTool("javap", ["-p", "-classpath", output + ":" + classpath, "AbsTyped"], root: root).stdout
+            #expect(implementation.contains("getTypeName()"))
+            #expect(!implementation.contains("setTypeName"))
+        }
+    }
 }
 #endif
