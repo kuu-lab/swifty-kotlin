@@ -1453,7 +1453,6 @@ package struct KnownCompilerNames {
             "mapIndexedNotNull", "dropLastWhile", "intersect", "union", "subtract",
             "takeLastWhile", "reversed",
             "reduceRight", "reduceRightIndexed", "reduceRightOrNull", "reduceRightIndexedOrNull",
-            "flatMapTo", "flatMapIndexedTo",
             "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
         ].map { interner.intern($0) })
         iterableMaxFamilyNames = Set([
