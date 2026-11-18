@@ -2507,11 +2507,13 @@ final class JVMClasspathIndex {
             receiver = kotlinType(type) + (suspend?.receiverIsNullable == true ? "?." : ".")
         }
         let javaTypes = javaGenericTypes(method)
-        let result = method.kotlinOwnerResultParameter.map { "`\($0)`" }
-            ?? suspend?.sourceResult
-            ?? javaTypes?.result
-            ?? method.genericResultParameter.map { "`\($0.name)`" }
-            ?? (kotlinType(method.sourceResult) + (suspend != nil && method.sourceResult.isNullable ? "?" : ""))
+        let ownerResult = method.kotlinOwnerResultParameter.map { "`\($0)`" }
+        let suspendResult = suspend?.sourceResult
+        let javaResult = javaTypes?.result
+        let genericResult = method.genericResultParameter.map { "`\($0.name)`" }
+        let fallbackResult = kotlinType(method.sourceResult)
+            + (suspend != nil && method.sourceResult.isNullable ? "?" : "")
+        let result = ownerResult ?? suspendResult ?? javaResult ?? genericResult ?? fallbackResult
         let generic = javaTypes.map {
             $0.typeParameters.isEmpty ? "" : "<" + $0.typeParameters.map { "`\($0)`" }.joined(separator: ", ") + "> "
         } ?? method.genericResultParameter.map { parameter -> String in

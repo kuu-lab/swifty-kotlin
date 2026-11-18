@@ -749,97 +749,98 @@ public func __kk_coroutine_continuation_resume_with(
     _ resultRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) {
-    outThrown?.pointee = 0
-    let resultAccess = runtimeResultAccessFromRaw(resultRaw)
-    defer { withExtendedLifetime(resultAccess) {} }
-    let sourceResume = kk_itable_lookup_dynamic(
-        continuation, Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.Continuation")), 0
-    )
-    if sourceResume != 0 {
-        let resume = unsafeBitCast(sourceResume, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Void).self)
-        var thrown = 0
-        resume(continuation, resultRaw, &thrown)
-        if let outThrown {
-            outThrown.pointee = thrown
-        } else if thrown != 0 {
-            _ = kk_native_processUnhandledException(thrown, nil)
-        }
-        return
-    }
-    guard let continuationPtr = UnsafeMutableRawPointer(bitPattern: continuation) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_coroutine_continuation_resume_with received invalid continuation handle")
-    }
-    if let callbackContinuation = tryCast(continuationPtr, to: RuntimeCallbackContinuation.self) {
-        callbackContinuation.resumeWith(UnsafeMutableRawPointer(bitPattern: resultRaw), outThrown: outThrown)
-        return
-    }
-    if isRegisteredRuntimeObjectPointer(continuation),
-       let nativeContinuation = Unmanaged<AnyObject>.fromOpaque(continuationPtr).takeUnretainedValue() as? KKContinuation
-    {
-        nativeContinuation.resumeWith(UnsafeMutableRawPointer(bitPattern: resultRaw))
-        return
-    }
-    guard let state = runtimeContinuationState(from: continuation) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_coroutine_continuation_resume_with received invalid continuation handle")
-    }
-
-    if let start = state.takeUninterceptedCoroutineStart() {
-        if let access = resultAccess, !access.box.isSuccess
-        {
-            state.releaseInterception(continuationRaw: continuation)
-            if start.completionContinuation != 0 {
-                __kk_coroutine_continuation_resume_with(
-                    start.completionContinuation,
-                    runtimeResultFailure(access.box.exception),
-                    outThrown
-                )
-            }
-            _ = kk_coroutine_state_exit(continuation, 0)
-            return
-        }
-        // KUU-2689: a MODE_CANCELLABLE start whose context Job is no longer
-        // active at this resume boundary (inline or on the dispatcher queue)
-        // completes the continuation with the job's CancellationException
-        // without running the block.
-        if start.cancellableStart,
-           let cancellationException = state.unstartedCoroutineCancellationException()
-        {
-            state.releaseInterception(continuationRaw: continuation)
-            if start.completionContinuation != 0 {
-                __kk_coroutine_continuation_resume_with(
-                    start.completionContinuation,
-                    runtimeResultFailure(cancellationException),
-                    outThrown
-                )
-            }
-            _ = kk_coroutine_state_exit(continuation, 0)
-            return
-        }
-        startUninterceptedCoroutineFromResume(
-            entryPointRaw: start.entryPointRaw,
-            continuation: continuation,
-            completionContinuation: start.completionContinuation,
-            outThrown: outThrown
+    runtimeThrowingBridge(outThrown) {
+        let resultAccess = runtimeResultAccessFromRaw(resultRaw)
+        defer { withExtendedLifetime(resultAccess) {} }
+        let sourceResume = kk_itable_lookup_dynamic(
+            continuation, Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.Continuation")), 0
         )
-        return
-    }
-
-    if let access = resultAccess {
-        let resultBox = access.box
-        let ise: Int?
-        if resultBox.isSuccess {
-            ise = state.resume(with: resultBox.value, outThrown: outThrown)
-        } else {
-            ise = state.resume(withException: resultBox.exception, outThrown: outThrown)
+        if sourceResume != 0 {
+            let resume = unsafeBitCast(sourceResume, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Void).self)
+            var thrown = 0
+            resume(continuation, resultRaw, &thrown)
+            if let outThrown {
+                outThrown.pointee = thrown
+            } else if thrown != 0 {
+                _ = kk_native_processUnhandledException(thrown, nil)
+            }
+            return
         }
-        if let ise {
+        guard let continuationPtr = UnsafeMutableRawPointer(bitPattern: continuation) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_coroutine_continuation_resume_with received invalid continuation handle")
+        }
+        if let callbackContinuation = tryCast(continuationPtr, to: RuntimeCallbackContinuation.self) {
+            callbackContinuation.resumeWith(UnsafeMutableRawPointer(bitPattern: resultRaw), outThrown: outThrown)
+            return
+        }
+        if isRegisteredRuntimeObjectPointer(continuation),
+           let nativeContinuation = Unmanaged<AnyObject>.fromOpaque(continuationPtr).takeUnretainedValue() as? KKContinuation
+        {
+            nativeContinuation.resumeWith(UnsafeMutableRawPointer(bitPattern: resultRaw))
+            return
+        }
+        guard let state = runtimeContinuationState(from: continuation) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_coroutine_continuation_resume_with received invalid continuation handle")
+        }
+
+        if let start = state.takeUninterceptedCoroutineStart() {
+            if let access = resultAccess, !access.box.isSuccess
+            {
+                state.releaseInterception(continuationRaw: continuation)
+                if start.completionContinuation != 0 {
+                    __kk_coroutine_continuation_resume_with(
+                        start.completionContinuation,
+                        runtimeResultFailure(access.box.exception),
+                        outThrown
+                    )
+                }
+                _ = kk_coroutine_state_exit(continuation, 0)
+                return
+            }
+            // KUU-2689: a MODE_CANCELLABLE start whose context Job is no longer
+            // active at this resume boundary (inline or on the dispatcher queue)
+            // completes the continuation with the job's CancellationException
+            // without running the block.
+            if start.cancellableStart,
+               let cancellationException = state.unstartedCoroutineCancellationException()
+            {
+                state.releaseInterception(continuationRaw: continuation)
+                if start.completionContinuation != 0 {
+                    __kk_coroutine_continuation_resume_with(
+                        start.completionContinuation,
+                        runtimeResultFailure(cancellationException),
+                        outThrown
+                    )
+                }
+                _ = kk_coroutine_state_exit(continuation, 0)
+                return
+            }
+            startUninterceptedCoroutineFromResume(
+                entryPointRaw: start.entryPointRaw,
+                continuation: continuation,
+                completionContinuation: start.completionContinuation,
+                outThrown: outThrown
+            )
+            return
+        }
+
+        if let access = resultAccess {
+            let resultBox = access.box
+            let ise: Int?
+            if resultBox.isSuccess {
+                ise = state.resume(with: resultBox.value, outThrown: outThrown)
+            } else {
+                ise = state.resume(withException: resultBox.exception, outThrown: outThrown)
+            }
+            if let ise {
+                state.deliverDoubleResumeException(ise)
+            }
+            return
+        }
+
+        if let ise = state.resume(with: resultRaw, outThrown: outThrown) {
             state.deliverDoubleResumeException(ise)
         }
-        return
-    }
-
-    if let ise = state.resume(with: resultRaw, outThrown: outThrown) {
-        state.deliverDoubleResumeException(ise)
     }
 }
 

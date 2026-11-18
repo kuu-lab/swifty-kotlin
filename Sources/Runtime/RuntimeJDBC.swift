@@ -326,19 +326,20 @@ public func kk_jdbc_prepared_statement_set_double(
     _ valueBits: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) {
-    outThrown?.pointee = 0
-    guard let statement = runtimeJDBCCheckStatement(statementRaw, outThrown: outThrown),
-          statement.isPrepared, let sqliteStatement = statement.sqliteStatement,
-          let index = Int32(exactly: parameterIndex), parameterIndex >= 1
-    else {
-        if outThrown?.pointee == 0 { runtimeJDBCSetError("Prepared statement parameter index is invalid", outThrown) }
-        return
-    }
-    if let resultSet = statement.resultSet { runtimeJDBCCloseResultSet(resultSet) }
-    let value = Double(bitPattern: UInt64(bitPattern: Int64(valueBits)))
-    let result = sqlite3_bind_double(sqliteStatement, index, value)
-    if result != SQLITE_OK {
-        runtimeJDBCSetError(runtimeJDBCErrorMessage(statement.connection?.database, fallback: "Unable to bind Double"), outThrown)
+    runtimeThrowingBridge(outThrown) {
+        guard let statement = runtimeJDBCCheckStatement(statementRaw, outThrown: outThrown),
+              statement.isPrepared, let sqliteStatement = statement.sqliteStatement,
+              let index = Int32(exactly: parameterIndex), parameterIndex >= 1
+        else {
+            if outThrown?.pointee == 0 { runtimeJDBCSetError("Prepared statement parameter index is invalid", outThrown) }
+            return
+        }
+        if let resultSet = statement.resultSet { runtimeJDBCCloseResultSet(resultSet) }
+        let value = Double(bitPattern: UInt64(bitPattern: Int64(valueBits)))
+        let result = sqlite3_bind_double(sqliteStatement, index, value)
+        if result != SQLITE_OK {
+            runtimeJDBCSetError(runtimeJDBCErrorMessage(statement.connection?.database, fallback: "Unable to bind Double"), outThrown)
+        }
     }
 }
 
@@ -349,19 +350,20 @@ public func kk_jdbc_prepared_statement_set_int(
     _ value: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) {
-    outThrown?.pointee = 0
-    guard let statement = runtimeJDBCCheckStatement(statementRaw, outThrown: outThrown),
-          statement.isPrepared, let sqliteStatement = statement.sqliteStatement,
-          let index = Int32(exactly: parameterIndex), parameterIndex >= 1,
-          let sqliteValue = Int32(exactly: value)
-    else {
-        if outThrown?.pointee == 0 { runtimeJDBCSetError("Prepared statement parameter index or Int value is invalid", outThrown) }
-        return
-    }
-    if let resultSet = statement.resultSet { runtimeJDBCCloseResultSet(resultSet) }
-    let result = sqlite3_bind_int(sqliteStatement, index, sqliteValue)
-    if result != SQLITE_OK {
-        runtimeJDBCSetError(runtimeJDBCErrorMessage(statement.connection?.database, fallback: "Unable to bind Int"), outThrown)
+    runtimeThrowingBridge(outThrown) {
+        guard let statement = runtimeJDBCCheckStatement(statementRaw, outThrown: outThrown),
+              statement.isPrepared, let sqliteStatement = statement.sqliteStatement,
+              let index = Int32(exactly: parameterIndex), parameterIndex >= 1,
+              let sqliteValue = Int32(exactly: value)
+        else {
+            if outThrown?.pointee == 0 { runtimeJDBCSetError("Prepared statement parameter index or Int value is invalid", outThrown) }
+            return
+        }
+        if let resultSet = statement.resultSet { runtimeJDBCCloseResultSet(resultSet) }
+        let result = sqlite3_bind_int(sqliteStatement, index, sqliteValue)
+        if result != SQLITE_OK {
+            runtimeJDBCSetError(runtimeJDBCErrorMessage(statement.connection?.database, fallback: "Unable to bind Int"), outThrown)
+        }
     }
 }
 

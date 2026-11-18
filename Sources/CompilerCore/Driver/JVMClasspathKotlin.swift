@@ -79,7 +79,7 @@ extension JVMClasspathIndex {
                 return variance + kotlinSourceType(type, parameters: parameters)
             }
             return base + (args.isEmpty ? "" : "<" + args.joined(separator: ", ") + ">") + (nullable ? "?" : "")
-        case .parameter(let id, let nullable, let definitelyNotNull):
+        case .parameter(let id, let nullable, _):
             guard let parameter = parameters[id] else { return "kotlin.Any?" }
             return "`\(parameter)`" + (nullable ? "?" : "")
         case .flexible(let lower, _):
