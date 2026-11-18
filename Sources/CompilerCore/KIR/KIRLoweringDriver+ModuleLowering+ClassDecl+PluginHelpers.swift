@@ -1,5 +1,3 @@
-import RuntimeABI
-
 extension KIRLoweringDriver {
     /// Allocates an instance of `ownerSymbol` via `kk_object_new` and performs
     /// supertype, itable, and vtable runtime registrations.

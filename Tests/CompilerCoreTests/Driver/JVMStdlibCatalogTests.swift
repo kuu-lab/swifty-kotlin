@@ -32,6 +32,18 @@ struct JVMStdlibCatalogTests {
         }
     }
 
+    @Test
+    func manifestDeclarationVirtualPathsAreUnique() throws {
+        let manifestURL = try JVMStdlibCatalog.resourceRoot()
+            .appendingPathComponent("jvm/manifest.json")
+        let manifest = try JSONDecoder().decode(
+            JVMStdlibCatalog.Manifest.self,
+            from: Data(contentsOf: manifestURL)
+        )
+        let paths = manifest.declarations.map(\.virtualPath)
+        #expect(paths.count == Set(paths).count)
+    }
+
     /// KUU-4586: racing PRs re-added identical top-level contracts in different
     /// declarations files (e.g. `ByteArray.decodeToString`), which makes
     /// consumer compiles fail with "Duplicate JVM-erased callable declaration

@@ -250,8 +250,7 @@ enum GoldenHarnessDump {
                 targets: caseSpec.targets,
                 ctx: ctx,
                 sema: sema,
-                sourceManager: sourceManager,
-                interner: interner
+                sourceManager: sourceManager
             ))
         }
         return outputLines.joined(separator: "\n") + "\n"

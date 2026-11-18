@@ -108,8 +108,9 @@ private let runtimeKCallableNameGetter: @convention(c) (
 private let runtimeKCallableReturnTypeGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
     raw,
     outThrown in
-    outThrown?.pointee = 0
-    return __kk_kcallable_get_return_type(raw)
+    runtimeThrowingBridge(outThrown) {
+        return __kk_kcallable_get_return_type(raw)
+    }
 }
 
 private let runtimeKProperty1Get: @convention(c) (
@@ -126,11 +127,12 @@ private let runtimeKProperty1GetDelegate: @convention(c) (
     Int,
     UnsafeMutablePointer<Int>?
 ) -> Int = { raw, _, outThrown in
-    outThrown?.pointee = 0
-    guard let property = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self) else {
-        return runtimeNullSentinelInt
+    runtimeThrowingBridge(outThrown) {
+        guard let property = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self) else {
+            return runtimeNullSentinelInt
+        }
+        return property.delegateRaw != 0 ? property.delegateRaw : runtimeNullSentinelInt
     }
-    return property.delegateRaw != 0 ? property.delegateRaw : runtimeNullSentinelInt
 }
 
 /// Installs the member-property methods on the unbound KProperty1 interface.

@@ -773,6 +773,9 @@ final class TypeCheckDriver {
         isCheckingSourceOrderBodies = true
         for file in files {
             guard let inferCtx = inferenceContext(for: file) else { continue }
+            let skipResidualStdlibBodies = compilationContext.map {
+                !$0.options.stdlibOnly && $0.sourceManager.origin(of: file.fileID) == .residualStdlib
+            } ?? false
             for declID in file.topLevelDecls {
                 guard let decl = ast.arena.decl(declID),
                       let declSymbol = sema.bindings.declSymbols[declID]
@@ -805,6 +808,13 @@ final class TypeCheckDriver {
                 case let .funDecl(function):
                     if compilationContext?.deferredJVMInlineBodies[declID] != nil {
                         deferredJVMInlineBodies[declSymbol] = (declID, function, inferCtx.with(currentDeclSymbol: declSymbol))
+                        continue
+                    }
+                    // Consumer JVM compiles inject residual-stdlib declarations for
+                    // signatures only; their non-inline bodies are stubs and are not
+                    // emitted. Skip the fixed body-check cost; inline bodies still use
+                    // the deferred path above.
+                    if skipResidualStdlibBodies && !function.isInline {
                         continue
                     }
                     declChecker.typeCheckFunctionDecl(

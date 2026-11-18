@@ -1,5 +1,3 @@
-import RuntimeABI
-
 extension KIRLoweringDriver {
     /// Synthesizes KIR bodies for `@Serializable` classes:
     ///   - `Companion.serializer()` returning a real `$serializer` instance

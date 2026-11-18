@@ -17,8 +17,6 @@ import Foundation
 /// underneath that drain then tries to join the very produce job whose burst
 /// owns the parked emitter.
 final class RuntimeBurstJobStack: @unchecked Sendable {
-    static let shared = RuntimeBurstJobStack()
-
     private static let pthreadKey = makePthreadKey()
 
     private let lock = NSLock()

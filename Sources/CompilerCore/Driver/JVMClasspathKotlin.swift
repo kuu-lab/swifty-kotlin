@@ -39,27 +39,6 @@ extension JVMClasspathIndex {
         return nil
     }
 
-    func kotlinFunctionDeclaration(_ function: JVMKotlinFunctionInfo, owner: JVMClassInfo, includeReceiver: Bool = true) -> String {
-        let typeParameters = (kotlinMetadata(owner)?.typeParameters ?? []) + function.typeParameters
-        let names = Dictionary(typeParameters.map { ($0.id, $0.name) }, uniquingKeysWith: { _, name in name })
-        let type = { (type: JVMKotlinType) in self.kotlinSourceType(type, parameters: names) }
-        let genericParameters = function.typeParameters.map { parameter in
-            let bound = parameter.bounds.first.map { ": " + type($0) } ?? ""
-            return "`\(parameter.name)`" + bound
-        }
-        let generics = genericParameters.isEmpty ? "" : "<" + genericParameters.joined(separator: ", ") + "> "
-        var parameters = kotlinParameterDeclarations(function.parameters, typeParameters: names)
-        let receiver: String
-        if let extensionType = function.receiver {
-            if includeReceiver { receiver = type(extensionType) + "." }
-            else { receiver = ""; parameters.insert("receiver: " + type(extensionType), at: 0) }
-        } else { receiver = "" }
-        let operatorModifier = function.isOperator && (includeReceiver || function.receiver == nil) ? "operator " : ""
-        let infixModifier = function.isInfix && (includeReceiver || function.receiver == nil) ? "infix " : ""
-        return operatorModifier + infixModifier + (function.isSuspend ? "suspend " : "")
-            + "fun " + generics + receiver + "`\(function.name)`(" + parameters.joined(separator: ", ") + "): " + type(function.result)
-    }
-
     func kotlinParameterDeclarations(_ parameters: [JVMKotlinParameterInfo], typeParameters: [Int: String]) -> [String] {
         parameters.map { parameter in
             let modifier = parameter.varargType == nil ? "" : "vararg "
@@ -79,7 +58,7 @@ extension JVMClasspathIndex {
                 return variance + kotlinSourceType(type, parameters: parameters)
             }
             return base + (args.isEmpty ? "" : "<" + args.joined(separator: ", ") + ">") + (nullable ? "?" : "")
-        case .parameter(let id, let nullable, let definitelyNotNull):
+        case .parameter(let id, let nullable, _):
             guard let parameter = parameters[id] else { return "kotlin.Any?" }
             return "`\(parameter)`" + (nullable ? "?" : "")
         case .flexible(let lower, _):

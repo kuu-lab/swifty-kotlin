@@ -543,7 +543,7 @@ struct BuildASTBodyParsingRegressionTests {
             let xName = interner.intern("x")
             for path in paths {
                 let fileID = try #require(ctx.sourceManager.fileID(forPath: path))
-                let file = try #require(ast.files.first { $0.fileID == fileID })
+                _ = try #require(ast.files.first { $0.fileID == fileID })
                 let funDecl = try #require(ast.arena.declarations().compactMap { decl -> FunDecl? in
                     guard case let .funDecl(funDecl) = decl,
                           funDecl.name == gName

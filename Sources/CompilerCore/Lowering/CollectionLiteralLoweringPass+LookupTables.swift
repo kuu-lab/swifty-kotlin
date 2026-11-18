@@ -350,7 +350,6 @@ final class CollectionLiteralLookupTables {
     var foldIndexedName: InternedString { commonLookup.foldIndexedName }
     var reduceIndexedName: InternedString { commonLookup.reduceIndexedName }
     var filterIndexedName: InternedString { commonLookup.filterIndexedName }
-    var runningFoldIndexedName: InternedString { commonLookup.runningFoldIndexedName }
     var maxName: InternedString { commonLookup.maxName }
     var maxOrNullName: InternedString { commonLookup.maxOrNullName }
     var minOrNullName: InternedString { commonLookup.minOrNullName }

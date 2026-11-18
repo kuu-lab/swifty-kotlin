@@ -677,28 +677,32 @@ func runtimeCoroutineContextElementMethod(_ receiver: Int, _ interfaceTypeID: In
     switch methodSlot {
     case 0:
         let get: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { receiver, key, outThrown in
-            outThrown?.pointee = 0
-            let element = kk_context_get(receiver, key)
-            return element == 0 ? runtimeNullSentinelInt : element
+            runtimeThrowingBridge(outThrown) {
+                let element = kk_context_get(receiver, key)
+                return element == 0 ? runtimeNullSentinelInt : element
+            }
         }
         return unsafeBitCast(get, to: Int.self)
     case 1:
         let fold: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
             receiver, initial, operation, closure, outThrown in
-            outThrown?.pointee = 0
-            return kk_context_fold(receiver, initial, operation, closure, outThrown)
+            runtimeThrowingBridge(outThrown) {
+                return kk_context_fold(receiver, initial, operation, closure, outThrown)
+            }
         }
         return unsafeBitCast(fold, to: Int.self)
     case 2:
         let minusKey: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { receiver, key, outThrown in
-            outThrown?.pointee = 0
-            return kk_context_minusKey(receiver, key)
+            runtimeThrowingBridge(outThrown) {
+                return kk_context_minusKey(receiver, key)
+            }
         }
         return unsafeBitCast(minusKey, to: Int.self)
     case 3:
         let getter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { receiver, outThrown in
-            outThrown?.pointee = 0
-            return runtimeCoroutineElementKeyHandle(for: receiver)
+            runtimeThrowingBridge(outThrown) {
+                return runtimeCoroutineElementKeyHandle(for: receiver)
+            }
         }
         return unsafeBitCast(getter, to: Int.self)
     default:
@@ -1135,33 +1139,34 @@ public func __kk_start_coroutine_cancellable(
     _ completionRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) {
-    outThrown?.pointee = 0
-    var thrown = 0
-    let coroutine = kk_create_coroutine_unintercepted_no_receiver(
-        functionRaw, 0, completionRaw
-    )
-    let intercepted = __kk_continuation_intercepted(
-        coroutine, kk_continuation_interceptor_key(), &thrown
-    )
-    if thrown == 0 {
-        if isRegisteredRuntimeObjectPointer(intercepted),
-           let ptr = UnsafeMutableRawPointer(bitPattern: intercepted),
-           let wrapper = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue() as? KKInterceptedContinuation,
-           let generated = wrapper.continuation as? RuntimeGeneratedContinuation
-        {
-            generated.state.markCancellableCoroutineStart()
+    runtimeThrowingBridge(outThrown) {
+        var thrown = 0
+        let coroutine = kk_create_coroutine_unintercepted_no_receiver(
+            functionRaw, 0, completionRaw
+        )
+        let intercepted = __kk_continuation_intercepted(
+            coroutine, kk_continuation_interceptor_key(), &thrown
+        )
+        if thrown == 0 {
+            if isRegisteredRuntimeObjectPointer(intercepted),
+               let ptr = UnsafeMutableRawPointer(bitPattern: intercepted),
+               let wrapper = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue() as? KKInterceptedContinuation,
+               let generated = wrapper.continuation as? RuntimeGeneratedContinuation
+            {
+                generated.state.markCancellableCoroutineStart()
+            }
+            __kk_coroutine_continuation_resume_with(
+                intercepted,
+                runtimeResultSuccess(kk_box_unit(0)),
+                &thrown
+            )
         }
-        __kk_coroutine_continuation_resume_with(
-            intercepted,
-            runtimeResultSuccess(kk_box_unit(0)),
-            &thrown
-        )
-    }
-    if thrown != 0 {
-        __kk_coroutine_continuation_resume_with(
-            completionRaw, runtimeResultFailure(thrown), nil
-        )
-        outThrown?.pointee = thrown
+        if thrown != 0 {
+            __kk_coroutine_continuation_resume_with(
+                completionRaw, runtimeResultFailure(thrown), nil
+            )
+            outThrown?.pointee = thrown
+        }
     }
 }
 
@@ -1237,14 +1242,16 @@ func runtimeDispatcherInterceptorMethod(_ receiver: Int, _ interfaceTypeID: Int,
     switch methodSlot {
     case 0:
         let intercept: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { receiver, continuation, outThrown in
-            outThrown?.pointee = 0
-            return kk_continuation_interceptor_intercept_continuation(receiver, continuation)
+            runtimeThrowingBridge(outThrown) {
+                return kk_continuation_interceptor_intercept_continuation(receiver, continuation)
+            }
         }
         return unsafeBitCast(intercept, to: Int.self)
     case 1:
         let release: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, outThrown in
-            outThrown?.pointee = 0
-            return 0
+            runtimeThrowingBridge(outThrown) {
+                return 0
+            }
         }
         return unsafeBitCast(release, to: Int.self)
     default:

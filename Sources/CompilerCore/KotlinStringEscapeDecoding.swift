@@ -12,6 +12,32 @@ private let simpleKotlinStringEscapes: [Character: Character] = [
     "b": "\u{08}",
 ]
 
+/// Kotlin normalizes CR and CRLF line endings to LF inside raw string literals
+/// at compile time, regardless of the platform the compiler runs on.
+/// Iterates Unicode scalars because Swift treats CRLF as a single grapheme cluster.
+internal func normalizeKotlinRawStringLineEndings(_ value: String) -> String {
+    guard value.contains("\r") else { return value }
+    var result = String.UnicodeScalarView()
+    var index = value.unicodeScalars.startIndex
+    let end = value.unicodeScalars.endIndex
+    while index < end {
+        let scalar = value.unicodeScalars[index]
+        if scalar == "\r" {
+            result.append("\n")
+            let next = value.unicodeScalars.index(after: index)
+            if next < end, value.unicodeScalars[next] == "\n" {
+                index = value.unicodeScalars.index(after: next)
+            } else {
+                index = next
+            }
+        } else {
+            result.append(scalar)
+            index = value.unicodeScalars.index(after: index)
+        }
+    }
+    return String(result)
+}
+
 /// Decodes standard Kotlin string-literal escape sequences (`\n`, `\\`, `\"`,
 /// `\uXXXX` including surrogate pairs, etc.) so that text reconstructed from
 /// raw lexer tokens matches the value a user would see at runtime.
