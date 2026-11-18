@@ -4,19 +4,15 @@ extension KotlinLexer {
     }
 
     func byte(at index: Int) -> UInt8 {
-        bytes.withUnsafeBytes { buffer in
-            guard index >= 0, index < buffer.count else { return 0 }
-            return buffer[index]
-        }
+        guard index >= 0, index < bytes.count else { return 0 }
+        return bytes[index]
     }
 
     func byteSlice(_ range: Range<Int>) -> [UInt8] {
-        bytes.withUnsafeBytes { buffer in
-            let start = max(0, min(range.lowerBound, buffer.count))
-            let end = max(start, min(range.upperBound, buffer.count))
-            guard start < end else { return [] }
-            return Array(buffer[start ..< end])
-        }
+        let start = max(0, min(range.lowerBound, bytes.count))
+        let end = max(start, min(range.upperBound, bytes.count))
+        guard start < end else { return [] }
+        return Array(bytes[start ..< end])
     }
 
     func isIdentifierStart(_ ch: UInt8) -> Bool {
@@ -63,21 +59,17 @@ extension KotlinLexer {
     }
 
     func starts<Bytes: Collection>(with literal: Bytes, at position: Int) -> Bool where Bytes.Element == UInt8 {
-        // Compare the UTF-8 view or precomputed symbol bytes directly, without
-        // allocating a temporary array for each prefix check.
-        bytes.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) in
-            guard position >= 0, position <= buffer.count,
-                  literal.count <= buffer.count - position
-            else {
-                return false
-            }
-            var cursor = position
-            for expected in literal {
-                guard buffer[cursor] == expected else { return false }
-                cursor += 1
-            }
-            return true
+        guard position >= 0, position <= bytes.count,
+              literal.count <= bytes.count - position
+        else {
+            return false
         }
+        var cursor = position
+        for expected in literal {
+            guard bytes[cursor] == expected else { return false }
+            cursor += 1
+        }
+        return true
     }
 
     func text(from range: Range<Int>) -> String {

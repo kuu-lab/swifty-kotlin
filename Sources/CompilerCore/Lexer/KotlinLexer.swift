@@ -2,7 +2,7 @@ import Foundation
 
 final class KotlinLexer {
     let file: FileID
-    let bytes: Data
+    let bytes: [UInt8]
     let interner: StringInterner
     let diagnostics: DiagnosticEngine
 
@@ -13,7 +13,7 @@ final class KotlinLexer {
 
     init(file: FileID, source: Data, interner: StringInterner, diagnostics: DiagnosticEngine) {
         self.file = file
-        bytes = source
+        bytes = [UInt8](source)
         self.interner = interner
         self.diagnostics = diagnostics
     }
