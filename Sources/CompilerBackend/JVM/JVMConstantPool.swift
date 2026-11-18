@@ -42,9 +42,9 @@ final class JVMConstantPool {
     private var indices: [Data: UInt16] = [:]
     private var bootstrapMethods: [JVMBootstrapMethod] = []
     private var bootstrapIndices: [JVMBootstrapMethod: UInt16] = [:]
-    private var utf8Indices: [String: UInt16] = [:]
-    private var kotlinUtf8Indices: [String: UInt16] = [:]
-    private var classInfoIndices: [String: UInt16] = [:]
+    private var utf8Indices: [[UInt16]: UInt16] = [:]
+    private var kotlinUtf8Indices: [[UInt16]: UInt16] = [:]
+    private var classInfoIndices: [UInt16: UInt16] = [:]
     private(set) var referencedClassNames: Set<String> = []
 
     func intern(_ entry: JVMBytes, wide: Bool = false) throws -> UInt16 {
@@ -63,10 +63,10 @@ final class JVMConstantPool {
         if !kotlinLiteral, value.contains("L"), value.contains(";") {
             referencedClassNames.formUnion(Self.classReferences(in: value))
         }
-        if kotlinLiteral {
-            if let index = kotlinUtf8Indices[value] { return index }
-        } else if let index = utf8Indices[value] { return index }
         let units = kotlinLiteral ? KotlinStringSurrogateEncoding.utf16CodeUnits(value) : Array(value.utf16)
+        if kotlinLiteral {
+            if let index = kotlinUtf8Indices[units] { return index }
+        } else if let index = utf8Indices[units] { return index }
         var encoded = Data()
         // CONSTANT_Utf8 uses modified UTF-8 over UTF-16 code units: NUL is
         // encoded as C0 80 and supplementary characters as two surrogate units.
@@ -88,7 +88,7 @@ final class JVMConstantPool {
         var entry = JVMBytes()
         entry.u1(1); entry.u2(UInt16(encoded.count)); entry.data.append(encoded)
         let index = try intern(entry)
-        if kotlinLiteral { kotlinUtf8Indices[value] = index } else { utf8Indices[value] = index }
+        if kotlinLiteral { kotlinUtf8Indices[units] = index } else { utf8Indices[units] = index }
         return index
     }
 
@@ -110,10 +110,10 @@ final class JVMConstantPool {
         } else {
             referencedClassNames.insert(name)
         }
-        if let index = classInfoIndices[name] { return index }
         let nameIndex = try utf8(name)
+        if let index = classInfoIndices[nameIndex] { return index }
         let index = try single(7, nameIndex)
-        classInfoIndices[name] = index
+        classInfoIndices[nameIndex] = index
         return index
     }
 

@@ -89,6 +89,27 @@ struct JVMBackendTests {
         }
     }
 
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func canonicallyEquivalentStringLiteralsKeepDistinctUtf16(mode: EmitMode) throws {
+        try withWorkspace { root in
+            let source = #"""
+            fun main() {
+                val composed = "\u00E9"
+                val decomposed = "e\u0301"
+                println(composed.length)
+                println(decomposed.length)
+            }
+            """#
+            let result = try compile(source, root: root, mode: mode)
+            #expect(result.0 == 0, "\(result.1.map(\.message))")
+            let execution = try java(mode == .jvmJar
+                ? ["-jar", root.appendingPathComponent("hello.jar").path]
+                : ["-cp", root.appendingPathComponent("classes").path, "HelloKt"])
+            #expect(execution.stdout == "1\n2\n")
+            #expect(execution.stderr.isEmpty)
+        }
+    }
+
     @Test(arguments: ["fun main() {}", "fun main() = println(\"expression\")"])
     func emptyAndExpressionBodies(source: String) throws {
         try withWorkspace { root in
