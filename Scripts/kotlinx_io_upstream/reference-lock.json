@@ -384,10 +384,10 @@
       "sha256": "8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4"
     },
     {
-      "coordinate": "org.junit.platform:junit-platform-console-standalone:1.12.2",
-      "url": "https://repo.maven.apache.org/maven2/org/junit/platform/junit-platform-console-standalone/1.12.2/junit-platform-console-standalone-1.12.2.jar",
-      "sha256": "329bd10288875a74d04c9ca6b7c9889c265ddf87b21a9ea42a7f7392f391472a",
-      "bytes": 2950047
+      "coordinate": "org.junit.platform:junit-platform-console-standalone:1.14.4",
+      "url": "https://repo.maven.apache.org/maven2/org/junit/platform/junit-platform-console-standalone/1.14.4/junit-platform-console-standalone-1.14.4.jar",
+      "sha256": "7c6968cbcaf4301c729f202b23b7d736c5d88be625fc7d27ad5d746146a8bc28",
+      "bytes": 3178851
     }
   ],
   "sdk_files": [
