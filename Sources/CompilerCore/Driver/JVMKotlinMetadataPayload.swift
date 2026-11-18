@@ -230,20 +230,31 @@ struct JVMKotlinMetadataPayload {
             // and the stub falls back to the erased kotlin.jvm.functions
             // carrier, which has no Kotlin declaration (KUU-4612).
             types.parameterNames = table.ownerTypeParameters
-            var typeParameters: [JVMKotlinFunction.TypeParameter] = []
-            for parameter in try function.messages(4) {
+            let typeParameterMessages = try function.messages(4)
+            let typeParameterIDs = try typeParameterMessages.compactMap { parameter -> Int32? in
                 guard parameter.bool(3) != true, let id = parameter.int32(1),
                       let name = try names.resolve(parameter.int32(2)), JVMProgramBuilder.isIdentifier(name)
-                else { continue }
+                else { return nil }
                 types.parameterNames[id] = name
+                return id
+            }
+            // Register every name before resolving bounds: a bound can
+            // reference a later type parameter (e.g. `<T : Comparable<R>, R>`).
+            guard typeParameterIDs.count == typeParameterMessages.count else { continue }
+            var typeParameters: [JVMKotlinFunction.TypeParameter] = []
+            for (id, parameter) in zip(typeParameterIDs, typeParameterMessages) {
                 let inlineBounds = try parameter.messages(5).map { (type: $0, nullable: $0.bool(3) == true) }
                 let boundIDs = try parameter.int32List(6)
                 let indexedBounds = boundIDs.compactMap { types.resolve(index: $0) }
-                let bounds = try (inlineBounds + indexedBounds).compactMap {
+                let allBounds = inlineBounds + indexedBounds
+                let bounds = try allBounds.compactMap {
                     try Self.sourceType($0, types: types, names: names)
                 }
-                typeParameters.append(.init(name: name, bounds: bounds))
+                guard indexedBounds.count == boundIDs.count, bounds.count == allBounds.count,
+                      let parameterName = types.parameterNames[id] else { break }
+                typeParameters.append(.init(name: parameterName, bounds: bounds))
             }
+            guard typeParameters.count == typeParameterIDs.count else { continue }
             guard let returnType = try types.resolve(function, inline: 3, indexed: 7) else { continue }
             let carrier: JVMValueType
             if let concrete = try Self.resultType(returnType, types: types, names: names) {
@@ -269,7 +280,11 @@ struct JVMKotlinMetadataPayload {
                     } else {
                         differsFromCarrier = false
                     }
-                    return type.type.has(2) || differsFromCarrier
+                    // Bare type-parameter parameters (e.g. `value: T`) carry
+                    // no class name; render them so they do not degrade to
+                    // the erased kotlin.Any carrier.
+                    let isBareTypeParameter = (try? names.resolve(type.type.int32(6))) == nil
+                    return type.type.has(2) || differsFromCarrier || isBareTypeParameter
                         ? try Self.sourceType(type, types: types, names: names) : nil
                 }
                 return JVMKotlinSuspendFunction.Parameter(

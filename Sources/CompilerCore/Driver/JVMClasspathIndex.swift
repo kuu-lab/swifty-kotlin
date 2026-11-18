@@ -2167,10 +2167,14 @@ final class JVMClasspathIndex {
                 if let function = method.kotlinFunction {
                     let sourceTypes = (function.contextParameters + function.parameters).map(\.sourceType)
                         + [function.result] + [function.receiver].compactMap { $0 }
+                        // Type-parameter bounds (rendered in `where` clauses)
+                        // can name classes absent from the erased signature.
+                        + function.typeParameters.flatMap(\.bounds)
                     markSourceTypes(sourceTypes)
                 }
                 if let function = method.kotlinSuspendFunction {
-                    markSourceTypes(function.parameters.compactMap(\.sourceType) + [function.sourceResult].compactMap { $0 })
+                    markSourceTypes(function.parameters.compactMap(\.sourceType) + [function.sourceResult].compactMap { $0 }
+                        + function.typeParameters.flatMap(\.bounds))
                 }
             }
             for field in info.fields where (field.isStatic || info.isRuntimeInstanceField(field)) && field.isPublic && field.access & 0x1000 == 0 {
