@@ -54,6 +54,20 @@ extension JVMBackendTests {
         return root.appendingPathComponent("nested-annotations.jar")
     }
 
+    private func externalKotlinTargetAnnotationLibraryJar(_ root: URL) throws -> URL {
+        try """
+        package fixture
+        @Target(AnnotationTarget.FILE)
+        annotation class FileOnly
+        @Target(AnnotationTarget.PROPERTY)
+        annotation class PropertyOnly
+        @Target(AnnotationTarget.PROPERTY, AnnotationTarget.CLASS)
+        annotation class PropertyOrClass
+        """.write(to: root.appendingPathComponent("TargetAnnotations.kt"), atomically: true, encoding: .utf8)
+        _ = try jvmTool("kotlinc", ["TargetAnnotations.kt", "-d", "target-annotations.jar"], root: root)
+        return root.appendingPathComponent("target-annotations.jar")
+    }
+
     private func externalJavaValueAnnotationJar(_ root: URL) throws -> URL {
         let fixture = root.appendingPathComponent("fixture", isDirectory: true)
         try FileManager.default.createDirectory(at: fixture, withIntermediateDirectories: true)
@@ -155,6 +169,40 @@ extension JVMBackendTests {
             let execution = try java(["-cp", root.appendingPathComponent("hello.jar").path + ":" + library.path + ":" + runtime, "HelloKt"])
             #expect(execution.stdout == "42\n")
             #expect(execution.stderr.isEmpty)
+        }
+    }
+
+    @Test
+    func kotlinClasspathAnnotationTargetsPreserveKotlinUseSites() throws {
+        try withWorkspace { root in
+            let library = try externalKotlinTargetAnnotationLibraryJar(root)
+            let valid = """
+            @file:fixture.FileOnly
+            import fixture.PropertyOnly
+            import fixture.PropertyOrClass
+
+            @PropertyOrClass
+            class Holder {
+                @PropertyOnly val value: Int = 1
+                @PropertyOrClass val computed: Int get() = 2
+            }
+            @PropertyOnly val top: Int = 3
+
+            fun main() { println(Holder().value + Holder().computed + top) }
+            """
+            let compiled = try compile(valid, root: root, mode: .jvmJar, classpath: [library.path])
+            try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
+
+            let invalid = """
+            import fixture.PropertyOnly
+            @PropertyOnly fun invalid(): Int = 0
+            fun main() {}
+            """
+            let rejected = try compile(invalid, root: root, mode: .jvmJar, classpath: [library.path])
+            #expect(rejected.0 != 0)
+            #expect(rejected.1.contains {
+                $0.severity == .error && $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET"
+            }, "\(rejected.1.map(\.message))")
         }
     }
 

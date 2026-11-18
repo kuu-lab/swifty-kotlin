@@ -932,7 +932,7 @@ final class JVMClasspathIndex {
         if info.repeatableAnnotationContainer != nil {
             lines.append("@kotlin.annotation.Repeatable")
         }
-        if let targets = javaAnnotationTargets(info.annotations), !targets.isEmpty {
+        if let targets = kotlinAnnotationTargets(info.annotations) ?? javaAnnotationTargets(info.annotations), !targets.isEmpty {
             lines.append("@kotlin.annotation.Target(" + targets.map { "kotlin.annotation.AnnotationTarget." + $0 }.joined(separator: ", ") + ")")
         }
         let parameters = annotationElements(of: info).enumerated().compactMap { index, element -> String? in
@@ -967,6 +967,19 @@ final class JVMClasspathIndex {
         case "SOURCE": return "SOURCE"
         default: return "BINARY"
         }
+    }
+
+    private func kotlinAnnotationTargets(_ annotations: [JVMAnnotation]) -> [String]? {
+        guard let target = annotations.first(where: { $0.descriptor == "Lkotlin/annotation/Target;" }) else { return nil }
+        var names: [String] = []
+        for (name, value) in target.values where name == "allowedTargets" {
+            guard case let .array(elements) = value else { continue }
+            for element in elements {
+                guard case let .enumEntry(_, targetName) = element, !names.contains(targetName) else { continue }
+                names.append(targetName)
+            }
+        }
+        return names.isEmpty ? nil : names
     }
 
     private func javaAnnotationTargets(_ annotations: [JVMAnnotation]) -> [String]? {
@@ -1217,9 +1230,7 @@ final class JVMClasspathIndex {
                     && $0.getter.parameters.allSatisfy(exposeSuspendType) && exposeSuspendType($0.getter.result)
             }
             let isFileFacade = info.isKotlinFileFacade ?? short.hasSuffix("Kt")
-            if info.isAnnotation && own.allSatisfy(\.isStatic) {
-                source += "annotation class `\(short)`\n"
-            } else if info.flags & 0x4000 != 0 {
+            if info.flags & 0x4000 != 0 {
                 source += enumDeclaration(info, name: short)
             } else if isComposer {
                 // The lowering uses the two group operations directly. Keep
