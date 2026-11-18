@@ -138,12 +138,12 @@ reject_ci_dir="$TEMP_DIR/reject-ci"
 mkdir -p "$reject_ci_dir/workflows"
 cat >"$reject_ci_dir/workflows/nightly-full.yml" <<'EOF'
 env:
-  KOTLINX_COROUTINES_VERSION: "1.10.2" # pinned reference
+  KOTLINX_COROUTINES_VERSION: "0.0.0" # pinned reference
 EOF
 if ( CI_DIR="$reject_ci_dir"; check_dependency_pin KOTLINC_COROUTINES_VERSION 'KOTLINX_COROUTINES_VERSION|KOTLINC_COROUTINES_VERSION' ) 2>"$TEMP_DIR/reject.log"; then
   echo 'FAIL: commented CI pin drift was accepted' >&2
   exit 1
 fi
-grep -F 'selects 1.10.2' "$TEMP_DIR/reject.log" >/dev/null
+grep -F 'selects 0.0.0' "$TEMP_DIR/reject.log" >/dev/null
 
 echo 'PASS diff_kotlinc dependency selection and CI pin consistency'
