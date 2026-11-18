@@ -190,7 +190,7 @@ enum AnnotationParsingSupport {
             while index < tokens.count, tokens[index].kind != opening {
                 guard case let .stringSegment(segment) = tokens[index].kind else { return nil }
                 let text = interner.resolve(segment)
-                segments.append(isRaw ? KotlinStringSurrogateEncoding.encode(text) : decodeKotlinStringEscapes(text))
+                segments.append(isRaw ? KotlinStringSurrogateEncoding.encode(normalizeKotlinRawStringLineEndings(text)) : decodeKotlinStringEscapes(text))
                 index += 1
             }
             guard index < tokens.count else { return nil }

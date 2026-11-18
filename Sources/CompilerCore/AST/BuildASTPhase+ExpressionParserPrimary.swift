@@ -393,7 +393,7 @@ extension BuildASTPhase.ExpressionParser {
                 }
                 if case let .stringSegment(segment) = token.kind {
                     let segmentText = interner.resolve(segment)
-                    pieces.append(shouldDecodeEscapes ? decodeEscapedStringSegment(segmentText) : KotlinStringSurrogateEncoding.encode(segmentText))
+                    pieces.append(shouldDecodeEscapes ? decodeEscapedStringSegment(segmentText) : KotlinStringSurrogateEncoding.encode(normalizeKotlinRawStringLineEndings(segmentText)))
                 }
                 end = token.range.end
                 _ = consume()
@@ -418,7 +418,7 @@ extension BuildASTPhase.ExpressionParser {
                 let effectiveSegment: InternedString = if shouldDecodeEscapes {
                     interner.intern(decodeEscapedStringSegment(interner.resolve(segment)))
                 } else {
-                    interner.intern(KotlinStringSurrogateEncoding.encode(interner.resolve(segment)))
+                    interner.intern(KotlinStringSurrogateEncoding.encode(normalizeKotlinRawStringLineEndings(interner.resolve(segment))))
                 }
                 parts.append(.literal(effectiveSegment))
                 end = token.range.end
