@@ -24,6 +24,7 @@
 Package.swift
  +-- RuntimeABI           (target)      Runtime ABI 契約と extern view の共有境界
  +-- RuntimeCAtomics      (target)      Runtime が使う C11 atomic shim
+ +-- CSHA256              (target)      CompilerCore の content fingerprint 用 SHA-256 C 実装
  +-- CSQLite              (systemLibrary) Runtime/JDBC が使う SQLite C API
  +-- CompilerCore         (library)     フロントエンド (Lex〜Lowering / JVM frontend)、LLVM 非依存
  +-- CompilerBackend      (library)     バックエンド (Native/Wasm Codegen + Link、JVM classfile/JAR/DEX/APK)、LLVM 依存は Native のみ
@@ -42,7 +43,7 @@ Package.swift
 ```text
 KSwiftKCLI           --> CompilerCore, CompilerBackend
                          CompilerBackend --> CompilerCore, RuntimeABI
-                         CompilerCore    --> RuntimeABI
+                         CompilerCore    --> RuntimeABI, CSHA256
 KSwiftLSPCLI         --> LSPServer, CompilerCore, CompilerBackend
                          LSPServer       --> CompilerCore
 GoldenHarnessWorker  --> GoldenHarnessSupport --> CompilerCore
