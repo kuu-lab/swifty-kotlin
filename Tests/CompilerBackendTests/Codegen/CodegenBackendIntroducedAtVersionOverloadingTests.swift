@@ -174,8 +174,7 @@ struct CodegenBackendIntroducedAtVersionOverloadingTests {
             let context = try runCodegenPipeline(
                 inputPath: inputPath,
                 moduleName: "IntroducedAtContextAndConstructors",
-                outputPath: outputBase,
-                frontendFlags: ["explicit-context-arguments"]
+                outputPath: outputBase
             )
             try LinkPhase().run(context)
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
