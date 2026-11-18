@@ -935,6 +935,18 @@ final class JVMClasspathIndex {
            comparable.source.contains("<") {
             return comparable.source
         }
+        // The Kotlin metadata supertype tables can decode empty, leaving the
+        // erased fallback to fill every argument with `Any`. The classfile
+        // Signature keeps the declared arguments (`implements List<String>`),
+        // so recover them when the child's own type parameters cannot be
+        // reused for this supertype.
+        if name != "java/lang/Comparable",
+           child.classTypeParameterNames.count != (hierarchyClasses[name]?.classTypeParameterNames.count ?? 0),
+           let source = javaSignatureSupertypes(child.genericSignature)
+               .first(where: { $0.binary == name })?.source,
+           source.contains("<") {
+            return source
+        }
         return supertypeReference(name, childParams: child.classTypeParameterNames)
     }
 
