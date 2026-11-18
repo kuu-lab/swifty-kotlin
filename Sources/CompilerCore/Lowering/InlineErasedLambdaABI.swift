@@ -76,14 +76,77 @@ enum InlineErasedLambdaABI {
             return loweredArguments
         }
         var boxed = loweredArguments
+        // Reverse lookup from every primitive unbox callee to its primitive,
+        // used when the argument has no expression type (imported bodies omit
+        // them) but its producer is a `kk_unbox_*` call — still a raw primitive.
+        // `.int` is listed last so it wins the shared `kk_unbox_int_static`
+        // entry over byte/short/uint-sized primitives: re-boxing a widened int
+        // payload as an Int box preserves the bits the callee will unbox.
+        var primitiveByUnboxCallee: [InternedString: PrimitiveType]?
         for index in loweredArguments.indices.dropFirst() {
-            // Same scoping as boxPrimitiveArgumentsForErasedParameters: only a
-            // concrete primitive arg gets a plain box here; enum/value-class
+            // A concrete primitive arg gets a plain box here; enum/value-class
             // args stay raw so a later nominal-aware boundary keeps their tag.
-            guard isErasedType(module.arena.exprType(originalArguments[index]), ctx: ctx),
-                  let loweredType = module.arena.exprType(loweredArguments[index]),
-                  case let .primitive(primitive, .nonNull) = types.kind(of: loweredType)
-            else {
+            // The invoke slot is erased `Any`, so this holds even when the
+            // imported body's own type is concrete: a body-local primitive
+            // (e.g. the loop counter `init(index)` in `AtomicIntArray(size,
+            // init)`) serializes unboxed, yet the value substituted for the
+            // callback may declare a broader parameter — `(Any) -> Int` via
+            // parameter contravariance — and would then see a bare integer
+            // (KUU-4599).
+            let primitive: PrimitiveType?
+            if let loweredType = module.arena.exprType(loweredArguments[index]),
+               case let .primitive(kind, .nonNull) = types.kind(of: loweredType) {
+                primitive = kind
+            } else {
+                if primitiveByUnboxCallee == nil {
+                    var table: [InternedString: PrimitiveType] = [:]
+                    let unboxTable = BoxingCalleeTable(interner: ctx.interner)
+                    let allPrimitives: [PrimitiveType] = [
+                        .byte, .short, .uint, .ubyte, .ushort,
+                        .long, .ulong, .boolean, .float, .double, .char, .int,
+                    ]
+                    for kind in allPrimitives {
+                        if let callee = unboxTable.unboxCallee(for: kind) {
+                            table[callee] = kind
+                        }
+                        let nonNull = types.make(.primitive(kind, .nonNull))
+                        if let callee = unboxTable.unboxCallee(
+                            for: nonNull, types: types,
+                            requireNonNull: true, preferStaticPrimitive: true
+                        ) {
+                            table[callee] = kind
+                        }
+                    }
+                    primitiveByUnboxCallee = table
+                }
+                var value = loweredArguments[index]
+                var visited: Set<KIRExprID> = []
+                var resolved: PrimitiveType?
+                producerSearch: while visited.insert(value).inserted {
+                    let definition = body.reversed().first { instruction in
+                        switch instruction {
+                        case let .copy(_, to):
+                            return to == value
+                        case let .call(_, _, _, result, _, _, _, _):
+                            return result == value
+                        default:
+                            return false
+                        }
+                    }
+                    guard let definition else { break }
+                    switch definition {
+                    case let .copy(from, _):
+                        value = from
+                    case let .call(_, callee, _, _, _, _, _, _):
+                        resolved = primitiveByUnboxCallee?[callee]
+                        break producerSearch
+                    default:
+                        break producerSearch
+                    }
+                }
+                primitive = resolved
+            }
+            guard let primitive else {
                 continue
             }
             let boxedArg = module.arena.appendTemporary(type: types.anyType)

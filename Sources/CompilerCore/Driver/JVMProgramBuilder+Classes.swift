@@ -113,7 +113,8 @@ extension JVMProgramBuilder {
             guard allowComposable, function.receiverType == nil, !function.isSuspend, !function.isInline, !function.isTailrec,
                   signature.contextReceiverTypes.isEmpty, signature.contextParameterTypes.isEmpty,
                   parameters.count <= 10, !unsigned,
-                  !function.valueParams.contains(where: \.isVararg)
+                  !function.valueParams.contains(where: \.isVararg),
+                  !signature.valueParameterSymbols.contains(where: sema.composableFunctionParameters.contains)
             else {
                 throw JVMFrontendError(message: "JVM @Composable supports ordinary top-level functions with at most ten parameters and without vararg parameters.", range: function.range)
             }

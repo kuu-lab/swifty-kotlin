@@ -92,6 +92,7 @@ final class JVMClasspathIndex {
         sourcePackages: Set<String> = [], sourceClassNames: Set<String> = [],
         requiredLazyClassNames: Set<String> = [],
         automaticLazyClasspathMemberLimit: Int = defaultAutomaticLazyClasspathMemberLimit,
+        archiveJobs: Int = min(4, ProcessInfo.processInfo.activeProcessorCount),
         archiveCache: JVMClasspathArchiveCache? = nil
     ) throws -> JVMClasspathIndex {
         let result = JVMClasspathIndex()
@@ -125,12 +126,12 @@ final class JVMClasspathIndex {
                 if let archiveCache {
                     let classes = try archiveCache.load(path: url.standardizedFileURL.path, data: data) {
                         var decoded: [JVMClassInfo] = []
-                        try readArchive(data, descriptorCache: descriptors) { decoded.append($0) }
+                        try readArchive(data, descriptorCache: descriptors, archiveJobs: archiveJobs) { decoded.append($0) }
                         return decoded
                     }
                     classes.forEach { insert($0, isLazy: isLazy) }
                 } else {
-                    try readArchive(data, descriptorCache: descriptors) { insert($0, isLazy: isLazy) }
+                    try readArchive(data, descriptorCache: descriptors, archiveJobs: archiveJobs) { insert($0, isLazy: isLazy) }
                 }
             }
         }
@@ -174,14 +175,49 @@ final class JVMClasspathIndex {
     }
 
     private static func readArchive(
-        _ data: Data, descriptorCache: JVMDescriptorCache, _ insert: (JVMClassInfo) -> Void
+        _ data: Data, descriptorCache: JVMDescriptorCache,
+        archiveJobs: Int = 1, _ insert: (JVMClassInfo) -> Void
     ) throws {
         let archive = try ZipArchive(data: data)
-        for entry in archive.entries.sorted(by: { $0.name < $1.name }) {
-            guard entry.name.hasSuffix(".class"), !entry.name.hasPrefix("META-INF/"),
-                  !entry.name.hasSuffix("module-info.class"), !entry.name.hasSuffix("package-info.class") else { continue }
-            insert(try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: descriptorCache))
+        let entries = archive.entries.filter { entry in
+            entry.name.hasSuffix(".class") && !entry.name.hasPrefix("META-INF/")
+                && !entry.name.hasSuffix("module-info.class") && !entry.name.hasSuffix("package-info.class")
+        }.sorted { $0.name < $1.name }
+        if archiveJobs > 1 && entries.count >= 128 {
+            let ranges = archiveBatches(entries)
+            let batches = try SemaPerFileExecutor.collect(count: ranges.count, jobs: archiveJobs, cancelOnFirstError: true) { index in
+                let batchDescriptors = JVMDescriptorCache()
+                return try entries[ranges[index]].map { entry in
+                    try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: batchDescriptors)
+                }
+            }
+            for batch in batches {
+                for info in batch { insert(info) }
+            }
+        } else {
+            for entry in entries {
+                insert(try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: descriptorCache))
+            }
         }
+    }
+
+    private static func archiveBatches(_ entries: [ZipArchive.Entry]) -> [Range<Int>] {
+        let typicalCount = 64
+        let approximateBatchCount = (entries.count + typicalCount - 1) / typicalCount
+        let targetBytes = max(1, entries.reduce(0) { $0 + $1.uncompressedSize } / approximateBatchCount)
+        var ranges: [Range<Int>] = []
+        var start = 0
+        var bytes = 0
+        for (index, entry) in entries.enumerated() {
+            if index > start && (bytes + entry.uncompressedSize > targetBytes || index - start >= 2 * typicalCount) {
+                ranges.append(start ..< index)
+                start = index
+                bytes = 0
+            }
+            bytes += entry.uncompressedSize
+        }
+        ranges.append(start ..< entries.count)
+        return ranges
     }
 
     private static func readClass(
@@ -1256,7 +1292,17 @@ final class JVMClasspathIndex {
         let neededLazy = lazyClassNames.isEmpty ? nil : referencedLazyClasses(
             into: ctx, covered: covered, additionalRoots: requiredLazyClassNames
         )
-        importInheritedMembers(for: neededLazy ?? [])
+        var inheritedMemberTargets = neededLazy ?? []
+        // Inner classes are emitted through their outer class's nested
+        // declarations rather than referenced by name, so they need their
+        // inherited members merged even when only the outer class is needed.
+        var pendingInnerOwners = Array(inheritedMemberTargets)
+        while let owner = pendingInnerOwners.popLast() {
+            for entry in innerClassesByOwner[owner] ?? [] where inheritedMemberTargets.insert(entry.name).inserted {
+                pendingInnerOwners.append(entry.name)
+            }
+        }
+        importInheritedMembers(for: inheritedMemberTargets)
         let isContextIsActive: (JVMKotlinTopLevelProperty, JVMForeignMethod) -> Bool = { property, getter in
             property.name == "isActive" && property.receiver == "kotlin.coroutines.CoroutineContext"
                 && getter.owner.hasPrefix("kotlinx/coroutines/")
@@ -1405,7 +1451,7 @@ final class JVMClasspathIndex {
                 let bounds = javaTypeParameterBounds(info).bounds
                 if !bounds.isEmpty { source += " where " + bounds.joined(separator: ", ") }
                 source += " {\n"
-                source += memberDeclarations(info: info, members: info.methods, allowsCompanion: !isObject)
+                source += memberDeclarations(info: info, members: info.methods, allowsCompanion: !isNonCancellable)
                 if info.name == Self.compositionLocal, info.kotlinMemberProperties["current"] == nil,
                    let getter = compositionLocalGetter,
                    let type = info.classTypeParameterNames.first {
@@ -1747,7 +1793,8 @@ final class JVMClasspathIndex {
             let kotlinProperty = kotlinProperties.first { $0.getter == getter.name }
             let propertyName = shape.name
             guard JVMProgramBuilder.isIdentifier(propertyName),
-                  !inheritedKotlinGetters.contains(memberKey(getter)), exposedKotlinProperties[propertyName] == nil,
+                  !inheritedKotlinGetters.contains(memberKey(getter)),
+                  exposedKotlinProperties[propertyName] == nil,
                   !instanceFieldNames.contains(propertyName),
                   !own.contains(where: {
                       !$0.isStatic && !$0.isConstructor && $0.name == propertyName
@@ -1971,6 +2018,24 @@ final class JVMClasspathIndex {
                     ) + "\n"
                 }
                 source += nestedClassDeclarations(of: companion.name)
+            }
+            if let companion {
+                for (name, property) in companion.kotlinMemberProperties.sorted(by: { $0.key < $1.key })
+                    where exposeSuspendType(property.getter.result) && info.kotlinStaticProperties[name] == nil {
+                    source += "val `\(name)`: \(property.sourceType) get() = null!!\n"
+                }
+                for method in companion.methods where !method.isStatic && !method.isConstructor && isExposed(method) {
+                    if statics.contains(where: { $0.name == method.name && $0.descriptor == method.descriptor })
+                        && !overridesParent(method, in: companion) { continue }
+                    if companion.kotlinMemberProperties.values.contains(where: {
+                        $0.getter.name == method.name && $0.getter.descriptor == method.descriptor
+                    }) { continue }
+                    if overridesParent(method, in: companion)
+                        || ["toString()Ljava/lang/String;", "hashCode()I", "equals(Ljava/lang/Object;)Z"].contains(method.name + method.descriptor) {
+                        source += "override "
+                    }
+                    source += "external " + functionDeclaration(method) + "\n"
+                }
             }
             source += "}\n"
         }
@@ -2741,7 +2806,14 @@ final class JVMClasspathIndex {
                 guard let params = method.kotlinFunction?.parameters,
                       params.count == signature.parameterTypes.count else { return false }
                 return zip(params, signature.parameterTypes).allSatisfy { param, callType in
-                    let declaredName = param.sourceType.split(separator: ".").last.map(String.init)?.replacingOccurrences(of: "?", with: "")
+                    // `fixture.Box<kotlin.String>` must compare as `Box`:
+                    // drop generic arguments before taking the last path
+                    // component, or `.last` returns `String>`.
+                    let declaredName = param.sourceType
+                        .split(separator: "<").first
+                        .flatMap { $0.split(separator: ".").last }
+                        .map(String.init)?
+                        .replacingOccurrences(of: "?", with: "")
                     guard let declared = declaredName,
                           case let .classType(nominal) = sema.types.kind(of: callType),
                           let symbol = sema.symbols.symbol(nominal.classSymbol)
