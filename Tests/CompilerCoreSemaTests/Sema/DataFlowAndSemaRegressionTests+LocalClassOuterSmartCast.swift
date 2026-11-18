@@ -85,6 +85,46 @@ extension DataFlowAndSemaRegressionTests {
             }
         }
         """,
+        // sample4 — the local class sits inside a receiver lambda (`with`)
+        // within a plain member function. The lambda has its own `this`
+        // (String), but `enclosingFunctionSymbol` stays `f`, whose receiver is
+        // the `Outer` instance, so the smart cast must survive (kotlinc accepts).
+        """
+        package lcs4
+        class Outer {
+            val stable: String? = "ok"
+            fun f() {
+                if (stable != null) {
+                    with("lambda") {
+                        class Local {
+                            fun read(): String = stable
+                        }
+                        val s: String = Local().read()
+                    }
+                }
+            }
+        }
+        """,
+        // sample5 — member *extension*: the extension receiver (`this`, a
+        // String) differs from the `Outer` dispatch receiver that owns
+        // `stable`. kotlinc accepts the cast, but kswiftc conservatively keeps
+        // rejecting it rather than risk binding the outer entry to the wrong
+        // instance. Uses an inferred return so the loss is not masked by the
+        // class-member double-check; pins the safe-rejection behaviour.
+        """
+        package lcs5
+        class Outer {
+            val stable: String? = "ok"
+            fun String.ext() {
+                if (stable != null) {
+                    class Local {
+                        fun read() = stable
+                    }
+                    val s: String = Local().read()
+                }
+            }
+        }
+        """,
     ]
 
     private static nonisolated(unsafe) var _localClassOuterSmartCastCtx: (CompilationContext, [String])?
@@ -105,17 +145,23 @@ extension DataFlowAndSemaRegressionTests {
     @Test
     func localClassMemberKeepsOuterStableSmartCast() throws {
         let (ctx, paths) = try localClassOuterSmartCastCtx()
-        for path in paths.prefix(3) {
-            let diagnostics = diagnosticsForPath(path, in: ctx)
-            #expect(diagnostics.isEmpty, "Unexpected diagnostics: \(diagnostics.map(\.code))")
+        // samples 0,1,2,4 must keep the smart cast (plain member, inferred
+        // return, block body, and inside a receiver lambda).
+        for index in [0, 1, 2, 4] {
+            let diagnostics = diagnosticsForPath(paths[index], in: ctx)
+            #expect(diagnostics.isEmpty, "sample\(index) unexpected diagnostics: \(diagnostics.map(\.code))")
         }
-        // sample3 is the negative control: the mutable property legitimately
-        // blocks the cast, so the initializer mismatch must still fire.
-        let mutableDiagnostics = diagnosticsForPath(paths[3], in: ctx)
-        #expect(
-            mutableDiagnostics.contains { $0.code == "KSWIFTK-SEMA-0468" },
-            "Mutable outer property must keep reporting SEMA-0468: \(mutableDiagnostics.map(\.code))"
-        )
+        // samples 3 (mutable property) and 5 (member extension) must keep
+        // reporting SEMA-0468: the mutable property legitimately blocks the
+        // cast, and the extension receiver is a different value from the
+        // `Outer` dispatch receiver, so the cast is conservatively rejected.
+        for index in [3, 5] {
+            let diagnostics = diagnosticsForPath(paths[index], in: ctx)
+            #expect(
+                diagnostics.contains { $0.code == "KSWIFTK-SEMA-0468" },
+                "sample\(index) must report SEMA-0468: \(diagnostics.map(\.code))"
+            )
+        }
     }
 }
 #endif

@@ -404,31 +404,41 @@ extension ExprTypeChecker {
         // property smart casts on the captured `this` survive into the local
         // nominal's member bodies (KUU-4605).
         //
-        // Only rewrite when the enclosing function's own `this` *is* the
-        // enclosing class instance — i.e. a plain member function. A member
-        // *extension* function's implicit receiver is the extension receiver
-        // (e.g. `String`), a different value from the dispatch receiver
-        // (`this@Outer`) that owns the captured property, and
-        // `receiverParameterSymbol(for:)` denotes that extension receiver. The
-        // enclosing class still sits on the outer-receiver tower there, so
-        // rewriting it would bind the entry to the wrong instance; skip it.
+        // Only rewrite when `receiverParameterSymbol(for:)` denotes the
+        // enclosing class instance. For a plain member function its `this` is
+        // the class instance — including when the local class sits inside a
+        // lambda that has its own receiver, because a lambda does not change
+        // `enclosingFunctionSymbol`. For a member *extension* function `this`
+        // is the extension receiver (e.g. `String`), a different value from
+        // the `this@Outer` dispatch receiver that owns the captured property,
+        // so rewriting there would bind the outer entry to the wrong instance;
+        // skip it. The function's declared receiver type tells the two apart.
         var memberOuterReceiverTypes = ctx.outerReceiverTypes
         if let enclosingFunctionSymbol = ctx.enclosingFunctionSymbol,
-           let enclosingClassSymbol = ctx.enclosingClassSymbol,
-           let implicitReceiverType = ctx.implicitReceiverType,
-           case let .classType(receiverClassType) = sema.types.kind(of: implicitReceiverType),
-           receiverClassType.classSymbol == enclosingClassSymbol
+           let enclosingClassSymbol = ctx.enclosingClassSymbol
         {
-            let receiverValueSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: enclosingFunctionSymbol)
-            for index in memberOuterReceiverTypes.indices {
-                let entry = memberOuterReceiverTypes[index]
-                guard entry.symbol == enclosingClassSymbol,
-                      case let .classType(entryClassType) = sema.types.kind(of: entry.type),
-                      entryClassType.classSymbol == enclosingClassSymbol
-                else {
-                    continue
+            var receiverIsEnclosingClassInstance = true
+            if let signature = sema.symbols.functionSignature(for: enclosingFunctionSymbol),
+               let receiverType = signature.receiverType
+            {
+                if case let .classType(receiverClass) = sema.types.kind(of: receiverType) {
+                    receiverIsEnclosingClassInstance = receiverClass.classSymbol == enclosingClassSymbol
+                } else {
+                    receiverIsEnclosingClassInstance = false
                 }
-                memberOuterReceiverTypes[index].symbol = receiverValueSymbol
+            }
+            if receiverIsEnclosingClassInstance {
+                let receiverValueSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: enclosingFunctionSymbol)
+                for index in memberOuterReceiverTypes.indices {
+                    let entry = memberOuterReceiverTypes[index]
+                    guard entry.symbol == enclosingClassSymbol,
+                          case let .classType(entryClassType) = sema.types.kind(of: entry.type),
+                          entryClassType.classSymbol == enclosingClassSymbol
+                    else {
+                        continue
+                    }
+                    memberOuterReceiverTypes[index].symbol = receiverValueSymbol
+                }
             }
         }
         let classCtx = ctx.copying(outerReceiverTypes: memberOuterReceiverTypes)
