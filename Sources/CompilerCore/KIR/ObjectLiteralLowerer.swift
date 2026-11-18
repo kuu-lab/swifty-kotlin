@@ -1197,7 +1197,7 @@ final class ObjectLiteralLowerer {
             // functions — lower to `call get`/`call set` on this accessor;
             // the delegate instance lives in the object's `$delegate_<name>`
             // field (stored in `lowerStoredObjectLiteralExpr`).
-            if let delegateExpr = propertyDecl.delegateExpression {
+            if propertyDecl.delegateExpression != nil {
                 let delegateStorageSymbol = objectLiteralDelegateStorageSymbol(
                     for: propertySymbol,
                     propertyDecl: propertyDecl,
