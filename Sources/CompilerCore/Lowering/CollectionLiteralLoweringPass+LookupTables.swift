@@ -393,6 +393,105 @@ final class CollectionLiteralLookupTables {
     var kkPairFirstName: InternedString { commonLookup.kkPairFirstName }
     var kkPairSecondName: InternedString { commonLookup.kkPairSecondName }
 
+    /// Conservative gate for `CollectionLiteralLoweringPass.shouldRun`: any
+    /// callee the pass can rewrite or use to seed collection state. A false
+    /// positive only keeps the pass enabled; a false negative would skip
+    /// required lowering, so this intentionally errs on the broad side.
+    var candidateCallees: Set<InternedString> {
+        var names = Set<InternedString>()
+        names.reserveCapacity(512)
+        names.formUnion([
+            commonLookup.sumName, commonLookup.sizeName, commonLookup.getName,
+            commonLookup.containsName, commonLookup.isEmptyName, commonLookup.countName,
+            commonLookup.addName, commonLookup.removeName, commonLookup.firstName,
+            commonLookup.lastName, commonLookup.startName, commonLookup.endInclusiveName,
+            commonLookup.endExclusiveName, commonLookup.stepName, commonLookup.iteratorName,
+            commonLookup.mapName, commonLookup.filterName, commonLookup.filterNotName,
+            commonLookup.mapNotNullName, commonLookup.requireNoNullsName, commonLookup.mapToName,
+            commonLookup.flatMapToName, commonLookup.mapNotNullToName, commonLookup.mapIndexedToName,
+            commonLookup.mapIndexedNotNullToName, commonLookup.flatMapIndexedToName,
+            commonLookup.forEachName, commonLookup.flatMapName, commonLookup.flatMapIndexedName,
+            commonLookup.anyName, commonLookup.noneName, commonLookup.allName,
+            commonLookup.foldName, commonLookup.reduceName, commonLookup.scanName,
+            commonLookup.runningFoldName, commonLookup.runningReduceName, commonLookup.groupByName,
+            commonLookup.findName, commonLookup.findLastName, commonLookup.associateByName,
+            commonLookup.associateWithName, commonLookup.associateName, commonLookup.associateToName,
+            commonLookup.associateByToName, commonLookup.associateWithToName, commonLookup.groupByToName,
+            commonLookup.mapValuesName, commonLookup.mapKeysName, commonLookup.filterKeysName,
+            commonLookup.filterValuesName, commonLookup.zipName, commonLookup.zipWithNextName,
+            commonLookup.unzipName, commonLookup.onEachName, commonLookup.onEachIndexedName,
+            commonLookup.mapIndexedName, commonLookup.mapIndexedNotNullName, commonLookup.foldIndexedName,
+            commonLookup.reduceIndexedName, commonLookup.filterIndexedName,
+            commonLookup.runningFoldIndexedName, commonLookup.runningReduceIndexedName,
+            commonLookup.scanIndexedName, commonLookup.maxName, commonLookup.maxOrNullName,
+            commonLookup.minOrNullName, commonLookup.dropName, commonLookup.reversedName,
+            commonLookup.asReversedName, commonLookup.sortedName, commonLookup.averageName,
+            commonLookup.distinctName, commonLookup.shuffledName, commonLookup.flattenName,
+            commonLookup.chunkedName, commonLookup.windowedName, commonLookup.partitionName,
+            commonLookup.takeWhileName, commonLookup.dropWhileName, commonLookup.takeLastWhileName,
+            commonLookup.dropLastWhileName, commonLookup.firstOrNullName, commonLookup.lastOrNullName,
+        ])
+        names.formUnion(listLookup.listFactoryNames)
+        names.formUnion(listLookup.mutableListConstructorNames)
+        names.formUnion(setLookup.setFactoryNames)
+        names.formUnion(setLookup.mutableSetConstructorNames)
+        names.formUnion(mapLookup.mapFactoryNames)
+        names.formUnion(mapLookup.mutableMapConstructorNames)
+        names.formUnion(arrayLookup.arrayOfFactoryNames)
+        names.formUnion(stringLookup.stringProducingCallees)
+        names.formUnion(sequenceRuntimeBridgeReturningNames)
+        names.formUnion([
+            listLookup.listOfName, listLookup.mutableListOfName, listLookup.arrayListOfName,
+            listLookup.emptyListName, listLookup.arrayListName, listLookup.kkListOfName,
+            listLookup.kkArrayListOfName, listLookup.kkEmptyListName, listLookup.kkListIteratorName,
+            listLookup.kkListIteratorHasNextName, listLookup.kkListIteratorNextName,
+            listLookup.kkListIteratorHasPreviousName, listLookup.kkListIteratorPreviousName,
+            listLookup.kkListIteratorNextIndexName, listLookup.kkListIteratorPreviousIndexName,
+            listLookup.listIteratorMemberName, listLookup.hasPreviousName, listLookup.previousName,
+            listLookup.nextIndexName, listLookup.previousIndexName,
+            setLookup.setOfNotNullName, setLookup.mutableSetOfName, setLookup.linkedSetOfName,
+            setLookup.hashSetOfName, setLookup.hashSetName, setLookup.treeSetName,
+            setLookup.sortedSetOfName, setLookup.kkTreeSetNewName, setLookup.kkTreeSetNewCollectionName,
+            setLookup.kkTreeSetNewSortedSetName, setLookup.kkEmptySetName, setLookup.kkSetOfName,
+            setLookup.kkSetOfNotNullName, setLookup.kkSetOfNotNullSingleName,
+            setLookup.kkLinkedHashSetOfName, setLookup.kkHashSetOfName,
+            setLookup.kkIterableToMutableSetName, setLookup.kkIterableToHashSetName,
+            mapLookup.mutableMapOfName, mapLookup.hashMapOfName, mapLookup.linkedMapOfName,
+            mapLookup.hashMapName, mapLookup.linkedHashMapName, mapLookup.treeMapName,
+            mapLookup.sortedMapOfName, mapLookup.kkTreeMapNewName, mapLookup.kkTreeMapNewMapName,
+            mapLookup.kkTreeMapNewSortedMapName, mapLookup.kkEmptyMapName, mapLookup.kkMapOfName,
+            mapLookup.kkHashMapOfName, mapLookup.kkLinkedHashMapOfName,
+            arrayLookup.emptyArrayName, arrayLookup.kkEmptyArrayName, arrayLookup.kkArrayOfName,
+            arrayLookup.kkArrayNewName, arrayLookup.kkArrayToListName, arrayLookup.kkArrayCopyOfName,
+            arrayLookup.kkListAsSequenceName, arrayLookup.kkArrayAsSequenceName,
+            sequenceLookup.plusElementName, sequenceLookup.minusElementName,
+            sequenceLookup.asSequenceName, sequenceLookup.toListName,
+            sequenceLookup.constrainOnceName, sequenceLookup.toCollectionName, sequenceLookup.toSetName,
+            sequenceLookup.toMapName, sequenceLookup.takeName, sequenceLookup.yieldName,
+            sequenceLookup.yieldAllName, sequenceLookup.kkSequenceRequireNoNullsName,
+            stringLookup.kkStringSplitName,
+            fileIOLookup.kkBufferedReaderForEachLineName, fileIOLookup.kkBufferedReaderUseLinesName,
+            rangeLookup.kkRangeIteratorName, rangeLookup.kkRangeHasNextName, rangeLookup.kkRangeNextName,
+            rangeLookup.kkOpRangeToName, rangeLookup.kkOpRangeUntilName, rangeLookup.kkOpULongRangeUntilName,
+            rangeLookup.kkOpDownToName, rangeLookup.kkOpStepName, rangeLookup.kkBoxCharName,
+            rangeLookup.kkCharRangeToListName, rangeLookup.kkCharRangeForEachName,
+            rangeLookup.kkULongRangeStepName, rangeLookup.kkULongRangeIteratorName,
+            rangeLookup.kkULongRangeHasNextName, rangeLookup.kkULongRangeNextName,
+        ])
+        for fqName in [
+            commonLookup.emptyListFQName, commonLookup.emptyArrayFQName, commonLookup.emptySetFQName,
+            commonLookup.emptyMapFQName, commonLookup.listOfFQName, commonLookup.setOfFQName,
+            commonLookup.setOfNotNullFQName, commonLookup.mapOfFQName, commonLookup.mutableListOfFQName,
+            commonLookup.arrayListOfFQName, commonLookup.mutableSetOfFQName, commonLookup.linkedSetOfFQName,
+            commonLookup.hashSetOfFQName, commonLookup.mutableMapOfFQName, commonLookup.hashMapOfFQName,
+            commonLookup.linkedMapOfFQName, commonLookup.listOfNotNullFQName,
+        ] {
+            if let last = fqName.last { names.insert(last) }
+        }
+        names.formUnion(collectionHOFRuntimeNames.keys.map(\.memberName))
+        return names
+    }
+
     func collectionHOFRuntimeName(
         ownerKind: StdlibSurfaceOwnerKind,
         callee: InternedString,

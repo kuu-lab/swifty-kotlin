@@ -94,8 +94,20 @@ struct CollectionLiteralLoweringRegistry {
 
     func run(module: KIRModule, ctx: KIRContext, recordAs loweringName: String) throws {
         let lookup = lookupRegistry.tables
+        let candidateCallees = lookup.candidateCallees
 
         func transformFunction(_ function: KIRFunction) -> KIRFunction {
+            let hasCandidateCallee = function.body.contains { instruction in
+                switch instruction {
+                case let .call(_, callee, _, _, _, _, _, _),
+                     let .virtualCall(_, callee, _, _, _, _, _, _):
+                    return candidateCallees.contains(callee)
+                default:
+                    return false
+                }
+            }
+            guard hasCandidateCallee else { return function }
+
             var updated = function
             var state = CollectionLiteralLoweringSupport.CollectionRewriteState()
 
