@@ -466,7 +466,9 @@ final class JVMClasspathIndex {
             result.kotlinSuspendFunction = method.kotlinSuspendFunction
             result.isVarargs = method.isVarargs
             result.genericResultParameter = method.genericResultParameter
-            result.genericSignature = method.genericSignature
+            // genericSignature stays nil here: the signature's type variables
+            // belong to the hidden declaring class, not to `info` whose owner
+            // this copy now carries.
             result.kotlinCollisionSourceName = method.kotlinCollisionSourceName
             result.kotlinFunction = method.kotlinFunction
             return result
@@ -2259,11 +2261,18 @@ final class JVMClasspathIndex {
               let parsed = Self.signatureTypeVariables(method.genericSignature, parameterCount: method.parameters.count)
         else { return nil }
         let valid = Set(classParameters)
+        // Substitution is only descriptor-safe for variables erasing to
+        // Object: the stub declares type parameters without bounds, so a
+        // bounded variable (e.g. `T extends Number`) would erase to Object
+        // while the physical parameter keeps the bound's descriptor.
         var parameters: [Int: String] = [:]
-        for (index, variable) in parsed.parameters where valid.contains(variable) {
+        for (index, variable) in parsed.parameters
+        where valid.contains(variable) && method.parameters[index].descriptor == "Ljava/lang/Object;" {
             parameters[index] = variable
         }
-        let result = parsed.result.flatMap { valid.contains($0) ? $0 : nil }
+        let result = parsed.result.flatMap {
+            valid.contains($0) && method.result.descriptor == "Ljava/lang/Object;" ? $0 : nil
+        }
         return (parameters, result)
     }
 
