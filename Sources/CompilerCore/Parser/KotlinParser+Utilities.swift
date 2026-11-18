@@ -44,6 +44,21 @@ extension KotlinParser {
             }
         }
 
+        if stream.peek().kind == .symbol(.lessThan) {
+            _ = consumeToken(into: &children, range: &range)
+            var depth = 1
+            while !stream.atEOF(), depth > 0 {
+                let token = consumeToken(into: &children, range: &range)
+                if case let .symbol(symbol) = token.kind {
+                    if symbol == .lessThan {
+                        depth += 1
+                    } else if symbol == .greaterThan {
+                        depth -= 1
+                    }
+                }
+            }
+        }
+
         if stream.peek().kind == .symbol(.lParen) {
             _ = consumeToken(into: &children, range: &range)
             var closingSymbols: [Symbol] = [.rParen]
@@ -146,6 +161,10 @@ extension KotlinParser {
         while stream.peek(cursor).kind == .symbol(.dot),
               isIdentifierLike(stream.peek(cursor + 1).kind) {
             cursor += 2
+        }
+        if stream.peek(cursor).kind == .symbol(.lessThan) {
+            cursor = offsetPastBalancedGroup(from: cursor,
+                                             open: .symbol(.lessThan), close: .symbol(.greaterThan))
         }
         if stream.peek(cursor).kind == .symbol(.lParen) {
             cursor = offsetPastBalancedGroup(from: cursor,

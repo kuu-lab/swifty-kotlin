@@ -287,7 +287,7 @@ extension DataFlowSemaPhase {
     /// concatenations unsuppressed even though annotation metadata folds them.
     private func concatenatedExpressionAnnotationArguments(_ annotation: AnnotationNode) -> Set<Int> {
         guard let tokens = annotation.constructionTokens,
-              let opening = tokens.firstIndex(where: { $0.kind == .symbol(.lParen) }) else { return [] }
+              let opening = AnnotationParsingSupport.constructionArgumentListStart(in: tokens, name: annotation.name) else { return [] }
         var concatenated: Set<Int> = []
         var argument = 0
         var paren = 1

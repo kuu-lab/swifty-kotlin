@@ -179,4 +179,55 @@ struct TypedAnnotationMetadataTests {
             #expect(context.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-ARGUMENT-CONST" }.count >= 5)
         }
     }
+
+    @Test func genericAnnotationApplicationsKeepTypeArguments() throws {
+        let source = """
+        annotation class TA<T>
+        annotation class TB<T, U>
+        @TA<Int> class C {
+            @TA<String> fun f(@TA<Boolean> x: Int): Int = x
+            @TA<Long> val p: Int = 1
+        }
+        @TB<Int, String> fun top() {}
+        @TA<TB<Int, String>> class Nested
+        @TA<(Int) -> Int> class FunctionTyped
+        class Holder {
+            annotation class Qualified<T>
+        }
+        @Holder.Qualified<Int> class QualifiedUsage
+        """
+        let context = makeBoundIdentityContext(source)
+        try runSema(context)
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+        let ast = try #require(context.ast)
+        let tagged = try #require(ast.arena.declarations().compactMap { declaration -> ClassDecl? in
+            guard case let .classDecl(value) = declaration,
+                  context.interner.resolve(value.name) == "C" else { return nil }
+            return value
+        }.first)
+        let annotation = try #require(tagged.annotations.first)
+        #expect(annotation.name == "TA")
+        #expect(annotation.arguments.isEmpty)
+        #expect(annotation.constructionTokens?.contains(where: { $0.kind == .symbol(.lessThan) }) == true)
+        #expect(annotation.constructionTokens?.contains(where: { $0.kind == .symbol(.greaterThan) }) == true)
+        let sema = try #require(context.sema)
+        let classSymbol = try #require(sema.symbols.lookup(fqName: [context.interner.intern("C")]))
+        #expect(sema.symbols.annotations(for: classSymbol).contains { $0.annotationFQName == "TA" })
+        let functionSymbol = try #require(sema.symbols.lookup(fqName: [context.interner.intern("top")]))
+        #expect(sema.symbols.annotations(for: functionSymbol).contains { $0.annotationFQName == "TB" })
+        let functionTypedSymbol = try #require(sema.symbols.lookup(fqName: [context.interner.intern("FunctionTyped")]))
+        #expect(sema.symbols.annotations(for: functionTypedSymbol).contains { $0.annotationFQName == "TA" })
+        let qualifiedSymbol = try #require(sema.symbols.lookup(fqName: [context.interner.intern("QualifiedUsage")]))
+        #expect(sema.symbols.annotations(for: qualifiedSymbol).contains { $0.annotationFQName == "Holder.Qualified" })
+    }
+
+    @Test func nonGenericAnnotationRejectsTypeArguments() throws {
+        let source = """
+        annotation class Plain
+        @Plain<Int> class C
+        """
+        let context = makeBoundIdentityContext(source)
+        try runSema(context)
+        #expect(context.diagnostics.hasError)
+    }
 }
