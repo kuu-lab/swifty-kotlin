@@ -466,6 +466,7 @@ final class JVMClasspathIndex {
             result.kotlinSuspendFunction = method.kotlinSuspendFunction
             result.isVarargs = method.isVarargs
             result.genericResultParameter = method.genericResultParameter
+            result.genericSignature = method.genericSignature
             result.kotlinCollisionSourceName = method.kotlinCollisionSourceName
             result.kotlinFunction = method.kotlinFunction
             return result
@@ -2245,6 +2246,82 @@ final class JVMClasspathIndex {
         }
     }
 
+    /// Generic signatures name the declaring class's own type variables
+    /// (`Reference.get` -> `()TT;`) while descriptors erase them to the bound
+    /// (`java/lang/Object`). Recover the variable so stubs keep `T` instead of
+    /// `kotlin.Any`; method-level `<T>` signatures keep the existing
+    /// `genericResultParameter` handling and are skipped here.
+    private func classTypeVariableSubstitution(
+        for method: JVMForeignMethod
+    ) -> (parameters: [Int: String], result: String?)? {
+        guard method.kotlinSuspendFunction == nil,
+              let classParameters = classes[method.owner]?.classTypeParameterNames, !classParameters.isEmpty,
+              let parsed = Self.signatureTypeVariables(method.genericSignature, parameterCount: method.parameters.count)
+        else { return nil }
+        let valid = Set(classParameters)
+        var parameters: [Int: String] = [:]
+        for (index, variable) in parsed.parameters where valid.contains(variable) {
+            parameters[index] = variable
+        }
+        let result = parsed.result.flatMap { valid.contains($0) ? $0 : nil }
+        return (parameters, result)
+    }
+
+    private static func signatureTypeVariables(
+        _ signature: String?, parameterCount: Int
+    ) -> (parameters: [Int: String], result: String?)? {
+        guard let signature, !signature.hasPrefix("<"),
+              let open = signature.firstIndex(of: "("),
+              let close = signature[open...].firstIndex(of: ")")
+        else { return nil }
+        var parameters: [Int: String] = [:]
+        var rest = signature[signature.index(after: open)..<close]
+        var position = 0
+        while !rest.isEmpty {
+            guard position < parameterCount,
+                  let (variable, remaining) = skipSignatureType(rest)
+            else { return nil }
+            if let variable { parameters[position] = variable }
+            rest = remaining
+            position += 1
+        }
+        guard position == parameterCount,
+              let (resultVariable, _) = skipSignatureType(signature[signature.index(after: close)...])
+        else { return nil }
+        return (parameters, resultVariable)
+    }
+
+    /// Skips one JVM signature type, returning the name when it is exactly a
+    /// type variable (`TName;`).
+    private static func skipSignatureType(_ type: Substring) -> (variable: String?, rest: Substring)? {
+        guard let first = type.first else { return nil }
+        switch first {
+        case "T":
+            guard let end = type.dropFirst().firstIndex(of: ";") else { return nil }
+            return (String(type.dropFirst()[..<end]), type[type.index(after: end)...])
+        case "L":
+            var depth = 0
+            var index = type.startIndex
+            while index < type.endIndex {
+                let char = type[index]
+                if char == "<" { depth += 1 }
+                else if char == ">" { depth -= 1 }
+                else if char == ";" && depth == 0 {
+                    return (nil, type[type.index(after: index)...])
+                }
+                index = type.index(after: index)
+            }
+            return nil
+        case "[":
+            guard let skipped = skipSignatureType(type.dropFirst()) else { return nil }
+            return (nil, skipped.rest)
+        case "B", "C", "D", "F", "I", "J", "S", "Z", "V":
+            return (nil, type.dropFirst())
+        default:
+            return nil
+        }
+    }
+
     private func functionDeclaration(
         _ method: JVMForeignMethod, asExtension: Bool = false, asFacadeMember: Bool = false,
         acceptsDefaults: Bool = false, usesKotlinMetadata: Bool = true
@@ -2265,6 +2342,7 @@ final class JVMClasspathIndex {
             ?? method.genericResultParameter.map { "`\($0.name)`" }
             ?? suspend?.sourceResult
             ?? javaTypes?.result
+            ?? classTypeVariableSubstitution(for: method)?.result.map { "`\($0)`" }
             ?? (kotlinType(method.sourceResult) + (suspend != nil && method.sourceResult.isNullable ? "?" : ""))
         let generic = method.genericResultParameter.map { parameter -> String in
             let resultType = kotlinType(method.result)
@@ -2357,6 +2435,8 @@ final class JVMClasspathIndex {
             let parameterType: String
             if let generic = method.genericResultParameter, generic.classParameterIndices.contains(index) {
                 parameterType = "java.lang.Class<`\(generic.name)`>"
+            } else if let variable = classTypeVariableSubstitution(for: method)?.parameters[index] {
+                parameterType = "`\(variable)`"
             } else if isVararg, let name = parameter.referenceName, name.hasPrefix("["),
                let element = try? JVMDescriptor.parse("()" + String(name.dropFirst())).1 {
                 parameterType = kotlinType(element)
