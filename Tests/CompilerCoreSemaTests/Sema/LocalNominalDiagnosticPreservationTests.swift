@@ -110,6 +110,40 @@ struct LocalNominalDiagnosticPreservationTests {
 
         _ = try semaContext(from: source, expecting: [], includeStdlib: false)
     }
+
+    @Test
+    func testObjectLiteralInferredMemberPropertiesAreFinalBeforeMemberBodies() throws {
+        let source = """
+        package objectliteralinferred
+
+        interface IntCursor {
+            fun hasNext(): Boolean
+            fun next(): Int
+        }
+
+        interface CursorSource {
+            fun cursor(): IntCursor
+        }
+
+        class NumberBox(private val source: CursorSource) {
+            fun cursor(): IntCursor = object : IntCursor {
+                private val cursor = source.cursor()
+                private var index = 0
+
+                override fun hasNext(): Boolean = cursor.hasNext() && index < 3
+
+                override fun next(): Int {
+                    if (index < 0) return -1
+                    val result = cursor.next() + index
+                    index++
+                    return result
+                }
+            }
+        }
+        """
+
+        _ = try semaContext(from: source, expecting: [], includeStdlib: false)
+    }
 }
 
 #endif

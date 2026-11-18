@@ -247,12 +247,14 @@ extension DeclTypeChecker {
         ctx: TypeInferenceContext,
         initialLocals: LocalBindings = [:],
         solver: ConstraintSolver,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        allowFullPrecheck: Bool = true
     ) {
         let sema = ctx.sema
         for declID in memberProperties {
             guard !driver.precheckedPropertyDecls.contains(declID),
                   case let .propertyDecl(property)? = ctx.ast.arena.decl(declID),
+                  allowFullPrecheck,
                   canSafelyPrecheckExplicitBackingFieldProperty(
                       property,
                       in: ctx,
@@ -289,12 +291,13 @@ extension DeclTypeChecker {
                 else {
                     continue
                 }
-                if canSafelyPrecheckInferredProperty(
-                    property,
-                    symbol: propertySymbol,
-                    in: ctx,
-                    initialLocals: initialLocals
-                ) {
+                if allowFullPrecheck,
+                   canSafelyPrecheckInferredProperty(
+                       property,
+                       symbol: propertySymbol,
+                       in: ctx,
+                       initialLocals: initialLocals
+                   ) {
                     typeCheckBoundPropertyDecl(
                         property,
                         declID: declID,
@@ -549,12 +552,16 @@ extension DeclTypeChecker {
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
+        // Object literals are rechecked by `typeCheckLocalNominalMemberProperties`;
+        // marking these declarations fully prechecked would skip that pass and
+        // leave member bodies reading placeholder property types (KUU-4610).
         precheckIndependentMemberProperties(
             memberProperties,
             ctx: ctx,
             initialLocals: initialLocals,
             solver: solver,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            allowFullPrecheck: false
         )
     }
 
