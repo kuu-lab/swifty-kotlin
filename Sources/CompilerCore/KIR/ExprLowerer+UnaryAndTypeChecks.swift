@@ -599,7 +599,7 @@ extension ExprLowerer {
         if let targetType = sema.bindings.castTargetType(for: exprID),
            case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(targetType)) {
             let targetSymbol = classType.classSymbol
-            if let targetClass = sema.symbols.symbol(targetSymbol),
+            if sema.symbols.symbol(targetSymbol) != nil,
                sema.symbols.isLocalDeclSynthetic(targetSymbol)
                || sema.symbols.isObjectLiteralSynthetic(targetSymbol) {
                 emitKClassCastNameRegistration(
