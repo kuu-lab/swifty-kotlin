@@ -325,9 +325,26 @@ extension CallTypeChecker {
         // inference until overload resolution picks a signature) handles it.
         // A package-qualified classifier qualifier is the exception:
         // `fixture.SizeMode.Responsive(3)` has no value receiver to infer, so
-        // the constructor must be resolved from the FQN path directly.
+        // the constructor must be resolved from the FQN path directly. Keep it
+        // narrow: the qualifier must be a namespace path (no `Outer()` call
+        // segment), the package root must not be shadowed by an imported value
+        // or classifier, and inner classes still need their outer receiver.
+        let receiverIsNamespacePath = isQualifiedNamespacePath(for: request.receiverID, ast: request.ast)
+        let packageRootNotShadowed = !request.ctx.cachedScopeLookup(receiverPath[0]).contains(where: { candidate in
+            guard let root = request.ctx.cachedSymbol(candidate) else { return false }
+            switch root.kind {
+            case .property, .object, .local, .valueParameter, .typeAlias, .enumClass:
+                return true
+            case .class, .interface, .annotationClass:
+                return request.sema.symbols.companionObjectSymbol(for: candidate) != nil
+            default:
+                return false
+            }
+        })
         let packageQualifiedConstructibleClassifier = receiverNamesClassifier
+            && receiverIsNamespacePath
             && receiverPath.count > 1
+            && packageRootNotShadowed
             && request.sema.symbols.lookupAll(fqName: [receiverPath[0]]).contains(where: {
                 request.sema.symbols.symbol($0)?.kind == .package
             })
@@ -335,7 +352,7 @@ extension CallTypeChecker {
                 guard let symbol = request.ctx.cachedSymbol(candidate) else { return false }
                 switch symbol.kind {
                 case .class, .enumClass, .annotationClass:
-                    return true
+                    return !symbol.flags.contains(.innerClass)
                 default:
                     return false
                 }

@@ -244,4 +244,26 @@ extension CallTypeChecker {
             return nil
         }
     }
+
+    /// Returns true when `exprID` is a bare qualified-name path (packages and
+    /// classifier qualifiers only), with no value-producing call segments.
+    /// `qualifiedCalleePath` intentionally ignores call parentheses so FQN
+    /// package calls can be recognized; constructor resolution needs the
+    /// stricter namespace check so `fixture.Outer().Inner()` keeps its outer
+    /// receiver.
+    func isQualifiedNamespacePath(for exprID: ExprID, ast: ASTModule) -> Bool {
+        guard let expr = ast.arena.expr(exprID) else {
+            return false
+        }
+        switch expr {
+        case .nameRef:
+            return true
+        case let .memberCall(receiver, _, _, args, _):
+            return args.isEmpty
+                && !ast.arena.isExplicitCall(exprID)
+                && isQualifiedNamespacePath(for: receiver, ast: ast)
+        default:
+            return false
+        }
+    }
 }
