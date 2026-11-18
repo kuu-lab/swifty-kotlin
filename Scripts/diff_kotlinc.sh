@@ -67,7 +67,7 @@ KOTLINC_KOTLINX_IO_BYTESTRING_JAR="${KOTLINC_KOTLINX_IO_BYTESTRING_JAR:-$KOTLINC
 KOTLINC_ATOMICFU_VERSION="${KOTLINC_ATOMICFU_VERSION:-0.33.0}"
 KOTLINC_ATOMICFU_SHA256="${KOTLINC_ATOMICFU_SHA256:-}"
 KOTLINC_ATOMICFU_JAR="${KOTLINC_ATOMICFU_JAR:-$KOTLINC_DEP_DIR/atomicfu-jvm-$KOTLINC_ATOMICFU_VERSION.jar}"
-KOTLINC_SERIALIZATION_VERSION="${KOTLINC_SERIALIZATION_VERSION:-1.9.0}"
+KOTLINC_SERIALIZATION_VERSION="${KOTLINC_SERIALIZATION_VERSION:-1.13.0}"
 KOTLINC_SERIALIZATION_SHA256="${KOTLINC_SERIALIZATION_SHA256:-}"
 KOTLINC_SERIALIZATION_JAR="${KOTLINC_SERIALIZATION_JAR:-$KOTLINC_DEP_DIR/kotlinx-serialization-json-jvm-$KOTLINC_SERIALIZATION_VERSION.jar}"
 KOTLINC_SERIALIZATION_CORE_SHA256="${KOTLINC_SERIALIZATION_CORE_SHA256:-}"
@@ -241,7 +241,7 @@ Environment:
   KOTLINC_SERIALIZATION_JAR / KOTLINC_SERIALIZATION_CORE_SHA256 /
   KOTLINC_SERIALIZATION_CORE_JAR
                      kotlinx-serialization-json/core-jvm reference
-                     dependencies (default: pinned 1.9.0); custom versions
+                     dependencies (default: pinned 1.13.0); custom versions
                      require explicit SHA-256 values
 
 Examples:
@@ -523,6 +523,7 @@ known_atomicfu_sha256() {
 known_serialization_sha256() {
   case "$1" in
     1.9.0) printf 'd94cc34cae39246a1af74fda63f9c4812ce12216ef641d5fa3bbbb539a6922d8' ;;
+    1.13.0) printf '389b0dd9b4b952db889c160a2478b1cbe54680804f5315756108389dbe9df251' ;;
     *) printf '' ;;
   esac
 }
@@ -530,6 +531,7 @@ known_serialization_sha256() {
 known_serialization_core_sha256() {
   case "$1" in
     1.9.0) printf '1f0afa172110e45a7231ef1b44ae8fd84c1ebaff96f3fc3ad68ef8c48120b59c' ;;
+    1.13.0) printf 'db2eb98f585a408970ce726af9dfbaccbdfe5df498ccd9dba9918d208974302d' ;;
     *) printf '' ;;
   esac
 }
