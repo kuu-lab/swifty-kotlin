@@ -66,6 +66,25 @@ struct ForwardObjectPropertyInferenceTests {
         }
     }
 
+    @Test
+    func objectLiteralGetterReadsLaterInferredLazyProperty() throws {
+        let source = """
+        interface Lazy<out T> {
+            operator fun getValue(thisRef: Any?, property: Any?): T
+        }
+        class LazyImpl<T>(private val value: T) : Lazy<T> {
+            override fun getValue(thisRef: Any?, property: Any?): T = value
+        }
+        fun <T> lazy(initializer: () -> T): Lazy<T> = LazyImpl(initializer())
+
+        fun demo(): Int = object {
+            val first get() = later
+            val later by lazy { 41 }
+        }.first
+        """
+        try expectNoErrors(sources: [source])
+    }
+
     private func expectNoErrors(sources: [String]) throws {
         try withTemporaryFiles(contents: sources) { paths in
             let context = makeCompilationContext(inputs: paths, includeStdlib: false)

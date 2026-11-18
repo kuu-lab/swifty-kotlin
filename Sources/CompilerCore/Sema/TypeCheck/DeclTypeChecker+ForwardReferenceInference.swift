@@ -687,7 +687,7 @@ extension DeclTypeChecker {
                   ast: ctx.ast,
                   interner: ctx.interner
               ) == .lazy,
-              case let .expr(bodyExpr, _) = property.delegateBody,
+              let bodyExpr = precheckableDelegateBodyExpr(property.delegateBody),
               let type = safePrecheckExpressionType(
                   bodyExpr,
                   in: ctx,
@@ -697,6 +697,21 @@ extension DeclTypeChecker {
             return false
         }
         return type != ctx.sema.types.nullableNothingType
+    }
+
+    /// Object-literal delegate parsing keeps a trailing lambda as a block body
+    /// even when the lambda has a single expression, while the named-declaration
+    /// path can produce `.expr`. The lazy precheck only needs the body's value
+    /// expression, so accept the single-expression block form as well.
+    private func precheckableDelegateBodyExpr(_ body: FunctionBody?) -> ExprID? {
+        switch body {
+        case let .expr(expr, _):
+            return expr
+        case let .block(exprs, _):
+            return exprs.count == 1 ? exprs[0] : nil
+        default:
+            return nil
+        }
     }
 
     /// An inferred property with a custom accessor body still derives its type
@@ -893,6 +908,25 @@ extension DeclTypeChecker {
         return isSafePrecheckValueType(resultType, in: ctx) ? resultType : nil
     }
 
+    /// Object-literal and local-class member properties keep an `Any` header
+    /// placeholder until their inferred type is published. A safe precheck may
+    /// read a pending placeholder only for declarations registered for
+    /// on-demand inference; delegate/getter members are not, so their reads
+    /// wait for the member precheck pass unless a concrete type is published.
+    private func canPrecheckPropertyRead(_ symbol: SymbolID, in ctx: TypeInferenceContext) -> Bool {
+        guard driver.pendingPropertyTypes.contains(symbol),
+              driver.inferredPropertyDeclarations[symbol] == nil
+        else {
+            return true
+        }
+        guard let type = ctx.sema.symbols.propertyType(for: symbol) else {
+            return false
+        }
+        return type != ctx.sema.types.anyType
+            && type != ctx.sema.types.nullableAnyType
+            && type != ctx.sema.types.errorType
+    }
+
     private func safePrecheckNameReference(
         _ name: InternedString,
         in ctx: TypeInferenceContext,
@@ -909,6 +943,9 @@ extension DeclTypeChecker {
             if let property = driver.helpers.lookupMemberProperty(
                 named: name, receiverType: receiver.type, sema: ctx.sema
             ) {
+                guard canPrecheckPropertyRead(property.symbol, in: ctx) else {
+                    return nil
+                }
                 let type = safePrecheckFlowType(for: property.symbol, fallback: property.type, in: ctx)
                 return isSafePrecheckValueType(type, in: ctx) ? type : nil
             }
@@ -942,6 +979,7 @@ extension DeclTypeChecker {
                 )))
         }
         guard symbol.kind == .property || symbol.kind == .field,
+              canPrecheckPropertyRead(candidates[0], in: ctx),
               let declaredType = ctx.sema.symbols.propertyType(for: candidates[0])
         else {
             return nil
