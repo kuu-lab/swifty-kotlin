@@ -77,7 +77,14 @@ extension JVMFunctionBuilder {
         let binding = program.sema.bindings.callBinding(for: id)
         for (i, arg) in args.enumerated() {
             let index = binding?.parameterMapping[i] ?? arg.label.map { context.interner.resolve($0) == "initial" ? 0 : (operation == "fold" ? 1 : 0) } ?? i
-            supplied[index] = (arg.expr, try requireValue(arg.expr))
+            let callback: JVMValue
+            if let composer = activeComposer, index == (operation == "fold" ? 1 : 0),
+               case .lambdaLiteral = arena.expr(arg.expr) {
+                callback = try closure(arg.expr, capturedComposer: composer)
+            } else {
+                callback = try requireValue(arg.expr)
+            }
+            supplied[index] = (arg.expr, callback)
         }
         guard let callbackEntry = supplied[operation == "fold" ? 1 : 0], let signature = functionType(callbackEntry.0) else { throw fail("Missing JVM higher-order callback.", id) }
         let array = receiver.type.referenceName?.hasPrefix("[") == true

@@ -11,8 +11,9 @@ extension JVMClasspathIndex {
         if ["java/util/AbstractCollection", "java/util/RandomAccess", "java/util/AbstractList", "java/util/AbstractSet", "java/util/AbstractMap", "java/util/ListIterator"].contains(name) { return name }
         if name == "kotlin/collections/AbstractList" || name == "kotlin/collections/AbstractSet" { return name }
         if ["kotlin/Function", "kotlin/Lazy", "kotlin/LazyThreadSafetyMode", "kotlin/reflect/KProperty", "kotlin/reflect/KMutableProperty", "kotlin/NotImplementedError", "kotlin/UninitializedPropertyAccessException", "kotlin/properties/ReadOnlyProperty", "kotlin/properties/ReadWriteProperty", "kotlin/properties/Delegates"].contains(name) { return name }
-        if name.hasPrefix("kotlin/reflect/") || name == "java/lang/Class" { return name }
+        if name.hasPrefix("kotlin/reflect/") || ["java/lang/Class", "java/lang/Void", "java/lang/reflect/Field"].contains(name) { return name }
         if ["java/util/NoSuchElementException", "java/util/Locale", "java/lang/StackTraceElement", "java/lang/IllegalAccessException", "java/lang/StringIndexOutOfBoundsException", "java/lang/reflect/Method", "java/lang/reflect/InvocationHandler", "java/nio/charset/Charset"].contains(name) { return name }
+        if name == "kotlin/String$Companion" { return "kotlin/jvm/internal/StringCompanionObject" }
         if name == "kotlin/Annotation" { return "java/lang/annotation/Annotation" }
         if name == "kotlin/annotation/AnnotationTarget" || name == "kotlin/annotation/AnnotationRetention" { return name }
         if name == "kotlin/Enum" { return "java/lang/Enum" }
@@ -274,7 +275,8 @@ extension JVMProgramBuilder {
         f.genericSignature = (f.typeParameters.isEmpty ? "" : "<" + f.typeParameters.map(\.signature).joined() + ">") + "(" + (try ((f.kotlinReceiver == nil ? [] : [signature.receiverType].compactMap { $0 }) + signature.parameterTypes).map { try signatureType($0, parameterPosition: true) }).joined() + ")" + (f.isConstructor ? "V" : try signatureType(signature.returnType))
         if let symbol = sourceDeclaration?.key, jvmComposableFunctions.contains(symbol),
            let closing = f.genericSignature?.lastIndex(of: ")") {
-            f.genericSignature?.insert(contentsOf: JVMCompose.suffix.map(\.descriptor).joined(), at: closing)
+            let hiddenParameters = f.reference.parameters.dropFirst(signature.parameterTypes.count)
+            f.genericSignature?.insert(contentsOf: hiddenParameters.map(\.descriptor).joined(), at: closing)
         }
         if let declaration, declaration.valueParams.contains(where: \.isVararg) {
             let prefix = f.typeParameters.isEmpty ? "" : "<" + f.typeParameters.map(\.signature).joined() + ">"

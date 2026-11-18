@@ -93,7 +93,7 @@ final class TypeCheckSemaPhase: CompilerPhase {
         // crash with SIGBUS (signal 10). Run it on a big-stack thread so
         // recursion headroom is independent of the calling thread, matching
         // `BuildKIRPhase`'s handling of the same class of issue in lowering.
-        let work = TypeCheckWork(driver: driver, fileScopes: fileScopes, files: ast.files, frontendJobs: ctx.options.frontendFlags.contains("sema-parallel") ? ctx.frontendJobs : 1)
+        let work = TypeCheckWork(driver: driver, fileScopes: fileScopes, files: ast.files, frontendJobs: ctx.options.semaParallelEnabled ? ctx.frontendJobs : 1)
         // KUU-3779: while `type-check` runs, the scope-chain, overload
         // resolver, constraint solver and type system record hot-path
         // counters/timers into this collector. It is installed only when
@@ -724,6 +724,16 @@ private final class InlineParameterUsageWalker {
         argumentIndex: Int,
         materialized: Bool
     ) {
+        // The compiler expands `Array(size, init)` and the primitive-array
+        // `(size, init)` factories itself instead of inlining a callee body,
+        // so the initializer position is a materialized function value, not
+        // an inlinable parameter slot. kotlinc rejects forwarding a
+        // restricted inline parameter there even though the resolved
+        // declaration carries `inline`.
+        if isCompilerExpandedArrayInitializerCall(call) {
+            reportIllegalUsage(usage, parameterSymbol: parameterSymbol)
+            return
+        }
         guard let binding = sema.bindings.callBindings[call],
               sema.symbols.symbol(binding.chosenCallee)?.flags.contains(.inlineFunction) == true,
               let signature = sema.symbols.functionSignature(for: binding.chosenCallee)
@@ -765,6 +775,36 @@ private final class InlineParameterUsageWalker {
         } else if parameterIsCrossinline[parameterSymbol] != true {
             reportNonLocalReturn(usage, parameterSymbol: parameterSymbol)
         }
+    }
+
+    /// True when `call` is an array `(size, init)` construction that the
+    /// compiler lowers directly: either the intrinsic
+    /// `kotlin.Array(size, init)`/primitive-array form, or a bundled
+    /// source-backed `kotlin.<XArray>(size, init)` factory whose body is not
+    /// inlined for callers (kklib mode). Mirrors the same predicate the
+    /// array-constructor lowerer uses.
+    private func isCompilerExpandedArrayInitializerCall(_ call: ExprID) -> Bool {
+        if sema.bindings.stdlibSpecialCallKind(for: call) == .arrayConstructor {
+            return true
+        }
+        guard let binding = sema.bindings.callBindings[call],
+              let symbol = sema.symbols.symbol(binding.chosenCallee),
+              symbol.kind == .function,
+              sema.symbols.isSourceBackedSymbol(binding.chosenCallee),
+              symbol.fqName.count == 2,
+              symbol.fqName[0] == interner.intern("kotlin"),
+              knownNames.isArrayLikeName(symbol.name),
+              let signature = sema.symbols.functionSignature(for: binding.chosenCallee),
+              signature.receiverType == nil,
+              signature.parameterTypes.count == 2,
+              case .functionType = sema.types.kind(
+                  of: sema.types.makeNonNullable(signature.parameterTypes[1])
+              ),
+              ReceiverClassifier(sema: sema, interner: interner).isArrayLikeType(signature.returnType)
+        else {
+            return false
+        }
+        return true
     }
 
     // MARK: - Diagnostics

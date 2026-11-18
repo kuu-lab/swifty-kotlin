@@ -13,6 +13,7 @@ final class JVMPreparationPhase: CompilerPhase {
               o.entryPointFQName == nil, o.incrementalCachePath == nil,
               o.frontendFlags.allSatisfy({
                   $0 == "time-phases" || $0 == "no-incremental" || $0 == "full-value-classes"
+                      || $0 == "sema-parallel" || $0 == "sema-serial"
                       || $0.hasPrefix("jobs=")
                       || $0 == CompilerOptions.legacyNonExhaustiveWhenFlag
               }),
@@ -82,6 +83,9 @@ final class JVMPreparationPhase: CompilerPhase {
         if o.stdlibOnly {
             ctx.jvmRuntimeClassAliases = try JVMStdlibCatalog.manifest().runtimeClassAliases ?? [:]
             try injectJVMStdlibSources(ctx)
+            // The stdlib-only build has no JDK classpath, so the kotlin.io.path
+            // helpers need synthetic java.nio.file contracts.
+            try ctx.jvmImports?.injectJDKPathPlatformDeclarations(into: ctx)
         }
         try JVMStdlibCatalog.injectDeclarations(into: ctx)
         try ctx.jvmImports?.injectJDKPlatformDeclarations(into: ctx)

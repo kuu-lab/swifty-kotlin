@@ -61,8 +61,12 @@ extension JVMFunctionBuilder {
         if let entry = program.sema.symbols.symbol(symbol) {
             let fqName = entry.fqName
             let knownNames = KnownCompilerNames(interner: context.interner)
+            let path = fqName.map { context.interner.resolve($0) }
             let field: JVMField?
-            if fqName == knownNames.kotlinRegexFQName || fqName == knownNames.kotlinTextRegexCompanionFQName {
+            if path == ["kotlin", "String"] || path == ["kotlin", "String", "Companion"] {
+                let owner = "kotlin/jvm/internal/StringCompanionObject"
+                field = JVMField(owner: owner, name: "INSTANCE", type: .reference(owner, nullable: false), access: 0x19)
+            } else if fqName == knownNames.kotlinRegexFQName || fqName == knownNames.kotlinTextRegexCompanionFQName {
                 field = JVMField(owner: "kotlin/text/Regex", name: "Companion", type: .reference("kotlin/text/Regex$Companion", nullable: false), access: 0x19)
             } else if fqName == knownNames.kotlinCoroutinesContinuationInterceptorFQName || fqName == knownNames.kotlinCoroutinesContinuationInterceptorKeyFQName {
                 field = JVMField(owner: "kotlin/coroutines/ContinuationInterceptor", name: "Key", type: .reference("kotlin/coroutines/ContinuationInterceptor$Key", nullable: false), access: 0x19)
@@ -151,36 +155,8 @@ extension JVMFunctionBuilder {
             }
             return JVMIntrinsicResult(value: try jdkCall(plan.name, "copy", method.parameters, method.result, receiver: object, arguments: values, resolved: program.expressionType(id)))
         }
-        if receiver == nil, args.isEmpty,
-           let target = program.sema.bindings.callBinding(for: id)?.chosenCallee,
-           let symbol = program.sema.symbols.symbol(target), symbol.flags.contains(.synthetic),
-           context.interner.resolve(symbol.name) == "values" {
-            let parent = program.sema.symbols.parentSymbol(for: target)
-            // A resolved parent that is not in program.classes is an imported
-            // enum — falling back to self.owner would emit the current class's
-            // values(). Only fall back when there is no resolved parent at all.
-            let owner = parent.flatMap { program.classes[$0] } ?? (parent == nil ? self.owner : nil)
-            if let owner, let plan = owner.companionOwner.flatMap({ program.classes[$0] }) ?? (owner.isEnum ? owner : nil),
-               plan.isEnum {
-                return JVMIntrinsicResult(value: try jdkCall(plan.name, "values", [], program.enumValuesField(plan).type))
-            }
-        }
         guard let receiver, let name else { return nil }
         let receiverSymbol = program.sema.bindings.identifierSymbol(for: receiver)
-        if let receiverSymbol,
-           program.sema.symbols.symbol(receiverSymbol)?.kind == .enumClass,
-           let owner = try? program.className(receiverSymbol),
-           let imported = context.jvmImports?.classes[owner], imported.flags & 0x4000 != 0,
-           let method = imported.methods.first(where: {
-               switch name {
-               case "values": $0.isStatic && $0.name == name && $0.descriptor == "()[L\(owner);"
-               case "valueOf": $0.isStatic && $0.name == name && $0.descriptor == "(Ljava/lang/String;)L\(owner);"
-               default: false
-               }
-           }),
-           args.count == method.parameters.count {
-            return JVMIntrinsicResult(value: try foreign(method, receiver: nil, args: args, id: id))
-        }
         let enumPlan = receiverSymbol.flatMap { program.classes[$0] }
         if let plan = enumPlan, plan.isEnum, ["values", "valueOf", "entries"].contains(name) {
             let params: [JVMValueType] = name == "valueOf" ? [.string] : []

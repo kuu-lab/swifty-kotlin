@@ -615,6 +615,7 @@ struct MetadataState {
     /// cleared with `typeParents` so a metadata reset re-registers them.
     var reflectionTypeEdgesRegistered = false
     var primitiveTypeEdgesRegistered = false
+    var bigDecimalTypeEdgesRegistered = false
     var rangeTypeEdgesRegistered = false
     var jobFamilyTypeEdgesRegistered = false
     var channelFamilyTypeEdgesRegistered = false
@@ -1642,6 +1643,7 @@ func kk_runtime_reset_metadata() {
             state.typeParents.removeAll(keepingCapacity: false)
             state.reflectionTypeEdgesRegistered = false
             state.primitiveTypeEdgesRegistered = false
+            state.bigDecimalTypeEdgesRegistered = false
             state.rangeTypeEdgesRegistered = false
             state.jobFamilyTypeEdgesRegistered = false
             state.channelFamilyTypeEdgesRegistered = false

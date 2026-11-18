@@ -39,54 +39,6 @@ extension JVMClasspathIndex {
         return nil
     }
 
-    func canExpose(_ method: JVMForeignMethod) -> Bool {
-        guard method.isConstructor || JVMProgramBuilder.isIdentifier(method.name) else { return false }
-        if let function = kotlinFunction(method) {
-            return kotlinReferences(function).allSatisfy { name in
-                kotlinTypeAvailable(name)
-            }
-        }
-        if let constructor = kotlinConstructor(method) {
-            return constructor.parameters.flatMap { kotlinReferences($0.type) }.allSatisfy(kotlinTypeAvailable)
-        }
-        return method.parameters.allSatisfy(expose) && expose(method.result)
-    }
-
-    func kotlinTypeAvailable(_ name: String) -> Bool {
-        name.hasPrefix("kotlin/") || classes[name] != nil || name == "java/lang/ClassLoader"
-    }
-
-    func kotlinConstructor(_ method: JVMForeignMethod) -> JVMKotlinConstructorInfo? {
-        guard method.isConstructor, let owner = declaringClass(for: method), let metadata = kotlinMetadata(owner) else { return nil }
-        let candidates = metadata.constructors.filter {
-            ($0.isPublic || $0.isProtected) && $0.parameters.count == method.parameters.count
-        }
-        return candidates.first { constructor in
-            if let descriptor = constructor.descriptor { return descriptor == method.descriptor }
-            let parameters = constructor.parameters.map { kotlinErasure($0.type, parameters: metadata.typeParameters) }
-            return "(" + parameters.joined() + ")V" == method.descriptor
-        } ?? (candidates.count == 1 && candidates[0].descriptor == nil ? candidates[0] : nil)
-    }
-
-    func kotlinReferences(_ function: JVMKotlinFunctionInfo) -> [String] {
-        let types = [function.result] + [function.receiver].compactMap { $0 } + function.parameters.map(\.type)
-            + function.typeParameters.flatMap(\.bounds)
-        return types.flatMap(kotlinReferences)
-    }
-
-    func kotlinReferences(_ type: JVMKotlinType) -> [String] {
-        switch type {
-        case .named(let name, let arguments, _):
-            return [name] + arguments.compactMap(\.type).flatMap(kotlinReferences)
-        case .parameter:
-            return []
-        case .flexible(let type, _):
-            return kotlinReferences(type)
-        case .function(let parameters, let result, let receiver, _, _, _):
-            return (parameters + [result] + [receiver].compactMap { $0 }).flatMap(kotlinReferences)
-        }
-    }
-
     func kotlinFunctionDeclaration(_ function: JVMKotlinFunctionInfo, owner: JVMClassInfo, includeReceiver: Bool = true) -> String {
         let typeParameters = (kotlinMetadata(owner)?.typeParameters ?? []) + function.typeParameters
         let names = Dictionary(typeParameters.map { ($0.id, $0.name) }, uniquingKeysWith: { _, name in name })

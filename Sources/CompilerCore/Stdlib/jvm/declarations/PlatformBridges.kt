@@ -147,6 +147,8 @@ fun __jvmUIntString(value: Int): String = null!!
 fun __jvmULongString(value: Long): String = null!!
 fun __jvmUIntCompare(first: Int, second: Int): Int = 0
 fun __jvmULongCompare(first: Long, second: Long): Int = 0
+fun __jvmMonitorEnter(lock: Any) {}
+fun __jvmMonitorExit(lock: Any) {}
 fun __jvmClassName(type: Any): String = null!!
 fun __jvmClassSimpleName(type: Any): String = null!!
 fun __jvmClassModifiers(type: Any): Int = 0
@@ -193,7 +195,6 @@ fun __jvmDeepHash(values: Array<Any?>): Int = 0
 fun __jvmDeepString(values: Array<Any?>): String = null!!
 fun <T> __jvmCopyArray(array: Array<T>, size: Int): Array<T> = null!!
 fun __jvmUtf8String(bytes: ByteArray, charset: String): String = null!!
-fun __jvmUtf8Bytes(value: String, charset: String): ByteArray = null!!
 fun <T> __jvmUnmodifiableSet(value: Set<T>): Set<T> = null!!
 fun __jvmUIntDivide(first: Int, second: Int): Int = 0
 fun __jvmUIntRemainder(first: Int, second: Int): Int = 0

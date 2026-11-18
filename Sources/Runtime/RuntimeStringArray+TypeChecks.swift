@@ -168,6 +168,27 @@ private func runtimePrimitiveBoxNominalTypeID(_ ptr: UnsafeMutableRawPointer) ->
     return nil
 }
 
+private let runtimeBigDecimalNominalTypeID = runtimeStableNominalTypeID(fqName: "java.math.BigDecimal")
+
+/// Registers BigDecimal's direct Number/Comparable ancestry once. BigDecimal
+/// values are `RuntimeBigNumberBox` handles rather than `kk_object_new`
+/// allocations, so `kk_op_is` recovers this nominal identity from the box
+/// (KUU-4596 `divideAndRemainder` array elements).
+func registerBigDecimalTypeEdgesOnce() {
+    runtimeStorage.withMetadataLock { state in
+        if state.bigDecimalTypeEdgesRegistered {
+            return
+        }
+        let number = runtimeStableNominalTypeID(fqName: "kotlin.Number")
+        let comparable = runtimeStableNominalTypeID(fqName: "kotlin.Comparable")
+        let serializable = runtimeStableNominalTypeID(fqName: "java.io.Serializable")
+        state.typeParents[runtimeBigDecimalNominalTypeID, default: []].insert(number)
+        state.typeParents[runtimeBigDecimalNominalTypeID, default: []].insert(comparable)
+        state.typeParents[number, default: []].insert(serializable)
+        state.bigDecimalTypeEdgesRegistered = true
+    }
+}
+
 func runtimeIsStringBoxPointer(_ ptr: UnsafeMutableRawPointer) -> Bool {
     let isObjectPointer = runtimeStorage.withGCLock { state in
         state.objectPointers.contains(UInt(bitPattern: ptr))
@@ -607,6 +628,20 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
             registerChannelFamilyTypeEdgesOnce()
             return runtimeIsAssignable(
                 sourceTypeID: channelFamilyTypeID,
+                targetTypeID: payload
+            ) ? 1 : 0
+        }
+        // KUU-4596: BigDecimal values are RuntimeBigNumberBox handles rather
+        // than kk_object_new allocations, so recover the java.math.BigDecimal
+        // nominal identity for `is`/`as` checks (notably Array<BigDecimal> reads).
+        if let bigNumberBox = runtimeStorage.withGCLock({ state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+                ? tryCast(ptr, to: RuntimeBigNumberBox.self)
+                : nil
+        }), bigNumberBox.kind == .decimal {
+            registerBigDecimalTypeEdgesOnce()
+            return runtimeIsAssignable(
+                sourceTypeID: runtimeBigDecimalNominalTypeID,
                 targetTypeID: payload
             ) ? 1 : 0
         }

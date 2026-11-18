@@ -91,6 +91,7 @@ extension JVMClasspathIndex {
             package java.lang
             class String(value: kotlin.String) {
                 companion object {
+                    val CASE_INSENSITIVE_ORDER: kotlin.Comparator<kotlin.String> get() = null!!
                     external fun valueOf(value: Boolean): String
                     external fun valueOf(value: Char): String
                     external fun valueOf(value: CharArray): String
@@ -168,6 +169,7 @@ extension JVMClasspathIndex {
                     val err: java.io.PrintStream get() = null!!
                     external fun getProperty(propertyName: kotlin.String): kotlin.String?
                     external fun getProperty(propertyName: kotlin.String, defaultValue: kotlin.String): kotlin.String
+                    external fun currentTimeMillis(): Long
                     external fun nanoTime(): Long
                     external fun arraycopy(src: Any?, srcPos: Int, dest: Any?, destPos: Int, length: Int): Unit
                     external fun exit(status: Int): Unit
@@ -176,6 +178,7 @@ extension JVMClasspathIndex {
             """, 0x0011, "java/lang/Object", [
                 method("java/lang/System", "getProperty", [.string], .reference("java/lang/String", nullable: true), staticMember: true),
                 method("java/lang/System", "getProperty", [.string, .string], .reference("java/lang/String", nullable: false), staticMember: true),
+                method("java/lang/System", "currentTimeMillis", [], .long, staticMember: true),
                 method("java/lang/System", "nanoTime", [], .long, staticMember: true),
                 method("java/lang/System", "arraycopy", [object, .int, object, .int, .int], .unit, staticMember: true),
                 method("java/lang/System", "exit", [.int], .unit, staticMember: true),
@@ -208,6 +211,8 @@ extension JVMClasspathIndex {
             package java.lang
             class Integer private constructor() {
                 companion object {
+                    const val MAX_VALUE: Int = 2147483647
+                    const val MIN_VALUE: Int = -2147483647 - 1
                     external fun parseInt(value: String): Int
                     external fun parseInt(value: String, radix: Int): Int
                 }
@@ -342,17 +347,40 @@ extension JVMClasspathIndex {
                 method("java/util/SortedSet", "tailSet", [object], .reference("java/util/SortedSet", nullable: false), interface: true),
                 method("java/util/SortedSet", "subSet", [object, object], .reference("java/util/SortedSet", nullable: false), interface: true),
             ]),
+            ("java/lang/Void", """
+            package java.lang
+            class Void private constructor()
+            """, 0x0011, "java/lang/Object", []),
+            ("java/lang/reflect/Field", """
+            package java.lang.reflect
+            class Field private constructor() {
+                var isAccessible: Boolean get() = false set(value) {}
+                external fun setBoolean(receiver: Any?, value: Boolean)
+                external fun setInt(receiver: Any?, value: Int)
+            }
+            """, 0x0011, "java/lang/reflect/AccessibleObject", [
+                method("java/lang/reflect/Field", "isAccessible", [], .boolean),
+                method("java/lang/reflect/Field", "setAccessible", [.boolean], .unit),
+                method("java/lang/reflect/Field", "setBoolean", [object, .boolean], .unit),
+                method("java/lang/reflect/Field", "setInt", [object, .int], .unit),
+            ]),
             ("java/util/Locale", """
             package java.util
             open class Locale {
                 val language: String get() = null!!
                 companion object {
                     val ROOT: Locale get() = null!!
+                    val US: Locale get() = null!!
+                    val JAPAN: Locale get() = null!!
+                    val JAPANESE: Locale get() = null!!
+                    val ENGLISH: Locale get() = null!!
+                    external fun getDefault(): Locale
                     external fun forLanguageTag(languageTag: String): Locale
                 }
             }
             """, 0x0001, "java/lang/Object", [
                 method("java/util/Locale", "getLanguage", [], .string),
+                method("java/util/Locale", "getDefault", [], .reference("java/util/Locale", nullable: false), staticMember: true),
                 method("java/util/Locale", "forLanguageTag", [.string], .reference("java/util/Locale", nullable: false), staticMember: true),
             ]),
             ("java/util/TreeMap", """
@@ -501,6 +529,12 @@ extension JVMClasspathIndex {
             if name == "java/lang/System" {
                 info.fields = ["out", "err"].map { JVMForeignField(name: $0, descriptor: "Ljava/io/PrintStream;", access: 0x19) }
             }
+            if name == "java/lang/String" {
+                info.fields = [JVMForeignField(name: "CASE_INSENSITIVE_ORDER", descriptor: "Ljava/util/Comparator;", access: 0x0019)]
+            }
+            if name == "java/util/Locale" {
+                info.fields = ["ROOT", "US", "JAPAN", "JAPANESE", "ENGLISH"].map { JVMForeignField(name: $0, descriptor: "Ljava/util/Locale;", access: 0x0019) }
+            }
             let path = "<kswiftk-jvm>/platform/" + name + ".kt"
             let file = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8), origin: .residualStdlib)
             sourceClasses[file] = info
@@ -617,6 +651,74 @@ extension JVMClasspathIndex {
             )
             sourceClasses[file] = info
             classes[info.name] = info
+        }
+
+        // The stdlib-jar contracts in declarations/JavaCollections.kt describe
+        // the JDK abstract collection bases the kotlin.collections sources
+        // extend. Consumer builds resolve them from the real classpath; the
+        // stdlib-only build has no classpath, so register the same erased
+        // signatures when the file was injected and nothing provided them.
+        let javaCollectionsPath = "<kswiftk-jvm>/javaCollections.kt"
+        if ctx.sourceManager.fileIDs().contains(where: { ctx.sourceManager.path(of: $0) == javaCollectionsPath }) {
+            let collection: JVMValueType = .reference("java/util/Collection", nullable: false)
+            let set: JVMValueType = .reference("java/util/Set", nullable: false)
+            let iterator: JVMValueType = .reference("java/util/Iterator", nullable: false)
+            let listIterator: JVMValueType = .reference("java/util/ListIterator", nullable: false)
+            let collectionBases: [(String, [JVMForeignMethod])] = [
+                ("java/util/AbstractCollection", [
+                    method("java/util/AbstractCollection", "<init>", [], .reference("java/util/AbstractCollection", nullable: false)),
+                    method("java/util/AbstractCollection", "size", [], .int),
+                    method("java/util/AbstractCollection", "isEmpty", [], .boolean),
+                    method("java/util/AbstractCollection", "contains", [object], .boolean),
+                    method("java/util/AbstractCollection", "iterator", [], iterator),
+                ]),
+                ("java/util/AbstractSet", [
+                    method("java/util/AbstractSet", "<init>", [], .reference("java/util/AbstractSet", nullable: false)),
+                    method("java/util/AbstractSet", "size", [], .int),
+                    method("java/util/AbstractSet", "isEmpty", [], .boolean),
+                    method("java/util/AbstractSet", "contains", [object], .boolean),
+                    method("java/util/AbstractSet", "iterator", [], iterator),
+                ]),
+                ("java/util/AbstractList", [
+                    method("java/util/AbstractList", "<init>", [], .reference("java/util/AbstractList", nullable: false)),
+                    method("java/util/AbstractList", "size", [], .int),
+                    method("java/util/AbstractList", "isEmpty", [], .boolean),
+                    method("java/util/AbstractList", "contains", [object], .boolean),
+                    method("java/util/AbstractList", "get", [.int], object),
+                    method("java/util/AbstractList", "listIterator", [], listIterator),
+                    method("java/util/AbstractList", "listIterator", [.int], listIterator),
+                ]),
+                ("java/util/AbstractMap", [
+                    method("java/util/AbstractMap", "<init>", [], .reference("java/util/AbstractMap", nullable: false)),
+                    method("java/util/AbstractMap", "size", [], .int),
+                    method("java/util/AbstractMap", "isEmpty", [], .boolean),
+                    method("java/util/AbstractMap", "containsKey", [object], .boolean),
+                    method("java/util/AbstractMap", "get", [object], object),
+                    method("java/util/AbstractMap", "keySet", [], set),
+                    method("java/util/AbstractMap", "values", [], collection),
+                    method("java/util/AbstractMap", "entrySet", [], set),
+                ]),
+                ("java/util/ListIterator", [
+                    method("java/util/ListIterator", "hasPrevious", [], .boolean, interface: true),
+                    method("java/util/ListIterator", "previous", [], object, interface: true),
+                    method("java/util/ListIterator", "nextIndex", [], .int, interface: true),
+                    method("java/util/ListIterator", "previousIndex", [], .int, interface: true),
+                    method("java/util/ListIterator", "add", [object], .unit, interface: true),
+                    method("java/util/ListIterator", "set", [object], .unit, interface: true),
+                    method("java/util/ListIterator", "remove", [], .unit, interface: true),
+                ]),
+                ("java/util/RandomAccess", []),
+            ]
+            for (name, members) in collectionBases where classes[name] == nil {
+                let isInterface = name == "java/util/ListIterator" || name == "java/util/RandomAccess"
+                classes[name] = JVMClassInfo(
+                    name: name,
+                    flags: isInterface ? 0x0601 : 0x0401,
+                    superclass: isInterface ? nil : "java/lang/Object",
+                    interfaces: [],
+                    methods: members
+                )
+            }
         }
 
         // The bundled `kotlin.Comparator` declaration erases to the JDK

@@ -6,11 +6,11 @@
 
 ## 1. プロジェクト概要
 
-**KSwiftK** は Swift で書かれた Kotlin コンパイラ。Kotlin 2.3.10 stable をターゲットとし、LLVM 経由で macOS ネイティブ実行ファイルを生成する。
+**KSwiftK** は Swift で書かれた Kotlin コンパイラ。Kotlin 2.4.20 stable をターゲットとし、emit mode に応じて LLVM / Wasm / JVM バックエンドでネイティブ・WebAssembly・JVM/Android 成果物を生成する。
 
 | 属性 | 値 |
 |---|---|
-| 言語 | Swift 6.2 (Swift language mode 6) / macOS 12+ |
+| 言語 | Swift 6.3 (Swift language mode 6) / macOS 12+ |
 | ビルドシステム | SwiftPM (`Package.swift`) |
 | 実行バイナリ | `kswiftc` |
 | テストフレームワーク | Swift Testing（XCTest は全廃済み） |
@@ -23,8 +23,10 @@
 ```text
 Package.swift
  +-- RuntimeABI           (target)      Runtime ABI 契約と extern view の共有境界
- +-- CompilerCore         (library)     フロントエンド (Lex〜Lowering)、LLVM 非依存
- +-- CompilerBackend      (library)     バックエンド (Codegen + Link)、LLVM 依存
+ +-- RuntimeCAtomics      (target)      Runtime が使う C11 atomic shim
+ +-- CSQLite              (systemLibrary) Runtime/JDBC が使う SQLite C API
+ +-- CompilerCore         (library)     フロントエンド (Lex〜Lowering / JVM frontend)、LLVM 非依存
+ +-- CompilerBackend      (library)     バックエンド (Native/Wasm Codegen + Link、JVM classfile/JAR/DEX/APK)、LLVM 依存は Native のみ
  +-- KSwiftKCLI           (executable)  CLI エントリポイント -> kswiftc
  +-- LSPServer            (library)     Language Server Protocol 実装
  +-- KSwiftLSPCLI         (executable)  LSP サーバ CLI エントリポイント -> kswift-lsp
@@ -32,7 +34,7 @@ Package.swift
  +-- GoldenHarnessWorker  (executable)  ゴールデンテスト実行ワーカー
  +-- CompilerTestSupport  (library)     テスト共通ヘルパー (assertion / filesystem / pipeline / KIR・LLVM)
  +-- TestStdlibCache      (library)     テスト用 bundled stdlib .kklib を 1 回だけビルドして共有する content-addressed キャッシュ
- +-- Runtime              (library)     GC / coroutine / boxing ヘルパー
+ +-- Runtime              (target; product `KotlinRuntime`) GC / coroutine / boxing ヘルパー
 ```
 
 ### 依存グラフ
@@ -51,12 +53,14 @@ CompilerCoreFrontendTests    --> CompilerCore, CompilerTestSupport, RuntimeABI
 CompilerCoreSemaTests        --> CompilerCore, CompilerTestSupport, TestStdlibCache, RuntimeABI
 CompilerCoreKIRLoweringTests --> CompilerCore, CompilerTestSupport, TestStdlibCache, RuntimeABI
 CompilerBackendTests --> CompilerBackend, CompilerCore, CompilerTestSupport, TestStdlibCache
+Runtime              --> RuntimeABI, RuntimeCAtomics, CSQLite
 RuntimeTests         --> Runtime, RuntimeABI
 RuntimeTestsParallel --> Runtime, RuntimeABI
-KSwiftKCLITests      --> KSwiftKCLI, CompilerCore
+KSwiftKCLITests      --> KSwiftKCLI, CompilerCore, CompilerBackend
 LSPServerTests       --> LSPServer, CompilerCore
-Runtime (独立 — リンク時に結合)
 ```
+
+`Runtime` はリンク時に生成物へ結合されるが、モジュール依存として `RuntimeABI` / `RuntimeCAtomics` / `CSQLite` を持つ。JVM emit (`class|jar|dex|apk`) は LLVM を通らず、`CompilerCore/Driver/JVM*.swift` が classpath / JVM stdlib 宣言と typed JVM IR (`ctx.jvmProgram`) を構築し、`CompilerBackend/JVM/` が classfile / JAR / DEX / APK を出力する。wasm は `CompilerBackend/Wasm/` の LLVM 非依存 emitter が `.wasm` を直接出力する。
 
 LLVM への SwiftPM リンク依存はない。`CompilerBackend` が実行時に `libLLVM.dylib` / `libLLVM.so` を `dlopen` で動的ロードする（`Sources/CompilerBackend/LLVMCAPIBindings+Loading.swift`）。discovery の候補は `KSWIFTK_LLVM_DYLIB`（絶対パスのみ）と固定の trusted install directory に限定され、`LIBRARY_PATH` / `LD_LIBRARY_PATH` / `DYLD_LIBRARY_PATH` は参照しない。`dlopen` 前に対象ファイルと全 ancestor directory の owner（root または実行ユーザ）・mode（other 書き込み不可。group 書き込みは `admin` / `wheel` / `root` / `sudo` などの administrative group のみ許容 — 標準 Homebrew インストールの `/opt/homebrew/Cellar` 等は `drwxrwxr-x user:admin` になるため）・canonical path を `TrustedFileSystem.trustedLoadableFile` で検証する。拒否された既存候補は拒否箇所と理由を stderr に出す。
 
@@ -64,24 +68,30 @@ LLVM への SwiftPM リンク依存はない。`CompilerBackend` が実行時に
 
 ## 3. コンパイルパイプライン (心臓部)
 
-`CompilerDriver.run()` が以下の Phase を順に実行する。  
-各 Phase は `CompilerPhase` プロトコルに準拠し、`CompilationContext` を読み書きする。
+`CompilerDriver.run()` は emit mode で frontend を分岐する。Lexer / Parser / BuildAST は共通で、JVM route は `JVMPreparation` / `JVMSourceValidation` / `JVMFrontend` を挟み、native / wasm route は `Sema` の後に `BuildKIR` / `Lowering` を実行する。backend は `makeBackendPhases()` が返す `Codegen` → `Link` で、`Link` は `emit == .executable` かつ非 wasm のときだけ動く。
 
 ```text
-LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lowering --> Codegen --> Link
+LoadSources
+  +-- JVM (`class|jar|dex|apk`): JVMPreparation -> Lex -> Parse -> BuildAST -> JVMSourceValidation -> Sema -> JVMFrontend -> Codegen -> Link (no-op)
+  +-- native / wasm:             Lex -> Parse -> BuildAST -> Sema -> BuildKIR -> Lowering -> Codegen -> Link (executable only)
 ```
 
-| # | Phase | 入力 | 出力 (ctx に格納) | 主要ファイル |
-|---|-------|------|-------------------|-------------|
-| 1 | **LoadSources** | ファイルパス | `sourceManager` にファイル登録 | `Driver/FrontendPhases.swift` |
-| 2 | **Lex** | ソースバイト列 | `ctx.tokens`, `ctx.tokensByFile` | `Driver/FrontendPhases.swift`, `Lexer/KotlinLexer*.swift` |
-| 3 | **Parse** | トークン列 | `ctx.syntaxTrees` (CST) | `Driver/FrontendPhases.swift`, `Parser/KotlinParser*.swift` |
-| 4 | **BuildAST** | CST | `ctx.ast` (ASTModule) | `Driver/FrontendPhases.swift`, `AST/BuildASTPhase+*.swift` |
-| 5 | **SemaPasses** | AST | `ctx.sema` (SemaModule) | `Sema/Infrastructure/SemaPhase.swift` -> `DataFlow/Phase.swift` + `TypeCheck/TypeCheckSemaPhase.swift` |
-| 6 | **BuildKIR** | AST + Sema | `ctx.kir` (KIRModule) | `KIR/BuildKIRPhase.swift`, `KIR/KIRLoweringDriver.swift` |
-| 7 | **Lowering** | KIR | KIR (in-place 変換) | `Lowering/LoweringPhase.swift` + 各 `*LoweringPass.swift` |
-| 8 | **Codegen** | KIR | `.o` / `.ll` / `.kir` / `.kklib` / `.wasm` (wasm ターゲット時) | `CompilerBackend/CodegenPhase.swift`, `CompilerBackend/LLVMBackend.swift`, `CompilerBackend/NativeEmitter.swift`, `CompilerBackend/Wasm/WasmEmitter.swift` |
-| 9 | **Link** | `.o` ファイル | 実行ファイル (macOS 通常リンクは clang、debug / Linux 等は swiftc。wasm ターゲットはリンクせず Codegen の `.wasm` をそのまま出力) | `CompilerBackend/LinkPhase.swift` |
+| # | Phase | route | 入力 | 出力 (ctx に格納) | 主要ファイル |
+|---|-------|-------|------|-------------------|-------------|
+| 1 | **LoadSources** | all | ファイルパス / bundled stdlib | `sourceManager` にファイル登録 | `Driver/FrontendPhases.swift` |
+| 2 | **JVMPreparation** | JVM only | CLI options / classpath | `ctx.jvmImports`, JVM stdlib declarations | `Driver/JVMFrontendPhase.swift`, `Driver/JVMClasspath*.swift` |
+| 3 | **Lex** | all | ソースバイト列 | `ctx.tokens`, `ctx.tokensByFile` | `Driver/FrontendPhases.swift`, `Lexer/KotlinLexer*.swift` |
+| 4 | **Parse** | all | トークン列 | `ctx.syntaxTrees` (CST) | `Driver/FrontendPhases.swift`, `Parser/KotlinParser*.swift` |
+| 5 | **BuildAST** | all | CST | `ctx.ast` (ASTModule) | `Driver/FrontendPhases.swift`, `AST/BuildASTPhase+*.swift` |
+| 6 | **JVMSourceValidation** | JVM only | tokens / CST | diagnostics | `Driver/JVMSourceValidationPhase.swift` |
+| 7 | **Sema** | all | AST (+ JVM imports) | `ctx.sema` (SemaModule) | `Sema/Infrastructure/SemaPhase.swift` -> `DataFlow/Phase.swift` + `TypeCheck/TypeCheckSemaPhase.swift` |
+| 8 | **BuildKIR** | native / wasm | AST + Sema | `ctx.kir` (KIRModule) | `KIR/BuildKIRPhase.swift`, `KIR/KIRLoweringDriver.swift` |
+| 9 | **JVMFrontend** | JVM only | AST + Sema | `ctx.jvmProgram` (JVMProgram) | `Driver/JVMFrontendPhase.swift`, `Driver/JVMProgramBuilder*.swift` |
+| 10 | **Lowering** | native / wasm | KIR | KIR (in-place 変換) | `Lowering/LoweringPhase.swift` + 各 `*LoweringPass.swift` |
+| 11 | **Codegen** | all | KIR / JVMProgram | `.o` / `.ll` / `.kklib` / `.wasm` / `.class` / `.jar` / `.dex` / `.apk` | `CompilerBackend/CodegenPhase.swift`, `CompilerBackend/LLVMBackend.swift`, `CompilerBackend/NativeEmitter.swift`, `CompilerBackend/Wasm/WasmEmitter.swift`, `CompilerBackend/JVM/JVMCodegenPhase.swift` |
+| 12 | **Link** | native executable only | `.o` ファイル | 実行ファイル (macOS 通常リンクは clang、debug / Linux 等は swiftc) | `CompilerBackend/LinkPhase.swift` |
+
+`--emit kirDump` は Lowering 後に driver が `.kir` テキストを直接書き出す。`--run` は `KIRInterpreter` を先に試し、未対応なら native Codegen + Link + 実行へフォールバックする (`Driver.swift`)。
 
 ---
 
@@ -96,18 +106,20 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 | `AST/` | CST -> AST 変換 | `BuildASTPhase+*.swift` (20+ファイル), `ASTModels.swift`, `ASTDeclModels.swift`, `ASTExprModels.swift`, `ASTArena.swift` | 新 AST ノード追加、式パーサ修正 |
 | `Sema/` | 型チェック / データフロー解析 | `Infrastructure/SemaPhase.swift`, `DataFlow/Phase.swift`, `TypeCheck/TypeCheckSemaPhase.swift`, `Resolution/OverloadResolver.swift`, `Resolution/ConstraintSolver.swift`, `TypeSystem/TypeSystem.swift`, `Models/SemanticsModels.swift`, `TypeSystem/TypeModels.swift` | 型推論修正、オーバーロード解決、smart cast |
 | `KIR/` | 型付き中間表現 | `KIRModels.swift`, `BuildKIRPhase.swift`, `KIRLoweringDriver.swift`, `ExprLowerer.swift`, `CallLowerer.swift`, `ControlFlowLowerer.swift`, `MemberLowerer.swift`, `LambdaLowerer.swift`, `ObjectLiteralLowerer.swift` ほか。各 Lowerer は責務ベース suffix（§4.1）で多数分割されている | IR 命令追加、コール生成修正 |
+| `Klib/` | Kotlin/Native `.klib` の読み込み | `ZipArchive.swift`, `Inflate.swift`, `KlibContainer.swift`, `KlibManifest.swift`, `ProtoReader.swift`, `KlibIr*.swift` | packed/unpacked `.klib` と Kotlin IR の import |
+| `Plugins/` | built-in compiler plugins | `CompilerPlugin.swift`, `AllOpenPlugin.swift`, `NoArgPlugin.swift`, `ComposePlugin.swift`, `ComposeLoweringPass.swift`, `JvmCompilerPluginBridge.swift` ほか | plugin Sema transform / lowering pass |
 | `Lowering/` | KIR 脱糖パス群 | `LoweringPhase.swift` (パス登録) + 各 `*LoweringPass.swift`。実行順は §9 参照 | for/when/property のデシュガー修正、新 lowering pass 追加 |
 | `Sema/NameMangler.swift` | マングリング | `NameMangler` | シンボル名マングリング修正 |
-| `Driver/` | パイプライン制御 + 横断インフラ | `Driver.swift`, `CompilationContext.swift`, `Diagnostics.swift`, `Phases.swift`, `FrontendPhases.swift`, `SourceManager.swift`, `SourceLocation.swift`, `CommandRunner.swift`, `PhaseTimer.swift`, `IncrementalCompilationCache.swift`, `DependencyGraph.swift`, `FileFingerprint.swift` | 新フェーズ追加、診断メッセージ修正、インクリメンタルビルド |
-| `Stdlib/` | Kotlin stdlib ソース（リソース） | `kotlin/collections/*.kt`, `kotlin/text/*.kt`, `kotlinx/coroutines/**/*.kt` 等（詳細は [`stdlib-pipeline.md`](stdlib-pipeline.md)）。`wasm/kotlin/wasm/` は `kotlin.wasm` API 宣言層で wasm ターゲット時のみ注入、`jvm/` は常時除外 | stdlib 拡張関数の追加・修正 |
+| `Driver/` | パイプライン制御 + frontend/JVM 分岐 + 横断インフラ | `Driver.swift`, `CompilationContext.swift`, `Diagnostics.swift`, `Phases.swift`, `FrontendPhases.swift`, `SourceManager.swift`, `SourceLocation.swift`, `CommandRunner.swift`, `PhaseTimer.swift`, `IncrementalCompilationCache.swift`, `DependencyGraph.swift`, `FileFingerprint.swift`, `JVMFrontendPhase.swift`, `JVMSourceValidationPhase.swift`, `JVMClasspath*.swift`, `JVMProgramBuilder*.swift`, `BundledStdlib.swift`, `StdlibProfile.swift` | 新フェーズ追加、診断メッセージ修正、JVM classpath/frontend、インクリメンタルビルド |
+| `Stdlib/` | Kotlin stdlib ソース（リソース） | `kotlin/**`, `kotlinx/**`, `java/**`, `platform/**`, `kswiftk/**` に加え、JVM 用 `jvm/**`、wasm target 用 `wasm/**`（詳細は [`stdlib-pipeline.md`](stdlib-pipeline.md) / [`jvm-backend.md`](jvm-backend.md) / [`wasm-support-plan.md`](wasm-support-plan.md)）。native source injection は `jvm/` を除外し、`wasm/` は wasm target 時のみ注入（`Driver/BundledStdlib.swift`） | stdlib 拡張関数の追加・修正 |
 
-### `Sources/CompilerBackend/` (LLVM バックエンド)
+### `Sources/CompilerBackend/` (Native/Wasm/JVM backends)
 
 | ファイル | 責務 |
 |---|---|
 | `BackendPhaseProvider.swift` | `makeBackendPhases()` — CodegenPhase + LinkPhase を提供 |
-| `CodegenPhase.swift` | KIR → LLVM IR 変換フェーズ |
-| `LinkPhase.swift` | オブジェクト → 実行ファイルリンクフェーズ |
+| `CodegenPhase.swift` | emit mode を見て Native/Wasm の KIR lowering 結果または JVM の `ctx.jvmProgram` をコード生成へ渡す。JVM は `JVM/JVMCodegenPhase.swift` へ委譲 |
+| `LinkPhase.swift` | Native executable の object → 実行ファイルリンクフェーズ。JVM emit と wasm では no-op |
 | `MacOSLinkerPlan.swift` | Swift ドライバの clang リンク引数を取得・保存し、ツールチェーン / SDK 指紋で再検証 |
 | `LLVMBackend.swift` | LLVM バックエンドエントリ |
 | `LLVMCAPIBindings.swift` (+分割6ファイル: `+Core` / `+DebugInfo` / `+IRBuilder` / `+Loading` / `+Passes` / `+TargetMachine`) | LLVM C API の Swift ラッパー。`+Loading.swift` が `libLLVM.dylib` / `libLLVM.so` を `dlopen`/`dlsym` で動的ロード |
@@ -116,7 +128,8 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 | `RuntimeReflectionMetadataEmitter.swift` | `KClass` 向け実行時リフレクションメタデータを LLVM グローバル定数として発行 |
 | `CodegenRuntimeSupport.swift` (+`+RuntimeObjects`) | ランタイムサポート関数 |
 | `CodegenSymbolSupport.swift` | シンボルサポート |
-| `Wasm/` (`WasmModule.swift`, `WasmEmitter.swift`, `WasmEmitter+Function.swift`, `WasmEmitter+Runtime.swift`) | wasm バックエンド（LLVM 非依存の自前バイナリエンコーダ + KIR→wasm エミッタ）。`--target wasm32-wasi` で `.wasm` を生成（全値 i64 の linear-memory 表現。オブジェクト/vtable/`is`/`as`/例外 + 配列 intrinsic + `kotlin.wasm` 宣言層まで動作確認済み。計画は [`wasm-support-plan.md`](wasm-support-plan.md)） |
+| `JVM/` (`JVMCodegenPhase.swift`, `JVMClassFile.swift`, `JVMConstantPool.swift`, `JVMMethodEmitter.swift`, `JVMJarArchive.swift`, `AndroidPackaging.swift` ほか) | JVM backend。typed `JVMProgram` から `.class` / `.jar` を生成し、`dex` / `apk` は Android SDK build-tools で後処理 | JVM classfile/JAR/DEX/APK 出力、Android packaging |
+| `Wasm/` (`WasmModule.swift`, `WasmEmitter.swift`, `WasmEmitter+Function.swift`, `WasmEmitter+Runtime.swift`) | wasm バックエンド（LLVM 非依存の自前バイナリエンコーダ + KIR→wasm エミッタ）。`--target wasm32-wasi` で `.wasm` を生成（計画は [`wasm-support-plan.md`](wasm-support-plan.md)） | wasm モジュール出力 |
 | `StdlibArtifactCache.swift` | 実行ファイル生成時に使う stdlib `.kklib` の生成・探索（パッケージ同梱を優先、無ければユーザーキャッシュに生成） |
 
 ### `Sources/KSwiftKCLI/`
@@ -146,7 +159,7 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 |---|---|
 | `main.swift` | LSP サーバ CLI エントリポイント |
 
-### `Sources/Runtime/` (78 ファイル — カテゴリ別抜粋)
+### `Sources/Runtime/` (カテゴリ別抜粋)
 
 | カテゴリ | 主要ファイル | 責務 |
 |---|---|---|
@@ -155,7 +168,9 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 | コレクション | `RuntimeCollections.swift`, `RuntimeCollectionHOF.swift`, `RuntimeCollectionHelpers.swift`, `RuntimeArrayBasics.swift`, `RuntimeSetAndMap.swift` 等 | 配列・リスト・セット・マップ操作 |
 | Coroutine/Flow | `RuntimeCoroutine.swift`, `RuntimeCoroutineChannel.swift`, `RuntimeCoroutineContext.swift`, `RuntimeCoroutineFlow.swift` | coroutine ステートマシン、Channel、Flow |
 | 数値・演算 | `RuntimeMath.swift`, `RuntimeNumericCoercion.swift`, `RuntimeNumericCompat.swift`, `RuntimeRandom.swift` | 数値変換・互換演算・乱数 |
-| IO・ネットワーク | `RuntimeFileIO.swift`, `RuntimeNetwork.swift`, `RuntimeFileSystemException.swift` | ファイル IO、HTTP |
+| IO・ファイル・プロセス | `RuntimeFileIO.swift`, `RuntimeIoFileSystem.swift`, `RuntimeIo*.swift`, `RuntimeStandardInput.swift`, `RuntimeProcess*.swift`, `RuntimeFileSystemException.swift` | ファイル/プロセス IO、標準入出力、ファイルシステム例外 |
+| ネットワーク・JDBC | `RuntimeNetwork.swift`, `RuntimeJavaNet*.swift`, `RuntimeJDBC.swift` | HTTP、Java net API、SQLite JDBC |
+| Java/JVM 相互運用 | `RuntimeJavaReflection.swift`, `RuntimeJvmClass*.swift`, `RuntimeKClassObjects.swift`, `RuntimeReflection*.swift` | Java reflection/class metadata、KClass |
 | プラットフォーム | `RuntimeHelpers.swift`, `RuntimePlatform.swift`, `RuntimeSystem.swift`, `RuntimeTime.swift`, `RuntimeInstant.swift` | ヘルパー関数、プラットフォーム検出、時間 |
 | Delegate | `RuntimeDelegates.swift` | delegate プロパティランタイムサポート |
 | 並行・同期 | `RuntimeAtomic.swift`, `RuntimeSync.swift`, `RuntimeThreadLocal.swift` | アトミック操作、ロック、スレッドローカル |
@@ -164,8 +179,18 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 
 | ファイル | 責務 |
 |---|---|
-| `RuntimeABISpec.swift` | Runtime ABI 仕様定数と C ヘッダ生成 |
+| `RuntimeABISpec.swift` + `RuntimeABISpec+*.swift` | Runtime ABI 仕様定数（カテゴリ別 section）と C ヘッダ生成 |
 | `RuntimeABIExterns.swift` | `RuntimeABISpec` から導出される extern 宣言 view |
+| `RuntimeABISectionBuilder.swift` | ABI section の組み立て |
+| `StdlibSurfaceSpec*.swift` | stdlib surface の ABI 仕様 |
+| `KotlinStringSurrogateEncoding.swift`, `SHA256.swift` | 文字列 surrogate / hash の共有 helper |
+
+### `Sources/RuntimeCAtomics/` / `Sources/CSQLite/`
+
+| target | 責務 |
+|---|---|
+| `RuntimeCAtomics` | `RuntimeCAtomics.h` の C11 `_Atomic` shim。`Runtime` の atomic / GC safepoint / threading が利用 |
+| `CSQLite` | system library target。`Runtime/JDBC` が使う SQLite C API の module map / shim |
 
 ---
 
@@ -187,6 +212,8 @@ Tests/
  |    +-- Integration/    # SmokeTests, GoldenHarnessSwiftTesting, DeepPhasePipelineIntegrationTests, FrontendParallelBenchmarkTests
  |    |    +-- TestSupport/ # ターゲット固有デフォルトの薄い wrapper (makeCompilationContext など)
  |    +-- Klib/           # KlibContainerTests, ZipArchiveTests, ... (+ Fixtures/)
+ |    +-- KIR/            # delegated object member property / compiler plugin 関連の統合テスト
+ |    +-- Sema/           # CompilerPlugin*Tests, JVM classpath/interop 関連の統合テスト
  |    +-- Fixtures/       # KUU-2210, KUU-2415 フィクスチャ
  |    +-- GoldenCases/    # .kt スナップショットフィクスチャ (Lexer/, Parser/, Sema/, Diagnostics/)
  |                        #   `.golden` は生成物。`stdlib_<package path>_<Type>_<member>`
@@ -201,7 +228,7 @@ Tests/
  +-- CompilerCoreKIRLoweringTests/  # KIR 構築・Lowering テスト
  |    +-- KIR/            # BuildKIRRegressionTests, KIRModelsBehaviorTests, ...
  |    +-- Lowering/       # LoweringPassRegressionTests+*, ...
- +-- CompilerBackendTests/     # バックエンドテスト (LLVM 必要)
+ +-- CompilerBackendTests/     # バックエンドテスト (Native/Wasm/JVM)
  |    +-- Codegen/        # CodegenBackendIntegrationTests+*, CodegenBackendFixtureTests, LinkPhaseIntegrationTests, NameManglerTests
  |    +-- Fixtures/       # CodegenBackendFixtureTests が走査する <領域>/<ケース>/{*.kt,expected.txt}
  |    +-- Integration/    # BundledStdlibExecutionTests+*, BackendDriverOutputTests, RuntimeStubImplementationTests
@@ -212,6 +239,7 @@ Tests/
  +-- RuntimeTestsParallel/    # ランタイム並列テスト
  +-- KSwiftKCLITests/         # CLI 統合テスト
  +-- LSPServerTests/          # LSP サーバテスト
+ +-- Scripts/                # SwiftPM target ではない Python helper tests
  +-- ARCH-025/                # Kotlin compiler testData の適合サブセット台帳 (manifest.tsv / ledger.tsv / fixtures/、Scripts/*_arch025_testdata.sh で運用。swift test には接続しない)
  +-- CrashCorpus/             # mutation fuzzer のプロセス安全性オラクル用に最小化した .kt + .expect
 ```
@@ -303,25 +331,21 @@ SyntaxArena (CST)            -- NodeID/TokenID ベース、ロスレス
 ASTModule                    -- ASTArena (DeclID/ExprID/TypeRefID)
   +-- ASTFile[]                 各ファイルの package/imports/decls
     |
-    v
-SemaModule                   -- SymbolTable + TypeSystem + BindingTable
-  +-- SymbolTable               SymbolID -> SemanticSymbol (FQName, FunctionSignature, NominalLayout)
-  +-- TypeSystem                TypeID -> TypeKind (primitive/class/function/typeParam/intersection)
+    +-- JVM route: JVMSourceValidation -> SemaModule -> JVMProgram -> JVMCodegen -> .class/.jar/.dex/.apk
     |
-    v
-KIRModule                   -- KIRArena (KIRDeclID/KIRExprID)
-  +-- KIRFunction[]             KIRInstruction 列 (レジスタベース SSA 風)
-  +-- KIRGlobal[]
-  +-- KIRNominalType[]
-    |
-    v  (Lowering passes: in-place 変換)
-KIRModule (lowered)
-    |
-    v
-.o (LLVM object) or .ll (LLVM IR) or .kir (dump) or .kklib (library bundle)
-    |
-    v  (Link: swiftc 呼び出し)
-実行ファイル
+    +-- native/wasm route: SemaModule -> KIRModule -> Lowering -> KIRModule(lowered)
+          -> Codegen -> .o/.ll/.kklib/.wasm -> Link -> 実行ファイル (native executable only)
+
+補足:
+  - `--emit kirDump` は Lowering 後の KIRModule を `.kir` テキストへ直接 dump する
+  - `--run` は `KIRInterpreter` を先に試し、未対応なら native Codegen + Link + 実行へフォールバックする
+  - SemaModule -- SymbolTable + TypeSystem + BindingTable
+      +-- SymbolTable               SymbolID -> SemanticSymbol (FQName, FunctionSignature, NominalLayout)
+      +-- TypeSystem                TypeID -> TypeKind (primitive/class/function/typeParam/intersection)
+  - KIRModule -- KIRArena (KIRDeclID/KIRExprID)
+      +-- KIRFunction[]             KIRInstruction 列 (レジスタベース SSA 風)
+      +-- KIRGlobal[]
+      +-- KIRNominalType[]
 ```
 
 ---
@@ -359,6 +383,8 @@ KIRModule (lowered)
 
 `Sources/CompilerCore/Lowering/LoweringPhase.swift` の `passes` 配列で定義。順序に依存関係あり:
 
+Compiler plugin passes (`CompilerPluginRegistry.plugins(for: ctx.options).flatMap(\.loweringPasses)`) run before the standard passes below. The standard `passes` array is defined in `Sources/CompilerCore/Lowering/LoweringPhase.swift`; order is significant:
+
 ```text
 1.  TailrecLoweringPass          -- tailrec 関数のループ変換 (beginBlock に依存、NormalizeBlocks 前に実行)
 2.  NormalizeBlocksPass          -- ブロック正規化
@@ -366,38 +392,43 @@ KIRModule (lowered)
 4.  ForLoweringPass              -- for ループ脱糖 (iterator パターン)
 5.  CollectionLiteralLoweringPass -- registry 経由のコレクションリテラル構築 + virtual call rewrite
 6.  FlowLoweringPass             -- Kotlin Flow 構築・変換
-7.  ValueClassUnboxingPass       -- value class のアンボクシング (PropertyLowering 前に実行)
-8.  PropertyLoweringPass         -- get/set アクセサ展開
-9.  JvmStaticLoweringPass        -- @JvmStatic アノテーション処理
-10. JvmOverloadsLoweringPass     -- @JvmOverloads デフォルト引数オーバーロード生成
-11. DataEnumSealedSynthesisPass  -- data/enum/sealed synthetic ヘルパー
-12. EnumEntriesLoweringPass      -- enum entries プロパティ合成
-13. ConsolePrintLoweringPass     -- print/println の引数を静的型の toString() 経由に書き換え (bundled Console.kt の Any? 受け口対策)
-14. EnumNameAccessLoweringPass   -- enum name アクセスの展開
-15. LambdaClosureConversionPass  -- ラムダクロージャ変換
-16. InlineLoweringPass           -- inline 関数本体展開
-17. CoroutineLoweringPass        -- suspend 関数 CPS 変換 + ステートマシン
-18. IntegerNarrowingPass         -- 整数型ナローイング (整数演算 builtin を出す全パスの後、ABILowering の前)
-19. ABILoweringPass              -- outThrown チャネル設定
+7.  IntroducedAtVersionOverloadingLoweringPass -- @IntroducedAt optional params の旧 ABI wrapper
+8.  ValueClassUnboxingPass       -- value class のアンボクシング (PropertyLowering 前に実行)
+9.  PropertyLoweringPass         -- get/set アクセサ展開
+10. JvmStaticLoweringPass        -- @JvmStatic アノテーション処理
+11. JvmOverloadsLoweringPass     -- @JvmOverloads デフォルト引数オーバーロード生成
+12. DataEnumSealedSynthesisPass  -- data/enum/sealed synthetic ヘルパー
+13. EnumEntriesLoweringPass      -- enum entries プロパティ合成
+14. ConsolePrintLoweringPass     -- print/println の引数を静的型の toString() 経由に書き換え (bundled Console.kt の Any? 受け口対策)
+15. EnumNameAccessLoweringPass   -- enum name アクセスの展開
+16. LambdaClosureConversionPass  -- ラムダクロージャ変換
+17. InlineLoweringPass           -- inline 関数本体展開
+18. ComposeLoweringPass          -- @Composable 関数へ composer/changed パラメータを追加 (Compose plugin)
+19. ReifiedEnumValuesLoweringPass -- nested inline 後に伝播した型トークンで enumValues を特殊化
+20. CoroutineLoweringPass        -- suspend 関数 CPS 変換 + ステートマシン
+21. TailrecAfterInlineLoweringPass -- InlineLowering 後に残った tailrec を再変換
+22. AssertionsModeLoweringPass   -- -Xassertions mode に応じて __kk_assertions_enabled を fold
+23. IntegerNarrowingPass         -- 整数型ナローイング (整数演算 builtin を出す全パスの後、ABILowering の前)
+24. ABILoweringPass              -- outThrown チャネル設定
 ```
 
 `lazy` / `Delegates.observable` / `vetoable` の delegate lowering は KSP-491 で Kotlin ソース化され、専用パス（旧 `StdlibDelegateLoweringPass`）は削除済み。
 
-`CoroutineLoweringPass` は `CoroutineLoweringPass.swift` 本体と、責務別に分割された 7 個の extension ファイル
-(`+Analysis`, `+CallRewriting`, `+Flow`, `+FlowInstructionRewrite`, `+LauncherSupport`, `+StateMachine`, `+Synthesis`) で構成される。
+`CoroutineLoweringPass` は `CoroutineLoweringPass.swift` 本体と、責務別に分割された 15 個の extension ファイル
+(`+Analysis`, `+CallRewrite*`, `+Flow*`, `+LauncherSupport`, `+ScopeAsync`, `+StateMachine`, `+SuspendObjectEntries`, `+Synthesis` など) で構成される。
 
 ---
 
 ## 10. CI ジョブ構成
 
-CI は 2 つの workflow に分かれる。`.github/workflows/ci.yml` は PR と merge_group で走る最小ゲート、`.github/workflows/nightly-full.yml` は毎朝 04:00 JST（`cron: '0 19 * * *'`）に master で 1 回走る集約バッチで、全件検証に加えて mutation fuzzer・監査・kotlinx-io レーンなどのスケジュール系処理もすべてここに入る。`workflow_dispatch` で任意のブランチに対しても実行できる。Ubuntu 系ジョブは Swift 6.3、`SWIFT_XSWIFTC_FLAGS` による言語モード 6 + strict concurrency、`SWIFT_BUILD_SYSTEM=native` を共有する（kotlinx-io の 2 レーンだけ macOS runner を使う）。
+CI は 2 つの workflow に分かれる。`.github/workflows/ci.yml` は PR と merge_group で走る最小ゲート、`.github/workflows/nightly-full.yml` は毎朝 04:00 JST（`cron: '0 19 * * *'`）に master で 1 回走る集約バッチで、全件検証に加えて JS annotations evidence・mutation fuzzer・監査・kotlinx-io レーンなどのスケジュール系処理もすべてここに入る。`workflow_dispatch` で任意のブランチに対しても実行できる。Ubuntu 系ジョブは Swift 6.3、`SWIFT_XSWIFTC_FLAGS` による言語モード 6 + strict concurrency、`SWIFT_BUILD_SYSTEM=native` を共有する（kotlinx-io native / Apple candidate は macOS runner を使う）。
 
 `ci.yml`（ruleset の必須チェックは `CI gate` だけ）:
 
 | ジョブ | 内容 |
 |---|---|
 | `repository-checks` | Action pin 検証、`TODO.md` タスク ID 重複、fuzzer キーワード、テスト並列度設定、npm ci 限定チェック、Kotlin compiler archive 検証ポリシー、`jscpd --config .jscpd-ci.json`（閾値超過で失敗） |
-| `swift-checks` | 全ターゲットのデバッグビルドと `SmokeTests` を別々のランナーで並列実行。両方で `Scripts/build_swift_tests.sh` を使い、SmokeTests 側は `KSWIFTK_CI_SMOKE_ONLY=1` でテストターゲットを `CompilerCoreTests` に絞る |
+| `swift-checks` | 2 レーンの matrix（`Build all targets` / `Run SmokeTests`）。両方 `Scripts/build_swift_tests.sh` でテストバンドルをビルドし、SmokeTests 側だけ `KSWIFTK_CI_SMOKE_ONLY=1` と `SWIFT_SMOKE_FILTER` で `CompilerCoreTests.SmokeTests` を実行する |
 | `ci-gate` | 上記全ジョブの成功を集約する。ジョブを増減しても ruleset の変更は不要 |
 
 `nightly-full.yml`:
@@ -409,15 +440,16 @@ CI は 2 つの workflow に分かれる。`.github/workflows/ci.yml` は PR と
 | `verify-self-hosted` | 同じ成果物で `CompilerBackendTests` を静的シャード（4 分割）で実行。shard 1 だけ `RuntimeTests`（直列・チャンク）/ `RuntimeTestsParallel` / `KSwiftKCLITests` / `LSPServerTests` も実行。`setup-llvm` で LLVM を導入 |
 | `refactoring-metrics` | `Scripts/loc_report.sh`（artifact `refactoring-metrics-<run id>`） |
 | `build-release-kswiftc` | `swift build -c release --product kswiftc` を 1 回だけ実行し `kswiftc-release-<run id>` artifact にする |
+| `verify-js-annotations` | release `kswiftc` artifact を使い、`Scripts/js_annotations/run_ci.py` で JS annotation evidence matrix を O0/O2 実行。artifact `js-annotations-evidence-<run id>` |
 | `verify-diff` | release `kswiftc` を展開し、JDK 21 + kotlinc 2.4.20 で `Scripts/diff_kotlinc.sh` を O0 / O2 それぞれ 4 シャード実行。O0 shard 1 は `Scripts/diff_diagnostics.sh` も実行。失敗時は `kotlinc-diff-regression-<run id>-<O0\|O2>-shard-<n>` artifact |
 | `verify-jvm-diff` | `DIFF_BACKEND=jvm` で `// DIFF_JVM` マーカー付きケースを `kswiftc --emit jar` + `java -Xverify:all -cp` で実行し kotlinc 参照と diff。JVM stdlib jar を `Scripts/validate_jvm_stdlib.py` で静的検証。artifact `kotlinc-diff-jvm-<run id>` |
 | `verify-wasm` | `DIFF_BACKEND=wasm` で `// DIFF_WASM` マーカー付きケースを `kswiftc --target wasm32-wasi` + `node:wasi` / `wasmtime`（engine マトリクス）で実行し kotlinc 参照と diff。artifact `kotlinc-diff-wasm-<run id>-<engine>` |
 | `mutation-fuzzer` | `build-release-kswiftc` の release artifact を再利用し、`Scripts/mutate_diff_cases.py` でコミット済み crash corpus（`Tests/CrashCorpus`）を replay してから bounded fuzz を実行（seed 23023・64 ケース・900 秒）。artifact `nightly-mutation-fuzzer-<run id>` |
 | `audits` | `build-debug-tests` のバンドルを `--skip-build` で再利用し、`Scripts/dead_code_audit.sh` と `DUMP_SURFACE=1` の `FictionAuditDumpTests` を実行。artifact `nightly-audits-<run id>` |
-| `kotlinx-io-reference` | `Scripts/kotlinx_io_upstream` の上流リファレンスを JVM（ubuntu-latest）と Native common/Apple（macos-14）で実行。artifact `kotlinx-io-reference-<kind>-<run id>` |
+| `kotlinx-io-reference` | `Scripts/kotlinx_io_upstream` の上流リファレンスを JVM（ubuntu-latest）と Native common/Apple（macos-26）で実行。artifact `kotlinx-io-reference-<kind>-<run id>` |
 | `kotlinx-io-apple-candidate` | macos-26 で Darwin SDK + brew LLVM を構成し、`kotlinx_io_upstream/apple/run_candidate.py` の Apple IO 候補ゲートを実行。artifact `io-apple-candidate-<run id>-<attempt>` |
 
-macOS runner 上での検証は `nightly-full.yml` の `kotlinx-io-reference`（native, macos-14）と `kotlinx-io-apple-candidate`（macos-26、brew LLVM + Darwin SDK を明示）が担う。
+macOS runner 上での検証は `nightly-full.yml` の `kotlinx-io-reference`（native, macos-26）と `kotlinx-io-apple-candidate`（macos-26、brew LLVM + Darwin SDK を明示）が担う。
 
 セットアップアクション（`.github/actions/`）:
 - [`setup-self-hosted`](../.github/actions/setup-self-hosted/action.yml) — Linux / macOS ランナーの共通準備
@@ -531,7 +563,7 @@ CI では `swift-checks`（`ci.yml`）と `build-debug-tests` / `verify-core` / 
 
 ```text
 module.kklib/
-  manifest.json        -- formatVersion, moduleName, target, objects[], metadata, inlineKIRDir
+  manifest.json        -- formatVersion=2, moduleName, kotlinLanguageVersion, compilerVersion, sourceVarargStorageABI, target, objects[], metadata, inlineKIRDir, reflection metadata fields (+ stdlib-only fields)
   metadata.bin         -- シンボル/型/レイアウト情報のシリアライズ
   objects/
     module_0.o         -- コンパイル済みオブジェクト
@@ -558,7 +590,7 @@ Kotlin/Native (および共通 IR) が生成する `.klib` も `-I` のサーチ
 - `ZipArchive.swift` / `Inflate.swift` — 依存ゼロの ZIP リーダ (stored + DEFLATE)
 - `KlibContainer.swift` — packed/unpacked を抽象化するコンテナ
 - `KlibManifest.swift` — Java properties 形式 manifest (`unique_name`, `abi_version`, `depends` など)
-- `ProtoReader.swift` / `KlibIrDecoding.swift` / `KlibIrModel.swift` / `KlibIrTables.swift` / `KlibIrModule.swift` — protobuf ワイヤ + Kotlin IR スキーマのデコーダ
+- `ProtoReader.swift` / `KlibIrDecoding.swift` / `KlibIrModel.swift` / `KlibIrTables.swift` / `KlibIrModule.swift` — protobuf ワイヤ + Kotlin IR スキーマのデコーダ。`KlibFunctionTypeShape.swift`, `KlibIrDump.swift`, `KlibLambdaCaptureAnalysis.swift`, `KlibStringEncoding.swift` が型 shape / dump / capture 解析 / 文字列 encoding を担当
 
 インポートの流れ:
 
@@ -579,10 +611,11 @@ Kotlin/Native (および共通 IR) が生成する `.klib` も `-I` のサーチ
 
 フロントエンドフェーズ (Lex, Parse, BuildAST) はファイル単位で並列実行可能:
 
-- `-Xfrontend jobs=N` で並列度を指定
+- `-Xfrontend jobs=N` で並列度を指定（未指定時は `min(コア数, 8)`、`jobs=1` で直列に戻せる）
 - `DispatchQueue.concurrentPerform` で並列化し、`DispatchSemaphore` / `DispatchGroup` で並列度を制御（`Driver/FrontendPhases.swift`）
 - 並列実行後は `FileID` 順でソートし決定性を保証
 - 診断メッセージも `sortBySourceLocation()` でソース位置順に安定化
+- Sema の独立 body/準備ワーカーは `frontendJobs > 1` のとき既定で有効（`-Xfrontend sema-serial` で直列に戻せる。`-Xfrontend sema-parallel` は互換のため残す）
 
 Codegen の関数本体 emission は `-Xfrontend codegen-parallel` + `-Xfrontend jobs=N` でオプトイン並列化できる（`NativeEmitter+ParallelEmission.swift`）:
 
