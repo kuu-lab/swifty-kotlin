@@ -2,6 +2,20 @@
 
 package kotlin.collections
 
+public operator fun <T> Array<out T>.plus(element: T): Array<T> {
+    @Suppress("UNCHECKED_CAST")
+    val result = java.util.Arrays.copyOf(this, size + 1) as Array<T>
+    result[size] = element
+    return result
+}
+
+public operator fun <T> Array<out T>.plus(elements: Array<out T>): Array<T> {
+    @Suppress("UNCHECKED_CAST")
+    val result = java.util.Arrays.copyOf(this, size + elements.size) as Array<T>
+    java.lang.System.arraycopy(elements, 0, result, size, elements.size)
+    return result
+}
+
 public infix fun <T> Array<out T>?.contentEquals(other: Array<out T>?): Boolean =
     java.util.Arrays.equals(this, other)
 
