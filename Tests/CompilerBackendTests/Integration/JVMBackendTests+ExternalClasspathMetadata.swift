@@ -34,6 +34,22 @@ extension JVMBackendTests {
         return root.appendingPathComponent("builder-library.jar")
     }
 
+    private func externalReifiedCodecLibraryJar(_ root: URL) throws -> URL {
+        try """
+        package fixture
+
+        interface Strategy<T>
+
+        abstract class Codec {
+            fun <T> encode(strategy: Strategy<T>, value: T): String = "two"
+            inline fun <reified T> encode(value: T): String = "one"
+            companion object Default : Codec()
+        }
+        """.write(to: root.appendingPathComponent("CodecLibrary.kt"), atomically: true, encoding: .utf8)
+        _ = try jvmTool("kotlinc", ["CodecLibrary.kt", "-d", "codec-library.jar"], root: root)
+        return root.appendingPathComponent("codec-library.jar")
+    }
+
     private func externalNestedAnnotationLibraryJar(_ root: URL) throws -> URL {
         try """
         package fixture
@@ -207,6 +223,27 @@ extension JVMBackendTests {
             #expect(generated.stderr.isEmpty)
             #expect(generated.stdout == reference.stdout)
             #expect(reference.stdout == "true\n")
+        }
+    }
+
+    @Test
+    func externalKotlinSyntheticReifiedMemberResolvesBesideOverload() throws {
+        try withWorkspace { root in
+            let library = try externalReifiedCodecLibraryJar(root)
+            let compiled = try compile("""
+            import fixture.Codec
+            fun main() {
+                val map = mutableMapOf<String, String>()
+                map["a"] = "b"
+                println(Codec.encode(map))
+            }
+            """, root: root, mode: .jvmJar, classpath: [library.path])
+            try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
+
+            let runtime = try m11Runtime()
+            let execution = try java(["-cp", root.appendingPathComponent("hello.jar").path + ":" + library.path + ":" + runtime, "HelloKt"])
+            #expect(execution.stdout == "one\n")
+            #expect(execution.stderr.isEmpty)
         }
     }
 }

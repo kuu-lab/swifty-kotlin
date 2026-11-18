@@ -461,6 +461,7 @@ final class JVMClasspathIndex {
                                           result: method.result, isStatic: method.isStatic, isInterface: info.isInterface, isAbstract: method.isAbstract)
             result.isFinal = method.isFinal; result.isSpecial = method.isSpecial; result.isSuspend = method.isSuspend
             result.isProtected = method.isProtected
+            result.isSynthetic = method.isSynthetic
             result.annotations = method.annotations
             result.annotationDefault = method.annotationDefault
             result.kotlinSuspendFunction = method.kotlinSuspendFunction
@@ -639,6 +640,8 @@ final class JVMClasspathIndex {
         // can still implement a user-declared factory interface.
         if method.isStatic, method.annotations.contains(where: { $0.descriptor == JVMMetro.invoke }) { return false }
         guard method.isConstructor || JVMProgramBuilder.isIdentifier(exposedName) else { return false }
+        if method.isSynthetic, method.kotlinFunction == nil, method.kotlinSuspendFunction == nil,
+           kotlinFunction(method) == nil { return false }
         if let function = method.kotlinFunction {
             if function.valueOperatorParameterDescriptors != nil {
                 return method.parameters.allSatisfy(exposeSuspendType) && exposeSuspendType(method.result)
