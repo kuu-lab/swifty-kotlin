@@ -9,75 +9,6 @@ public val Array<*>.lastIndex: Int get() = size - 1
 public val FloatArray.lastIndex: Int get() = size - 1
 public val LongArray.lastIndex: Int get() = size - 1
 
-public fun <T> Array<out T>.getOrNull(index: Int): T? =
-    if (index < 0 || index >= size) null else this[index]
-
-public fun <T> Array<out T>.first(): T {
-    if (size == 0) throw NoSuchElementException("Array is empty.")
-    return this[0]
-}
-
-public fun <T> Array<out T>.last(): T {
-    if (size == 0) throw NoSuchElementException("Array is empty.")
-    return this[size - 1]
-}
-
-public fun <T> Array<out T>.firstOrNull(): T? = getOrNull(0)
-
-public fun <T> Array<out T>.lastOrNull(): T? = getOrNull(size - 1)
-
-public fun IntArray.getOrNull(index: Int): Int? =
-    if (index < 0 || index >= size) null else this[index]
-
-public fun IntArray.first(): Int {
-    if (size == 0) throw NoSuchElementException("Array is empty.")
-    return this[0]
-}
-
-public fun FloatArray.firstOrNull(): Float? = if (size == 0) null else this[0]
-
-public fun FloatArray.last(): Float {
-    if (size == 0) throw NoSuchElementException("Array is empty.")
-    return this[size - 1]
-}
-
-public fun FloatArray.lastOrNull(): Float? = if (size == 0) null else this[size - 1]
-
-@JvmName("minOrThrow")
-public fun FloatArray.min(): Float {
-    var result = firstOrNull() ?: throw NoSuchElementException()
-    for (index in 1 until size) result = java.lang.Math.min(result, this[index])
-    return result
-}
-
-@JvmName("maxOrThrow")
-public fun FloatArray.max(): Float {
-    var result = firstOrNull() ?: throw NoSuchElementException()
-    for (index in 1 until size) result = java.lang.Math.max(result, this[index])
-    return result
-}
-
-public fun IntArray.minOrNull(): Int? {
-    if (size == 0) return null
-    var result = this[0]
-    for (index in 1 until size) {
-        if (this[index] < result) result = this[index]
-    }
-    return result
-}
-
-@JvmName("minOrThrow")
-public fun IntArray.min(): Int = minOrNull() ?: throw NoSuchElementException()
-
-@JvmName("maxOrThrow")
-public fun IntArray.max(): Int {
-    var result = first()
-    for (index in 1 until size) {
-        if (this[index] > result) result = this[index]
-    }
-    return result
-}
-
 public operator fun <T> Array<out T>.contains(element: T): Boolean = indexOf(element) >= 0
 
 public fun <T> Array<out T>.getOrNull(index: Int): T? =
@@ -88,6 +19,11 @@ public fun <T> Array<out T>.first(): T {
     return this[0]
 }
 
+public inline fun <T> Array<out T>.first(predicate: (T) -> Boolean): T {
+    for (element in this) if (predicate(element)) return element
+    throw NoSuchElementException("Array contains no element matching the predicate.")
+}
+
 public fun <T> Array<out T>.last(): T {
     if (size == 0) throw NoSuchElementException("Array is empty.")
     return this[size - 1]
@@ -99,6 +35,11 @@ public fun <T> Array<out T>.lastOrNull(): T? = getOrNull(size - 1)
 
 public fun IntArray.getOrNull(index: Int): Int? =
     if (index < 0 || index >= size) null else this[index]
+
+public inline fun CharArray.any(predicate: (Char) -> Boolean): Boolean {
+    for (element in this) if (predicate(element)) return true
+    return false
+}
 
 public fun IntArray.first(): Int {
     if (size == 0) throw NoSuchElementException("Array is empty.")

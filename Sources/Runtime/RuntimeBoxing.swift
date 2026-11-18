@@ -119,7 +119,11 @@ private func runtimeBoxInt(
     primitiveTypeBase: Int64? = nil,
     identityCacheKey: Int64? = nil
 ) -> Int {
-    runtimeBoxPrimitive(value, identityCacheKey: identityCacheKey) {
+    runtimeBoxPrimitive(
+        value,
+        identityCacheKey: identityCacheKey,
+        registeredPassThrough: runtimeIsPrimitiveSlotCarrier
+    ) {
         RuntimeIntBox(value, anyFallbackTag: anyFallbackTag, primitiveTypeBase: primitiveTypeBase)
     }
 }
@@ -571,7 +575,8 @@ public func kk_unbox_char(_ obj: Int) -> Int {
 public func kk_box_int_static(_ value: Int) -> Int {
     runtimeStaticBox(
         value, preservesNullSentinel: true,
-        identityCacheKey: runtimeSignedBoxCacheKey(domain: RuntimeTypeTokenEncoding.intBase, value: value)
+        identityCacheKey: runtimeSignedBoxCacheKey(domain: RuntimeTypeTokenEncoding.intBase, value: value),
+        registeredPassThrough: runtimeIsPrimitiveSlotCarrier
     ) {
         RuntimeIntBox(value, anyFallbackTag: 1)
     }
@@ -581,7 +586,8 @@ public func kk_box_int_static(_ value: Int) -> Int {
 public func kk_box_byte_static(_ value: Int) -> Int {
     runtimeStaticBox(
         value, preservesNullSentinel: true,
-        identityCacheKey: runtimeSignedBoxCacheKey(domain: RuntimeTypeTokenEncoding.byteBase, value: value)
+        identityCacheKey: runtimeSignedBoxCacheKey(domain: RuntimeTypeTokenEncoding.byteBase, value: value),
+        registeredPassThrough: runtimeIsPrimitiveSlotCarrier
     ) {
         RuntimeIntBox(value, primitiveTypeBase: RuntimeTypeTokenEncoding.byteBase)
     }
@@ -591,7 +597,8 @@ public func kk_box_byte_static(_ value: Int) -> Int {
 public func kk_box_short_static(_ value: Int) -> Int {
     runtimeStaticBox(
         value, preservesNullSentinel: true,
-        identityCacheKey: runtimeSignedBoxCacheKey(domain: RuntimeTypeTokenEncoding.shortBase, value: value)
+        identityCacheKey: runtimeSignedBoxCacheKey(domain: RuntimeTypeTokenEncoding.shortBase, value: value),
+        registeredPassThrough: runtimeIsPrimitiveSlotCarrier
     ) {
         RuntimeIntBox(value, primitiveTypeBase: RuntimeTypeTokenEncoding.shortBase)
     }
@@ -599,21 +606,30 @@ public func kk_box_short_static(_ value: Int) -> Int {
 
 @_cdecl("kk_box_uint_static")
 public func kk_box_uint_static(_ value: Int) -> Int {
-    runtimeStaticBox(value, preservesNullSentinel: true) {
+    runtimeStaticBox(
+        value, preservesNullSentinel: true,
+        registeredPassThrough: runtimeIsPrimitiveSlotCarrier
+    ) {
         RuntimeIntBox(value, anyFallbackTag: 9)
     }
 }
 
 @_cdecl("kk_box_ubyte_static")
 public func kk_box_ubyte_static(_ value: Int) -> Int {
-    runtimeStaticBox(value, preservesNullSentinel: true) {
+    runtimeStaticBox(
+        value, preservesNullSentinel: true,
+        registeredPassThrough: runtimeIsPrimitiveSlotCarrier
+    ) {
         RuntimeIntBox(value, anyFallbackTag: 10)
     }
 }
 
 @_cdecl("kk_box_ushort_static")
 public func kk_box_ushort_static(_ value: Int) -> Int {
-    runtimeStaticBox(value, preservesNullSentinel: true) {
+    runtimeStaticBox(
+        value, preservesNullSentinel: true,
+        registeredPassThrough: runtimeIsPrimitiveSlotCarrier
+    ) {
         RuntimeIntBox(value, anyFallbackTag: 11)
     }
 }

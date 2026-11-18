@@ -167,7 +167,10 @@ jobs:
         run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" $SWIFT_XSWIFTC_FLAGS
       - name: Run smoke tests with strict concurrency warnings
         if: matrix.smoke-only == '1'
-        run: bash Scripts/swift_test.sh --skip-build --filter "$SWIFT_SMOKE_FILTER" $SWIFT_XSWIFTC_FLAGS
+        # Bound the step so an intermittent hang or pathological slowdown fails
+        # with logs instead of losing the hosted runner mid-run, which produces no
+        # log output and blocks the merge queue. 40m is ~4x the ~10.5m baseline.
+        run: timeout --kill-after=30s 2400s bash Scripts/swift_test.sh --skip-build --filter "$SWIFT_SMOKE_FILTER" $SWIFT_XSWIFTC_FLAGS
       - name: Reproduce hints
         if: always()
         run: |

@@ -59,7 +59,7 @@ KOTLINC_COROUTINES_VERSION="${KOTLINC_COROUTINES_VERSION:-${KOTLINX_COROUTINES_V
 KOTLINC_COROUTINES_SHA256="${KOTLINC_COROUTINES_SHA256:-}"
 KOTLINC_DEP_DIR="${KOTLINC_DEP_DIR:-$ROOT_DIR/.runtime-build/deps}"
 KOTLINC_COROUTINES_JAR="${KOTLINC_COROUTINES_JAR:-$KOTLINC_DEP_DIR/kotlinx-coroutines-core-jvm-$KOTLINC_COROUTINES_VERSION.jar}"
-KOTLINC_KOTLINX_IO_VERSION="${KOTLINC_KOTLINX_IO_VERSION:-${KOTLINX_IO_VERSION:-0.9.1}}"
+KOTLINC_KOTLINX_IO_VERSION="${KOTLINC_KOTLINX_IO_VERSION:-${KOTLINX_IO_VERSION:-0.9.2}}"
 KOTLINC_KOTLINX_IO_SHA256="${KOTLINC_KOTLINX_IO_SHA256:-}"
 KOTLINC_KOTLINX_IO_JAR="${KOTLINC_KOTLINX_IO_JAR:-$KOTLINC_DEP_DIR/kotlinx-io-core-jvm-$KOTLINC_KOTLINX_IO_VERSION.jar}"
 KOTLINC_KOTLINX_IO_BYTESTRING_SHA256="${KOTLINC_KOTLINX_IO_BYTESTRING_SHA256:-}"
@@ -67,7 +67,7 @@ KOTLINC_KOTLINX_IO_BYTESTRING_JAR="${KOTLINC_KOTLINX_IO_BYTESTRING_JAR:-$KOTLINC
 KOTLINC_ATOMICFU_VERSION="${KOTLINC_ATOMICFU_VERSION:-0.33.0}"
 KOTLINC_ATOMICFU_SHA256="${KOTLINC_ATOMICFU_SHA256:-}"
 KOTLINC_ATOMICFU_JAR="${KOTLINC_ATOMICFU_JAR:-$KOTLINC_DEP_DIR/atomicfu-jvm-$KOTLINC_ATOMICFU_VERSION.jar}"
-KOTLINC_SERIALIZATION_VERSION="${KOTLINC_SERIALIZATION_VERSION:-1.9.0}"
+KOTLINC_SERIALIZATION_VERSION="${KOTLINC_SERIALIZATION_VERSION:-1.13.0}"
 KOTLINC_SERIALIZATION_SHA256="${KOTLINC_SERIALIZATION_SHA256:-}"
 KOTLINC_SERIALIZATION_JAR="${KOTLINC_SERIALIZATION_JAR:-$KOTLINC_DEP_DIR/kotlinx-serialization-json-jvm-$KOTLINC_SERIALIZATION_VERSION.jar}"
 KOTLINC_SERIALIZATION_CORE_SHA256="${KOTLINC_SERIALIZATION_CORE_SHA256:-}"
@@ -241,7 +241,7 @@ Environment:
   KOTLINC_SERIALIZATION_JAR / KOTLINC_SERIALIZATION_CORE_SHA256 /
   KOTLINC_SERIALIZATION_CORE_JAR
                      kotlinx-serialization-json/core-jvm reference
-                     dependencies (default: pinned 1.9.0); custom versions
+                     dependencies (default: pinned 1.13.0); custom versions
                      require explicit SHA-256 values
 
 Examples:
@@ -523,6 +523,7 @@ known_atomicfu_sha256() {
 known_serialization_sha256() {
   case "$1" in
     1.9.0) printf 'd94cc34cae39246a1af74fda63f9c4812ce12216ef641d5fa3bbbb539a6922d8' ;;
+    1.13.0) printf '389b0dd9b4b952db889c160a2478b1cbe54680804f5315756108389dbe9df251' ;;
     *) printf '' ;;
   esac
 }
@@ -530,6 +531,7 @@ known_serialization_sha256() {
 known_serialization_core_sha256() {
   case "$1" in
     1.9.0) printf '1f0afa172110e45a7231ef1b44ae8fd84c1ebaff96f3fc3ad68ef8c48120b59c' ;;
+    1.13.0) printf 'db2eb98f585a408970ce726af9dfbaccbdfe5df498ccd9dba9918d208974302d' ;;
     *) printf '' ;;
   esac
 }
@@ -550,6 +552,7 @@ known_coroutines_sha256() {
 known_kotlinx_io_sha256() {
   case "$1" in
     0.9.1) printf '765d8851d8ca694706931331b92386844800867e041b720f1f193dbda874d370' ;;
+    0.9.2) printf '51b0df8a02b10050ebfccc732a63d02357c5cf9daa69cbee04e13c0dd1448736' ;;
     *) printf '' ;;
   esac
 }
@@ -557,6 +560,7 @@ known_kotlinx_io_sha256() {
 known_kotlinx_io_bytestring_sha256() {
   case "$1" in
     0.9.1) printf '8589de0b7c476bfdd02a24641685f609ade72f5e595cf2909c168acdba7e6ba4' ;;
+    0.9.2) printf '51825a5067a9944f767861ed090f04523a28326d7371096940c41801a11882db' ;;
     *) printf '' ;;
   esac
 }

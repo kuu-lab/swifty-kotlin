@@ -46,6 +46,7 @@ public inline fun <T : Comparable<T>> List<T>.minOrNull(): T? {
 
 public inline fun <T, R : Comparable<R>> List<T>.maxBy(selector: (T) -> R): T {
     if (size == 0) throw NoSuchElementException()
+    if (size == 1) return this[0]
     var bestElem = this[0]
     var bestKey = selector(bestElem)
     var i = 1
@@ -60,6 +61,7 @@ public inline fun <T, R : Comparable<R>> List<T>.maxBy(selector: (T) -> R): T {
 
 public inline fun <T, R : Comparable<R>> List<T>.maxByOrNull(selector: (T) -> R): T? {
     if (size == 0) return null
+    if (size == 1) return this[0]
     var bestElem = this[0]
     var bestKey = selector(bestElem)
     var i = 1
@@ -74,6 +76,7 @@ public inline fun <T, R : Comparable<R>> List<T>.maxByOrNull(selector: (T) -> R)
 
 public inline fun <T, R : Comparable<R>> List<T>.minBy(selector: (T) -> R): T {
     if (size == 0) throw NoSuchElementException()
+    if (size == 1) return this[0]
     var bestElem = this[0]
     var bestKey = selector(bestElem)
     var i = 1
@@ -88,6 +91,7 @@ public inline fun <T, R : Comparable<R>> List<T>.minBy(selector: (T) -> R): T {
 
 public inline fun <T, R : Comparable<R>> List<T>.minByOrNull(selector: (T) -> R): T? {
     if (size == 0) return null
+    if (size == 1) return this[0]
     var bestElem = this[0]
     var bestKey = selector(bestElem)
     var i = 1

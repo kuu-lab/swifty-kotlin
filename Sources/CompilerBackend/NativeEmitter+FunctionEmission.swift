@@ -397,7 +397,6 @@ extension NativeEmitter.FunctionEmissionContext {
         let liveness = withSubPhaseTiming("gcRootLiveness", timer: emitter.phaseTimer, accumulating: true) {
             computeFunctionLivenessAnalysis()
         }
-        livenessAnalysis = liveness
 
         for (instructionIndex, instruction) in function.body.enumerated() {
             // Lowering may leave dead expression tails after an unconditional

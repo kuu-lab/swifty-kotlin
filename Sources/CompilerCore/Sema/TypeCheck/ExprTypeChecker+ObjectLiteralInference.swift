@@ -712,18 +712,23 @@ extension ExprTypeChecker {
             if propertyDecl.modifiers.contains(.lateinit) {
                 propertyFlags.insert(.lateinitProperty)
             }
-            let propertySymbol = sema.symbols.define(
-                kind: .property,
-                name: propertyDecl.name,
-                fqName: ownerFQName + [propertyDecl.name],
-                declSite: propertyDecl.range,
-                // Keep the declared visibility (e.g. `private val`) so a
-                // member of a local class or object literal stays scoped to
-                // its body, matching the member-function path (KUU-3880).
-                visibility: Visibility(modifiers: propertyDecl.modifiers),
-                flags: propertyFlags
-            )
-            sema.bindings.bindDecl(propertyDeclID, symbol: propertySymbol)
+            let propertySymbol: SymbolID
+            if let existing = sema.bindings.declSymbols[propertyDeclID] {
+                propertySymbol = existing
+            } else {
+                propertySymbol = sema.symbols.define(
+                    kind: .property,
+                    name: propertyDecl.name,
+                    fqName: ownerFQName + [propertyDecl.name],
+                    declSite: propertyDecl.range,
+                    // Keep the declared visibility (e.g. `private val`) so a
+                    // member of a local class or object literal stays scoped to
+                    // its body, matching the member-function path (KUU-3880).
+                    visibility: Visibility(modifiers: propertyDecl.modifiers),
+                    flags: propertyFlags
+                )
+                sema.bindings.bindDecl(propertyDeclID, symbol: propertySymbol)
+            }
             sema.bindings.markObjectLiteralPropertySymbol(propertySymbol)
             sema.symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
             sema.symbols.setSourceFileID(ctx.currentFileID, for: propertySymbol)
@@ -1456,18 +1461,23 @@ extension ExprTypeChecker {
                 continue
             }
 
-            let memberSymbol = sema.symbols.define(
-                kind: .function,
-                name: functionDecl.name,
-                fqName: memberFQNamePrefix + [functionDecl.name],
-                declSite: functionDecl.range,
-                visibility: Visibility(modifiers: functionDecl.modifiers),
-                flags: objectLiteralFunctionFlags(
-                    from: functionDecl,
-                    objectSymbol: objectSymbol,
-                    sema: sema)
-            )
-            sema.bindings.bindDecl(functionDeclID, symbol: memberSymbol)
+            let memberSymbol: SymbolID
+            if let existing = sema.bindings.declSymbols[functionDeclID] {
+                memberSymbol = existing
+            } else {
+                memberSymbol = sema.symbols.define(
+                    kind: .function,
+                    name: functionDecl.name,
+                    fqName: memberFQNamePrefix + [functionDecl.name],
+                    declSite: functionDecl.range,
+                    visibility: Visibility(modifiers: functionDecl.modifiers),
+                    flags: objectLiteralFunctionFlags(
+                        from: functionDecl,
+                        objectSymbol: objectSymbol,
+                        sema: sema)
+                )
+                sema.bindings.bindDecl(functionDeclID, symbol: memberSymbol)
+            }
             sema.symbols.setParentSymbol(objectSymbol, for: memberSymbol)
             sema.symbols.setSourceFileID(ctx.currentFileID, for: memberSymbol)
             objectScope.insert(memberSymbol)
@@ -1611,7 +1621,17 @@ extension ExprTypeChecker {
                 case .unit, .block:
                     returnType = sema.types.unitType
                 case .expr:
-                    returnType = sema.types.anyType
+                    // A re-check reuses the member symbol, so keep the return
+                    // type an earlier inference already published instead of
+                    // resetting the signature to the `Any` placeholder.
+                    if let existingSymbol = sema.bindings.declSymbols[functionDeclID],
+                       let preservedReturnType = sema.symbols.functionSignatureIfKnown(for: existingSymbol)?.returnType,
+                       preservedReturnType != sema.types.anyType
+                    {
+                        returnType = preservedReturnType
+                    } else {
+                        returnType = sema.types.anyType
+                    }
                 }
             }
 
