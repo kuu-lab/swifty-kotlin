@@ -1056,7 +1056,14 @@ extension DeclTypeChecker {
         for receiver in ctx.implicitReceiverMemberLookupEntries() {
             if let property = driver.helpers.lookupMemberProperty(
                 named: name, receiverType: receiver.type, sema: ctx.sema
-            ) {
+            ),
+               let propertySymbol = ctx.sema.symbols.symbol(property.symbol),
+               ctx.visibilityChecker.isAccessible(
+                   propertySymbol,
+                   fromFile: ctx.currentFileID,
+                   enclosingClass: ctx.enclosingClassSymbol
+               )
+            {
                 let type = safePrecheckFlowType(for: property.symbol, fallback: property.type, in: ctx)
                 return isSafePrecheckValueType(type, in: ctx) ? type : nil
             }
