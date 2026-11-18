@@ -802,14 +802,12 @@ final class DataFlowSemaPhase: CompilerPhase {
                 importedFiles: ctx.jvmImports?.declarationFiles ?? []
             )
         }
-        withSubPhaseTiming("validateOpenFinalOverride", timer: ctx.phaseTimer) {
-            validateOpenFinalOverride(
-                ast: ast, symbols: symbols, bindings: bindings, types: types,
-                diagnostics: ctx.diagnostics, interner: ctx.interner,
-                compilationModuleName: ctx.options.moduleName,
-                importedFiles: ctx.jvmImports?.declarationFiles ?? []
-            )
-        }
+        // Expect/actual links must exist before override validation: the
+        // covariance checks compare return types across the expect/actual
+        // boundary (e.g. Okio's `expect class Buffer` overriding
+        // `fun emit(): BufferedSink` with `emit(): Buffer`), and the
+        // nominal-subtype walk only bridges those symbols through the links
+        // this phase establishes.
         withSubPhaseTiming("validateExpectActualMatching", timer: ctx.phaseTimer) {
             validateExpectActualMatching(
                 ast: ast,
@@ -819,6 +817,14 @@ final class DataFlowSemaPhase: CompilerPhase {
                 interner: ctx.interner,
                 commonModuleMode: ctx.options.isCommonModule,
                 deferredInferredTypePairs: &ctx.deferredExpectActualTypePairs
+            )
+        }
+        withSubPhaseTiming("validateOpenFinalOverride", timer: ctx.phaseTimer) {
+            validateOpenFinalOverride(
+                ast: ast, symbols: symbols, bindings: bindings, types: types,
+                diagnostics: ctx.diagnostics, interner: ctx.interner,
+                compilationModuleName: ctx.options.moduleName,
+                importedFiles: ctx.jvmImports?.declarationFiles ?? []
             )
         }
         withSubPhaseTiming("validateAnnotationTargets", timer: ctx.phaseTimer) {
