@@ -1,5 +1,3 @@
-import RuntimeABI
-
 extension KIRLoweringDriver {
     /// Synthesizes KIR bodies for `@Parcelize` classes:
     ///   - `describeContents(): Int`
