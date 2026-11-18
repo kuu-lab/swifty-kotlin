@@ -978,6 +978,7 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         filesByID: [Int32: ASTFile],
         resolutionContext: AnnotationTargetResolutionContext,
+        ast: ASTModule? = nil,
         isTopLevel: Bool = false
     ) {
         guard let annotationSymbolID = resolveAnnotationSymbol(
@@ -1081,6 +1082,19 @@ extension DataFlowSemaPhase {
             return
         }
 
+        if case .type = site {
+            validateTypeAnnotationTypeArguments(
+                annotation: annotation,
+                annotationSymbolID: annotationSymbolID,
+                file: file,
+                ast: ast,
+                symbols: symbols,
+                diagnostics: diagnostics,
+                interner: interner,
+                resolutionContext: resolutionContext
+            )
+        }
+
         let expectRefinementFQName = ["kotlin", "experimental", "ExpectRefinement"].map {
             interner.intern($0)
         }
@@ -1093,6 +1107,114 @@ extension DataFlowSemaPhase {
                 range: ownerRange
             )
         }
+    }
+
+    private func validateTypeAnnotationTypeArguments(
+        annotation: AnnotationNode,
+        annotationSymbolID: SymbolID,
+        file: ASTFile,
+        ast: ASTModule?,
+        symbols: SymbolTable,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        resolutionContext: AnnotationTargetResolutionContext
+    ) {
+        guard let ast, let tokens = annotation.constructionTokens, !tokens.isEmpty else { return }
+        let nameTokenCount = AnnotationParsingSupport.qualifiedNameTokenCount(for: annotation.name)
+        let typeArgumentsStart = min(nameTokenCount, tokens.count)
+        guard typeArgumentsStart < tokens.count,
+              tokens[typeArgumentsStart].kind == .symbol(.lessThan),
+              let typeArgumentsEnd = AnnotationParsingSupport.endOfTypeArguments(in: tokens, at: typeArgumentsStart)
+        else { return }
+
+        let inner = Array(tokens[(typeArgumentsStart + 1)..<(typeArgumentsEnd - 1)])
+        let arguments = splitAnnotationTypeArguments(inner)
+        let expectedCount = resolutionContext.types.nominalTypeParameterSymbols(for: annotationSymbolID).count
+        if arguments.count != expectedCount {
+            diagnostics.error(
+                "KSWIFTK-SEMA-ANNOTATION-TYPE-ARGUMENTS",
+                "Type argument count mismatch for annotation class \(annotation.name): expected \(expectedCount), got \(arguments.count).",
+                range: tokens[typeArgumentsStart].range
+            )
+        }
+
+        for argument in arguments {
+            var argumentTokens = argument
+            if let first = argumentTokens.first,
+               first.kind == .keyword(.in) || first.kind == .softKeyword(.out)
+            {
+                argumentTokens.removeFirst()
+            }
+            if argumentTokens.count == 1, argumentTokens[0].kind == .symbol(.star) { continue }
+            guard !argumentTokens.isEmpty,
+                  let parsed = TypeRefParserCore.parseTypeRefPrefix(
+                      ArraySlice(argumentTokens),
+                      interner: interner,
+                      astArena: ast.arena,
+                      options: .declaration,
+                      diagnostics: diagnostics
+                  ),
+                  parsed.consumed == argumentTokens.count
+            else {
+                diagnostics.error(
+                    "KSWIFTK-SEMA-ANNOTATION-TYPE-ARGUMENTS",
+                    "Invalid type argument for annotation class \(annotation.name).",
+                    range: argument.first?.range
+                )
+                continue
+            }
+            _ = resolveTypeRef(
+                parsed.ref,
+                ast: ast,
+                symbols: symbols,
+                types: resolutionContext.types,
+                interner: interner,
+                sourceManager: resolutionContext.sourceManager,
+                relativeOwnerFQName: resolutionContext.enclosingFQName,
+                currentPackageFQName: file.packageFQName,
+                imports: file.imports,
+                diagnostics: diagnostics,
+                usageRange: tokens[typeArgumentsStart].range
+            )
+        }
+    }
+
+    private func splitAnnotationTypeArguments(_ tokens: [Token]) -> [[Token]] {
+        var result: [[Token]] = []
+        var current: [Token] = []
+        var angleDepth = 0
+        var parenDepth = 0
+        var bracketDepth = 0
+        var braceDepth = 0
+        var templateDepth = 0
+        for token in tokens {
+            let kind = token.kind
+            let topLevel = angleDepth == 0 && parenDepth == 0 && bracketDepth == 0 && braceDepth == 0 && templateDepth == 0
+            if topLevel, kind == .symbol(.comma) {
+                result.append(current)
+                current = []
+                continue
+            }
+            current.append(token)
+            let inExpressionGroup = parenDepth > 0 || bracketDepth > 0 || braceDepth > 0 || templateDepth > 0
+            if !inExpressionGroup {
+                if kind == .symbol(.lessThan) { angleDepth += 1 }
+                else if kind == .symbol(.greaterThan) { angleDepth = max(0, angleDepth - 1) }
+            }
+            switch kind {
+            case .symbol(.lParen): parenDepth += 1
+            case .symbol(.rParen): parenDepth = max(0, parenDepth - 1)
+            case .symbol(.lBracket): bracketDepth += 1
+            case .symbol(.rBracket): bracketDepth = max(0, bracketDepth - 1)
+            case .symbol(.lBrace): braceDepth += 1
+            case .symbol(.rBrace): braceDepth = max(0, braceDepth - 1)
+            case .templateExprStart: templateDepth += 1
+            case .templateExprEnd: templateDepth = max(0, templateDepth - 1)
+            default: break
+            }
+        }
+        if !current.isEmpty { result.append(current) }
+        return result
     }
 
     private func isExpectDeclaration(_ decl: Decl?) -> Bool {
@@ -1622,7 +1744,8 @@ private extension DataFlowSemaPhase {
                     diagnostics: diagnostics,
                     interner: interner,
                     filesByID: filesByID,
-                    resolutionContext: resolutionContext
+                    resolutionContext: resolutionContext,
+                    ast: ast
                 )
             }
             validateTypeAnnotationTargets(typeRefID: base, ownerRange: ownerRange, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID, resolutionContext: resolutionContext)

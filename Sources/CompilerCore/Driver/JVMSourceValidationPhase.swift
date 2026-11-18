@@ -104,14 +104,11 @@ private struct JVMSourceGrammar {
         try require(.symbol(.at)); try name()
         if take(.symbol(.colon)) { try name() }
         while take(.symbol(.dot)) { try name() }
-        if take(.symbol(.lessThan)) {
-            var depth = 1
-            while depth > 0 {
-                guard kind != .eof else { throw Unsupported() }
-                if take(.symbol(.lessThan)) { depth += 1 }
-                else if take(.symbol(.greaterThan)) { depth -= 1 }
-                else { index += 1 }
+        if kind == .symbol(.lessThan) {
+            guard let typeArgumentsEnd = AnnotationParsingSupport.endOfTypeArguments(in: tokens, at: index) else {
+                throw Unsupported()
             }
+            index = typeArgumentsEnd
         }
         if take(.symbol(.lParen)) {
             var depth = 1

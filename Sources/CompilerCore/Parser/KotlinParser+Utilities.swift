@@ -46,15 +46,32 @@ extension KotlinParser {
 
         if stream.peek().kind == .symbol(.lessThan) {
             _ = consumeToken(into: &children, range: &range)
-            var depth = 1
-            while !stream.atEOF(), depth > 0 {
+            var angleDepth = 1
+            var parenDepth = 0
+            var bracketDepth = 0
+            var braceDepth = 0
+            var templateDepth = 0
+            while !stream.atEOF(), angleDepth > 0 {
                 let token = consumeToken(into: &children, range: &range)
-                if case let .symbol(symbol) = token.kind {
-                    if symbol == .lessThan {
-                        depth += 1
-                    } else if symbol == .greaterThan {
-                        depth -= 1
+                let kind = token.kind
+                let inExpressionGroup = parenDepth > 0 || bracketDepth > 0 || braceDepth > 0 || templateDepth > 0
+                if !inExpressionGroup {
+                    if kind == .symbol(.lessThan) {
+                        angleDepth += 1
+                    } else if kind == .symbol(.greaterThan) {
+                        angleDepth -= 1
                     }
+                }
+                switch kind {
+                case .symbol(.lParen): parenDepth += 1
+                case .symbol(.rParen): parenDepth = max(0, parenDepth - 1)
+                case .symbol(.lBracket): bracketDepth += 1
+                case .symbol(.rBracket): bracketDepth = max(0, bracketDepth - 1)
+                case .symbol(.lBrace): braceDepth += 1
+                case .symbol(.rBrace): braceDepth = max(0, braceDepth - 1)
+                case .templateExprStart: templateDepth += 1
+                case .templateExprEnd: templateDepth = max(0, templateDepth - 1)
+                default: break
                 }
             }
         }
@@ -163,8 +180,7 @@ extension KotlinParser {
             cursor += 2
         }
         if stream.peek(cursor).kind == .symbol(.lessThan) {
-            cursor = offsetPastBalancedGroup(from: cursor,
-                                             open: .symbol(.lessThan), close: .symbol(.greaterThan))
+            cursor = offsetPastTypeArguments(from: cursor)
         }
         if stream.peek(cursor).kind == .symbol(.lParen) {
             cursor = offsetPastBalancedGroup(from: cursor,
@@ -347,6 +363,9 @@ extension KotlinParser {
                       isIdentifierLike(stream.peek(offset + 1).kind) {
                     guard consumeDeclarationLookaheadWork(&work, at: offset) else { return nil }
                     offset += 2
+                }
+                if stream.peek(offset).kind == .symbol(.lessThan) {
+                    offset = offsetPastTypeArguments(from: offset)
                 }
                 if stream.peek(offset).kind == .symbol(.lParen) {
                     offset = offsetPastBalancedGroup(from: offset,

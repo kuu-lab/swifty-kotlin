@@ -119,23 +119,39 @@ enum AnnotationParsingSupport {
         )
     }
 
-    private static func endOfTypeArguments(in tokens: [Token], at start: Int) -> Int? {
+    static func endOfTypeArguments(in tokens: [Token], at start: Int) -> Int? {
         guard start < tokens.count, tokens[start].kind == .symbol(.lessThan) else {
             return nil
         }
-        var depth = 0
+        var angleDepth = 0
+        var parenDepth = 0
+        var bracketDepth = 0
+        var braceDepth = 0
+        var templateDepth = 0
         var index = start
         while index < tokens.count {
-            switch tokens[index].kind {
-            case .symbol(.lessThan):
-                depth += 1
-            case .symbol(.greaterThan):
-                depth -= 1
-                if depth == 0 {
-                    return index + 1
+            let kind = tokens[index].kind
+            let inExpressionGroup = parenDepth > 0 || bracketDepth > 0 || braceDepth > 0 || templateDepth > 0
+            if !inExpressionGroup {
+                if kind == .symbol(.lessThan) {
+                    angleDepth += 1
+                } else if kind == .symbol(.greaterThan) {
+                    angleDepth -= 1
+                    if angleDepth == 0 {
+                        return index + 1
+                    }
                 }
-            default:
-                break
+            }
+            switch kind {
+            case .symbol(.lParen): parenDepth += 1
+            case .symbol(.rParen): parenDepth = max(0, parenDepth - 1)
+            case .symbol(.lBracket): bracketDepth += 1
+            case .symbol(.rBracket): bracketDepth = max(0, bracketDepth - 1)
+            case .symbol(.lBrace): braceDepth += 1
+            case .symbol(.rBrace): braceDepth = max(0, braceDepth - 1)
+            case .templateExprStart: templateDepth += 1
+            case .templateExprEnd: templateDepth = max(0, templateDepth - 1)
+            default: break
             }
             index += 1
         }

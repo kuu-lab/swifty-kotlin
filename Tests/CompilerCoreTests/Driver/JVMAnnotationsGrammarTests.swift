@@ -34,6 +34,8 @@ import Testing
         }
         @TB<Int, List<String>> fun top() {}
         @TA<List<List<Int>>> class Nested
+        annotation class Flag(val value: Boolean)
+        @TA<@Flag(2 > 1) Int> class ComparisonInTypeArgument
         """, emit: .jvmJar)
         try LexPhase().run(context)
         try JVMSourceValidationPhase().run(context)
