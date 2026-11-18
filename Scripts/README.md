@@ -719,10 +719,11 @@ A warm cache checkout is re-pointed to the requested `KTOR_TAG` /
 matches HEAD is reused without network access (several tags on one commit
 all count, so offline warm-cache runs keep working); anything else is
 fetched on demand — branch requests always re-fetch so they track remote
-advances — and it is a hard failure, leaving the cache untouched, when the
-requested revision cannot be fetched and the cache is not already at it,
-or when the cache has local changes. Any revision change also drops
-previously compiled `.kklib` module artifacts so `--module` runs never link
+advances, and win over a same-named tag — and it is a hard failure, leaving
+the cache untouched, when the requested revision cannot be fetched and the
+cache is not already at it, or when the cache has local changes. Any
+revision change also drops previously compiled `.kklib` module artifacts so
+`--module` runs never link
 dependencies built from older sources. `--no-fetch` keeps its explicit
 reuse-whatever-is-cached semantics. `Scripts/test_ktor_build_revision.sh`
 covers this behavior and is picked up by `Scripts/test_all.sh`.

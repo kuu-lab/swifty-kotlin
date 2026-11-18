@@ -119,11 +119,14 @@ ensure_cached_revision() {
     echo "ktor_build:       commit or stash them, or point KTOR_BUILD_CACHE_DIR at a different directory." >&2
     return 1
   fi
+  # Branches are tried before tags: version tags never share a name with a
+  # branch, while a same-named tag published later must not hijack tracking
+  # of the branch the request actually meant.
   fetched_ref=""
-  if git -C "$dest" fetch --depth 1 origin "+refs/tags/$tag:refs/tags/$tag" 2>/dev/null; then
-    fetched_ref="$tag"
-  elif git -C "$dest" fetch --depth 1 origin "+refs/heads/$tag:refs/remotes/origin/$tag" 2>/dev/null; then
+  if git -C "$dest" fetch --depth 1 origin "+refs/heads/$tag:refs/remotes/origin/$tag" 2>/dev/null; then
     fetched_ref="origin/$tag"
+  elif git -C "$dest" fetch --depth 1 origin "+refs/tags/$tag:refs/tags/$tag" 2>/dev/null; then
+    fetched_ref="$tag"
   fi
   if [[ -z "$fetched_ref" ]]; then
     if cached_revision_matches "$dest" "$tag"; then
