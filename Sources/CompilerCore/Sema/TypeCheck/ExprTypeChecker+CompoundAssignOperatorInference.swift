@@ -571,6 +571,13 @@ extension ExprTypeChecker {
         return sema.types.errorType
     }
 
+    private func isStableMutableLocalDeclaration(_ id: ExprID, ast: ASTModule) -> Bool {
+        guard let expression = ast.arena.expr(id),
+              case let .localDecl(_, isMutable, _, initializer, isDelegated, _, _) = expression
+        else { return false }
+        return isMutable && initializer != nil && !isDelegated
+    }
+
     func inferCompoundAssignExpr(
         _ id: ExprID,
         op: CompoundAssignOp,
@@ -662,10 +669,15 @@ extension ExprTypeChecker {
                     sema.bindings.bindExprType(id, type: sema.types.errorType)
                     return sema.types.errorType
                 }
-                if resolvedType != sema.types.errorType {
-                    // In-place `plusAssign` does not rebind the local, so its
-                    // binding (and member smart casts) survive the write.
-                    ctx.dataFlow.localStability.noteCompoundAssignResolution(id, isInPlace: true)
+                if resolvedType != sema.types.errorType,
+                   let declaration = ctx.dataFlow.localDeclarations[local.symbol]
+                {
+                    ctx.dataFlow.localStability.markCompoundAssignmentAsInPlace(id, declaration: declaration)
+                    if ctx.dataFlow.localStability.isNeverReassigned(declaration),
+                       isStableMutableLocalDeclaration(declaration, ast: ctx.ast)
+                    {
+                        ctx.dataFlow.stableMutableReceivers.insert(local.symbol)
+                    }
                 }
                 return resolvedType
             }
@@ -693,7 +705,6 @@ extension ExprTypeChecker {
                 }
                 locals[name] = (assignedType, local.symbol, local.isMutable, local.isInitialized)
                 sema.bindings.bindExprType(id, type: sema.types.unitType)
-                ctx.dataFlow.localStability.noteCompoundAssignResolution(id, isInPlace: false)
                 return sema.types.unitType
             }
             if !local.isMutable {
@@ -745,7 +756,6 @@ extension ExprTypeChecker {
             }
             locals[name] = (resultType, local.symbol, local.isMutable, local.isInitialized)
             sema.bindings.bindExprType(id, type: sema.types.unitType)
-            ctx.dataFlow.localStability.noteCompoundAssignResolution(id, isInPlace: false)
             return sema.types.unitType
         }
 

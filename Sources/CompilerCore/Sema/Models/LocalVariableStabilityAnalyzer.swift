@@ -1,9 +1,9 @@
 /// Proves effective immutability before flow inference, including deferred writes
-/// in closures. A local with any reassignment is conservatively excluded.
+/// in closures. A local with any effective reassignment is conservatively excluded.
 final class LocalVariableStabilityAnalyzer {
     private var analyzedRoots: Set<ExprID> = []
     private var declarations: Set<ExprID> = []
-    private var reassigned: Set<ExprID> = []
+    private var reassigned: [ExprID: Set<ExprID>] = [:]
     var inPlaceLambdaScopes: Set<ExprID> = []
     private var mutationValues: [ExprID: [ExprID: (scopes: [ExprID], value: ExprID?)]] = [:]
     private var mutationScopes: [ExprID: Set<[ExprID]>] = [:]
@@ -12,19 +12,10 @@ final class LocalVariableStabilityAnalyzer {
     var currentLocalFunctionScope: ExprID?
     private var closureScopes: [ExprID] = []
     private var flowBarrierScopes: [ExprID] = []
-    private var flowBarrierReassignments: [ExprID: Set<ExprID>] = [:]
+    private var flowBarrierReassignments: [ExprID: [ExprID: Set<ExprID>]] = [:]
     private var lambdaCalls: [ExprID: (call: ExprID, argument: Int)] = [:]
     // Only writes from a deeper deferred scope invalidate local smart casts.
     private var declarationDepths: [ExprID: Int] = [:]
-    // Same-scope compound writes stay out of `reassigned` until type inference
-    // reports whether `+=` resolved in place (`plusAssign`) or as a rebinding
-    // (binary operator fallback), keyed by the write expression.
-    private var compoundAssignWrites: [ExprID: Set<ExprID>] = [:]
-    private var compoundAssignWriteDeclarations: [ExprID: ExprID] = [:]
-    private var compoundAssignResolutions: [ExprID: Bool] = [:]
-    // Delegated locals re-evaluate `getValue` on every read, so they are never
-    // stable smart-cast receivers even without any reassignment (KUU-4608 review).
-    private var delegatedDeclarations: Set<ExprID> = []
 
     func isMutatedInClosure(_ declaration: ExprID, sema: SemaModule) -> Bool {
         (mutationScopes[declaration] ?? []).contains { isDeferredMutation($0, sema: sema) }
@@ -85,42 +76,34 @@ final class LocalVariableStabilityAnalyzer {
     }
 
     func isNeverReassigned(_ declaration: ExprID) -> Bool {
-        declarations.contains(declaration)
-            && !reassigned.contains(declaration)
-            && (compoundAssignWrites[declaration] ?? []).isEmpty
+        declarations.contains(declaration) && (reassigned[declaration] ?? []).isEmpty
     }
 
     func isReassigned(_ declaration: ExprID, within expression: ExprID) -> Bool {
-        flowBarrierReassignments[expression]?.contains(declaration) == true
+        guard let assignments = flowBarrierReassignments[expression]?[declaration] else { return false }
+        let active = reassigned[declaration] ?? []
+        return assignments.contains { active.contains($0) }
     }
 
-    /// True when the local is never rebound: no plain assignment, and every
-    /// same-scope compound write resolved to an in-place operator. Writes in
-    /// deferred scopes and `++`/`--` stay conservative through `reassigned`.
-    func isEffectivelyStable(_ declaration: ExprID) -> Bool {
-        guard declarations.contains(declaration), !reassigned.contains(declaration),
-              !delegatedDeclarations.contains(declaration) else {
-            return false
+    /// A resolved in-place compound assignment mutates the receiver without rebinding
+    /// the local, so it is not a reassignment for stability purposes.
+    func markCompoundAssignmentAsInPlace(_ expression: ExprID, declaration: ExprID) {
+        guard var active = reassigned[declaration], active.contains(expression) else { return }
+        active.remove(expression)
+        if active.isEmpty {
+            reassigned.removeValue(forKey: declaration)
+        } else {
+            reassigned[declaration] = active
         }
-        return (compoundAssignWrites[declaration] ?? []).allSatisfy {
-            compoundAssignResolutions[$0] == true
-        }
-    }
 
-    func noteCompoundAssignResolution(_ expression: ExprID, isInPlace: Bool) {
-        guard compoundAssignWriteDeclarations[expression] != nil else { return }
-        compoundAssignResolutions[expression] = isInPlace
-    }
-
-    private func recordReassignment(_ declaration: ExprID, write: ExprID, mutationValue: ExprID?) {
-        reassigned.insert(declaration)
-        for loop in flowBarrierScopes {
-            flowBarrierReassignments[loop, default: []].insert(declaration)
+        mutationValues[declaration]?.removeValue(forKey: expression)
+        if mutationValues[declaration]?.isEmpty == true {
+            mutationValues.removeValue(forKey: declaration)
         }
-        if let depth = declarationDepths[declaration], depth < closureScopes.count {
-            let scopes = Array(closureScopes.dropFirst(depth))
-            mutationScopes[declaration, default: []].insert(scopes)
-            mutationValues[declaration, default: [:]][write] = (scopes, mutationValue)
+        if let mutations = mutationValues[declaration] {
+            mutationScopes[declaration] = Set(mutations.values.map { $0.scopes })
+        } else {
+            mutationScopes.removeValue(forKey: declaration)
         }
     }
 
@@ -165,35 +148,30 @@ final class LocalVariableStabilityAnalyzer {
             for expression in expressions { visit(expression, ast: ast, locals: &locals) }
         }
         switch expression {
-        case let .localDecl(name, _, _, initializer, isDelegated, _, _):
+        case let .localDecl(name, _, _, initializer, _, _, _):
             if let initializer { children([initializer]) }
             declarations.insert(id)
             declarationDepths[id] = closureScopes.count
-            if isDelegated { delegatedDeclarations.insert(id) }
             locals[name] = id
         case let .destructuringDecl(names, _, initializer, _):
             children([initializer])
             declarations.insert(id)
             declarationDepths[id] = closureScopes.count
             for name in names.compactMap({ $0 }) { locals[name] = id }
-        case let .localAssign(name, value, _):
+        case let .localAssign(name, value, _), let .compoundAssign(_, name, value, _):
             if let declaration = locals[name] {
-                recordReassignment(declaration, write: id, mutationValue: value)
-            }
-            children([value])
-        case let .compoundAssign(_, name, value, _):
-            if let declaration = locals[name] {
-                let isDeferred = declarationDepths[declaration].map { $0 < closureScopes.count } ?? true
-                if isDeferred || ast.arena.isIncrementDecrement(id) {
-                    // Deferred writes and `++`/`--` always rebind (or may run
-                    // after reads), so they stay conservative. Compound
-                    // assignments do not necessarily store the RHS type.
-                    recordReassignment(declaration, write: id, mutationValue: nil)
-                } else {
-                    compoundAssignWrites[declaration, default: []].insert(id)
-                    compoundAssignWriteDeclarations[id] = declaration
-                    for loop in flowBarrierScopes {
-                        flowBarrierReassignments[loop, default: []].insert(declaration)
+                reassigned[declaration, default: []].insert(id)
+                for loop in flowBarrierScopes {
+                    flowBarrierReassignments[loop, default: [:]][declaration, default: []].insert(id)
+                }
+                if let depth = declarationDepths[declaration], depth < closureScopes.count {
+                    let scopes = Array(closureScopes.dropFirst(depth))
+                    mutationScopes[declaration, default: []].insert(scopes)
+                    // Compound assignments do not necessarily store the RHS type.
+                    if case .localAssign = expression {
+                        mutationValues[declaration, default: [:]][id] = (scopes, value)
+                    } else {
+                        mutationValues[declaration, default: [:]][id] = (scopes, nil)
                     }
                 }
             }
@@ -207,17 +185,15 @@ final class LocalVariableStabilityAnalyzer {
             closureScopes.append(id)
             scoped(body, hiding: params)
             closureScopes.removeLast()
-        case let .localFunDecl(name, _, params, _, body, _, _, _, _):
+        case let .localFunDecl(_, _, params, _, body, _, _, _, _):
             closureScopes.append(id)
             var scope = locals
             for param in params {
                 if let value = param.defaultValue { visit(value, ast: ast, locals: &scope) }
                 scope.removeValue(forKey: param.name)
             }
-            scope.removeValue(forKey: name)
             visitBody(body, ast: ast, locals: scope)
             closureScopes.removeLast()
-            locals.removeValue(forKey: name)
         case let .forExpr(variable, iterable, body, _, _):
             children([iterable])
             flowBarrierScopes.append(id)

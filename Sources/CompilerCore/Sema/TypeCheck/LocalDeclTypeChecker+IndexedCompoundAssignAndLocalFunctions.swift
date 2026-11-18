@@ -841,6 +841,57 @@ extension LocalDeclTypeChecker {
         }
     }
 
+    private func stableLocalFunctionFlowReference(
+        _ reference: DataFlowReference,
+        state: VariableFlowState,
+        locals: LocalBindings,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        guard state.isStable else { return false }
+        if let local = locals.values.first(where: { $0.symbol == reference.root }) {
+            if local.isMutable {
+                return ctx.dataFlow.stableMutableReceivers.contains(reference.root)
+            }
+            // Delegated locals re-read through getValue, so they are not stable
+            // smart-cast references even when declared with `val`.
+            return !locals.delegatedLocalSymbols.contains(local.symbol)
+        }
+        if reference.root.rawValue < 0 { return true }
+        guard let symbol = ctx.sema.symbols.symbol(reference.root) else { return false }
+        switch symbol.kind {
+        case .property:
+            return ctx.dataFlow.isStableTopLevelProperty(reference.root, ast: ctx.ast, sema: ctx.sema)
+        case .object, .local, .valueParameter:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func stableLocalFunctionFlowFacts(
+        from state: DataFlowState,
+        locals: LocalBindings,
+        ctx: TypeInferenceContext
+    ) -> (variables: [SymbolID: VariableFlowState], members: [DataFlowReference: VariableFlowState]) {
+        var variables: [SymbolID: VariableFlowState] = [:]
+        for (symbol, variableState) in state.variables {
+            guard stableLocalFunctionFlowReference(
+                DataFlowReference(root: symbol), state: variableState, locals: locals, ctx: ctx
+            ) else { continue }
+            variables[symbol] = variableState
+        }
+        var members: [DataFlowReference: VariableFlowState] = [:]
+        for (reference, memberState) in state.members {
+            guard stableLocalFunctionFlowReference(reference, state: memberState, locals: locals, ctx: ctx),
+                  reference.properties.allSatisfy({
+                      ctx.dataFlow.isStableMemberProperty($0, ast: ctx.ast, sema: ctx.sema)
+                  })
+            else { continue }
+            members[reference] = memberState
+        }
+        return (variables, members)
+    }
+
     func inferLocalFunDeclExpr(
         _ id: ExprID,
         name: InternedString,
@@ -1171,7 +1222,10 @@ extension LocalDeclTypeChecker {
             let declaredType = sema.symbols.propertyType(for: local.symbol) ?? local.type
             bodyLocals[name] = (declaredType, local.symbol, local.isMutable, local.isInitialized)
         }
-        bodyLocals.memberFlow = [:]
+        let inheritedFlowFacts = stableLocalFunctionFlowFacts(
+            from: ctx.flowState.includingMembers(from: locals), locals: locals, ctx: ctx
+        )
+        bodyLocals.memberFlow = inheritedFlowFacts.members
         bodyLocals.variableFacts = [:]
         bodyLocals.invalidatedVariableFacts = []
         let bodyReceiverType: TypeID? = receiverType ?? ctx.implicitReceiverType
@@ -1193,7 +1247,7 @@ extension LocalDeclTypeChecker {
                 && returnTypeRef == nil,
             returnTargetIsInitBlock: false,
             enclosingLambdaExprIDs: [],
-            flowState: DataFlowState(),
+            flowState: DataFlowState(variables: inheritedFlowFacts.variables),
             currentDeclSymbol: receiverType != nil ? funSymbol : ctx.currentDeclSymbol
         )
         bodyCtx.isUnitCoercionContext = resolvedReturnType == sema.types.unitType

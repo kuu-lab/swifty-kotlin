@@ -107,9 +107,18 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
 
     public fun add(augend: BigDecimal): BigDecimal = __kk_bignum_add(augend)
 
+    public fun add(augend: BigDecimal, mathContext: MathContext): BigDecimal =
+        add(augend).round(mathContext)
+
     public fun subtract(subtrahend: BigDecimal): BigDecimal = __kk_bignum_subtract(subtrahend)
 
+    public fun subtract(subtrahend: BigDecimal, mathContext: MathContext): BigDecimal =
+        subtract(subtrahend).round(mathContext)
+
     public fun multiply(multiplicand: BigDecimal): BigDecimal = __kk_bignum_multiply(multiplicand)
+
+    public fun multiply(multiplicand: BigDecimal, mathContext: MathContext): BigDecimal =
+        multiply(multiplicand).round(mathContext)
 
     public fun divide(divisor: BigDecimal): BigDecimal = __kk_bignum_divide(divisor)
 
@@ -138,7 +147,7 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
      * JDK `divideToIntegralValue` preferred scale `this.scale() - divisor.scale()`
      * adjusted only as needed to represent the integral value exactly.
      */
-    private fun divideToIntegralValue(divisor: BigDecimal): BigDecimal {
+    public fun divideToIntegralValue(divisor: BigDecimal): BigDecimal {
         val integral = divide(divisor, 0, RoundingMode.DOWN)
         var resultScale = scale().toLong() - divisor.scale().toLong()
         if (integral.signum() != 0) {
@@ -156,6 +165,15 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
             throw ArithmeticException("BigDecimal scale out of range")
         }
         return integral.setScale(resultScale.toInt(), RoundingMode.UNNECESSARY)
+    }
+
+    public fun divideToIntegralValue(divisor: BigDecimal, mathContext: MathContext): BigDecimal {
+        val quotient = divideToIntegralValue(divisor)
+        val rounded = quotient.round(mathContext)
+        if (rounded.compareTo(quotient) != 0) {
+            throw ArithmeticException("Division impossible")
+        }
+        return rounded
     }
 
     /** Returns a two-element array containing the quotient and remainder of `this / divisor`. */
@@ -231,10 +249,8 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
     /** Returns a `BigDecimal` whose value is `(-this)`. */
     public fun negate(): BigDecimal = multiply(BigDecimal("-1"))
 
-    /** Returns a `BigDecimal` whose value is the absolute value of this `BigDecimal`. */
     public fun abs(): BigDecimal = if (signum() < 0) negate() else this
 
-    /** Returns the string representation of this `BigDecimal` without an exponent. */
     public fun toPlainString(): String {
         val sign = signum()
         val valueScale = scale()
@@ -262,7 +278,45 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
         return if (sign < 0) "-" + body else body
     }
 
+
+    public fun toEngineeringString(): String {
+        val plain = toString()
+        val marker = plain.indexOf('E')
+        if (marker < 0) return plain
+        val exponent = plain.substring(marker + 1).toInt()
+        if (signum() == 0) {
+            val shift = ((3 - (exponent % 3)) % 3 + 3) % 3
+            if (shift == 0) return plain
+            val newExponent = exponent + shift
+            val mantissa = "0" + (if (shift > 0) "." + "0".repeat(shift) else "")
+            val exponentText = if (newExponent >= 0) "+" + newExponent else newExponent.toString()
+            return mantissa + "E" + exponentText
+        }
+        val shift = ((exponent % 3) + 3) % 3
+        if (shift == 0) return plain
+        val negative = plain[0] == '-'
+        val body = if (negative) plain.substring(1, marker) else plain.substring(0, marker)
+        val dot = body.indexOf('.')
+        val intPart = if (dot < 0) body else body.substring(0, dot)
+        val fracPart = if (dot < 0) "" else body.substring(dot + 1)
+        var digits = intPart + fracPart
+        val newIntLength = intPart.length + shift
+        if (digits.length < newIntLength) {
+            digits += "0".repeat(newIntLength - digits.length)
+        }
+        val newInt = digits.substring(0, newIntLength)
+        val newFrac = digits.substring(newIntLength)
+        val mantissa = if (newFrac.isEmpty()) newInt else newInt + "." + newFrac
+        val newExponent = exponent - shift
+        if (newExponent == 0) {
+            return (if (negative) "-" else "") + mantissa
+        }
+        val exponentText = if (newExponent >= 0) "+" + newExponent else newExponent.toString()
+        return (if (negative) "-" else "") + mantissa + "E" + exponentText
+    }
+
     /** The unscaled integer value carried by this `BigDecimal`. */
+
     public fun unscaledValue(): BigInteger = BigInteger(movePointRight(scale()).toString())
 
     /** This value converted to a `BigInteger`, dropping any fractional part toward zero. */
@@ -295,6 +349,51 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
         return BigDecimal(stripped.toString() + "E" + (-newScale.toLong()))
     }
 
+    public fun round(mathContext: MathContext): BigDecimal {
+        val precision = mathContext.precision
+        if (precision == 0) return this
+        val excessDigits = this.significantDigitCount() - precision
+        if (excessDigits <= 0) return this
+        val targetScale = scale().toLong() - excessDigits.toLong()
+        if (targetScale < Int.MIN_VALUE || targetScale > Int.MAX_VALUE) {
+            throw ArithmeticException("BigDecimal scale out of range")
+        }
+        var rounded = setScale(targetScale.toInt(), mathContext.roundingMode)
+        while (rounded.significantDigitCount() > precision) {
+            val reducedScale = rounded.scale().toLong() - 1
+            if (reducedScale < Int.MIN_VALUE) {
+                throw ArithmeticException("BigDecimal scale out of range")
+            }
+            rounded = rounded.setScale(reducedScale.toInt(), RoundingMode.UNNECESSARY)
+        }
+        return rounded
+    }
+
+    public fun abs(mathContext: MathContext): BigDecimal = abs().round(mathContext)
+
+    public fun negate(mathContext: MathContext): BigDecimal = negate().round(mathContext)
+
+    public fun plus(): BigDecimal = this
+
+    public fun plus(mathContext: MathContext): BigDecimal = round(mathContext)
+
+    public fun min(other: BigDecimal): BigDecimal =
+        if (compareTo(other) <= 0) this else other
+
+    public fun max(other: BigDecimal): BigDecimal =
+        if (compareTo(other) >= 0) this else other
+
+    /** Returns one unit in the last place of this value, like the JDK `ulp`. */
+    public fun ulp(): BigDecimal = BigDecimal("1E" + (-scale().toLong()))
+
+    public fun byteValueExact(): Byte = toBigIntegerExact().byteValueExact()
+
+    public fun shortValueExact(): Short = toBigIntegerExact().shortValueExact()
+
+    public fun intValueExact(): Int = toBigIntegerExact().intValueExact()
+
+    public fun longValueExact(): Long = toBigIntegerExact().longValueExact()
+
     public operator fun plus(other: BigDecimal): BigDecimal = add(other)
 
     public operator fun minus(other: BigDecimal): BigDecimal = subtract(other)
@@ -315,6 +414,12 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
     public override fun toShort(): Short = __kk_bignum_toShort()
 
     public override fun toByte(): Byte = __kk_bignum_toByte()
+}
+
+private fun BigDecimal.significantDigitCount(): Int {
+    val mantissa = toString().substringBefore("E").removePrefix("-")
+    val digits = mantissa.replace(".", "").trimStart('0')
+    return if (digits.isEmpty()) 1 else digits.length
 }
 
 private fun RoundingMode.runtimeCode(): Int = when (this) {
