@@ -76,5 +76,57 @@ extension JVMBackendTests {
             #expect(ctx.sourceManager.fileID(forPath: "<kswiftk-jvm-import>/fixture/Widget.kt") != nil)
         }
     }
+
+    @Test
+    func suspendFunctionTypeParameterRendersKotlinFunctionType() throws {
+        try withWorkspace { root in
+            // kotlinx-coroutines-style multifile facade: the erased
+            // kotlin.jvm.functions.FunctionN carrier has no Kotlin
+            // declaration, so the suspend metadata path must render the
+            // function type (and declare its type parameters) itself.
+            try """
+            @file:JvmMultifileClass
+            @file:JvmName("ProviderKt")
+            package fixture
+
+            class Scope
+            """.write(to: root.appendingPathComponent("A.kt"), atomically: true, encoding: .utf8)
+            try """
+            @file:JvmMultifileClass
+            @file:JvmName("ProviderKt")
+            package fixture
+
+            suspend fun <T> run(scope: Scope, block: suspend Scope.() -> T): T = TODO()
+            """.write(to: root.appendingPathComponent("B.kt"), atomically: true, encoding: .utf8)
+            _ = try jvmTool("kotlinc", ["A.kt", "B.kt", "-d", "provider.jar"], root: root)
+            let provider = root.appendingPathComponent("provider.jar")
+            let index = try JVMClasspathIndex.load([provider.path])
+
+            let consumerPath = root.appendingPathComponent("consumer.kt").path
+            let ctx = CompilationContext(
+                options: CompilerOptions(
+                    moduleName: "SuspendFunctionTypeTest",
+                    inputs: [consumerPath],
+                    outputPath: root.appendingPathComponent("out").path,
+                    emit: .jvmJar,
+                    target: .hostDefault(),
+                    includeStdlib: false,
+                    allowDefaultStdlibLibrary: false
+                ),
+                sourceManager: SourceManager(),
+                diagnostics: DiagnosticEngine(),
+                interner: StringInterner()
+            )
+            _ = ctx.sourceManager.addFile(path: consumerPath, contents: Data("fun main() {}".utf8))
+            try index.inject(into: ctx)
+
+            let facadePath = "<kswiftk-jvm-import>/fixture/ProviderKt.kt"
+            let facadeID = try #require(ctx.sourceManager.fileID(forPath: facadePath))
+            let facade = String(decoding: ctx.sourceManager.contents(of: facadeID), as: UTF8.self)
+            #expect(!facade.contains("kotlin.jvm.functions.Function"))
+            #expect(facade.contains("<`T`>"))
+            #expect(facade.contains("): `T`"))
+        }
+    }
 }
 #endif

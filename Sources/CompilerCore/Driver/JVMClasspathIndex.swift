@@ -2255,8 +2255,18 @@ final class JVMClasspathIndex {
             let bound = resultType == "kotlin.Any" ? "kotlin.Any?" : resultType
             return "<`\(parameter.name)`: \(bound)> "
         } ?? ""
+        // Suspend metadata carries the function's own type parameters (e.g.
+        // `suspend CoroutineScope.() -> T`); declare them so parameter source
+        // types can reference them.
+        let suspendTypeParameters = suspend?.typeParameters ?? []
+        let suspendGeneric = suspendTypeParameters.isEmpty ? "" : "<"
+            + suspendTypeParameters.map { "`\($0.name)`" }.joined(separator: ", ") + "> "
+        let suspendBounds = suspendTypeParameters.flatMap { parameter in
+            parameter.bounds.map { "`\(parameter.name)`: " + $0 }
+        }
+        let suspendWhereClause = suspendBounds.isEmpty ? "" : " where " + suspendBounds.joined(separator: ", ")
         let modifier = suspend == nil ? "" : "suspend "
-        return modifier + "fun " + generic + "\(receiver)`\(method.sourceName)`(" + parameters(method, droppingReceiver: asExtension) + "): " + result
+        return modifier + "fun " + (generic.isEmpty ? suspendGeneric : generic) + "\(receiver)`\(method.sourceName)`(" + parameters(method, droppingReceiver: asExtension) + "): " + result + suspendWhereClause
     }
 
     private func kotlinFunctionDeclaration(_ function: JVMKotlinFunction, asFacadeMember: Bool, acceptsDefaults: Bool) -> String {
