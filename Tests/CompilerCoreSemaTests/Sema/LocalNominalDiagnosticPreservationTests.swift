@@ -168,6 +168,48 @@ struct LocalNominalDiagnosticPreservationTests {
             includeStdlib: false
         )
     }
+
+    @Test
+    func testObjectLiteralTypedGetterReadsLaterLazyProperty() throws {
+        let source = """
+        package objectliteraltypedlazy
+
+        interface HasValue {
+            fun get(): String
+        }
+
+        class C {
+            fun box(): HasValue = object : HasValue {
+                val value: String get() = text
+                val text by lazy { "OK" }
+                override fun get(): String = value
+            }
+        }
+        """
+
+        _ = try semaContext(from: source, expecting: [], includeStdlib: true)
+    }
+
+    @Test
+    func testObjectLiteralTypedGetterReadsLaterExtensionProperty() throws {
+        let source = """
+        package objectliteraltypedextension
+
+        interface HasTag {
+            fun get(): String
+        }
+
+        class C {
+            fun box(): HasTag = object : HasTag {
+                val value: String get() = "x".tag
+                val String.tag get() = "OK"
+                override fun get(): String = value
+            }
+        }
+        """
+
+        _ = try semaContext(from: source, expecting: [], includeStdlib: true)
+    }
 }
 
 #endif

@@ -381,6 +381,37 @@ extension DeclTypeChecker {
                     driver.publishedInferredPropertyDecls.insert(declID)
                     didPrecheckProperty = true
                 }
+                // Delegated and extension properties are not registered for
+                // demand inference, so publish their type through the same
+                // declaration check the authoritative pass uses, then leave the
+                // declaration unprechecked for that pass to recheck (KUU-4610).
+                if !allowFullInferredPrecheck,
+                   !driver.publishedInferredPropertyDecls.contains(declID),
+                   property.type == nil,
+                   property.delegateExpression != nil || property.receiverType != nil,
+                   canSafelyPrecheckInferredProperty(
+                       property,
+                       symbol: propertySymbol,
+                       in: ctx,
+                       initialLocals: initialLocals
+                   )
+                {
+                    let diagnosticSnapshot = diagnostics.count
+                    let nominalDeclsCheckedBefore = driver.localNominalDeclChecks.count
+                    typeCheckBoundPropertyDecl(
+                        property,
+                        declID: declID,
+                        symbol: propertySymbol,
+                        ctx: ctx.with(currentDeclSymbol: propertySymbol),
+                        initialLocals: initialLocals,
+                        solver: solver,
+                        diagnostics: diagnostics
+                    )
+                    diagnostics.truncate(to: diagnosticSnapshot)
+                    driver.markLocalNominalRechecks(since: nominalDeclsCheckedBefore)
+                    driver.publishedInferredPropertyDecls.insert(declID)
+                    didPrecheckProperty = true
+                }
             }
         } while didPrecheckProperty
     }
@@ -554,6 +585,12 @@ extension DeclTypeChecker {
         // Object literals are rechecked by `typeCheckLocalNominalMemberProperties`;
         // marking these declarations fully prechecked would skip that pass and
         // leave member bodies reading placeholder property types (KUU-4610).
+        // Published inferred types are keyed by declaration, so clear them for
+        // this literal: a rolled-back nominal check resets property headers and
+        // must be able to publish the same types again on the retry.
+        for declID in memberProperties {
+            driver.publishedInferredPropertyDecls.remove(declID)
+        }
         precheckIndependentMemberProperties(
             memberProperties,
             ctx: ctx,
