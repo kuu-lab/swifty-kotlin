@@ -84,32 +84,6 @@ private func runtimeStringFromRuntimeValue(_ value: RuntimeValue) -> String? {
 }
 
 @inline(__always)
-func runtimeBinarySearch(
-    elements: [Int],
-    element: Int,
-    fromIndex: Int,
-    toIndex: Int,
-    compare: (Int, Int) -> Int
-) -> Int {
-    let lowerBound = max(0, min(fromIndex, elements.count))
-    let upperBound = max(lowerBound, min(toIndex, elements.count))
-    var low = lowerBound
-    var high = upperBound - 1
-    while low <= high {
-        let mid = (low + high) / 2
-        let cmp = compare(elements[mid], element)
-        if cmp < 0 {
-            low = mid + 1
-        } else if cmp > 0 {
-            high = mid - 1
-        } else {
-            return mid
-        }
-    }
-    return -(low + 1)
-}
-
-@inline(__always)
 func runtimeInvokeComparable(
     lhs: Int,
     rhs: Int,
