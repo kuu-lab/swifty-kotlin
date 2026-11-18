@@ -1508,26 +1508,27 @@ public func __kk_string_format_flat(
     _ outHash: UnsafeMutablePointer<Int>?,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
-    outThrown?.pointee = 0
-    let template = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
-        ?? runtimeListBox(from: argsArrayRaw)?.values
-        ?? []
-    do {
-        return runtimeRegisterFlatString(
-            try runtimeFormatString(template, values: arguments),
-            outLength: outLength,
-            outByteCount: outByteCount,
-            outHash: outHash
-        )
-    } catch let error as RuntimeFormatError {
-        outThrown?.pointee = runtimeAllocateFormatException(error)
-        outLength?.pointee = 0
-        outByteCount?.pointee = 0
-        outHash?.pointee = 0
-        return nil
-    } catch {
-        preconditionFailure("Unexpected format error")
+    return runtimeThrowingBridge(outThrown, defaultOnFailure: nil) {
+        let template = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+        let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
+            ?? runtimeListBox(from: argsArrayRaw)?.values
+            ?? []
+        do {
+            return runtimeRegisterFlatString(
+                try runtimeFormatString(template, values: arguments),
+                outLength: outLength,
+                outByteCount: outByteCount,
+                outHash: outHash
+            )
+        } catch let error as RuntimeFormatError {
+            outThrown?.pointee = runtimeAllocateFormatException(error)
+            outLength?.pointee = 0
+            outByteCount?.pointee = 0
+            outHash?.pointee = 0
+            return nil
+        } catch {
+            preconditionFailure("Unexpected format error")
+        }
     }
 }
 
@@ -1544,34 +1545,35 @@ public func __kk_string_format_locale_flat(
     _ outHash: UnsafeMutablePointer<Int>?,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
-    outThrown?.pointee = 0
-    let locale: Locale?
-    if localeRaw == runtimeNullSentinelInt {
-        locale = nil
-    } else {
-        guard let box = runtimeLocaleBox(from: localeRaw) else {
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_string_format_locale_flat received invalid Locale handle")
+    return runtimeThrowingBridge(outThrown, defaultOnFailure: nil) {
+        let locale: Locale?
+        if localeRaw == runtimeNullSentinelInt {
+            locale = nil
+        } else {
+            guard let box = runtimeLocaleBox(from: localeRaw) else {
+                fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_string_format_locale_flat received invalid Locale handle")
+            }
+            locale = box.locale
         }
-        locale = box.locale
-    }
-    let template = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
-        ?? runtimeListBox(from: argsArrayRaw)?.values
-        ?? []
-    do {
-        return runtimeRegisterFlatString(
-            try runtimeFormatString(template, values: arguments, locale: locale),
-            outLength: outLength,
-            outByteCount: outByteCount,
-            outHash: outHash
-        )
-    } catch let error as RuntimeFormatError {
-        outThrown?.pointee = runtimeAllocateFormatException(error)
-        outLength?.pointee = 0
-        outByteCount?.pointee = 0
-        outHash?.pointee = 0
-        return nil
-    } catch {
-        preconditionFailure("Unexpected format error")
+        let template = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+        let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
+            ?? runtimeListBox(from: argsArrayRaw)?.values
+            ?? []
+        do {
+            return runtimeRegisterFlatString(
+                try runtimeFormatString(template, values: arguments, locale: locale),
+                outLength: outLength,
+                outByteCount: outByteCount,
+                outHash: outHash
+            )
+        } catch let error as RuntimeFormatError {
+            outThrown?.pointee = runtimeAllocateFormatException(error)
+            outLength?.pointee = 0
+            outByteCount?.pointee = 0
+            outHash?.pointee = 0
+            return nil
+        } catch {
+            preconditionFailure("Unexpected format error")
+        }
     }
 }
