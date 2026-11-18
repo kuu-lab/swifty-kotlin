@@ -562,11 +562,6 @@ func saturatingMultiply(_ a: Int64, _ b: Int64) -> Int64 {
     return result
 }
 
-@_cdecl("kk_duration_zero")
-public func kk_duration_zero() -> Int {
-    runtimeDurationHandle(fromNanoseconds: 0)
-}
-
 public func kk_duration_infinite() -> Int {
     Int(Int64.max)
 }

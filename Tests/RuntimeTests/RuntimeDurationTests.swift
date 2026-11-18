@@ -176,7 +176,7 @@ struct RuntimeDurationTests {
     // MARK: - Duration companion constants
 
     @Test func testDurationZeroAndInfiniteConstants() {
-        let zero = kk_duration_zero()
+        let zero = kk_duration_toDuration_long(0, 0)
         let infinite = kk_duration_infinite()
 
         #expect(kk_duration_inWholeNanoseconds(zero) == 0)

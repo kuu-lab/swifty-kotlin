@@ -49,7 +49,7 @@ struct RuntimeTestRunTimeoutTests {
 
     @Test
     func timeoutBudgetDisarmsNonPositiveAndInfinite() {
-        #expect(runtimeRunTestTimeoutBudget(kk_duration_zero()).millis == nil)
+        #expect(runtimeRunTestTimeoutBudget(kk_duration_toDuration_long(0, Self.millisUnit)).millis == nil)
         #expect(runtimeRunTestTimeoutBudget(
             kk_duration_toDuration_long(-5, Self.millisUnit)
         ).millis == nil)

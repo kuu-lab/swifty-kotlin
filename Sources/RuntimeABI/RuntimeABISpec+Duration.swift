@@ -13,7 +13,6 @@ public extension RuntimeABISpec {
         durationParseOrNullSpec,
         durationParseIsoStringSpec,
         durationParseIsoStringOrNullSpec,
-        abi.th("kk_duration_zero"),
         abi.th("kk_duration_toDuration_long", "value unitOrdinal"),
         abi.th("kk_duration_plus", "lhsRaw rhsRaw"),
         // `_boxed` variants serve the synthetic-stub path and return boxed
