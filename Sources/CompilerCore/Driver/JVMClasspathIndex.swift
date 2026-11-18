@@ -633,6 +633,16 @@ final class JVMClasspathIndex {
         return false
     }
 
+    private func isHiddenByDeprecation(_ method: JVMForeignMethod) -> Bool {
+        method.annotations.contains { annotation in
+            guard annotation.descriptor == "Lkotlin/Deprecated;" else { return false }
+            return annotation.values.contains { name, value in
+                if name == "level", case .enumEntry("Lkotlin/DeprecationLevel;", "HIDDEN") = value { return true }
+                return false
+            }
+        }
+    }
+
     private func isExposed(_ method: JVMForeignMethod) -> Bool {
         if method.isReifiedGlanceAction || method.isReifiedWorkBuilder { return false }
         let exposedName = method.sourceName
@@ -640,6 +650,7 @@ final class JVMClasspathIndex {
         // can still implement a user-declared factory interface.
         if method.isStatic, method.annotations.contains(where: { $0.descriptor == JVMMetro.invoke }) { return false }
         guard method.isConstructor || JVMProgramBuilder.isIdentifier(exposedName) else { return false }
+        if method.isSynthetic, isHiddenByDeprecation(method) { return false }
         if method.isSynthetic, method.kotlinFunction == nil, method.kotlinSuspendFunction == nil,
            kotlinFunction(method) == nil { return false }
         if let function = method.kotlinFunction {

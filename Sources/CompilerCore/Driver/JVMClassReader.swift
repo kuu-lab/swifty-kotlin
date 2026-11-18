@@ -543,7 +543,6 @@ struct JVMClassReader {
         for _ in 0..<methodCount {
             let access = try u2(), nameIndex = try u2(), descriptorIndex = try u2()
             let methodName = try text(Int(nameIndex)), descriptor = try text(Int(descriptorIndex))
-            let methodInfo = try methodAttributes(parseAnnotations: parseAnnotations || hasComposableAnnotation || hasJvmOverloads)
             let isDefaultArgumentMethod = access & 0x1009 == 0x1009 && methodName.hasSuffix("$default")
             let isSyntheticConstructor = hasKotlinMetadata && access & 0x1001 == 0x1001 && methodName == "<init>"
                 && descriptor.hasSuffix("Lkotlin/jvm/internal/DefaultConstructorMarker;)V")
@@ -552,6 +551,10 @@ struct JVMClassReader {
                 && methodName == "actionStartActivity" && descriptor == "(Landroidx/glance/action/ActionParameters;)Landroidx/glance/action/Action;"
             let isReifiedWorkBuilder = hasKotlinMetadata && name == "androidx/work/OneTimeWorkRequestKt"
                 && methodName == "OneTimeWorkRequestBuilder" && descriptor == "()Landroidx/work/OneTimeWorkRequest$Builder;"
+            let isKotlinMetadataSynthetic = hasKotlinMetadata && access & 0x1000 != 0 && access & 0x0040 == 0
+                && !isDefaultArgumentMethod && !isValueAdapter && !isSyntheticConstructor
+                && !isReifiedGlanceAction && !isReifiedWorkBuilder
+            let methodInfo = try methodAttributes(parseAnnotations: parseAnnotations || hasComposableAnnotation || hasJvmOverloads || isKotlinMetadataSynthetic)
             if access & 0x0005 != 0,
                (access & 0x1040 == 0 || access & 0x0040 != 0 || hasKotlinMetadata || isDefaultArgumentMethod || isValueAdapter || isSyntheticConstructor || isReifiedGlanceAction || isReifiedWorkBuilder), methodName != "<clinit>",
                let signature = try? (descriptorCache?.parse(descriptor) ?? JVMDescriptor.parse(descriptor)),
@@ -561,9 +564,7 @@ struct JVMClassReader {
                     isStatic: access & 8 != 0, isInterface: flags & 0x0200 != 0, isAbstract: access & 0x0400 != 0)
                 method.isFinal = access & 16 != 0
                 method.isProtected = access & 0x0004 != 0
-                method.isSynthetic = access & 0x1000 != 0 && access & 0x0040 == 0
-                    && !isDefaultArgumentMethod && !isValueAdapter && !isSyntheticConstructor
-                    && !isReifiedGlanceAction && !isReifiedWorkBuilder
+                method.isSynthetic = isKotlinMetadataSynthetic
                 method.isVarargs = access & 0x0080 != 0
                 method.genericResultParameter = Self.genericResultParameter(in: methodInfo.signature, method: method)
                 method.annotations = methodInfo.annotations
