@@ -938,11 +938,17 @@ final class JVMClasspathIndex {
             return comparable.source
         }
         // The Kotlin metadata supertype tables can decode empty, leaving the
-        // erased fallback to fill every argument with `Any`. The classfile
-        // Signature keeps the declared arguments (`implements List<String>`),
-        // so recover them when the child's own type parameters cannot be
-        // reused for this supertype.
-        if name != "java/lang/Comparable",
+        // erased fallback to fill every argument with `Any`. For Java
+        // classfiles the Signature keeps the declared arguments
+        // (`implements List<String>`) and Java type arguments are flexible,
+        // so stock kotlinc accepts the same programs with or without safe
+        // calls; recover them when the child's own type parameters cannot be
+        // reused for this supertype. Kotlin classfiles encode argument
+        // nullability only in metadata, which the Signature cannot express,
+        // so they keep the erased fallback rather than accept programs stock
+        // kotlinc rejects.
+        if !child.hasKotlinMetadata,
+           name != "java/lang/Comparable",
            child.classTypeParameterNames.count != (hierarchyClasses[name]?.classTypeParameterNames.count ?? 0),
            let source = javaSignatureSupertypes(child.genericSignature)
                .first(where: { $0.binary == name })?.source,
