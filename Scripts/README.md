@@ -17,6 +17,8 @@
 | `loc_report.sh` | – | Refactoring guard metrics as TSV (LoC by directory, `kk_` literals, TODO/FIXME counts) |
 | `dead_code_audit.sh` | – | Audit `@_cdecl kk_*` runtime symbols unreachable from the compiler |
 | `benchmark_stdlib_hof.sh` | – | Runtime micro-benchmark harness over `benchmark_cases/` (median wall-clock per case) |
+| `benchmark_preflight.py` | – | Preflight A/B `kswiftc` pairs: matched build config plus successful non-empty compile output |
+| `test_benchmark_preflight.sh` | ✓ | Regression test for benchmark preflight config and output guards |
 | `test_all.sh` | ✓ | Run every `Scripts/test_*.sh` regression test and summarize; new `test_*.sh` files are picked up automatically |
 | `check_todo_ids.sh` | ✓ | Detect duplicate task IDs in `TODO.md` |
 | `check_mutation_fuzzer_keywords.sh` | ✓ | Verify `mutate_diff_cases.py`'s `IDENTIFIER_KEYWORDS` matches the lexer's `Keyword` enum |
