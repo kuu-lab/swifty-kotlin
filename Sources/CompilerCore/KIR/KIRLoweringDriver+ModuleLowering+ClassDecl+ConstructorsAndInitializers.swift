@@ -50,10 +50,22 @@ extension KIRLoweringDriver {
 
         let receiverSymbol = callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: ctorSymbol)
         var params = [KIRParameter(symbol: receiverSymbol, type: signature.returnType)]
-        ctx.setImplicitReceiver(
-            symbol: receiverSymbol,
-            exprID: arena.appendExpr(.symbolRef(receiverSymbol), type: signature.returnType)
-        )
+        let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: signature.returnType)
+        ctx.setImplicitReceiver(symbol: receiverSymbol, exprID: receiverExpr)
+        // Property initializers and `init` blocks can capture `this@Class`; Sema
+        // keys that capture to the class-derived receiver symbol, while the
+        // constructor's own implicit receiver is keyed to `<init>`. Alias both
+        // to the instance under construction so the capture is materialized.
+        let classReceiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: ownerSymbol)
+        ctx.setLocalValue(receiverExpr, for: receiverSymbol)
+        ctx.setLocalValue(receiverExpr, for: classReceiverSymbol)
+        ctx.setLocalDeclaredType(signature.returnType, for: classReceiverSymbol)
+        ctx.setLocalValue(receiverExpr, for: ownerSymbol)
+        ctx.setLocalDeclaredType(signature.returnType, for: ownerSymbol)
+        if let ownerInfo = sema.symbols.symbol(ownerSymbol) {
+            ctx.setQualifiedThisReceiver(receiverExpr, for: ownerInfo.name)
+            ctx.setCapturedOuterReceiver(receiverExpr, for: ownerSymbol)
+        }
         for (index, parameterSymbol) in signature.valueParameterSymbols.enumerated() {
             params.append(KIRParameter(
                 symbol: parameterSymbol,

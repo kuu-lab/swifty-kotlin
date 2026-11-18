@@ -362,7 +362,58 @@ extension ExprTypeChecker {
         // and capture analysis find it; entries without a symbol stay
         // type-only (`this@Label` typing) as before.
         var objectOuterReceiverTypes = ctx.outerReceiverTypes
-        if let thisBinding = outerLocalsSnapshot[ctx.interner.intern("this")] {
+        let thisBinding = outerLocalsSnapshot[ctx.interner.intern("this")]
+        // A function-local nominal captures the enclosing function's receiver
+        // *value*. The enclosing class's outer-receiver entry normally carries
+        // the class symbol — a `this@Class` label placeholder — which cannot
+        // root the smart-cast flow reference, because those are keyed by the
+        // receiver value symbol (`receiverParameterSymbol(for:)`). Resolve that
+        // entry to the receiver value that will actually be captured so stable
+        // property smart casts on the captured `this` survive into the object
+        // literal's member bodies (KUU-4606). Member extensions have two
+        // receivers: the class entry is the dispatch receiver (`this@Owner`),
+        // not the extension receiver that `locals["this"]` names.
+        if let enclosingClassSymbol = ctx.enclosingClassSymbol {
+            let memberExtensionDispatchSymbol = ctx.enclosingFunctionSymbol.flatMap { functionSymbol -> SymbolID? in
+                guard sema.symbols.memberExtensionOwnerSymbol(for: functionSymbol) == enclosingClassSymbol else {
+                    return nil
+                }
+                return SyntheticSymbolScheme.receiverParameterSymbol(for: enclosingClassSymbol)
+            }
+            let enclosingMemberReceiverSymbol = ctx.enclosingFunctionSymbol.flatMap { functionSymbol -> SymbolID? in
+                guard sema.symbols.memberExtensionOwnerSymbol(for: functionSymbol) == nil,
+                      sema.symbols.parentSymbol(for: functionSymbol) == enclosingClassSymbol
+                else {
+                    return nil
+                }
+                return SyntheticSymbolScheme.receiverParameterSymbol(for: functionSymbol)
+            }
+            for index in objectOuterReceiverTypes.indices {
+                let entry = objectOuterReceiverTypes[index]
+                guard entry.symbol == enclosingClassSymbol,
+                      case let .classType(entryClassType) = sema.types.kind(of: entry.type),
+                      entryClassType.classSymbol == enclosingClassSymbol
+                else {
+                    continue
+                }
+                let receiverValueSymbol: SymbolID
+                if let memberExtensionDispatchSymbol {
+                    receiverValueSymbol = memberExtensionDispatchSymbol
+                } else if let thisBinding,
+                          entry.type == thisBinding.type,
+                          SyntheticSymbolScheme.receiverParameterOwner(for: thisBinding.symbol) != nil
+                {
+                    receiverValueSymbol = thisBinding.symbol
+                } else if let enclosingMemberReceiverSymbol {
+                    receiverValueSymbol = enclosingMemberReceiverSymbol
+                } else {
+                    continue
+                }
+                objectOuterReceiverTypes[index].symbol = receiverValueSymbol
+                captureOuterSymbols.insert(receiverValueSymbol)
+            }
+        }
+        if let thisBinding {
             // The stack may name the same receiver under several labels (the
             // class itself and each enclosing member function), so fill every
             // entry whose type is the enclosing `this` type.
@@ -644,7 +695,7 @@ extension ExprTypeChecker {
             capturedSymbols,
             ownerSymbol: objectSymbol,
             outerLocalsSnapshot: outerLocalsSnapshot,
-            outerReceiverTypes: ctx.outerReceiverTypes,
+            outerReceiverTypes: objectOuterReceiverTypes,
             receiverStack: ctx.implicitReceiverStack,
             sema: sema
         )

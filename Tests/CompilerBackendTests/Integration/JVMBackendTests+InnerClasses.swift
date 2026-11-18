@@ -108,5 +108,35 @@ extension JVMBackendTests {
             #expect(execution.stderr.isEmpty)
         }
     }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func packageQualifiedInnerConstructorKeepsOuterReceiver(mode: EmitMode) throws {
+        try withWorkspace { root in
+            let provider = """
+            package fixture
+            class Outer(val tag: String) {
+                inner class Inner(val x: Int) {
+                    fun outerTag(): String = this@Outer.tag
+                }
+            }
+            """
+            let source = """
+            fun main() {
+                val inner = fixture.Outer("ok").Inner(3)
+                println(inner.x)
+                println(inner.outerTag())
+            }
+            """
+            let result = try compile(source, root: root, mode: mode, additionalSources: [("Provider.kt", provider)])
+            #expect(result.0 == 0, "\(result.1.map(\.message))")
+            guard result.0 == 0 else { return }
+            let arguments = mode == .jvmJar
+                ? ["-jar", root.appendingPathComponent("hello.jar").path]
+                : ["-cp", root.appendingPathComponent("classes").path, "HelloKt"]
+            let execution = try java(arguments)
+            #expect(execution.stdout == "3\nok\n")
+            #expect(execution.stderr.isEmpty)
+        }
+    }
 }
 #endif
