@@ -116,5 +116,36 @@ extension JVMBackendTests {
             #expect(run.stderr.isEmpty)
         }
     }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func javaInterfaceDefaultGetterDoesNotRequireOverride(mode: EmitMode) throws {
+        try withWorkspace { root in
+            let javaSource = """
+            package dep;
+            public interface Typed {
+                default String getTypeName() { return "typed"; }
+            }
+            """
+            try javaSource.write(to: root.appendingPathComponent("Typed.java"), atomically: true, encoding: .utf8)
+            _ = try jvmTool("javac", ["--release", "8", "-d", "deps", "Typed.java"], root: root)
+            _ = try jvmTool("jar", ["cf", "deps.jar", "-C", "deps", "."], root: root)
+
+            let source = """
+            import dep.Typed
+            class KotlinTyped : Typed
+            fun main() {
+                println(KotlinTyped().typeName)
+            }
+            """
+            let classpath = mode == .jvmJar ? root.appendingPathComponent("deps.jar").path : root.appendingPathComponent("deps").path
+            let result = try compile(source, root: root, mode: mode, classpath: [classpath])
+            #expect(result.0 == 0, "\(result.1.map(\.message))")
+            guard result.0 == 0 else { return }
+            let output = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path
+            let run = try java(["-cp", output + ":" + classpath, "HelloKt"])
+            #expect(run.stdout == "typed\n")
+            #expect(run.stderr.isEmpty)
+        }
+    }
 }
 #endif
