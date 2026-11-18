@@ -436,9 +436,8 @@ extension JVMFunctionBuilder {
 }
 
 extension JVMProgramBuilder {
-    func emitAccessors(_ plan: JVMClassPlan, _ declaration: PropertyDecl, _ property: JVMProperty) throws -> [JVMFunction] {
-        let propertyID = plan.properties.first(where: { $0.1.range == declaration.range })?.0
-        let propertySymbol = propertyID.flatMap { sema.bindings.declSymbol(for: $0) }
+    func emitAccessors(_ plan: JVMClassPlan, _ propertyID: DeclID, _ declaration: PropertyDecl, _ property: JVMProperty) throws -> [JVMFunction] {
+        let propertySymbol = sema.bindings.declSymbol(for: propertyID)
         var accessorTypeParameters: [JVMTypeParameter] = []
         if !declaration.typeParams.isEmpty {
             guard let propertySymbol,

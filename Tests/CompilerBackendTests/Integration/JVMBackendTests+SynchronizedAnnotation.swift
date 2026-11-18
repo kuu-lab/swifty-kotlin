@@ -47,6 +47,35 @@ extension JVMBackendTests {
     }
 
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func jvmSynchronizedAnnotationKeepsPrimaryConstructorPropertiesSeparate(mode: EmitMode) throws {
+        let source = """
+        class Pair(@get:Synchronized @set:Synchronized var first: Int, @get:Synchronized var second: Int, var third: Int)
+        class Reverse(var first: Int, @get:Synchronized var second: Int)
+        """
+        try withWorkspace { root in
+            let result = try compile(source, root: root, mode: mode)
+            #expect(result.0 == 0, "\(result.1.map(\.message))")
+
+            let app = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes")
+            let pair = try javap(["-v", "-p", "-classpath", app.path, "Pair"])
+            #expect(pair.exitCode == 0, "\(pair.stderr)")
+            #expect(pair.stdout.contains("public final synchronized int getFirst();"), "\(pair.stdout)")
+            #expect(pair.stdout.contains("public final synchronized void setFirst(int);"), "\(pair.stdout)")
+            #expect(pair.stdout.contains("public final synchronized int getSecond();"), "\(pair.stdout)")
+            #expect(!pair.stdout.contains("public final synchronized void setSecond(int);"), "\(pair.stdout)")
+            #expect(!pair.stdout.contains("public final synchronized int getThird();"), "\(pair.stdout)")
+            #expect(!pair.stdout.contains("public final synchronized void setThird(int);"), "\(pair.stdout)")
+
+            let reverse = try javap(["-v", "-p", "-classpath", app.path, "Reverse"])
+            #expect(reverse.exitCode == 0, "\(reverse.stderr)")
+            #expect(!reverse.stdout.contains("public final synchronized int getFirst();"), "\(reverse.stdout)")
+            #expect(!reverse.stdout.contains("public final synchronized void setFirst(int);"), "\(reverse.stdout)")
+            #expect(reverse.stdout.contains("public final synchronized int getSecond();"), "\(reverse.stdout)")
+            #expect(!reverse.stdout.contains("public final synchronized void setSecond(int);"), "\(reverse.stdout)")
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func jvmSynchronizedAnnotationRejectsInterfaceMembers(mode: EmitMode) throws {
         let source = """
         interface Counter {

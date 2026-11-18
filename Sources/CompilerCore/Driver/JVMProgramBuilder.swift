@@ -348,7 +348,7 @@ final class JVMProgramBuilder {
             }
             var facadeFunctions: [JVMFunction] = []
             if let plan = facadePlan {
-                for (_, declaration, property) in plan.properties { facadeFunctions += try emitAccessors(plan, declaration, property) }
+                for (propertyID, declaration, property) in plan.properties { facadeFunctions += try emitAccessors(plan, propertyID, declaration, property) }
                 if plan.properties.contains(where: { !isComputedExtension($0.1) }) {
                     let b = try nominalBuilder(plan, name: "<clinit>", staticBody: true)
                     for (symbol, field) in plan.propertyTokens.sorted(by: { $0.value.name < $1.value.name }) {
