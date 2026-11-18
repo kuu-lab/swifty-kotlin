@@ -473,5 +473,21 @@ struct CompanionClassScopeTests {
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
     }
+
+    /// Static object scopes still resolve nested classifiers inherited from
+    /// the enclosing class's superclass chain.
+    @Test func objectScopesResolveInheritedNestedClassifiers() throws {
+        let path = "/virtual/object-inherited-classifier.kt"
+        let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+        _ = ctx.sourceManager.addFile(path: path, contents: Data("""
+        open class Base { class Entry }
+        class Child : Base() {
+            companion object { fun makeCompanion() = Entry() }
+            object Nested { fun makeNested() = Entry() }
+        }
+        """.utf8))
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif

@@ -833,25 +833,30 @@ extension DeclTypeChecker {
               enclosingScope.owner == parentSymbol,
               let outerParent = enclosingScope.parent
         else { return nil }
-        let classifiers = BaseScope(parent: outerParent, symbols: sema.symbols)
-        let includeEnumEntries = parent.kind == .enumClass
-        for child in sema.symbols.declaredChildren(of: parentSymbol) {
-            guard let childInfo = sema.symbols.symbol(child) else { continue }
-            let visibleToObject = [.class, .interface, .object, .enumClass, .annotationClass, .typeAlias]
-                .contains(childInfo.kind)
-                || (includeEnumEntries && childInfo.kind == .field)
-            guard visibleToObject else { continue }
-            classifiers.insert(child)
-        }
-        if includeEnumEntries {
+        // A ClassMemberScope with no value members bound keeps the parent's
+        // declared and inherited classifiers visible through deferredCandidates,
+        // while instance functions/properties remain unreachable.
+        let classifiers = ClassMemberScope(
+            parent: outerParent,
+            symbols: sema.symbols,
+            ownerSymbol: parentSymbol,
+            thisType: nil
+        )
+        if parent.kind == .enumClass {
             let valuesName = ctx.interner.intern("values")
             for valuesSymbol in sema.symbols.lookupAll(fqName: parent.fqName + [valuesName]) {
                 guard let values = sema.symbols.symbol(valuesSymbol),
                       values.kind == .function,
                       values.flags.contains([.synthetic, .static]),
                       sema.symbols.parentSymbol(for: valuesSymbol) == parentSymbol
-                else { continue }
+                else {
+                    continue
+                }
                 classifiers.insert(valuesSymbol)
+            }
+            for child in sema.symbols.declaredChildren(of: parentSymbol) {
+                guard let childInfo = sema.symbols.symbol(child), childInfo.kind == .field else { continue }
+                classifiers.insert(child)
             }
         }
         return classifiers
