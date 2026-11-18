@@ -17,7 +17,11 @@
 #   4. warm cache mismatch + unreachable remote fails loudly and leaves the
 #      cached checkout untouched
 #   5. --no-fetch keeps its explicit "reuse whatever is cached" semantics
-#   6. a dirty cache refuses to switch revisions, preserving local changes
+#   6. single-module runs drop dependency .kklib artifacts compiled from a
+#      previous revision, but keep reusing fresh ones
+#   7. several tags on one commit all match offline (compared by commit ID,
+#      not by the single tag name `git describe` happens to return)
+#   8. a dirty cache refuses to switch revisions, preserving local changes
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
@@ -77,6 +81,9 @@ EOF
 git add -A
 git commit -qm "ktor fixture v1"
 git tag 1.0.0
+# A second tag on the very same commit: exercises commit-based matching when
+# several tag names resolve to the checked-out HEAD.
+git tag 1.0.1
 git rm -q ktor-io/common/src/V1Only.kt
 cat > ktor-io/common/src/V2Only.kt <<'EOF'
 package ktor.io
@@ -211,15 +218,56 @@ expect_success "--no-fetch with warm cache"
 [[ "$(cache_tag)" == "2.0.0" ]] || fail "--no-fetch changed cache to '$(cache_tag)'"
 echo "ok: --no-fetch reuses the cached checkout as documented"
 
-# 6. A dirty cache refuses to switch revisions, preserving local changes.
-printf '\n// local probe edit\n' >> "$CACHE_DIR/ktor/ktor-io/common/src/V2Only.kt"
+# 6. Single-module runs never link dependency artifacts from a previous
+#    revision: fresh artifacts are reused, stale ones are dropped on sync.
+KTOR_TAG="2.0.0"
+probe --module ktor_utils
+expect_success "single-module run reusing a fresh dependency artifact"
+grep -q 'ktor_io\.kklib' "$STUB_LOG" || fail "fresh dependency artifact was not linked"
+[[ -d "$OUT_DIR/ktor_utils.kklib" ]] || fail "ktor_utils artifact missing after compile"
+
 KTOR_TAG="1.0.0"
+probe --module ktor_utils
+expect_success "single-module run after a revision sync"
+[[ "$(cache_tag)" == "1.0.0" ]] || fail "cache not synced to 1.0.0: '$(cache_tag)'"
+if grep -q 'ktor_io\.kklib' "$STUB_LOG"; then
+  fail "stale ktor_io.kklib from the previous revision was linked after the sync"
+fi
+[[ ! -e "$OUT_DIR/ktor_io.kklib" ]] || fail "stale ktor_io.kklib survived the revision sync"
+[[ -d "$OUT_DIR/ktor_utils.kklib" ]] || fail "ktor_utils artifact missing after compile"
+echo "ok: single-module runs drop stale dependency artifacts on revision sync"
+
+# 7. Several tags on one commit all count as matching, also offline: the
+#    requested revision is resolved to its commit and compared with HEAD,
+#    not against the single tag name `git describe` returns for HEAD.
+KTOR_TAG="1.0.1"
+probe --module ktor_io
+expect_success "online fetch of alias tag 1.0.1 on the cached commit"
+head_commit="$(git -C "$CACHE_DIR/ktor" rev-parse HEAD)"
+
+mv "$FIX/remotes" "$FIX/remotes.hidden"
+KTOR_TAG="1.0.0"
+probe --module ktor_io
+expect_success "offline run requesting tag 1.0.0 on a multi-tag commit"
+KTOR_TAG="1.0.1"
+probe --module ktor_io
+expect_success "offline run requesting tag 1.0.1 on a multi-tag commit"
+mv "$FIX/remotes.hidden" "$FIX/remotes"
+[[ "$(git -C "$CACHE_DIR/ktor" rev-parse HEAD)" == "$head_commit" ]] \
+  || fail "offline multi-tag runs moved HEAD"
+echo "ok: multi-tag commits match offline by commit, not by tag name"
+
+# 8. A dirty cache refuses to switch revisions, preserving local changes.
+head_before="$(git -C "$CACHE_DIR/ktor" rev-parse HEAD)"
+printf '\n// local probe edit\n' >> "$CACHE_DIR/ktor/ktor-io/common/src/V1Only.kt"
+KTOR_TAG="2.0.0"
 probe --module ktor_io
 expect_failure "dirty cache with mismatched tag"
 grep -q 'local changes' "$PROBE_LOG" || fail "dirty-cache failure does not mention local changes"
-grep -q 'local probe edit' "$CACHE_DIR/ktor/ktor-io/common/src/V2Only.kt" \
+grep -q 'local probe edit' "$CACHE_DIR/ktor/ktor-io/common/src/V1Only.kt" \
   || fail "local edit in cache was lost"
-[[ "$(cache_tag)" == "2.0.0" ]] || fail "dirty-cache run changed cache to '$(cache_tag)'"
+[[ "$(git -C "$CACHE_DIR/ktor" rev-parse HEAD)" == "$head_before" ]] \
+  || fail "dirty-cache run moved HEAD"
 echo "ok: dirty cache refuses to switch and preserves local changes"
 
 echo "PASS: ktor_build.sh honors requested revisions with a warm cache"

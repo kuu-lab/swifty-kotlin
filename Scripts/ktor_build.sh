@@ -38,6 +38,9 @@ KTOR_TAG="${KTOR_TAG:-3.6.0}"
 KOTLINX_IO_TAG="${KOTLINX_IO_TAG:-0.9.1}"
 DO_FETCH=1
 ONLY_MODULE=""
+# Set when a cache checkout is created or re-pointed; module artifacts from
+# previous revisions are then dropped before compiling.
+CACHE_REVISIONS_CHANGED=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -72,22 +75,36 @@ fi
 mkdir -p "$CACHE_DIR" "$OUT_DIR"
 
 # Prints the exact tag of the commit checked out in $1, or nothing when HEAD
-# is not exactly at a tag.
+# is not exactly at a tag. Display only: several tags can name the same
+# commit, so matching uses resolve_cached_revision instead.
 checked_out_tag() {
   git -C "$1" describe --tags --exact-match HEAD 2>/dev/null || true
 }
 
+# Prints the commit SHA the requested revision resolves to in the local cache
+# repo (tag, branch, or origin/* branch), or nothing when the revision is
+# unknown locally.
+resolve_cached_revision() {
+  local dest="$1" ref="$2"
+  git -C "$dest" rev-parse --verify --quiet "$ref^{commit}" 2>/dev/null \
+    || git -C "$dest" rev-parse --verify --quiet "origin/$ref^{commit}" 2>/dev/null \
+    || true
+}
+
 # Re-points an existing cache checkout at the requested revision instead of
-# silently compiling whatever was fetched earlier. The fast path touches no
-# network, so a warm cache matching the request keeps working offline. On a
-# mismatch the checkout is only switched when it is clean; if the requested
-# revision cannot be fetched (offline or unknown ref) the probe fails and the
-# cached checkout is left untouched.
+# silently compiling whatever was fetched earlier. The fast path compares
+# commits rather than tag names — several tags can point at HEAD's commit —
+# and touches no network, so a warm cache matching the request keeps working
+# offline. On a mismatch the checkout is only switched when it is clean; if
+# the requested revision cannot be fetched (offline or unknown ref) the probe
+# fails and the cached checkout is left untouched.
 ensure_cached_revision() {
   local url="$1" tag="$2" dest="$3"
-  local current fetched_ref
+  local current head requested fetched_ref
   current="$(checked_out_tag "$dest")"
-  if [[ "$current" == "$tag" ]]; then
+  head="$(git -C "$dest" rev-parse HEAD)"
+  requested="$(resolve_cached_revision "$dest" "$tag")"
+  if [[ -n "$requested" && "$requested" == "$head" ]]; then
     return 0
   fi
   if [[ -n "$(git -C "$dest" status --porcelain)" ]]; then
@@ -110,6 +127,7 @@ ensure_cached_revision() {
     echo "ktor_build: error: failed to check out '$tag' in $dest; cache left at '${current:-<no tag>}'." >&2
     return 1
   fi
+  CACHE_REVISIONS_CHANGED=1
   echo "ktor_build: updated cache $dest: '${current:-<no tag>}' -> '$tag'." >&2
 }
 
@@ -121,6 +139,7 @@ clone_sparse() {
   fi
   git clone --depth 1 --filter=blob:none --sparse -b "$tag" "$url" "$dest"
   ( cd "$dest" && git sparse-checkout set $paths )
+  CACHE_REVISIONS_CHANGED=1
 }
 
 if [[ "$DO_FETCH" -eq 1 ]]; then
@@ -128,6 +147,13 @@ if [[ "$DO_FETCH" -eq 1 ]]; then
     "$CACHE_DIR/kotlinx-io" "core bytestring"
   clone_sparse https://github.com/ktorio/ktor "$KTOR_TAG" \
     "$CACHE_DIR/ktor" "ktor-io ktor-utils ktor-http"
+fi
+
+# Single-module runs link dependency .kklib artifacts from $OUT_DIR; after a
+# cache revision change those were built from different sources, so drop them
+# instead of mixing revisions in the diagnostic results.
+if [[ "$CACHE_REVISIONS_CHANGED" -eq 1 ]]; then
+  rm -rf "$OUT_DIR"/*.kklib
 fi
 
 # Module name -> source roots (space-separated, relative to $CACHE_DIR).
