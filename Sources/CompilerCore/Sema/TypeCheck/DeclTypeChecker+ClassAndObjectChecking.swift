@@ -147,6 +147,7 @@ extension DeclTypeChecker {
         if let companionDeclID = classDecl.companionObject {
             // Infer both sides first: companion bodies may use inferred instance members.
             let diagnosticSnapshot = diagnostics.count
+            let nominalDeclsCheckedBefore = driver.localNominalDeclChecks.count
             inferClassLikeMemberTypes(
                 memberFunctions: classDecl.memberFunctions,
                 memberProperties: classDecl.memberProperties,
@@ -159,6 +160,7 @@ extension DeclTypeChecker {
             )
             typeCheckNestedObjectDecl(companionDeclID, ctx: classCtx, solver: solver, diagnostics: diagnostics)
             diagnostics.truncate(to: diagnosticSnapshot)
+            driver.markLocalNominalRechecks(since: nominalDeclsCheckedBefore)
         }
 
         validateClassLikeHeaderOptInTypes(
@@ -512,6 +514,7 @@ extension DeclTypeChecker {
 
         if let companionDeclID = interfaceDecl.companionObject {
             let diagnosticSnapshot = diagnostics.count
+            let nominalDeclsCheckedBefore = driver.localNominalDeclChecks.count
             inferClassLikeMemberTypes(
                 memberFunctions: interfaceDecl.memberFunctions,
                 memberProperties: interfaceDecl.memberProperties,
@@ -522,6 +525,7 @@ extension DeclTypeChecker {
             )
             typeCheckNestedObjectDecl(companionDeclID, ctx: interfaceCtx, solver: solver, diagnostics: diagnostics)
             diagnostics.truncate(to: diagnosticSnapshot)
+            driver.markLocalNominalRechecks(since: nominalDeclsCheckedBefore)
         }
 
         validateClassLikeHeaderOptInTypes(
@@ -583,6 +587,7 @@ extension DeclTypeChecker {
             switch decl {
             case let .funDecl(function):
                 let diagnosticSnapshot = diagnostics.count
+                let nominalDeclsCheckedBefore = driver.localNominalDeclChecks.count
                 typeCheckFunctionDecl(
                     function,
                     symbol: symbol,
@@ -592,12 +597,14 @@ extension DeclTypeChecker {
                     baseLocals: memberFunctionBaseLocals
                 )
                 diagnostics.truncate(to: diagnosticSnapshot)
+                driver.markLocalNominalRechecks(since: nominalDeclsCheckedBefore)
 
             case let .propertyDecl(property):
                 guard !driver.precheckedPropertyDecls.contains(declID) else {
                     continue
                 }
                 let diagnosticSnapshot = diagnostics.count
+                let nominalDeclsCheckedBefore = driver.localNominalDeclChecks.count
                 typeCheckBoundPropertyDecl(
                     property,
                     declID: declID,
@@ -612,6 +619,7 @@ extension DeclTypeChecker {
                     // depend on inferred nested member returns until their
                     // bodies have been checked.
                     diagnostics.truncate(to: diagnosticSnapshot)
+                    driver.markLocalNominalRechecks(since: nominalDeclsCheckedBefore)
                 }
 
             default:
@@ -662,6 +670,7 @@ extension DeclTypeChecker {
         // Infer companion types before the authoritative function pass;
         // companion bodies can in turn depend on those function return types.
         let diagnosticSnapshot = diagnostics.count
+        let nominalDeclsCheckedBefore = driver.localNominalDeclChecks.count
         for declID in nestedObjects {
             guard let decl = ast.arena.decl(declID),
                   case let .objectDecl(objectDecl) = decl,
@@ -680,6 +689,7 @@ extension DeclTypeChecker {
             )
         }
         diagnostics.truncate(to: diagnosticSnapshot)
+        driver.markLocalNominalRechecks(since: nominalDeclsCheckedBefore)
 
         // Nested types can also expose inferred companion properties. Resolve
         // them before enclosing functions see the header's `Any?` placeholder.
