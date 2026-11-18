@@ -374,7 +374,7 @@ extension JVMProgramBuilder {
 
     func annotated(_ function: JVMFunction, symbol: SymbolID, signature providedSignature: FunctionSignature? = nil) throws -> JVMFunction {
         var f = function; f.annotations = try annotations(for: symbol, target: nil)
-        f.isSynchronized = sema.symbols.annotations(for: symbol).contains {
+        f.isSynchronized = try annotationRecords(for: symbol).contains {
             $0.annotationFQName == KnownCompilerAnnotation.jvmSynchronized.qualifiedName && $0.useSiteTarget == nil
         }
         applyDeprecation(f.annotations, to: &f)

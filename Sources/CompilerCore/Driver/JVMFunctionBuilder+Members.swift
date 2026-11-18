@@ -519,7 +519,7 @@ extension JVMProgramBuilder {
             f.typeParameters = accessorTypeParameters
             let setter = f.reference.result == .unit
             if let symbol = propertySymbol {
-                f.isSynchronized = sema.symbols.annotations(for: symbol).contains {
+                f.isSynchronized = try annotationRecords(for: symbol).contains {
                     $0.annotationFQName == KnownCompilerAnnotation.jvmSynchronized.qualifiedName
                         && $0.useSiteTarget == (setter ? "set" : "get")
                 }

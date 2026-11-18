@@ -1006,6 +1006,27 @@ extension DataFlowSemaPhase {
             return
         }
 
+        if resolutionContext.jvmTarget != nil,
+           annotationSymbol.fqName.map({ interner.resolve($0) }).joined(separator: ".") == KnownCompilerAnnotation.jvmSynchronized.qualifiedName {
+            let synchronizedSite: Bool
+            switch site {
+            case .function, .getter, .setter:
+                synchronizedSite = true
+            default:
+                synchronizedSite = false
+            }
+            if synchronizedSite,
+               let owner = symbols.lookup(fqName: resolutionContext.enclosingFQName),
+               symbols.symbol(owner)?.kind == .interface {
+                diagnostics.error(
+                    "KSWIFTK-SEMA-ANNOTATION-TARGET",
+                    "'@Synchronized' annotation cannot be used on interface members.",
+                    range: annotation.constructionTokens?.first?.range ?? ownerRange
+                )
+                return
+            }
+        }
+
         if case .getter = site,
            symbols.annotations(for: annotationSymbolID).contains(where: {
                KnownCompilerAnnotation.requiresOptIn.matches($0.annotationFQName)
