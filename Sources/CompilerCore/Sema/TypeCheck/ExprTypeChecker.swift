@@ -30,6 +30,31 @@ final class ExprTypeChecker {
         return false
     }
 
+    /// Whether the receiver/callee spine reaches a `?.` access without an
+    /// intervening `!!`. Indexed reads resolve `a?.b[i]` on the non-null view
+    /// of the receiver while keeping the access result nullable.
+    func exprSpineContainsUnguardedSafeMemberAccess(_ id: ExprID, ast: ASTModule) -> Bool {
+        var currentID = id
+        var visited: Set<ExprID> = []
+        while visited.insert(currentID).inserted {
+            guard let expr = ast.arena.expr(currentID) else { return false }
+            switch expr {
+            case .safeMemberCall, .safeMemberAssign:
+                return true
+            case let .memberCall(receiver, _, _, _, _),
+                 let .memberAssign(receiver, _, _, _),
+                 let .indexedAccess(receiver, _, _),
+                 let .indexedAssign(receiver, _, _, _),
+                 let .indexedCompoundAssign(_, receiver, _, _, _),
+                 let .memberCompoundAssign(_, receiver, _, _, _):
+                currentID = receiver
+            default:
+                return false
+            }
+        }
+        return false
+    }
+
     // swiftlint:disable:next cyclomatic_complexity
     func inferExpr(
         _ id: ExprID,
@@ -257,6 +282,7 @@ final class ExprTypeChecker {
         case let .indexedAccess(receiverExpr, indices, range):
             var indexCtx = ctx
             indexCtx.receiverConditionallyEvaluated = ctx.isConditionallyEvaluated
+            let receiverHasUnguardedSafeAccess = exprSpineContainsUnguardedSafeMemberAccess(receiverExpr, ast: ast)
             if exprSpineContainsSafeMemberAccess(receiverExpr, ast: ast) {
                 indexCtx.isConditionallyEvaluated = true
             }
@@ -267,7 +293,8 @@ final class ExprTypeChecker {
                 range: range,
                 expectedType: expectedType,
                 ctx: indexCtx,
-                locals: &locals
+                locals: &locals,
+                isSafeChain: receiverHasUnguardedSafeAccess
             )
 
         case let .indexedAssign(receiverExpr, indices, valueExpr, range):
