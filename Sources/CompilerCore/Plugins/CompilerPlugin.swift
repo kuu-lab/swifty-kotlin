@@ -77,8 +77,6 @@ struct CompilerPluginConfig {
         return config
     }
 
-    var isEmpty: Bool { values.isEmpty }
-
     func optionValues(for pluginID: String, key: String) -> [String] {
         values[pluginID]?[key] ?? []
     }
