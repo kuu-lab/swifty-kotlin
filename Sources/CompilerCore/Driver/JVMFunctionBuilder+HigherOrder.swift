@@ -161,4 +161,31 @@ extension JVMFunctionBuilder {
         if let list { return try convert(list, to: program.expressionType(id)) }
         return accumulator
     }
+
+    func mapForEach(_ receiverID: ExprID, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult {
+        guard args.count == 1, !args[0].isSpread,
+              let signature = functionType(args[0].expr),
+              [1, 2].contains(signature.params.count)
+        else { throw fail("Unsupported JVM Map forEach callback.", id) }
+        let map = try convert(requireValue(receiverID), to: .reference("java/util/Map", nullable: false))
+        let entries = try jdkCall("java/util/Map", "entrySet", [], .reference("java/util/Set", nullable: false), receiver: map, interface: true)!
+        let iterator = try jdkCall("java/lang/Iterable", "iterator", [], .reference("java/util/Iterator", nullable: false), receiver: entries, interface: true)!
+        let callback = try requireValue(args[0].expr)
+        let object: JVMValueType = .reference("java/lang/Object", nullable: true)
+        let test = label(), end = label()
+        mark(test)
+        let hasNext = try jdkCall("java/util/Iterator", "hasNext", [], .boolean, receiver: iterator, interface: true)!
+        instructions.append(.jumpIfFalse(hasNext, end))
+        let entry = try jdkCall("java/util/Iterator", "next", [], object, receiver: iterator, interface: true)!
+        if signature.params.count == 1 {
+            _ = try invoke(callback, signature: signature, arguments: [entry], resultType: .unit)
+        } else {
+            let key = try jdkCall("java/util/Map$Entry", "getKey", [], object, receiver: entry, interface: true)!
+            let value = try jdkCall("java/util/Map$Entry", "getValue", [], object, receiver: entry, interface: true)!
+            _ = try invoke(callback, signature: signature, arguments: [key, value], resultType: .unit)
+        }
+        jump(test)
+        mark(end)
+        return JVMIntrinsicResult(value: nil)
+    }
 }

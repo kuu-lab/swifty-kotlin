@@ -51,5 +51,35 @@ extension JVMBackendTests {
             #expect(consumer.stderr.isEmpty)
         }
     }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func mapForEachAndNullableIsNullOrEmptyGuards(mode: EmitMode) throws {
+        try withWorkspace { root in
+            try runM11(
+                """
+                fun main() {
+                    val map: Map<String, List<Int>>? = mapOf("a" to listOf(1, 2), "b" to listOf(3))
+                    var seen = 0
+                    if (!map.isNullOrEmpty()) {
+                        if (map.containsKey("a")) {
+                            val first = map["a"]
+                            if (first != null) seen += first.size
+                        }
+                        map.forEach { (key, values) -> seen += values.size }
+                        map.forEach { key, values -> seen += values.size }
+                    }
+                    val absent: Map<String, Int>? = null
+                    if (absent.isNullOrEmpty()) seen += 1
+                    val list: List<Int>? = listOf(4, 5)
+                    if (!list.isNullOrEmpty() && list.contains(4)) seen += 2
+                    println(seen)
+                }
+                """,
+                expected: "11\n",
+                mode: mode,
+                root: root
+            )
+        }
+    }
 }
 #endif
