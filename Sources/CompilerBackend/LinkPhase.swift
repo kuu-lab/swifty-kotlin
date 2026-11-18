@@ -147,6 +147,13 @@ final class LinkPhase: CompilerPhase {
             if ctx.options.debugInfo { args.append("-g") }
             args.append(contentsOf: ["-o", ctx.options.outputPath])
             args.append(contentsOf: linkerDriverArgs(for: ctx.options.target))
+            if ctx.options.target.os.hasPrefix("linux"), Self.linuxLldAvailable() {
+                // ld.lld ships in the same toolchain bin directory as swiftc/clang
+                // and links the large native object sets several times faster than
+                // the driver's default ld.gold. Keep the driver default when it is
+                // not installed.
+                args.append("-use-ld=lld")
+            }
             ctx.options.libraryPaths.forEach { args.append("-L\($0)") }
             // `-l` names resolved to `.kklib` bundles already contribute
             // their objects via `effectiveLibrarySearchPaths`; forwarding
@@ -354,6 +361,22 @@ final class LinkPhase: CompilerPhase {
             args.append(contentsOf: ["-Xlinker", "-dead_strip"])
         }
         return args
+    }
+
+    /// The Swift driver links with the toolchain's `ld.lld` when
+    /// `-use-ld=lld` is passed, several times faster than its default
+    /// `ld.gold` on the large native object sets. Only the `ld.lld` shipped
+    /// next to the resolved `swiftc` is trusted (Swift toolchains place
+    /// `clang` and `ld.lld` in the same bin directory); a `ld.lld` found
+    /// elsewhere on `PATH` says nothing about compatibility with this
+    /// toolchain, so the driver default is kept without the adjacent one.
+    static func linuxLldAvailable() -> Bool {
+        let swiftcPath = CommandRunner.resolveExecutable("swiftc", fallback: "/usr/bin/swiftc")
+        let toolchainBin = URL(fileURLWithPath: swiftcPath)
+            .resolvingSymlinksInPath()
+            .deletingLastPathComponent()
+            .path
+        return FileManager.default.isExecutableFile(atPath: toolchainBin + "/ld.lld")
     }
 
     func linkerTargetTriple(_ target: TargetTriple) -> String {
