@@ -483,7 +483,17 @@ extension CallLowerer {
             argumentExprs: args.map(\.expr),
             sema: sema
         ) ?? sema.bindings.callBindings[exprID]
-        let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
+        let preservesErasedGenericResult = kirShouldCheckErasedGenericCallResult(
+            exprID: exprID,
+            boundType: boundType,
+            sema: sema,
+            erasedLambdaReturnClaims: driver.ctx.erasedLambdaReturnClaimStack
+        )
+        let result = arena.appendTemporary(
+            type: preservesErasedGenericResult
+                ? sema.types.nullableAnyType
+                : (boundType ?? sema.types.anyType)
+        )
         let chosenBase64Callee: SymbolID? = {
             guard let selected = sema.bindings.callBindings[exprID]?.chosenCallee, selected != .invalid else {
                 return nil
