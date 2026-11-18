@@ -335,11 +335,12 @@ final class JVMClasspathIndex {
                 source += indentation + visibility + "companion object"
                 if name != "Companion" { source += " `\(name)`" }
                 var parents: [String] = []
-                if let base = info.superclass, base != "java/lang/Object", classes[base] != nil,
+                if let base = info.superclass, base != "java/lang/Object",
+                   (classes[base] != nil || coveredSourceSupertype(base)),
                    let superclass = superclassReference(base, child: info) {
                     parents.append(superclass)
                 }
-                parents += info.interfaces.filter { classes[$0] != nil }.compactMap {
+                parents += info.interfaces.filter { classes[$0] != nil || coveredSourceSupertype($0) }.compactMap {
                     supertypeReference($0, child: info)
                 }
                 if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
@@ -376,12 +377,14 @@ final class JVMClasspathIndex {
                 source += indentation + visibility + (isInner ? "inner " : "") + classKind + "`\(name)`\(typeParameters)" + constructor
             }
             var parents: [String] = []
-            if !info.isInterface, let base = info.superclass, classes[base] != nil,
+            if !info.isInterface, let base = info.superclass,
+               (classes[base] != nil || coveredSourceSupertype(base)),
                let mapped = superclassReference(base, child: info) {
                 parents.append(mapped)
             }
             parents += info.interfaces.filter {
-                classes[$0] != nil || info.kotlinReadOnlyCollectionSupertypes[$0] != nil
+                classes[$0] != nil || coveredSourceSupertype($0)
+                    || info.kotlinReadOnlyCollectionSupertypes[$0] != nil
             }.compactMap { supertypeReference($0, child: info) }
             if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
             source += " {\n"
@@ -503,6 +506,14 @@ final class JVMClasspathIndex {
                     collectConstants(name)
                     return
                 }
+                // Kotlin parents provided by the frontend's bundled sources are
+                // never on the classpath; keep the edge so stubs can re-attach
+                // the Kotlin hierarchy (emit gates still drop uncovered ones).
+                if name.hasPrefix("kotlin/") {
+                    interfaces.append(name)
+                    collectConstants(name)
+                    return
+                }
                 guard let base = hierarchyClasses[name] else { return }
                 collectConstants(name)
                 bridges += base.bridgeMethods
@@ -526,7 +537,11 @@ final class JVMClasspathIndex {
                     superclass = name
                     hiddenSegment = false
                 }
-                guard let base = hierarchyClasses[name] else { break }
+                guard let base = hierarchyClasses[name] else {
+                    // Same bundled-source Kotlin parent case as inheritInterface.
+                    if superclass == nil, name.hasPrefix("kotlin/") { superclass = name }
+                    break
+                }
                 let visible = classes[name] != nil
                 if visible && superclass == nil { superclass = name; hiddenSegment = false }
                 for field in base.fields where field.access & 0x0002 == 0 && inheritedConstantNames.insert(field.name).inserted {
@@ -584,6 +599,8 @@ final class JVMClasspathIndex {
             imported.kotlinSealedSubclasses = info.kotlinSealedSubclasses
             imported.isKotlinObject = info.isKotlinObject
             imported.kotlinReadOnlyCollectionSupertypes = info.kotlinReadOnlyCollectionSupertypes
+            imported.kotlinParameterizedSupertypes = info.kotlinParameterizedSupertypes
+            imported.kotlinSupertypes = info.kotlinSupertypes
             imported.kotlinComparableSupertype = info.kotlinComparableSupertype
             imported.kotlinLoweredConstructors = info.kotlinLoweredConstructors
             imported.kotlinValueClassConstructors = info.kotlinValueClassConstructors
@@ -822,6 +839,26 @@ final class JVMClasspathIndex {
         return base + "<" + args.joined(separator: ", ") + ">"
     }
 
+    /// Covered Kotlin superclasses whose constructors take arguments; stub
+    /// subclasses pass `null!!` per parameter (the real constructor only runs
+    /// in the original jar's bytecode).
+    private static let coveredSuperclassArgumentCounts: [String: Int] = [
+        "kotlin/coroutines/AbstractCoroutineContextElement": 1,
+        "kotlin/coroutines/AbstractCoroutineContextKey": 2,
+    ]
+
+    /// Whether the erased classfile name (slash-separated, `$` for nesting)
+    /// is declared by the frontend's bundled sources, either directly or as a
+    /// member of a covered top-level class.
+    private func coveredSourceSupertype(_ name: String) -> Bool {
+        var current = name
+        while true {
+            if activeCoveredNames.contains(current) { return true }
+            guard let dollar = current.lastIndex(of: "$") else { return false }
+            current = String(current[..<dollar])
+        }
+    }
+
     private func supertypeReference(_ name: String, child: JVMClassInfo) -> String? {
         if let collection = child.kotlinReadOnlyCollectionSupertypes[name] { return collection }
         if name == "java/lang/Comparable", let comparable = child.kotlinComparableSupertype { return comparable }
@@ -837,10 +874,30 @@ final class JVMClasspathIndex {
                 return Self.dottedTypeName(name) + "<" + Self.dottedTypeName(argument) + ">"
             }
         }
+        // The supertype is provided by the frontend's bundled sources rather
+        // than any classpath jar (e.g. kotlin.coroutines.ContinuationInterceptor
+        // for kotlinx-coroutines' CoroutineDispatcher). Render it from the
+        // child's Kotlin metadata so type arguments stay exact; covered names
+        // without a metadata entry stay dropped instead of degrading to an
+        // argument-less raw type.
+        if classes[name] == nil, coveredSourceSupertype(name) {
+            return child.kotlinSupertypes[name.replacingOccurrences(of: "$", with: ".")]
+        }
         return supertypeReference(name, childParams: child.classTypeParameterNames)
     }
 
     private func superclassReference(_ name: String, child: JVMClassInfo) -> String? {
+        if classes[name] == nil {
+            // Covered Kotlin superclass (bundled-stdlib source, no jar on the
+            // classpath): only constructors with a known arity can be called
+            // from the stub.
+            guard let argumentCount = Self.coveredSuperclassArgumentCounts[name],
+                  coveredSourceSupertype(name),
+                  let source = child.kotlinSupertypes[name.replacingOccurrences(of: "$", with: ".")]
+            else { return nil }
+            let arguments = Array(repeating: "null!!", count: argumentCount).joined(separator: ", ")
+            return source + "(" + arguments + ")"
+        }
         guard let type = supertypeReference(name, childParams: child.classTypeParameterNames) else { return nil }
         // The covered class keeps its Kotlin constructor instead of the
         // placeholder no-argument constructor used by ordinary JVM stubs.
@@ -1307,12 +1364,14 @@ final class JVMClasspathIndex {
                         ? "()" : "protected constructor()"
                 }
                 var parents: [String] = []
-                if !info.isInterface, let base = info.superclass, classes[base] != nil,
+                if !info.isInterface, let base = info.superclass,
+                   (classes[base] != nil || coveredSourceSupertype(base)),
                    let mapped = superclassReference(base, child: info) {
                     parents.append(mapped)
                 }
                 parents += info.interfaces.filter {
-                    classes[$0] != nil || info.kotlinReadOnlyCollectionSupertypes[$0] != nil
+                    classes[$0] != nil || coveredSourceSupertype($0)
+                        || info.kotlinReadOnlyCollectionSupertypes[$0] != nil
                         || $0 == "java/lang/Comparable" && info.kotlinComparableSupertype != nil
                 }.compactMap { supertypeReference($0, child: info) }
                 if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }

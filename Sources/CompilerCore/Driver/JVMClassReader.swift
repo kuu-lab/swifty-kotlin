@@ -20,6 +20,7 @@ struct JVMClassInfo {
     var kotlinReadOnlyCollectionSupertypes: [String: String] = [:]
     var kotlinComparableSupertype: String?
     var kotlinParameterizedSupertypes: [String: String] = [:]
+    var kotlinSupertypes: [String: String] = [:]
     var kotlinLoweredConstructors: [(source: JVMKotlinValueConstructor, entry: JVMForeignMethod, defaults: JVMForeignMethod?)] = []
     var kotlinValueClassConstructors: [(source: JVMKotlinValueConstructor, adapter: JVMForeignMethod)] = []
     var annotations: [JVMAnnotation] = []
@@ -713,6 +714,16 @@ struct JVMClassReader {
         info.kotlinReadOnlyCollectionSupertypes = readOnlyCollectionSupertypes
         if !functionTypeMemberNames.isEmpty, let metadata = classAttributes.kotlinMetadata {
             info.kotlinParameterizedSupertypes = (try? metadata.parameterizedSupertypes(byteLimit: bytes.count)) ?? [:]
+        }
+        // Supertypes are parsed only when the classfile names a kotlin.*
+        // parent: those classes are never on the classpath as stubs (the
+        // frontend provides them as sources), so classpath stubs otherwise
+        // lose the Kotlin hierarchy edge (e.g. CoroutineDispatcher's
+        // AbstractCoroutineContextElement superclass).
+        let hasKotlinSupertype = info.superclass?.hasPrefix("kotlin/") == true
+            || info.interfaces.contains { $0.hasPrefix("kotlin/") }
+        if hasKotlinSupertype, let metadata = classAttributes.kotlinMetadata {
+            info.kotlinSupertypes = (try? metadata.kotlinSupertypes(byteLimit: bytes.count)) ?? [:]
         }
         if hasValueAdapters, interfaces.contains("java/lang/Comparable"), let metadata = classAttributes.kotlinMetadata {
             info.kotlinComparableSupertype = try? metadata.comparableSupertype(byteLimit: bytes.count)
