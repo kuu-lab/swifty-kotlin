@@ -7,14 +7,6 @@
 import CompilerCore
 
 extension LLVMCAPIBindings {
-    func defaultTargetTriple() -> String? {
-        guard let triplePtr = getDefaultTargetTripleFn() else {
-            return nil
-        }
-        defer { disposeMessageFn(triplePtr) }
-        return String(cString: triplePtr)
-    }
-
     func createTargetMachine(triple: String, optLevel: OptimizationLevel) -> LLVMTargetMachineRef? {
         initializeTarget(for: triple)
 

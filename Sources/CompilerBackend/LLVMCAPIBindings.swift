@@ -130,7 +130,6 @@ final class LLVMCAPIBindings {
     typealias LLVMSetUnnamedAddrFn = @convention(c) (LLVMValueRef?, LLVMBool) -> Void
     // LLVMBuildInBoundsGEP2(Builder, Ty, Pointer, Indices, NumIndices, Name) -> GEP value
     typealias LLVMBuildInBoundsGEP2Fn = @convention(c) (LLVMBuilderRef?, LLVMTypeRef?, LLVMValueRef?, UnsafeMutablePointer<LLVMValueRef?>?, UInt32, UnsafePointer<CChar>?) -> LLVMValueRef?
-    typealias LLVMGetDefaultTargetTripleFn = @convention(c) () -> UnsafeMutablePointer<CChar>?
     typealias LLVMGetTargetFromTripleFn = @convention(c) (
         UnsafePointer<CChar>?,
         UnsafeMutablePointer<LLVMTargetRef?>?,
@@ -334,7 +333,6 @@ final class LLVMCAPIBindings {
     let setGlobalConstantFn: LLVMSetGlobalConstantFn?
     let setUnnamedAddrFn: LLVMSetUnnamedAddrFn?
     let buildInBoundsGEP2Fn: LLVMBuildInBoundsGEP2Fn?
-    let getDefaultTargetTripleFn: LLVMGetDefaultTargetTripleFn
     let getTargetFromTripleFn: LLVMGetTargetFromTripleFn
     let createTargetMachineFn: LLVMCreateTargetMachineFn
     let disposeTargetMachineFn: LLVMDisposeTargetMachineFn
@@ -452,7 +450,6 @@ final class LLVMCAPIBindings {
         setGlobalConstantFn: LLVMSetGlobalConstantFn? = nil,
         setUnnamedAddrFn: LLVMSetUnnamedAddrFn? = nil,
         buildInBoundsGEP2Fn: LLVMBuildInBoundsGEP2Fn? = nil,
-        getDefaultTargetTripleFn: @escaping LLVMGetDefaultTargetTripleFn,
         getTargetFromTripleFn: @escaping LLVMGetTargetFromTripleFn,
         createTargetMachineFn: @escaping LLVMCreateTargetMachineFn,
         disposeTargetMachineFn: @escaping LLVMDisposeTargetMachineFn,
@@ -570,7 +567,6 @@ final class LLVMCAPIBindings {
         self.setGlobalConstantFn = setGlobalConstantFn
         self.setUnnamedAddrFn = setUnnamedAddrFn
         self.buildInBoundsGEP2Fn = buildInBoundsGEP2Fn
-        self.getDefaultTargetTripleFn = getDefaultTargetTripleFn
         self.getTargetFromTripleFn = getTargetFromTripleFn
         self.createTargetMachineFn = createTargetMachineFn
         self.disposeTargetMachineFn = disposeTargetMachineFn
