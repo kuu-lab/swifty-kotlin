@@ -1461,18 +1461,23 @@ extension ExprTypeChecker {
                 continue
             }
 
-            let memberSymbol = sema.symbols.define(
-                kind: .function,
-                name: functionDecl.name,
-                fqName: memberFQNamePrefix + [functionDecl.name],
-                declSite: functionDecl.range,
-                visibility: Visibility(modifiers: functionDecl.modifiers),
-                flags: objectLiteralFunctionFlags(
-                    from: functionDecl,
-                    objectSymbol: objectSymbol,
-                    sema: sema)
-            )
-            sema.bindings.bindDecl(functionDeclID, symbol: memberSymbol)
+            let memberSymbol: SymbolID
+            if let existing = sema.bindings.declSymbols[functionDeclID] {
+                memberSymbol = existing
+            } else {
+                memberSymbol = sema.symbols.define(
+                    kind: .function,
+                    name: functionDecl.name,
+                    fqName: memberFQNamePrefix + [functionDecl.name],
+                    declSite: functionDecl.range,
+                    visibility: Visibility(modifiers: functionDecl.modifiers),
+                    flags: objectLiteralFunctionFlags(
+                        from: functionDecl,
+                        objectSymbol: objectSymbol,
+                        sema: sema)
+                )
+                sema.bindings.bindDecl(functionDeclID, symbol: memberSymbol)
+            }
             sema.symbols.setParentSymbol(objectSymbol, for: memberSymbol)
             sema.symbols.setSourceFileID(ctx.currentFileID, for: memberSymbol)
             objectScope.insert(memberSymbol)
