@@ -163,8 +163,12 @@ final class JVMClasspathIndex {
         archiveJobs: Int = 1, _ insert: (JVMClassInfo) -> Void
     ) throws {
         let archive = try ZipArchive(data: data)
+        // `isCovered` treats every `kotlin/` binary name as provided by the
+        // bundled JVM stdlib, so dependency `kotlin/*` classfiles are never
+        // emitted as import stubs. Skip decoding them.
         let entries = archive.entries.filter { entry in
             entry.name.hasSuffix(".class") && !entry.name.hasPrefix("META-INF/")
+                && !entry.name.hasPrefix("kotlin/")
                 && !entry.name.hasSuffix("module-info.class") && !entry.name.hasSuffix("package-info.class")
         }.sorted { $0.name < $1.name }
         if archiveJobs > 1 && entries.count >= 128 {
