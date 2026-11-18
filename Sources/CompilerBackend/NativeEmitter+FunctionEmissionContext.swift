@@ -56,7 +56,6 @@ extension NativeEmitter {
         var stackTraceLastLine: Int?
         var gcRootSlotsByExpression: [Int32: LLVMCAPIBindings.LLVMValueRef] = [:]
         var gcRootSlotsByParameter: [Int: LLVMCAPIBindings.LLVMValueRef] = [:]
-        var livenessAnalysis: FunctionLivenessAnalysis?
 
         init(
             emitter: NativeEmitter,

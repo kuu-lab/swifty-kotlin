@@ -337,12 +337,29 @@ final class JVMClasspathIndex {
             .sorted { ($0.innerName ?? "") < ($1.innerName ?? "") }
         var source = ""
         for entry in children {
-            guard let name = entry.innerName, let info = classes[entry.name],
-                  classes[owner].flatMap(kotlinCompanion)?.name != entry.name else { continue }
+            guard let name = entry.innerName, let info = classes[entry.name] else { continue }
+            // Classfile companions that Kotlin metadata does not declare are
+            // emitted by the synthetic companion block; metadata companions
+            // must be emitted here so their supertypes and nested classes
+            // stay visible.
+            if let ownerInfo = classes[owner],
+               kotlinCompanion(of: ownerInfo)?.name == entry.name,
+               kotlinMetadata(ownerInfo)?.companion == nil { continue }
             let typeParameters = typeParameterDeclaration(info)
             let visibility = entry.access & 0x0007 == 0x0004 ? "protected " : ""
             if kotlinMetadata(info)?.isCompanion == true {
-                source += indentation + visibility + "companion object {\n"
+                source += indentation + visibility + "companion object"
+                if name != "Companion" { source += " `\(name)`" }
+                var parents: [String] = []
+                if let base = info.superclass, base != "java/lang/Object", classes[base] != nil,
+                   let superclass = superclassReference(base, child: info) {
+                    parents.append(superclass)
+                }
+                parents += info.interfaces.filter { classes[$0] != nil }.compactMap {
+                    supertypeReference($0, child: info)
+                }
+                if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
+                source += " {\n"
                 if let outer = classes[owner] {
                     source += staticFieldDeclarations(outer)
                 }
@@ -369,7 +386,10 @@ final class JVMClasspathIndex {
             } else {
                 let classKind = classKeyword(info)
                 let isInner = entry.access & 0x0008 == 0
-                source += indentation + visibility + (isInner ? "inner " : "") + classKind + "`\(name)`\(typeParameters) private constructor()"
+                let constructor = info.methods.contains {
+                    $0.isConstructor && $0.parameters.isEmpty && !$0.isProtected
+                } ? "()" : " private constructor()"
+                source += indentation + visibility + (isInner ? "inner " : "") + classKind + "`\(name)`\(typeParameters)" + constructor
             }
             var parents: [String] = []
             if !info.isInterface, let base = info.superclass, classes[base] != nil || sourceClassNames.contains(base) || mappedJavaException(base) != nil,
@@ -604,7 +624,6 @@ final class JVMClasspathIndex {
             imported.isKotlinObject = info.isKotlinObject
             imported.kotlinReadOnlyCollectionSupertypes = info.kotlinReadOnlyCollectionSupertypes
             imported.kotlinComparableSupertype = info.kotlinComparableSupertype
-            imported.kotlinParameterizedSupertypes = info.kotlinParameterizedSupertypes
             imported.kotlinLoweredConstructors = info.kotlinLoweredConstructors
             imported.kotlinValueClassConstructors = info.kotlinValueClassConstructors
             imported.annotations = info.annotations
@@ -1765,20 +1784,26 @@ final class JVMClasspathIndex {
             if !info.isInterface && method.isFinal { source += "final " }
             source += overrides ? "override " : ""
             if !info.isInterface { source += overrides || method.isFinal ? "" : "open " }
-            if method.kotlinFunction?.isOperator != true,
-               method.sourceName == "get" && method.sourceParameters.count == 1
-                || method.sourceName == "iterator" && method.sourceParameters.isEmpty
-                    && method.result.referenceName == "java/util/Iterator" && inheritsJavaType(info, "java/lang/Iterable") {
-                source += "operator "
-            }
-            if !info.isInterface { source += "external " }
             // Parents may still have erased classpath signatures.
             let usesErasedOverride = overrides
                 && (method.kotlinFunction?.isGenericFinalGetter == true || method.kotlinFunction?.hasStableFinalParameters == true)
+            let usesKotlinMetadata = !usesErasedOverride
+            let needsGetOperator = method.sourceName == "get" && method.sourceParameters.count == 1
+                && method.kotlinFunction?.isOperator != true
+            let kotlinDeclaresOperator = needsGetOperator && usesKotlinMetadata
+                && kotlinFunction(method)?.isOperator == true
+            let needsIteratorOperator = method.kotlinFunction?.isOperator != true
+                && method.sourceName == "iterator" && method.sourceParameters.isEmpty
+                && method.result.referenceName == "java/util/Iterator" && inheritsJavaType(info, "java/lang/Iterable")
+            if (needsGetOperator && !kotlinDeclaresOperator) || needsIteratorOperator {
+                source += "operator "
+            }
+            if !info.isInterface { source += "external " }
             source += functionDeclaration(
-                method, acceptsDefaults: !usesErasedOverride
+                method,
+                acceptsDefaults: !usesErasedOverride
                     && (composeABI?.defaults == 1 || defaultArgumentMethod(for: method, in: info) != nil),
-                usesKotlinMetadata: !usesErasedOverride
+                usesKotlinMetadata: usesKotlinMetadata
             )
             let hasKotlinDefaultBody = kotlinFunction(method)?.isAbstract == false
             if info.isInterface, !method.isAbstract || hasKotlinDefaultBody {
@@ -2036,6 +2061,7 @@ final class JVMClasspathIndex {
                     }
                     source += "external " + functionDeclaration(method) + "\n"
                 }
+                source += nestedClassDeclarations(of: companion.name)
             }
             source += "}\n"
         }

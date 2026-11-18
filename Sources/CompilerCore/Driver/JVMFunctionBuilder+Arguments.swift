@@ -233,6 +233,9 @@ extension JVMFunctionBuilder {
         let types = Array(allTypes.dropFirst(prefix.count).dropLast(isComposable ? composeSuffixCount : 0))
         let signature = binding.flatMap { program.sema.symbols.functionSignature(for: $0.chosenCallee) }
         let contextParameterTypes = try (signature?.contextParameterTypes ?? []).map(program.type)
+        // `importedContextArguments` already consumed the leading context slots
+        // via `prefix` — dropping the full context count again would eat the
+        // first value parameters.
         let remainingContext = contextParameterTypes.count - importedContextCount
         guard types.count >= remainingContext, remainingContext >= 0
         else { throw fail("JVM context parameter signature mismatch.", id) }

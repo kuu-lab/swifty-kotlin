@@ -3,6 +3,7 @@ struct LocalBindings: ExpressibleByDictionaryLiteral, Sequence {
     private var bindings: [InternedString: Value]
     var memberFlow: [DataFlowReference: VariableFlowState] = [:]
     var immutableLocalInitializers: [SymbolID: ExprID] = [:]
+    var delegatedLocalSymbols: Set<SymbolID> = []
     var variableFacts: [SymbolID: DataFlowValueFacts] = [:]
     var invalidatedVariableFacts: Set<SymbolID> = []
 
@@ -90,6 +91,16 @@ final class TypeCheckDriver {
     /// local `ensure*` paths consume a declID here to re-run the full check
     /// even though a symbol binding already exists.
     var pendingLocalNominalRechecks: Set<DeclID> = []
+
+    /// Marks local nominal decls checked since `mark` for re-checking after a
+    /// speculative window rolls their diagnostics back. Symbol bindings survive
+    /// the rollback, so the `ensure*` paths need this mark to avoid early-returning
+    /// past the member check that owned the discarded diagnostics.
+    func markLocalNominalRechecks(since mark: Int) {
+        guard mark < localNominalDeclChecks.count else { return }
+        pendingLocalNominalRechecks.formUnion(localNominalDeclChecks[mark...])
+    }
+
     var inferredReturnFunctions: [SymbolID: (function: FunDecl, context: TypeInferenceContext, baseLocals: LocalBindings)] = [:]
     var checkingInferredReturnFunctions: Set<SymbolID> = []
     var checkedInferredReturnFunctions: Set<SymbolID> = []
@@ -679,6 +690,7 @@ final class TypeCheckDriver {
                             // pass re-checks the whole declaration, accessors
                             // included, and re-emits any diagnostics.
                             let diagnosticSnapshot = diagnostics.count
+                            let nominalDeclsCheckedBefore = localNominalDeclChecks.count
                             declChecker.typeCheckBoundPropertyDecl(
                                 property,
                                 declID: declID,
@@ -689,6 +701,7 @@ final class TypeCheckDriver {
                                 checkAccessorBodies: false
                             )
                             diagnostics.truncate(to: diagnosticSnapshot)
+                            markLocalNominalRechecks(since: nominalDeclsCheckedBefore)
                         } else if !publishedInferredPropertyDecls.contains(declID),
                                   declChecker.canSafelyPrecheckInferredPropertyInitializerType(
                                       property,

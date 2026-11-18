@@ -2234,6 +2234,7 @@ public final class SymbolTable {
         bumpBindingVersions(startingAt: symbol)
     }
 
+
     public func setSourceFileID(_ fileID: FileID, for symbol: SymbolID) {
         sourceFileIDs[symbol] = fileID
         bumpBindingVersions(startingAt: symbol)

@@ -1955,8 +1955,10 @@ extension CallTypeChecker {
                 previewLocals[name] = nil
             }
             let snapshot = diagnosticEngine.count
+            let nominalDeclsCheckedBefore = driver.localNominalDeclChecks.count
             let inferredType = driver.inferExpr(entry.expr, ctx: ctx, locals: &previewLocals)
             diagnosticEngine.truncate(to: snapshot)
+            driver.markLocalNominalRechecks(since: nominalDeclsCheckedBefore)
             for (name, previous) in removed {
                 previewLocals[name] = previous
             }
@@ -2135,6 +2137,7 @@ extension CallTypeChecker {
             var previewLocals = locals
             let diagnosticEngine = ctx.sema.diagnostics
             let snapshot = diagnosticEngine.count
+            let nominalDeclsCheckedBefore = driver.localNominalDeclChecks.count
             _ = driver.inferExpr(
                 lambdaExprID,
                 ctx: ctx.with(implicitReceiverType: receiverType),
@@ -2142,6 +2145,7 @@ extension CallTypeChecker {
                 expectedType: sequenceBuilderLambdaType(receiverType: receiverType, sema: sema)
             )
             diagnosticEngine.truncate(to: snapshot)
+            driver.markLocalNominalRechecks(since: nominalDeclsCheckedBefore)
         }
         var elementTypes = sequenceBuilderExtensionElementTypes(lambdaExprID: lambdaExprID, ctx: ctx)
         for exprID in yieldedExprs {

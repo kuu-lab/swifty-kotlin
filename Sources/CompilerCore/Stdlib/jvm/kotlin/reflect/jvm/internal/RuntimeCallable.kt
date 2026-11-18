@@ -44,7 +44,7 @@ internal class RuntimeClassType(
     override val isMarkedNullable: Boolean = false,
     private val explicitArguments: List<KTypeProjection>? = null
 ): KType {
-    constructor(owner: Any, isMarkedNullable: Boolean, arguments: List<KTypeProjection>) :
+    constructor(owner: Any, isMarkedNullable: Boolean, arguments: List<KTypeProjection> = emptyList()) :
         this(owner, null, isMarkedNullable, arguments)
     override val annotations: List<Annotation> get() = emptyList()
     // A constructor's class reference still carries the class's type

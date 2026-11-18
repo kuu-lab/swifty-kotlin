@@ -623,7 +623,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         }
         let preparedHeaders = prepareFileHeaders(
             files: orderedFiles, arena: ast.arena,
-            jobs: ctx.options.frontendFlags.contains("sema-parallel") ? ctx.frontendJobs : 1
+            jobs: ctx.options.semaParallelEnabled ? ctx.frontendJobs : 1
         )
         // BUG-143: forward-declare every top-level nominal type first, so a
         // signature may reference a class/interface/object declared later in the

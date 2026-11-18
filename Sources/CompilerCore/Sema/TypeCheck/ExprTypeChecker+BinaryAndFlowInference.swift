@@ -478,6 +478,23 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: coroutineContextType)
             return coroutineContextType
         }
+        // A `!!` on a definitely-null reference types the expression itself as
+        // `Nothing`, but kotlinc resolves an arithmetic operator on that
+        // receiver against the asserted type — the operand's declared type made
+        // non-null — so `nn!! + 1` compiles where a bare `TODO() + 1` stays
+        // ambiguous (KUU-4593). The substitution applies only when the other
+        // operand is a concrete type: `nn!! + nn!!` keeps both sides `Nothing`
+        // and stays ambiguous, matching kotlinc. The operand bindings below
+        // keep the expression's real `Nothing` type.
+        if [.add, .subtract, .multiply, .divide, .modulo].contains(op),
+           lhs == sema.types.nothingType,
+           rhs != sema.types.nothingType,
+           rhs != sema.types.errorType,
+           case let .nullAssert(operandID, _) = ast.arena.expr(lhsID),
+           let assertedType = nullAssertedOperandType(operandID, ctx: ctx, locals: locals)
+        {
+            lhs = assertedType
+        }
         // A `Nothing` receiver is a subtype of every operator receiver type,
         // so kotlinc keeps `TODO() + x` ambiguous among the primitive and
         // extension overloads. KSwiftK's candidate resolution picks a winner
@@ -1632,6 +1649,32 @@ extension ExprTypeChecker {
         default:
             return false
         }
+    }
+
+    /// The non-null declared type a `!!` operand would assert when flow has
+    /// narrowed the reference to `Nothing?` (a definitely-null value). kotlinc
+    /// resolves an operator on a direct `!!` receiver against this asserted
+    /// type while the expression's own type stays `Nothing` (KUU-4593).
+    /// Returns nil when the operand is not a resolvable stable reference or
+    /// carries no declared type, in which case the operand stays `Nothing`.
+    private func nullAssertedOperandType(
+        _ operandID: ExprID,
+        ctx: TypeInferenceContext,
+        locals: LocalBindings
+    ) -> TypeID? {
+        let sema = ctx.sema
+        guard let operandExpr = ctx.ast.arena.expr(operandID) else { return nil }
+        let symbol: SymbolID?
+        switch operandExpr {
+        case let .nameRef(name, _):
+            symbol = locals[name]?.symbol ?? sema.bindings.identifierSymbols[operandID]
+        default:
+            symbol = nil
+        }
+        guard let symbol, let declaredType = sema.symbols.propertyType(for: symbol) else {
+            return nil
+        }
+        return sema.types.definitelyNonNullForm(of: declaredType)
     }
 
     /// A nominal `step` receiver is valid only when it is one of the concrete
