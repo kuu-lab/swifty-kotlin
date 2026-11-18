@@ -2208,6 +2208,10 @@ final class JVMClasspathIndex {
             }
             markSourceTypes(info.kotlinMemberProperties.values.map(\.sourceType))
             markSourceTypes(Array(info.kotlinParameterizedSupertypes.values))
+            // Covered Kotlin supertypes render from kotlinSupertypes; their
+            // type arguments can name lazy classpath classes that no other
+            // signature references.
+            markSourceTypes(Array(info.kotlinSupertypes.values))
             for (constructor, _, _) in info.kotlinLoweredConstructors {
                 markSourceTypes(constructor.parameters.map(\.sourceType))
             }
