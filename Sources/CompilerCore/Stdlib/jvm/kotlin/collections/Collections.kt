@@ -12,6 +12,7 @@ import kotlin.jvm.internal.__jvmSingletonList
 import kotlin.jvm.internal.__jvmArrayList
 
 public fun <T> emptyList(): List<T> = RepositoryEmptyList as List<T>
+public fun <T> listOf(): List<T> = emptyList<T>()
 public fun <T> listOf(element: T): List<T> = __jvmSingletonList(element)
 public fun <T> listOf(vararg elements: T): List<T> {
     if (elements.size == 0) return emptyList<T>()

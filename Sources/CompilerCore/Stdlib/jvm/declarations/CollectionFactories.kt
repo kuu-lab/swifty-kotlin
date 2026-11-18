@@ -1,4 +1,5 @@
 package kotlin.collections
+fun <T> listOf(): List<T> = null!!
 fun <T> listOf(element: T): List<T> = null!!
 fun <T> listOf(vararg elements: T): List<T> = null!!
 fun <T : Any> listOfNotNull(element: T?): List<T> = null!!
@@ -15,3 +16,4 @@ fun <K, V> mapOf(vararg pairs: kotlin.Pair<K, V>): Map<K, V> = null!!
 fun <K, V> mutableMapOf(vararg pairs: kotlin.Pair<K, V>): MutableMap<K, V> = null!!
 fun <K, V> emptyMap(): Map<K, V> = null!!
 fun <T> arrayListOf(vararg elements: T): java.util.ArrayList<T> = null!!
+public typealias ArrayList<T> = java.util.ArrayList<T>
