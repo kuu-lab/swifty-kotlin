@@ -186,7 +186,8 @@ extension JVMFunctionBuilder {
                     return JVMProperty(name: name, type: type, getter: getter, setter: nil, field: nil, modifiers: [.public])
                 }
                 let names: [String]
-                if info.flags & 0x2000 != 0 || (owner.hasPrefix("java/util/") && name == "size") {
+                if info.flags & 0x2000 != 0
+                    || (name == "size" && context.jvmImports?.isJavaCollectionOrMapClass(owner) == true) {
                     names = [name]
                 } else {
                     names = name.hasPrefix("is") && name.count > 2 ? [name, "get" + capital] : ["get" + capital]
