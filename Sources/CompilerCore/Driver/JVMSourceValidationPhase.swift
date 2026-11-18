@@ -171,7 +171,6 @@ private struct JVMSourceGrammar {
             let before = index
             while take(.keyword(.noinline)) || take(.keyword(.crossinline)) || take(.keyword(.vararg)) {}
             modifiers()
-            while kind == .symbol(.at) { try annotation() }
             if take(.keyword(.val)) || take(.keyword(.var)) { break }
             guard index != before else { break }
         }
