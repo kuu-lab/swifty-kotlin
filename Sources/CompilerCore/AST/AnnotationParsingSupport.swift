@@ -121,12 +121,13 @@ enum AnnotationParsingSupport {
     /// Outside type position a `(` is always the argument list.
     ///
     /// kotlinc first parses `(...)` as the argument list and, only when that
-    /// ends abnormally — a `)` directly followed by `->` — retries the
-    /// annotation in a whitespace-significant mode. The `(` therefore opens
-    /// the function type's parameter list only when whitespace or a comment
-    /// precedes it: `@A (x: Int) -> Unit` annotates a function type while
-    /// `@A(x: Int) -> Unit` keeps `(x: Int)` as arguments and errors on the
-    /// dangling `->`.
+    /// ends abnormally — a `)` directly followed by `->`, or a function-type
+    /// arrow inside a parenthesized type — retries the annotation in a
+    /// whitespace-significant mode. The `(` therefore opens the function
+    /// type's parameter list or parenthesized type only when whitespace or a
+    /// comment precedes it: `@A (x: Int) -> Unit` annotates a function type
+    /// while `@A(x: Int) -> Unit` keeps `(x: Int)` as arguments and errors on
+    /// the dangling `->`.
     private static func consumesArgumentList(
         in tokens: [Token], at lParenIndex: Int, typeContext: Bool
     ) -> Bool {
@@ -140,20 +141,37 @@ enum AnnotationParsingSupport {
         {
             return false
         }
-        var depth = 0
+        var parenDepth = 0
+        var braceDepth = 0
+        var bracketDepth = 0
         for index in lParenIndex ..< tokens.count {
-            switch tokens[index].kind {
+            let kind = tokens[index].kind
+            if kind == .symbol(.arrow), parenDepth == 1,
+               braceDepth == 0, bracketDepth == 0,
+               !tokens[lParenIndex].leadingTrivia.isEmpty
+            {
+                return false
+            }
+            switch kind {
             case .symbol(.lParen):
-                depth += 1
+                parenDepth += 1
             case .symbol(.rParen):
-                depth -= 1
-                if depth == 0 {
+                parenDepth -= 1
+                if parenDepth == 0 {
                     let next = index + 1
                     if next >= tokens.count || tokens[next].kind != .symbol(.arrow) {
                         return true
                     }
                     return tokens[lParenIndex].leadingTrivia.isEmpty
                 }
+            case .symbol(.lBrace):
+                braceDepth += 1
+            case .symbol(.rBrace):
+                braceDepth = max(0, braceDepth - 1)
+            case .symbol(.lBracket):
+                bracketDepth += 1
+            case .symbol(.rBracket):
+                bracketDepth = max(0, bracketDepth - 1)
             default:
                 break
             }

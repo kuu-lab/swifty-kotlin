@@ -15,6 +15,8 @@ import Testing
         "fun value(value: List<@A out String>) {}",
         "fun value() { @A val x: Int = 1; println(x) }",
         "fun value() { val x = object { @A val y = 1 }; println(x.y) }",
+        "fun f(block: @A (() -> Unit)? = null) {}",
+        "fun f(content: @A (() -> Unit)) {}",
     ])
     func preservesExpressionTypeAndLocalDeclarationAnnotations(source: String) throws {
         let context = makeContextFromSource(source, emit: .jvmJar)

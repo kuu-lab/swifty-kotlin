@@ -217,6 +217,40 @@ struct TypeRefParserTests {
         }
     }
 
+    /// An annotation may apply to a parenthesized function type: the outer
+    /// parentheses are part of the type, not the annotation argument list.
+    @Test(arguments: [
+        "@C (() -> Unit)",
+        "@C (() -> Unit)?",
+        "@C ((Int) -> Int)?",
+    ])
+    func typeAnnotationBeforeParenthesizedFunctionTypeParses(_ source: String) throws {
+        let lexed = lex(source)
+        let arena = ASTArena()
+        let result = try #require(TypeRefParserCore.parseTypeRefPrefix(
+            lexed.tokens.dropLast(),
+            interner: lexed.interner,
+            astArena: arena,
+            options: .declaration,
+            diagnostics: lexed.diagnostics
+        ))
+        #expect(result.consumed == lexed.tokens.count - 1)
+        #expect(!lexed.diagnostics.hasError)
+        guard case let .annotated(base, annotations) = arena.typeRef(result.ref) else {
+            Issue.record("Expected an annotated type for \(source)")
+            return
+        }
+        #expect(annotations.count == 1)
+        #expect(annotations.first?.name == "C")
+        #expect(annotations.first?.arguments.isEmpty == true)
+        guard case let .functionType(_, _, params, _, _, nullable) = arena.typeRef(base) else {
+            Issue.record("Expected a function type base for \(source)")
+            return
+        }
+        #expect(nullable == source.hasSuffix("?"))
+        #expect(params.count == (source.contains("(Int)") ? 1 : 0))
+    }
+
     /// KUU-4109 end-to-end: an annotated function type is a valid typealias
     /// right-hand side — previously dropped, producing SEMA-0061.
     @Test(arguments: [
@@ -243,6 +277,20 @@ struct TypeRefParserTests {
             Issue.record("Expected a function type under the annotation")
             return
         }
+    }
+
+    /// KUU-4611: Wikipedia annotates function types in parameter position.
+    @Test
+    func annotatedParenthesizedFunctionTypeParameterParses() throws {
+        let (_, ctx) = try buildASTModule(
+            from: """
+            annotation class C
+            fun f(block: @C (() -> Unit)? = null) {}
+            fun g(content: @C (() -> Unit)) {}
+            """,
+            includeStdlib: false
+        )
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
     /// kotlinc rejects `(...) -> Unit` when the `(` is directly attached to
