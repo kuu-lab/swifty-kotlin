@@ -3177,3 +3177,5 @@ private extension JVMForeignMethod {
         )
     }
 }
+
+extension JVMClassInfo: @unchecked Sendable {}
