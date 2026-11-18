@@ -21,6 +21,7 @@ private struct JVMSourceGrammar {
     let context: CompilationContext
     var index = 0
     var inDelegationHeader = false
+    var whenBranchBodyDepth = 0
     struct Unsupported: Error {}
 
     var kind: TokenKind { tokens[min(index, tokens.count - 1)].kind }
@@ -540,14 +541,19 @@ private struct JVMSourceGrammar {
                     } while take(.symbol(.comma))
                     if take(.keyword(.if)) { try expression(allowNewlines: true) }
                 }
-                // A when-branch body ends at the newline: the next line begins
-                // another branch's conditions, so newline mode is not inherited
-                // here even inside parentheses.
-                try require(.symbol(.arrow)); try body(); try separator(); semicolons()
+                try require(.symbol(.arrow))
+                whenBranchBodyDepth += 1
+                try body()
+                whenBranchBodyDepth -= 1
+                semicolons()
             }
         } else if take(.keyword(.if)) {
             try condition(); try body(allowNewlines: allowNewlines)
-            if take(.keyword(.else)) { try body(allowNewlines: allowNewlines) }
+            let elseStartsWhenBranch = whenBranchBodyDepth > 0
+                && kind == .keyword(.else)
+                && index + 1 < tokens.count
+                && tokens[index + 1].kind == .symbol(.arrow)
+            if !elseStartsWhenBranch, take(.keyword(.else)) { try body(allowNewlines: allowNewlines) }
         } else if [.plus, .minus, .bang, .plusPlus, .minusMinus].contains(where: { kind == .symbol($0) }) {
             index += 1; try primary(allowNewlines: allowNewlines); return
         } else if take(.symbol(.doubleColon)) { try name()
