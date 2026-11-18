@@ -350,6 +350,7 @@ extension JVMClasspathIndex {
             ("java/util/Queue", """
             package java.util
             interface Queue<E> : kotlin.collections.MutableCollection<E> {
+                override operator fun iterator(): kotlin.collections.MutableIterator<E>
                 fun offer(element: E): Boolean
                 fun poll(): E?
                 fun element(): E
@@ -357,6 +358,7 @@ extension JVMClasspathIndex {
                 fun remove(): E
             }
             """, 0x0601, "java/lang/Object", [
+                method("java/util/Queue", "iterator", [], .reference("java/util/Iterator", nullable: false), interface: true),
                 method("java/util/Queue", "offer", [object], .boolean, interface: true),
                 method("java/util/Queue", "poll", [], object, interface: true),
                 method("java/util/Queue", "element", [], object, interface: true),
