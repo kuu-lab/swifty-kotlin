@@ -18,6 +18,7 @@ while ((\$#)); do
 done
 case "$mode" in
     ok) printf 'artifact\n' >"\$out" ;;
+    wasm-ok) if [[ "\$*" == *wasm32-wasi* ]]; then printf 'wasm\n' >"\$out.wasm"; else printf 'artifact\n' >"\$out"; fi ;;
     empty) : >"\$out" ;;
     no-output) exit 0 ;;
     fail) echo 'fake compile failure' >&2; exit 1 ;;
@@ -96,4 +97,33 @@ expect_failure 'build config cannot be verified' \
     --candidate-compiler "$TEST_DIR/declared/candidate/kswiftc" \
     --emit kir
 
-echo 'PASS: benchmark preflight rejects invalid pairs and accepts a valid pair'
+# Rejected pair: leaf-most build-config labels win over ambiguous parent names.
+write_compiler "$TEST_DIR/ambiguous/release/base/.build/debug/kswiftc" ok
+write_compiler "$TEST_DIR/ambiguous/release/candidate/.build/release/kswiftc" ok
+expect_failure 'build config mismatch' \
+    --base-compiler "$TEST_DIR/ambiguous/release/base/.build/debug/kswiftc" \
+    --candidate-compiler "$TEST_DIR/ambiguous/release/candidate/.build/release/kswiftc" \
+    --emit kir
+
+# Accepted executable probe: the generated source has an entry point.
+write_compiler "$TEST_DIR/probe-exe/base/debug/kswiftc" ok
+write_compiler "$TEST_DIR/probe-exe/candidate/debug/kswiftc" ok
+run_preflight \
+    --base-compiler "$TEST_DIR/probe-exe/base/debug/kswiftc" \
+    --candidate-compiler "$TEST_DIR/probe-exe/candidate/debug/kswiftc" \
+    --emit executable \
+    --work-dir "$TEST_DIR/probe-executable" >/"$TEST_DIR/probe-executable.stdout"
+grep -q 'fun main' "$TEST_DIR/probe-executable/benchmark-preflight.kt"
+test -s "$TEST_DIR/probe-executable/base-output"
+
+# Accepted wasm executable: kswiftc appends .wasm to an extensionless -o path.
+write_compiler "$TEST_DIR/wasm/base/debug/kswiftc" wasm-ok
+write_compiler "$TEST_DIR/wasm/candidate/debug/kswiftc" wasm-ok
+run_preflight \
+    --base-compiler "$TEST_DIR/wasm/base/debug/kswiftc" \
+    --candidate-compiler "$TEST_DIR/wasm/candidate/debug/kswiftc" \
+    --emit executable \
+    --compiler-arg=--target=wasm32-wasi >/"$TEST_DIR/wasm.stdout"
+grep -q 'benchmark preflight passed: config=debug emit=executable' "$TEST_DIR/wasm.stdout"
+
+echo 'PASS: benchmark preflight rejects invalid pairs and accepts valid pairs'

@@ -18,7 +18,7 @@ class PreflightError(Exception):
 
 
 def infer_build_config(path: Path) -> str | None:
-    for part in path.absolute().parts:
+    for part in reversed(path.absolute().parts):
         lowered = part.lower()
         if lowered in {"release", "kswiftc-release"}:
             return "release"
@@ -56,8 +56,16 @@ def output_is_usable(path: Path) -> bool:
     return False
 
 
+def acceptable_outputs(emit: str, output: Path) -> list[Path]:
+    candidates = [output]
+    if emit == "executable":
+        candidates.append(Path(str(output) + ".wasm"))
+    return candidates
+
+
 def run_compile(label: str, compiler: Path, emit: str, compiler_args: list[str],
-                inputs: list[Path], output: Path, timeout: float, work_dir: Path) -> None:
+                inputs: list[Path], output: Path, acceptable: list[Path],
+                timeout: float, work_dir: Path) -> None:
     stdout_path = work_dir / f"{label}.stdout"
     stderr_path = work_dir / f"{label}.stderr"
     command = [str(compiler), "--emit", emit, *compiler_args, "-o", str(output), *map(str, inputs)]
@@ -72,8 +80,9 @@ def run_compile(label: str, compiler: Path, emit: str, compiler_args: list[str],
         raise PreflightError(
             f"{label} compile failed with exit {result.returncode}: {detail or stdout_path}"
         )
-    if not output_is_usable(output):
-        raise PreflightError(f"{label} compile exited 0 but produced no usable output at {output}")
+    if not any(output_is_usable(path) for path in acceptable):
+        expected = ", ".join(str(path) for path in acceptable)
+        raise PreflightError(f"{label} compile exited 0 but produced no usable output at {expected}")
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -131,14 +140,16 @@ def run_pair(args: argparse.Namespace, base: Path, candidate: Path, config: str,
              inputs: list[Path], work_dir: Path) -> int:
     if not inputs:
         probe = work_dir / "benchmark-preflight.kt"
-        probe.write_text("fun benchmarkPreflight(): Int = 1\n", encoding="utf-8")
+        probe.write_text("fun main() {}\n", encoding="utf-8")
         inputs = [probe]
 
     suffix = OUTPUT_SUFFIX.get(args.emit, "")
     base_output = work_dir / f"base-output{suffix}"
     candidate_output = work_dir / f"candidate-output{suffix}"
-    run_compile("base", base, args.emit, args.compiler_arg, inputs, base_output, args.timeout, work_dir)
-    run_compile("candidate", candidate, args.emit, args.compiler_arg, inputs, candidate_output, args.timeout, work_dir)
+    run_compile("base", base, args.emit, args.compiler_arg, inputs, base_output,
+                acceptable_outputs(args.emit, base_output), args.timeout, work_dir)
+    run_compile("candidate", candidate, args.emit, args.compiler_arg, inputs, candidate_output,
+                acceptable_outputs(args.emit, candidate_output), args.timeout, work_dir)
     print(f"benchmark preflight passed: config={config} emit={args.emit}")
     return 0
 
