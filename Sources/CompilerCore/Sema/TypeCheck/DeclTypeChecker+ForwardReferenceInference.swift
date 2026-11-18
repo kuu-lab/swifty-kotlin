@@ -604,14 +604,25 @@ extension DeclTypeChecker {
                   ast: ctx.ast,
                   interner: ctx.interner
               ) == .lazy,
-              case let .expr(bodyExpr, _) = property.delegateBody,
-              let type = safePrecheckExpressionType(bodyExpr, in: ctx, locals: initialLocals),
-              type != ctx.sema.types.nullableNothingType,
-              type != ctx.sema.types.errorType
+              case let .expr(bodyExpr, _) = property.delegateBody
         else {
             return nil
         }
-        return type
+        let valueType: TypeID?
+        if case let .call(_, typeArgs, _, _)? = ctx.ast.arena.expr(delegateExpression),
+           let firstTypeArg = typeArgs.first
+        {
+            valueType = safePrecheckTypeRef(firstTypeArg, in: ctx)
+        } else {
+            valueType = safePrecheckExpressionType(bodyExpr, in: ctx, locals: initialLocals)
+        }
+        guard let valueType,
+              valueType != ctx.sema.types.nullableNothingType,
+              valueType != ctx.sema.types.errorType
+        else {
+            return nil
+        }
+        return valueType
     }
 
     func publishInferredDelegatedOrExtensionPropertyType(
