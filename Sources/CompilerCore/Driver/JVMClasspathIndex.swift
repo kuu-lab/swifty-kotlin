@@ -1292,7 +1292,17 @@ final class JVMClasspathIndex {
         let neededLazy = lazyClassNames.isEmpty ? nil : referencedLazyClasses(
             into: ctx, covered: covered, additionalRoots: requiredLazyClassNames
         )
-        importInheritedMembers(for: neededLazy ?? [])
+        var inheritedMemberTargets = neededLazy ?? []
+        // Inner classes are emitted through their outer class's nested
+        // declarations rather than referenced by name, so they need their
+        // inherited members merged even when only the outer class is needed.
+        var pendingInnerOwners = Array(inheritedMemberTargets)
+        while let owner = pendingInnerOwners.popLast() {
+            for entry in innerClassesByOwner[owner] ?? [] where inheritedMemberTargets.insert(entry.name).inserted {
+                pendingInnerOwners.append(entry.name)
+            }
+        }
+        importInheritedMembers(for: inheritedMemberTargets)
         let isContextIsActive: (JVMKotlinTopLevelProperty, JVMForeignMethod) -> Bool = { property, getter in
             property.name == "isActive" && property.receiver == "kotlin.coroutines.CoroutineContext"
                 && getter.owner.hasPrefix("kotlinx/coroutines/")
@@ -1441,7 +1451,7 @@ final class JVMClasspathIndex {
                 let bounds = javaTypeParameterBounds(info).bounds
                 if !bounds.isEmpty { source += " where " + bounds.joined(separator: ", ") }
                 source += " {\n"
-                source += memberDeclarations(info: info, members: info.methods, allowsCompanion: !isObject)
+                source += memberDeclarations(info: info, members: info.methods, allowsCompanion: !isNonCancellable)
                 if info.name == Self.compositionLocal, info.kotlinMemberProperties["current"] == nil,
                    let getter = compositionLocalGetter,
                    let type = info.classTypeParameterNames.first {
@@ -1783,7 +1793,8 @@ final class JVMClasspathIndex {
             let kotlinProperty = kotlinProperties.first { $0.getter == getter.name }
             let propertyName = shape.name
             guard JVMProgramBuilder.isIdentifier(propertyName),
-                  !inheritedKotlinGetters.contains(memberKey(getter)), exposedKotlinProperties[propertyName] == nil,
+                  !inheritedKotlinGetters.contains(memberKey(getter)),
+                  exposedKotlinProperties[propertyName] == nil,
                   !instanceFieldNames.contains(propertyName),
                   !own.contains(where: {
                       !$0.isStatic && !$0.isConstructor && $0.name == propertyName
@@ -2007,6 +2018,24 @@ final class JVMClasspathIndex {
                     ) + "\n"
                 }
                 source += nestedClassDeclarations(of: companion.name)
+            }
+            if let companion {
+                for (name, property) in companion.kotlinMemberProperties.sorted(by: { $0.key < $1.key })
+                    where exposeSuspendType(property.getter.result) && info.kotlinStaticProperties[name] == nil {
+                    source += "val `\(name)`: \(property.sourceType) get() = null!!\n"
+                }
+                for method in companion.methods where !method.isStatic && !method.isConstructor && isExposed(method) {
+                    if statics.contains(where: { $0.name == method.name && $0.descriptor == method.descriptor })
+                        && !overridesParent(method, in: companion) { continue }
+                    if companion.kotlinMemberProperties.values.contains(where: {
+                        $0.getter.name == method.name && $0.getter.descriptor == method.descriptor
+                    }) { continue }
+                    if overridesParent(method, in: companion)
+                        || ["toString()Ljava/lang/String;", "hashCode()I", "equals(Ljava/lang/Object;)Z"].contains(method.name + method.descriptor) {
+                        source += "override "
+                    }
+                    source += "external " + functionDeclaration(method) + "\n"
+                }
             }
             source += "}\n"
         }
@@ -2777,7 +2806,14 @@ final class JVMClasspathIndex {
                 guard let params = method.kotlinFunction?.parameters,
                       params.count == signature.parameterTypes.count else { return false }
                 return zip(params, signature.parameterTypes).allSatisfy { param, callType in
-                    let declaredName = param.sourceType.split(separator: ".").last.map(String.init)?.replacingOccurrences(of: "?", with: "")
+                    // `fixture.Box<kotlin.String>` must compare as `Box`:
+                    // drop generic arguments before taking the last path
+                    // component, or `.last` returns `String>`.
+                    let declaredName = param.sourceType
+                        .split(separator: "<").first
+                        .flatMap { $0.split(separator: ".").last }
+                        .map(String.init)?
+                        .replacingOccurrences(of: "?", with: "")
                     guard let declared = declaredName,
                           case let .classType(nominal) = sema.types.kind(of: callType),
                           let symbol = sema.symbols.symbol(nominal.classSymbol)

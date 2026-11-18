@@ -1914,8 +1914,13 @@ extension KIRLoweringDriver {
                 // receivers imply — arity 1 for an ordinary member, 2 for a
                 // member extension — so a `var` member is a KMutableProperty
                 // like on the JVM.
+                let memberPropertyGetterContextParameterCount: Int64 =
+                    Int64(sema.symbols.extensionPropertyGetterAccessor(for: childID)
+                        .flatMap { sema.symbols.functionSignature(for: $0) }?
+                        .contextParameterTypes.count ?? 0)
                 let memberPropertyArity: Int64 =
-                    sema.symbols.extensionPropertyReceiverType(for: childID) != nil ? 2 : 1
+                    (sema.symbols.extensionPropertyReceiverType(for: childID) != nil ? 2 : 1)
+                        + memberPropertyGetterContextParameterCount
                 let propArityExpr = arena.appendExpr(.intLiteral(memberPropertyArity), type: intType)
                 body.append(.constValue(result: propArityExpr, value: .intLiteral(memberPropertyArity)))
                 let memberIsMutable: Int64 = childSym.flags.contains(.mutable) ? 1 : 0
@@ -1943,10 +1948,33 @@ extension KIRLoweringDriver {
                     result: propRegisterResult,
                     canThrow: false
                 ))
-                if memberPropertyArity == 1,
+                // Context-parameter member properties still take the packed
+                // member path: their getter needs the context arguments after
+                // the dispatch receiver, matching the member-function shape
+                // above (`receiver + contextReceivers + params`). Without them
+                // the generated invoke thunk calls the getter with only the
+                // receiver and emits arity-invalid IR at O2 (KUU-4588).
+                if sema.symbols.extensionPropertyReceiverType(for: childID) == nil,
                    let propertyReferenceAccessor,
                    let receiverType = propertyReferenceAccessor.ownerType
                 {
+                    let getterContextParameterTypes = sema.symbols
+                        .functionSignature(for: propertyReferenceAccessor.getterSymbol)?
+                        .contextParameterTypes ?? []
+                    // `__kk_kproperty_stub_create_member` only seeds the
+                    // callable-metadata entry at arity 1. A context member
+                    // property is KPropertyN>1, so seed it the same way the
+                    // member-function path does — otherwise
+                    // `__kk_kcallable_register` finds no entry and the
+                    // invoker + parameter list are discarded.
+                    if !getterContextParameterTypes.isEmpty {
+                        body.append(.call(
+                            callee: interner.intern("kk_callable_ref_tag_kproperty"),
+                            arguments: [kpropResult, propNameExpr, propTypeExpr, propArityExpr],
+                            result: nil,
+                            canThrow: false
+                        ))
+                    }
                     lambdaLowerer.registerCallableReflection(
                         value: kpropResult,
                         callableSymbol: propertyReferenceAccessor.getterSymbol,
@@ -1956,10 +1984,11 @@ extension KIRLoweringDriver {
                             interner: interner
                         ),
                         targetSymbol: propertyReferenceAccessor.getterSymbol,
-                        parameterTypes: [receiverType],
+                        parameterTypes: [receiverType] + getterContextParameterTypes,
                         returnType: propertyReferenceAccessor.propertyType,
                         captures: [],
                         receiverCount: 1,
+                        contextParameterCount: getterContextParameterTypes.count,
                         unboundMemberFunction: true,
                         ast: ast,
                         sema: sema,

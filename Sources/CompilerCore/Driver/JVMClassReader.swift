@@ -71,6 +71,8 @@ struct JVMForeignField {
     /// classfile carries one. Used to emit Kotlin `const`-style literals.
     var constantValue: JVMFieldConstant?
     var genericSignature: String?
+    /// Collected from a supertype rather than declared on this classfile.
+    var inherited = false
     var isStatic: Bool { access & 8 != 0 }
     var isPublic: Bool { access & 1 != 0 }
     var isPackagePrivate: Bool { access & 0x0007 == 0 }

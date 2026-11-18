@@ -335,7 +335,11 @@ private func invokeArrayConstructor(_ environment: Int, _ arguments: Int, _: Int
     runtimeRegisterArrayType(rawValue: result, typeID: typeID)
     if mode == 1, values.count > 1 {
         for i in 0..<size {
-            let value = kk_function_invoke(values[1], i, thrown)
+            // kk_function_invoke takes its argument as an erased `Any` slot,
+            // so the index must be a boxed Int — a raw Int would break an
+            // init whose declared parameter is broader than Int
+            // (e.g. `(Any) -> Int`, accepted via parameter contravariance).
+            let value = kk_function_invoke(values[1], kk_box_int(i), thrown)
             if (thrown?.pointee ?? 0) != 0 { return runtimeNullSentinelInt }
             _ = kk_array_set(result, i, value, thrown)
         }

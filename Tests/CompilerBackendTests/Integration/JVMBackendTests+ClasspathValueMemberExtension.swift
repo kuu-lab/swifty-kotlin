@@ -12,9 +12,14 @@ extension JVMBackendTests {
             package fixture
             @JvmInline value class Dp(val value: Float)
             @JvmInline value class Sp(val value: Float)
+            class Box<T>(val v: T)
             interface Density {
                 fun Dp.toPx(): Float = value * 2f
                 fun Sp.toPx(): Float = value * 3f
+                // Mangled overloads sharing `scale(Lfixture/Box;F)F`: the
+                // generic `Box<String>` parameter must compare as `Box`.
+                fun scale(b: Box<String>, d: Dp): Float = d.value
+                fun scale(b: Box<String>, d: Sp): Float = d.value * 10f
             }
             fun density(): Density = object : Density {}
             """
@@ -28,12 +33,14 @@ extension JVMBackendTests {
             fun main() {
                 println(with(density()) { Dp(4f).toPx() })
                 println(with(density()) { Sp(4f).toPx() })
+                println(density().scale(Box("x"), Dp(4f)))
+                println(density().scale(Box("x"), Sp(4f)))
             }
             """
             let (app, exit, diagnostics) = try m22Build(root: root, sources: [("Main.kt", source)], name: "app.jar", classpath: classpath)
             try #require(exit == 0, "\(diagnostics.map(\.message))")
             let run = try java(["-Xverify:all", "-cp", ([app.path] + classpath).joined(separator: ":"), "MainKt"])
-            #expect(run.stdout == "8.0\n12.0\n")
+            #expect(run.stdout == "8.0\n12.0\n4.0\n40.0\n")
         }
     }
 }
