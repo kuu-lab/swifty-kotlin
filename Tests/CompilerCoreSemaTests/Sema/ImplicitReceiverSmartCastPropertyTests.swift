@@ -248,5 +248,43 @@ struct ImplicitReceiverSmartCastPropertyTests {
         try runSema(ctx)
         #expect(ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
+
+    // A delegated local val re-reads through getValue, so its member must not
+    // inherit a declaration-site null check inside a local function.
+    @Test
+    func delegatedLocalValMemberDoesNotSmartCastInsideLocalFunction() throws {
+        let ctx = makeContextFromSource("""
+        class Box(val s: String?)
+        fun f() {
+            val x by lazy { Box("ok") }
+            if (x.s != null) {
+                fun g(): String = x.s
+                g()
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    // A same-named local function must not hide a later reassignment from the
+    // stability analysis that allows member smart casts inside local functions.
+    @Test
+    func reassignmentAfterSameNamedLocalFunctionDoesNotSmartCastInsideLocalFunction() throws {
+        let ctx = makeContextFromSource("""
+        class Box(val s: String?)
+        fun f() {
+            var b = Box("ok")
+            fun b() {}
+            if (b.s != null) {
+                fun g(): String = b.s
+                g()
+                b = Box(null)
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif

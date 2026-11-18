@@ -3,6 +3,7 @@ struct LocalBindings: ExpressibleByDictionaryLiteral, Sequence {
     private var bindings: [InternedString: Value]
     var memberFlow: [DataFlowReference: VariableFlowState] = [:]
     var immutableLocalInitializers: [SymbolID: ExprID] = [:]
+    var delegatedLocalSymbols: Set<SymbolID> = []
     var variableFacts: [SymbolID: DataFlowValueFacts] = [:]
     var invalidatedVariableFacts: Set<SymbolID> = []
 

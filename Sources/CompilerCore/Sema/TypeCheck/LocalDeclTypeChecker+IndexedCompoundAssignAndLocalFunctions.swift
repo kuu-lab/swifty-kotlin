@@ -849,7 +849,12 @@ extension LocalDeclTypeChecker {
     ) -> Bool {
         guard state.isStable else { return false }
         if let local = locals.values.first(where: { $0.symbol == reference.root }) {
-            return !local.isMutable || ctx.dataFlow.stableMutableReceivers.contains(reference.root)
+            if local.isMutable {
+                return ctx.dataFlow.stableMutableReceivers.contains(reference.root)
+            }
+            // Delegated locals re-read through getValue, so they are not stable
+            // smart-cast references even when declared with `val`.
+            return !locals.delegatedLocalSymbols.contains(local.symbol)
         }
         if reference.root.rawValue < 0 { return true }
         guard let symbol = ctx.sema.symbols.symbol(reference.root) else { return false }
