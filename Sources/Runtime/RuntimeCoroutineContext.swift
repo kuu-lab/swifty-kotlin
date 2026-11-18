@@ -1135,33 +1135,34 @@ public func __kk_start_coroutine_cancellable(
     _ completionRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) {
-    outThrown?.pointee = 0
-    var thrown = 0
-    let coroutine = kk_create_coroutine_unintercepted_no_receiver(
-        functionRaw, 0, completionRaw
-    )
-    let intercepted = __kk_continuation_intercepted(
-        coroutine, kk_continuation_interceptor_key(), &thrown
-    )
-    if thrown == 0 {
-        if isRegisteredRuntimeObjectPointer(intercepted),
-           let ptr = UnsafeMutableRawPointer(bitPattern: intercepted),
-           let wrapper = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue() as? KKInterceptedContinuation,
-           let generated = wrapper.continuation as? RuntimeGeneratedContinuation
-        {
-            generated.state.markCancellableCoroutineStart()
+    runtimeThrowingBridge(outThrown) {
+        var thrown = 0
+        let coroutine = kk_create_coroutine_unintercepted_no_receiver(
+            functionRaw, 0, completionRaw
+        )
+        let intercepted = __kk_continuation_intercepted(
+            coroutine, kk_continuation_interceptor_key(), &thrown
+        )
+        if thrown == 0 {
+            if isRegisteredRuntimeObjectPointer(intercepted),
+               let ptr = UnsafeMutableRawPointer(bitPattern: intercepted),
+               let wrapper = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue() as? KKInterceptedContinuation,
+               let generated = wrapper.continuation as? RuntimeGeneratedContinuation
+            {
+                generated.state.markCancellableCoroutineStart()
+            }
+            __kk_coroutine_continuation_resume_with(
+                intercepted,
+                runtimeResultSuccess(kk_box_unit(0)),
+                &thrown
+            )
         }
-        __kk_coroutine_continuation_resume_with(
-            intercepted,
-            runtimeResultSuccess(kk_box_unit(0)),
-            &thrown
-        )
-    }
-    if thrown != 0 {
-        __kk_coroutine_continuation_resume_with(
-            completionRaw, runtimeResultFailure(thrown), nil
-        )
-        outThrown?.pointee = thrown
+        if thrown != 0 {
+            __kk_coroutine_continuation_resume_with(
+                completionRaw, runtimeResultFailure(thrown), nil
+            )
+            outThrown?.pointee = thrown
+        }
     }
 }
 

@@ -207,14 +207,16 @@ public func __kk_net_url_connection_connect(
     _ boxRaw: Int, _ headersRaw: Int, _ connectTimeoutMs: Int, _ readTimeoutMs: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) {
-    guard let box = javaNetURLConnection(boxRaw) else { return }
-    _ = javaNetPerformConnect(
-        box,
-        serializedHeaders: javaNetURLString(headersRaw) ?? "",
-        connectTimeoutMs: connectTimeoutMs,
-        readTimeoutMs: readTimeoutMs,
-        outThrown: outThrown
-    )
+    runtimeThrowingBridge(outThrown) {
+        guard let box = javaNetURLConnection(boxRaw) else { return }
+        _ = javaNetPerformConnect(
+            box,
+            serializedHeaders: javaNetURLString(headersRaw) ?? "",
+            connectTimeoutMs: connectTimeoutMs,
+            readTimeoutMs: readTimeoutMs,
+            outThrown: outThrown
+        )
+    }
 }
 
 @_cdecl("__kk_net_url_connection_input_stream")
