@@ -382,33 +382,20 @@ extension DeclTypeChecker {
                     didPrecheckProperty = true
                 }
                 // Delegated and extension properties are not registered for
-                // demand inference, so publish their type through the same
-                // declaration check the authoritative pass uses, then leave the
-                // declaration unprechecked for that pass to recheck (KUU-4610).
+                // demand inference, so publish their probed type without
+                // running the full declaration check ahead of source order
+                // (KUU-4610).
                 if !allowFullInferredPrecheck,
                    !driver.publishedInferredPropertyDecls.contains(declID),
                    property.type == nil,
                    property.delegateExpression != nil || property.receiverType != nil,
-                   canSafelyPrecheckInferredProperty(
+                   publishInferredDelegatedOrExtensionPropertyType(
                        property,
                        symbol: propertySymbol,
                        in: ctx,
                        initialLocals: initialLocals
                    )
                 {
-                    let diagnosticSnapshot = diagnostics.count
-                    let nominalDeclsCheckedBefore = driver.localNominalDeclChecks.count
-                    typeCheckBoundPropertyDecl(
-                        property,
-                        declID: declID,
-                        symbol: propertySymbol,
-                        ctx: ctx.with(currentDeclSymbol: propertySymbol),
-                        initialLocals: initialLocals,
-                        solver: solver,
-                        diagnostics: diagnostics
-                    )
-                    diagnostics.truncate(to: diagnosticSnapshot)
-                    driver.markLocalNominalRechecks(since: nominalDeclsCheckedBefore)
                     driver.publishedInferredPropertyDecls.insert(declID)
                     didPrecheckProperty = true
                 }
@@ -543,6 +530,113 @@ extension DeclTypeChecker {
             exposedAnonymousType(type, symbol: symbol, range: property.range, ctx: ctx),
             for: symbol
         )
+    }
+
+    /// Probe the inferred type of a delegated or extension member property
+    /// without running the full declaration check. The strict precheck flags
+    /// stay raised for the probe so unresolved members cannot select a
+    /// placeholder overload (KUU-4610).
+    private func safePrecheckInferredDelegatedOrExtensionPropertyType(
+        _ property: PropertyDecl,
+        symbol: SymbolID,
+        in ctx: TypeInferenceContext,
+        initialLocals: LocalBindings
+    ) -> TypeID? {
+        guard property.type == nil,
+              property.explicitBackingField == nil
+        else {
+            return nil
+        }
+
+        let previousFlag = requiresSafePrecheckCallArguments
+        let previousCastFlag = requiresSafePrecheckCastOperands
+        requiresSafePrecheckCallArguments = true
+        requiresSafePrecheckCastOperands = true
+        defer {
+            requiresSafePrecheckCallArguments = previousFlag
+            requiresSafePrecheckCastOperands = previousCastFlag
+        }
+
+        if let receiverType = ctx.sema.symbols.extensionPropertyReceiverType(for: symbol) {
+            guard !property.isVar,
+                  property.setter == nil,
+                  property.receiverType != nil,
+                  property.typeParams.isEmpty,
+                  property.contextReceivers.isEmpty,
+                  property.initializer == nil,
+                  property.delegateExpression == nil,
+                  let getter = property.getter,
+                  getter.returnType == nil,
+                  case let .expr(bodyExpr, _) = getter.body
+            else {
+                return nil
+            }
+            let getterContext = ctx.copying(
+                implicitReceiverType: receiverType,
+                currentDeclSymbol: symbol
+            ).withOuterReceiver(
+                label: property.name,
+                type: receiverType,
+                symbol: SyntheticSymbolScheme.receiverParameterSymbol(for: symbol)
+            )
+            guard let type = safePrecheckExpressionType(
+                bodyExpr,
+                in: getterContext,
+                locals: initialLocals
+            ),
+                type != ctx.sema.types.nullableNothingType,
+                type != ctx.sema.types.errorType
+            else {
+                return nil
+            }
+            return type
+        }
+
+        guard property.getter == nil,
+              property.setter == nil || property.setter?.body == .unit,
+              property.receiverType == nil,
+              !property.isVar,
+              property.initializer == nil,
+              property.delegateBodyParams.isEmpty,
+              let delegateExpression = property.delegateExpression,
+              StdlibDelegateKind.detect(
+                  delegateExpr: delegateExpression,
+                  ast: ctx.ast,
+                  interner: ctx.interner
+              ) == .lazy,
+              case let .expr(bodyExpr, _) = property.delegateBody,
+              let type = safePrecheckExpressionType(bodyExpr, in: ctx, locals: initialLocals),
+              type != ctx.sema.types.nullableNothingType,
+              type != ctx.sema.types.errorType
+        else {
+            return nil
+        }
+        return type
+    }
+
+    func publishInferredDelegatedOrExtensionPropertyType(
+        _ property: PropertyDecl,
+        symbol: SymbolID,
+        in ctx: TypeInferenceContext,
+        initialLocals: LocalBindings = [:]
+    ) -> Bool {
+        guard driver.checkingInferredProperties.insert(symbol).inserted else {
+            return false
+        }
+        defer { driver.checkingInferredProperties.remove(symbol) }
+        guard let type = safePrecheckInferredDelegatedOrExtensionPropertyType(
+            property,
+            symbol: symbol,
+            in: ctx,
+            initialLocals: initialLocals
+        ) else {
+            return false
+        }
+        ctx.sema.symbols.setPropertyType(
+            exposedAnonymousType(type, symbol: symbol, range: property.range, ctx: ctx),
+            for: symbol
+        )
+        return true
     }
 
     func canSafelyPrecheckExplicitBackingFieldProperty(
