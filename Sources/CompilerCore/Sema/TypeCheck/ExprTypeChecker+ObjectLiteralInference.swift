@@ -712,18 +712,23 @@ extension ExprTypeChecker {
             if propertyDecl.modifiers.contains(.lateinit) {
                 propertyFlags.insert(.lateinitProperty)
             }
-            let propertySymbol = sema.symbols.define(
-                kind: .property,
-                name: propertyDecl.name,
-                fqName: ownerFQName + [propertyDecl.name],
-                declSite: propertyDecl.range,
-                // Keep the declared visibility (e.g. `private val`) so a
-                // member of a local class or object literal stays scoped to
-                // its body, matching the member-function path (KUU-3880).
-                visibility: Visibility(modifiers: propertyDecl.modifiers),
-                flags: propertyFlags
-            )
-            sema.bindings.bindDecl(propertyDeclID, symbol: propertySymbol)
+            let propertySymbol: SymbolID
+            if let existing = sema.bindings.declSymbols[propertyDeclID] {
+                propertySymbol = existing
+            } else {
+                propertySymbol = sema.symbols.define(
+                    kind: .property,
+                    name: propertyDecl.name,
+                    fqName: ownerFQName + [propertyDecl.name],
+                    declSite: propertyDecl.range,
+                    // Keep the declared visibility (e.g. `private val`) so a
+                    // member of a local class or object literal stays scoped to
+                    // its body, matching the member-function path (KUU-3880).
+                    visibility: Visibility(modifiers: propertyDecl.modifiers),
+                    flags: propertyFlags
+                )
+                sema.bindings.bindDecl(propertyDeclID, symbol: propertySymbol)
+            }
             sema.bindings.markObjectLiteralPropertySymbol(propertySymbol)
             sema.symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
             sema.symbols.setSourceFileID(ctx.currentFileID, for: propertySymbol)
