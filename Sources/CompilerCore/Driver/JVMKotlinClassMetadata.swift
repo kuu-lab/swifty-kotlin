@@ -37,7 +37,6 @@ struct JVMKotlinParameterInfo {
 }
 
 struct JVMKotlinPropertyInfo {
-    let name: String
     let flags: Int
     let getter: String?
     let setter: String?
@@ -90,8 +89,7 @@ extension JVMKotlinClassMetadata {
             let getter = try signature?.message(3)?.integer(1).map(decoder.name)
             let setter = try signature?.message(4)?.integer(1).map(decoder.name)
             let flags = property.integer(11) ?? property.integer(1).map { ($0 & 63) | (($0 >> 8) << 6) } ?? 518
-            return JVMKotlinPropertyInfo(name: try decoder.name(property.integer(2)), flags: flags,
-                getter: getter, setter: setter)
+            return JVMKotlinPropertyInfo(flags: flags, getter: getter, setter: setter)
         }
         return Self(classFlags: isClass ? message.integer(1) ?? 6 : 0,
                     companion: isClass ? try message.integer(4).map(decoder.name) : nil,
