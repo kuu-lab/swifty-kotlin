@@ -362,7 +362,58 @@ extension ExprTypeChecker {
         // and capture analysis find it; entries without a symbol stay
         // type-only (`this@Label` typing) as before.
         var objectOuterReceiverTypes = ctx.outerReceiverTypes
-        if let thisBinding = outerLocalsSnapshot[ctx.interner.intern("this")] {
+        let thisBinding = outerLocalsSnapshot[ctx.interner.intern("this")]
+        // A function-local nominal captures the enclosing function's receiver
+        // *value*. The enclosing class's outer-receiver entry normally carries
+        // the class symbol — a `this@Class` label placeholder — which cannot
+        // root the smart-cast flow reference, because those are keyed by the
+        // receiver value symbol (`receiverParameterSymbol(for:)`). Resolve that
+        // entry to the receiver value that will actually be captured so stable
+        // property smart casts on the captured `this` survive into the object
+        // literal's member bodies (KUU-4606). Member extensions have two
+        // receivers: the class entry is the dispatch receiver (`this@Owner`),
+        // not the extension receiver that `locals["this"]` names.
+        if let enclosingClassSymbol = ctx.enclosingClassSymbol {
+            let memberExtensionDispatchSymbol = ctx.enclosingFunctionSymbol.flatMap { functionSymbol -> SymbolID? in
+                guard sema.symbols.memberExtensionOwnerSymbol(for: functionSymbol) == enclosingClassSymbol else {
+                    return nil
+                }
+                return SyntheticSymbolScheme.receiverParameterSymbol(for: enclosingClassSymbol)
+            }
+            let enclosingMemberReceiverSymbol = ctx.enclosingFunctionSymbol.flatMap { functionSymbol -> SymbolID? in
+                guard sema.symbols.memberExtensionOwnerSymbol(for: functionSymbol) == nil,
+                      sema.symbols.parentSymbol(for: functionSymbol) == enclosingClassSymbol
+                else {
+                    return nil
+                }
+                return SyntheticSymbolScheme.receiverParameterSymbol(for: functionSymbol)
+            }
+            for index in objectOuterReceiverTypes.indices {
+                let entry = objectOuterReceiverTypes[index]
+                guard entry.symbol == enclosingClassSymbol,
+                      case let .classType(entryClassType) = sema.types.kind(of: entry.type),
+                      entryClassType.classSymbol == enclosingClassSymbol
+                else {
+                    continue
+                }
+                let receiverValueSymbol: SymbolID
+                if let memberExtensionDispatchSymbol {
+                    receiverValueSymbol = memberExtensionDispatchSymbol
+                } else if let thisBinding,
+                          entry.type == thisBinding.type,
+                          SyntheticSymbolScheme.receiverParameterOwner(for: thisBinding.symbol) != nil
+                {
+                    receiverValueSymbol = thisBinding.symbol
+                } else if let enclosingMemberReceiverSymbol {
+                    receiverValueSymbol = enclosingMemberReceiverSymbol
+                } else {
+                    continue
+                }
+                objectOuterReceiverTypes[index].symbol = receiverValueSymbol
+                captureOuterSymbols.insert(receiverValueSymbol)
+            }
+        }
+        if let thisBinding {
             // The stack may name the same receiver under several labels (the
             // class itself and each enclosing member function), so fill every
             // entry whose type is the enclosing `this` type.
@@ -644,7 +695,7 @@ extension ExprTypeChecker {
             capturedSymbols,
             ownerSymbol: objectSymbol,
             outerLocalsSnapshot: outerLocalsSnapshot,
-            outerReceiverTypes: ctx.outerReceiverTypes,
+            outerReceiverTypes: objectOuterReceiverTypes,
             receiverStack: ctx.implicitReceiverStack,
             sema: sema
         )
@@ -712,18 +763,23 @@ extension ExprTypeChecker {
             if propertyDecl.modifiers.contains(.lateinit) {
                 propertyFlags.insert(.lateinitProperty)
             }
-            let propertySymbol = sema.symbols.define(
-                kind: .property,
-                name: propertyDecl.name,
-                fqName: ownerFQName + [propertyDecl.name],
-                declSite: propertyDecl.range,
-                // Keep the declared visibility (e.g. `private val`) so a
-                // member of a local class or object literal stays scoped to
-                // its body, matching the member-function path (KUU-3880).
-                visibility: Visibility(modifiers: propertyDecl.modifiers),
-                flags: propertyFlags
-            )
-            sema.bindings.bindDecl(propertyDeclID, symbol: propertySymbol)
+            let propertySymbol: SymbolID
+            if let existing = sema.bindings.declSymbols[propertyDeclID] {
+                propertySymbol = existing
+            } else {
+                propertySymbol = sema.symbols.define(
+                    kind: .property,
+                    name: propertyDecl.name,
+                    fqName: ownerFQName + [propertyDecl.name],
+                    declSite: propertyDecl.range,
+                    // Keep the declared visibility (e.g. `private val`) so a
+                    // member of a local class or object literal stays scoped to
+                    // its body, matching the member-function path (KUU-3880).
+                    visibility: Visibility(modifiers: propertyDecl.modifiers),
+                    flags: propertyFlags
+                )
+                sema.bindings.bindDecl(propertyDeclID, symbol: propertySymbol)
+            }
             sema.bindings.markObjectLiteralPropertySymbol(propertySymbol)
             sema.symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
             sema.symbols.setSourceFileID(ctx.currentFileID, for: propertySymbol)
@@ -1456,18 +1512,23 @@ extension ExprTypeChecker {
                 continue
             }
 
-            let memberSymbol = sema.symbols.define(
-                kind: .function,
-                name: functionDecl.name,
-                fqName: memberFQNamePrefix + [functionDecl.name],
-                declSite: functionDecl.range,
-                visibility: Visibility(modifiers: functionDecl.modifiers),
-                flags: objectLiteralFunctionFlags(
-                    from: functionDecl,
-                    objectSymbol: objectSymbol,
-                    sema: sema)
-            )
-            sema.bindings.bindDecl(functionDeclID, symbol: memberSymbol)
+            let memberSymbol: SymbolID
+            if let existing = sema.bindings.declSymbols[functionDeclID] {
+                memberSymbol = existing
+            } else {
+                memberSymbol = sema.symbols.define(
+                    kind: .function,
+                    name: functionDecl.name,
+                    fqName: memberFQNamePrefix + [functionDecl.name],
+                    declSite: functionDecl.range,
+                    visibility: Visibility(modifiers: functionDecl.modifiers),
+                    flags: objectLiteralFunctionFlags(
+                        from: functionDecl,
+                        objectSymbol: objectSymbol,
+                        sema: sema)
+                )
+                sema.bindings.bindDecl(functionDeclID, symbol: memberSymbol)
+            }
             sema.symbols.setParentSymbol(objectSymbol, for: memberSymbol)
             sema.symbols.setSourceFileID(ctx.currentFileID, for: memberSymbol)
             objectScope.insert(memberSymbol)
@@ -1611,7 +1672,17 @@ extension ExprTypeChecker {
                 case .unit, .block:
                     returnType = sema.types.unitType
                 case .expr:
-                    returnType = sema.types.anyType
+                    // A re-check reuses the member symbol, so keep the return
+                    // type an earlier inference already published instead of
+                    // resetting the signature to the `Any` placeholder.
+                    if let existingSymbol = sema.bindings.declSymbols[functionDeclID],
+                       let preservedReturnType = sema.symbols.functionSignatureIfKnown(for: existingSymbol)?.returnType,
+                       preservedReturnType != sema.types.anyType
+                    {
+                        returnType = preservedReturnType
+                    } else {
+                        returnType = sema.types.anyType
+                    }
                 }
             }
 

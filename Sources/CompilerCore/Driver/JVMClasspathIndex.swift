@@ -407,10 +407,12 @@ final class JVMClasspathIndex {
     }
 
     private func sealedSubclasses(of info: JVMClassInfo) -> [String] {
-        // The owner stub emits its nested subclasses together. Only that
-        // complete set can establish exhaustiveness without loading other stubs.
+        // Sealed subclasses may live outside the owner's inline nest, but a
+        // missing direct subclass must still keep the class non-sealed so
+        // reachability diagnostics can fire. The lazy-reference closure pulls
+        // every present sealed subclass into the module.
         let children = info.kotlinSealedSubclasses
-        return children.allSatisfy { innerClassMetadata[$0]?.outerName == info.name && classes[$0] != nil } ? children : []
+        return children.allSatisfy { classes[$0] != nil } ? children : []
     }
 
     private func classKeyword(_ info: JVMClassInfo) -> String {
@@ -1573,14 +1575,19 @@ final class JVMClasspathIndex {
             if !info.isInterface && method.isFinal { source += "final " }
             source += overrides ? "override " : ""
             if !info.isInterface { source += overrides || method.isFinal ? "" : "open " }
-            if method.sourceName == "get", method.sourceParameters.count == 1, method.kotlinFunction?.isOperator != true {
-                source += "operator "
-            }
-            if !info.isInterface { source += "external " }
             // Parents may still have erased classpath signatures.
             let usesErasedOverride = overrides
                 && (method.kotlinFunction?.isGenericFinalGetter == true || method.kotlinFunction?.hasStableFinalParameters == true)
-            source += functionDeclaration(method, usesKotlinMetadata: !usesErasedOverride)
+            let usesKotlinMetadata = !usesErasedOverride
+            let needsGetOperator = method.sourceName == "get" && method.sourceParameters.count == 1
+                && method.kotlinFunction?.isOperator != true
+            let kotlinDeclaresOperator = needsGetOperator && usesKotlinMetadata
+                && kotlinFunction(method)?.isOperator == true
+            if needsGetOperator, !kotlinDeclaresOperator {
+                source += "operator "
+            }
+            if !info.isInterface { source += "external " }
+            source += functionDeclaration(method, usesKotlinMetadata: usesKotlinMetadata)
             let hasKotlinDefaultBody = kotlinFunction(method)?.isAbstract == false
             if info.isInterface, !method.isAbstract || hasKotlinDefaultBody {
                 source += method.sourceResult == .unit ? " {}" : " = null!!"
@@ -2107,6 +2114,12 @@ final class JVMClasspathIndex {
                 if lazyClassNames.contains(parent), isInjected(parent) {
                     markNeeded(parent)
                 }
+            }
+            // Sealed subclasses can live outside the owner's inline nest, but
+            // exhaustiveness still needs every direct subclass in the module.
+            for child in info.kotlinSealedSubclasses
+            where lazyClassNames.contains(child) && isInjected(child) {
+                markNeeded(child)
             }
             func markSourceTypes(_ types: [String]) {
                 for type in types {
