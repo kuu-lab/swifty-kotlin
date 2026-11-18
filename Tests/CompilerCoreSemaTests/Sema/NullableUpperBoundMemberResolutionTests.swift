@@ -133,4 +133,27 @@ struct NullableUpperBoundMemberResolutionTests {
             #expect(errors.contains { $0.code == "KSWIFTK-SEMA-0026" })
         }
     }
+
+    @Test
+    func callableReferenceChecksConcreteUpperBoundTypeArguments() throws {
+        let source = """
+        interface Cell<E> { val value: E }
+        val Cell<Int>.intText: Int get() = value
+        val Cell<String>.stringText: String get() = value
+        fun <T : Cell<Int>?> probe(x: T) {
+            if (x != null) {
+                val ok = x::intText
+                val bad = x::stringText
+            }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+            #expect(errors.count == 1, "Expected only the mismatched stringText reference to fail: \(errors)")
+            #expect(errors.first?.code == "KSWIFTK-SEMA-0022")
+        }
+    }
 }

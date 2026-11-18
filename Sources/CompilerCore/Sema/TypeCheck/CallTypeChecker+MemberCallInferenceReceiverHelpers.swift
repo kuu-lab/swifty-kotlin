@@ -706,7 +706,17 @@ extension CallTypeChecker {
             else {
                 return false
             }
-            return true
+            // Class-symbol equality stays lenient for F-bounded parameters
+            // (the bound's `Comparable<T>` and the candidate's
+            // `Comparable<T_C>` are different type-parameter symbols), but
+            // concrete type arguments must still agree: `T : Cell<Int>?`
+            // must not match a `Cell<String>` receiver.
+            if typeMentionsTypeParameter(nonNullBound, sema: sema)
+                || typeMentionsTypeParameter(declaredReceiver, sema: sema)
+            {
+                return true
+            }
+            return sema.types.isSubtype(nonNullBound, declaredNonNull)
         }
     }
 
