@@ -22,6 +22,9 @@ final class LocalVariableStabilityAnalyzer {
     private var compoundAssignWrites: [ExprID: Set<ExprID>] = [:]
     private var compoundAssignWriteDeclarations: [ExprID: ExprID] = [:]
     private var compoundAssignResolutions: [ExprID: Bool] = [:]
+    // Delegated locals re-evaluate `getValue` on every read, so they are never
+    // stable smart-cast receivers even without any reassignment (KUU-4608 review).
+    private var delegatedDeclarations: Set<ExprID> = []
 
     func isMutatedInClosure(_ declaration: ExprID, sema: SemaModule) -> Bool {
         (mutationScopes[declaration] ?? []).contains { isDeferredMutation($0, sema: sema) }
@@ -95,7 +98,8 @@ final class LocalVariableStabilityAnalyzer {
     /// same-scope compound write resolved to an in-place operator. Writes in
     /// deferred scopes and `++`/`--` stay conservative through `reassigned`.
     func isEffectivelyStable(_ declaration: ExprID) -> Bool {
-        guard declarations.contains(declaration), !reassigned.contains(declaration) else {
+        guard declarations.contains(declaration), !reassigned.contains(declaration),
+              !delegatedDeclarations.contains(declaration) else {
             return false
         }
         return (compoundAssignWrites[declaration] ?? []).allSatisfy {
@@ -161,10 +165,11 @@ final class LocalVariableStabilityAnalyzer {
             for expression in expressions { visit(expression, ast: ast, locals: &locals) }
         }
         switch expression {
-        case let .localDecl(name, _, _, initializer, _, _, _):
+        case let .localDecl(name, _, _, initializer, isDelegated, _, _):
             if let initializer { children([initializer]) }
             declarations.insert(id)
             declarationDepths[id] = closureScopes.count
+            if isDelegated { delegatedDeclarations.insert(id) }
             locals[name] = id
         case let .destructuringDecl(names, _, initializer, _):
             children([initializer])
