@@ -25,7 +25,7 @@ fun typeOf(type: java.lang.Class<*>, first: KTypeProjection, second: KTypeProjec
 fun typeOf(type: java.lang.Class<*>, vararg arguments: KTypeProjection): KType =
     RuntimeClassType(type, false, arguments.toList())
 
-fun nullableTypeOf(type: java.lang.Class<*>): KType = RuntimeClassType(type, true)
+fun nullableTypeOf(type: java.lang.Class<*>): KType = RuntimeClassType(type, true, emptyList())
 
 fun nullableTypeOf(type: java.lang.Class<*>, argument: KTypeProjection): KType =
     RuntimeClassType(type, true, listOf(argument))
@@ -35,7 +35,3 @@ fun nullableTypeOf(type: java.lang.Class<*>, first: KTypeProjection, second: KTy
 
 fun nullableTypeOf(type: java.lang.Class<*>, vararg arguments: KTypeProjection): KType =
     RuntimeClassType(type, true, arguments.toList())
-||||||| parent of 0997e5b738 (Provide the non-generic JVM Reflection.typeOf bridge)
-
-fun typeOf(type: java.lang.Class<*>): kotlin.reflect.KType =
-    kotlin.reflect.jvm.internal.RuntimeClassType(type)
