@@ -226,7 +226,8 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
 
     public operator fun times(other: BigDecimal): BigDecimal = multiply(other)
 
-    public operator fun div(other: BigDecimal): BigDecimal = divide(other)
+    public operator fun div(other: BigDecimal): BigDecimal =
+        divide(other, RoundingMode.HALF_EVEN)
 
     public override fun toDouble(): Double = __kk_bignum_toDouble()
 
