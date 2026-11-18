@@ -837,7 +837,139 @@ final class JVMClasspathIndex {
                 return Self.dottedTypeName(name) + "<" + Self.dottedTypeName(argument) + ">"
             }
         }
+        // Java class signatures keep `implements Comparable<Instant>`; the
+        // erased interface list alone cannot satisfy `T : Comparable<T>`.
+        if name == "java/lang/Comparable",
+           let comparable = javaSignatureSupertypes(child.genericSignature).first(where: { $0.binary == name }),
+           comparable.source.contains("<") {
+            return comparable.source
+        }
         return supertypeReference(name, childParams: child.classTypeParameterNames)
+    }
+
+    private func javaSignatureClassBase(_ binary: String) -> String {
+        switch binary {
+        case "java/lang/Object": return "kotlin.Any"
+        case "java/lang/String": return "kotlin.String"
+        case "java/lang/Comparable": return "kotlin.Comparable"
+        default:
+            if let mapped = Self.jdkToKotlinTypeNames[binary] {
+                return String(mapped.split(separator: "<").first.map(String.init) ?? mapped)
+            }
+            return Self.dottedTypeName(binary)
+        }
+    }
+
+    private func javaSignatureClassIsMapped(_ binary: String) -> Bool {
+        switch binary {
+        case "java/lang/Object", "java/lang/String", "java/lang/Comparable": return true
+        default: return Self.jdkToKotlinTypeNames[binary] != nil
+        }
+    }
+
+    private func javaSignatureType(_ scalars: [Character], _ index: inout Int) -> (source: String, referencedClasses: Set<String>)? {
+        guard index < scalars.count else { return nil }
+        switch scalars[index] {
+        case "B": index += 1; return ("kotlin.Byte", [])
+        case "C": index += 1; return ("kotlin.Char", [])
+        case "D": index += 1; return ("kotlin.Double", [])
+        case "F": index += 1; return ("kotlin.Float", [])
+        case "I": index += 1; return ("kotlin.Int", [])
+        case "J": index += 1; return ("kotlin.Long", [])
+        case "S": index += 1; return ("kotlin.Short", [])
+        case "Z": index += 1; return ("kotlin.Boolean", [])
+        case "V": index += 1; return ("kotlin.Unit", [])
+        case "T":
+            index += 1
+            let start = index
+            while index < scalars.count, scalars[index] != ";" { index += 1 }
+            guard index < scalars.count else { return nil }
+            let name = String(scalars[start..<index])
+            index += 1
+            return ("`\(name)`", [])
+        case "[":
+            index += 1
+            guard let element = javaSignatureType(scalars, &index) else { return nil }
+            let primitiveArrays = [
+                "kotlin.Byte": "kotlin.ByteArray",
+                "kotlin.Char": "kotlin.CharArray",
+                "kotlin.Double": "kotlin.DoubleArray",
+                "kotlin.Float": "kotlin.FloatArray",
+                "kotlin.Int": "kotlin.IntArray",
+                "kotlin.Long": "kotlin.LongArray",
+                "kotlin.Short": "kotlin.ShortArray",
+                "kotlin.Boolean": "kotlin.BooleanArray",
+            ]
+            if let array = primitiveArrays[element.source] { return (array, element.referencedClasses) }
+            return ("kotlin.Array<\(element.source)>", element.referencedClasses)
+        case "L":
+            guard let reference = javaSignatureReferenceType(scalars, &index) else { return nil }
+            return (reference.source, reference.referencedClasses)
+        default:
+            return nil
+        }
+    }
+
+    private func javaSignatureReferenceType(_ scalars: [Character], _ index: inout Int) -> (binary: String, source: String, referencedClasses: Set<String>)? {
+        guard index < scalars.count, scalars[index] == "L" else { return nil }
+        index += 1
+        let nameStart = index
+        while index < scalars.count, scalars[index] != "<", scalars[index] != ";" { index += 1 }
+        let binary = String(scalars[nameStart..<index])
+        guard !binary.isEmpty else { return nil }
+        var referencedClasses: Set<String> = javaSignatureClassIsMapped(binary) ? [] : [binary]
+        var source = javaSignatureClassBase(binary)
+        if index < scalars.count, scalars[index] == "<" {
+            index += 1
+            var arguments: [String] = []
+            while index < scalars.count, scalars[index] != ">" {
+                if scalars[index] == "*" {
+                    index += 1
+                    arguments.append("*")
+                    continue
+                }
+                var variance = ""
+                if scalars[index] == "+" || scalars[index] == "-" {
+                    variance = scalars[index] == "+" ? "out " : "in "
+                    index += 1
+                }
+                guard let argument = javaSignatureType(scalars, &index) else { return nil }
+                referencedClasses.formUnion(argument.referencedClasses)
+                arguments.append(variance + argument.source)
+            }
+            guard index < scalars.count, scalars[index] == ">" else { return nil }
+            index += 1
+            if !arguments.isEmpty { source += "<" + arguments.joined(separator: ", ") + ">" }
+        }
+        guard index < scalars.count, scalars[index] == ";" else { return nil }
+        index += 1
+        return (binary, source, referencedClasses)
+    }
+
+    private func javaSignatureSupertypes(_ signature: String?) -> [(binary: String, source: String, referencedClasses: Set<String>)] {
+        guard let signature, !signature.isEmpty else { return [] }
+        let scalars = Array(signature)
+        var index = 0
+        if index < scalars.count, scalars[index] == "<" {
+            var depth = 0
+            while index < scalars.count {
+                if scalars[index] == "<" { depth += 1 }
+                else if scalars[index] == ">" {
+                    depth -= 1
+                    index += 1
+                    if depth == 0 { break }
+                    continue
+                }
+                index += 1
+            }
+            guard depth == 0 else { return [] }
+        }
+        var result: [(binary: String, source: String, referencedClasses: Set<String>)] = []
+        while index < scalars.count {
+            guard let reference = javaSignatureReferenceType(scalars, &index) else { break }
+            result.append((reference.binary, reference.source, reference.referencedClasses))
+        }
+        return result
     }
 
     private func superclassReference(_ name: String, child: JVMClassInfo) -> String? {
@@ -2149,6 +2281,14 @@ final class JVMClasspathIndex {
             }
             markSourceTypes(info.kotlinMemberProperties.values.map(\.sourceType))
             markSourceTypes(Array(info.kotlinParameterizedSupertypes.values))
+            if let signature = info.genericSignature {
+                for supertype in javaSignatureSupertypes(signature) where supertype.binary == "java/lang/Comparable" {
+                    for reference in supertype.referencedClasses
+                    where lazyClassNames.contains(reference) && isInjected(reference) {
+                        markNeeded(reference)
+                    }
+                }
+            }
             for (constructor, _, _) in info.kotlinLoweredConstructors {
                 markSourceTypes(constructor.parameters.map(\.sourceType))
             }
