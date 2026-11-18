@@ -659,7 +659,6 @@ extension NativeEmitter.FunctionEmissionContext {
                 {
                     nullAssertProbeCannotBeNull(
                         typeSystem.kind(of: operandType),
-                        types: typeSystem,
                         symbols: symbols
                     )
                 } else {

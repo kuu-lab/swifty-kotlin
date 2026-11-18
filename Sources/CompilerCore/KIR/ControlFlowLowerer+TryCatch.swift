@@ -448,7 +448,6 @@ extension ControlFlowLowerer {
                 if let operandType = arena.exprType(operand),
                    nullAssertProbeCannotBeNull(
                        sema.types.kind(of: operandType),
-                       types: sema.types,
                        symbols: sema.symbols
                    )
                 {

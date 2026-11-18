@@ -528,7 +528,6 @@ func valueClassUnboxSourceIsBoxed(_ kind: TypeKind, targetClassSymbol: SymbolID)
 /// `Intrinsics.checkNotNull` reports the same way).
 public func nullAssertProbeCannotBeNull(
     _ kind: TypeKind?,
-    types: TypeSystem,
     symbols: SymbolTable?
 ) -> Bool {
     switch kind {

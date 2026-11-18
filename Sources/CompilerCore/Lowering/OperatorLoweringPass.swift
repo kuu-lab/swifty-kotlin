@@ -131,7 +131,7 @@ final class OperatorLoweringPass: LoweringPass {
         symbols: SymbolTable?
     ) -> Bool {
         guard let types, let typeID = arena.exprType(exprID) else { return false }
-        return nullAssertProbeCannotBeNull(types.kind(of: typeID), types: types, symbols: symbols)
+        return nullAssertProbeCannotBeNull(types.kind(of: typeID), symbols: symbols)
     }
 
     private func unboxCallee(for typeKind: TypeKind, interner: StringInterner) -> InternedString? {
