@@ -145,5 +145,51 @@ extension JVMBackendTests {
             #expect(consumer.stderr.isEmpty)
         }
     }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func mapForEachEvaluatesCallbackBeforeIterating(mode: EmitMode) throws {
+        let source = """
+        fun entryAction(m: MutableMap<String, Int>): (Map.Entry<String, Int>) -> Unit {
+            m["b"] = 2
+            return { e -> println("e:${e.key}=${e.value}") }
+        }
+        fun pairAction(m: MutableMap<String, Int>): (String, Int) -> Unit {
+            m["c"] = 3
+            return { k, v -> println("p:$k=$v") }
+        }
+        fun main() {
+            val m1 = mutableMapOf("a" to 1)
+            m1.forEach(entryAction(m1))
+            val m2 = mutableMapOf("x" to 7)
+            m2.forEach(pairAction(m2))
+        }
+        """
+        let expected = "e:a=1\ne:b=2\np:x=7\np:c=3\n"
+
+        try withWorkspace { root in
+            let runtime = try m11Runtime()
+            let app = try m22Build(
+                root: root,
+                sources: [("Main.kt", source)],
+                name: mode == .jvmJar ? "map-foreach-order.jar" : "map-foreach-order-classes",
+                mode: mode,
+                classpath: runtime.components(separatedBy: ":")
+            )
+            try #require(app.1 == 0, "\(app.2.map(\.message))")
+
+            let candidate = try java(["-cp", app.0.path + ":" + runtime, "MainKt"])
+            #expect(candidate.stdout == expected)
+            #expect(candidate.stderr.isEmpty)
+
+            _ = try jvmTool(
+                "kotlinc",
+                ["-cp", runtime, "Main.kt", "-d", "consumer.jar"],
+                root: root
+            )
+            let consumer = try java(["-cp", root.appendingPathComponent("consumer.jar").path + ":" + runtime, "MainKt"])
+            #expect(consumer.stdout == expected)
+            #expect(consumer.stderr.isEmpty)
+        }
+    }
 }
 #endif

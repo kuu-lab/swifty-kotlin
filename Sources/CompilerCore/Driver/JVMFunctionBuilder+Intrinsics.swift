@@ -555,17 +555,19 @@ extension JVMFunctionBuilder {
                       let signature = functionType(args[0].expr),
                       signature.params.count == 1 || signature.params.count == 2
                 else { throw fail("JVM Map forEach requires a callback.", id) }
-                let entries = try jdkCall("java/util/Map", "entrySet", [], .reference("java/util/Set", nullable: false), receiver: source, interface: true)!
-                let iterator = try jdkCall("java/lang/Iterable", "iterator", [], .reference("java/util/Iterator", nullable: false), receiver: entries, interface: true)!
-                // Capture an entry-lambda literal before it is lowered as a closure so a
-                // non-local return inlines into the enclosing function, matching kotlinc.
-                // The two-argument (K, V) overload is not inline in Kotlin, so it keeps
-                // the closure path and rejects a non-local return like kotlinc does.
+                // Evaluate the callback argument before creating the iterator so a
+                // non-literal callback's side effects happen before iteration, matching
+                // kotlinc's argument-before-body order. A lambda literal is captured
+                // before it is lowered as a closure so a non-local return can inline into
+                // the enclosing function; the two-argument (K, V) overload is not inline
+                // in Kotlin, so it keeps the closure path and rejects a non-local return.
                 let inlined: InlineLambda? = {
                     guard signature.params.count == 1, case .lambdaLiteral = arena.expr(args[0].expr) else { return nil }
                     return InlineLambda(id: args[0].expr, scopes: scopes, dispatch: thisValue, receiver: extensionValue, contexts: contextualReceivers, returns: inlineReturns, arguments: inlineArguments, lexicalLambda: lambdaID, stack: inlineStack)
                 }()
                 let callback = inlined == nil ? try requireValue(args[0].expr) : nil
+                let entries = try jdkCall("java/util/Map", "entrySet", [], .reference("java/util/Set", nullable: false), receiver: source, interface: true)!
+                let iterator = try jdkCall("java/lang/Iterable", "iterator", [], .reference("java/util/Iterator", nullable: false), receiver: entries, interface: true)!
                 let test = label(), end = label()
                 mark(test)
                 let hasNext = try jdkCall("java/util/Iterator", "hasNext", [], .boolean, receiver: iterator, interface: true)!
