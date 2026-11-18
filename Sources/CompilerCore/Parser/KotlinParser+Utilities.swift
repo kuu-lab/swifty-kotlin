@@ -44,6 +44,8 @@ extension KotlinParser {
             }
         }
 
+        consumeAnnotationTypeArgumentsIfPresent(into: &children, range: &range)
+
         if stream.peek().kind == .symbol(.lParen) {
             _ = consumeToken(into: &children, range: &range)
             var closingSymbols: [Symbol] = [.rParen]
@@ -74,6 +76,26 @@ extension KotlinParser {
         }
 
         return true
+    }
+
+    private func consumeAnnotationTypeArgumentsIfPresent(
+        into children: inout [SyntaxChild],
+        range: inout RangeAccumulator
+    ) {
+        guard stream.peek().kind == .symbol(.lessThan) else {
+            return
+        }
+        let end = offsetPastBalancedGroup(
+            from: 0,
+            open: .symbol(.lessThan),
+            close: .symbol(.greaterThan)
+        )
+        guard end > 0, stream.peek(end - 1).kind == .symbol(.greaterThan) else {
+            return
+        }
+        for _ in 0..<end {
+            _ = consumeToken(into: &children, range: &range)
+        }
     }
 
     /// Only named declaration keywords synchronize an unclosed annotation.
@@ -146,6 +168,19 @@ extension KotlinParser {
         while stream.peek(cursor).kind == .symbol(.dot),
               isIdentifierLike(stream.peek(cursor + 1).kind) {
             cursor += 2
+        }
+        if stream.peek(cursor).kind == .symbol(.lessThan) {
+            let typeArgumentsEnd = offsetPastBalancedGroup(
+                from: cursor,
+                open: .symbol(.lessThan),
+                close: .symbol(.greaterThan)
+            )
+            guard typeArgumentsEnd > cursor,
+                  stream.peek(typeArgumentsEnd - 1).kind == .symbol(.greaterThan)
+            else {
+                return nil
+            }
+            cursor = typeArgumentsEnd
         }
         if stream.peek(cursor).kind == .symbol(.lParen) {
             cursor = offsetPastBalancedGroup(from: cursor,
@@ -328,6 +363,19 @@ extension KotlinParser {
                       isIdentifierLike(stream.peek(offset + 1).kind) {
                     guard consumeDeclarationLookaheadWork(&work, at: offset) else { return nil }
                     offset += 2
+                }
+                if stream.peek(offset).kind == .symbol(.lessThan) {
+                    let typeArgumentsEnd = offsetPastBalancedGroup(
+                        from: offset,
+                        open: .symbol(.lessThan),
+                        close: .symbol(.greaterThan)
+                    )
+                    guard typeArgumentsEnd > offset,
+                          stream.peek(typeArgumentsEnd - 1).kind == .symbol(.greaterThan)
+                    else {
+                        return nil
+                    }
+                    offset = typeArgumentsEnd
                 }
                 if stream.peek(offset).kind == .symbol(.lParen) {
                     offset = offsetPastBalancedGroup(from: offset,

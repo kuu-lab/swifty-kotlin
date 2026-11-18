@@ -1058,6 +1058,22 @@ extension KotlinParser {
             guard consumeDeclarationLookaheadWork(&work, at: cursor) else { return .overBudget }
             cursor += 2
         }
+        if stream.peek(cursor).kind == .symbol(.lessThan) {
+            let typeArgumentsEnd = offsetPastBalancedGroup(
+                from: cursor,
+                open: .symbol(.lessThan),
+                close: .symbol(.greaterThan),
+                maxDistance: Self.declarationLookaheadWorkLimit - work
+            )
+            guard typeArgumentsEnd > cursor,
+                  stream.peek(typeArgumentsEnd - 1).kind == .symbol(.greaterThan)
+            else {
+                return .incomplete
+            }
+            work += typeArgumentsEnd - cursor
+            guard work <= Self.declarationLookaheadWorkLimit else { return .overBudget }
+            cursor = typeArgumentsEnd
+        }
         guard stream.peek(cursor).kind == .symbol(.lParen) else { return .complete(cursor) }
         var closingSymbols: [Symbol] = [.rParen]
         cursor += 1

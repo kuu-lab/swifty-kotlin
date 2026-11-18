@@ -64,6 +64,13 @@ enum AnnotationParsingSupport {
             index += 2
         }
 
+        if index < tokens.count,
+           tokens[index].kind == .symbol(.lessThan),
+           let typeArgumentsEnd = endOfAngleBracketGroup(in: tokens, at: index)
+        {
+            index = typeArgumentsEnd
+        }
+
         var arguments: [String] = []
         if index < tokens.count, tokens[index].kind == .symbol(.lParen),
            consumesArgumentList(in: tokens, at: index, typeContext: typeContext)
@@ -113,6 +120,28 @@ enum AnnotationParsingSupport {
             nextIndex: index,
             invalidUseSiteTargetRange: invalidUseSiteTargetRange
         )
+    }
+
+    private static func endOfAngleBracketGroup(in tokens: [Token], at start: Int) -> Int? {
+        var depth = 0
+        var index = start
+        while index < tokens.count {
+            switch tokens[index].kind {
+            case .symbol(.lessThan):
+                depth += 1
+            case .symbol(.greaterThan):
+                depth -= 1
+                if depth == 0 {
+                    return index + 1
+                }
+            case .eof:
+                return nil
+            default:
+                break
+            }
+            index += 1
+        }
+        return nil
     }
 
     /// Decides whether a `(` following an annotation name opens its argument
