@@ -53,5 +53,40 @@ extension JVMBackendTests {
             #expect(execution.stdout == "true\n")
         }
     }
+
+    @Test
+    func javaComparableSignatureSurvivesEarlierWildcardSupertype() throws {
+        try withWorkspace { root in
+            try """
+            package fixture;
+            public interface Marker<T> {}
+            """.write(to: root.appendingPathComponent("Marker.java"), atomically: true, encoding: .utf8)
+            try """
+            package fixture;
+            import java.util.List;
+            public class WildcardFirst implements Marker<List<?>>, Comparable<WildcardFirst> {
+                @Override public int compareTo(WildcardFirst other) { return 0; }
+                @Override public String toString() { return "wildcard"; }
+            }
+            """.write(to: root.appendingPathComponent("WildcardFirst.java"), atomically: true, encoding: .utf8)
+            let compiled = try jvmTool("javac", ["-d", "java-classes", "Marker.java", "WildcardFirst.java"], root: root)
+            try #require(compiled.exitCode == 0, "\(compiled.stderr)")
+
+            let source = """
+            import fixture.WildcardFirst
+            fun <T : Comparable<T>> identity(value: T): T = value
+            fun main() {
+                println(identity(WildcardFirst()))
+            }
+            """
+            let classpath = [root.appendingPathComponent("java-classes").path]
+            let (exitCode, diagnostics) = try compile(source, root: root, mode: .jvmJar, classpath: classpath)
+            try #require(exitCode == 0, "\(diagnostics.map(\.message))")
+
+            let execution = try java(["-cp", root.appendingPathComponent("hello.jar").path + ":" + classpath.joined(separator: ":"), "HelloKt"])
+            #expect(execution.exitCode == 0, "\(execution.stderr)")
+            #expect(execution.stdout == "wildcard\n")
+        }
+    }
 }
 #endif

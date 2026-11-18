@@ -961,10 +961,33 @@ final class JVMClasspathIndex {
         }
         var result: [(binary: String, source: String, referencedClasses: Set<String>)] = []
         while index < scalars.count {
-            guard let reference = javaSignatureReferenceType(scalars, &index) else { break }
+            let referenceStart = index
+            guard let reference = javaSignatureReferenceType(scalars, &index) else {
+                // An unsupported argument (e.g. a wildcard) makes one supertype
+                // unparsable; skip it so later supertypes such as
+                // Comparable<Foo> are still visible.
+                index = javaSignatureSkipClassType(scalars, from: referenceStart)
+                continue
+            }
             result.append((reference.binary, reference.source, reference.referencedClasses))
         }
         return result
+    }
+
+    private func javaSignatureSkipClassType(_ scalars: [Character], from start: Int) -> Int {
+        var index = start
+        var depth = 0
+        while index < scalars.count {
+            switch scalars[index] {
+            case "<": depth += 1
+            case ">": depth = max(0, depth - 1)
+            case ";":
+                if depth == 0 { return index + 1 }
+            default: break
+            }
+            index += 1
+        }
+        return scalars.count
     }
 
     private func superclassReference(_ name: String, child: JVMClassInfo) -> String? {
