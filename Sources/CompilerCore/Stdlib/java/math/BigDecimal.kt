@@ -254,7 +254,36 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
         return if (text.startsWith("-")) BigDecimal(text.substring(1)) else BigDecimal("-" + text)
     }
 
-    /** The unscaled integer value carried by this `BigDecimal`. */
+    public fun abs(): BigDecimal = if (signum() < 0) negate() else this
+
+    public fun toPlainString(): String {
+        val sign = signum()
+        val valueScale = scale()
+        if (sign == 0) {
+            return if (valueScale > 0) "0." + "0".repeat(valueScale) else "0"
+        }
+        val digits = unscaledValue().abs().toString()
+        val body: String
+        if (valueScale == 0) {
+            body = digits
+        } else if (valueScale > 0) {
+            if (digits.length > valueScale) {
+                val point = digits.length - valueScale
+                body = digits.substring(0, point) + "." + digits.substring(point)
+            } else {
+                body = "0." + "0".repeat(valueScale - digits.length) + digits
+            }
+        } else {
+            val zeroCount = -valueScale.toLong()
+            if (zeroCount > Int.MAX_VALUE.toLong()) {
+                throw ArithmeticException("BigDecimal scale out of range")
+            }
+            body = digits + "0".repeat(zeroCount.toInt())
+        }
+        return if (sign < 0) "-" + body else body
+    }
+
+
     public fun toEngineeringString(): String {
         val plain = toString()
         val marker = plain.indexOf('E')
@@ -289,6 +318,8 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
         val exponentText = if (newExponent >= 0) "+" + newExponent else newExponent.toString()
         return (if (negative) "-" else "") + mantissa + "E" + exponentText
     }
+
+    /** The unscaled integer value carried by this `BigDecimal`. */
 
     public fun unscaledValue(): BigInteger = BigInteger(movePointRight(scale()).toString())
 
