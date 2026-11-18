@@ -1,5 +1,4 @@
 #if canImport(Testing)
-@testable import CompilerCore
 import Testing
 @testable import CompilerTestSupport
 
@@ -11,7 +10,7 @@ struct NothingNullAssertMemberTests {
     // type made non-null.
     @Test
     func memberAccessOnDefinitelyNullNullAssertResolvesAgainstAssertedType() throws {
-        let ctx = makeContextFromSource("""
+        _ = try semaContext(from: """
         class Box(val foo: Int) {
             fun bar(): Int = foo
         }
@@ -29,9 +28,7 @@ struct NothingNullAssertMemberTests {
             val p: Int = b!!.foo
             val q: Int = b!!.bar()
         }
-        """)
-        try runSema(ctx)
-        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        """, includeStdlib: false)
     }
 
     // KUU-4593: the asserted-type receiver rule applies to direct member
@@ -39,7 +36,7 @@ struct NothingNullAssertMemberTests {
     // `b`, so the safe-call path keeps the `Nothing` receiver.
     @Test
     func safeCallOnDefinitelyNullNullAssertStaysUnresolved() throws {
-        let ctx = makeContextFromSource("""
+        _ = try semaContext(from: """
         class Box(val foo: Int) {
             fun bar(): Int = foo
         }
@@ -53,10 +50,10 @@ struct NothingNullAssertMemberTests {
             b = null
             val y: Int? = (b!!)?.bar()
         }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(errors.count == 2, "\(ctx.diagnostics.diagnostics)")
+        """, expecting: [
+            .error("KSWIFTK-SEMA-0024", containing: "Unresolved member function 'foo'"),
+            .error("KSWIFTK-SEMA-0024", containing: "Unresolved member function 'bar'"),
+        ], includeStdlib: false)
     }
 }
 #endif
