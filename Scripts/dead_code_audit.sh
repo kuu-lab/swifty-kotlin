@@ -113,7 +113,7 @@ grep -rhoE '@_cdecl\("_*kk_[a-zA-Z0-9_]+"\)' Sources/Runtime --include="*.swift"
 log "[1] Runtime @_cdecl declarations: $(count "$WORK/runtime_cdecl.txt")"
 
 # ── Step 2: 静的 kk_* 参照（CompilerCore + CompilerBackend + bundled .kt） ─
-# kk_print_string_flat のように CompilerBackend でのみ emit される名前や、
+# kk_runtime_stack_trace_enter のように CompilerBackend でのみ emit される名前や、
 # bundled stdlib (*.kt) が外部リンクする名前を取りこぼさないよう拡張する。
 {
     grep -rhoE '_*kk_[a-zA-Z0-9_]+' Sources/CompilerCore Sources/CompilerBackend --include="*.swift"
@@ -291,7 +291,7 @@ fi
 # Keep known classification regressions in one data-driven list.
 #   symbol|file|expected-state|reason
 FIXTURES=(
-  "kk_print_string_flat|dead_A.txt|absent|CompilerBackend-only static emit must not be classified as A"
+  "kk_runtime_stack_trace_enter|dead_A.txt|absent|CompilerBackend-only static emit must not be classified as A"
   "kk_atomic_ref_array_loadAt|dead_B.txt|absent|Two-stage prefix emit must not be classified as B"
   "kk_cvar_int_load|dead_A.txt|absent|Synthetic CVariable getter uses a tuple linkPrefix"
   "kk_cvar_int_store|dead_A.txt|absent|Synthetic CVariable prefix covers generated load and store links"
@@ -307,6 +307,14 @@ if [[ $SELFTEST -eq 1 ]]; then
 
   for fixture in "${FIXTURES[@]}"; do
     IFS='|' read -r symbol file expected reason <<< "$fixture"
+    # A fixture whose symbol is no longer exported can never appear in
+    # dead_A.txt/dead_B.txt, so it would pass vacuously. Fail loudly instead
+    # when a completed removal leaves a fixture behind.
+    if ! grep -qx "$symbol" "$WORK/runtime_cdecl.txt"; then
+      echo "FAIL: $symbol is not declared in Sources/Runtime; fixture is vacuous ($reason)" >&2
+      selftest_failed=1
+      continue
+    fi
     if grep -qx "$symbol" "$WORK/$file"; then
       actual=present
     else

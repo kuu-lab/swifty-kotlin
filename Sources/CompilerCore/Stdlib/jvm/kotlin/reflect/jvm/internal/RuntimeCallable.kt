@@ -44,10 +44,9 @@ internal class RuntimeClassType(
     override val isMarkedNullable: Boolean = false,
     private val explicitArguments: List<KTypeProjection>? = null
 ): KType {
-    constructor(owner: Any, isMarkedNullable: Boolean, arguments: List<KTypeProjection>) :
+    constructor(owner: Any, isMarkedNullable: Boolean, arguments: List<KTypeProjection> = emptyList()) :
         this(owner, null, isMarkedNullable, arguments)
     override val annotations: List<Annotation> get() = emptyList()
-    override val isMarkedNullable: Boolean get() = false
     // A constructor's class reference still carries the class's type
     // parameters, so `Box<T>::class` arguments surface `T` rather than
     // collapsing to an empty list.
@@ -61,7 +60,6 @@ internal class RuntimeClassType(
         return result
     }
 
-    override val isMarkedNullable: Boolean get() = false
     override val classifier: KClassifier get() = ClassReference(owner as java.lang.Class<Any>)
     override fun equals(other: Any?): Boolean =
         other is RuntimeClassType && classifier == other.classifier &&
@@ -110,9 +108,9 @@ internal fun boxResult(value: Any?, metadata: RuntimeMetadata, type: Proto): Any
     return value
 }
 open class RuntimeCallable(
-    protected val ownerClass: Any,
+    protected open val ownerClass: Any,
     private val displayName: String,
-    protected val signatureString: String,
+    protected open val signatureString: String,
     protected val boundReceiver: Any?,
     protected val bound: Boolean
 ): KCallable<Any?> {

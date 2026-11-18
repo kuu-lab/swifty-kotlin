@@ -121,7 +121,17 @@ extension CallLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
-            let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
+            let preservesErasedGenericResult = kirShouldCheckErasedGenericCallResult(
+                exprID: exprID,
+                boundType: boundType,
+                sema: sema,
+                erasedLambdaReturnClaims: driver.ctx.erasedLambdaReturnClaimStack
+            )
+            let result = arena.appendTemporary(
+                type: preservesErasedGenericResult
+                    ? sema.types.nullableAnyType
+                    : (boundType ?? sema.types.anyType)
+            )
             emitMemberCallInstruction(
                 normalized: normalized,
                 callBinding: callBinding,

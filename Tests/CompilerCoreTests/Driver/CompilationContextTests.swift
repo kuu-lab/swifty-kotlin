@@ -98,9 +98,9 @@ struct CompilationContextTests {
     // MARK: - frontendJobs
 
     @Test
-    func testFrontendJobsDefaultIsOne() {
+    func testFrontendJobsDefaultIsHostBounded() {
         let ctx = makeCompilationContext(inputs: ["/a.kt"])
-        #expect(ctx.frontendJobs == 1)
+        #expect(ctx.frontendJobs == CompilerOptions.defaultFrontendJobs)
     }
 
     @Test

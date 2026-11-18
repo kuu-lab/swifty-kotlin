@@ -1149,7 +1149,30 @@ extension ControlFlowLowerer {
 
         let loopVariableSymbol = sema.bindings.identifierSymbols[exprID]
         let previousLoopValue = loopVariableSymbol.flatMap { driver.ctx.localValue(for: $0) }
-        let nextValueID = arena.appendTemporary(type: loopBinding.elementType)
+        // A non-reified generic `next()` result crosses the erased ABI boundary,
+        // so Kotlin/JVM emits a checkcast where the loop variable claims it at
+        // the substituted element type (KUU-4594). Keep the raw erased value
+        // until that check, mirroring `checkedErasedGenericCallResult`. Only a
+        // `next()` whose declared return is itself an erased type parameter
+        // crosses that boundary — a concrete return (including a value class)
+        // keeps its own representation. Primitive elements keep the unbox path.
+        let nextResultIsErased = sema.symbols.functionSignature(for: loopBinding.nextCall.chosenCallee)
+            .map { kirIsNonReifiedErasedReturnType($0.returnType, sema: sema) } ?? false
+        let loopClaimType: TypeID? = {
+            guard nextResultIsErased,
+                  let checkType = kirCheckableCastErasure(of: loopBinding.elementType, sema: sema),
+                  kirErasedBoundaryCheckable(checkType, sema: sema)
+            else {
+                return nil
+            }
+            if case .primitive = sema.types.kind(of: sema.types.makeNonNullable(checkType)) {
+                return nil
+            }
+            return checkType
+        }()
+        let nextValueID = arena.appendTemporary(
+            type: loopClaimType != nil ? sema.types.nullableAnyType : loopBinding.elementType
+        )
         emitForLoopMemberCall(
             callBinding: loopBinding.nextCall,
             fallback: "next",
@@ -1167,25 +1190,42 @@ extension ControlFlowLowerer {
         // loop body uses the typed value; kk_unbox_int also accepts an
         // already-raw scalar.
         let loopElementID: KIRExprID
-        let needsIntUnboxing: Bool = switch sema.types.kind(of: loopBinding.elementType) {
-        case .primitive(.byte, .nonNull), .primitive(.short, .nonNull):
-            true
-        case let .classType(classType) where classType.nullability == .nonNull:
-            sema.symbols.symbol(classType.classSymbol)?.kind == .enumClass
-        default:
-            false
-        }
-        if needsIntUnboxing {
-            let scalar = arena.appendTemporary(type: loopBinding.elementType)
-            emitNonThrowingCall(
-                callee: interner.intern("kk_unbox_int"),
-                arg: nextValueID,
-                result: scalar,
-                into: &instructions
+        if let loopClaimType {
+            let tokenType = sema.types.make(.primitive(.int, .nonNull))
+            let encoded = RuntimeTypeCheckToken.encode(
+                type: sema.types.makeNullable(loopClaimType), sema: sema, interner: interner
             )
-            loopElementID = scalar
+            let tokenExpr = arena.appendExpr(.intLiteral(encoded), type: tokenType)
+            instructions.append(.constValue(result: tokenExpr, value: .intLiteral(encoded)))
+            let checked = arena.appendTemporary(type: loopClaimType)
+            instructions.append(.call(
+                callee: interner.intern("kk_op_cast"),
+                arguments: [nextValueID, tokenExpr],
+                result: checked,
+                canThrow: true
+            ))
+            loopElementID = checked
         } else {
-            loopElementID = nextValueID
+            let needsIntUnboxing: Bool = switch sema.types.kind(of: loopBinding.elementType) {
+            case .primitive(.byte, .nonNull), .primitive(.short, .nonNull):
+                true
+            case let .classType(classType) where classType.nullability == .nonNull:
+                sema.symbols.symbol(classType.classSymbol)?.kind == .enumClass
+            default:
+                false
+            }
+            if needsIntUnboxing {
+                let scalar = arena.appendTemporary(type: loopBinding.elementType)
+                emitNonThrowingCall(
+                    callee: interner.intern("kk_unbox_int"),
+                    arg: nextValueID,
+                    result: scalar,
+                    into: &instructions
+                )
+                loopElementID = scalar
+            } else {
+                loopElementID = nextValueID
+            }
         }
         if let loopVariableSymbol {
             driver.ctx.setLocalValue(loopElementID, for: loopVariableSymbol)

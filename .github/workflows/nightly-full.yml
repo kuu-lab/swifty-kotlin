@@ -105,7 +105,7 @@ jobs:
           echo "bundle=ready" >> "$GITHUB_OUTPUT"
       - name: Upload debug test bundle artifact
         if: always() && steps.package.outcome == 'success'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: swift-debug-tests-${{ github.run_id }}
           path: |
@@ -156,7 +156,7 @@ jobs:
       - name: Show toolchain versions
         run: swift --version
       - name: Download debug test bundle artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: swift-debug-tests-${{ github.run_id }}
           path: ${{ runner.temp }}/swift-debug-tests-artifact
@@ -277,7 +277,7 @@ jobs:
       - name: Show toolchain versions
         run: swift --version
       - name: Download debug test bundle artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: swift-debug-tests-${{ github.run_id }}
           path: ${{ runner.temp }}/swift-debug-tests-artifact
@@ -385,7 +385,7 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload loc report artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: refactoring-metrics-${{ github.run_id }}
           path: ${{ runner.temp }}/refactoring-metrics/loc_report.tsv
@@ -434,7 +434,7 @@ jobs:
             echo "- Archive size: \`$(du -h "$archive_path" | cut -f1)\`"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload release compiler artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: kswiftc-release-${{ github.run_id }}
           path: |
@@ -465,7 +465,7 @@ jobs:
       - name: Setup LLVM
         uses: ./.github/actions/setup-llvm
       - name: Download release compiler artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: kswiftc-release-${{ github.run_id }}
           path: ${{ runner.temp }}/js-annotations-compiler
@@ -495,7 +495,7 @@ jobs:
           fi
       - name: Upload JS annotation commands and evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: js-annotations-evidence-${{ github.run_id }}
           path: |
@@ -572,7 +572,7 @@ jobs:
       - name: Show toolchain versions
         run: swift --version
       - name: Download release compiler artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: kswiftc-release-${{ github.run_id }}
           path: ${{ runner.temp }}/kswiftc-release-artifact
@@ -703,7 +703,7 @@ jobs:
           exit 1
       - name: Upload kotlinc diff failure artifacts
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: kotlinc-diff-regression-${{ github.run_id }}-${{ matrix.optimization }}-shard-${{ matrix.shard_label }}
           path: |
@@ -735,7 +735,7 @@ jobs:
         with:
           swift-version: "6.3"
       - name: Download release compiler artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: kswiftc-release-${{ github.run_id }}
           path: ${{ runner.temp }}/kswiftc-release-artifact
@@ -836,7 +836,7 @@ jobs:
           exit 1
       - name: Upload JVM backend diff failure artifacts
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: kotlinc-diff-jvm-${{ github.run_id }}
           path: |
@@ -860,8 +860,8 @@ jobs:
     env:
       KOTLIN_VERSION: "2.4.20"
       KOTLIN_COMPILER_SHA256: "59e9ca74c7904ef2c122b12114937673ccce68de820a663f0ed66ccf8799e0b7"
-      WASMTIME_VERSION: "49.0.3"
-      WASMTIME_SHA256: "4001225413f208345b980525f31c4080e1873808b38d0ddc7918497340667fbb"
+      WASMTIME_VERSION: "49.0.6"
+      WASMTIME_SHA256: "15625b129e54534793dc77965d6912a5307db8e8e90ee114f52ef62ce6e4f918"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Prepare Linux runner
@@ -871,7 +871,7 @@ jobs:
         with:
           swift-version: "6.3"
       - name: Download release compiler artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: kswiftc-release-${{ github.run_id }}
           path: ${{ runner.temp }}/kswiftc-release-artifact
@@ -982,7 +982,7 @@ jobs:
           exit 1
       - name: Upload WASM backend diff failure artifacts
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: kotlinc-diff-wasm-${{ github.run_id }}-${{ matrix.engine }}
           path: |
@@ -1016,7 +1016,7 @@ jobs:
       - name: Setup LLVM
         uses: ./.github/actions/setup-llvm
       - name: Download release compiler artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: kswiftc-release-${{ github.run_id }}
           path: ${{ runner.temp }}/kswiftc-release-artifact
@@ -1089,7 +1089,7 @@ jobs:
             --report "$RUNNER_TEMP/nightly-mutation-fuzzer/report.json"
       - name: Upload fuzzer artifacts
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: nightly-mutation-fuzzer-${{ github.run_id }}
           path: ${{ runner.temp }}/nightly-mutation-fuzzer
@@ -1118,7 +1118,7 @@ jobs:
         with:
           swift-version: "6.3"
       - name: Download debug test bundle artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: swift-debug-tests-${{ github.run_id }}
           path: ${{ runner.temp }}/swift-debug-tests-artifact
@@ -1166,7 +1166,7 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload audit artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: nightly-audits-${{ github.run_id }}
           path: ${{ runner.temp }}/nightly-audits
@@ -1238,7 +1238,7 @@ jobs:
             --dependencies "$KIO_DEPENDENCIES" --output "$RUNNER_TEMP/kio-reference-results"
       - name: Preserve raw results, discovery, commands, SDK hashes and failures
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: kotlinx-io-reference-${{ matrix.kind }}-${{ github.run_id }}
           path: |
@@ -1358,7 +1358,7 @@ jobs:
           python3 Scripts/kotlinx_io_upstream/apple/verify_candidate_receipts.py --receipts apple-candidate-receipts
       - name: Preserve raw failures, SDK inputs and successful scoped proofs
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: io-apple-candidate-${{ github.run_id }}-${{ github.run_attempt }}
           path: apple-candidate-receipts
