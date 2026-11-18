@@ -784,6 +784,13 @@ extension ExprTypeChecker {
                 // including aliases, nullable elements, and shadowed primitive names.
                 declaredType = array
             }
+            // Re-entry after inference must not replace a concrete inferred type
+            // with the Any placeholder used before the initializer is checked.
+            if propertyDecl.type == nil,
+               let existingPropertyType = sema.symbols.propertyType(for: propertySymbol),
+               existingPropertyType != sema.types.anyType {
+                declaredType = existingPropertyType
+            }
             sema.symbols.setPropertyType(declaredType, for: propertySymbol)
             if let setterVisibility = propertyDecl.setter?.visibility {
                 sema.symbols.setPropertySetterVisibility(setterVisibility, for: propertySymbol)
