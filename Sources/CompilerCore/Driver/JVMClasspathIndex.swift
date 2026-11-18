@@ -1573,14 +1573,19 @@ final class JVMClasspathIndex {
             if !info.isInterface && method.isFinal { source += "final " }
             source += overrides ? "override " : ""
             if !info.isInterface { source += overrides || method.isFinal ? "" : "open " }
-            if method.sourceName == "get", method.sourceParameters.count == 1, method.kotlinFunction?.isOperator != true {
-                source += "operator "
-            }
-            if !info.isInterface { source += "external " }
             // Parents may still have erased classpath signatures.
             let usesErasedOverride = overrides
                 && (method.kotlinFunction?.isGenericFinalGetter == true || method.kotlinFunction?.hasStableFinalParameters == true)
-            source += functionDeclaration(method, usesKotlinMetadata: !usesErasedOverride)
+            let usesKotlinMetadata = !usesErasedOverride
+            let needsGetOperator = method.sourceName == "get" && method.sourceParameters.count == 1
+                && method.kotlinFunction?.isOperator != true
+            let kotlinDeclaresOperator = needsGetOperator && usesKotlinMetadata
+                && kotlinFunction(method)?.isOperator == true
+            if needsGetOperator, !kotlinDeclaresOperator {
+                source += "operator "
+            }
+            if !info.isInterface { source += "external " }
+            source += functionDeclaration(method, usesKotlinMetadata: usesKotlinMetadata)
             let hasKotlinDefaultBody = kotlinFunction(method)?.isAbstract == false
             if info.isInterface, !method.isAbstract || hasKotlinDefaultBody {
                 source += method.sourceResult == .unit ? " {}" : " = null!!"
