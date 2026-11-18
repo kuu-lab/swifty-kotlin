@@ -403,9 +403,21 @@ extension ExprTypeChecker {
         // entry to the enclosing function's receiver parameter so stable
         // property smart casts on the captured `this` survive into the local
         // nominal's member bodies (KUU-4605).
+        //
+        // Only rewrite when the enclosing function's own `this` *is* the
+        // enclosing class instance — i.e. a plain member function. A member
+        // *extension* function's implicit receiver is the extension receiver
+        // (e.g. `String`), a different value from the dispatch receiver
+        // (`this@Outer`) that owns the captured property, and
+        // `receiverParameterSymbol(for:)` denotes that extension receiver. The
+        // enclosing class still sits on the outer-receiver tower there, so
+        // rewriting it would bind the entry to the wrong instance; skip it.
         var memberOuterReceiverTypes = ctx.outerReceiverTypes
         if let enclosingFunctionSymbol = ctx.enclosingFunctionSymbol,
-           let enclosingClassSymbol = ctx.enclosingClassSymbol
+           let enclosingClassSymbol = ctx.enclosingClassSymbol,
+           let implicitReceiverType = ctx.implicitReceiverType,
+           case let .classType(receiverClassType) = sema.types.kind(of: implicitReceiverType),
+           receiverClassType.classSymbol == enclosingClassSymbol
         {
             let receiverValueSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: enclosingFunctionSymbol)
             for index in memberOuterReceiverTypes.indices {
@@ -1033,10 +1045,17 @@ extension ExprTypeChecker {
             ast: ast,
             sema: sema
         ))
+        // Nested inner-class member bodies resolve outer receivers through the
+        // rewritten `memberOuterReceiverTypes` (see above), so the capture
+        // candidate set must include those receiver value symbols as well as the
+        // original tower symbols; otherwise a receiver referenced only from a
+        // nested inner class would be dropped (KUU-4605).
         capturedSymbols.formUnion(collectNestedInnerClassCaptures(
             classDecl.nestedClasses,
             outerReceiverSymbols: Set(
-                ctx.outerReceiverTypes.compactMap(\.symbol) + ctx.implicitReceiverStack.map(\.symbol)
+                ctx.outerReceiverTypes.compactMap(\.symbol)
+                    + memberOuterReceiverTypes.compactMap(\.symbol)
+                    + ctx.implicitReceiverStack.map(\.symbol)
             ),
             superConstructorCaptureSymbols: captureOuterSymbols,
             ast: ast,
