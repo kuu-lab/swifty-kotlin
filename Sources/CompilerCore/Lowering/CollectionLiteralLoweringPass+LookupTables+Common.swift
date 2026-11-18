@@ -36,7 +36,6 @@ struct CommonLookupNames {
     let reduceName: InternedString
     let scanName: InternedString
     let runningFoldName: InternedString
-    let runningReduceName: InternedString
     let groupByName: InternedString
     let findName: InternedString
     let findLastName: InternedString
@@ -61,9 +60,6 @@ struct CommonLookupNames {
     let foldIndexedName: InternedString
     let reduceIndexedName: InternedString
     let filterIndexedName: InternedString
-    let runningFoldIndexedName: InternedString
-    let runningReduceIndexedName: InternedString
-    let scanIndexedName: InternedString
     let maxName: InternedString
     let maxOrNullName: InternedString
     let minOrNullName: InternedString
@@ -143,7 +139,6 @@ struct CommonLookupNames {
         reduceName = interner.intern("reduce")
         scanName = interner.intern("scan")
         runningFoldName = interner.intern("runningFold")
-        runningReduceName = interner.intern("runningReduce")
         groupByName = interner.intern("groupBy")
         findName = interner.intern("find")
         findLastName = interner.intern("findLast")
@@ -168,9 +163,6 @@ struct CommonLookupNames {
         foldIndexedName = interner.intern("foldIndexed")
         reduceIndexedName = interner.intern("reduceIndexed")
         filterIndexedName = interner.intern("filterIndexed")
-        runningFoldIndexedName = interner.intern("runningFoldIndexed")
-        runningReduceIndexedName = interner.intern("runningReduceIndexed")
-        scanIndexedName = interner.intern("scanIndexed")
         maxName = interner.intern("max")
         maxOrNullName = interner.intern("maxOrNull")
         minOrNullName = interner.intern("minOrNull")
