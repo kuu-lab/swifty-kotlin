@@ -6,17 +6,12 @@ import Testing
 
 @Suite
 struct ContextParameterOverloadTests {
-    private let contextFlags = [
-        "explicit-context-arguments",
-    ]
-
     private func context(_ source: String, emit: EmitMode = .kirDump) -> CompilationContext {
         let path = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString + ".kt").path
         let ctx = makeCompilationContext(
             inputs: [path],
             emit: emit,
-            frontendFlags: contextFlags,
             includeStdlib: false,
             allowDefaultStdlibLibrary: false
         )
