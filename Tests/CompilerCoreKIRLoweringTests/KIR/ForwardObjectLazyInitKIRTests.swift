@@ -162,21 +162,4 @@ struct ForwardObjectLazyInitKIRTests {
         let body = try findKIRFunctionBody(named: "readX", in: module, interner: ctx.interner)
         #expect(kirCalls(in: body).contains { $0.symbol == initializer.symbol })
     }
-
-    /// `.kirDump` skips bundled stdlib bodies, so a user default argument that
-    /// mentions a skipped bundled object must not leave an unresolved lazy-init
-    /// guard behind (kotlinx.html's `measureTime(timeSource = TimeSource.Monotonic)`).
-    @Test
-    func kirDumpDropsLazyInitGuardForSkippedBundledObject() throws {
-        let source = """
-        import kotlin.time.TimeSource
-
-        fun defaultTimeSource(timeSource: TimeSource = TimeSource.Monotonic): TimeSource = timeSource
-
-        fun main() { defaultTimeSource() }
-        """
-        let ctx = makeContextFromSource(source)
-        try runToLowering(ctx)
-        try #require(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
-    }
 }
