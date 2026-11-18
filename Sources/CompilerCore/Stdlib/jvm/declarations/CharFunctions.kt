@@ -1,5 +1,7 @@
 package kotlin.text
+@kotlin.internal.InlineOnly
 public inline operator fun Char.inc(): Char = (this.code + 1).toChar()
+@kotlin.internal.InlineOnly
 public inline operator fun Char.dec(): Char = (this.code - 1).toChar()
 fun Char.isDigit(): Boolean = false
 fun Char.isLowerCase(): Boolean = false
