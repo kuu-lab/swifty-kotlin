@@ -290,7 +290,7 @@ extension DeclTypeChecker {
                 else {
                     continue
                 }
-                if allowFullInferredPrecheck || property.delegateExpression != nil,
+                if allowFullInferredPrecheck,
                    canSafelyPrecheckInferredProperty(
                        property,
                        symbol: propertySymbol,
