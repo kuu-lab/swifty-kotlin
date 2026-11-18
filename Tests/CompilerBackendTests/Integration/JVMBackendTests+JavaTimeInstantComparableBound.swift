@@ -23,5 +23,35 @@ extension JVMBackendTests {
             #expect(execution.stdout.hasSuffix("Z\n"))
         }
     }
+
+    @Test
+    func javaComparableWildcardSignatureKeepsErasedSupertype() throws {
+        try withWorkspace { root in
+            try """
+            package fixture;
+            import java.util.List;
+            public class Lower implements Comparable<List<? super String>> {
+                @Override public int compareTo(List<? super String> other) { return 0; }
+            }
+            """.write(to: root.appendingPathComponent("Lower.java"), atomically: true, encoding: .utf8)
+            let compiled = try jvmTool("javac", ["-d", "java-classes", "Lower.java"], root: root)
+            try #require(compiled.exitCode == 0, "\(compiled.stderr)")
+
+            let source = """
+            import fixture.Lower
+            fun main() {
+                val lower: Lower? = null
+                println(lower == null)
+            }
+            """
+            let classpath = [root.appendingPathComponent("java-classes").path]
+            let (exitCode, diagnostics) = try compile(source, root: root, mode: .jvmJar, classpath: classpath)
+            try #require(exitCode == 0, "\(diagnostics.map(\.message))")
+
+            let execution = try java(["-jar", root.appendingPathComponent("hello.jar").path])
+            #expect(execution.exitCode == 0, "\(execution.stderr)")
+            #expect(execution.stdout == "true\n")
+        }
+    }
 }
 #endif

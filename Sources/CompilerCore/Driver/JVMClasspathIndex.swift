@@ -923,19 +923,14 @@ final class JVMClasspathIndex {
             index += 1
             var arguments: [String] = []
             while index < scalars.count, scalars[index] != ">" {
-                if scalars[index] == "*" {
-                    index += 1
-                    arguments.append("*")
-                    continue
-                }
-                var variance = ""
-                if scalars[index] == "+" || scalars[index] == "-" {
-                    variance = scalars[index] == "+" ? "out " : "in "
-                    index += 1
-                }
+                // Use-site projections do not always survive Kotlin's
+                // declaration-site variance when Java types are mapped
+                // (e.g. java.util.List -> kotlin.collections.List). Keep the
+                // erased fallback for wildcard signatures instead.
+                if scalars[index] == "*" || scalars[index] == "+" || scalars[index] == "-" { return nil }
                 guard let argument = javaSignatureType(scalars, &index) else { return nil }
                 referencedClasses.formUnion(argument.referencedClasses)
-                arguments.append(variance + argument.source)
+                arguments.append(argument.source)
             }
             guard index < scalars.count, scalars[index] == ">" else { return nil }
             index += 1
