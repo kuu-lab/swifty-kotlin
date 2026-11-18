@@ -164,6 +164,22 @@ extension JVMFunctionBuilder {
             let result = name == "entries" ? program.enumEntriesField(plan).type : (name == "values" ? program.enumValuesField(plan).type : .reference(plan.name, nullable: false))
             return JVMIntrinsicResult(value: try jdkCall(plan.name, name == "entries" ? "getEntries" : name, params, result, arguments: args.map { try requireValue($0.expr) }))
         }
+        if let symbol = receiverSymbol,
+           enumPlan == nil,
+           program.sema.symbols.symbol(symbol)?.kind == .enumClass,
+           ["values", "valueOf", "entries"].contains(name)
+        {
+            let params: [JVMValueType] = name == "valueOf" ? [.string] : []
+            guard args.count == params.count, args.allSatisfy({ $0.label == nil && !$0.isSpread }) else { throw fail("Unsupported JVM enum static call.", id) }
+            let owner = try program.className(symbol)
+            let enumType = JVMValueType.reference(owner, nullable: false)
+            let result: JVMValueType = switch name {
+            case "entries": .reference("kotlin/enums/EnumEntries", nullable: false)
+            case "values": .reference("[L" + owner + ";", nullable: false)
+            default: enumType
+            }
+            return JVMIntrinsicResult(value: try jdkCall(owner, name == "entries" ? "getEntries" : name, params, result, arguments: args.map { try requireValue($0.expr) }, resolved: program.expressionType(id)))
+        }
         if let plan = enumPlan, plan.isEnum, name == "serializer", args.isEmpty {
             let serializerSymbol = program.sema.serializationClasses[plan.symbol]?.companionSerializerMethod
             let isStaticEnumSerializer = serializerSymbol.map {
