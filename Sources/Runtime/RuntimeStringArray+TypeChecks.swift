@@ -168,28 +168,25 @@ private func runtimePrimitiveBoxNominalTypeID(_ ptr: UnsafeMutableRawPointer) ->
     return nil
 }
 
-/// The nominal type ID of the `RuntimeBigNumberBox` `ptr` represents
-/// (`java.math.BigDecimal`), or `nil` for any other runtime object. Like the
-/// primitive boxes above, these constructors bypass `kk_object_new`, so the
-/// nominal identity has to be recovered from the box itself.
-private func runtimeBigNumberBoxNominalTypeID(_ ptr: UnsafeMutableRawPointer) -> Int64? {
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
+private let runtimeBigDecimalNominalTypeID = runtimeStableNominalTypeID(fqName: "java.math.BigDecimal")
+
+/// Registers BigDecimal's direct Number/Comparable ancestry once. BigDecimal
+/// values are `RuntimeBigNumberBox` handles rather than `kk_object_new`
+/// allocations, so `kk_op_is` recovers this nominal identity from the box
+/// (KUU-4596 `divideAndRemainder` array elements).
+func registerBigDecimalTypeEdgesOnce() {
+    runtimeStorage.withMetadataLock { state in
+        if state.bigDecimalTypeEdgesRegistered {
+            return
+        }
+        let number = runtimeStableNominalTypeID(fqName: "kotlin.Number")
+        let comparable = runtimeStableNominalTypeID(fqName: "kotlin.Comparable")
+        let serializable = runtimeStableNominalTypeID(fqName: "java.io.Serializable")
+        state.typeParents[runtimeBigDecimalNominalTypeID, default: []].insert(number)
+        state.typeParents[runtimeBigDecimalNominalTypeID, default: []].insert(comparable)
+        state.typeParents[number, default: []].insert(serializable)
+        state.bigDecimalTypeEdgesRegistered = true
     }
-    guard isObjectPointer, tryCast(ptr, to: RuntimeBigNumberBox.self) != nil else {
-        return nil
-    }
-    RuntimePrimitiveNominalTypeIDs.shared.registerEdgesOnce()
-    let bigDecimalTypeID = runtimeStableNominalTypeID(fqName: "java.math.BigDecimal")
-    runtimeRegisterTypeEdge(
-        childTypeID: bigDecimalTypeID,
-        parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.Number")
-    )
-    runtimeRegisterTypeEdge(
-        childTypeID: bigDecimalTypeID,
-        parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.Comparable")
-    )
-    return bigDecimalTypeID
 }
 
 func runtimeIsStringBoxPointer(_ ptr: UnsafeMutableRawPointer) -> Bool {
@@ -544,12 +541,6 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
                 targetTypeID: payload
             ) ? 1 : 0
         }
-        if let bigNumberTypeID = runtimeBigNumberBoxNominalTypeID(ptr) {
-            return runtimeIsAssignable(
-                sourceTypeID: bigNumberTypeID,
-                targetTypeID: payload
-            ) ? 1 : 0
-        }
         // Range handles carry no object type ID either: they are allocated by
         // `__kk_*_rangeTo`/`downTo`/`until` factories, not kk_object_new.
         // Recover the nominal identity from the range kind, mirroring the
@@ -637,6 +628,20 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
             registerChannelFamilyTypeEdgesOnce()
             return runtimeIsAssignable(
                 sourceTypeID: channelFamilyTypeID,
+                targetTypeID: payload
+            ) ? 1 : 0
+        }
+        // KUU-4596: BigDecimal values are RuntimeBigNumberBox handles rather
+        // than kk_object_new allocations, so recover the java.math.BigDecimal
+        // nominal identity for `is`/`as` checks (notably Array<BigDecimal> reads).
+        if let bigNumberBox = runtimeStorage.withGCLock({ state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+                ? tryCast(ptr, to: RuntimeBigNumberBox.self)
+                : nil
+        }), bigNumberBox.kind == .decimal {
+            registerBigDecimalTypeEdgesOnce()
+            return runtimeIsAssignable(
+                sourceTypeID: runtimeBigDecimalNominalTypeID,
                 targetTypeID: payload
             ) ? 1 : 0
         }

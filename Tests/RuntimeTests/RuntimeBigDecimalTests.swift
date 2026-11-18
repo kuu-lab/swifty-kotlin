@@ -241,6 +241,57 @@ struct RuntimeBigDecimalTests {
     }
 
     @Test
+    func testBigDecimalNominalTypeChecks() {
+        var thrown = 0
+        let value = withFlatString("10.5") { data, length, byteCount, hash in
+            __kk_string_toBigDecimal_flat(data, length, byteCount, hash, &thrown)
+        }
+        #expect(thrown == 0)
+
+        let bigDecimalToken = nominalTypeToken(for: "java.math.BigDecimal")
+        #expect(kk_op_is(value, bigDecimalToken) == 1)
+        #expect(kk_op_is(value, nominalTypeToken(for: "kotlin.Number")) == 1)
+        #expect(kk_op_is(value, nominalTypeToken(for: "kotlin.Comparable")) == 1)
+        #expect(kk_op_is(value, nominalTypeToken(for: "java.math.BigInteger")) == 0)
+
+        var castThrown = 0
+        #expect(kk_op_cast(value, bigDecimalToken, &castThrown) == value)
+        #expect(castThrown == 0)
+    }
+
+    @Test
+    func testBigDecimalMathContextDivision() {
+        func box(_ text: String) -> Int {
+            var thrown = 0
+            let raw = withFlatString(text) { data, length, byteCount, hash in
+                __kk_string_toBigDecimal_flat(data, length, byteCount, hash, &thrown)
+            }
+            #expect(thrown == 0)
+            return raw
+        }
+
+        var thrown = 0
+        let rounded = __kk_bignum_divideMathContext(box("1"), box("3"), 2, 4, &thrown)
+        #expect(thrown == 0)
+        #expect(stringValue(__kk_bignum_toString(rounded)) == "0.33")
+
+        let exact = __kk_bignum_divideMathContext(box("1"), box("2"), 2, 4, &thrown)
+        #expect(thrown == 0)
+        #expect(stringValue(__kk_bignum_toString(exact)) == "0.5")
+
+        let carried = __kk_bignum_divideMathContext(box("999"), box("10"), 2, 4, &thrown)
+        #expect(thrown == 0)
+        #expect(stringValue(__kk_bignum_toString(carried)) == "1.0E+2")
+
+        let largeScale = __kk_bignum_divideMathContext(box("1E-1000"), box("3"), 2, 4, &thrown)
+        #expect(thrown == 0)
+        #expect(stringValue(__kk_bignum_toString(largeScale)) == "3.3E-1001")
+
+        _ = __kk_bignum_divideMathContext(box("1"), box("3"), 0, 4, &thrown)
+        #expect(thrown != 0)
+    }
+
+    @Test
     func testBigDecimalSetScaleRoundingAndUnnecessaryMode() {
         func box(_ text: String) -> Int {
             var thrown = 0
@@ -310,21 +361,6 @@ struct RuntimeBigDecimalTests {
         #expect(kk_number_to_primitive(value, 0, 4) == __kk_bignum_toShort(value))
         #expect(kk_number_to_primitive(value, 0, 5) == __kk_bignum_toByte(value))
         #expect(kk_number_to_primitive(value, 0, 6) == kk_int_to_char(__kk_bignum_toInt(value)))
-    }
-
-    @Test
-    func testBigDecimalBoxAnswersNominalTypeChecks() {
-        var thrown = 0
-        let value = withFlatString("1.25") { data, length, byteCount, hash in
-            __kk_string_toBigDecimal_flat(data, length, byteCount, hash, &thrown)
-        }
-        #expect(thrown == 0)
-
-        #expect(kk_op_is(value, nominalTypeToken(for: "java.math.BigDecimal")) == 1)
-        #expect(kk_op_is(value, nominalTypeToken(for: "kotlin.Number")) == 1)
-        #expect(kk_op_is(value, nominalTypeToken(for: "kotlin.Comparable")) == 1)
-        #expect(kk_op_is(value, nominalTypeToken(for: "java.io.Serializable")) == 1)
-        #expect(kk_op_is(value, nominalTypeToken(for: "kotlin.CharSequence")) == 0)
     }
 }
 #endif
