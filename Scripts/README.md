@@ -702,9 +702,13 @@ their reason codes are tracked in `docs/dead-code-audit.md`):
 bash Scripts/dead_code_audit.sh --verbose
 ```
 
-The `Quarterly Audits` workflow runs this audit with the fiction audit on the
-first day of January, April, July, and October. Its summary and the intermediate
-audit files are retained as a 90-day GitHub Actions artifact.
+The `Nightly Full Verification` workflow (`.github/workflows/nightly-full.yml`)
+runs this audit together with the fiction audit every night on `master`
+(04:00 JST), and when dispatched manually on any ref. Its summary and the
+intermediate audit files are retained as a 30-day GitHub Actions artifact
+(`nightly-audits-<run id>`). To run the same CI lane against a branch before
+merging, dispatch it with `gh workflow run nightly-full.yml --ref <branch>`;
+the command above is the local equivalent.
 
 ## Ktor build probe
 
