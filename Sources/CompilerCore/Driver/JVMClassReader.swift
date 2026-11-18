@@ -563,8 +563,14 @@ struct JVMClassReader {
                 method.isProtected = access & 0x0004 != 0
                 method.isVarargs = access & 0x0080 != 0
                 method.genericResultParameter = Self.genericResultParameter(in: methodInfo.signature, method: method)
+                if name == "androidx/work/WorkRequest$Builder", let signature = methodInfo.signature {
+                    for parameter in ["B", "W"] where signature.hasSuffix(")T\(parameter);") {
+                        method.kotlinOwnerResultParameter = parameter
+                    }
+                }
                 method.annotations = methodInfo.annotations
                 method.annotationDefault = methodInfo.annotationDefault
+                method.genericSignature = methodInfo.signature
                 if isSyntheticConstructor { syntheticConstructors.append(method) }
                 else if isDefaultArgumentMethod { defaultArgumentMethods.append(method) }
                 else if access & 0x0040 != 0 { bridgeMethods.append(method) }
