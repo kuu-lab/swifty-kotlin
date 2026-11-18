@@ -606,7 +606,7 @@ final class JVMClasspathIndex {
             || name == "kotlin/coroutines/Continuation" || classes[name] != nil
     }
 
-    private func exposeSuspendType(_ type: JVMValueType) -> Bool {
+    func exposeSuspendType(_ type: JVMValueType) -> Bool {
         guard let name = type.referenceName else { return true }
         if name.hasPrefix("kotlin/jvm/functions/Function") { return false }
         if name.hasPrefix("["), let element = try? JVMDescriptor.parse("()" + String(name.dropFirst())).1 {
@@ -881,7 +881,8 @@ final class JVMClasspathIndex {
         info.methods.compactMap { method in
             guard method.isAbstract, !method.isStatic, !method.isConstructor,
                   method.parameters.isEmpty, method.name != "annotationType",
-                  method.result != .unit, JVMProgramBuilder.isIdentifier(method.name)
+                  method.result != .unit, JVMProgramBuilder.isIdentifier(method.name),
+                  expose(method.result)
             else { return nil }
             return (method.name, method.result, method.annotationDefault,
                     annotationElementIsVararg(info, name: method.name, type: method.result))
@@ -932,7 +933,7 @@ final class JVMClasspathIndex {
         if info.repeatableAnnotationContainer != nil {
             lines.append("@kotlin.annotation.Repeatable")
         }
-        if let targets = javaAnnotationTargets(info.annotations), !targets.isEmpty {
+        if let targets = kotlinAnnotationTargets(info.annotations) ?? javaAnnotationTargets(info.annotations), !targets.isEmpty {
             lines.append("@kotlin.annotation.Target(" + targets.map { "kotlin.annotation.AnnotationTarget." + $0 }.joined(separator: ", ") + ")")
         }
         let parameters = annotationElements(of: info).enumerated().compactMap { index, element -> String? in
@@ -967,6 +968,19 @@ final class JVMClasspathIndex {
         case "SOURCE": return "SOURCE"
         default: return "BINARY"
         }
+    }
+
+    private func kotlinAnnotationTargets(_ annotations: [JVMAnnotation]) -> [String]? {
+        guard let target = annotations.first(where: { $0.descriptor == "Lkotlin/annotation/Target;" }) else { return nil }
+        var names: [String] = []
+        for (name, value) in target.values where name == "allowedTargets" {
+            guard case let .array(elements) = value else { continue }
+            for element in elements {
+                guard case let .enumEntry(_, targetName) = element, !names.contains(targetName) else { continue }
+                names.append(targetName)
+            }
+        }
+        return names.isEmpty ? nil : names
     }
 
     private func javaAnnotationTargets(_ annotations: [JVMAnnotation]) -> [String]? {
@@ -1216,10 +1230,8 @@ final class JVMClasspathIndex {
                 !isContextIsActive($0.source, $0.getter)
                     && $0.getter.parameters.allSatisfy(exposeSuspendType) && exposeSuspendType($0.getter.result)
             }
-            let isFileFacade = info.isKotlinFileFacade ?? short.hasSuffix("Kt")
-            if info.isAnnotation && own.allSatisfy(\.isStatic) {
-                source += "annotation class `\(short)`\n"
-            } else if info.flags & 0x4000 != 0 {
+            let isFileFacade = info.isKotlinFileFacade ?? (short.hasSuffix("Kt") && !info.isAnnotation)
+            if info.flags & 0x4000 != 0 {
                 source += enumDeclaration(info, name: short)
             } else if isComposer {
                 // The lowering uses the two group operations directly. Keep
@@ -1997,7 +2009,7 @@ final class JVMClasspathIndex {
             let short = parts.last!
             if !name.contains("$") {
                 lazyTopLevelByPackage[package, default: []].append((short, name))
-                if let info = classes[name], info.isKotlinFileFacade ?? short.hasSuffix("Kt") {
+                if let info = classes[name], info.isKotlinFileFacade ?? (short.hasSuffix("Kt") && !info.isAnnotation) {
                     for method in info.methods where method.isStatic && isExposed(method) {
                         lazyTopLevelFunctionsByPackage[package, default: []].append((method.sourceName, name))
                     }
@@ -2156,6 +2168,7 @@ final class JVMClasspathIndex {
                 markSourceTypes(constructor.parameters.map(\.sourceType))
             }
             for method in info.methods where isExposed(method) {
+                if let types = javaGenericTypes(method) { for name in types.referencedClasses { markNeeded(name) } }
                 for type in method.sourceParameters + [method.sourceResult] {
                     for ref in signatureNames(type)
                     where lazyClassNames.contains(ref) && isInjected(ref) {
@@ -2251,8 +2264,11 @@ final class JVMClasspathIndex {
         if asExtension, let type = method.sourceParameters.first {
             receiver = kotlinType(type) + (suspend?.receiverIsNullable == true ? "?." : ".")
         }
-        let result = method.genericResultParameter.map { "`\($0.name)`" }
+        let javaTypes = javaGenericTypes(method)
+        let result = method.kotlinOwnerResultParameter.map { "`\($0)`" }
+            ?? method.genericResultParameter.map { "`\($0.name)`" }
             ?? suspend?.sourceResult
+            ?? javaTypes?.result
             ?? (kotlinType(method.sourceResult) + (suspend != nil && method.sourceResult.isNullable ? "?" : ""))
         let generic = method.genericResultParameter.map { parameter -> String in
             let resultType = kotlinType(method.result)
@@ -2270,7 +2286,7 @@ final class JVMClasspathIndex {
         }
         let suspendWhereClause = suspendBounds.isEmpty ? "" : " where " + suspendBounds.joined(separator: ", ")
         let modifier = suspend == nil ? "" : "suspend "
-        return modifier + "fun " + (generic.isEmpty ? suspendGeneric : generic) + "\(receiver)`\(method.sourceName)`(" + parameters(method, droppingReceiver: asExtension) + "): " + result + suspendWhereClause
+        return modifier + "fun " + (generic.isEmpty ? suspendGeneric : generic) + "\(receiver)`\(method.sourceName)`(" + parameters(method, droppingReceiver: asExtension, javaTypes: javaTypes?.parameters) + "): " + result + suspendWhereClause
     }
 
     private func kotlinFunctionDeclaration(_ function: JVMKotlinFunction, asFacadeMember: Bool, acceptsDefaults: Bool) -> String {
@@ -2326,7 +2342,7 @@ final class JVMClasspathIndex {
             + "fun " + generics + receiver + "`\(function.name)`(" + parameters.joined(separator: ", ") + "): " + type(function.result)
     }
 
-    private func parameters(_ method: JVMForeignMethod, droppingReceiver: Bool = false) -> String {
+    private func parameters(_ method: JVMForeignMethod, droppingReceiver: Bool = false, javaTypes: [String]? = nil) -> String {
         let suspend = method.kotlinSuspendFunction
         let types = method.sourceParameters.dropFirst(droppingReceiver ? 1 : 0)
         let receiverInParameters = suspend?.receiverIsNullable != nil && !droppingReceiver
@@ -2359,7 +2375,7 @@ final class JVMClasspathIndex {
                let element = try? JVMDescriptor.parse("()" + String(name.dropFirst())).1 {
                 parameterType = kotlinType(element)
             } else {
-                parameterType = kotlinType(parameter)
+                parameterType = javaTypes?[index + (droppingReceiver ? 1 : 0)] ?? kotlinType(parameter)
             }
             return (isVararg ? "vararg " : "") + name + ": "
                 + (suspendSourceType ?? (parameterType + (nullable ? "?" : "")))

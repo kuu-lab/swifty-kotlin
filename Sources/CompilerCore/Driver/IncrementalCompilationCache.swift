@@ -439,6 +439,11 @@ public final class IncrementalCompilationCache {
             )
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
+            // frontend.json is the bulk of the cache (the whole AST arena) and
+            // is only ever read back by the compiler, so keep it compact:
+            // pretty-printing roughly doubles its size and encode/decode time.
+            let compactEncoder = JSONEncoder()
+            compactEncoder.outputFormatting = [.sortedKeys]
             let manifestData = try encoder.encode(manifest)
             guard CacheSecurity.writeAtomicFile(in: rootFD, filename: "manifest.json", data: manifestData) else {
                 return
@@ -453,7 +458,7 @@ public final class IncrementalCompilationCache {
                 // PropertyListEncoder(binary) is pathologically slow on the
                 // deeply nested AST state (generic wrapGeneric recursion) —
                 // JSON stays the frontend-state format.
-                let frontendData = try encoder.encode(frontendState)
+                let frontendData = try compactEncoder.encode(frontendState)
                 guard CacheSecurity.writeAtomicFile(in: rootFD, filename: "frontend.json", data: frontendData) else {
                     return
                 }

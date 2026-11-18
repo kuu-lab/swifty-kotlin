@@ -30,6 +30,9 @@ open class BaseScope: Scope {
     private var locals: [InternedString: [SymbolID]] = [:]
     // Tracks declarations kept outside the symbol lookup table, such as locals.
     private var localValueOrClassifierDeclarations: [InternedString: Set<ExprID>] = [:]
+    /// Type-parameter symbols currently in `locals`, maintained on insert so
+    /// lexical walks do not rescan every local for each call site.
+    private var localTypeParameterSymbols: Set<SymbolID> = []
 
     public init(parent: Scope?, symbols: SymbolTable) {
         self.parent = parent
@@ -173,10 +176,7 @@ open class BaseScope: Scope {
         var result: Set<SymbolID> = []
         var current: Scope? = self
         while let scope = current as? BaseScope {
-            for symbol in scope.locals.values.flatMap({ $0 })
-                where scope.symbols.symbol(symbol)?.kind == .typeParameter {
-                result.insert(symbol)
-            }
+            result.formUnion(scope.localTypeParameterSymbols)
             current = scope.parent
         }
         return result
@@ -191,6 +191,9 @@ open class BaseScope: Scope {
             bucket.append(sym)
         }
         locals[symbol.name] = bucket
+        if symbol.kind == .typeParameter {
+            localTypeParameterSymbols.insert(sym)
+        }
     }
 
     func registerLocalValueOrClassifierDeclaration(
@@ -211,6 +214,9 @@ open class BaseScope: Scope {
             bucket.append(sym)
         }
         locals[asName] = bucket
+        if symbols.symbol(sym)?.kind == .typeParameter {
+            localTypeParameterSymbols.insert(sym)
+        }
     }
 }
 
