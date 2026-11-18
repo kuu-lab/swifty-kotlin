@@ -395,14 +395,39 @@ extension ExprTypeChecker {
             ownerScope: classScope,
             ctx: ctx
         )
-        let classCtx = ctx.withoutSuspensionContext().withOuterReceiver(
-            label: classDecl.name,
-            type: classType
-        ).copying(
-            scope: classScope,
-            implicitReceiverType: classType,
-            enclosingClassSymbol: classSymbol
-        )
+        // A function-local nominal captures the enclosing function's receiver
+        // *value*. The enclosing class's outer-receiver entry normally carries
+        // the class symbol — a `this@Class` label placeholder — which cannot
+        // root the smart-cast flow reference, because those are keyed by the
+        // receiver value symbol (`receiverParameterSymbol(for:)`). Resolve that
+        // entry to the enclosing function's receiver parameter so stable
+        // property smart casts on the captured `this` survive into the local
+        // nominal's member bodies (KUU-4605).
+        var memberOuterReceiverTypes = ctx.outerReceiverTypes
+        if let enclosingFunctionSymbol = ctx.enclosingFunctionSymbol,
+           let enclosingClassSymbol = ctx.enclosingClassSymbol
+        {
+            let receiverValueSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: enclosingFunctionSymbol)
+            for index in memberOuterReceiverTypes.indices {
+                let entry = memberOuterReceiverTypes[index]
+                guard entry.symbol == enclosingClassSymbol,
+                      case let .classType(entryClassType) = sema.types.kind(of: entry.type),
+                      entryClassType.classSymbol == enclosingClassSymbol
+                else {
+                    continue
+                }
+                memberOuterReceiverTypes[index].symbol = receiverValueSymbol
+            }
+        }
+        let classCtx = ctx.copying(outerReceiverTypes: memberOuterReceiverTypes)
+            .withoutSuspensionContext().withOuterReceiver(
+                label: classDecl.name,
+                type: classType
+            ).copying(
+                scope: classScope,
+                implicitReceiverType: classType,
+                enclosingClassSymbol: classSymbol
+            )
 
         // Enclosing nominal scopes (innermost → outermost) for the
         // inner-class supertype receiver check below and the deferred
