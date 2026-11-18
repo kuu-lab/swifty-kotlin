@@ -241,7 +241,14 @@ extension JVMBackendTests {
     func javaPartialClasspathAnnotationOmitsUnavailableElementTypes() throws {
         try withWorkspace { root in
             let annotations = try externalJavaPartialAnnotationJar(root)
-            let compiled = try compile("fun main() {}", root: root, mode: .jvmJar, classpath: [annotations.path])
+            let compiled = try compile("""
+            import fixture.OptionalAnnotation
+
+            @OptionalAnnotation(count = 2)
+            class Example
+
+            fun main() {}
+            """, root: root, mode: .jvmJar, classpath: [annotations.path])
             try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
         }
     }

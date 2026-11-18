@@ -881,7 +881,8 @@ final class JVMClasspathIndex {
         info.methods.compactMap { method in
             guard method.isAbstract, !method.isStatic, !method.isConstructor,
                   method.parameters.isEmpty, method.name != "annotationType",
-                  method.result != .unit, JVMProgramBuilder.isIdentifier(method.name)
+                  method.result != .unit, JVMProgramBuilder.isIdentifier(method.name),
+                  expose(method.result)
             else { return nil }
             return (method.name, method.result, method.annotationDefault,
                     annotationElementIsVararg(info, name: method.name, type: method.result))
@@ -935,8 +936,7 @@ final class JVMClasspathIndex {
         if let targets = kotlinAnnotationTargets(info.annotations) ?? javaAnnotationTargets(info.annotations), !targets.isEmpty {
             lines.append("@kotlin.annotation.Target(" + targets.map { "kotlin.annotation.AnnotationTarget." + $0 }.joined(separator: ", ") + ")")
         }
-        let elements = annotationElements(of: info).filter { expose($0.type) }
-        let parameters = elements.enumerated().compactMap { index, element -> String? in
+        let parameters = annotationElements(of: info).enumerated().compactMap { index, element -> String? in
             let type = element.isVararg ? annotationVarargElementKotlinType(element.type) : annotationElementKotlinType(element.type)
             guard let type else { return nil }
             let name = JVMProgramBuilder.isIdentifier(element.name) ? "`\(element.name)`" : "p\(index)"
