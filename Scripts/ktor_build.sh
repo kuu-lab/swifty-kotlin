@@ -167,11 +167,21 @@ if [[ "$DO_FETCH" -eq 1 ]]; then
     "$CACHE_DIR/ktor" "ktor-io ktor-utils ktor-http"
 fi
 
-# Single-module runs link dependency .kklib artifacts from $OUT_DIR; after a
-# cache revision change those were built from different sources, so drop them
-# instead of mixing revisions in the diagnostic results.
-if [[ "$CACHE_REVISIONS_CHANGED" -eq 1 ]]; then
-  rm -rf "$OUT_DIR"/*.kklib
+# Single-module runs link dependency .kklib artifacts from $OUT_DIR, so those
+# artifacts must come from the same sources this run compiles. $OUT_DIR may be
+# shared across different KTOR_BUILD_CACHE_DIR checkouts, so record the source
+# revisions the artifacts belong to and drop anything compiled from other
+# sources instead of mixing revisions in the diagnostic results.
+ktorn_io_head="$(git -C "$CACHE_DIR/kotlinx-io" rev-parse HEAD 2>/dev/null || true)"
+ktor_head="$(git -C "$CACHE_DIR/ktor" rev-parse HEAD 2>/dev/null || true)"
+if [[ -n "$ktorn_io_head" && -n "$ktor_head" ]]; then
+  source_stamp="$OUT_DIR/.source-commits"
+  current_stamp="$(cat "$source_stamp" 2>/dev/null || true)"
+  new_stamp="$ktorn_io_head $ktor_head"
+  if [[ "$CACHE_REVISIONS_CHANGED" -eq 1 || "$current_stamp" != "$new_stamp" ]]; then
+    rm -rf "$OUT_DIR"/*.kklib
+  fi
+  printf '%s\n' "$new_stamp" > "$source_stamp"
 fi
 
 # Module name -> source roots (space-separated, relative to $CACHE_DIR).

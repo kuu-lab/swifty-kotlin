@@ -722,11 +722,13 @@ fetched on demand — branch requests always re-fetch so they track remote
 advances, and win over a same-named tag — and it is a hard failure, leaving
 the cache untouched, when the requested revision cannot be fetched and the
 cache is not already at it, or when the cache has local changes. Any
-revision change also drops previously compiled `.kklib` module artifacts so
-`--module` runs never link
-dependencies built from older sources. `--no-fetch` keeps its explicit
-reuse-whatever-is-cached semantics. `Scripts/test_ktor_build_revision.sh`
-covers this behavior and is picked up by `Scripts/test_all.sh`.
+revision change also drops previously compiled `.kklib` module artifacts,
+and the output dir records which source revisions produced them, so
+`--module` runs never link dependencies built from older sources — even
+when `KTOR_BUILD_CACHE_DIR` points at a different checkout sharing the same
+output dir. `--no-fetch` keeps its explicit reuse-whatever-is-cached
+semantics. `Scripts/test_ktor_build_revision.sh` covers this behavior and
+is picked up by `Scripts/test_all.sh`.
 
 ```bash
 bash Scripts/ktor_build.sh                  # fetch + compile all modules

@@ -27,6 +27,8 @@
 #   9. a tag published with the same name as the tracked branch does not
 #      hijack branch requests
 #  10. a dirty cache refuses to switch revisions, preserving local changes
+#  11. switching KTOR_BUILD_CACHE_DIR with a shared output dir drops
+#      dependency artifacts built from another revision
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
@@ -149,7 +151,7 @@ probe() {
   : > "$STUB_LOG"
   set +e
   env KTOR_TAG="$KTOR_TAG" KOTLINX_IO_TAG="$KOTLINX_IO_TAG" \
-    KTOR_BUILD_CACHE_DIR="$CACHE_DIR" KTOR_BUILD_OUT_DIR="$OUT_DIR" \
+    KTOR_BUILD_CACHE_DIR="${PROBE_CACHE_DIR:-$CACHE_DIR}" KTOR_BUILD_OUT_DIR="$OUT_DIR" \
     KSWIFTC="$FIX/bin/kswiftc" KSWIFTC_STUB_LOG="$STUB_LOG" \
     GIT_CONFIG_GLOBAL="$GIT_CONFIG_GLOBAL" \
     bash "$PROBE" "$@" >"$PROBE_LOG" 2>&1
@@ -323,5 +325,47 @@ grep -q 'local probe edit' "$CACHE_DIR/ktor/ktor-io/common/src/V1Only.kt" \
 [[ "$(git -C "$CACHE_DIR/ktor" rev-parse HEAD)" == "$head_before" ]] \
   || fail "dirty-cache run moved HEAD"
 echo "ok: dirty cache refuses to switch and preserves local changes"
+
+# 11. Switching KTOR_BUILD_CACHE_DIR while sharing the output dir must not
+#     keep dependency artifacts built from another revision: the output dir
+#     records which source revisions produced its artifacts. Scenario 10 left
+#     the cache dirty, so both cache dirs and the output dir start fresh.
+CACHE_DIR2="$FIX/cache-b"
+rm -rf "$CACHE_DIR" "$CACHE_DIR2" "$OUT_DIR"
+KTOR_TAG="1.0.0"
+
+# Cold clone of cache A builds ktor_io.kklib from the 1.0.0 sources.
+probe --module ktor_io
+expect_success "cache A cold run"
+[[ -d "$OUT_DIR/ktor_io.kklib" ]] || fail "cache A did not produce ktor_io.kklib"
+
+# A second cache at a different revision rebuilds the artifact from 2.0.0.
+KTOR_TAG="2.0.0"
+PROBE_CACHE_DIR="$CACHE_DIR2" probe --module ktor_io
+expect_success "cache B cold run at 2.0.0"
+[[ -d "$OUT_DIR/ktor_io.kklib" ]] || fail "cache B did not produce ktor_io.kklib"
+
+# Back to the unchanged cache A request: no fetch moves its HEAD, but the
+# artifact in the shared output dir came from 2.0.0 and must be dropped
+# instead of being linked into the 1.0.0 compile of ktor_utils.
+KTOR_TAG="1.0.0"
+probe --module ktor_utils
+expect_success "return to cache A at 1.0.0"
+if grep -q 'ktor_io\.kklib' "$STUB_LOG"; then
+  fail "shared output dir linked a ktor_io.kklib built from another revision"
+fi
+[[ ! -e "$OUT_DIR/ktor_io.kklib" ]] || fail "foreign-revision ktor_io.kklib survived the cache switch"
+[[ -d "$OUT_DIR/ktor_utils.kklib" ]] || fail "ktor_utils artifact missing after compile"
+
+# A full run rebuilds the dependency from the current sources, and a later
+# single-module run reuses the matching artifact again.
+probe
+expect_success "full run rebuilding dependencies from cache A"
+[[ -d "$OUT_DIR/ktor_io.kklib" ]] || fail "full run did not rebuild ktor_io.kklib"
+probe --module ktor_utils
+expect_success "single-module run after the full rebuild"
+grep -q 'ktor_io\.kklib' "$STUB_LOG" \
+  || fail "matching dependency artifact was not reused after the cache switch"
+echo "ok: switching source caches drops foreign-revision artifacts"
 
 echo "PASS: ktor_build.sh honors requested revisions with a warm cache"
