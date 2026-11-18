@@ -248,13 +248,12 @@ extension DeclTypeChecker {
         initialLocals: LocalBindings = [:],
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine,
-        allowFullPrecheck: Bool = true
+        allowFullInferredPrecheck: Bool = true
     ) {
         let sema = ctx.sema
         for declID in memberProperties {
             guard !driver.precheckedPropertyDecls.contains(declID),
                   case let .propertyDecl(property)? = ctx.ast.arena.decl(declID),
-                  allowFullPrecheck,
                   canSafelyPrecheckExplicitBackingFieldProperty(
                       property,
                       in: ctx,
@@ -291,7 +290,7 @@ extension DeclTypeChecker {
                 else {
                     continue
                 }
-                if allowFullPrecheck,
+                if allowFullInferredPrecheck || property.delegateExpression != nil,
                    canSafelyPrecheckInferredProperty(
                        property,
                        symbol: propertySymbol,
@@ -561,7 +560,7 @@ extension DeclTypeChecker {
             initialLocals: initialLocals,
             solver: solver,
             diagnostics: diagnostics,
-            allowFullPrecheck: false
+            allowFullInferredPrecheck: false
         )
     }
 

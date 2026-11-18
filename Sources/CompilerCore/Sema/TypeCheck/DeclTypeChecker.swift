@@ -460,7 +460,7 @@ final class DeclTypeChecker {
         }
     }
 
-    private func validateLateinitProperty(
+    func validateLateinitProperty(
         _ property: PropertyDecl,
         finalPropertyType: TypeID,
         diagnostics: DiagnosticEngine,

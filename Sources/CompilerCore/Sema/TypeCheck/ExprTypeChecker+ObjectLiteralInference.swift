@@ -1107,6 +1107,15 @@ extension ExprTypeChecker {
             }
             sema.symbols.setPropertyType(finalType, for: propertySymbol)
 
+            if propertyDecl.modifiers.contains(.lateinit) {
+                driver.declChecker.validateLateinitProperty(
+                    propertyDecl,
+                    finalPropertyType: finalType,
+                    diagnostics: ctx.sema.diagnostics,
+                    sema: sema
+                )
+            }
+
             if let setter = propertyDecl.setter, setter.body != .unit {
                 driver.declChecker.typeCheckSetter(
                     setter,

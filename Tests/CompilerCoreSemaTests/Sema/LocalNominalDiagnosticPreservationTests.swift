@@ -144,6 +144,30 @@ struct LocalNominalDiagnosticPreservationTests {
 
         _ = try semaContext(from: source, expecting: [], includeStdlib: false)
     }
+
+    @Test
+    func testObjectLiteralLateinitPropertyIsValidated() throws {
+        let source = """
+        package objectliterallateinit
+
+        interface IntCursor {
+            fun hasNext(): Boolean
+        }
+
+        class Box {
+            fun cursor(): IntCursor = object : IntCursor {
+                lateinit var value: String = "ready"
+                override fun hasNext(): Boolean = true
+            }
+        }
+        """
+
+        _ = try semaContext(
+            from: source,
+            expecting: [.error("KSWIFTK-SEMA-LATEINIT", containing: "must not have an initializer")],
+            includeStdlib: false
+        )
+    }
 }
 
 #endif
