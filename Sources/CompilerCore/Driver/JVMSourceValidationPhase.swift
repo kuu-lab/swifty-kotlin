@@ -161,13 +161,26 @@ private struct JVMSourceGrammar {
             index += 1
         }
     }
+    mutating func parameterPrefix(properties: Bool) throws {
+        while kind == .symbol(.at) { try annotation() }
+        guard properties else {
+            while take(.keyword(.noinline)) || take(.keyword(.crossinline)) || take(.keyword(.vararg)) {}
+            return
+        }
+        while true {
+            let before = index
+            while take(.keyword(.noinline)) || take(.keyword(.crossinline)) || take(.keyword(.vararg)) {}
+            modifiers()
+            while kind == .symbol(.at) { try annotation() }
+            if take(.keyword(.val)) || take(.keyword(.var)) { break }
+            guard index != before else { break }
+        }
+    }
     mutating func parameters(properties: Bool = false, requireTypes: Bool = true, allowDefaults: Bool = true) throws {
         try require(.symbol(.lParen))
         if !take(.symbol(.rParen)) {
             repeat {
-                while kind == .symbol(.at) { try annotation() }
-                while take(.keyword(.noinline)) || take(.keyword(.crossinline)) || take(.keyword(.vararg)) {}
-                if properties { modifiers(); _ = take(.keyword(.val)) || take(.keyword(.var)) }
+                try parameterPrefix(properties: properties)
                 try name()
                 if requireTypes { try require(.symbol(.colon)); try type() }
                 else if take(.symbol(.colon)) { try type() }
