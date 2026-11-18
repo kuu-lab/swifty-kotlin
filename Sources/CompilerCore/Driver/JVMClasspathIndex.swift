@@ -363,7 +363,9 @@ final class JVMClasspathIndex {
             let isSealedObject = info.isKotlinObject
                 && classes[owner].map { sealedSubclasses(of: $0).contains(info.name) } == true
                 && !info.methods.contains { $0.isStatic && isExposed($0) }
-            if isSealedObject {
+            let singletonObject = kotlinObjectUsesSingletonProjection(info)
+            let projectsAsObject = isSealedObject || singletonObject
+            if projectsAsObject {
                 source += indentation + visibility + "object `\(name)`"
             } else if info.isInterface {
                 source += indentation + visibility + interfaceKeyword(info) + " `\(name)`" + typeParameters
@@ -388,7 +390,8 @@ final class JVMClasspathIndex {
             // Kotlin forbids companion objects inside inner (non-static
             // member) classes; their statics are unreachable anyway.
             source += memberDeclarations(info: info, members: info.methods,
-                                         allowsCompanion: !isSealedObject && entry.access & 0x0008 != 0)
+                                         allowsCompanion: !projectsAsObject && entry.access & 0x0008 != 0,
+                                         projectsKotlinObject: singletonObject)
             source += nestedClassDeclarations(of: entry.name, indentation: indentation + "    ")
             source += indentation + "}\n"
         }
@@ -419,6 +422,14 @@ final class JVMClasspathIndex {
         if !sealedSubclasses(of: info).isEmpty { return "sealed class " }
         if info.flags & 0x0400 != 0 { return "abstract class " }
         return info.flags & 0x0010 != 0 ? "class " : "open class "
+    }
+
+    private func kotlinObjectUsesSingletonProjection(_ info: JVMClassInfo) -> Bool {
+        guard info.isKotlinObject else { return false }
+        let own = info.methods.filter { $0.kotlinSuspendFunction?.receiverIsNullable == nil && isExposed($0) }
+        if own.contains(where: { $0.isStatic && $0.kotlinFunction?.valueOperatorParameterDescriptors == nil }) { return false }
+        if !info.kotlinStaticProperties.isEmpty { return false }
+        return info.fields.allSatisfy { !$0.isStatic || $0.name == "INSTANCE" }
     }
 
     private func interfaceKeyword(_ info: JVMClassInfo) -> String {
@@ -1230,6 +1241,7 @@ final class JVMClasspathIndex {
                 !isContextIsActive($0.source, $0.getter)
                     && $0.getter.parameters.allSatisfy(exposeSuspendType) && exposeSuspendType($0.getter.result)
             }
+            let projectsAsObject = kotlinObjectUsesSingletonProjection(info)
             let isFileFacade = info.isKotlinFileFacade ?? (short.hasSuffix("Kt") && !info.isAnnotation)
             if info.flags & 0x4000 != 0 {
                 source += enumDeclaration(info, name: short)
@@ -1298,9 +1310,7 @@ final class JVMClasspathIndex {
                     let body = entries.isEmpty ? "{ }" : "{ " + entries.joined(separator: ", ") + " }"
                     source += "enum class `\(short)`\(body)\n"
                 } else {
-                let isNonCancellable = info.name == "kotlinx/coroutines/NonCancellable" && info.isKotlinObject
-                    && info.superclass == "kotlin/coroutines/AbstractCoroutineContextElement"
-                if isNonCancellable {
+                if projectsAsObject {
                     source += "object `\(short)`"
                 } else if info.isInterface {
                     source += interfaceKeyword(info) + " `\(short)`"
@@ -1329,7 +1339,9 @@ final class JVMClasspathIndex {
                 }.compactMap { supertypeReference($0, child: info) }
                 if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
                 source += " {\n"
-                source += memberDeclarations(info: info, members: info.methods, allowsCompanion: !isNonCancellable)
+                source += memberDeclarations(info: info, members: info.methods,
+                                             allowsCompanion: !projectsAsObject,
+                                             projectsKotlinObject: projectsAsObject)
                 if info.name == Self.compositionLocal, let getter = compositionLocalGetter,
                    let type = info.classTypeParameterNames.first {
                     let readonly = getter.annotations.contains {
@@ -1384,8 +1396,9 @@ final class JVMClasspathIndex {
         return name
     }
 
-    private func memberDeclarations(info: JVMClassInfo, members: [JVMForeignMethod], allowsCompanion: Bool = true) -> String {
+    private func memberDeclarations(info: JVMClassInfo, members: [JVMForeignMethod], allowsCompanion: Bool = true, projectsKotlinObject: Bool = false) -> String {
         let metadata = kotlinMetadata(info)
+        let isKotlinObject = projectsKotlinObject
         let own = members.filter { $0.kotlinSuspendFunction?.receiverIsNullable == nil && isExposed($0) }
         let statics = own.filter { $0.isStatic && $0.kotlinFunction?.valueOperatorParameterDescriptors == nil }
         let kotlinProperties = info.isInterface ? kotlinMetadata(info)?.properties ?? [] : []
@@ -1805,6 +1818,7 @@ final class JVMClasspathIndex {
         /// backend to bind to `getstatic`/`putstatic`.
         func runtimeField(_ field: JVMForeignField) -> String? {
             guard field.isStatic, field.isPublic, field.access & 0x1000 == 0,
+                  !(isKotlinObject && field.name == "INSTANCE"),
                   JVMProgramBuilder.isIdentifier(field.name),
                   field.descriptor != "L\(info.name)$\(field.name);",
                   !constantFieldKeys.contains(field.name + "\u{1F}" + field.descriptor),
@@ -1818,7 +1832,19 @@ final class JVMClasspathIndex {
         }
         let runtimeFields = info.fields.compactMap(runtimeField)
         let companion = allowsCompanion ? kotlinCompanion(of: info) : nil
-        if allowsCompanion, metadata?.companion == nil, companion != nil || !statics.isEmpty || !constantFields.isEmpty || !runtimeFields.isEmpty {
+        if isKotlinObject {
+            for declaration in constantFields { source += declaration }
+            for declaration in runtimeFields { source += declaration }
+            for (name, property) in info.kotlinStaticProperties.sorted(by: { $0.key < $1.key })
+                where isExposed(property.getter) {
+                let type = kotlinType(property.getter.result) + (property.isNullable ? "?" : "")
+                source += "val `\(name)`: \(type) get() = null!!\n"
+            }
+            for method in statics {
+                source += "external " + functionDeclaration(method) + "\n"
+            }
+        }
+        if allowsCompanion, !isKotlinObject, metadata?.companion == nil, companion != nil || !statics.isEmpty || !constantFields.isEmpty || !runtimeFields.isEmpty {
             source += "companion object"
             if let name = staticCompanionObjectName(for: info) { source += " \(name)" }
             if let companion {
