@@ -387,10 +387,12 @@ final class JVMClasspathIndex {
     }
 
     private func sealedInterfaceSubclasses(of info: JVMClassInfo) -> [String] {
-        // The owner stub emits its nested subclasses together. Only that
-        // complete set can establish exhaustiveness without loading other stubs.
+        // Sealed subclasses may live outside the owner's inline nest, but a
+        // missing direct subclass must still keep the interface non-sealed so
+        // reachability diagnostics can fire. The lazy-reference closure pulls
+        // every present sealed subclass into the module.
         let children = info.kotlinSealedInterfaceSubclasses
-        return children.allSatisfy { innerClassMetadata[$0]?.outerName == info.name && classes[$0] != nil } ? children : []
+        return children.allSatisfy { classes[$0] != nil } ? children : []
     }
 
     private func interfaceKeyword(_ info: JVMClassInfo) -> String {
@@ -2075,6 +2077,12 @@ final class JVMClasspathIndex {
                 if lazyClassNames.contains(parent), isInjected(parent) {
                     markNeeded(parent)
                 }
+            }
+            // Sealed subclasses can live outside the owner's inline nest, but
+            // exhaustiveness still needs every direct subclass in the module.
+            for child in info.kotlinSealedInterfaceSubclasses
+            where lazyClassNames.contains(child) && isInjected(child) {
+                markNeeded(child)
             }
             func markSourceTypes(_ types: [String]) {
                 for type in types {
