@@ -447,5 +447,31 @@ struct CompanionClassScopeTests {
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
     }
+
+    /// Objects are static, so an enclosing class's `check` member
+    /// must not hide the top-level `check` overloads inside a companion body.
+    @Test func companionObjectDoesNotBindEnclosingClassInstanceMembers() throws {
+        let path = "/virtual/companion-object-instance-member.kt"
+        let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+        _ = ctx.sourceManager.addFile(path: path, contents: Data("""
+        interface Iterable<out T>
+        interface List<out T> : Iterable<T>
+        inline fun <T, R> Iterable<T>.map(transform: (T) -> R): List<R> = null!!
+        inline fun check(value: Boolean): Unit {}
+        inline fun check(value: Boolean, lazyMessage: () -> Any): Unit {}
+        class Headers
+        class EntityTagVersion(val weak: Boolean) {
+            fun check(requestHeaders: Headers): Int = 1
+            companion object {
+                fun parse(flags: List<Boolean>): List<Boolean> = flags.map { flag ->
+                    check(flag) { "bad $flag" }
+                    flag
+                }
+            }
+        }
+        """.utf8))
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif
