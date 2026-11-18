@@ -1621,7 +1621,17 @@ extension ExprTypeChecker {
                 case .unit, .block:
                     returnType = sema.types.unitType
                 case .expr:
-                    returnType = sema.types.anyType
+                    // A re-check reuses the member symbol, so keep the return
+                    // type an earlier inference already published instead of
+                    // resetting the signature to the `Any` placeholder.
+                    if let existingSymbol = sema.bindings.declSymbols[functionDeclID],
+                       let preservedReturnType = sema.symbols.functionSignatureIfKnown(for: existingSymbol)?.returnType,
+                       preservedReturnType != sema.types.anyType
+                    {
+                        returnType = preservedReturnType
+                    } else {
+                        returnType = sema.types.anyType
+                    }
                 }
             }
 

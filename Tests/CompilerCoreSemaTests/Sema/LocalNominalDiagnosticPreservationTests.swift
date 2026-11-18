@@ -92,6 +92,24 @@ struct LocalNominalDiagnosticPreservationTests {
             includeStdlib: false
         )
     }
+
+    @Test
+    func testLocalNominalMemberInferredReturnsSurviveRecheck() throws {
+        let source = """
+        package rollbackf
+
+        class C {
+            fun f() {
+                class L {
+                    fun g() = "ok"
+                }
+                val s: String = L().g()
+            }
+        }
+        """
+
+        _ = try semaContext(from: source, expecting: [], includeStdlib: false)
+    }
 }
 
 #endif
