@@ -79,6 +79,90 @@ struct MemberPropertySmartCastTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0026", in: ctx)
     }
 
+    // KUU-4608: an in-place `plusAssign` call does not rebind the local, so a
+    // member smart cast on its stable receiver survives the compound write.
+    @Test(arguments: [
+        "b += 1",
+        "b -= 1",
+        "b *= 2"
+    ])
+    func inPlaceCompoundAssignPreservesMemberSmartCast(write: String) throws {
+        let ctx = makeContextFromSource("""
+        class Box(val s: String?) {
+            operator fun plusAssign(i: Int) {}
+            operator fun minusAssign(i: Int) {}
+            operator fun timesAssign(i: Int) {}
+        }
+        fun test() {
+            var b = Box("hello")
+            \(write)
+            if (b.s != null) println(b.s.length)
+            requireNotNull(b.s)
+            println(b.s.length)
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    // The binary-operator fallback rebinds the local (`b = b.plus(1)`), so the
+    // receiver is no longer stable and the member smart cast must be rejected.
+    @Test func binaryCompoundAssignRebindInvalidatesMemberSmartCast() throws {
+        let ctx = makeContextFromSource("""
+        class Box(val s: String?) { operator fun plus(i: Int): Box = Box(null) }
+        fun test() {
+            var b = Box("hello")
+            b += 1
+            if (b.s != null) println(b.s.length)
+        }
+        """)
+        try runSema(ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0026", in: ctx)
+    }
+
+    @Test func plainReassignmentAfterInPlaceCompoundAssignInvalidatesMemberSmartCast() throws {
+        let ctx = makeContextFromSource("""
+        class Box(val s: String?) { operator fun plusAssign(i: Int) {} }
+        fun test() {
+            var b = Box("hello")
+            b += 1
+            b = Box(null)
+            if (b.s != null) println(b.s.length)
+        }
+        """)
+        try runSema(ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0026", in: ctx)
+    }
+
+    @Test func incrementDecrementInvalidatesMemberSmartCast() throws {
+        let ctx = makeContextFromSource("""
+        class Box(val s: String?) { operator fun inc(): Box = Box("next") }
+        fun test() {
+            var b = Box("hello")
+            b++
+            if (b.s != null) println(b.s.length)
+        }
+        """)
+        try runSema(ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0026", in: ctx)
+    }
+
+    // A compound write captured by a closure may run after reads, so it stays
+    // conservative even when the operator is in place.
+    @Test func capturedInPlaceCompoundAssignInvalidatesMemberSmartCast() throws {
+        let ctx = makeContextFromSource("""
+        class Box(val s: String?) { operator fun plusAssign(i: Int) {} }
+        fun test() {
+            var b = Box("hello")
+            val write = { b += 1 }
+            if (b.s != null) println(b.s.length)
+            write()
+        }
+        """)
+        try runSema(ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0026", in: ctx)
+    }
+
     @Test(arguments: [
         "if (args.x != null) println(args.x.length)",
         "if (null != args.x) println(args.x.length)",

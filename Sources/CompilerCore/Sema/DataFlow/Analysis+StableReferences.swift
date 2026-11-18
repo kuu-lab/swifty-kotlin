@@ -74,6 +74,7 @@ extension DataFlowAnalyzer {
                   !locals.values.contains(where: {
                       $0.symbol == base.symbol.root && $0.isMutable
                           && !stableMutableReceivers.contains($0.symbol)
+                          && !isEffectivelyStableLocal($0.symbol)
                   }),
                   let type = sema.bindings.exprType(for: id)
             else { return nil }
@@ -100,6 +101,15 @@ extension DataFlowAnalyzer {
             )
         } ?? false
         return (DataFlowReference(root: local.symbol), local.type, isStable && !mutatedInClosure)
+    }
+
+    /// A mutable local whose only writes are in-place compound assignments
+    /// keeps its binding, so its members stay eligible for smart casts even
+    /// though declaration-time `stableMutableReceivers` could not prove it
+    /// (operator resolution is only known during expression inference).
+    private func isEffectivelyStableLocal(_ symbol: SymbolID) -> Bool {
+        guard let declaration = localDeclarations[symbol] else { return false }
+        return localStability.isEffectivelyStable(declaration)
     }
 
     /// Flow-fact roots must denote stable *values*: synthetic receiver

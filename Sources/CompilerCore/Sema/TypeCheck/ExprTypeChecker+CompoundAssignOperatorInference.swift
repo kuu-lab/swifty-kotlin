@@ -662,6 +662,11 @@ extension ExprTypeChecker {
                     sema.bindings.bindExprType(id, type: sema.types.errorType)
                     return sema.types.errorType
                 }
+                if resolvedType != sema.types.errorType {
+                    // In-place `plusAssign` does not rebind the local, so its
+                    // binding (and member smart casts) survive the write.
+                    ctx.dataFlow.localStability.noteCompoundAssignResolution(id, isInPlace: true)
+                }
                 return resolvedType
             }
             var assignedType = local.type
@@ -688,6 +693,7 @@ extension ExprTypeChecker {
                 }
                 locals[name] = (assignedType, local.symbol, local.isMutable, local.isInitialized)
                 sema.bindings.bindExprType(id, type: sema.types.unitType)
+                ctx.dataFlow.localStability.noteCompoundAssignResolution(id, isInPlace: false)
                 return sema.types.unitType
             }
             if !local.isMutable {
@@ -739,6 +745,7 @@ extension ExprTypeChecker {
             }
             locals[name] = (resultType, local.symbol, local.isMutable, local.isInitialized)
             sema.bindings.bindExprType(id, type: sema.types.unitType)
+            ctx.dataFlow.localStability.noteCompoundAssignResolution(id, isInPlace: false)
             return sema.types.unitType
         }
 
