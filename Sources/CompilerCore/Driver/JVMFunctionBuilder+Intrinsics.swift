@@ -314,6 +314,18 @@ extension JVMFunctionBuilder {
 
     func intrinsicMember(_ receiverID: ExprID, name: InternedString, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
         let member = context.interner.resolve(name)
+        if ["toRawBits", "toBits"].contains(member), args.isEmpty,
+           let sourceType = try? program.expressionType(receiverID),
+           sourceType == .double || sourceType == .float
+        {
+            let value = try requireValue(receiverID)
+            if sourceType == .double {
+                let jdkName = member == "toRawBits" ? "doubleToRawLongBits" : "doubleToLongBits"
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Double", jdkName, [.double], .long, arguments: [value]))
+            }
+            let jdkName = member == "toRawBits" ? "floatToRawIntBits" : "floatToIntBits"
+            return JVMIntrinsicResult(value: try jdkCall("java/lang/Float", jdkName, [.float], .int, arguments: [value]))
+        }
         if member == "readBytes", args.isEmpty, let callee = program.sema.bindings.callBinding(for: id)?.chosenCallee,
            program.sema.symbols.externalLinkName(for: callee) == "__kk_input_stream_readAllBytes" {
             return JVMIntrinsicResult(value: try jdkCall(
@@ -666,6 +678,20 @@ extension JVMFunctionBuilder {
                 mark(end)
                 return JVMIntrinsicResult(value: answer)
             case "containsAll": actual = member; parameters = [.reference("java/util/Collection", nullable: false)]; returns = .boolean
+            case "isEmpty" where owner == "java/lang/Iterable":
+                let collectionOwners: Set<String> = [
+                    "java/util/Collection", "java/util/List", "java/util/Set",
+                    "java/util/ArrayList", "java/util/LinkedHashSet", "java/util/HashSet",
+                    "kotlin/enums/EnumEntries"
+                ]
+                if let receiverOwner = source.type.referenceName, collectionOwners.contains(receiverOwner) {
+                    return JVMIntrinsicResult(value: try jdkCall("java/util/Collection", "isEmpty", [], .boolean, receiver: source, interface: true))
+                }
+                let iterator = try jdkCall("java/lang/Iterable", "iterator", [], .reference("java/util/Iterator", nullable: false), receiver: source, interface: true)!
+                let hasNext = try jdkCall("java/util/Iterator", "hasNext", [], .boolean, receiver: iterator, interface: true)!
+                let empty = try value(.boolean)
+                instructions.append(.binary(.equal, hasNext, try constant(.boolean(false), .boolean), empty))
+                return JVMIntrinsicResult(value: empty)
             case "isEmpty", "hasNext", "hasPrevious": actual = member; parameters = []; returns = .boolean
             case "nextIndex", "previousIndex": actual = member; parameters = []; returns = .int
             case "iterator": actual = member; parameters = []; returns = .reference("java/util/Iterator", nullable: false)
