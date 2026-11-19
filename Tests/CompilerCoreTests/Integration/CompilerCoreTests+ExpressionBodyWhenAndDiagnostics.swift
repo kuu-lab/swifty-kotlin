@@ -684,5 +684,71 @@ extension CompilerCoreTests {
         }
     }
 
+    /// A when-branch body that continues after a trailing binary operator must
+    /// not be truncated when the RHS line is followed by another `is` branch:
+    /// the scanner used to mistake the RHS for a new branch header because the
+    /// next `is ... ->` made it reach an arrow.
+    @Test func testWhenBranchBodyBinaryOperatorBeforeNextIsBranch() throws {
+        let source = """
+        open class Dialect
+        class MysqlDialect : Dialect()
+        class SqlServerDialect : Dialect()
+        class PostgresDialect : Dialect()
+
+        fun accepts(dialect: Dialect, unsigned: String, signed: String): Boolean =
+            when (dialect) {
+                is MysqlDialect -> unsigned.isNotEmpty() || signed.isNotEmpty()
+                is SqlServerDialect -> unsigned.startsWith("byte") ||
+                    signed.startsWith("short")
+                is PostgresDialect -> signed.startsWith("short")
+                else -> false
+            }
+
+        fun nullability(value: Any): String? =
+            when (value) {
+                is String -> value as String?
+                is Int -> null
+                else -> null
+            }
+
+        val step = 1
+        class Box<T>
+
+        fun stepBranch(value: Int): Int =
+            when (value) {
+                1 -> step
+                -1 -> 2
+                else -> 0
+            }
+
+        fun genericCastAssignment(value: Any): Any? {
+            var out: Any? = null
+            when (1) {
+                1 -> out = value as Box<*>
+                else -> out = null
+            }
+            return out
+        }
+
+        fun comparisonAfterParenthesizedCast(value: Any): Boolean =
+            when (value) {
+                is Int -> ((value as Int) < 0) || 10 >
+                    0
+                is String -> value.isNotEmpty()
+                else -> false
+            }
+        """
+
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+
+            let diagnostics = diagnosticsForPath(paths[0], in: ctx)
+            assertNoDiagnostic("KSWIFTK-PARSE-0001", in: diagnostics)
+            assertNoDiagnostic("KSWIFTK-PARSE-0010", in: diagnostics)
+            assertNoDiagnostic("KSWIFTK-SEMA-0004", in: diagnostics)
+        }
+    }
+
 }
 #endif

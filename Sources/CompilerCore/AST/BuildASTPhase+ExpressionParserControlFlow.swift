@@ -491,6 +491,7 @@ extension BuildASTPhase.ExpressionParser {
                 }
                 if scan > startIndex,
                    hasLeadingNewline(token),
+                   whenBranchBodyTokenCanEndExpression(at: tokens.index(before: scan), bodyStart: startIndex),
                    startsWhenBranchHeader(at: scan)
                 {
                     return scan
@@ -518,6 +519,147 @@ extension BuildASTPhase.ExpressionParser {
         }
 
         return scan
+    }
+
+    /// Whether the token at `index` can be the last token of a when-branch body expression.
+    /// A line break after an operator or keyword that still expects an operand
+    /// continues the body, so the next line cannot open a new entry even if a
+    /// later `->` makes it look like a branch header.
+    private func whenBranchBodyTokenCanEndExpression(at index: Int, bodyStart: Int) -> Bool {
+        let token = tokens[index]
+        switch token.kind {
+        case .symbol(.bangBang), .symbol(.plusPlus), .symbol(.minusMinus):
+            // Postfix operators can close the body expression.
+            return true
+        case .symbol(.greaterThan):
+            // A closing type-argument `>` ends a cast/check type, unlike a
+            // comparison operator that still expects its right operand.
+            return isClosingTypeArgument(at: index, bodyStart: bodyStart)
+        case .symbol(.plus), .symbol(.minus), .symbol(.star), .symbol(.slash), .symbol(.percent),
+             .symbol(.ampAmp), .symbol(.barBar),
+             .symbol(.equalEqual), .symbol(.bangEqual), .symbol(.tripleEqual), .symbol(.notTripleEqual),
+             .symbol(.lessThan), .symbol(.lessOrEqual), .symbol(.greaterOrEqual),
+             .symbol(.questionColon), .symbol(.dotDot), .symbol(.dotDotLt),
+             .symbol(.dot), .symbol(.questionDot), .symbol(.bang), .symbol(.doubleColon),
+             .symbol(.assign), .symbol(.plusAssign), .symbol(.minusAssign), .symbol(.starAssign),
+             .symbol(.slashAssign), .symbol(.percentAssign),
+             .symbol(.comma), .symbol(.colon), .symbol(.arrow),
+             .symbol(.lParen), .symbol(.lBracket), .symbol(.lBrace):
+            return false
+        case .keyword(.is), .keyword(.as), .keyword(.in), .keyword(.else):
+            return false
+        case let .identifier(name):
+            let resolved = interner.resolve(name)
+            if resolved == "downTo" || resolved == "step" {
+                return whenBranchBodyDownToOrStepCanEnd(at: index, bodyStart: bodyStart)
+            }
+            return true
+        default:
+            return true
+        }
+    }
+
+    /// `downTo`/`step` are parsed as binary operators when they follow an
+    /// expression. Resolve a run of them iteratively so untrusted sources with
+    /// long runs cannot exhaust the stack before the expression parser's own
+    /// depth limit applies.
+    private func whenBranchBodyDownToOrStepCanEnd(at index: Int, bodyStart: Int) -> Bool {
+        var cursor = index
+        var operatorCount = 0
+        var reachedBodyStart = false
+        while cursor >= bodyStart {
+            guard case let .identifier(name) = tokens[cursor].kind else { break }
+            let resolved = interner.resolve(name)
+            guard resolved == "downTo" || resolved == "step" else { break }
+            operatorCount += 1
+            if cursor == bodyStart {
+                reachedBodyStart = true
+                break
+            }
+            cursor = tokens.index(before: cursor)
+        }
+        let baseCanEnd: Bool
+        if reachedBodyStart {
+            // The token before a branch body is the `->` that introduces it, so
+            // the first `downTo`/`step` of the body is a primary expression.
+            baseCanEnd = false
+        } else {
+            baseCanEnd = whenBranchBodyTokenCanEndExpression(at: cursor, bodyStart: bodyStart)
+        }
+        return operatorCount % 2 == 1 ? !baseCanEnd : baseCanEnd
+    }
+
+    /// Whether the closing `>` at `index` belongs to a type argument list in an
+    /// `is`/`as` type rather than to a comparison operator.
+    private func isClosingTypeArgument(at index: Int, bodyStart: Int) -> Bool {
+        var angleDepth = 1
+        var parenDepth = 0
+        var bracketDepth = 0
+        var braceDepth = 0
+        var openIndex: Int?
+        var cursor = tokens.index(before: index)
+        scan: while cursor >= bodyStart {
+            let kind = tokens[cursor].kind
+            switch kind {
+            case .symbol(.rParen): parenDepth += 1
+            case .symbol(.lParen):
+                if parenDepth > 0 { parenDepth -= 1 }
+            case .symbol(.rBracket): bracketDepth += 1
+            case .symbol(.lBracket):
+                if bracketDepth > 0 { bracketDepth -= 1 }
+            case .symbol(.rBrace): braceDepth += 1
+            case .symbol(.lBrace):
+                if braceDepth > 0 { braceDepth -= 1 }
+            default:
+                break
+            }
+            if parenDepth == 0 && bracketDepth == 0 && braceDepth == 0 {
+                if kind == .symbol(.greaterThan) {
+                    angleDepth += 1
+                } else if kind == .symbol(.lessThan) {
+                    angleDepth -= 1
+                    if angleDepth == 0 {
+                        openIndex = cursor
+                        break scan
+                    }
+                }
+            }
+            if cursor == bodyStart { break }
+            cursor = tokens.index(before: cursor)
+        }
+        guard let open = openIndex else { return false }
+        return typeArgumentListHasCastOrCheck(before: open, bodyStart: bodyStart)
+    }
+
+    /// After finding the `<` that `>` closes, require the type it introduces to
+    /// be the target of an `is` check or `as`/`as?` cast inside this body.
+    private func typeArgumentListHasCastOrCheck(before openIndex: Int, bodyStart: Int) -> Bool {
+        var cursor = tokens.index(before: openIndex)
+        guard cursor >= bodyStart else { return false }
+        guard case .identifier(_) = tokens[cursor].kind else { return false }
+        while cursor > bodyStart {
+            let kind = tokens[cursor].kind
+            let isTypeNamePart: Bool
+            switch kind {
+            case .identifier(_), .symbol(.dot), .symbol(.questionDot),
+                 .symbol(.doubleColon), .symbol(.question):
+                isTypeNamePart = true
+            default:
+                isTypeNamePart = false
+            }
+            if !isTypeNamePart {
+                if kind == .keyword(.as) || kind == .keyword(.is) {
+                    return true
+                }
+                if kind == .symbol(.question) {
+                    let before = tokens.index(before: cursor)
+                    return before >= bodyStart && tokens[before].kind == .keyword(.as)
+                }
+                return false
+            }
+            cursor = tokens.index(before: cursor)
+        }
+        return false
     }
 
     private func startsWhenBranchHeader(at startIndex: Int) -> Bool {
