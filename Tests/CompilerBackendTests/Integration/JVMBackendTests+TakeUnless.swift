@@ -22,6 +22,15 @@ extension JVMBackendTests {
             val box = Box(1)
             println(box.takeUnless { it.passed() } == null)
             println(Box(-1).takeUnless { it.passed() }?.value)
+            // callsInPlace(EXACTLY_ONCE) contracts make predicate-side
+            // initialization visible for lambda-literal predicates, as in
+            // stock kotlinc; opaque function values stay rejected.
+            var x: Int
+            "hi".takeUnless { x = 5; false }
+            println(x)
+            var y: Int
+            "yo".takeIf { y = 7; true }
+            println(y)
         }
         """
         try withWorkspace { root in
@@ -29,7 +38,7 @@ extension JVMBackendTests {
             try #require(result.0 == 0, "\(result.1.map(\.message))")
             let artifact = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path
             let execution = try java(["-cp", artifact, "HelloKt"])
-            #expect(execution.stdout == "null\nhi\nnull\ntrue\n-1\n")
+            #expect(execution.stdout == "null\nhi\nnull\ntrue\n-1\n5\n7\n")
             #expect(execution.stderr.isEmpty)
         }
     }
