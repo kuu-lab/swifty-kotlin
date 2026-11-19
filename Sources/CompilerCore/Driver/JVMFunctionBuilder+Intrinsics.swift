@@ -26,7 +26,9 @@ extension JVMFunctionBuilder {
         var args: [JVMValue] = []
         for (arg, type) in zip(arguments, parameters) { args.append(try convert(arg, to: type)) }
         let method = JVMForeignMethod(owner: owner, name: name, descriptor: "(" + parameters.map(\.descriptor).joined() + ")" + resultType.descriptor, parameters: parameters, result: resultType, isStatic: receiver == nil, isInterface: interface, isAbstract: false)
-        let logical = resolved ?? resultType
+        let resolvedType = resolved ?? resultType
+        // An erased getter (e.g. Pair<Unit, T>.getFirst) returns an object, not void.
+        let logical = resultType.referenceName != nil ? resolvedType.withBoxedUnit : resolvedType
         let result = resultType == .unit ? nil : try value(foreignResultType(resultType, resolved: logical))
         instructions.append(.foreignCall(method, receiver: receiver, arguments: args, result: result))
         return try result.map { try convert($0, to: logical) }

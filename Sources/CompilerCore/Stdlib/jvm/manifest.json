@@ -492,6 +492,12 @@
       "runtimeFacade": "kotlin/collections/ArraysKt"
     },
     {
+      "path": "declarations/ArrayExtrema.kt",
+      "virtualPath": "<kswiftk-jvm>/array-extrema.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/ArraysKt"
+    },
+    {
       "path": "declarations/ArrayWithIndex.kt",
       "virtualPath": "<kswiftk-jvm>/array-with-index.kt",
       "excludeFromStdlibBuild": true,

@@ -1533,7 +1533,9 @@ extension DataFlowSemaPhase {
         case .typeParameter:
             return allowedTargets.contains("TYPE_PARAMETER")
         case .constructorPropertyParameter:
-            return !allowedTargets.isDisjoint(with: ["VALUE_PARAMETER", "PROPERTY", "FIELD"])
+            var applicableTargets: Set<String> = ["VALUE_PARAMETER", "PROPERTY", "FIELD"]
+            if isAnnotationClassDecl(decl) { applicableTargets.remove("FIELD") }
+            return !allowedTargets.isDisjoint(with: applicableTargets)
         case .enumEntry:
             return allowedTargets.contains("FIELD") || allowedTargets.contains("CLASS")
         case let .property(explicitUseSiteTarget):
@@ -1561,8 +1563,9 @@ extension DataFlowSemaPhase {
             }
             return allowedTargets.contains("FIELD")
         case .paramField:
-            // Constructor parameter backing field — always has a backing field
-            // (val/var params always generate a field), so skip PropertyDecl guard.
+            // Regular-class constructor properties have a backing field;
+            // annotation class elements do not.
+            guard !isAnnotationClassDecl(decl) else { return false }
             return allowedTargets.contains("FIELD")
         case .delegate:
             guard let propertySymbol,
@@ -1653,6 +1656,11 @@ extension DataFlowSemaPhase {
             return nil
         }
         return propertyDecl
+    }
+
+    private func isAnnotationClassDecl(_ decl: Decl?) -> Bool {
+        guard case let .classDecl(classDecl)? = decl else { return false }
+        return classDecl.modifiers.contains(.annotationClass)
     }
 
     private func propertyAllowsFieldTarget(

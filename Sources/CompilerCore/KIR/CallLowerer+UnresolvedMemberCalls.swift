@@ -123,10 +123,11 @@ extension CallLowerer {
             resolveClassTypeSymbol(sema.types.makeNonNullable(type), sema: sema)
                 .map { $0.symbol.name }
         }
-        // KUU-2154: source extension bodies own Iterable/Sequence traversal and
-        // throwing mutation dispatch. Do not rewrite them to native-only bridges.
+        // KUU-2154: source extension bodies own Iterable/Sequence/Array
+        // traversal and throwing mutation dispatch. Do not rewrite them to
+        // native-only bridges.
         if memberName == knownNames.addAll || memberName == knownNames.removeAll || memberName == knownNames.retainAll,
-           parameterName == knownNames.iterable || parameterName == knownNames.sequence,
+           parameterName == knownNames.iterable || parameterName == knownNames.sequence || parameterName == knownNames.array,
            let chosenCallee,
            sema.symbols.isSourceBackedSymbol(chosenCallee)
         {

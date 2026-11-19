@@ -136,20 +136,27 @@ extension CallLowerer {
             return result
         }
 
-        // Explicit `Char.plus/minus` and `Float`/`Double` arithmetic member calls
-        // behave exactly like the operator syntax, so emit the same `.binary` node
-        // and let the operator/narrowing passes type it. The integer-receiver fast
-        // path below only knows `kk_op_*` on integral slots.
+        // Explicit primitive arithmetic member calls behave exactly like the
+        // operator syntax, so emit the same `.binary` node and let the
+        // operator/narrowing passes type it. The integer-receiver fast path
+        // below only knows `kk_op_*` on integral slots, so any floating-point
+        // operand must take the operator path to get its widening conversions.
         if !isSourceArithmeticExtension, args.count == 1,
            let binaryOp = explicitFloatingOrCharArithmeticOp(calleeNameStr),
            isNumericPrimitiveOperand(args[0].expr, sema: sema),
            !(sema.bindings.isRangeExpr(receiverExpr) || ControlFlowTypeChecker.isRangeExpression(receiverExpr, ast: ast))
         {
             let receiverType = sema.types.makeNonNullable(sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType)
-            if receiverType == sema.types.charType
+            let argumentType = sema.types.makeNonNullable(
+                sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
+            )
+            let receiverIsFloatingOrChar = receiverType == sema.types.charType
                 || receiverType == sema.types.floatType
                 || receiverType == sema.types.doubleType
-            {
+            let usesFloatingPointOperands = receiverIsFloatingOrChar
+                || argumentType == sema.types.floatType
+                || argumentType == sema.types.doubleType
+            if usesFloatingPointOperands, sema.types.isBuiltinArithmeticOperand(receiverType) {
                 instructions.append(.binary(op: binaryOp, lhs: loweredReceiverID, rhs: loweredArgIDs[0], result: result))
                 return result
             }

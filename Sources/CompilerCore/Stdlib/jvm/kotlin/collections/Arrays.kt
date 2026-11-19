@@ -75,6 +75,54 @@ public fun FloatArray.max(): Float {
     return result
 }
 
+public fun <T : Comparable<T>> Array<out T>.minOrNull(): T? {
+    if (size == 0) return null
+    var result = this[0]
+    for (index in 1 until size) {
+        val element = this[index]
+        if (result > element) result = element
+    }
+    return result
+}
+
+public fun <T : Comparable<T>> Array<out T>.maxOrNull(): T? {
+    if (size == 0) return null
+    var result = this[0]
+    for (index in 1 until size) {
+        val element = this[index]
+        if (result < element) result = element
+    }
+    return result
+}
+
+public fun Array<out Float>.minOrNull(): Float? {
+    if (size == 0) return null
+    var result = this[0]
+    for (index in 1 until size) result = java.lang.Math.min(result, this[index])
+    return result
+}
+
+public fun Array<out Float>.maxOrNull(): Float? {
+    if (size == 0) return null
+    var result = this[0]
+    for (index in 1 until size) result = java.lang.Math.max(result, this[index])
+    return result
+}
+
+public fun Array<out Double>.minOrNull(): Double? {
+    if (size == 0) return null
+    var result = this[0]
+    for (index in 1 until size) result = java.lang.Math.min(result, this[index])
+    return result
+}
+
+public fun Array<out Double>.maxOrNull(): Double? {
+    if (size == 0) return null
+    var result = this[0]
+    for (index in 1 until size) result = java.lang.Math.max(result, this[index])
+    return result
+}
+
 public fun IntArray.minOrNull(): Int? {
     if (size == 0) return null
     var result = this[0]
@@ -88,8 +136,11 @@ public fun IntArray.minOrNull(): Int? {
 public fun IntArray.min(): Int = minOrNull() ?: throw NoSuchElementException()
 
 @JvmName("maxOrThrow")
-public fun IntArray.max(): Int {
-    var result = first()
+public fun IntArray.max(): Int = maxOrNull() ?: throw NoSuchElementException("Array is empty.")
+
+public fun IntArray.maxOrNull(): Int? {
+    if (size == 0) return null
+    var result = this[0]
     for (index in 1 until size) {
         if (this[index] > result) result = this[index]
     }

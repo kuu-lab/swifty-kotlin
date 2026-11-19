@@ -267,6 +267,8 @@ extension JVMProgramBuilder {
                 KnownCompilerAnnotation.jvmInline.qualifiedName,
                 KnownCompilerAnnotation.jvmName.qualifiedName,
                 KnownCompilerAnnotation.jvmField.qualifiedName,
+                "kotlin.jvm.Volatile",
+                "kotlin.jvm.Transient",
                 KnownCompilerAnnotation.jvmStatic.qualifiedName,
                 KnownCompilerAnnotation.jvmStatic.simpleName,
                 KnownCompilerAnnotation.jvmSynthetic.qualifiedName,

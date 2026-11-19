@@ -22,6 +22,9 @@ public enum JVMValueType: Hashable, Sendable {
         }
     }
     public var width: Int { self == .unit ? 0 : (self == .long || self == .ulong || self == .double ? 2 : 1) }
+    var withBoxedUnit: JVMValueType {
+        self == .unit ? .reference("kotlin/Unit", nullable: false) : self
+    }
     public var isNumeric: Bool { [.int, .long, .float, .double, .byte, .short, .char, .uint, .ulong, .ubyte, .ushort].contains(self) }
     /// The primitive carrier used for numeric operations, without changing the
     /// reference descriptor required by generic bounds and nullable values.

@@ -165,11 +165,18 @@ public struct DestructuringDeclLayout: Equatable, Codable {
     public var properties: [InternedString?]
     /// Per entry mutability (`[val a, var b]`); empty means the declaration's `isMutable`.
     public var mutableFlags: [Bool]
+    public var entryTypeRefs: [Int: TypeRefID]
 
-    public init(syntax: ForDestructuringSyntax, properties: [InternedString?], mutableFlags: [Bool]) {
+    public init(
+        syntax: ForDestructuringSyntax,
+        properties: [InternedString?],
+        mutableFlags: [Bool],
+        entryTypeRefs: [Int: TypeRefID] = [:]
+    ) {
         self.syntax = syntax
         self.properties = properties
         self.mutableFlags = mutableFlags
+        self.entryTypeRefs = entryTypeRefs
     }
 }
 

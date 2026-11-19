@@ -391,16 +391,12 @@ extension BuildASTPhase.ExpressionParser {
             && isWhenBranchAssignmentOperator(tokens[parser.index].kind)
         if body == nil || (consumedCount < branchTokens.count && nextTokenIsAssignment) {
             if let assignBody = parseWhenBranchAssignmentBody(branchTokens) {
-                body = assignBody
-                if let bodyEndOffset = astArena.exprRange(assignBody)?.end.offset {
-                    consumedCount = whenBranchBodyConsumedCount(
-                        startIndex: startIndex,
-                        endIndex: endIndex,
-                        bodyEndOffset: bodyEndOffset
-                    )
-                } else {
-                    consumedCount = branchTokens.count
-                }
+                body = assignBody.expr
+                consumedCount = whenBranchBodyConsumedCount(
+                    startIndex: startIndex,
+                    endIndex: endIndex,
+                    bodyEndOffset: assignBody.endOffset
+                )
             }
         }
         guard let body else {
@@ -413,7 +409,13 @@ extension BuildASTPhase.ExpressionParser {
         return body
     }
 
-    private func parseWhenBranchAssignmentBody(_ branchTokens: ArraySlice<Token>) -> ExprID? {
+    private func parseWhenBranchAssignmentBody(_ branchTokens: ArraySlice<Token>) -> (expr: ExprID, endOffset: Int)? {
+        // The assignment AST's source range can end before the value's last
+        // token (a parenthesized cast like `(a as Int)` ranges only to `a`), so
+        // track the end offset of the rightmost token any nested expression
+        // parse actually consumed. The value parse is the rightmost one, and
+        // capturing it here avoids re-parsing the branch.
+        var bodyEndOffset = 0
         let context = BuildASTPhase.LocalStatementCoreContext(
             interner: interner,
             astArena: astArena,
@@ -425,17 +427,28 @@ extension BuildASTPhase.ExpressionParser {
                     diagnostics: self.diagnostics
                 )
                 parser.allowsTrailingWhenBranchElse = true
-                return parser.parse()
+                let expr = parser.parse()
+                if expr != nil, parser.index > subTokens.startIndex {
+                    let end = subTokens[parser.index - 1].range.end.offset
+                    bodyEndOffset = max(bodyEndOffset, end)
+                }
+                return expr
             },
             parseTypeReference: { _ in nil },
             resolveDeclarationName: { _, _ in nil },
             diagnostics: self.diagnostics
         )
-        return BuildASTPhase.LocalStatementCore.parseLocalAssignment(
+        guard let expr = BuildASTPhase.LocalStatementCore.parseLocalAssignment(
             from: branchTokens,
             context: context,
             options: .blockExpression
-        )
+        ) else {
+            return nil
+        }
+        if bodyEndOffset == 0, let rangeEnd = astArena.exprRange(expr)?.end.offset {
+            bodyEndOffset = rangeEnd
+        }
+        return (expr, bodyEndOffset)
     }
 
     private func isWhenBranchAssignmentOperator(_ kind: TokenKind) -> Bool {
@@ -977,6 +990,7 @@ extension BuildASTPhase.ExpressionParser {
             var destructuringNames: [InternedString?] = []
             var destructuringProperties: [InternedString?] = []
             var destructuringMutableFlags: [Bool] = []
+            var entryTypeRefs: [Int: TypeRefID] = [:]
             var declaringEntryCount = 0
             var foundClosingDelimiter = false
             while let token = current() {
@@ -1037,13 +1051,15 @@ extension BuildASTPhase.ExpressionParser {
                     if entryDeclared {
                         declaringEntryCount += 1
                     }
-                    if matches(.symbol(.colon)) {
-                        _ = consume()
-                        while let t = current(),
-                              t.kind != .symbol(.comma),
-                              t.kind != closingKind
-                        {
-                            _ = consume()
+                    if let colon = consumeIf(.symbol(.colon)) {
+                        if let typeRef = parseTypeReference(colon.range, allowFunctionType: true) {
+                            entryTypeRefs[destructuringNames.count - 1] = typeRef
+                        } else {
+                            diagnostics?.error(
+                                "KSWIFTK-PARSE-0020",
+                                "Expected type after ':'.",
+                                range: current()?.range ?? colon.range
+                            )
                         }
                     }
                 } else {
@@ -1094,7 +1110,8 @@ extension BuildASTPhase.ExpressionParser {
                     DestructuringDeclLayout(
                         syntax: syntax,
                         properties: destructuringProperties,
-                        mutableFlags: declaringEntryCount > 0 ? destructuringMutableFlags : []
+                        mutableFlags: declaringEntryCount > 0 ? destructuringMutableFlags : [],
+                        entryTypeRefs: entryTypeRefs
                     ),
                     for: exprID
                 )

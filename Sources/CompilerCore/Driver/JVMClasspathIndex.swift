@@ -1026,9 +1026,159 @@ final class JVMClasspathIndex {
         if classes[name] == nil, coveredSourceSupertype(name) {
             return child.kotlinSupertypes[name.replacingOccurrences(of: "$", with: ".")]
         }
+        // Java class signatures keep `implements Comparable<Instant>`; the
+        // erased interface list alone cannot satisfy `T : Comparable<T>`.
+        if name == "java/lang/Comparable",
+           let comparable = javaSignatureSupertypes(child.genericSignature).first(where: { $0.binary == name }),
+           comparable.source.contains("<") {
+            return comparable.source
+        }
         if let generic = javaGenericSupertype(name, of: child) { return generic.source }
         if name == "java/lang/Iterable", let base = kotlinSupertypeName(name) { return base + "<kotlin.Any?>" }
         return supertypeReference(name, childParams: child.classTypeParameterNames)
+    }
+
+    private func javaSignatureClassBase(_ binary: String) -> String {
+        switch binary {
+        case "java/lang/Object": return "kotlin.Any"
+        case "java/lang/String": return "kotlin.String"
+        case "java/lang/Comparable": return "kotlin.Comparable"
+        default:
+            if let mapped = Self.jdkToKotlinTypeNames[binary] {
+                return String(mapped.split(separator: "<").first.map(String.init) ?? mapped)
+            }
+            return Self.dottedTypeName(binary)
+        }
+    }
+
+    private func javaSignatureClassIsMapped(_ binary: String) -> Bool {
+        switch binary {
+        case "java/lang/Object", "java/lang/String", "java/lang/Comparable": return true
+        default: return Self.jdkToKotlinTypeNames[binary] != nil
+        }
+    }
+
+    private func javaSignatureType(_ scalars: [Character], _ index: inout Int) -> (source: String, referencedClasses: Set<String>)? {
+        guard index < scalars.count else { return nil }
+        switch scalars[index] {
+        case "B": index += 1; return ("kotlin.Byte", [])
+        case "C": index += 1; return ("kotlin.Char", [])
+        case "D": index += 1; return ("kotlin.Double", [])
+        case "F": index += 1; return ("kotlin.Float", [])
+        case "I": index += 1; return ("kotlin.Int", [])
+        case "J": index += 1; return ("kotlin.Long", [])
+        case "S": index += 1; return ("kotlin.Short", [])
+        case "Z": index += 1; return ("kotlin.Boolean", [])
+        case "V": index += 1; return ("kotlin.Unit", [])
+        case "T":
+            index += 1
+            let start = index
+            while index < scalars.count, scalars[index] != ";" { index += 1 }
+            guard index < scalars.count else { return nil }
+            let name = String(scalars[start..<index])
+            index += 1
+            return ("`\(name)`", [])
+        case "[":
+            index += 1
+            guard let element = javaSignatureType(scalars, &index) else { return nil }
+            let primitiveArrays = [
+                "kotlin.Byte": "kotlin.ByteArray",
+                "kotlin.Char": "kotlin.CharArray",
+                "kotlin.Double": "kotlin.DoubleArray",
+                "kotlin.Float": "kotlin.FloatArray",
+                "kotlin.Int": "kotlin.IntArray",
+                "kotlin.Long": "kotlin.LongArray",
+                "kotlin.Short": "kotlin.ShortArray",
+                "kotlin.Boolean": "kotlin.BooleanArray",
+            ]
+            if let array = primitiveArrays[element.source] { return (array, element.referencedClasses) }
+            return ("kotlin.Array<\(element.source)>", element.referencedClasses)
+        case "L":
+            guard let reference = javaSignatureReferenceType(scalars, &index) else { return nil }
+            return (reference.source, reference.referencedClasses)
+        default:
+            return nil
+        }
+    }
+
+    private func javaSignatureReferenceType(_ scalars: [Character], _ index: inout Int) -> (binary: String, source: String, referencedClasses: Set<String>)? {
+        guard index < scalars.count, scalars[index] == "L" else { return nil }
+        index += 1
+        let nameStart = index
+        while index < scalars.count, scalars[index] != "<", scalars[index] != ";" { index += 1 }
+        let binary = String(scalars[nameStart..<index])
+        guard !binary.isEmpty else { return nil }
+        var referencedClasses: Set<String> = javaSignatureClassIsMapped(binary) ? [] : [binary]
+        var source = javaSignatureClassBase(binary)
+        if index < scalars.count, scalars[index] == "<" {
+            index += 1
+            var arguments: [String] = []
+            while index < scalars.count, scalars[index] != ">" {
+                // Use-site projections do not always survive Kotlin's
+                // declaration-site variance when Java types are mapped
+                // (e.g. java.util.List -> kotlin.collections.List). Keep the
+                // erased fallback for wildcard signatures instead.
+                if scalars[index] == "*" || scalars[index] == "+" || scalars[index] == "-" { return nil }
+                guard let argument = javaSignatureType(scalars, &index) else { return nil }
+                referencedClasses.formUnion(argument.referencedClasses)
+                arguments.append(argument.source)
+            }
+            guard index < scalars.count, scalars[index] == ">" else { return nil }
+            index += 1
+            if !arguments.isEmpty { source += "<" + arguments.joined(separator: ", ") + ">" }
+        }
+        guard index < scalars.count, scalars[index] == ";" else { return nil }
+        index += 1
+        return (binary, source, referencedClasses)
+    }
+
+    private func javaSignatureSupertypes(_ signature: String?) -> [(binary: String, source: String, referencedClasses: Set<String>)] {
+        guard let signature, !signature.isEmpty else { return [] }
+        let scalars = Array(signature)
+        var index = 0
+        if index < scalars.count, scalars[index] == "<" {
+            var depth = 0
+            while index < scalars.count {
+                if scalars[index] == "<" { depth += 1 }
+                else if scalars[index] == ">" {
+                    depth -= 1
+                    index += 1
+                    if depth == 0 { break }
+                    continue
+                }
+                index += 1
+            }
+            guard depth == 0 else { return [] }
+        }
+        var result: [(binary: String, source: String, referencedClasses: Set<String>)] = []
+        while index < scalars.count {
+            let referenceStart = index
+            guard let reference = javaSignatureReferenceType(scalars, &index) else {
+                // An unsupported argument (e.g. a wildcard) makes one supertype
+                // unparsable; skip it so later supertypes such as
+                // Comparable<Foo> are still visible.
+                index = javaSignatureSkipClassType(scalars, from: referenceStart)
+                continue
+            }
+            result.append((reference.binary, reference.source, reference.referencedClasses))
+        }
+        return result
+    }
+
+    private func javaSignatureSkipClassType(_ scalars: [Character], from start: Int) -> Int {
+        var index = start
+        var depth = 0
+        while index < scalars.count {
+            switch scalars[index] {
+            case "<": depth += 1
+            case ">": depth = max(0, depth - 1)
+            case ";":
+                if depth == 0 { return index + 1 }
+            default: break
+            }
+            index += 1
+        }
+        return scalars.count
     }
 
     private func coveredSuperclassReference(_ name: String, child: JVMClassInfo) -> String? {
@@ -2714,6 +2864,14 @@ final class JVMClasspathIndex {
             // type arguments can name lazy classpath classes that no other
             // signature references.
             markSourceTypes(Array(info.kotlinSupertypes.values))
+            if let signature = info.genericSignature {
+                for supertype in javaSignatureSupertypes(signature) where supertype.binary == "java/lang/Comparable" {
+                    for reference in supertype.referencedClasses
+                    where lazyClassNames.contains(reference) && isInjected(reference) {
+                        markNeeded(reference)
+                    }
+                }
+            }
             for name in javaTypeParameterBounds(info).referencedClasses { markNeeded(name) }
             for name in info.genericSupertypeSignatures.keys {
                 if let supertype = javaGenericSupertype(name, of: info) {
@@ -2739,10 +2897,14 @@ final class JVMClasspathIndex {
                 if let function = method.kotlinFunction {
                     let sourceTypes = (function.contextParameters + function.parameters).map(\.sourceType)
                         + [function.result] + [function.receiver].compactMap { $0 }
+                        // Type-parameter bounds (rendered in `where` clauses)
+                        // can name classes absent from the erased signature.
+                        + function.typeParameters.flatMap(\.bounds)
                     markSourceTypes(sourceTypes)
                 }
                 if let function = method.kotlinSuspendFunction {
-                    markSourceTypes(function.parameters.compactMap(\.sourceType) + [function.sourceResult].compactMap { $0 })
+                    markSourceTypes(function.parameters.compactMap(\.sourceType) + [function.sourceResult].compactMap { $0 }
+                        + function.typeParameters.flatMap(\.bounds))
                 }
                 // Regular member functions keep their Kotlin signature types
                 // only in the class's @Metadata; emitted stubs render those
@@ -2946,8 +3108,18 @@ final class JVMClasspathIndex {
             let bound = resultType == "kotlin.Any" ? "kotlin.Any?" : resultType
             return "<`\(parameter.name)`: \(bound)> "
         } ?? ""
+        // Suspend metadata carries the function's own type parameters (e.g.
+        // `suspend CoroutineScope.() -> T`); declare them so parameter source
+        // types can reference them.
+        let suspendTypeParameters = suspend?.typeParameters ?? []
+        let suspendGeneric = suspendTypeParameters.isEmpty ? "" : "<"
+            + suspendTypeParameters.map { "`\($0.name)`" }.joined(separator: ", ") + "> "
+        let suspendBounds = suspendTypeParameters.flatMap { parameter in
+            parameter.bounds.map { "`\(parameter.name)`: " + $0 }
+        }
+        let suspendWhereClause = suspendBounds.isEmpty ? "" : " where " + suspendBounds.joined(separator: ", ")
         let modifier = suspend == nil ? "" : "suspend "
-        return modifier + "fun " + generic + "\(receiver)`\(method.sourceName)`(" + parameters(method, droppingReceiver: asExtension, javaTypes: javaTypes?.parameters, classTypeVariables: classTypeVariables) + "): " + result
+        return modifier + "fun " + (generic.isEmpty ? suspendGeneric : generic) + "\(receiver)`\(method.sourceName)`(" + parameters(method, droppingReceiver: asExtension, javaTypes: javaTypes?.parameters, classTypeVariables: classTypeVariables) + "): " + result + suspendWhereClause
     }
 
     private func kotlinFunctionDeclaration(_ function: JVMKotlinFunction, asFacadeMember: Bool, acceptsDefaults: Bool) -> String {

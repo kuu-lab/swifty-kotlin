@@ -314,6 +314,7 @@ public final class BindingTable {
     /// than re-resolving by name.
     public private(set) var destructuringComponentCallees: [ExprID: [Int: SymbolID]] = [:]
     var destructuringPropertyBindings: [ExprID: [Int: DestructuringPropertyBinding]] = [:]
+    private var typedForDestructuringEntries: [ExprID: [Int: (component: TypeID, declared: TypeID)]] = [:]
 
     /// Drops every binding recorded for `expr` so the expression can be
     /// re-inferred from scratch. Speculative call resolution uses this when
@@ -401,6 +402,7 @@ public final class BindingTable {
         anyToStringCallableRefs.remove(expr)
         destructuringComponentCallees.removeValue(forKey: expr)
         destructuringPropertyBindings.removeValue(forKey: expr)
+        typedForDestructuringEntries.removeValue(forKey: expr)
     }
 
     /// The initial independent-body contract permits scalar expression types,
@@ -512,6 +514,7 @@ public final class BindingTable {
         if !capturedLocalTypesBySymbol.isEmpty { return false }
         if !destructuringComponentCallees.isEmpty { return false }
         if !destructuringPropertyBindings.isEmpty { return false }
+        if !typedForDestructuringEntries.isEmpty { return false }
         return true
     }
 
@@ -641,6 +644,7 @@ public final class BindingTable {
         worker.capturedLocalTypesBySymbol = capturedLocalTypesBySymbol
         worker.destructuringComponentCallees = destructuringComponentCallees
         worker.destructuringPropertyBindings = destructuringPropertyBindings
+        worker.typedForDestructuringEntries = typedForDestructuringEntries
         return worker
     }
 
@@ -825,6 +829,14 @@ public final class BindingTable {
 
     func destructuringProperty(for expr: ExprID, index: Int) -> DestructuringPropertyBinding? {
         destructuringPropertyBindings[expr]?[index]
+    }
+
+    func bindTypedForDestructuringEntry(_ expr: ExprID, index: Int, component: TypeID, declared: TypeID) {
+        typedForDestructuringEntries[expr, default: [:]][index] = (component, declared)
+    }
+
+    func typedForDestructuringEntry(for expr: ExprID, index: Int) -> (component: TypeID, declared: TypeID)? {
+        typedForDestructuringEntries[expr]?[index]
     }
 
     public func bindContractCallsInPlaceInitializedSymbols(_ expr: ExprID, symbols: [SymbolID]) {

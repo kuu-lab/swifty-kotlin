@@ -13,6 +13,7 @@ struct JVMKotlinSuspendFunction {
     let sourceResult: String?
     let parameters: [Parameter]
     let receiverIsNullable: Bool?
+    let typeParameters: [JVMKotlinFunction.TypeParameter]
 }
 
 /// The Kotlin source signature of a classpath function whose erased JVM
@@ -268,7 +269,37 @@ struct JVMKotlinMetadataPayload {
             let jvmName = try names.resolve(signature.int32(1)) ?? name
             let carriers = (try? JVMDescriptor.parse(descriptor).0) ?? []
             var types = try function.message(30).map(TypeTable.init) ?? classTypes
-            types.parameterNames = classTypes.parameterNames
+            // Suspend signatures can reference the owner's or the function's
+            // own type parameters (e.g. `suspend CoroutineScope.() -> T`).
+            // Without their names the source-type renderer cannot spell them,
+            // and the stub falls back to the erased kotlin.jvm.functions
+            // carrier, which has no Kotlin declaration (KUU-4612).
+            types.parameterNames = table.ownerTypeParameters.isEmpty ? classTypes.parameterNames : table.ownerTypeParameters
+            let typeParameterMessages = try function.messages(4)
+            let typeParameterIDs = try typeParameterMessages.compactMap { parameter -> Int32? in
+                guard parameter.bool(3) != true, let id = parameter.int32(1),
+                      let name = try names.resolve(parameter.int32(2)), JVMProgramBuilder.isIdentifier(name)
+                else { return nil }
+                types.parameterNames[id] = name
+                return id
+            }
+            // Register every name before resolving bounds: a bound can
+            // reference a later type parameter (e.g. `<T : Comparable<R>, R>`).
+            guard typeParameterIDs.count == typeParameterMessages.count else { continue }
+            var typeParameters: [JVMKotlinFunction.TypeParameter] = []
+            for (id, parameter) in zip(typeParameterIDs, typeParameterMessages) {
+                let inlineBounds = try parameter.messages(5).map { (type: $0, nullable: $0.bool(3) == true) }
+                let boundIDs = try parameter.int32List(6)
+                let indexedBounds = boundIDs.compactMap { types.resolve(index: $0) }
+                let allBounds = inlineBounds + indexedBounds
+                let bounds = try allBounds.compactMap {
+                    try Self.sourceType($0, types: types, names: names)
+                }
+                guard indexedBounds.count == boundIDs.count, bounds.count == allBounds.count,
+                      let parameterName = types.parameterNames[id] else { break }
+                typeParameters.append(.init(name: parameterName, bounds: bounds))
+            }
+            guard typeParameters.count == typeParameterIDs.count else { continue }
             guard let returnType = try types.resolve(function, inline: 3, indexed: 7) else { continue }
             let carrier: JVMValueType
             if let concrete = try Self.resultType(returnType, types: types, names: names) {
@@ -294,7 +325,11 @@ struct JVMKotlinMetadataPayload {
                     } else {
                         differsFromCarrier = false
                     }
-                    return type.type.has(2) || type.type.has(7) || type.type.has(9) || differsFromCarrier
+                    // Bare type-parameter parameters (e.g. `value: T`) carry
+                    // no class name; render them so they do not degrade to
+                    // the erased kotlin.Any carrier.
+                    let isBareTypeParameter = (try? names.resolve(type.type.int32(6))) == nil
+                    return type.type.has(2) || type.type.has(7) || type.type.has(9) || differsFromCarrier || isBareTypeParameter
                         ? try Self.sourceType(type, types: types, names: names) : nil
                 }
                 return JVMKotlinSuspendFunction.Parameter(
@@ -303,10 +338,16 @@ struct JVMKotlinMetadataPayload {
                     sourceType: sourceType
                 )
             }
+            // Bare type-parameter results (e.g. `suspend CoroutineScope.() -> T`)
+            // carry no type arguments; render them too so callers keep `T`
+            // instead of degrading to kotlin.Any?.
+            let resultIsTypeParameter = (try? names.resolve(returnType.type.int32(6))) == nil
             let info = JVMKotlinSuspendFunction(
                 name: name, result: carrier,
-                sourceResult: returnType.type.has(2) ? try Self.sourceType(returnType, types: types, names: names) : nil,
-                parameters: parameters, receiverIsNullable: receiver?.nullable
+                sourceResult: returnType.type.has(2) || resultIsTypeParameter
+                    ? try Self.sourceType(returnType, types: types, names: names) : nil,
+                parameters: parameters, receiverIsNullable: receiver?.nullable,
+                typeParameters: typeParameters
             )
             guard result.updateValue(info, forKey: jvmName + descriptor) == nil else { throw JVMClassReader.Invalid() }
         }
