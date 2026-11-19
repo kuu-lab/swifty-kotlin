@@ -49,9 +49,10 @@ let package = Package(
             name: "RuntimeCAtomics"
         ),
         // Content fingerprints hash artifact-sized inputs (the bundled stdlib
-        // `.kklib` is ~1 GB); keep this tiny target optimized even in debug
-        // compiler builds, where the pure-Swift SHA-256 fallback runs at a few
-        // MB/s and makes cache resolution exceed the diff harness timeout.
+        // `.kklib` is ~1 GB). CompilerCore uses this only in debug builds,
+        // where the pure-Swift SHA-256 fallback runs at a few MB/s and makes
+        // cache resolution take minutes; keep the target optimized even in
+        // debug compiler builds.
         .target(
             name: "CSHA256",
             cSettings: [.unsafeFlags(["-O2"])]

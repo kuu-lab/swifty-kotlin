@@ -416,7 +416,7 @@ extension CallLowerer {
         return false
     }
 
-    private func isNonNullEnumType(_ type: TypeID, sema: SemaModule) -> Bool {
+    func isNonNullEnumType(_ type: TypeID, sema: SemaModule) -> Bool {
         guard case let .classType(classType) = sema.types.kind(of: type),
               classType.nullability == .nonNull,
               let symbol = sema.symbols.symbol(classType.classSymbol)

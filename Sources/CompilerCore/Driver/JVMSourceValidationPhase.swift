@@ -161,13 +161,25 @@ private struct JVMSourceGrammar {
             index += 1
         }
     }
+    mutating func parameterPrefix(properties: Bool) throws {
+        while kind == .symbol(.at) { try annotation() }
+        guard properties else {
+            while take(.keyword(.noinline)) || take(.keyword(.crossinline)) || take(.keyword(.vararg)) {}
+            return
+        }
+        while true {
+            let before = index
+            while take(.keyword(.noinline)) || take(.keyword(.crossinline)) || take(.keyword(.vararg)) {}
+            modifiers()
+            if take(.keyword(.val)) || take(.keyword(.var)) { break }
+            guard index != before else { break }
+        }
+    }
     mutating func parameters(properties: Bool = false, requireTypes: Bool = true, allowDefaults: Bool = true) throws {
         try require(.symbol(.lParen))
         if !take(.symbol(.rParen)) {
             repeat {
-                while kind == .symbol(.at) { try annotation() }
-                while take(.keyword(.noinline)) || take(.keyword(.crossinline)) || take(.keyword(.vararg)) {}
-                if properties { modifiers(); _ = take(.keyword(.val)) || take(.keyword(.var)) }
+                try parameterPrefix(properties: properties)
                 try name()
                 if requireTypes { try require(.symbol(.colon)); try type() }
                 else if take(.symbol(.colon)) { try type() }
@@ -312,6 +324,10 @@ private struct JVMSourceGrammar {
                 }
                 if take(.softKeyword(.get)) {
                     try parameters()
+                    // A getter may declare its return type explicitly, as in
+                    // `val x get(): Int = 1`; kotlinc infers the property type
+                    // from it when the property has no type annotation.
+                    if take(.symbol(.colon)) { try type() }
                 } else if take(.softKeyword(.set)) {
                     if take(.symbol(.lParen)) {
                         try name()
@@ -557,6 +573,7 @@ private struct JVMSourceGrammar {
             try declaration(member: false)
         } else if take(.keyword(.super)) {
             if take(.symbol(.lessThan)) { try type(nullable: false); try require(.symbol(.greaterThan)) }
+            if take(.symbol(.at)) { try name() }
         } else { switch kind {
         case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .charLiteral, .floatLiteral, .doubleLiteral, .keyword(.true), .keyword(.false), .keyword(.null): index += 1
         case .keyword(.this): index += 1; if take(.symbol(.at)) { try name() }

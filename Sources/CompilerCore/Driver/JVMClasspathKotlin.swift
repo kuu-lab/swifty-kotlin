@@ -14,9 +14,14 @@ extension JVMClasspathIndex {
     func kotlinFunction(_ method: JVMForeignMethod) -> JVMKotlinFunctionInfo? {
         guard let owner = declaringClass(for: method), let metadata = kotlinMetadata(owner) else { return nil }
         let candidates = metadata.functions.filter { function in
-            let parameterCount = function.parameters.count + (function.receiver == nil ? 0 : 1) + (function.isSuspend ? 1 : 0)
+            let parameterCount = kotlinFunctionParameterCount(function)
             return function.jvmName == method.name && (function.isPublic || function.isProtected)
-                && parameterCount == method.parameters.count
+                && (parameterCount == method.parameters.count
+                    || isComposeMemberABI(method, function: function, parameterCount: parameterCount))
+        }
+        if candidates.count == 1, let function = candidates.first,
+           isComposeMemberABI(method, function: function, parameterCount: kotlinFunctionParameterCount(function)) {
+            return function
         }
         if let exact = candidates.first(where: { function in
             if let descriptor = function.descriptor { return descriptor == method.descriptor }
@@ -37,6 +42,36 @@ extension JVMClasspathIndex {
             return candidates[0]
         }
         return nil
+    }
+
+    func kotlinFunctionParameterCount(_ function: JVMKotlinFunctionInfo) -> Int {
+        function.parameters.count + (function.receiver == nil ? 0 : 1) + (function.isSuspend ? 1 : 0)
+    }
+
+    func isComposeMemberABI(_ method: JVMForeignMethod, function: JVMKotlinFunctionInfo, parameterCount: Int) -> Bool {
+        guard !method.isStatic, !function.isSuspend,
+              method.annotations.contains(where: { $0.descriptor == "Landroidx/compose/runtime/Composable;" })
+        else { return false }
+        let hiddenCount = method.parameters.count - parameterCount
+        guard hiddenCount > 1 else { return false }
+        let suffix = method.parameters.suffix(hiddenCount)
+        guard suffix.first?.referenceName == JVMCompose.composer else { return false }
+        let expectedMasks = (function.parameters.count + 31) / 32
+            + (function.parameters.contains(where: \.hasDefault) ? 1 : 0)
+        let masks = suffix.dropFirst()
+        return masks.count == expectedMasks && masks.allSatisfy({ $0 == .int })
+    }
+
+    func isComposeMemberCall(_ method: JVMForeignMethod, descriptorTypes: [JVMValueType]) -> Bool {
+        guard let function = kotlinFunction(method) else { return false }
+        let parameterCount = kotlinFunctionParameterCount(function)
+        guard isComposeMemberABI(method, function: function, parameterCount: parameterCount) else { return false }
+        let sourceCount = function.parameters.count + (function.receiver == nil ? 0 : 1)
+        guard sourceCount == descriptorTypes.count, method.parameters.count >= descriptorTypes.count else { return false }
+        return zip(method.parameters.prefix(descriptorTypes.count), descriptorTypes).allSatisfy { physical, logical in
+            let expected: JVMValueType = logical == .unit ? .reference("kotlin/Unit", nullable: false) : logical
+            return physical.descriptor == expected.descriptor || importedValueCarrier(for: expected)?.descriptor == physical.descriptor
+        }
     }
 
     func kotlinParameterDeclarations(_ parameters: [JVMKotlinParameterInfo], typeParameters: [Int: String]) -> [String] {
@@ -69,6 +104,27 @@ extension JVMClasspathIndex {
             let result = kotlinSourceType(result, parameters: parameters)
             let declaration = (suspend ? "suspend " : "") + receiver + "(" + inputs + ") -> " + result
             return nullable ? "(" + declaration + ")?" : declaration
+        }
+    }
+
+    /// Binary names of every class a Kotlin metadata type can reference,
+    /// including generic arguments that JVM erasure drops from descriptors.
+    static func kotlinMetadataClassNames(_ type: JVMKotlinType, into names: inout Set<String>) {
+        switch type {
+        case .named(let name, let arguments, _):
+            names.insert(name)
+            for argument in arguments {
+                if let nested = argument.type { kotlinMetadataClassNames(nested, into: &names) }
+            }
+        case .parameter:
+            break
+        case .flexible(let lower, let upper):
+            kotlinMetadataClassNames(lower, into: &names)
+            kotlinMetadataClassNames(upper, into: &names)
+        case .function(let inputs, let result, let receiver, _, _, let context):
+            for input in inputs + context { kotlinMetadataClassNames(input, into: &names) }
+            kotlinMetadataClassNames(result, into: &names)
+            if let receiver { kotlinMetadataClassNames(receiver, into: &names) }
         }
     }
 
