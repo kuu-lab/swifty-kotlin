@@ -328,7 +328,7 @@ extension JVMFunctionBuilder {
             return
         }
         let range: (BinaryOp, ExprID, ExprID)? = switch arena.expr(iterable) {
-        case let .binary(op, from, to, _) where [BinaryOp.rangeTo, .rangeUntil, .downTo].contains(op):
+        case let .binary(op, from, to, _) where [BinaryOp.rangeTo, .rangeUntil, .downTo].contains(op) && program.sema.bindings.isRangeExpr(iterable):
             (op, from, to)
         case let .memberCall(receiver, callee, _, args, _)
             where context.interner.resolve(callee) == "until" && args.count == 1 &&
