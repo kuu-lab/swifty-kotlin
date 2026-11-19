@@ -675,6 +675,23 @@ final class JVMClasspathIndex {
         if method.isSynthetic, isHiddenByDeprecation(method) { return false }
         if method.isSynthetic, method.kotlinFunction == nil, method.kotlinSuspendFunction == nil,
            kotlinFunction(method) == nil { return false }
+        if method.isSynthetic, method.kotlinFunction == nil, method.kotlinSuspendFunction == nil,
+           method.parameters.contains(where: { $0.referenceName?.hasPrefix("kotlin/jvm/functions/Function") == true })
+            || method.result.referenceName?.hasPrefix("kotlin/jvm/functions/Function") == true,
+           let owner = declaringClass(for: method),
+           let function = kotlinFunction(method) {
+            let typeParameters = (kotlinMetadata(owner)?.typeParameters ?? []) + function.typeParameters
+            let names = Dictionary(typeParameters.map { ($0.id, $0.name) }, uniquingKeysWith: { _, name in name })
+            let sourceTypeOf = { (type: JVMKotlinType) in self.kotlinSourceType(type, parameters: names) }
+            let isFunctionType = { (type: JVMKotlinType) in self.sourceTypeIsTopLevelFunction(sourceTypeOf(type)) }
+            let receiverHasFunctionType = function.receiver.map(isFunctionType) == true
+            let parametersHaveFunctionType = function.parameters.contains {
+                isFunctionType($0.varargType ?? $0.type)
+            }
+            if receiverHasFunctionType || parametersHaveFunctionType || isFunctionType(function.result) {
+                return true
+            }
+        }
         if let function = method.kotlinFunction {
             if function.valueOperatorParameterDescriptors != nil {
                 return method.parameters.allSatisfy(exposeSuspendType) && exposeSuspendType(method.result)

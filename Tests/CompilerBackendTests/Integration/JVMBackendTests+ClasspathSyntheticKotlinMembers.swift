@@ -33,6 +33,49 @@ extension JVMBackendTests {
         return root.appendingPathComponent("hidden-library.jar")
     }
 
+    private func externalReifiedFileFacadeLibraryJar(_ root: URL) throws -> URL {
+        try """
+        package fixture
+
+        import kotlin.reflect.KClass
+
+        open class ViewModel
+        class Lazy<T : Any>(val type: KClass<T>)
+        class Host
+
+        inline fun <reified VM : ViewModel> Host.viewModels(factoryProducer: () -> Any = { Any() }): Lazy<VM> = Lazy(VM::class)
+
+        inline fun <reified VM : ViewModel> Host.activityViewModels(factoryProducer: () -> Any = { Any() }, extrasProducer: () -> Any = { Any() }): Lazy<VM> = Lazy(VM::class)
+        """.write(to: root.appendingPathComponent("ViewModelLazy.kt"), atomically: true, encoding: .utf8)
+        _ = try jvmTool("kotlinc", ["ViewModelLazy.kt", "-d", "viewmodel-lazy.jar"], root: root)
+        return root.appendingPathComponent("viewmodel-lazy.jar")
+    }
+
+    @Test
+    func externalKotlinSyntheticReifiedFileFacadeExtensionResolves() throws {
+        try withWorkspace { root in
+            let library = try externalReifiedFileFacadeLibraryJar(root)
+            let compiled = try compile("""
+            package probe
+
+            import fixture.Host
+            import fixture.Lazy
+            import fixture.ViewModel
+            import fixture.activityViewModels
+            import fixture.viewModels
+
+            class MyViewModel : ViewModel()
+
+            fun main() {
+                val host = Host()
+                val model: Lazy<MyViewModel> = host.viewModels()
+                val other: Lazy<MyViewModel> = host.activityViewModels()
+            }
+            """, root: root, mode: .jvmJar, classpath: [library.path])
+            try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
+        }
+    }
+
     @Test
     func externalKotlinSyntheticReifiedMemberResolvesBesideOverload() throws {
         try withWorkspace { root in
