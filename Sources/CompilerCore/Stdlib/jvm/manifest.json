@@ -382,7 +382,8 @@
     },
     {
       "path": "declarations/BigDecimals.kt",
-      "virtualPath": "<kswiftk-jvm>/m21-big-decimals-inline.kt",
+      "virtualPath": "<kswiftk-jvm>/big-decimals.kt",
+      "runtimeFacade": "kotlin/NumbersKt",
       "excludeFromStdlibBuild": true
     },
     {

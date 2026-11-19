@@ -15,6 +15,10 @@ fun main() {
     println(a >= BigDecimal.ZERO)
     println(a == BigDecimal("1.10"))
     println(a.compareTo(b))
+    val plusRef: (BigDecimal, BigDecimal) -> BigDecimal = BigDecimal::plus
+    println(plusRef(a, b))
+    val boundPlus: (BigDecimal) -> BigDecimal = a::plus
+    println(boundPlus(b))
     println(BigDecimal(100))
     println(BigDecimal("1.2300").stripTrailingZeros().toPlainString())
     println(BigDecimal("123.45").precision())
