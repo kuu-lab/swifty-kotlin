@@ -14,9 +14,14 @@ extension JVMClasspathIndex {
     func kotlinFunction(_ method: JVMForeignMethod) -> JVMKotlinFunctionInfo? {
         guard let owner = declaringClass(for: method), let metadata = kotlinMetadata(owner) else { return nil }
         let candidates = metadata.functions.filter { function in
-            let parameterCount = function.parameters.count + (function.receiver == nil ? 0 : 1) + (function.isSuspend ? 1 : 0)
+            let parameterCount = kotlinFunctionParameterCount(function)
             return function.jvmName == method.name && (function.isPublic || function.isProtected)
-                && parameterCount == method.parameters.count
+                && (parameterCount == method.parameters.count
+                    || isComposeMemberABI(method, function: function, parameterCount: parameterCount))
+        }
+        if candidates.count == 1, let function = candidates.first,
+           isComposeMemberABI(method, function: function, parameterCount: kotlinFunctionParameterCount(function)) {
+            return function
         }
         if let exact = candidates.first(where: { function in
             if let descriptor = function.descriptor { return descriptor == method.descriptor }
@@ -37,6 +42,31 @@ extension JVMClasspathIndex {
             return candidates[0]
         }
         return nil
+    }
+
+    func kotlinFunctionParameterCount(_ function: JVMKotlinFunctionInfo) -> Int {
+        function.parameters.count + (function.receiver == nil ? 0 : 1) + (function.isSuspend ? 1 : 0)
+    }
+
+    func isComposeMemberABI(_ method: JVMForeignMethod, function: JVMKotlinFunctionInfo, parameterCount: Int) -> Bool {
+        guard !method.isStatic, !function.isSuspend,
+              method.annotations.contains(where: { $0.descriptor == "Landroidx/compose/runtime/Composable;" })
+        else { return false }
+        let hiddenCount = method.parameters.count - parameterCount
+        guard hiddenCount > 1 else { return false }
+        let suffix = method.parameters.suffix(hiddenCount)
+        guard suffix.first?.referenceName == JVMCompose.composer else { return false }
+        let expectedMasks = (function.parameters.count + 31) / 32
+            + (function.parameters.contains(where: \.hasDefault) ? 1 : 0)
+        let masks = suffix.dropFirst()
+        return masks.count == expectedMasks && masks.allSatisfy { $0 == .int }
+    }
+
+    func isComposeMemberCall(_ method: JVMForeignMethod, sourceParameterCount: Int) -> Bool {
+        guard let function = kotlinFunction(method) else { return false }
+        let parameterCount = kotlinFunctionParameterCount(function)
+        return isComposeMemberABI(method, function: function, parameterCount: parameterCount)
+            && function.parameters.count + (function.receiver == nil ? 0 : 1) == sourceParameterCount
     }
 
     func kotlinParameterDeclarations(_ parameters: [JVMKotlinParameterInfo], typeParameters: [Int: String]) -> [String] {
