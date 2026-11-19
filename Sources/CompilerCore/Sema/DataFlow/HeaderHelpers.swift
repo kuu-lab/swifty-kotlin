@@ -1775,7 +1775,8 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner,
         bundledIndex: BundledDeclarationIndex = .empty,
-        projectsCoroutineContextIsActive: Bool = false
+        projectsCoroutineContextIsActive: Bool = false,
+        isJVMTarget: Bool = false
     ) {
         let skipStats = SyntheticStubSkipStatsCollector()
         let firstGeneratedSymbol = symbols.count
@@ -1791,7 +1792,8 @@ extension DataFlowSemaPhase {
             kotlinPropertiesPkg: kotlinPropertiesPkg,
             bundledIndex: bundledIndex,
             skipStats: skipStats,
-            projectsCoroutineContextIsActive: projectsCoroutineContextIsActive
+            projectsCoroutineContextIsActive: projectsCoroutineContextIsActive,
+            isJVMTarget: isJVMTarget
         )
 
         registerSyntheticDelegateRegistryStubs(

@@ -4,7 +4,7 @@ extension JVMFunctionBuilder {
         if let symbol = program.sema.bindings.callBinding(for: id)?.chosenCallee,
            let result = try resultCompanionCall(symbol, args: args, id: id) { return result.value }
         if let symbol = program.sema.bindings.callBinding(for: id)?.chosenCallee,
-           let result = try stringCompanionFormatCall(symbol, args: args, id: id) { return result.value }
+           let result = try stringCompanionFormatCall(symbol, receiver: receiver, args: args, id: id) { return result.value }
         if !arena.isExplicitCall(id), let value = try nominalValue(id) { return value }
         if !arena.isExplicitCall(id), let value = try readCompositionLocal(id, receiver: receiver) { return value }
         if !arena.isExplicitCall(id), context.interner.resolve(name) == "Companion",

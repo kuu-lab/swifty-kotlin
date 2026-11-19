@@ -7,17 +7,21 @@ extension JVMFunctionBuilder {
     /// companion receiver is implicit for these members, so `args` holds only
     /// the declared value parameters: the format string followed by the
     /// vararg elements.
-    func stringCompanionFormatCall(_ symbolID: SymbolID, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
+    func stringCompanionFormatCall(_ symbolID: SymbolID, receiver: ExprID?, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
         guard let symbol = program.sema.symbols.symbol(symbolID),
               context.interner.resolve(symbol.name) == "format",
-              args.count >= 1,
-              args.allSatisfy({ !$0.isSpread })
+              args.count >= 1
         else { return nil }
         guard let parent = program.sema.symbols.parentSymbol(for: symbolID),
               let parentSymbol = program.sema.symbols.symbol(parent),
               parentSymbol.fqName.map(context.interner.resolve) == ["kotlin", "String", "Companion"]
         else { return nil }
 
+        // `java/lang/String.format` is static and ignores the companion receiver,
+        // but the receiver expression is still evaluated for its side effects.
+        if let receiver {
+            _ = try expression(receiver, discarded: true)
+        }
         let formatValue = try convert(requireValue(args[0].expr), to: .string)
         let varargInputs: [(JVMValue, Bool)] = try args.dropFirst().map { argument in
             (try requireValue(argument.expr), argument.isSpread)
