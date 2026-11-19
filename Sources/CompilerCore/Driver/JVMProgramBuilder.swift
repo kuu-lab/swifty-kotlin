@@ -1217,20 +1217,13 @@ extension JVMFunctionBuilder {
         guard args.count == method.parameters.count, !(method.isConstructor && (context.jvmImports?.classes[method.owner]?.flags ?? 0) & 0x0400 != 0) else { throw fail("Unsupported JVM constructor or argument count.", id) }
         var object = receiver
         if let receiver, receiver.type.referenceName == nil { object = try convert(receiver, to: .reference("java/lang/Object", nullable: false)) }
-        var pendingConstructorAllocation = false
         if method.isConstructor {
-            let allocated = try value(method.result)
-            object = allocated
+            object = try value(method.result)
             // NEW triggers the owner's <clinit> (companion initialization);
-            // kotlinc emits it before evaluating constructor arguments.
-            instructions.append(.allocate(method.owner, allocated))
-            // Track the uninitialized receiver like anonymous-object
-            // allocations so loop/tailrec backedges and exception handlers
-            // null it out while arguments are still being evaluated.
-            pendingAllocations.append(allocated)
-            pendingConstructorAllocation = true
+            // kotlinc runs it before evaluating constructor arguments. Force it
+            // eagerly here and keep the allocation itself after the arguments.
+            instructions.append(.initializeClass(method.owner))
         }
-        defer { if pendingConstructorAllocation { pendingAllocations.removeLast() } }
         var values: [JVMValue] = []
         for (index, pair) in zip(args, method.parameters).enumerated() {
             let (arg, type) = pair
@@ -1251,6 +1244,7 @@ extension JVMFunctionBuilder {
         }
         let resultType = method.isConstructor ? method.result : try program.expressionType(id)
         let result = method.isConstructor || method.result == .unit || resultType == .unit ? nil : try value(resultType)
+        if method.isConstructor, let object { instructions.append(.allocate(method.owner, object)) }
         instructions.append(.foreignCall(method, receiver: object, arguments: values, result: result))
         return method.isConstructor ? object : result
     }

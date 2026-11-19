@@ -241,14 +241,9 @@ extension JVMFunctionBuilder {
             ? program.sema.symbols.functionSignature(for: symbol)?.valueParameterHasDefaultValues : nil
         let object = constructor ? try value(method!.result) : nil
         // NEW triggers the owner's <clinit> (companion initialization); kotlinc
-        // emits it before evaluating constructor arguments, so allocate first.
-        // Track the uninitialized receiver like anonymous-object allocations so
-        // loop/tailrec backedges and exception handlers null it out.
-        if let object {
-            instructions.append(.allocate(method!.owner, object))
-            pendingAllocations.append(object)
-        }
-        defer { if object != nil { pendingAllocations.removeLast() } }
+        // runs it before evaluating constructor arguments. Force it eagerly here
+        // and keep the allocation itself after the arguments (below).
+        if constructor { instructions.append(.initializeClass(method!.owner)) }
         var composableParameters = context.jvmImports?.importedComposableParameters[symbol] ?? []
         if isComposable, let signature = program.sema.symbols.functionSignature(for: symbol) {
             for (index, parameter) in signature.valueParameterSymbols.enumerated()
@@ -298,6 +293,7 @@ extension JVMFunctionBuilder {
                                       result: result, at: id)
             return JVMIntrinsicResult(value: try result.map { try convert($0, to: resultType) })
         }
+        if let object { instructions.append(.allocate(method!.owner, object)) }
         if let importedConstructor {
             let target = usesDefaults ? importedConstructor.defaults : importedConstructor.bridge
             guard let target else { throw fail("Missing JVM value-parameter constructor bridge.", id) }

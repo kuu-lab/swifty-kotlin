@@ -310,6 +310,13 @@ final class JVMMethodEmitter {
             uninitialized[object.slot] = assembler.code.data.count
             allocationOffsets[object.slot] = assembler.code.data.count
             assembler.code.u1(0xBB); assembler.code.u2(try pool.classInfo(name)); store(object)
+        case let .initializeClass(name):
+            // Force <clinit> before constructor arguments, matching kotlinc's
+            // NEW-before-args initialization order. The allocation itself
+            // still happens after the arguments are evaluated.
+            assembler.code.u1(0x13); assembler.code.u2(try pool.constant(.string(name.replacingOccurrences(of: "/", with: "."))))
+            assembler.code.u1(0xB8); assembler.code.u2(try pool.member(10, owner: "java/lang/Class", name: "forName", descriptor: "(Ljava/lang/String;)Ljava/lang/Class;"))
+            assembler.code.u1(0x57)
         case let .foreignCall(method, receiver, arguments, result):
             if let continuation = function.inlineContinuation, method.isSuspend {
                 let target = method.suspendABI

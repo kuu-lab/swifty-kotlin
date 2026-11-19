@@ -217,6 +217,7 @@ extension JVMInstruction {
         case let .invokeDynamic(name, descriptor, captures, samDescriptor, implementation, instantiatedDescriptor, result):
             .invokeDynamic(name: name, descriptor: descriptor, captures: captures.map(f), samDescriptor: samDescriptor, implementation: implementation, instantiatedDescriptor: instantiatedDescriptor, result: f(result))
         case let .allocate(name, v): .allocate(name, f(v))
+        case .initializeClass: self
         case let .abandonAllocations(v): .abandonAllocations(v.map(f))
         case let .foreignCall(method, receiver, args, result): .foreignCall(method, receiver: receiver.map(f), arguments: args.map(f), result: result.map(f))
         case let .getStatic(field, v): .getStatic(field, f(v))
