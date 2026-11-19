@@ -1,6 +1,25 @@
 extension JVMFunctionBuilder {
     func memberExpression(_ id: ExprID, receiver: ExprID, name: InternedString, typeArgs: [TypeRefID], args: [CallArgument]) throws -> JVMValue? {
         if context.interner.resolve(name) == "isInitialized", args.isEmpty, let result = try lateinitInitialized(receiver) { return result }
+        // Float/Double.toRawBits()/toBits() are @InlineOnly in kotlin-stdlib, so
+        // there is no kotlin.NumbersKt facade method to call. Lower them to the
+        // java.lang.Float/Double bit intrinsics directly, matching kotlinc's
+        // inlined actuals. Skip user-defined extensions (origin .user).
+        let bitMember = context.interner.resolve(name)
+        if args.isEmpty, bitMember == "toRawBits" || bitMember == "toBits",
+           let callee = program.sema.bindings.callBinding(for: id)?.chosenCallee,
+           let calleeSymbol = program.sema.symbols.symbol(callee),
+           calleeSymbol.declSite.map({ context.sourceManager.origin(of: $0.start.file) != .user }) ?? true {
+            let receiverValue = try requireValue(receiver)
+            if receiverValue.type == .float {
+                let method = bitMember == "toRawBits" ? "floatToRawIntBits" : "floatToIntBits"
+                return try jdkCall("java/lang/Float", method, [.float], .int, arguments: [receiverValue], resolved: program.expressionType(id))
+            }
+            if receiverValue.type == .double {
+                let method = bitMember == "toRawBits" ? "doubleToRawLongBits" : "doubleToLongBits"
+                return try jdkCall("java/lang/Double", method, [.double], .long, arguments: [receiverValue], resolved: program.expressionType(id))
+            }
+        }
         if let symbol = program.sema.bindings.callBinding(for: id)?.chosenCallee,
            let result = try resultCompanionCall(symbol, args: args, id: id) { return result.value }
         if !arena.isExplicitCall(id), let value = try nominalValue(id) { return value }
