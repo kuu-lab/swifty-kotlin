@@ -467,7 +467,12 @@ func kirErasedBoundaryCheckable(_ type: TypeID, sema: SemaModule) -> Bool {
         // Synthetic interfaces are header-only runtime handles (for example,
         // kotlinx.coroutines.sync.Mutex). Their values have no emitted
         // nominal class metadata for `kk_op_cast` to inspect.
+        // Value classes with reference payloads (e.g. `value class V<T : String>`)
+        // cross erased collection slots as their unboxed underlying reference
+        // rather than a nominal wrapper, so a nominal checkcast would falsely
+        // reject valid elements.
         return semanticSymbol.kind != .enumClass
+            && !semanticSymbol.flags.contains(.valueType)
             && !(semanticSymbol.kind == .interface && semanticSymbol.flags.contains(.synthetic))
     default:
         return true

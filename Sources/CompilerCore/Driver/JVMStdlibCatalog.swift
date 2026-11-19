@@ -94,6 +94,9 @@ package enum JVMStdlibCatalog {
             guard !ctx.sourceManager.containsFile(path: declaration.virtualPath) else { throw JVMFrontendError(message: "Duplicate JVM stdlib declaration injection.") }
             let file = ctx.sourceManager.addFile(path: declaration.virtualPath, contents: source, origin: .residualStdlib)
             ctx.jvmStdlibDeclarationFiles.insert(file)
+            if declaration.excludeFromStdlibBuild && declaration.runtimeFacade == nil {
+                ctx.jvmConsumerEmittedStdlibFiles.insert(file)
+            }
         }
     }
 

@@ -21,6 +21,9 @@ public final class CompilationContext: @unchecked Sendable {
     var jvmImports: JVMClasspathIndex?
     var jvmClasspathArchiveCache: JVMClasspathArchiveCache?
     var jvmStdlibDeclarationFiles: Set<FileID> = []
+    /// Residual-stdlib declaration files excluded from the stdlib jar build
+    /// whose non-inline helpers are emitted directly into consumer bytecode.
+    var jvmConsumerEmittedStdlibFiles: Set<FileID> = []
     var deferredJVMInlineBodies: [DeclID: JVMInlineBodySyntax] = [:]
     var jvmRuntimeClassAliases: [String: String] = [:]
     package var androidResourceLink: AndroidResourceLink?

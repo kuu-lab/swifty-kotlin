@@ -3179,7 +3179,8 @@ final class JVMClasspathIndex {
         case .unit: return .unit
         case .nothing(.nonNull): return .reference("java/lang/Void", nullable: false)
         case .nullableUnit: return .reference("kotlin/Unit", nullable: true)
-        case .nothing(.nullable): return .reference("java/lang/Object", nullable: true)
+        case .platformUnit: return .reference("kotlin/Unit", nullable: true, platform: true)
+        case .nothing(.nullable), .nothing(.platformType): return .reference("java/lang/Object", nullable: true)
         case let .any(nullability): return .reference("java/lang/Object", nullable: nullability != .nonNull, platform: nullability == .platformType)
         case let .stringStruct(nullability): return nullability == .nonNull ? .string : .reference("java/lang/String", nullable: true, platform: nullability == .platformType)
         case let .functionType(function):
