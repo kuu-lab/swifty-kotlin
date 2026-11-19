@@ -22,6 +22,7 @@ struct SyntheticDelegateStubRegistryContext {
     let bundledIndex: BundledDeclarationIndex
     let skipStats: SyntheticStubSkipStatsCollector
     let projectsCoroutineContextIsActive: Bool
+    let isJVMTarget: Bool
 }
 
 private struct SyntheticDelegateStubRegistryEntry {
@@ -72,8 +73,8 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
                 phase.registerSyntheticComparableStub(symbols: symbols, types: types, interner: interner)
             }
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "String") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticStringStubs(symbols: symbols, types: types, interner: interner)
+        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "String") { phase, symbols, types, interner, context in
+            phase.registerSyntheticStringStubs(symbols: symbols, types: types, interner: interner, isJVMTarget: context.isJVMTarget)
         },
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Char") { phase, symbols, types, interner, _ in
             phase.registerSyntheticCharStubs(symbols: symbols, types: types, interner: interner)

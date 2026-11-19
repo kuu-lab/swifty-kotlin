@@ -82,4 +82,22 @@ extension JVMFunctionBuilder {
         }
         return JVMIntrinsicResult(value: result)
     }
+
+    func collectionIsNullOrEmpty(_ receiverID: ExprID, owner: String, id: ExprID) throws -> JVMIntrinsicResult {
+        let receiver = try requireValue(receiverID)
+        let result = try value(.boolean)
+        let object: JVMValueType = .reference("java/lang/Object", nullable: true)
+        let null = try constant(.null, object), isNull = try value(.boolean)
+        instructions.append(.referenceCompare(.equal, receiver, null, isNull))
+        let nonNull = label(), done = label()
+        instructions.append(.jumpIfFalse(isNull, nonNull))
+        instructions.append(.constant(.boolean(true), result))
+        jump(done)
+        mark(nonNull)
+        let source = try convert(receiver, to: .reference(owner, nullable: false))
+        let empty = try jdkCall(owner, "isEmpty", [], .boolean, receiver: source, interface: true)!
+        instructions.append(.copy(empty, result))
+        mark(done)
+        return JVMIntrinsicResult(value: result)
+    }
 }

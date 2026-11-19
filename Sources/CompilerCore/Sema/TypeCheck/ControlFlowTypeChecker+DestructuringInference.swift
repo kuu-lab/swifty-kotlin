@@ -202,36 +202,60 @@ extension ControlFlowTypeChecker {
 
         var bodyLocals = locals
 
+        func bindEntry(_ name: InternedString?, index: Int, componentType: TypeID, sourceName: String) {
+            let declaredType = layout.flatMap { $0.entryTypeRefs[index] }.map {
+                driver.helpers.resolveTypeRef(
+                    $0, ast: ctx.ast, sema: sema, interner: interner,
+                    scope: ctx.scope, diagnostics: sema.diagnostics, inferenceContext: ctx, usageRange: range
+                )
+            }
+            if let declaredType, componentType != sema.types.errorType, declaredType != sema.types.errorType {
+                let actual = sema.types.displayName(of: componentType, symbols: sema.symbols, interner: interner)
+                let expected = sema.types.displayName(of: declaredType, symbols: sema.symbols, interner: interner)
+                driver.emitSubtypeConstraint(
+                    left: componentType, right: declaredType,
+                    range: ctx.ast.arena.exprRange(iterableExpr) ?? range, solver: ConstraintSolver(),
+                    sema: sema, diagnostics: sema.diagnostics,
+                    diagnosticCode: "KSWIFTK-SEMA-0468",
+                    failureMessage: "Initializer type mismatch: '\(sourceName)' returns '\(actual)', but '\(expected)' is expected."
+                )
+            }
+            guard let name else { return }
+            if let declaredType {
+                sema.bindings.bindTypedForDestructuringEntry(id, index: index, component: componentType, declared: declaredType)
+            }
+            let symbol = sema.symbols.define(
+                kind: .local,
+                name: name,
+                fqName: [interner.intern("__for_destructuring_\(id.rawValue)"), name],
+                declSite: range,
+                visibility: .private,
+                flags: []
+            )
+            let localType = declaredType ?? componentType
+            sema.symbols.setPropertyType(localType, for: symbol)
+            bodyLocals[name] = (localType, symbol, false, true)
+        }
+
         for (index, name) in names.enumerated() {
             if usesNameBasedDestructuring {
                 guard let name else { continue }
+                let propertyName = layout.flatMap {
+                    $0.properties.indices.contains(index) ? $0.properties[index] : nil
+                } ?? name
                 let property: (type: TypeID, binding: DestructuringPropertyBinding?)
                 if elementType == sema.types.errorType {
                     property = (sema.types.errorType, nil)
                 } else {
                     property = inferNameBasedForDestructuringProperty(
-                        layout.flatMap { layout in
-                            layout.properties.indices.contains(index) ? layout.properties[index] : nil
-                        } ?? name,
+                        propertyName,
                         loopExpr: id,
                         receiverType: elementType,
                         range: range,
                         ctx: ctx
                     )
                 }
-                let symbol = sema.symbols.define(
-                    kind: .local,
-                    name: name,
-                    fqName: [
-                        interner.intern("__for_destructuring_\(id.rawValue)"),
-                        name,
-                    ],
-                    declSite: range,
-                    visibility: .private,
-                    flags: []
-                )
-                sema.symbols.setPropertyType(property.type, for: symbol)
-                bodyLocals[name] = (property.type, symbol, false, true)
+                bindEntry(name, index: index, componentType: property.type, sourceName: interner.resolve(propertyName))
                 if let binding = property.binding {
                     sema.bindings.bindDestructuringProperty(id, index: index, binding: binding)
                 }
@@ -284,23 +308,7 @@ extension ControlFlowTypeChecker {
                 componentType = sema.types.errorType
             }
 
-            guard let name else {
-                continue
-            }
-
-            let symbol = sema.symbols.define(
-                kind: .local,
-                name: name,
-                fqName: [
-                    interner.intern("__for_destructuring_\(id.rawValue)"),
-                    name,
-                ],
-                declSite: range,
-                visibility: .private,
-                flags: []
-            )
-            sema.symbols.setPropertyType(componentType, for: symbol)
-            bodyLocals[name] = (componentType, symbol, false, true)
+            bindEntry(name, index: index, componentType: componentType, sourceName: "component\(componentIndex)()")
         }
 
         var newLabelStack = ctx.loopLabelStack

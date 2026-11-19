@@ -44,6 +44,10 @@ struct JVMJDKClasspath {
                 }
                 if importedPackages.contains("java/util/concurrent") {
                     recursivePackages.insert("java/util/concurrent")
+                    // Concurrent collection classes extend java.util interfaces
+                    // (Map/Collection/Set); import that package too so their
+                    // stubs can expose the Kotlin collection surface.
+                    packages.insert("java/util")
                 }
             }
         }
@@ -101,11 +105,18 @@ struct JVMJDKClasspath {
         JVMJDKClasspath(classFiles: [], requiredLazyClassNames: [])
     }
 
-    private static func importedPaths(in source: String) -> Set<String> {
+    // Kotlin identifiers may be backtick-escaped (mandatory for keyword
+    // segments such as `annotation` in `javax.`annotation`.processing.Generated`).
+    // The reference scan must see through the escapes; captures are normalized
+    // by packagePaths(for:) which strips the backticks.
+    private static let pathSegmentPattern = "(?:[A-Za-z_][A-Za-z0-9_]*|`[^`\\n]+`)"
+    private static let dottedPathPattern = pathSegmentPattern + "(?:\\." + pathSegmentPattern + ")*"
+
+    static func importedPaths(in source: String) -> Set<String> {
         let range = NSRange(source.startIndex..., in: source)
         var paths: Set<String> = []
         let importPattern = try! NSRegularExpression(
-            pattern: #"(?m)^[ \t]*import[ \t]+([A-Za-z_][A-Za-z0-9_.]*(?:\.\*)?)(?:[ \t]+as[ \t]+[A-Za-z_][A-Za-z0-9_]*)?[ \t]*(?://.*)?$"#
+            pattern: "(?m)^[ \\t]*import[ \\t]+(" + dottedPathPattern + "(?:\\.\\*)?)(?:[ \\t]+as[ \\t]+" + pathSegmentPattern + ")?[ \\t]*(?://.*)?$"
         )
         for match in importPattern.matches(in: source, range: range) {
             if let matchRange = Range(match.range(at: 1), in: source) {
@@ -114,7 +125,7 @@ struct JVMJDKClasspath {
         }
 
         let packagePattern = try! NSRegularExpression(
-            pattern: #"(?m)^[ \t]*package[ \t]+([A-Za-z_][A-Za-z0-9_.]*)"#
+            pattern: "(?m)^[ \\t]*package[ \\t]+(" + dottedPathPattern + ")"
         )
         for match in packagePattern.matches(in: source, range: range) {
             if let matchRange = Range(match.range(at: 1), in: source) {
@@ -123,7 +134,7 @@ struct JVMJDKClasspath {
         }
 
         let qualifiedNamePattern = try! NSRegularExpression(
-            pattern: #"\b(?:java|javax)\.[A-Za-z_][A-Za-z0-9_.]*"#
+            pattern: "\\b(?:java|javax)\\." + dottedPathPattern
         )
         for match in qualifiedNamePattern.matches(in: source, range: range) {
             if let matchRange = Range(match.range, in: source) {

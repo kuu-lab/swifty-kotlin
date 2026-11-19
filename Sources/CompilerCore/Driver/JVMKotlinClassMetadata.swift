@@ -6,6 +6,8 @@ struct JVMKotlinClassMetadata {
     let typeParameters: [JVMTypeParameter]
     let functions: [JVMKotlinFunctionInfo]
     let properties: [JVMKotlinPropertyInfo]
+    let typeAliases: [JVMKotlinTypeAliasInfo]
+    let isPackage: Bool
 
     private var classKind: Int { (classFlags >> 6) & 7 }
     var isCompanion: Bool { classKind == 6 }
@@ -42,6 +44,15 @@ struct JVMKotlinPropertyInfo {
     let setter: String?
 
     var isAbstract: Bool { (flags >> 4) & 3 == 2 }
+}
+
+struct JVMKotlinTypeAliasInfo {
+    let name: String
+    let typeParameters: [JVMTypeParameter]
+    let underlyingType: JVMKotlinType?
+    let expandedType: JVMKotlinType?
+    let isPublic: Bool
+    let isProtected: Bool
 }
 
 /// Kotlin's JVM annotation stores a length-prefixed string table followed by
@@ -91,9 +102,25 @@ extension JVMKotlinClassMetadata {
             let flags = property.integer(11) ?? property.integer(1).map { ($0 & 63) | (($0 >> 8) << 6) } ?? 518
             return JVMKotlinPropertyInfo(flags: flags, getter: getter, setter: setter)
         }
+        let typeAliases = try message.messages(isClass ? 11 : 5).compactMap { alias -> JVMKotlinTypeAliasInfo? in
+            let name = try decoder.name(alias.integer(2))
+            guard JVMProgramBuilder.isIdentifier(name) else { return nil }
+            let typeParameters = try alias.messages(3).map(decoder.typeParameter)
+            let underlyingType = try decoder.type(alias, field: 4, indexField: 5)
+            let expandedType = try decoder.type(alias, field: 6, indexField: 7)
+            guard underlyingType != nil || expandedType != nil else { return nil }
+            let flags = alias.integer(1) ?? 6
+            return JVMKotlinTypeAliasInfo(
+                name: name, typeParameters: typeParameters,
+                underlyingType: underlyingType, expandedType: expandedType,
+                isPublic: (flags >> 1) & 7 == 3,
+                isProtected: (flags >> 1) & 7 == 2
+            )
+        }
         return Self(classFlags: isClass ? message.integer(1) ?? 6 : 0,
                     companion: isClass ? try message.integer(4).map(decoder.name) : nil,
-                    typeParameters: parameters, functions: functions, properties: properties)
+                    typeParameters: parameters, functions: functions, properties: properties,
+                    typeAliases: typeAliases, isPackage: !isClass)
     }
 
     private static func decode(_ strings: [String]) -> [UInt8] {

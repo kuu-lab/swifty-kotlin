@@ -524,6 +524,7 @@ extension BuildASTPhase.ExpressionParser {
             ?? sanitized.endIndex
         for token in sanitized[..<declKeywordIndex] {
             switch token.kind {
+            case .keyword(.public): modifiers.insert(.public)
             case .keyword(.private): modifiers.insert(.private)
             case .keyword(.internal): modifiers.insert(.internal)
             case .keyword(.protected): modifiers.insert(.protected)

@@ -1,6 +1,6 @@
 import Foundation
 
-public struct InternedString: Hashable, Sendable, Codable {
+public struct InternedString: RawInt32ID {
     public let rawValue: Int32
 
     public static let invalid = InternedString(rawValue: -1)

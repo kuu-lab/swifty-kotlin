@@ -996,6 +996,52 @@ struct KotlinContractsEffectModelTests {
         }
     }
 
+    // MARK: - Contract DSL resolves kotlin.contracts members without import
+
+    /// kotlinc resolves contract-description calls such as `holdsIn` against the
+    /// `kotlin.contracts` package inside `contract { }` blocks even when the file
+    /// only imports specific declarations (no `kotlin.contracts.*` wildcard).
+    /// Arrow Core relies on this; the contract lambda must see the package.
+
+    @Test
+    func testHoldsInResolvesWithoutWildcardImport() throws {
+        let source = """
+        package sampleHoldsInImplicit
+
+        import kotlin.contracts.ExperimentalContracts
+        import kotlin.contracts.ExperimentalExtendedContracts
+        import kotlin.contracts.contract
+
+        class Effect { class Value }
+
+        @OptIn(ExperimentalContracts::class, ExperimentalExtendedContracts::class)
+        inline fun guarded(flag: Boolean, block: () -> Unit): Boolean {
+            contract { flag holdsIn block }
+            return flag
+        }
+
+        // kotlinc resolves names in contract conditions with ordinary file
+        // scope: the user-defined Effect.Value must win over kotlin.contracts.Effect.
+        @OptIn(ExperimentalContracts::class)
+        inline fun guardedType(flag: Boolean, x: Any?): Boolean {
+            contract { returns(true) implies (x is Effect.Value) }
+            return flag
+        }
+
+        fun main() {
+            println(guarded(true) {})
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let diagnostics = diagnosticsForPath(path, in: ctx)
+            let errors = diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Unexpected diagnostics: \(errors.map { $0.code + ": " + $0.message })")
+        }
+    }
+
 }
 
 #endif

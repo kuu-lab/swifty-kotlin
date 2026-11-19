@@ -426,10 +426,11 @@ extension CallLowerer {
             }
         }
 
-        // Char/Float/Double arithmetic member calls share the same primitive
-        // lowering as operator syntax. Keep the argument behind the safe-call
-        // null check, then feed a non-null receiver to operator lowering so
-        // nullable boxing is removed before the intrinsic reads its bits.
+        // Primitive arithmetic member calls share the same lowering as operator
+        // syntax. Keep the argument behind the safe-call null check, then feed a
+        // non-null receiver to operator lowering so nullable boxing is removed
+        // before the intrinsic reads its bits. Floating-point operands need the
+        // operator path for the same widening conversions as non-safe calls.
         let chosenArithmeticCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee
         let isSourceArithmeticExtension = chosenArithmeticCallee.map {
             sema.symbols.isSourceBackedSymbol($0)
@@ -447,10 +448,16 @@ extension CallLowerer {
             let receiverType = sema.types.makeNonNullable(
                 sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             )
-            if receiverType == sema.types.charType
+            let argumentType = sema.types.makeNonNullable(
+                sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
+            )
+            let receiverIsFloatingOrChar = receiverType == sema.types.charType
                 || receiverType == floatType
                 || receiverType == doubleType
-            {
+            let usesFloatingPointOperands = receiverIsFloatingOrChar
+                || argumentType == floatType
+                || argumentType == doubleType
+            if usesFloatingPointOperands, sema.types.isBuiltinArithmeticOperand(receiverType) {
                 let nonNullLabel = driver.ctx.makeLoopLabel()
                 let endLabel = driver.ctx.makeLoopLabel()
                 let callResultType = sema.types.makeNonNullable(boundType ?? sema.types.anyType)

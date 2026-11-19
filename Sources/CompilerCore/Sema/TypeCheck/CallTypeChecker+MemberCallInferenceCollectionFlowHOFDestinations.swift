@@ -193,7 +193,8 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                             nullability: .nonNull
                         )))
                     }
-                    if let collectionSymbol = lookupStdlibSymbol("Collection", symbols: sema.symbols, interner: interner) {
+                    if !isSequenceReceiver,
+                       let collectionSymbol = lookupStdlibSymbol("Collection", symbols: sema.symbols, interner: interner) {
                         let iterableType = sema.types.make(.classType(ClassType(
                             classSymbol: collectionSymbol,
                             args: [.invariant(destinationElementType)],
@@ -255,7 +256,8 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                             nullability: .nonNull
                         )))
                     }
-                    if let collectionSymbol = lookupStdlibSymbol("Collection", symbols: sema.symbols, interner: interner) {
+                    if !isSequenceReceiver,
+                       let collectionSymbol = lookupStdlibSymbol("Collection", symbols: sema.symbols, interner: interner) {
                         let iterableType = sema.types.make(.classType(ClassType(
                             classSymbol: collectionSymbol,
                             args: [.invariant(destinationElementType)],
@@ -497,6 +499,57 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                 }
             }
+            if isSequenceReceiver,
+               calleeStr == "flatMapTo" || calleeStr == "flatMapIndexedTo",
+               case let .functionType(lambdaFunctionType) = sema.types.kind(of: effectiveLambdaExpectedType)
+            {
+                let rawLambdaReturnType = inferredLambdaReturnType(argExpr: args[1].expr, ast: ast, sema: sema)
+                let flattenedElementType = flatMapTransformElementType(lambdaArgExpr: args[1].expr, returnType: rawLambdaReturnType)
+                let expectedElementType = flattenedElementType == sema.types.anyType ? destinationElementType : flattenedElementType
+                let returnsSequence = receiverClassifier.isSequenceSubtypeType(rawLambdaReturnType)
+                let expectedReturnContainer: SymbolID? = if returnsSequence {
+                    lookupStdlibSymbol("Sequence", symbols: sema.symbols, interner: interner)
+                } else if receiverClassifier.isIterableSubtypeType(rawLambdaReturnType) {
+                    lookupStdlibSymbol("Iterable", symbols: sema.symbols, interner: interner)
+                } else {
+                    nil
+                }
+                if let expectedReturnContainer,
+                   expectedElementType != sema.types.anyType,
+                   expectedElementType != sema.types.errorType
+                {
+                    let expectedReturnType = sema.types.make(.classType(ClassType(
+                        classSymbol: expectedReturnContainer,
+                        args: [.invariant(expectedElementType)],
+                        nullability: .nonNull
+                    )))
+                    let expectedLambdaType = sema.types.make(.functionType(FunctionType(
+                        params: lambdaFunctionType.params,
+                        returnType: expectedReturnType,
+                        isSuspend: lambdaFunctionType.isSuspend,
+                        nullability: .nonNull
+                    )))
+                    let lambdaRange = ast.arena.exprRange(args[1].expr)
+                    let firstPassLambdaDiagnostics = lambdaRange.map {
+                        sema.diagnostics.removeErrorDiagnostics(containedIn: $0)
+                    } ?? []
+                    let diagnosticsCheckpoint = sema.diagnostics.checkpoint()
+                    var trialLocals = locals
+                    _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &trialLocals, expectedType: expectedLambdaType)
+                    let emittedError = sema.diagnostics.diagnostics.dropFirst(diagnosticsCheckpoint).contains {
+                        $0.severity == .error
+                    }
+                    if emittedError {
+                        sema.diagnostics.rollback(to: diagnosticsCheckpoint)
+                        for diagnostic in firstPassLambdaDiagnostics {
+                            sema.diagnostics.emit(diagnostic)
+                        }
+                        _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: effectiveLambdaExpectedType)
+                    } else {
+                        locals = trialLocals
+                    }
+                }
+            }
             // The bound check above re-parameterized MutableCollection /
             // MutableMap with the destination's *own* arguments, so it only
             // proves the destination is a collection at all. kotlinc declares
@@ -568,12 +621,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 boundLambdaReturnType.map { sema.types.makeNonNullable($0) }
             case "flatMapTo", "flatMapIndexedTo":
                 boundLambdaReturnType.flatMap { lambdaReturn -> TypeID? in
-                    let extracted = !isSequenceReceiver && isIterableReceiver
-                        && !receiverClassification.isListReceiver
-                        && !receiverClassification.isSetReceiver
-                        && !receiverClassification.isMapReceiver
-                        ? extractIterableOrSequenceElementType(lambdaReturn, sema: sema, interner: interner)
-                        : extractListElementType(lambdaReturn, sema: sema, interner: interner)
+                    let extracted = flatMapTransformElementType(lambdaArgExpr: args[1].expr, returnType: lambdaReturn)
                     return extracted == sema.types.anyType ? nil : extracted
                 }
             default:
@@ -734,6 +782,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             }
             if isSequenceReceiver {
                 let typeArguments: [TypeID]
+                var sequenceTransformReturnsSequence: Bool? = nil
                 if ["filterTo", "filterNotTo", "filterIndexedTo"].contains(calleeStr) {
                     typeArguments = [collectionElementType, nonNullableDestinationType]
                 } else {
@@ -743,12 +792,24 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                         resultElementType = rawLambdaReturnType
                     } else if calleeStr == "mapNotNullTo" || calleeStr == "mapIndexedNotNullTo" {
                         resultElementType = sema.types.makeNonNullable(rawLambdaReturnType)
+                    } else if calleeStr == "flatMapTo" || calleeStr == "flatMapIndexedTo" {
+                        let returnsSequence = receiverClassifier.isSequenceSubtypeType(rawLambdaReturnType)
+                        let returnsIterable = !returnsSequence && receiverClassifier.isIterableSubtypeType(rawLambdaReturnType)
+                        guard returnsSequence || returnsIterable else {
+                            didReturnNil = true
+                            return nil
+                        }
+                        sequenceTransformReturnsSequence = returnsSequence
+                        resultElementType = flatMapTransformElementType(lambdaArgExpr: args[1].expr, returnType: rawLambdaReturnType)
                     } else {
                         resultElementType = extractListElementType(rawLambdaReturnType, sema: sema, interner: interner)
                     }
                     typeArguments = [collectionElementType, resultElementType, nonNullableDestinationType]
                 }
-                _ = bindBundledSequenceDestinationSourceFunction(typeArguments: typeArguments)
+                _ = bindBundledSequenceDestinationSourceFunction(
+                    typeArguments: typeArguments,
+                    returnsSequence: sequenceTransformReturnsSequence
+                )
             }
             if isMapReceiver,
                ["filterTo", "filterNotTo", "mapTo", "mapNotNullTo", "mapKeysTo", "mapValuesTo"].contains(calleeStr)

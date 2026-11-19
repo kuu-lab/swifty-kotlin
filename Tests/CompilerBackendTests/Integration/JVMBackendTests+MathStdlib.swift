@@ -133,6 +133,8 @@ extension JVMBackendTests {
             let source = """
             import kotlin.math.hypot
             import kotlin.math.ln1p
+            import kotlin.math.max
+            import kotlin.math.min
             import kotlin.math.ulp
             import kotlin.math.withSign
             fun main() {
@@ -159,6 +161,12 @@ extension JVMBackendTests {
                 println(1.0 / ((-0.0).withSign(0.0)))
                 println(1.0f / (0.0f.withSign(-0.0f)))
                 println((Double.NaN.withSign(-1.0)).isNaN())
+                println(max(3, 7))
+                println(min(3, 7))
+                println(max(-5L, 7L))
+                println(min(-5L, 7L))
+                println(max(2.5, 1.25))
+                println(min(2.5f, 1.25f))
             }
             """
             let compiled = try compile(source, root: root, mode: .jvmJar, classpath: classpath)
@@ -171,6 +179,7 @@ extension JVMBackendTests {
             let expected = [
                 "5.0", "5.0", "true", "true", "Infinity", "true", "-Infinity", "true", "true",
                 "true", "true", "true", "true", "true", "true", "-2.0", "-2.0", "-2.0", "-2.0", "-Infinity", "Infinity", "-Infinity", "true",
+                "7", "3", "7", "-5", "2.5", "1.25",
             ].joined(separator: "\n") + "\n"
             #expect(candidate.exitCode == 0)
             #expect(candidate.stdout == expected)
@@ -184,6 +193,10 @@ extension JVMBackendTests {
             #expect(disassembly.stdout.contains("java/lang/Math.log1p"))
             #expect(disassembly.stdout.contains("java/lang/Math.ulp"))
             #expect(disassembly.stdout.contains("java/lang/Math.copySign"))
+            #expect(disassembly.stdout.contains("java/lang/Math.max"))
+            #expect(disassembly.stdout.contains("java/lang/Math.min"))
+            #expect(!disassembly.stdout.contains("kotlin/math/MathKt.max"))
+            #expect(!disassembly.stdout.contains("kotlin/math/MathKt.min"))
             #expect(!disassembly.stdout.contains("MathKt__MathJVMKt"))
 
             let javaRoot = root.appendingPathComponent("java-consumer", isDirectory: true)

@@ -4,6 +4,8 @@ import Foundation
 import CryptoKit
 #elseif canImport(Crypto)
 import Crypto
+#elseif DEBUG
+import CSHA256
 #endif
 
 /// The content hash is the comparison key; mtime is retained as diagnostic
@@ -57,7 +59,23 @@ public struct FileFingerprint: Equatable, Codable {
 #if canImport(CryptoKit) || canImport(Crypto)
         return Array(SHA256.hash(data: data))
 #else
+#if DEBUG
+        // The pure-Swift fallback below runs at ~7 MB/s in debug builds, so
+        // hashing artifact-sized inputs (the bundled stdlib `.kklib` is
+        // ~1 GB) takes minutes per cache resolve. The C implementation keeps
+        // debug builds fast; release builds keep the optimized Swift path.
+        var digest = [UInt8](repeating: 0, count: 32)
+        data.withUnsafeBytes { buffer in
+            kswiftk_sha256(
+                buffer.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                buffer.count,
+                &digest
+            )
+        }
+        return digest
+#else
         return data.withUnsafeBytes { sha256(input: $0) }
+#endif
 #endif
     }
 

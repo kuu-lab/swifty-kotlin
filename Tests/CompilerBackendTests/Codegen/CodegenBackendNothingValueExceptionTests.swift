@@ -38,4 +38,14 @@ struct CodegenBackendNothingValueExceptionTests {
             expected: "npe\n"
         )
     }
+
+    @Test
+    func definitelyNullNullAssertionMemberAccessThrowsNullPointerException() throws {
+        let source = try diffCaseSource("kuu4593_definitely_null_assertion_member.kt", file: #filePath)
+        try assertKotlinOutput(
+            source,
+            moduleName: "DefinitelyNullNullAssertionMember",
+            expected: "prop-npe\nsize-npe\nfun-npe\n"
+        )
+    }
 }

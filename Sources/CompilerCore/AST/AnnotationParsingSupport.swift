@@ -65,6 +65,10 @@ enum AnnotationParsingSupport {
             index += 2
         }
 
+        if let typeArgumentsEnd = endOfTypeArguments(in: tokens, at: index) {
+            index = typeArgumentsEnd
+        }
+
         var arguments: [String] = []
         if index < tokens.count, tokens[index].kind == .symbol(.lParen),
            consumesArgumentList(in: tokens, at: index, typeContext: typeContext)
@@ -114,6 +118,60 @@ enum AnnotationParsingSupport {
             nextIndex: index,
             invalidUseSiteTargetRange: invalidUseSiteTargetRange
         )
+    }
+
+    static func endOfTypeArguments(in tokens: [Token], at start: Int) -> Int? {
+        guard start < tokens.count, tokens[start].kind == .symbol(.lessThan) else {
+            return nil
+        }
+        var angleDepth = 0
+        var parenDepth = 0
+        var bracketDepth = 0
+        var braceDepth = 0
+        var templateDepth = 0
+        var index = start
+        while index < tokens.count {
+            let kind = tokens[index].kind
+            let inExpressionGroup = parenDepth > 0 || bracketDepth > 0 || braceDepth > 0 || templateDepth > 0
+            if !inExpressionGroup {
+                if kind == .symbol(.lessThan) {
+                    angleDepth += 1
+                } else if kind == .symbol(.greaterThan) {
+                    angleDepth -= 1
+                    if angleDepth == 0 {
+                        return index + 1
+                    }
+                }
+            }
+            switch kind {
+            case .symbol(.lParen): parenDepth += 1
+            case .symbol(.rParen): parenDepth = max(0, parenDepth - 1)
+            case .symbol(.lBracket): bracketDepth += 1
+            case .symbol(.rBracket): bracketDepth = max(0, bracketDepth - 1)
+            case .symbol(.lBrace): braceDepth += 1
+            case .symbol(.rBrace): braceDepth = max(0, braceDepth - 1)
+            case .templateExprStart: templateDepth += 1
+            case .templateExprEnd: templateDepth = max(0, templateDepth - 1)
+            default: break
+            }
+            index += 1
+        }
+        return nil
+    }
+
+    static func constructionArgumentListStart(in tokens: [Token], name: String) -> Int? {
+        var index = min(qualifiedNameTokenCount(for: name), tokens.count)
+        if let typeArgumentsEnd = endOfTypeArguments(in: tokens, at: index) {
+            index = typeArgumentsEnd
+        }
+        guard index < tokens.count, tokens[index].kind == .symbol(.lParen) else {
+            return nil
+        }
+        return index
+    }
+
+    static func qualifiedNameTokenCount(for name: String) -> Int {
+        max(name.split(separator: ".").count * 2 - 1, 0)
     }
 
     /// Decides whether a `(` following an annotation name opens its argument

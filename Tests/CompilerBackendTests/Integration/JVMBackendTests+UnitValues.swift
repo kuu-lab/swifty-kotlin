@@ -48,5 +48,47 @@ extension JVMBackendTests {
             #expect(bytecode.stdout.contains("anewarray") && bytecode.stdout.contains("class kotlin/Unit"))
         }
     }
+
+    @Test
+    func qualifiedKotlinUnitValuesUseJvmObjects() throws {
+        try withWorkspace { root in
+            let source = """
+            class Holder {
+                val member = kotlin.Unit
+                companion object {
+                    val companionUnit = kotlin.Unit
+                }
+            }
+            @JvmInline
+            value class Box<T>(val value: T) {
+                companion object {
+                    val Unit = Box(kotlin.Unit)
+                }
+            }
+            fun main() {
+                val local = kotlin.Unit
+                println(kotlin.Unit === Unit)
+                println(local === Unit)
+                println(Holder().member === Unit)
+                println(Holder.companionUnit === Unit)
+                println(Box.Unit.value === Unit)
+            }
+            """
+            let runtime = try m11Runtime()
+            let compiled = try compile(source, root: root, mode: .jvmJar)
+            try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
+
+            let artifact = root.appendingPathComponent("hello.jar")
+            let candidate = try java(["-cp", artifact.path + ":" + runtime, "HelloKt"])
+            let expected = "true\ntrue\ntrue\ntrue\ntrue\n"
+            #expect(candidate.stdout == expected)
+            #expect(candidate.stderr.isEmpty)
+
+            _ = try jvmTool("kotlinc", ["hello.kt", "-cp", runtime, "-d", "reference.jar"], root: root)
+            let reference = try java(["-cp", root.appendingPathComponent("reference.jar").path + ":" + runtime, "HelloKt"])
+            #expect(reference.stdout == candidate.stdout)
+            #expect(reference.stderr.isEmpty)
+        }
+    }
 }
 #endif

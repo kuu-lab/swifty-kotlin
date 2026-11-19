@@ -81,6 +81,7 @@ extension JVMProgramBuilder {
               [
                   "kotlin.Deprecated", "kotlin.ReplaceWith", "kotlin.SinceKotlin",
                   "kotlin.DeprecatedSinceKotlin", "kotlin.RequiresOptIn", "kotlin.ExperimentalUnsignedTypes",
+                  KnownCompilerAnnotation.jvmSynchronized.qualifiedName,
               ].contains(name),
               let declaration = declarationIDsBySymbol[symbol]?.first,
               case let .classDecl(c) = ast.arena.decl(declaration), c.modifiers.contains(.annotationClass) else { return nil }
@@ -227,7 +228,7 @@ extension JVMProgramBuilder {
                   var tokens = annotation.constructionTokens,
                   let last = tokens.last
             else { continue }
-            if !tokens.contains(where: { $0.kind == .symbol(.lParen) }) {
+            if AnnotationParsingSupport.constructionArgumentListStart(in: tokens, name: annotation.name) == nil {
                 tokens += [Token(kind: .symbol(.lParen), range: last.range), Token(kind: .symbol(.rParen), range: last.range)]
             }
             let parser = BuildASTPhase.ExpressionParser(tokens: tokens, interner: context.interner, astArena: ast.arena, diagnostics: context.diagnostics)
@@ -262,6 +263,8 @@ extension JVMProgramBuilder {
                 KnownCompilerAnnotation.jvmInline.qualifiedName,
                 KnownCompilerAnnotation.jvmName.qualifiedName,
                 KnownCompilerAnnotation.jvmField.qualifiedName,
+                "kotlin.jvm.Volatile",
+                "kotlin.jvm.Transient",
                 KnownCompilerAnnotation.jvmStatic.qualifiedName,
                 KnownCompilerAnnotation.jvmStatic.simpleName,
                 KnownCompilerAnnotation.jvmSynthetic.qualifiedName,
@@ -373,6 +376,9 @@ extension JVMProgramBuilder {
 
     func annotated(_ function: JVMFunction, symbol: SymbolID, signature providedSignature: FunctionSignature? = nil) throws -> JVMFunction {
         var f = function; f.annotations = try annotations(for: symbol, target: nil)
+        f.isSynchronized = try annotationRecords(for: symbol).contains {
+            $0.annotationFQName == KnownCompilerAnnotation.jvmSynchronized.qualifiedName && $0.useSiteTarget == nil
+        }
         applyDeprecation(f.annotations, to: &f)
         if let raw = sema.symbols.annotations(for: symbol).first(where: {
             $0.annotationFQName == KnownCompilerAnnotation.jvmName.qualifiedName && $0.useSiteTarget != "file"

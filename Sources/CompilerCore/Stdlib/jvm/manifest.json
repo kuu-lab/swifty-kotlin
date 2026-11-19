@@ -102,6 +102,12 @@
       "commonSource": true
     },
     {
+      "path": "kotlin/Suppress.kt",
+      "virtualPath": "<kswiftk-jvm>/suppress.kt",
+      "excludeFromStdlibBuild": true,
+      "commonSource": true
+    },
+    {
       "path": "kotlin/SinceKotlin.kt",
       "virtualPath": "<kswiftk-jvm>/sinceKotlin.kt",
       "excludeFromStdlibBuild": true
@@ -490,6 +496,12 @@
     {
       "path": "declarations/ArraySearch.kt",
       "virtualPath": "<kswiftk-jvm>/array-search.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/ArraysKt"
+    },
+    {
+      "path": "declarations/ArrayExtrema.kt",
+      "virtualPath": "<kswiftk-jvm>/array-extrema.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/collections/ArraysKt"
     },

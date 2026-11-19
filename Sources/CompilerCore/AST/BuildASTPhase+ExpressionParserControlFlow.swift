@@ -379,6 +379,7 @@ extension BuildASTPhase.ExpressionParser {
         // it only consumes the assignment's target and stops at `=`. The
         // leftover `=` is therefore expected here, not a stray token.
         parser.reportsTrailingAssignmentOperator = false
+        parser.allowsTrailingWhenBranchElse = true
         var body: ExprID?
         if branchTokens.first?.kind == .symbol(.at) || branchTokens.first?.kind == .symbol(.lBrace) {
             body = parser.parseControlFlowBodyExpression()
@@ -386,10 +387,16 @@ extension BuildASTPhase.ExpressionParser {
             body = parser.parse()
         }
         var consumedCount = parser.index - parser.tokens.startIndex
-        if body == nil || consumedCount < branchTokens.count {
+        let nextTokenIsAssignment = parser.index < tokens.endIndex
+            && isWhenBranchAssignmentOperator(tokens[parser.index].kind)
+        if body == nil || (consumedCount < branchTokens.count && nextTokenIsAssignment) {
             if let assignBody = parseWhenBranchAssignmentBody(branchTokens) {
-                body = assignBody
-                consumedCount = branchTokens.count
+                body = assignBody.expr
+                consumedCount = whenBranchBodyConsumedCount(
+                    startIndex: startIndex,
+                    endIndex: endIndex,
+                    bodyEndOffset: assignBody.endOffset
+                )
             }
         }
         guard let body else {
@@ -402,27 +409,85 @@ extension BuildASTPhase.ExpressionParser {
         return body
     }
 
-    private func parseWhenBranchAssignmentBody(_ branchTokens: ArraySlice<Token>) -> ExprID? {
+    private func parseWhenBranchAssignmentBody(_ branchTokens: ArraySlice<Token>) -> (expr: ExprID, endOffset: Int)? {
+        // The assignment AST's source range can end before the value's last
+        // token (a parenthesized cast like `(a as Int)` ranges only to `a`), so
+        // track the end offset of the rightmost token any nested expression
+        // parse actually consumed. The value parse is the rightmost one, and
+        // capturing it here avoids re-parsing the branch.
+        var bodyEndOffset = 0
         let context = BuildASTPhase.LocalStatementCoreContext(
             interner: interner,
             astArena: astArena,
             parseExpression: { subTokens in
-                BuildASTPhase.ExpressionParser(
+                let parser = BuildASTPhase.ExpressionParser(
                     tokens: subTokens,
                     interner: self.interner,
                     astArena: self.astArena,
                     diagnostics: self.diagnostics
-                ).parse()
+                )
+                parser.allowsTrailingWhenBranchElse = true
+                let expr = parser.parse()
+                if expr != nil, parser.index > subTokens.startIndex {
+                    let end = subTokens[parser.index - 1].range.end.offset
+                    bodyEndOffset = max(bodyEndOffset, end)
+                }
+                return expr
             },
             parseTypeReference: { _ in nil },
             resolveDeclarationName: { _, _ in nil },
             diagnostics: self.diagnostics
         )
-        return BuildASTPhase.LocalStatementCore.parseLocalAssignment(
+        guard let expr = BuildASTPhase.LocalStatementCore.parseLocalAssignment(
             from: branchTokens,
             context: context,
             options: .blockExpression
-        )
+        ) else {
+            return nil
+        }
+        if bodyEndOffset == 0, let rangeEnd = astArena.exprRange(expr)?.end.offset {
+            bodyEndOffset = rangeEnd
+        }
+        return (expr, bodyEndOffset)
+    }
+
+    private func isWhenBranchAssignmentOperator(_ kind: TokenKind) -> Bool {
+        switch kind {
+        case .symbol(.assign), .symbol(.plusAssign), .symbol(.minusAssign),
+             .symbol(.starAssign), .symbol(.slashAssign), .symbol(.percentAssign):
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func whenBranchBodyConsumedCount(startIndex: Int, endIndex: Int, bodyEndOffset: Int) -> Int {
+        var scan = startIndex
+        var depth = BuildASTPhase.BracketDepth()
+        while scan < endIndex {
+            let token = tokens[scan]
+            if token.range.start.offset >= bodyEndOffset {
+                // Past the value's last token, only closing delimiters that
+                // balance brackets opened inside the body (the `)` in
+                // `x = (20)`) belong to it. Anything else means the body
+                // expression ended earlier and must not be swallowed.
+                guard !depth.isBracketBraceParenTopLevel, isWhenBranchClosingDelimiter(token.kind) else {
+                    break
+                }
+            }
+            depth.track(token.kind)
+            scan += 1
+        }
+        return scan - startIndex
+    }
+
+    private func isWhenBranchClosingDelimiter(_ kind: TokenKind) -> Bool {
+        switch kind {
+        case .symbol(.rParen), .symbol(.rBracket), .symbol(.rBrace):
+            return true
+        default:
+            return false
+        }
     }
 
     private func findWhenBranchBodyEnd(startIndex: Int) -> Int {
@@ -439,6 +504,7 @@ extension BuildASTPhase.ExpressionParser {
                 }
                 if scan > startIndex,
                    hasLeadingNewline(token),
+                   whenBranchBodyTokenCanEndExpression(at: tokens.index(before: scan), bodyStart: startIndex),
                    startsWhenBranchHeader(at: scan)
                 {
                     return scan
@@ -466,6 +532,147 @@ extension BuildASTPhase.ExpressionParser {
         }
 
         return scan
+    }
+
+    /// Whether the token at `index` can be the last token of a when-branch body expression.
+    /// A line break after an operator or keyword that still expects an operand
+    /// continues the body, so the next line cannot open a new entry even if a
+    /// later `->` makes it look like a branch header.
+    private func whenBranchBodyTokenCanEndExpression(at index: Int, bodyStart: Int) -> Bool {
+        let token = tokens[index]
+        switch token.kind {
+        case .symbol(.bangBang), .symbol(.plusPlus), .symbol(.minusMinus):
+            // Postfix operators can close the body expression.
+            return true
+        case .symbol(.greaterThan):
+            // A closing type-argument `>` ends a cast/check type, unlike a
+            // comparison operator that still expects its right operand.
+            return isClosingTypeArgument(at: index, bodyStart: bodyStart)
+        case .symbol(.plus), .symbol(.minus), .symbol(.star), .symbol(.slash), .symbol(.percent),
+             .symbol(.ampAmp), .symbol(.barBar),
+             .symbol(.equalEqual), .symbol(.bangEqual), .symbol(.tripleEqual), .symbol(.notTripleEqual),
+             .symbol(.lessThan), .symbol(.lessOrEqual), .symbol(.greaterOrEqual),
+             .symbol(.questionColon), .symbol(.dotDot), .symbol(.dotDotLt),
+             .symbol(.dot), .symbol(.questionDot), .symbol(.bang), .symbol(.doubleColon),
+             .symbol(.assign), .symbol(.plusAssign), .symbol(.minusAssign), .symbol(.starAssign),
+             .symbol(.slashAssign), .symbol(.percentAssign),
+             .symbol(.comma), .symbol(.colon), .symbol(.arrow),
+             .symbol(.lParen), .symbol(.lBracket), .symbol(.lBrace):
+            return false
+        case .keyword(.is), .keyword(.as), .keyword(.in), .keyword(.else):
+            return false
+        case let .identifier(name):
+            let resolved = interner.resolve(name)
+            if resolved == "downTo" || resolved == "step" {
+                return whenBranchBodyDownToOrStepCanEnd(at: index, bodyStart: bodyStart)
+            }
+            return true
+        default:
+            return true
+        }
+    }
+
+    /// `downTo`/`step` are parsed as binary operators when they follow an
+    /// expression. Resolve a run of them iteratively so untrusted sources with
+    /// long runs cannot exhaust the stack before the expression parser's own
+    /// depth limit applies.
+    private func whenBranchBodyDownToOrStepCanEnd(at index: Int, bodyStart: Int) -> Bool {
+        var cursor = index
+        var operatorCount = 0
+        var reachedBodyStart = false
+        while cursor >= bodyStart {
+            guard case let .identifier(name) = tokens[cursor].kind else { break }
+            let resolved = interner.resolve(name)
+            guard resolved == "downTo" || resolved == "step" else { break }
+            operatorCount += 1
+            if cursor == bodyStart {
+                reachedBodyStart = true
+                break
+            }
+            cursor = tokens.index(before: cursor)
+        }
+        let baseCanEnd: Bool
+        if reachedBodyStart {
+            // The token before a branch body is the `->` that introduces it, so
+            // the first `downTo`/`step` of the body is a primary expression.
+            baseCanEnd = false
+        } else {
+            baseCanEnd = whenBranchBodyTokenCanEndExpression(at: cursor, bodyStart: bodyStart)
+        }
+        return operatorCount % 2 == 1 ? !baseCanEnd : baseCanEnd
+    }
+
+    /// Whether the closing `>` at `index` belongs to a type argument list in an
+    /// `is`/`as` type rather than to a comparison operator.
+    private func isClosingTypeArgument(at index: Int, bodyStart: Int) -> Bool {
+        var angleDepth = 1
+        var parenDepth = 0
+        var bracketDepth = 0
+        var braceDepth = 0
+        var openIndex: Int?
+        var cursor = tokens.index(before: index)
+        scan: while cursor >= bodyStart {
+            let kind = tokens[cursor].kind
+            switch kind {
+            case .symbol(.rParen): parenDepth += 1
+            case .symbol(.lParen):
+                if parenDepth > 0 { parenDepth -= 1 }
+            case .symbol(.rBracket): bracketDepth += 1
+            case .symbol(.lBracket):
+                if bracketDepth > 0 { bracketDepth -= 1 }
+            case .symbol(.rBrace): braceDepth += 1
+            case .symbol(.lBrace):
+                if braceDepth > 0 { braceDepth -= 1 }
+            default:
+                break
+            }
+            if parenDepth == 0 && bracketDepth == 0 && braceDepth == 0 {
+                if kind == .symbol(.greaterThan) {
+                    angleDepth += 1
+                } else if kind == .symbol(.lessThan) {
+                    angleDepth -= 1
+                    if angleDepth == 0 {
+                        openIndex = cursor
+                        break scan
+                    }
+                }
+            }
+            if cursor == bodyStart { break }
+            cursor = tokens.index(before: cursor)
+        }
+        guard let open = openIndex else { return false }
+        return typeArgumentListHasCastOrCheck(before: open, bodyStart: bodyStart)
+    }
+
+    /// After finding the `<` that `>` closes, require the type it introduces to
+    /// be the target of an `is` check or `as`/`as?` cast inside this body.
+    private func typeArgumentListHasCastOrCheck(before openIndex: Int, bodyStart: Int) -> Bool {
+        var cursor = tokens.index(before: openIndex)
+        guard cursor >= bodyStart else { return false }
+        guard case .identifier(_) = tokens[cursor].kind else { return false }
+        while cursor > bodyStart {
+            let kind = tokens[cursor].kind
+            let isTypeNamePart: Bool
+            switch kind {
+            case .identifier(_), .symbol(.dot), .symbol(.questionDot),
+                 .symbol(.doubleColon), .symbol(.question):
+                isTypeNamePart = true
+            default:
+                isTypeNamePart = false
+            }
+            if !isTypeNamePart {
+                if kind == .keyword(.as) || kind == .keyword(.is) {
+                    return true
+                }
+                if kind == .symbol(.question) {
+                    let before = tokens.index(before: cursor)
+                    return before >= bodyStart && tokens[before].kind == .keyword(.as)
+                }
+                return false
+            }
+            cursor = tokens.index(before: cursor)
+        }
+        return false
     }
 
     private func startsWhenBranchHeader(at startIndex: Int) -> Bool {
@@ -783,6 +990,7 @@ extension BuildASTPhase.ExpressionParser {
             var destructuringNames: [InternedString?] = []
             var destructuringProperties: [InternedString?] = []
             var destructuringMutableFlags: [Bool] = []
+            var entryTypeRefs: [Int: TypeRefID] = [:]
             var declaringEntryCount = 0
             var foundClosingDelimiter = false
             while let token = current() {
@@ -843,13 +1051,15 @@ extension BuildASTPhase.ExpressionParser {
                     if entryDeclared {
                         declaringEntryCount += 1
                     }
-                    if matches(.symbol(.colon)) {
-                        _ = consume()
-                        while let t = current(),
-                              t.kind != .symbol(.comma),
-                              t.kind != closingKind
-                        {
-                            _ = consume()
+                    if let colon = consumeIf(.symbol(.colon)) {
+                        if let typeRef = parseTypeReference(colon.range, allowFunctionType: true) {
+                            entryTypeRefs[destructuringNames.count - 1] = typeRef
+                        } else {
+                            diagnostics?.error(
+                                "KSWIFTK-PARSE-0020",
+                                "Expected type after ':'.",
+                                range: current()?.range ?? colon.range
+                            )
                         }
                     }
                 } else {
@@ -900,7 +1110,8 @@ extension BuildASTPhase.ExpressionParser {
                     DestructuringDeclLayout(
                         syntax: syntax,
                         properties: destructuringProperties,
-                        mutableFlags: declaringEntryCount > 0 ? destructuringMutableFlags : []
+                        mutableFlags: declaringEntryCount > 0 ? destructuringMutableFlags : [],
+                        entryTypeRefs: entryTypeRefs
                     ),
                     for: exprID
                 )

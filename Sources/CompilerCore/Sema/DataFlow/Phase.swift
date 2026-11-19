@@ -225,7 +225,8 @@ final class DataFlowSemaPhase: CompilerPhase {
                     types: types,
                     interner: ctx.interner,
                     bundledIndex: bundledIndex,
-                    projectsCoroutineContextIsActive: ctx.jvmImports?.projectsCoroutineContextIsActive == true
+                    projectsCoroutineContextIsActive: ctx.jvmImports?.projectsCoroutineContextIsActive == true,
+                    isJVMTarget: ctx.options.emit.isJVM
                 )
             }
         }
@@ -720,7 +721,8 @@ final class DataFlowSemaPhase: CompilerPhase {
                 bindings: bindings,
                 types: types,
                 interner: ctx.interner,
-                diagnostics: ctx.diagnostics
+                diagnostics: ctx.diagnostics,
+                includeInterfaceValueClassMembers: !ctx.options.emit.isJVM
             )
         }
         withSubPhaseTiming("registerChannelSendChannelSubtype", timer: ctx.phaseTimer) {

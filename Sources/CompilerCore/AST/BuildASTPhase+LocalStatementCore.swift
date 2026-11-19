@@ -535,6 +535,13 @@ extension BuildASTPhase {
             var index = statementTokens.startIndex
             while index < statementTokens.endIndex {
                 let token = statementTokens[index]
+                // A top-level `=` is this statement's own plain assignment. A
+                // compound operator after it belongs to a following statement
+                // (a when-branch token slice can span same-line entries), so
+                // bail out and let plain assignment parsing handle it.
+                if token.kind == .symbol(.assign), depth.isBracketBraceParenTopLevel {
+                    return nil
+                }
                 // See the plain-assignment scan above: a `<` comparison in the
                 // LHS must not hide a top-level compound-assign operator.
                 for (kind, op) in compoundOps where token.kind == kind && depth.isBracketBraceParenTopLevel {
