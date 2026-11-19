@@ -1031,6 +1031,22 @@ extension JVMFunctionBuilder {
         }
         else { throw fail("JVM for requires an array or iterable collection.", id) }
 
+        // A loop variable with an explicit declared type that is a reference
+        // supertype of a primitive element (e.g. `for (x: Any in doubleArray)`)
+        // must keep the boxed value in the local: reads convert the local to the
+        // declared type, and boxing a primitive local on every read would break
+        // referential identity (`x === x`). Box once per iteration instead.
+        var loopStorageType = elementType
+        var loopElementBoxType: JVMValueType?
+        if destructuringNames == nil,
+           let declaredType = program.sema.bindings.loopVariableType(for: id) {
+            let declaredStorage = try localStorageType(declaredType)
+            if elementType.referenceName == nil, declaredStorage.referenceName != nil {
+                loopStorageType = declaredStorage
+                loopElementBoxType = declaredStorage
+            }
+        }
+
         let indexedElementType: JVMValueType?
         if let withIndexReceiver {
             if source.type.isCharSequence { indexedElementType = .char }
@@ -1046,7 +1062,7 @@ extension JVMFunctionBuilder {
             } else { throw fail("JVM withIndex requires an iterable receiver.", id) }
         } else { indexedElementType = nil }
 
-        let local = try value(elementType), test = label(), advance = label(), exit = label()
+        let local = try value(loopStorageType), test = label(), advance = label(), exit = label()
         scopes.append([name: Local(value: local, mutable: false)]); defer { scopes.removeLast() }
         func emitBody() throws {
             if let destructuringNames {
@@ -1079,7 +1095,12 @@ extension JVMFunctionBuilder {
                 let item = try makeIndexedValue(withIndexCounter, element, as: elementType)
                 instructions.append(.copy(item, local))
                 try incrementWithIndexCounter(withIndexCounter)
-            } else { instructions.append(.copy(element, local)) }
+            } else {
+                let storedElement: JVMValue
+                if let loopElementBoxType { storedElement = try convert(element, to: loopElementBoxType) }
+                else { storedElement = element }
+                instructions.append(.copy(storedElement, local))
+            }
             try emitBody()
             mark(advance)
             let one = try constant(.int(1), .int)
@@ -1164,7 +1185,12 @@ extension JVMFunctionBuilder {
                 let item = try makeIndexedValue(withIndexCounter, next, as: elementType)
                 instructions.append(.copy(item, local))
                 try incrementWithIndexCounter(withIndexCounter)
-            } else { instructions.append(.copy(next, local)) }
+            } else {
+                let storedNext: JVMValue
+                if let loopElementBoxType { storedNext = try convert(next, to: loopElementBoxType) }
+                else { storedNext = next }
+                instructions.append(.copy(storedNext, local))
+            }
             try emitBody()
             mark(advance); jump(test)
         }

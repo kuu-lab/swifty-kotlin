@@ -24,4 +24,12 @@ fun main() {
     for (d: Double in doubleArrayOf(1.5, 2.5)) {
         println(d * 2)
     }
+    // A declared reference supertype keeps one box per iteration, so
+    // referential identity holds like kotlinc (`x === x` is true).
+    for (x: Any in doubleArrayOf(1.0, 2.0)) {
+        println(x === x)
+    }
+    for (n: Number in intArrayOf(1, 2)) {
+        println(n === n)
+    }
 }
