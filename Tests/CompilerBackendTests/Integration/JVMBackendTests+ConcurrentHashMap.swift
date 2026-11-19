@@ -41,6 +41,43 @@ extension JVMBackendTests {
     }
 
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func concurrentHashMapIndexedReadPreservesValueType(mode: EmitMode) throws {
+        try withWorkspace { root in
+            let library = try ownStdlibRuntime()
+            let source = """
+            import java.lang.ref.WeakReference
+            import java.util.concurrent.ConcurrentHashMap
+
+            fun readString(map: ConcurrentHashMap<String, String>, token: String): String? = map[token]
+            fun readInt(map: ConcurrentHashMap<String, Int>, token: String): Int? = map[token]
+            fun readWeak(map: ConcurrentHashMap<String, WeakReference<String>>, token: String): String? = map[token]?.get()
+
+            fun main() {
+                val m = ConcurrentHashMap<String, String>()
+                m["a"] = "x"
+                println(readString(m, "a"))
+                println(readString(m, "missing"))
+                val n = ConcurrentHashMap<String, Int>()
+                n["a"] = 42
+                println(readInt(n, "a"))
+                println(readInt(n, "missing"))
+                val refs = ConcurrentHashMap<String, WeakReference<String>>()
+                refs["r"] = WeakReference("weak")
+                println(readWeak(refs, "r"))
+                println(readWeak(refs, "missing"))
+            }
+            """
+            let result = try compile(source, root: root, mode: mode, classpath: [library.path])
+            try #require(result.0 == 0, "\(result.1.map(\.message))")
+
+            let artifact = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path
+            let execution = try java(["-cp", artifact + ":" + library.path, "HelloKt"])
+            #expect(execution.stdout == "x\nnull\n42\nnull\nweak\nnull\n")
+            #expect(execution.stderr.isEmpty)
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func mutableCollectionRemoveAllPredicateKeepsEqualNonMatchingElements(mode: EmitMode) throws {
         try withWorkspace { root in
             let library = try ownStdlibRuntime()

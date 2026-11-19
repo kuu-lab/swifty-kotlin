@@ -466,6 +466,7 @@ final class JVMClasspathIndex {
             result.kotlinSuspendFunction = method.kotlinSuspendFunction
             result.isVarargs = method.isVarargs
             result.genericResultParameter = method.genericResultParameter
+            result.methodGenericSignature = method.methodGenericSignature
             result.kotlinCollisionSourceName = method.kotlinCollisionSourceName
             result.kotlinFunction = method.kotlinFunction
             return result
@@ -782,6 +783,16 @@ final class JVMClasspathIndex {
             return base
         }
     }
+    private func javaClassTypeParameterResult(_ method: JVMForeignMethod, classTypeParameters: [String]) -> String? {
+        guard let signature = method.methodGenericSignature, signature.first == "(",
+              let close = signature.firstIndex(of: ")") else { return nil }
+        let result = signature[signature.index(after: close)...]
+        guard result.hasPrefix("T"), result.hasSuffix(";"), result.count > 2 else { return nil }
+        let name = String(result.dropFirst().dropLast())
+        guard !name.isEmpty, classTypeParameters.contains(name) else { return nil }
+        return name
+    }
+
     private func mappedJavaException(_ name: String) -> String? {
         guard name.hasPrefix("java/lang/"),
               Self.exceptionNames.contains(String(name.dropFirst("java/lang/".count))) else { return nil }
@@ -1624,7 +1635,15 @@ final class JVMClasspathIndex {
                 source += "operator "
             }
             if !info.isInterface { source += "external " }
-            source += functionDeclaration(method, usesKotlinMetadata: usesKotlinMetadata)
+            let javaTypeParameterResult: String? = {
+                guard usesKotlinMetadata, method.kotlinSuspendFunction == nil else { return nil }
+                if isJavaConcurrentMapClass(info.name), method.name == "get", method.sourceParameters.count == 1 {
+                    let value = info.classTypeParameterNames.count > 1 ? info.classTypeParameterNames[1] : "kotlin.Any"
+                    return value + "?"
+                }
+                return javaClassTypeParameterResult(method, classTypeParameters: info.classTypeParameterNames)
+            }()
+            source += functionDeclaration(method, usesKotlinMetadata: usesKotlinMetadata, forcedResult: javaTypeParameterResult)
             let hasKotlinDefaultBody = kotlinFunction(method)?.isAbstract == false
             if info.isInterface, !method.isAbstract || hasKotlinDefaultBody {
                 source += method.sourceResult == .unit ? " {}" : " = null!!"
@@ -2284,7 +2303,7 @@ final class JVMClasspathIndex {
 
     private func functionDeclaration(
         _ method: JVMForeignMethod, asExtension: Bool = false, asFacadeMember: Bool = false,
-        acceptsDefaults: Bool = false, usesKotlinMetadata: Bool = true
+        acceptsDefaults: Bool = false, usesKotlinMetadata: Bool = true, forcedResult: String? = nil
     ) -> String {
         if usesKotlinMetadata, let owner = declaringClass(for: method), let function = kotlinFunction(method) {
             return kotlinFunctionDeclaration(function, owner: owner)
@@ -2297,7 +2316,8 @@ final class JVMClasspathIndex {
         if asExtension, let type = method.sourceParameters.first {
             receiver = kotlinType(type) + (suspend?.receiverIsNullable == true ? "?." : ".")
         }
-        let result = method.genericResultParameter.map { "`\($0.name)`" }
+        let result = forcedResult
+            ?? method.genericResultParameter.map { "`\($0.name)`" }
             ?? suspend?.sourceResult
             ?? (kotlinType(method.sourceResult) + (suspend != nil && method.sourceResult.isNullable ? "?" : ""))
         let generic = method.genericResultParameter.map { parameter -> String in
