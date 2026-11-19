@@ -31,6 +31,12 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        registerStringCompanionFormatMembers(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            stringClassSymbol: stringClassSymbol
+        )
     }
     private func ensureKotlinTextPackage(
         symbols: SymbolTable,
