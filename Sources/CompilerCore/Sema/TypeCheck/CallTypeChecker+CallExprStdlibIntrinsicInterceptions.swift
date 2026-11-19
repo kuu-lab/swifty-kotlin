@@ -198,9 +198,19 @@ extension CallTypeChecker {
         }
         guard !hasCallableUserOverload else { return nil }
 
+        // kotlinc resolves contract-description calls (`holdsIn`, ...) against
+        // the kotlin.contracts package without requiring an import; expose the
+        // package to the lambda body only, not to the surrounding file.
+        let contractsScope = WildcardImportScope(parent: ctx.scope, symbols: sema.symbols)
+        contractsScope.addPackage([
+            interner.intern("kotlin"),
+            interner.intern("contracts"),
+        ]) { _ in true }
+        var contractCtx = ctx.with(implicitReceiverType: builderType)
+        contractCtx.scope = contractsScope
         _ = driver.inferExpr(
             args[0].expr,
-            ctx: ctx.with(implicitReceiverType: builderType),
+            ctx: contractCtx,
             locals: &locals,
             expectedType: signature.parameterTypes[0]
         )
