@@ -65,8 +65,12 @@ extension JVMClasspathIndex {
     func isComposeMemberCall(_ method: JVMForeignMethod, descriptorTypes: [JVMValueType]) -> Bool {
         guard let function = kotlinFunction(method) else { return false }
         let parameterCount = kotlinFunctionParameterCount(function)
-        return isComposeMemberABI(method, function: function, parameterCount: parameterCount)
-            && function.parameters.count + (function.receiver == nil ? 0 : 1) == descriptorTypes.count
+        guard isComposeMemberABI(method, function: function, parameterCount: parameterCount) else { return false }
+        let sourceCount = function.parameters.count + (function.receiver == nil ? 0 : 1)
+        guard sourceCount == descriptorTypes.count, method.parameters.count >= descriptorTypes.count else { return false }
+        return zip(method.parameters.prefix(descriptorTypes.count), descriptorTypes).allSatisfy { physical, logical in
+            physical.descriptor == logical.descriptor || importedValueCarrier(for: logical)?.descriptor == physical.descriptor
+        }
     }
 
     func kotlinParameterDeclarations(_ parameters: [JVMKotlinParameterInfo], typeParameters: [Int: String]) -> [String] {
