@@ -1279,9 +1279,11 @@ final class JVMClasspathIndex {
                         source += "external fun \(kotlinType(receiver)).`\(method.name)`(\(rest)): \(kotlinType(method.result))\n"
                     }
                 }
-                for (property, _) in topLevelProperties {
+                for (property, getter) in topLevelProperties {
                     let receiver = property.receiver.map { $0 + "." } ?? ""
-                    source += "val \(receiver)`\(property.name)`: \(property.result) get() = null!!\n"
+                    let annotation = getter.annotations.contains { $0.descriptor == "Landroidx/compose/runtime/Composable;" }
+                        ? "@androidx.compose.runtime.Composable " : ""
+                    source += "val \(receiver)`\(property.name)`: \(property.result) \(annotation)get() = null!!\n"
                 }
             } else {
                 if info.flags & 0x2000 != 0 {
