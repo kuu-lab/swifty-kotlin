@@ -605,9 +605,13 @@ struct JVMClassReader {
         let hasValueAdapters = valueCarrier.map { carrier in
             methods.contains { $0.isStatic && $0.name == "box-impl" && $0.descriptor == "(" + carrier.descriptor + ")L" + name + ";" }
         } ?? false
+        // Decode read-only collection supertypes for every Kotlin class: the
+        // payload keeps only kotlin/collections/{Collection,List,Map,Set}
+        // entries, and user classes like `abstract class JsonArrayLike :
+        // List<String>` need their declared type arguments (with nullability)
+        // instead of the erased `List<Any>` fallback.
         var readOnlyCollectionSupertypes: [String: String] = [:]
-        if flags & 0x0200 != 0, let metadata = classAttributes.kotlinMetadata,
-           interfaces.contains(where: { $0 == "kotlin/jvm/internal/markers/KMappedMarker" }) {
+        if let metadata = classAttributes.kotlinMetadata {
             readOnlyCollectionSupertypes = (try? metadata.readOnlyCollectionSupertypes(byteLimit: bytes.count)) ?? [:]
         }
         let hasReadOnlyListSupertype = readOnlyCollectionSupertypes["java/util/List"] != nil
