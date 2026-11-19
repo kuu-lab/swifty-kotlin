@@ -301,6 +301,40 @@ struct GenericCallableReferenceInferenceTests {
         #expect(errors.isEmpty, "Expected constructor reference to defer to enclosing call inference, got: \(errors)")
     }
 
+    @Test(arguments: [
+        // A generic callable reference whose type parameter occurs only in
+        // return position has no input evidence for the enclosing call's
+        // solver; binding it to its upper bound (`Any?`) here would break the
+        // sibling arguments' inference (Arrow Core `Either.catch`).
+        """
+        fun <A, B> combine(block: () -> A, transform: (A) -> B, recover: (Throwable) -> B): B = TODO()
+        fun <R> right(value: R): R = value
+        fun <R> left(error: Throwable): R = throw error
+        fun catchIt(f: () -> Int): Int = combine(f, ::right, ::left)
+        """,
+        // Same shape with the result type parameter owned by the enclosing
+        // generic function.
+        """
+        fun <A, B> combine(block: () -> A, transform: (A) -> B, recover: (Throwable) -> B): B = TODO()
+        fun <R> right(value: R): R = value
+        fun <R> left(error: Throwable): R = throw error
+        fun <R> catchIt(f: () -> R): R = combine(f, ::right, ::left)
+        """,
+        // Return-only parameter in the transform position while a lambda
+        // sibling pins the result type.
+        """
+        fun <A, B> combine(block: () -> A, transform: (A) -> B, recover: (Throwable) -> B): B = TODO()
+        fun <T> retOnly(value: Int): T = TODO()
+        fun catchIt(f: () -> Int): Int = combine(f, ::retOnly, { error: Throwable -> 0 })
+        """,
+    ])
+    func defersGenericCallableReferenceReturnParameterToEnclosingCall(source: String) throws {
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Expected callable reference return parameter to defer to enclosing call inference, got: \(errors)")
+    }
+
     @Test
     func stillRejectsAmbiguousConstructorReferenceWithoutExpectedType() throws {
         // `::C` with multiple constructors and no expected function type must
