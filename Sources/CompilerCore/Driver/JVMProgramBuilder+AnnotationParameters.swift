@@ -62,6 +62,9 @@ extension JVMProgramBuilder {
             if annotationFqName == "kotlin.OptIn" { continue }
             if isPlanlessKotlinInternalAnnotation(annotationFqName, owner: owner) { continue }
             if ["kotlin.jvm.Volatile", "kotlin.jvm.Transient"].contains(annotationFqName), target == "field" {
+                if !node.arguments.isEmpty {
+                    throw JVMFrontendError(message: "Too many arguments for 'constructor(): \(node.name)'.", range: node.constructionTokens?.first?.range)
+                }
                 if !records.contains(where: { $0.usageID != nil && $0.usageID == node.usageID }) {
                     records.append(MetadataAnnotationRecord(annotationFQName: annotationFqName, arguments: node.arguments, useSiteTarget: target, usageID: node.usageID))
                 }

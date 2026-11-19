@@ -97,6 +97,46 @@ extension JVMBackendTests {
             try #require(delegatedReference.exitCode != 0, "\(delegatedReference.stderr)")
             #expect(delegatedReference.stderr.contains("cannot be used on delegated properties"), "\(delegatedReference.stderr)")
         }
+
+        try withWorkspace { root in
+            let constructorArguments = """
+            class ConstructorVolatileArgument(@Volatile(1) var volatileValue: Int)
+            class ConstructorTransientArgument(@field:kotlin.jvm.Transient(1) var transientValue: Int)
+            """
+            let constructorArgumentsResult = try compile(constructorArguments, root: root, mode: mode)
+            try #require(constructorArgumentsResult.0 != 0)
+            let constructorArgumentsMessage = constructorArgumentsResult.1.map(\.message).joined(separator: "\n")
+            #expect(constructorArgumentsMessage.contains("Too many arguments"), "\(constructorArgumentsMessage)")
+
+            let constructorArgumentsReference: CommandResult
+            do {
+                constructorArgumentsReference = try jvmTool("kotlinc", ["hello.kt", "-d", "reference-constructor-arguments.jar"], root: root)
+            } catch let CommandRunnerError.nonZeroExit(result) {
+                constructorArgumentsReference = result
+            }
+            try #require(constructorArgumentsReference.exitCode != 0, "\(constructorArgumentsReference.stderr)")
+            #expect(constructorArgumentsReference.stderr.contains("too many arguments"), "\(constructorArgumentsReference.stderr)")
+        }
+
+        try withWorkspace { root in
+            let annotationElements = """
+            annotation class FieldAnnotation(@field:kotlin.jvm.Transient val value: Int)
+            annotation class PlainAnnotation(@Transient val value: Int)
+            """
+            let annotationElementsResult = try compile(annotationElements, root: root, mode: mode)
+            try #require(annotationElementsResult.0 != 0)
+            let annotationElementsMessage = annotationElementsResult.1.map(\.message).joined(separator: "\n")
+            #expect(annotationElementsMessage.contains("not applicable"), "\(annotationElementsMessage)")
+
+            let annotationElementsReference: CommandResult
+            do {
+                annotationElementsReference = try jvmTool("kotlinc", ["hello.kt", "-d", "reference-annotation-elements.jar"], root: root)
+            } catch let CommandRunnerError.nonZeroExit(result) {
+                annotationElementsReference = result
+            }
+            try #require(annotationElementsReference.exitCode != 0, "\(annotationElementsReference.stderr)")
+            #expect(annotationElementsReference.stderr.contains("not applicable"), "\(annotationElementsReference.stderr)")
+        }
     }
 }
 #endif
