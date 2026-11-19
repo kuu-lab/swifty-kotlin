@@ -713,8 +713,8 @@ extension ExprTypeChecker {
             interner: interner
         )
         // KSP-1281: the bundled generic `T.rangeTo`/`T.rangeUntil` extension in
-        // ranges/Stdlib.kt must not capture `..`/`..<` on primitive receivers —
-        // those keep the existing scalar range-handle path (markRangeExpr +
+        // ranges/Stdlib.kt must not capture `..`/`..<` on receivers with a scalar
+        // range — those keep the existing scalar range-handle path (markRangeExpr +
         // `__kk_*` construction), which the heap-allocated ComparableRange the
         // generic body builds cannot represent. The generic extension only
         // covers receivers without a concrete range representation (String,
@@ -731,7 +731,8 @@ extension ExprTypeChecker {
             }
             return false
         }
-        if lhsIsPrimitive, op == .rangeTo || op == .rangeUntil {
+        let lhsHasScalarRange = sema.types.isBuiltinArithmeticOperand(operatorReceiverType)
+        if lhsHasScalarRange, op == .rangeTo || op == .rangeUntil {
             operatorCandidates = operatorCandidates.filter { !isTypeParamReceiverCandidate($0) }
         }
         // A built-in or bundled rangeTo candidate can exist for the receiver
@@ -778,9 +779,11 @@ extension ExprTypeChecker {
                 }
             }
         }
-        // The fallback above can rediscover the generic stdlib rangeTo; primitive
-        // range expressions must still use the scalar range path.
-        if lhsIsPrimitive, op == .rangeTo || op == .rangeUntil {
+        // The fallback above can rediscover generic rangeTo operators; scalar
+        // range expressions must still use the scalar range path. Boolean has no
+        // scalar range, so Boolean and other non-scalar generic operators keep
+        // the normal extension path.
+        if lhsHasScalarRange, op == .rangeTo || op == .rangeUntil {
             operatorCandidates = operatorCandidates.filter { !isTypeParamReceiverCandidate($0) }
         }
         // `collectOperatorCandidates` deliberately excludes primitive receivers
