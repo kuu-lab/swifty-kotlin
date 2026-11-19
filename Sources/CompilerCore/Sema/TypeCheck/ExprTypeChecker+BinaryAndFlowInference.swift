@@ -623,6 +623,21 @@ extension ExprTypeChecker {
         // the source expression's actual Nothing type for flow and lowering.
         let operatorReceiverType = nothingRangePeerType ?? lhs
         let operatorArgumentType = nothingRangePeerType ?? rhs
+        // For a floating-point range with a Nothing-typed RHS, keep the
+        // Nothing argument for overload resolution so user-defined `rangeTo`
+        // extensions remain applicable; scalar-pair tests still use the
+        // peer-substituted `operatorArgumentType`.
+        let operatorResolutionArgumentType: TypeID = {
+            guard (op == .rangeTo || op == .rangeUntil),
+                  rhs == sema.types.nothingType,
+                  lhs != sema.types.nothingType,
+                  let peer = nothingRangePeerType,
+                  peer == doubleType || peer == floatType
+            else {
+                return operatorArgumentType
+            }
+            return rhs
+        }()
         let lhsIsPrimitive = if case .primitive = sema.types.kind(of: operatorReceiverType) { true } else { false }
         let shouldUseInheritedEqualityDispatch: Bool = switch op {
         case .equal, .notEqual:
@@ -648,7 +663,7 @@ extension ExprTypeChecker {
             range: range,
             calleeName: operatorName,
             args: [CallArg(
-                type: operatorArgumentType,
+                type: operatorResolutionArgumentType,
                 signedIntegerLiteral: rhsIntegerLiteral.signed,
                 unsignedIntegerLiteral: rhsIntegerLiteral.unsigned
             )],
@@ -708,7 +723,7 @@ extension ExprTypeChecker {
         var operatorCandidates = driver.callChecker.preferMostSpecificMemberReceiverCandidates(
             collectedOperatorCandidates,
             receiverType: operatorReceiverType,
-            argumentTypes: [operatorArgumentType],
+            argumentTypes: [operatorResolutionArgumentType],
             sema: sema,
             interner: interner
         )
@@ -741,12 +756,29 @@ extension ExprTypeChecker {
         let isBuiltinScalarRangePair = isRangeOperator && lhsHasScalarRange
             && ((sema.types.isSigned(operatorReceiverType) && sema.types.isSigned(operatorArgumentType))
                 || operatorReceiverType == operatorArgumentType)
+        let isFloatingRangeReceiver = operatorReceiverType == doubleType || operatorReceiverType == floatType
+        // Kotlin lets user-defined `rangeTo` extensions win on Double/Float
+        // (the stdlib floating `rangeTo` is an extension, not a member), while
+        // the bundled generic stdlib `T.rangeTo` must still not capture scalar
+        // ranges. Integral/Char ranges keep the stricter member precedence.
+        let shouldDropGenericRangeCandidate = { (candidate: SymbolID) -> Bool in
+            guard isTypeParamReceiverCandidate(candidate) else {
+                return false
+            }
+            guard isFloatingRangeReceiver else {
+                return true
+            }
+            guard let symbol = sema.symbols.symbol(candidate) else {
+                return false
+            }
+            return symbol.fqName.starts(with: knownNames.kotlinRangesPackageFQName)
+        }
         let dropGenericRangeCandidatesWhenScalarRangeApplies = { (candidates: [SymbolID]) -> [SymbolID] in
             guard isRangeOperator, lhsHasScalarRange else {
                 return candidates
             }
             if isBuiltinScalarRangePair {
-                return candidates.filter { !isTypeParamReceiverCandidate($0) }
+                return candidates.filter { !shouldDropGenericRangeCandidate($0) }
             }
             let concreteCandidates = candidates.filter { !isTypeParamReceiverCandidate($0) }
             guard !concreteCandidates.isEmpty,
@@ -760,7 +792,7 @@ extension ExprTypeChecker {
             else {
                 return candidates
             }
-            return candidates.filter { !isTypeParamReceiverCandidate($0) }
+            return candidates.filter { !shouldDropGenericRangeCandidate($0) }
         }
         operatorCandidates = dropGenericRangeCandidatesWhenScalarRangeApplies(operatorCandidates)
         // A built-in or bundled rangeTo candidate can exist for the receiver
@@ -1046,7 +1078,7 @@ extension ExprTypeChecker {
                     let widenedCandidates = driver.callChecker.preferMostSpecificMemberReceiverCandidates(
                         operatorCandidates + outerExtensionCandidates,
                         receiverType: operatorReceiverType,
-                        argumentTypes: [operatorArgumentType],
+                        argumentTypes: [operatorResolutionArgumentType],
                         sema: sema,
                         interner: interner
                     )
