@@ -387,9 +387,12 @@ extension BuildASTPhase.ExpressionParser {
         }
         var consumedCount = parser.index - parser.tokens.startIndex
         if body == nil || consumedCount < branchTokens.count {
-            if let assignBody = parseWhenBranchAssignmentBody(branchTokens) {
-                body = assignBody
-                consumedCount = branchTokens.count
+            if let assignBody = parseWhenBranchAssignmentBody(
+                branchTokens,
+                expressionParserStop: parser.index
+            ) {
+                body = assignBody.expr
+                consumedCount = assignBody.consumedCount
             }
         }
         guard let body else {
@@ -402,7 +405,39 @@ extension BuildASTPhase.ExpressionParser {
         return body
     }
 
-    private func parseWhenBranchAssignmentBody(_ branchTokens: ArraySlice<Token>) -> ExprID? {
+    private func parseWhenBranchAssignmentBody(
+        _ branchTokens: ArraySlice<Token>,
+        expressionParserStop: Int
+    ) -> (expr: ExprID, consumedCount: Int)? {
+        let startIndex = branchTokens.startIndex
+        let endIndex = branchTokens.endIndex
+        guard expressionParserStop > startIndex,
+              expressionParserStop < endIndex,
+              isWhenBranchAssignmentOperator(branchTokens[expressionParserStop].kind)
+        else {
+            return nil
+        }
+
+        let valueStart = expressionParserStop + 1
+        guard valueStart < endIndex else {
+            return nil
+        }
+        let valueParser = BuildASTPhase.ExpressionParser(
+            tokens: tokens[valueStart ..< endIndex],
+            interner: interner,
+            astArena: astArena,
+            diagnostics: diagnostics
+        )
+        valueParser.reportsTrailingAssignmentOperator = false
+        guard valueParser.parse() != nil else {
+            return nil
+        }
+        let bodyEnd = valueParser.index
+        guard bodyEnd > startIndex, bodyEnd <= endIndex else {
+            return nil
+        }
+
+        let boundedTokens = tokens[startIndex ..< bodyEnd]
         let context = BuildASTPhase.LocalStatementCoreContext(
             interner: interner,
             astArena: astArena,
@@ -418,11 +453,24 @@ extension BuildASTPhase.ExpressionParser {
             resolveDeclarationName: { _, _ in nil },
             diagnostics: self.diagnostics
         )
-        return BuildASTPhase.LocalStatementCore.parseLocalAssignment(
-            from: branchTokens,
+        guard let expr = BuildASTPhase.LocalStatementCore.parseLocalAssignment(
+            from: boundedTokens,
             context: context,
             options: .blockExpression
-        )
+        ) else {
+            return nil
+        }
+        return (expr, bodyEnd - startIndex)
+    }
+
+    private func isWhenBranchAssignmentOperator(_ kind: TokenKind) -> Bool {
+        switch kind {
+        case .symbol(.assign), .symbol(.plusAssign), .symbol(.minusAssign),
+             .symbol(.starAssign), .symbol(.slashAssign), .symbol(.percentAssign):
+            return true
+        default:
+            return false
+        }
     }
 
     private func findWhenBranchBodyEnd(startIndex: Int) -> Int {

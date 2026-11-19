@@ -34,6 +34,22 @@ extension JVMBackendTests {
                     }
                 }
             }
+            fun assignmentBodies() {
+                var result = 0
+                when (2) {
+                    1 -> result = 10 else -> result = 20
+                }
+                println(result)
+                when (2) {
+                    1 -> result = 10 2 -> result = 30 else -> result = 40
+                }
+                println(result)
+                var compound = 0
+                when (2) {
+                    1 -> compound += 10 2 -> compound += 20 else -> compound += 30
+                }
+                println(compound)
+            }
             fun main() {
                 println(blockThenElse(1))
                 println(blockThenElse(2))
@@ -43,8 +59,9 @@ extension JVMBackendTests {
                 println(expressionThenElse(2))
                 ifBodyThenElse(1)
                 ifBodyThenElse(2)
+                assignmentBodies()
             }
-            """, expected: "one\nother\ntrue\nfalse\none\nother\npositive\nfallback\n", mode: mode, root: root)
+            """, expected: "one\nother\ntrue\nfalse\none\nother\npositive\nfallback\n20\n30\n20\n", mode: mode, root: root)
         }
     }
 }
