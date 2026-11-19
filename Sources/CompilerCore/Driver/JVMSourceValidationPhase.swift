@@ -561,6 +561,7 @@ private struct JVMSourceGrammar {
             try declaration(member: false)
         } else if take(.keyword(.super)) {
             if take(.symbol(.lessThan)) { try type(nullable: false); try require(.symbol(.greaterThan)) }
+            if take(.symbol(.at)) { try name() }
         } else { switch kind {
         case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .charLiteral, .floatLiteral, .doubleLiteral, .keyword(.true), .keyword(.false), .keyword(.null): index += 1
         case .keyword(.this): index += 1; if take(.symbol(.at)) { try name() }
