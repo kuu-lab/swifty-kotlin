@@ -10,3 +10,11 @@ annotation class JvmField
 @kotlin.annotation.Retention(kotlin.annotation.AnnotationRetention.SOURCE)
 @kotlin.annotation.MustBeDocumented
 annotation class Synchronized
+@kotlin.annotation.Target(kotlin.annotation.AnnotationTarget.FIELD)
+@kotlin.annotation.Retention(kotlin.annotation.AnnotationRetention.SOURCE)
+@kotlin.annotation.MustBeDocumented
+annotation class Volatile
+@kotlin.annotation.Target(kotlin.annotation.AnnotationTarget.FIELD)
+@kotlin.annotation.Retention(kotlin.annotation.AnnotationRetention.SOURCE)
+@kotlin.annotation.MustBeDocumented
+annotation class Transient
