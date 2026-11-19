@@ -150,6 +150,32 @@ extension LocalDeclTypeChecker {
         }
     }
 
+    /// For `a?.b[i]`, the indexed `get` runs on the non-null result of the
+    /// safe member selection. That result is only non-null when the selected
+    /// member itself is non-null; a nullable property such as `Map?` must stay
+    /// nullable and keep the ordinary unsafe-receiver diagnostic.
+    private func nonNullSafeChainMemberResultType(
+        _ receiverExpr: ExprID,
+        inferredReceiverType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        let sema = ctx.sema
+        guard case .safeMemberCall = ctx.ast.arena.expr(receiverExpr) else { return nil }
+        let chosen = sema.bindings.callBinding(for: receiverExpr)?.chosenCallee
+            ?? sema.bindings.identifierSymbol(for: receiverExpr)
+        guard let chosen else { return nil }
+        let memberResultType: TypeID?
+        if let signature = sema.symbols.functionSignature(for: chosen) {
+            memberResultType = signature.returnType
+        } else {
+            memberResultType = sema.symbols.propertyType(for: chosen)
+        }
+        guard let memberResultType,
+              sema.types.nullability(of: memberResultType) == .nonNull
+        else { return nil }
+        return sema.types.makeNonNullable(inferredReceiverType)
+    }
+
     func inferIndexedAccessExpr(
         _ id: ExprID,
         receiverExpr: ExprID,
@@ -171,7 +197,19 @@ extension LocalDeclTypeChecker {
         var receiverCtx = ctx
         receiverCtx.isConditionallyEvaluated = ctx.receiverConditionallyEvaluated
         let inferredReceiverType = driver.inferExpr(receiverExpr, ctx: receiverCtx, locals: &locals, expectedType: nil)
-        let operatorReceiverType = isSafeChain ? sema.types.makeNonNullable(inferredReceiverType) : inferredReceiverType
+        var effectiveIsSafeChain = isSafeChain
+        var operatorReceiverType = inferredReceiverType
+        if isSafeChain,
+           let nonNullSafeReceiverType = nonNullSafeChainMemberResultType(
+               receiverExpr,
+               inferredReceiverType: inferredReceiverType,
+               ctx: ctx
+           )
+        {
+            operatorReceiverType = nonNullSafeReceiverType
+        } else {
+            effectiveIsSafeChain = false
+        }
 
         let getName = interner.intern("get")
         let receiverInfo = indexedOperatorMemberCandidates(
@@ -179,7 +217,7 @@ extension LocalDeclTypeChecker {
         )
         let receiverType = receiverInfo.receiverType
         func safeChainResultType(_ type: TypeID) -> TypeID {
-            isSafeChain ? sema.types.makeNullable(type) : type
+            effectiveIsSafeChain ? sema.types.makeNullable(type) : type
         }
         let allGetMembers = receiverInfo.allMembers
         var getCandidates = receiverInfo.candidates

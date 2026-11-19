@@ -753,14 +753,31 @@ extension JVMFunctionBuilder {
             return .reference(String(descriptor.dropFirst().dropLast()), nullable: true)
         }
     }
-    func indexedGet(_ receiver: ExprID, _ indices: [ExprID], _ id: ExprID) throws -> JVMValue? {
+    private func isSafeChainIndexedReceiver(_ receiver: ExprID) -> Bool {
+        guard !arena.isParenthesized(receiver), case .safeMemberCall = arena.expr(receiver) else { return false }
+        let chosen = program.sema.bindings.callBinding(for: receiver)?.chosenCallee
+            ?? program.sema.bindings.identifierSymbol(for: receiver)
+        guard let chosen else { return false }
+        let memberResultType: TypeID?
+        if let signature = program.sema.symbols.functionSignature(for: chosen) {
+            memberResultType = signature.returnType
+        } else {
+            memberResultType = program.sema.symbols.propertyType(for: chosen)
+        }
+        return memberResultType.map { program.sema.types.nullability(of: $0) == .nonNull } ?? false
+    }
+
+    func indexedGet(_ receiver: ExprID, _ indices: [ExprID], _ id: ExprID, precomputedReceiverValue: JVMValue? = nil) throws -> JVMValue? {
+        if precomputedReceiverValue == nil, isSafeChainIndexedReceiver(receiver) {
+            return try safeChainIndexedGet(receiver, indices, id)
+        }
         let args = indices.map { CallArgument(expr: $0) }
-        if let call = try inlineCall(args, receiver: receiver, id: id)
-            ?? sourceCall(args, receiver: receiver, id: id) { return call.value }
+        if let call = try inlineCall(args, receiver: receiver, receiverValue: precomputedReceiverValue, id: id)
+            ?? sourceCall(args, receiver: receiver, receiverValue: precomputedReceiverValue, id: id) { return call.value }
         guard indices.count == 1 else { throw fail("JVM indexing requires one index.", id) }
         let arguments = indices.map { CallArgument(expr: $0) }
         if let call = try textLibraryCall(arguments, receiver: receiver, id: id), let value = call.value { return value }
-        if let call = try sourceCall(arguments, receiver: receiver, id: id), let value = call.value {
+        if let call = try sourceCall(arguments, receiver: receiver, receiverValue: precomputedReceiverValue, id: id), let value = call.value {
             return try convert(value, to: program.expressionType(id))
         }
         var object = try requireValue(receiver)
@@ -789,6 +806,35 @@ extension JVMFunctionBuilder {
         guard let owner = object.type.referenceName, ["java/util/List", "kotlin/enums/EnumEntries", "java/util/Map"].contains(owner) else { throw fail("Unsupported JVM indexed receiver.") }
         return try jdkCall(owner, "get", [["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? .int : .reference("java/lang/Object", nullable: true)], .reference("java/lang/Object", nullable: true), receiver: object, arguments: [index], interface: true, resolved: type)!
     }
+
+    /// `a?.b[i]` is one guarded read: when the safe member result is null, the
+    /// index expressions and `get` are skipped instead of running on null.
+    private func safeChainIndexedGet(_ receiver: ExprID, _ indices: [ExprID], _ id: ExprID) throws -> JVMValue {
+        let receiverValue = try requireValue(receiver)
+        let type = try program.expressionType(id)
+        guard type != .unit else { throw fail("JVM safe indexed access must produce a value.", id) }
+        let result = try value(type)
+        let nullCase = label(), end = label()
+        let null = try constant(.null, .reference("java/lang/Object", nullable: true)), check = try value(.boolean)
+        instructions.append(.referenceCompare(.notEqual, receiverValue, null, check))
+        instructions.append(.jumpIfFalse(check, nullCase))
+        let saved = evaluatedOperands
+        defer { evaluatedOperands = saved }
+        let nonNullType: JVMValueType
+        if let name = receiverValue.type.referenceName { nonNullType = .reference(name, nullable: false) }
+        else { nonNullType = receiverValue.type }
+        evaluatedOperands[receiver] = try convert(receiverValue, to: nonNullType)
+        guard let returned = try indexedGet(receiver, indices, id, precomputedReceiverValue: evaluatedOperands[receiver]) else {
+            throw fail("JVM safe indexed access must produce a value.", id)
+        }
+        instructions.append(.copy(try convert(returned, to: type), result))
+        jump(end)
+        mark(nullCase)
+        instructions.append(.constant(.null, result))
+        mark(end)
+        return result
+    }
+
     func requireWritableArguments(_ receiver: ExprID, at id: ExprID) throws {
         guard let semantic = program.sema.bindings.exprType(for: receiver), case let .classType(t) = program.sema.types.kind(of: semantic) else { return }
         for argument in t.args {

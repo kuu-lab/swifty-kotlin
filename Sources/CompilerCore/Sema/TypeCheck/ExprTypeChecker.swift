@@ -30,29 +30,14 @@ final class ExprTypeChecker {
         return false
     }
 
-    /// Whether the receiver/callee spine reaches a `?.` access without an
-    /// intervening `!!`. Indexed reads resolve `a?.b[i]` on the non-null view
-    /// of the receiver while keeping the access result nullable.
-    func exprSpineContainsUnguardedSafeMemberAccess(_ id: ExprID, ast: ASTModule) -> Bool {
-        var currentID = id
-        var visited: Set<ExprID> = []
-        while visited.insert(currentID).inserted {
-            guard let expr = ast.arena.expr(currentID) else { return false }
-            switch expr {
-            case .safeMemberCall, .safeMemberAssign:
-                return true
-            case let .memberCall(receiver, _, _, _, _),
-                 let .memberAssign(receiver, _, _, _),
-                 let .indexedAccess(receiver, _, _),
-                 let .indexedAssign(receiver, _, _, _),
-                 let .indexedCompoundAssign(_, receiver, _, _, _),
-                 let .memberCompoundAssign(_, receiver, _, _, _):
-                currentID = receiver
-            default:
-                return false
-            }
+    /// Whether `id` is the safe member access that directly feeds an indexed
+    /// read (`a?.b[i]`). Parentheses end the safe chain, so `(a?.b)[i]` is not
+    /// guarded; `!!` is a separate `.nullAssert` node and already excluded.
+    func isUnguardedSafeIndexedAccessReceiver(_ id: ExprID, ast: ASTModule) -> Bool {
+        guard !ast.arena.isParenthesized(id), case .safeMemberCall = ast.arena.expr(id) else {
+            return false
         }
-        return false
+        return true
     }
 
     // swiftlint:disable:next cyclomatic_complexity
@@ -282,7 +267,7 @@ final class ExprTypeChecker {
         case let .indexedAccess(receiverExpr, indices, range):
             var indexCtx = ctx
             indexCtx.receiverConditionallyEvaluated = ctx.isConditionallyEvaluated
-            let receiverHasUnguardedSafeAccess = exprSpineContainsUnguardedSafeMemberAccess(receiverExpr, ast: ast)
+            let receiverHasUnguardedSafeAccess = isUnguardedSafeIndexedAccessReceiver(receiverExpr, ast: ast)
             if exprSpineContainsSafeMemberAccess(receiverExpr, ast: ast) {
                 indexCtx.isConditionallyEvaluated = true
             }

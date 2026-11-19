@@ -1,6 +1,24 @@
 
 extension CallLowerer {
 
+    /// Mirrors Sema's safe-chain indexed read: `a?.b[i]` lowers as one guarded
+    /// access so a null safe receiver skips both the index expressions and `get`.
+    private func isSafeChainIndexedReceiver(_ receiverExpr: ExprID, ast: ASTModule, sema: SemaModule) -> Bool {
+        guard !ast.arena.isParenthesized(receiverExpr),
+              case .safeMemberCall = ast.arena.expr(receiverExpr)
+        else { return false }
+        let chosen = sema.bindings.callBinding(for: receiverExpr)?.chosenCallee
+            ?? sema.bindings.identifierSymbol(for: receiverExpr)
+        guard let chosen else { return false }
+        let memberResultType: TypeID?
+        if let signature = sema.symbols.functionSignature(for: chosen) {
+            memberResultType = signature.returnType
+        } else {
+            memberResultType = sema.symbols.propertyType(for: chosen)
+        }
+        return memberResultType.map { sema.types.nullability(of: $0) == .nonNull } ?? false
+    }
+
     func lowerIndexedAccessExpr(
         _ exprID: ExprID,
         receiverExpr: ExprID,
@@ -10,10 +28,47 @@ extension CallLowerer {
         arena: KIRArena,
         interner: StringInterner,
         propertyConstantInitializers: [SymbolID: KIRExprKind],
-        instructions: inout [KIRInstruction]
+        instructions: inout [KIRInstruction],
+        precomputedReceiverID: KIRExprID? = nil
     ) -> KIRExprID {
         let boundType = sema.bindings.exprTypes[exprID]
-        let receiverID = driver.lowerExpr(
+        if precomputedReceiverID == nil, isSafeChainIndexedReceiver(receiverExpr, ast: ast, sema: sema) {
+            let safeResultType = boundType ?? sema.types.nullableAnyType
+            let safeResult = arena.appendTemporary(type: safeResultType)
+            let receiverID = driver.lowerExpr(
+                receiverExpr,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+            let nonNullLabel = driver.ctx.makeLoopLabel()
+            let endLabel = driver.ctx.makeLoopLabel()
+            instructions.append(.jumpIfNotNull(value: receiverID, target: nonNullLabel))
+            let nullValue = arena.appendExpr(.unit, type: safeResultType)
+            instructions.append(.constValue(result: nullValue, value: .null))
+            instructions.append(.copy(from: nullValue, to: safeResult))
+            instructions.append(.jump(endLabel))
+            instructions.append(.label(nonNullLabel))
+            let nonNullValue = lowerIndexedAccessExpr(
+                exprID,
+                receiverExpr: receiverExpr,
+                indices: indices,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions,
+                precomputedReceiverID: receiverID
+            )
+            instructions.append(.copy(from: nonNullValue, to: safeResult))
+            instructions.append(.label(endLabel))
+            return safeResult
+        }
+        let receiverID = precomputedReceiverID ?? driver.lowerExpr(
             receiverExpr,
             ast: ast,
             sema: sema,

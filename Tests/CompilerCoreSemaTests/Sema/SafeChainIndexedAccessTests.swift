@@ -10,10 +10,14 @@ struct SafeChainIndexedAccessTests {
         class StreamConfig
         class SourceConfig(val streamConfigs: Map<String, StreamConfig>)
         class Box(val values: List<Int>)
+        class Token(val value: Int)
+        operator fun Token?.get(index: Int): Int = (this?.value ?: 0) + index
+        class TokenSource(val token: Token)
 
         fun mapLookup(source: SourceConfig?, name: String): StreamConfig? = source?.streamConfigs[name]
         fun listLookup(box: Box?): Int? = box?.values[0]
         fun nonNullAssertLookup(box: Box?): Int = box?.values!![0]
+        fun tokenLookup(source: TokenSource?): Int? = source?.token[0]
         """)
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
@@ -36,8 +40,20 @@ struct SafeChainIndexedAccessTests {
                 #expect(sema.types.nullability(of: type) == .nonNull)
             }
         }
-        #expect(nullableIndexedCount == 2)
+        #expect(nullableIndexedCount == 3)
         #expect(assertedIndexedCount == 1)
+    }
+
+    @Test func safeChainIndexedAccessRejectsNullableMemberAndParentheses() throws {
+        let ctx = makeContextFromSource("""
+        class NullableConfig(val streamConfigs: Map<String, String>?)
+        class NonNullConfig(val streamConfigs: Map<String, String>)
+
+        fun nullablePropertyLookup(source: NullableConfig?): String? = source?.streamConfigs["x"]
+        fun parenthesizedLookup(source: NonNullConfig?): String? = (source?.streamConfigs)["x"]
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 }
 #endif
