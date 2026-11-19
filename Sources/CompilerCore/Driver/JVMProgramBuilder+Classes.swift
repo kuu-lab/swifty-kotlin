@@ -316,7 +316,10 @@ extension JVMProgramBuilder {
             // static field on that object, matching kotlinc's layout.
             let staticObjectField = exposedField && plan.isObject
             let immutableField = !p.isVar && (!plan.isObject || staticObjectField)
-            let field = hasField && p.delegateExpression == nil ? JVMField(owner: plan.name, name: name, type: backingFieldType, access: (p.modifiers.contains(.lateinit) || exposedField ? self.access(fieldModifiers) : 2) | (plan.isFacade || staticObjectField ? 8 : 0) | (immutableField ? 16 : 0)) : nil
+            let semanticAnnotations = sema.symbols.annotations(for: symbol)
+            let fieldFlagAccess: UInt16 = (semanticAnnotations.contains { $0.annotationFQName == "kotlin.jvm.Volatile" } ? 0x40 : 0)
+                | (semanticAnnotations.contains { $0.annotationFQName == "kotlin.jvm.Transient" } ? 0x80 : 0)
+            let field = hasField && p.delegateExpression == nil ? JVMField(owner: plan.name, name: name, type: backingFieldType, access: (p.modifiers.contains(.lateinit) || exposedField ? self.access(fieldModifiers) : 2) | (plan.isFacade || staticObjectField ? 8 : 0) | (immutableField ? 16 : 0) | fieldFlagAccess) : nil
             var property = JVMProperty(name: name, type: type, getter: getter, setter: setter, field: field, modifiers: p.modifiers)
             property.isGetterInline = p.modifiers.contains(.inline) || p.getter?.isInline == true
             property.isSetterInline = p.modifiers.contains(.inline) || p.setter?.isInline == true
