@@ -33,10 +33,11 @@ extension JVMFunctionBuilder {
         }
         if op == .rangeTo {
             if let symbol = program.sema.bindings.callBinding(for: id)?.chosenCallee,
-               program.inlineDeclarations[symbol] != nil || program.references[symbol] != nil || program.methods[symbol] != nil {
+               program.inlineDeclarations[symbol] != nil || program.references[symbol] != nil || program.methods[symbol] != nil || program.textLibraryMethods[symbol] != nil {
                 let args = [CallArgument(expr: rhs)]
                 if let call = try inlineCall(args, receiver: lhs, id: id)
-                    ?? sourceCall(args, receiver: lhs, id: id) { return call.value }
+                    ?? sourceCall(args, receiver: lhs, id: id)
+                    ?? textLibraryCall(args, receiver: lhs, id: id) { return call.value }
             }
             let lower = try requireValue(lhs), upper = try requireValue(rhs)
             if lower.type == .double, upper.type == .double {
