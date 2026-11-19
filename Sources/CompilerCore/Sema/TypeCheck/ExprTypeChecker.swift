@@ -30,6 +30,21 @@ final class ExprTypeChecker {
         return false
     }
 
+    /// Whether `id` can continue a safe indexed-access chain (`a?.b[i]`,
+    /// `a?.b[i][j]`). Parentheses and `!!` end the chain; member-result and
+    /// element nullability are checked during indexed-access inference.
+    func isUnguardedSafeIndexedAccessReceiver(_ id: ExprID, ast: ASTModule) -> Bool {
+        guard !ast.arena.isParenthesized(id) else { return false }
+        switch ast.arena.expr(id) {
+        case .safeMemberCall:
+            return true
+        case let .indexedAccess(receiver, _, _):
+            return isUnguardedSafeIndexedAccessReceiver(receiver, ast: ast)
+        default:
+            return false
+        }
+    }
+
     // swiftlint:disable:next cyclomatic_complexity
     func inferExpr(
         _ id: ExprID,
@@ -257,6 +272,7 @@ final class ExprTypeChecker {
         case let .indexedAccess(receiverExpr, indices, range):
             var indexCtx = ctx
             indexCtx.receiverConditionallyEvaluated = ctx.isConditionallyEvaluated
+            let receiverHasUnguardedSafeAccess = isUnguardedSafeIndexedAccessReceiver(receiverExpr, ast: ast)
             if exprSpineContainsSafeMemberAccess(receiverExpr, ast: ast) {
                 indexCtx.isConditionallyEvaluated = true
             }
@@ -267,7 +283,8 @@ final class ExprTypeChecker {
                 range: range,
                 expectedType: expectedType,
                 ctx: indexCtx,
-                locals: &locals
+                locals: &locals,
+                isSafeChain: receiverHasUnguardedSafeAccess
             )
 
         case let .indexedAssign(receiverExpr, indices, valueExpr, range):

@@ -86,7 +86,8 @@ struct DeclarationPositionValidator {
         var isLocal: Bool
         /// `true` for an anonymous `object : ... { }` expression — unlike a
         /// named object, the anonymous instance can serve as the enclosing
-        /// receiver of an `inner` member (Kotlin/JVM accepts that form).
+        /// receiver of an `inner` member, and its members may be `protected`
+        /// (Kotlin/JVM accepts both forms).
         var isAnonymousObjectLiteral: Bool = false
         var ownerModifiers: Modifiers
         /// `true` when the owner has `init` blocks or secondary constructors
@@ -198,7 +199,7 @@ struct DeclarationPositionValidator {
             validateInterfaceMemberModifiers(
                 modifiers, site: nominal, excluding: conflictCovered, range: decl.range
             )
-            if nominal.kind == .object {
+            if nominal.kind == .object, !nominal.isAnonymousObjectLiteral {
                 if modifiers.contains(.protected), !conflictCovered.contains(.protected) {
                     emitInside("protected", inside: nominal.name, range: decl.range)
                 }
@@ -349,8 +350,8 @@ struct DeclarationPositionValidator {
                 modifiers, site: nominal, excluding: conflictCovered,
                 checksExternal: false, range: decl.range
             )
-            if nominal.kind == .object, modifiers.contains(.protected),
-               !conflictCovered.contains(.protected)
+            if nominal.kind == .object, !nominal.isAnonymousObjectLiteral,
+               modifiers.contains(.protected), !conflictCovered.contains(.protected)
             {
                 emitInside("protected", inside: nominal.name, range: decl.range)
             }
