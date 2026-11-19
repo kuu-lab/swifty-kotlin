@@ -80,6 +80,82 @@ extension CallTypeChecker {
         }
     }
 
+    /// Infers a `firstNotNullOf`/`firstNotNullOfOrNull` transform argument,
+    /// seeding the lambda's expected return type from the call's expected
+    /// result when it carries information:
+    /// `fun <T> f(): T? = list.firstNotNullOfOrNull { generic(it) }` fixes the
+    /// transform's `R` to `T`, so the lambda body sees `T?` instead of the
+    /// `Any?` placeholder and a nested return-only generic call can infer its
+    /// own type argument. Unlike `map`, kotlinc accepts this shape because the
+    /// `R : Any` bound plus the nullable result lets it solve `R` jointly, so
+    /// seeding is required for parity. When the seed does not type-check the
+    /// inference rolls back to the historical `Any`/`Any?` placeholder.
+    func inferFirstNotNullTransformArgument(
+        _ argumentExpr: ExprID,
+        parameterTypes: [TypeID],
+        expectedCallResultType: TypeID?,
+        nullableResult: Bool,
+        fallbackReturnType: TypeID,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) {
+        let sema = ctx.sema
+        var returnCandidates: [TypeID] = []
+        if let expectedCallResultType {
+            let nonNullExpected = sema.types.makeNonNullable(expectedCallResultType)
+            let seeded = nullableResult
+                ? sema.types.makeNullable(nonNullExpected)
+                : nonNullExpected
+            if seeded != sema.types.anyType,
+               seeded != sema.types.nullableAnyType,
+               seeded != fallbackReturnType
+            {
+                returnCandidates.append(seeded)
+            }
+        }
+        returnCandidates.append(fallbackReturnType)
+        guard returnCandidates.count > 1 else {
+            let functionType = sema.types.make(.functionType(FunctionType(
+                params: parameterTypes,
+                returnType: fallbackReturnType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            _ = driver.inferExpr(
+                argumentExpr, ctx: ctx, locals: &locals, expectedType: functionType
+            )
+            return
+        }
+        for returnType in returnCandidates {
+            let checkpoint = sema.diagnostics.checkpoint()
+            var attemptLocals = locals
+            let functionType = sema.types.make(.functionType(FunctionType(
+                params: parameterTypes,
+                returnType: returnType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            _ = driver.inferExpr(
+                argumentExpr, ctx: ctx, locals: &attemptLocals, expectedType: functionType
+            )
+            let emittedError = sema.diagnostics.diagnostics
+                .dropFirst(checkpoint)
+                .contains { $0.severity == .error }
+            if !emittedError {
+                locals = attemptLocals
+                return
+            }
+            if returnType == fallbackReturnType {
+                // The placeholder fallback is the historical unconditional
+                // inference: keep its diagnostics and bindings so genuine
+                // lambda errors still surface.
+                locals = attemptLocals
+                return
+            }
+            sema.diagnostics.rollback(to: checkpoint)
+        }
+    }
+
     func tryInferMemberCallEarlyReceiverSpecials(
         _ request: MemberCallInferenceRequest,
         receiverType: TypeID,

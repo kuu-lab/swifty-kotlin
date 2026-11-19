@@ -510,12 +510,29 @@ extension CallTypeChecker {
             if let lambdaExpr = ctx.ast.arena.expr(lambdaArgExpr), lambdaExpr.isLambdaOrCallableRef {
                 sema.bindings.markCollectionHOFLambdaExpr(lambdaArgExpr)
             }
-            _ = driver.inferExpr(
-                lambdaArgExpr,
-                ctx: ctx,
-                locals: &locals,
-                expectedType: expectation.expectedType
-            )
+            if memberName == "firstNotNullOf" || memberName == "firstNotNullOfOrNull" {
+                // firstNotNullOf*'s transform yields the result element
+                // directly, so the enclosing expected result fixes the
+                // transform's `R`; seed the lambda's expected return from the
+                // call's `expectedType` so a nested return-only generic call
+                // can infer its type argument (kotlinc accepts this shape).
+                inferFirstNotNullTransformArgument(
+                    lambdaArgExpr,
+                    parameterTypes: [receiverElementType],
+                    expectedCallResultType: expectedType,
+                    nullableResult: memberName == "firstNotNullOfOrNull",
+                    fallbackReturnType: sema.types.nullableAnyType,
+                    ctx: ctx,
+                    locals: &locals
+                )
+            } else {
+                _ = driver.inferExpr(
+                    lambdaArgExpr,
+                    ctx: ctx,
+                    locals: &locals,
+                    expectedType: expectation.expectedType
+                )
+            }
         }
         if (memberName == "add" || memberName == "remove"), args.count == 1 {
             let argumentType = driver.inferExpr(
