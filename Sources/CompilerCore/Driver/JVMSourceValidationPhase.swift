@@ -312,6 +312,10 @@ private struct JVMSourceGrammar {
                 }
                 if take(.softKeyword(.get)) {
                     try parameters()
+                    // A getter may declare its return type explicitly, as in
+                    // `val x get(): Int = 1`; kotlinc infers the property type
+                    // from it when the property has no type annotation.
+                    if take(.symbol(.colon)) { try type() }
                 } else if take(.softKeyword(.set)) {
                     if take(.symbol(.lParen)) {
                         try name()

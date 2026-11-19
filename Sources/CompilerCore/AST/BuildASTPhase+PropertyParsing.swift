@@ -479,6 +479,7 @@ extension BuildASTPhase {
                 continue
             }
             let accessorTokens = Array(remaining[startIdx...])
+            diagnoseUnexpectedGetterParameters(kind: kind, headerTokens: accessorTokens)
 
             var closeParenIdx = startIdx + 2
             var depth = 1
@@ -814,6 +815,7 @@ extension BuildASTPhase {
         case .softKeyword(.set): kind = .setter
         default: return
         }
+        diagnoseUnexpectedGetterParameters(kind: kind, headerTokens: headerTokens)
 
         let parameterName: InternedString? = kind == .setter
             ? setterParameterName(from: headerTokens, interner: interner)
@@ -877,6 +879,7 @@ extension BuildASTPhase {
         case .softKeyword(.set): kind = .setter
         default: return
         }
+        diagnoseUnexpectedGetterParameters(kind: kind, headerTokens: headerTokens)
 
         let parameterName: InternedString? = kind == .setter
             ? setterParameterName(from: headerTokens, interner: interner)
@@ -1071,6 +1074,7 @@ extension BuildASTPhase {
             }
             guard case let .softKeyword(keyword) = headerTokens[0].kind else { continue }
             let kind: PropertyAccessorKind = keyword == .get ? .getter : .setter
+            diagnoseUnexpectedGetterParameters(kind: kind, headerTokens: headerTokens)
             let prefixTokens = items[..<start].compactMap { item -> Token? in
                 if case let .token(token) = item { return token }
                 return nil
@@ -1172,6 +1176,69 @@ extension BuildASTPhase {
         }
     }
 
+    /// Index of the `=` that opens an expression accessor body: the first
+    /// top-level `=` after the parameter list's closing `)`. An `=` inside
+    /// parenthesized annotation arguments in the return type (for example
+    /// `get(): @Mark(value = 7) Int`) or inside the accessor block must not
+    /// be mistaken for the body start.
+    private func accessorBodyAssignIndex(in tokens: [Token]) -> Int? {
+        var depth = 0
+        var sawParameterList = false
+        for (index, token) in tokens.enumerated() {
+            switch token.kind {
+            case .symbol(.lParen), .symbol(.lBracket), .symbol(.lBrace):
+                depth += 1
+            case .symbol(.rParen), .symbol(.rBracket), .symbol(.rBrace):
+                depth -= 1
+                if depth == 0, token.kind == .symbol(.rParen), !sawParameterList {
+                    sawParameterList = true
+                }
+            case .symbol(.assign) where depth == 0 && sawParameterList:
+                return index
+            default:
+                break
+            }
+        }
+        return nil
+    }
+
+    /// Getters cannot declare parameters (only setters take the property
+    /// value). Report parameters the grammar accepted instead of silently
+    /// dropping them.
+    private func diagnoseUnexpectedGetterParameters(
+        kind: PropertyAccessorKind,
+        headerTokens: [Token]
+    ) {
+        guard kind == .getter,
+              headerTokens.count > 2,
+              headerTokens[0].kind == .softKeyword(.get),
+              headerTokens[1].kind == .symbol(.lParen)
+        else { return }
+        var depth = 1
+        var index = 2
+        while index < headerTokens.count {
+            switch headerTokens[index].kind {
+            case .symbol(.lParen), .symbol(.lBracket), .symbol(.lBrace):
+                depth += 1
+            case .symbol(.rParen), .symbol(.rBracket), .symbol(.rBrace):
+                depth -= 1
+                if depth == 0 {
+                    if index > 2 {
+                        diagnostics?.error(
+                            "KSWIFTK-PARSE-0031",
+                            "Getter cannot have parameters.",
+                            range: headerTokens[2].range
+                        )
+                    }
+                    return
+                }
+            default:
+                break
+            }
+            index += 1
+        }
+    }
+
     private func accessorBody(
         headerTokens: [Token],
         accessorTokens: [Token],
@@ -1184,9 +1251,7 @@ extension BuildASTPhase {
         // Expression accessors can contain several trailing lambdas, separated
         // by operators or calls. Keep every block in its original token order,
         // including semicolons separating statements inside lambda bodies.
-        if headerTokens.contains(where: { $0.kind == .symbol(.assign) }),
-           let assignIndex = accessorTokens.firstIndex(where: { $0.kind == .symbol(.assign) })
-        {
+        if let assignIndex = accessorBodyAssignIndex(in: accessorTokens) {
             let exprTokens = Array(accessorTokens[(assignIndex + 1)...])
             if let exprID = ExpressionParser(
                 tokens: ArraySlice(exprTokens), interner: interner,
