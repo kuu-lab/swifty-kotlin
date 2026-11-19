@@ -1,5 +1,16 @@
 package kotlin.collections
 
+import kotlin.contracts.contract
+
+public inline fun <K, V> Map<out K, V>?.isNullOrEmpty(): Boolean {
+    contract {
+        returns(false) implies (this != null)
+    }
+    val value = this
+    if (value == null) return true
+    return value.isEmpty()
+}
+
 public inline fun <K, V> Map<K, V>.getOrElse(key: K, defaultValue: () -> V): V {
     val value = this[key]
     if (value != null) return value

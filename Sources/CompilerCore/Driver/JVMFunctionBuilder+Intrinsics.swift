@@ -533,6 +533,10 @@ extension JVMFunctionBuilder {
             if owner == "java/util/ArrayList" { owner = "java/util/List" }
             if owner == "java/util/LinkedHashSet" { owner = "java/util/Set" }
             if owner == "java/util/LinkedHashMap" || owner == "java/util/HashMap" { owner = "java/util/Map" }
+            if member == "isNullOrEmpty", args.isEmpty,
+               ["java/util/Collection", "java/util/List", "java/util/Set", "java/util/Map"].contains(owner) {
+                return try collectionIsNullOrEmpty(receiverID, owner: owner, id: id)
+            }
             let isIteratorRemove = owner == "java/util/Iterator" && member == "remove"
             // Sema's chosen callee is authoritative for member vs extension:
             // when it picked a Kotlin extension, the fixed JDK member signature
