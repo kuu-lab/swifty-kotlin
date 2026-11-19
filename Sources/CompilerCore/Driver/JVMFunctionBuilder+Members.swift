@@ -447,6 +447,11 @@ extension JVMFunctionBuilder {
             }
             return nil
         }
+        if arena.isIncrementDecrement(id), op == .plusAssign || op == .minusAssign,
+           let result = try resolvedIncrementDecrementValue(receiver: left, id: id, expectedResult: left.type) {
+            try writeProperty(property, receiver: receiver, value: result, at: id, special: special, superReceiver: superReceiver)
+            return arena.incrementDecrementReturnsValue(id) ? result : nil
+        }
         let right = try compoundOperand(rhs, target: left.type)
         if terminated { return nil }
         guard try permitsCompound(left.type, right.type) else { throw fail("Unsupported JVM property compound conversion.", id) }

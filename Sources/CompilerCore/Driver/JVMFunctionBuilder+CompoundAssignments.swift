@@ -28,4 +28,14 @@ extension JVMFunctionBuilder {
         }
         return ResolvedCompoundResult(value: call.value, mutatesReceiver: mutatesReceiver)
     }
+
+    // `++` / `--` desugar to compoundAssign with an inc()/dec() binding and no
+    // RHS operator argument. Lower them through the resolved operator call so
+    // non-numeric receivers such as java.math.BigDecimal can be incremented.
+    func resolvedIncrementDecrementValue(receiver: JVMValue, id: ExprID, expectedResult: JVMValueType) throws -> JVMValue? {
+        let call = try inlineCall([], receiverValue: receiver, id: id, expectedResult: expectedResult)
+            ?? sourceCall([], receiverValue: receiver, id: id, expectedResult: expectedResult)
+            ?? textLibraryCall([], receiverValue: receiver, id: id, expectedResult: expectedResult)
+        return call?.value
+    }
 }

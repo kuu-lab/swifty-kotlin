@@ -24,7 +24,10 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(kotlinRootPkgSymbol, for: charSequenceSymbol)
         }
         let context: SyntheticStringStubContext = (symbols, types, interner, charSequenceSymbol)
-        let stringClassSymbol = registerSyntheticStringEncodingStubs(context: context)
+        let stringClassSymbol = registerSyntheticStringEncodingStubs(
+            context: context,
+            includeJavaMathBigDecimal: !isJVMTarget
+        )
         // String itself remains a compiler/runtime nominal shell, so retain a
         // Companion anchor for the source-backed extensions in StringFormat.kt.
         _ = ensureStringCompanionSymbol(

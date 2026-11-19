@@ -381,6 +381,12 @@
       "excludeFromStdlibBuild": false
     },
     {
+      "path": "declarations/BigDecimals.kt",
+      "virtualPath": "<kswiftk-jvm>/big-decimals.kt",
+      "runtimeFacade": "kotlin/NumbersKt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "declarations/AbstractList.kt",
       "virtualPath": "<kswiftk-jvm>/abstractList.kt",
       "excludeFromStdlibBuild": true
