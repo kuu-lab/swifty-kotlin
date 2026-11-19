@@ -4,6 +4,10 @@ final class LambdaReturnInferenceScope {
     let label: InternedString?
     let expectedReturnType: TypeID?
     var returnValueTypes: [ExprID: TypeID] = [:]
+    /// Local state at each `return@label` that completes this lambda, so
+    /// callsInPlace definite-assignment only counts locals initialized on
+    /// every completion path (fall-through included by the caller).
+    var returnLocalStates: [LocalBindings] = []
 
     init(exprID: ExprID, label: InternedString?, expectedReturnType: TypeID?) {
         self.exprID = exprID

@@ -588,10 +588,17 @@ extension ExprTypeChecker {
         // guarantees EXACTLY_ONCE/AT_LEAST_ONCE invocation (applyContractEffects)
         // can later fold this back into its own definite-assignment state.
         var callsInPlaceInitializedSymbols: [SymbolID] = []
+        let returnLocalStates = returnScope.returnLocalStates
         for (name, outerLocal) in locals where !outerLocal.isInitialized {
             if let lambdaLocal = lambdaLocals[name],
                lambdaLocal.symbol == outerLocal.symbol,
-               lambdaLocal.isInitialized
+               lambdaLocal.isInitialized,
+               // A `return@label` completes the lambda without reaching its
+               // tail, so initialization must hold on every return path too
+               // (kotlinc rejects code that only assigns on the fall-through).
+               returnLocalStates.allSatisfy({ state in
+                   state.values.contains { $0.symbol == outerLocal.symbol && $0.isInitialized }
+               })
             {
                 callsInPlaceInitializedSymbols.append(outerLocal.symbol)
             }
