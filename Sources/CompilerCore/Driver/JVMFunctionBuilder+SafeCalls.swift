@@ -1,6 +1,52 @@
 extension JVMFunctionBuilder {
+    // Float/Double.toRawBits()/toBits() are @InlineOnly in kotlin-stdlib, so there is
+    // no kotlin.NumbersKt facade method to call. Match them by the *callee* symbol
+    // (not the call-site name, so aliased imports resolve too) and only for the
+    // bundled-stdlib declarations, so user/library extensions of the same name win.
+    // Returns whether the bits are raw (toRawBits) or canonicalized (toBits).
+    func stdlibBitReinterpretIsRaw(_ callee: SymbolID, args: [CallArgument]) -> Bool? {
+        guard args.isEmpty, let symbol = program.sema.symbols.symbol(callee),
+              symbol.declSite.map({ context.sourceManager.origin(of: $0.start.file) != .user }) ?? true
+        else { return nil }
+        // Restrict to the bundled kotlin.* declarations by fqName: a same-named
+        // extension loaded from a classpath JAR (e.g. package ext) also carries a
+        // non-.user declSite origin, so the origin guard alone would misroute it
+        // to the java.lang intrinsic instead of the user's extension.
+        let fqName = symbol.fqName
+        guard fqName.count == 2, context.interner.resolve(fqName[0]) == "kotlin" else { return nil }
+        switch context.interner.resolve(fqName[1]) {
+        case "toRawBits": return true
+        case "toBits": return false
+        default: return nil
+        }
+    }
+
+    // Lower a Float/Double bit-reinterpret call to the java.lang.Float/Double
+    // intrinsic, matching how kotlinc inlines the real @InlineOnly actuals. The
+    // primitive float/double type is taken from the callee's receiver signature and
+    // the receiver converted to it, so a boxed receiver is handled uniformly.
+    func emitBitReinterpret(callee: SymbolID, receiver: JVMValue, isRaw: Bool, id: ExprID) throws -> JVMValue? {
+        guard let signature = program.sema.symbols.functionSignature(for: callee),
+              let receiverTypeRef = signature.receiverType else { return nil }
+        let receiverType = try program.type(receiverTypeRef)
+        let primitive = try convert(receiver, to: receiverType)
+        switch receiverType {
+        case .float:
+            return try jdkCall("java/lang/Float", isRaw ? "floatToRawIntBits" : "floatToIntBits", [.float], .int, arguments: [primitive], resolved: program.expressionType(id))
+        case .double:
+            return try jdkCall("java/lang/Double", isRaw ? "doubleToRawLongBits" : "doubleToLongBits", [.double], .long, arguments: [primitive], resolved: program.expressionType(id))
+        default:
+            return nil
+        }
+    }
+
     func memberExpression(_ id: ExprID, receiver: ExprID, name: InternedString, typeArgs: [TypeRefID], args: [CallArgument]) throws -> JVMValue? {
         if context.interner.resolve(name) == "isInitialized", args.isEmpty, let result = try lateinitInitialized(receiver) { return result }
+        if let callee = program.sema.bindings.callBinding(for: id)?.chosenCallee,
+           let isRaw = stdlibBitReinterpretIsRaw(callee, args: args),
+           let emitted = try emitBitReinterpret(callee: callee, receiver: requireValue(receiver), isRaw: isRaw, id: id) {
+            return emitted
+        }
         if let symbol = program.sema.bindings.callBinding(for: id)?.chosenCallee,
            let result = try resultCompanionCall(symbol, args: args, id: id) { return result.value }
         if let symbol = program.sema.bindings.callBinding(for: id)?.chosenCallee,
