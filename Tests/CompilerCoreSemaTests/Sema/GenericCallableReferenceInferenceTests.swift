@@ -327,6 +327,14 @@ struct GenericCallableReferenceInferenceTests {
         fun <T> retOnly(value: Int): T = TODO()
         fun catchIt(f: () -> Int): Int = combine(f, ::retOnly, { error: Throwable -> 0 })
         """,
+        // An explicit trivial `Any` bound is still satisfiable by every
+        // type, so it defers like an unbounded parameter.
+        """
+        fun <A, B> combine(block: () -> A, transform: (A) -> B, recover: (Throwable) -> B): B = TODO()
+        fun <R> right(value: R): R = value
+        fun <R : Any> left(error: Throwable): R = throw error
+        fun catchIt(f: () -> Int): Int = combine(f, ::right, ::left)
+        """,
     ])
     func defersGenericCallableReferenceReturnParameterToEnclosingCall(source: String) throws {
         let ctx = makeContextFromSource(source)
@@ -341,15 +349,12 @@ struct GenericCallableReferenceInferenceTests {
         // expected return, so it must not be identified with the enclosing
         // call's inference parameter; the upper-bound fallback still applies
         // and the call solver verifies `Box<Any?>` from the lambda sibling.
-        let ctx = makeContextFromSource("""
+        _ = try semaContext(from: """
         class Box<T>(val value: T)
         fun <T> makeBox(): Box<T> = TODO()
         fun <B> choose(factory: () -> B, fallback: () -> B): B = fallback()
         fun test(): Box<Any?> = choose(::makeBox, { Box<Any?>(null) })
         """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(errors.isEmpty, "Expected compound return reference to keep upper-bound fallback, got: \(errors)")
     }
 
     @Test
