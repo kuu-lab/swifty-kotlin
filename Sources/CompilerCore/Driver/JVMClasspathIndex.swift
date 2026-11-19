@@ -1980,10 +1980,17 @@ final class JVMClasspathIndex {
     ]
 
     private static let identifierPattern = try! NSRegularExpression(pattern: #"[A-Za-z_][A-Za-z0-9_]*"#)
-    private static let dottedPattern = try! NSRegularExpression(pattern: #"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+"#)
-    private static let explicitImportPattern = try! NSRegularExpression(pattern: #"(?m)^\s*import\s+([A-Za-z_][A-Za-z0-9_.]*)(?:\s+as\s+[A-Za-z_][A-Za-z0-9_]*)?\s*(?://.*)?$"#)
-    private static let starImportPattern = try! NSRegularExpression(pattern: #"import\s+([A-Za-z_][A-Za-z0-9_.]*?)\.\*"#)
-    private static let packagePattern = try! NSRegularExpression(pattern: #"^\s*package\s+([A-Za-z_][A-Za-z0-9_.]*)"#, options: [.anchorsMatchLines])
+    // Kotlin identifiers may be backtick-escaped (mandatory for keyword
+    // segments such as `annotation` in `javax.`annotation`.processing.Generated`).
+    // The lazy-class scan must see through the escapes or it misses the
+    // reference and never injects the class (KSP/Room generated sources).
+    private static let pathSegmentPattern = "(?:[A-Za-z_][A-Za-z0-9_]*|`[^`\\n]+`)"
+    private static let dottedPathPattern = pathSegmentPattern + "(?:\\." + pathSegmentPattern + ")+"
+    private static let importPathPattern = pathSegmentPattern + "(?:\\." + pathSegmentPattern + ")*"
+    private static let dottedPattern = try! NSRegularExpression(pattern: dottedPathPattern)
+    private static let explicitImportPattern = try! NSRegularExpression(pattern: "(?m)^\\s*import\\s+(" + importPathPattern + ")(?:\\s+as\\s+" + pathSegmentPattern + ")?\\s*(?://.*)?$")
+    private static let starImportPattern = try! NSRegularExpression(pattern: "import\\s+(" + importPathPattern + ")\\.\\*")
+    private static let packagePattern = try! NSRegularExpression(pattern: "^\\s*package\\s+(" + importPathPattern + ")", options: [.anchorsMatchLines])
 
     /// Computes the set of lazy classpath classes that must be injected:
     /// classes named by user sources (imports, qualified references,
@@ -2028,7 +2035,8 @@ final class JVMClasspathIndex {
 
         var matched = Set<String>()
         func matchTokenPrefixes(_ token: String, includeCallables: Bool = false) {
-            let parts = token.split(separator: ".").map(String.init)
+            let unescaped = token.replacingOccurrences(of: "`", with: "")
+            let parts = unescaped.split(separator: ".").map(String.init)
             for end in 1...parts.count {
                 let prefix = parts.prefix(end).joined(separator: ".")
                 if let binaries = normalizedToBinary[prefix] { matched.formUnion(binaries) }
@@ -2086,18 +2094,20 @@ final class JVMClasspathIndex {
             var filePackage: String?
             if let match = Self.packagePattern.firstMatch(in: text, range: range),
                let r = Range(match.range(at: 1), in: text) {
-                filePackage = String(text[r])
+                filePackage = String(text[r]).replacingOccurrences(of: "`", with: "")
             }
             var starPackages = Self.autoImportedPackages
             for match in Self.starImportPattern.matches(in: text, range: range) {
-                if let r = Range(match.range(at: 1), in: text) { starPackages.insert(String(text[r])) }
+                if let r = Range(match.range(at: 1), in: text) {
+                    starPackages.insert(String(text[r]).replacingOccurrences(of: "`", with: ""))
+                }
             }
             for match in Self.dottedPattern.matches(in: text, range: range) {
                 if let r = Range(match.range, in: text) { matchTokenPrefixes(String(text[r]), includeCallables: true) }
             }
             for match in Self.explicitImportPattern.matches(in: text, range: range) {
                 guard let range = Range(match.range(at: 1), in: text) else { continue }
-                let parts = text[range].split(separator: ".").map(String.init)
+                let parts = String(text[range]).replacingOccurrences(of: "`", with: "").split(separator: ".").map(String.init)
                 guard parts.count > 1 else { continue }
                 let package = parts.dropLast().joined(separator: ".")
                 let member = parts.last!

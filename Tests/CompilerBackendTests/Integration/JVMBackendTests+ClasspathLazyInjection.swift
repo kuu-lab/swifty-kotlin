@@ -76,5 +76,52 @@ extension JVMBackendTests {
             #expect(ctx.sourceManager.fileID(forPath: "<kswiftk-jvm-import>/fixture/Widget.kt") != nil)
         }
     }
+
+    // Room/KSP generated sources spell keyword package segments with
+    // backticks (javax.`annotation`.processing.Generated); the lazy-class
+    // scan must still see the reference and inject the classpath class.
+    @Test
+    func lazyClassInjectionSeesThroughBacktickedImportSegments() throws {
+        try withWorkspace { root in
+            try """
+            package com.example.annotation
+
+            class Widget
+            """.write(to: root.appendingPathComponent("Widget.kt"), atomically: true, encoding: .utf8)
+            _ = try jvmTool("kotlinc", ["Widget.kt", "-d", "widget.jar"], root: root)
+            let widget = root.appendingPathComponent("widget.jar")
+            let index = try JVMClasspathIndex.load(
+                [widget.path], automaticLazyClasspathMemberLimit: 1
+            )
+
+            let consumerPath = root.appendingPathComponent("consumer.kt").path
+            let ctx = CompilationContext(
+                options: CompilerOptions(
+                    moduleName: "LazyBacktickImportTest",
+                    inputs: [consumerPath],
+                    outputPath: root.appendingPathComponent("out").path,
+                    emit: .jvmJar,
+                    target: .hostDefault(),
+                    includeStdlib: false,
+                    allowDefaultStdlibLibrary: false
+                ),
+                sourceManager: SourceManager(),
+                diagnostics: DiagnosticEngine(),
+                interner: StringInterner()
+            )
+            _ = ctx.sourceManager.addFile(path: consumerPath, contents: Data("""
+            package consumer
+
+            import com.example.`annotation`.Widget
+
+            fun probe(widget: Widget) {
+                println(widget)
+            }
+            """.utf8))
+            try index.inject(into: ctx)
+
+            #expect(ctx.sourceManager.fileID(forPath: "<kswiftk-jvm-import>/com/example/annotation/Widget.kt") != nil)
+        }
+    }
 }
 #endif
