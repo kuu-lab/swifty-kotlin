@@ -14,8 +14,3 @@ abstract class Number {
 )
 @DeprecatedSinceKotlin(warningSince = "1.5")
 public inline fun Char.toByte(): Byte = this.code.toByte()
-
-public fun Double.toRawBits(): Long = null!!
-public fun Double.toBits(): Long = null!!
-public fun Float.toRawBits(): Int = null!!
-public fun Float.toBits(): Int = null!!
