@@ -26,32 +26,22 @@ package kotlin.collections
 //
 // Constructor shape (KUU-557 tracks this as a standalone compiler-capability
 // gap): HashMap's four constructors (), (Int), (Int, Float) and
-// (Map<out K, V>) can't be mirrored 1:1 as secondary constructors delegating
-// via `: super(...)` -- this compiler's generic type-argument inference for a
-// `this(...)`/`super(...)` delegating call only succeeds when an argument's
-// *type* mentions the class's own type parameters (as the Map<out K, V> copy
-// constructor's does); a delegating call with only Int/Float/no arguments
-// fails with KSWIFTK-SEMA-INFER regardless of target, even when the argument
-// *values* would obviously work. Only the primary constructor's inline
-// `: HashMap<K, V>(...)` header position is exempt (its substitution comes
-// from the supertype clause, not general inference), so the (), (Int),
-// (Int, Float) and (Int, Float, Boolean) forms are collapsed into one primary
-// constructor with default parameters; the copy constructor is the one
-// secondary constructor whose argument type qualifies, so it delegates via
-// `super(original)` directly. KUU-4500: java.util.LinkedHashMap's third
-// constructor parameter is `accessOrder`; when true, get/put reorder entries
-// least-recently-used first (the runtime box implements it; see
-// `__kk_map_set_access_order` and `RuntimeMapBox.recordAccess`).
-// None of these bodies ever run for real: `HashMap(...)`/`LinkedHashMap(...)`
-// call expressions are always intercepted by name and rewritten straight to
-// runtime map-box entry points (`mutableMapConstructorNames` in
+// (Map<out K, V>) are mirrored 1:1 as secondary constructors delegating via
+// `: super(...)`, matching java/util/Hashtable.kt's shape. KUU-4500:
+// java.util.LinkedHashMap's third constructor parameter is `accessOrder`;
+// when true, get/put reorder entries least-recently-used first (the runtime
+// box implements it; see `__kk_map_set_access_order` and
+// `RuntimeMapBox.recordAccess`). The flag is accepted for signature
+// compatibility and forwarded nowhere: constructor calls are intercepted by
+// name and rewritten straight to runtime map-box entry points
+// (`mutableMapConstructorNames` in
 // `CollectionLiteralLoweringPass+LookupTables+Map.swift`), matching how
 // HashMap.kt's own four constructors are likewise all empty.
 // KUU-1944: the JVM-compatible LinkedHashMap contract permits user subclasses.
-public open class LinkedHashMap<K, V>(
-    initialCapacity: Int = 0,
-    loadFactor: Float = 1.0f,
-    accessOrder: Boolean = false
-) : HashMap<K, V>(initialCapacity, loadFactor) {
+public open class LinkedHashMap<K, V> : HashMap<K, V> {
+    constructor() : super()
+    constructor(initialCapacity: Int) : super(initialCapacity)
+    constructor(initialCapacity: Int, loadFactor: Float) : super(initialCapacity, loadFactor)
+    constructor(initialCapacity: Int, loadFactor: Float, accessOrder: Boolean) : super(initialCapacity, loadFactor)
     constructor(original: Map<out K, V>) : super(original)
 }
