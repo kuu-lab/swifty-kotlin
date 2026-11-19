@@ -378,8 +378,8 @@ extension JVMProgramBuilder {
                 functions.append(function)
                 functions += try jvmOverloads(function, declaration: declaration, symbol: symbol, owner: plan)
             }
-            for (_, declaration, property) in plan.properties {
-                functions += try emitAccessors(plan, declaration, property)
+            for (propertyID, declaration, property) in plan.properties {
+                functions += try emitAccessors(plan, propertyID, declaration, property)
             }
             if plan.isObject { functions.append(try emitObjectConstructor(plan)) }
             if plan.isAnonymous { functions.append(try emitAnonymousConstructor(plan)) }

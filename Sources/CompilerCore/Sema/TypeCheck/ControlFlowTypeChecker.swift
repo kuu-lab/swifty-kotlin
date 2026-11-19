@@ -564,6 +564,13 @@ final class ControlFlowTypeChecker {
             )
         }
         let loopValueType = declaredLoopType ?? elementType
+        // JVM codegen needs the explicit declared type: when it is a reference
+        // supertype of a primitive element (e.g. `for (x: Any in doubleArray)`),
+        // the loop local must hold the boxed value or every read re-boxes and
+        // referential identity (`x === x`) breaks.
+        if loopVariable != nil, let declaredLoopType {
+            sema.bindings.bindLoopVariableType(id, type: declaredLoopType)
+        }
         invalidateNullableControlFlowAssignments(id, ctx: ctx, locals: &locals)
         var bodyLocals = locals
         if let loopVariable {

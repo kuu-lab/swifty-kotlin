@@ -39,6 +39,7 @@ package enum KnownCompilerAnnotation: CaseIterable {
     case retention
     case mustBeDocumented
     case jvmInline
+    case jvmSynchronized
     case jvmRecord
     case jvmSynthetic
     case jvmRepeatable
@@ -134,6 +135,8 @@ package enum KnownCompilerAnnotation: CaseIterable {
             "kotlin.annotation.MustBeDocumented"
         case .jvmInline:
             "kotlin.jvm.JvmInline"
+        case .jvmSynchronized:
+            "kotlin.jvm.Synchronized"
         case .jvmRecord:
             "kotlin.jvm.JvmRecord"
         case .jvmSynthetic:
@@ -164,7 +167,7 @@ package enum KnownCompilerAnnotation: CaseIterable {
     /// not widen it implicitly.
     private var isKnownBuiltInFallback: Bool {
         switch self {
-        case .retention, .mustBeDocumented, .jvmInline, .jvmRecord, .jvmSynthetic, .jvmRepeatable,
+        case .retention, .mustBeDocumented, .jvmInline, .jvmSynchronized, .jvmRecord, .jvmSynthetic, .jvmRepeatable,
              .lowPriorityInOverloadResolution, .implicitIntegerCoercion, .onlyInputTypes,
              .nonStableParameterNames, .jsExport, .inherited, .serializationTransient, .serializationSerialName:
             false
