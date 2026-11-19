@@ -453,17 +453,28 @@ extension BuildASTPhase.ExpressionParser {
         var depth = BuildASTPhase.BracketDepth()
         while scan < endIndex {
             let token = tokens[scan]
-            // The assignment's source range ends at the value's last token,
-            // which can precede closing delimiters that belong to it (the `)`
-            // in `x = (20)`). Keep consuming while a bracket opened inside the
-            // body is still unclosed.
-            if token.range.start.offset >= bodyEndOffset, depth.isBracketBraceParenTopLevel {
-                break
+            if token.range.start.offset >= bodyEndOffset {
+                // Past the value's last token, only closing delimiters that
+                // balance brackets opened inside the body (the `)` in
+                // `x = (20)`) belong to it. Anything else means the body
+                // expression ended earlier and must not be swallowed.
+                guard !depth.isBracketBraceParenTopLevel, isWhenBranchClosingDelimiter(token.kind) else {
+                    break
+                }
             }
             depth.track(token.kind)
             scan += 1
         }
         return scan - startIndex
+    }
+
+    private func isWhenBranchClosingDelimiter(_ kind: TokenKind) -> Bool {
+        switch kind {
+        case .symbol(.rParen), .symbol(.rBracket), .symbol(.rBrace):
+            return true
+        default:
+            return false
+        }
     }
 
     private func findWhenBranchBodyEnd(startIndex: Int) -> Int {
