@@ -217,11 +217,13 @@ extension JVMFunctionBuilder {
             prefix.append(value)
         }
         let allTypes = reference?.parameters ?? method!.parameters
+        let signature = binding.flatMap { program.sema.symbols.functionSignature(for: $0.chosenCallee) }
         let isComposable = program.jvmComposableFunctions.contains(symbol)
-        let composeDefaults = isComposable && program.sourceParameters[symbol]?.contains(where: \.hasDefaultValue) == true
+            || context.jvmImports?.importedComposableSymbols.contains(symbol) == true
+        let composeDefaults = isComposable && (program.sourceParameters[symbol]?.contains(where: \.hasDefaultValue) == true
+            || signature?.valueParameterHasDefaultValues.contains(true) == true)
         let composeSuffixCount = JVMCompose.suffix.count + (composeDefaults ? 1 : 0)
         let types = Array(allTypes.dropFirst(prefix.count).dropLast(isComposable ? composeSuffixCount : 0))
-        let signature = binding.flatMap { program.sema.symbols.functionSignature(for: $0.chosenCallee) }
         let contextParameterTypes = try (signature?.contextParameterTypes ?? []).map(program.type)
         // `importedContextArguments` already consumed the leading context slots
         // via `prefix` — dropping the full context count again would eat the
@@ -281,6 +283,12 @@ extension JVMFunctionBuilder {
         // still returns void. The safe-call join materializes Unit afterward.
         let result = constructor || physicalResult == .unit || resultType == .unit
             ? nil : try value(foreignResultType(physicalResult, resolved: resultType))
+        if isComposable, let method, reference == nil {
+            try foreignComposableCall(method: method, symbol: symbol, dispatch: object ?? dispatch,
+                                      arguments: values, defaultMask: composeDefaults ? ordered.masks.first : nil,
+                                      result: result, at: id)
+            return JVMIntrinsicResult(value: try result.map { try convert($0, to: resultType) })
+        }
         if let object { instructions.append(.allocate(method!.owner, object)) }
         if let importedConstructor {
             let target = usesDefaults ? importedConstructor.defaults : importedConstructor.bridge

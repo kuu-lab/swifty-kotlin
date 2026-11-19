@@ -174,6 +174,11 @@ final class DataFlowAnalyzer {
     /// same assignment into a spurious "val cannot be reassigned" error
     /// (KUU-4513).
     var valInitializingAssignmentExprs: Set<ExprID> = []
+    /// Cache for `localFlowSymbols`: the set of `.local` symbols is rebuilt for
+    /// every closure-capture stability proof, which costs O(all symbols) per
+    /// null comparison on a captured mutable local. Symbol registration is
+    /// append-only during sema, so the symbol count keys the cache safely.
+    var localFlowSymbolCache: (symbolCount: Int, symbols: Set<SymbolID>)?
     init() {}
 
     func branchOnCondition(

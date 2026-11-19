@@ -56,11 +56,13 @@ extension KIRLoweringDriver {
         var delegateStorageSymbolByPropertySymbol: [SymbolID: SymbolID] = [:]
 
         var skippedBundledFiles: [ASTFile] = []
+        for file in ast.sortedFiles where shouldSkipBundledFileForOutput(file, compilationCtx: compilationCtx) {
+            skippedBundledFiles.append(file)
+        }
+        markSkippedBundledObjectLazyInitsOmitted(skippedFiles: skippedBundledFiles, shared: shared)
+        let skippedBundledFileIDs = Set(skippedBundledFiles.map { $0.fileID.rawValue })
         for file in ast.sortedFiles {
-            if shouldSkipBundledFileForOutput(file, compilationCtx: compilationCtx) {
-                skippedBundledFiles.append(file)
-                continue
-            }
+            guard !skippedBundledFileIDs.contains(file.fileID.rawValue) else { continue }
             let declIDs = lowerTopLevelDecls(
                 file: file,
                 shared: shared,
@@ -279,6 +281,68 @@ extension KIRLoweringDriver {
             }
             if !helperDeclIDs.isEmpty {
                 files.append(KIRFile(fileID: file.fileID, decls: helperDeclIDs))
+            }
+        }
+    }
+
+    private func markSkippedBundledObjectLazyInitsOmitted(
+        skippedFiles: [ASTFile],
+        shared: KIRLoweringSharedContext
+    ) {
+        guard !skippedFiles.isEmpty else { return }
+        let ast = shared.ast
+        let sema = shared.sema
+
+        func markObject(_ declID: DeclID) {
+            guard let symbol = sema.bindings.declSymbols[declID] else { return }
+            ctx.markObjectLazyInitOmitted(for: symbol)
+        }
+
+        func walk(_ declID: DeclID) {
+            guard let decl = ast.arena.decl(declID) else { return }
+            switch decl {
+            case let .objectDecl(objectDecl):
+                markObject(declID)
+                for nestedID in objectDecl.nestedClasses + objectDecl.nestedObjects {
+                    walk(nestedID)
+                }
+            case let .classDecl(classDecl):
+                var nestedIDs = classDecl.nestedClasses + classDecl.nestedObjects
+                if let companionID = classDecl.companionObject {
+                    nestedIDs.append(companionID)
+                }
+                if let companionBlockID = classDecl.companionBlockObject {
+                    nestedIDs.append(companionBlockID)
+                }
+                for entry in classDecl.enumEntries {
+                    nestedIDs.append(contentsOf: entry.nestedClasses)
+                }
+                for nestedID in nestedIDs {
+                    walk(nestedID)
+                }
+            case let .interfaceDecl(interfaceDecl):
+                var nestedIDs = interfaceDecl.nestedClasses + interfaceDecl.nestedObjects
+                if let companionID = interfaceDecl.companionObject {
+                    nestedIDs.append(companionID)
+                }
+                if let companionBlockID = interfaceDecl.companionBlockObject {
+                    nestedIDs.append(companionBlockID)
+                }
+                for nestedID in nestedIDs {
+                    walk(nestedID)
+                }
+            case let .enumEntryDecl(entry):
+                for nestedID in entry.nestedClasses {
+                    walk(nestedID)
+                }
+            default:
+                break
+            }
+        }
+
+        for file in skippedFiles {
+            for declID in file.topLevelDecls {
+                walk(declID)
             }
         }
     }

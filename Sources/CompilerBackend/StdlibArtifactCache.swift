@@ -483,8 +483,45 @@ public enum StdlibArtifactCache {
             }
             inlineNames = inlineKIRMangledNames(metadataText: metadataText)
         }
+        // Inline-KIR blob validation. Two invariants make the fast path safe:
+        //  - `MetadataEncoder.inlineKIRFileName` always yields a single path
+        //    component (a safe-ASCII mangled name or a decimal FNV hash, with a
+        //    ".kirbin" suffix) — never a separator or a bare "..".
+        //  - `inlineURL` was already resolved and containment-checked above, so
+        //    `inlineDirPath` cannot escape the artifact.
+        // A regular file (`lstat` reports S_IFREG, i.e. not a symlink) at
+        // `inlineDirPath/<fileName>` is therefore guaranteed to be contained and
+        // regular — exactly what the strict check below would conclude — so it
+        // can be accepted with one `lstat` instead of a per-blob `containedURL`
+        // walk that resolves symlinks on every component (~2k times per compile).
+        // Every ambiguous case — a symlink (which may resolve outside the
+        // artifact), a non-regular file, a missing blob, or a defensive filename
+        // containing "/" — falls through to the strict `containedURL` +
+        // `isRegularFile` check, preserving the original containment and
+        // regular-file validation unchanged.
+        let inlineDirPath = inlineURL.path
         for mangledName in inlineNames {
-            let blobRelativePath = inlineKIRDir + "/" + MetadataEncoder.inlineKIRFileName(for: mangledName)
+            let fileName = MetadataEncoder.inlineKIRFileName(for: mangledName)
+            let blobPath = inlineDirPath + "/" + fileName
+            var info = stat()
+            if !fileName.contains("/"),
+               blobPath.withCString({ lstat($0, &info) }) == 0
+            {
+                let fileType = info.st_mode & S_IFMT
+                if fileType == S_IFREG { continue }
+                if fileType != S_IFLNK {
+                    return .invalid(
+                        "inline KIR blob for '\(mangledName)' is missing or is not a regular file"
+                    )
+                }
+                // A symlink may point outside the artifact: fall through to
+                // the strict containment check so it is rejected as before.
+            } else if !fileName.contains("/"), !fileManager.fileExists(atPath: blobPath) {
+                return .invalid(
+                    "inline KIR blob for '\(mangledName)' is missing or is not a regular file"
+                )
+            }
+            let blobRelativePath = inlineKIRDir + "/" + fileName
             guard let blobURL = CompilerFileSystem.containedURL(relativePath: blobRelativePath, under: rootURL),
                   CompilerFileSystem.isRegularFile(at: blobURL)
             else {
