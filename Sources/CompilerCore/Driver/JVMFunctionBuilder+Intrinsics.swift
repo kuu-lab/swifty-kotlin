@@ -48,6 +48,12 @@ extension JVMFunctionBuilder {
         let name = context.interner.resolve(symbol.name)
         let resultType = try program.expressionType(id)
         let object: JVMValueType = .reference("java/lang/Object", nullable: true)
+        if symbol.kind == .constructor, args.count == 1, args.allSatisfy({ $0.label == nil && !$0.isSpread }),
+           let parent = program.sema.symbols.parentSymbol(for: symbolID),
+           (try? program.className(parent)) == "java/util/concurrent/atomic/AtomicReference" {
+            let value = try convert(requireValue(args[0].expr), to: object)
+            return JVMIntrinsicResult(value: try convert(constructJDK("java/util/concurrent/atomic/AtomicReference", parameters: [object], arguments: [value]), to: resultType))
+        }
         if fq == "kotlin/io/path/Path", name == "Path", args.count >= 1, args.allSatisfy({ !$0.isSpread }) {
             let path = try convert(requireValue(args[0].expr), to: .string)
             let more = Array(args.dropFirst())
