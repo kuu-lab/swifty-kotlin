@@ -1,6 +1,8 @@
 // DIFF_JVM
 import java.math.BigDecimal
 
+var bigDecimalProp = BigDecimal("1.0")
+
 fun main() {
     val a = BigDecimal("1.10")
     val b = BigDecimal("2.2")
@@ -19,10 +21,17 @@ fun main() {
     println(BigDecimal("1.2300").scale())
 
     var x = BigDecimal("1.0")
-    x = x.inc()
+    println(x++)
     println(x)
-    x = x.dec()
-    println(x)
+    println(++x)
+    println(x--)
+    println(--x)
+
+    println(bigDecimalProp++)
+    println(bigDecimalProp)
+    println(++bigDecimalProp)
+    println(bigDecimalProp--)
+    println(bigDecimalProp)
 
     val other = BigDecimal("100.0")
     val percentage = BigDecimal("10.0")

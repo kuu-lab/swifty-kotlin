@@ -20,7 +20,10 @@ struct JVMJDKClasspath {
               FileManager.default.isExecutableFile(atPath: jimage.path)
         else { return empty }
 
-        var packages: Set<String> = ["java/lang"]
+        // java.lang is always needed; java.math is required by the injected
+        // Kotlin BigDecimal operator declarations even when user code does not
+        // import java.math itself.
+        var packages: Set<String> = ["java/lang", "java/math"]
         var recursivePackages: Set<String> = []
         var requiredLazyClassNames: Set<String> = []
         for file in ctx.sourceManager.fileIDs()

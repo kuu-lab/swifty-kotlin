@@ -972,6 +972,12 @@ final class JVMFunctionBuilder {
                     }
                     return nil
                 }
+                if arena.isIncrementDecrement(id), op == .plusAssign || op == .minusAssign,
+                   let result = try resolvedIncrementDecrementValue(receiver: left, id: id, expectedResult: field.type) {
+                    let converted = try convert(result, to: field.type)
+                    instructions.append(property.getter.isStatic ? .putStatic(field, converted) : .putField(field, thisValue!, converted))
+                    return arena.incrementDecrementReturnsValue(id) ? converted : nil
+                }
                 let right = try compoundOperand(rhs, target: field.type)
                 if terminated { return nil }
                 guard try permitsCompound(left.type, right.type) else { throw fail("Unsupported JVM backing field conversion.", id) }
@@ -994,6 +1000,13 @@ final class JVMFunctionBuilder {
                     try writeLocal(local, convert(result, to: local.value.type))
                 }
                 return nil
+            }
+            if arena.isIncrementDecrement(id), op == .plusAssign || op == .minusAssign,
+               let result = try resolvedIncrementDecrementValue(receiver: old, id: id, expectedResult: local.value.type) {
+                guard local.mutable else { throw fail("Cannot reassign JVM val.", id) }
+                let converted = try convert(result, to: local.value.type)
+                try writeLocal(local, converted)
+                return arena.incrementDecrementReturnsValue(id) ? converted : nil
             }
             guard local.mutable, local.value.type.isNumeric || local.value.type.isText else { throw fail("JVM compound assignment requires a mutable numeric local.", id) }
             let rawRight = try compoundOperand(rhs, target: old.type)
