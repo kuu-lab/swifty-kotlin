@@ -102,6 +102,12 @@
       "commonSource": true
     },
     {
+      "path": "kotlin/Suppress.kt",
+      "virtualPath": "<kswiftk-jvm>/suppress.kt",
+      "excludeFromStdlibBuild": true,
+      "commonSource": true
+    },
+    {
       "path": "kotlin/SinceKotlin.kt",
       "virtualPath": "<kswiftk-jvm>/sinceKotlin.kt",
       "excludeFromStdlibBuild": true

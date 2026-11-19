@@ -33,9 +33,7 @@ extension JVMFunctionBuilder {
             default: break
             }
         }
-        for i in arena.exprs.indices {
-            let id = ExprID(rawValue: Int32(i))
-            guard let r = arena.exprRange(id), r.start.file == range.start.file, r.start.offset >= range.start.offset, r.end.offset <= range.end.offset else { continue }
+        for id in program.exprIDs(in: range) {
             for type in [program.sema.bindings.exprType(for: id), program.sema.bindings.isCheckTargetType(for: id), program.sema.bindings.castTargetType(for: id), program.sema.bindings.classRefTargetType(for: id)].compactMap({ $0 }) { collect(type) }
             for type in program.sema.bindings.callBinding(for: id)?.substitutedTypeArguments ?? [] { collect(type) }
             for type in program.sema.bindings.callableReferenceBinding(for: id)?.substitutedTypeArguments ?? [] { collect(type) }

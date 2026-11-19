@@ -104,6 +104,12 @@ private struct JVMSourceGrammar {
         try require(.symbol(.at)); try name()
         if take(.symbol(.colon)) { try name() }
         while take(.symbol(.dot)) { try name() }
+        if kind == .symbol(.lessThan) {
+            guard let typeArgumentsEnd = AnnotationParsingSupport.endOfTypeArguments(in: tokens, at: index) else {
+                throw Unsupported()
+            }
+            index = typeArgumentsEnd
+        }
         if take(.symbol(.lParen)) {
             var depth = 1
             while depth > 0 {
@@ -408,10 +414,10 @@ private struct JVMSourceGrammar {
         } else if take(.keyword(.for)) {
             try require(.symbol(.lParen))
             if take(.symbol(.lParen)) {
-                repeat { try name() } while take(.symbol(.comma))
+                repeat { try loopVariable(allowType: false) } while take(.symbol(.comma))
                 try require(.symbol(.rParen))
             } else {
-                try name()
+                try loopVariable()
             }
             try require(.keyword(.in))
             try expression(allowNewlines: true); try require(.symbol(.rParen)); try body()
@@ -427,6 +433,14 @@ private struct JVMSourceGrammar {
                 index += 1; try expression(allowNewlines: allowNewlines)
             }
         }
+    }
+    /// A for-header loop variable: `x` or `x: T`. Destructuring entries are
+    /// parsed with `allowType: false`: kotlinc accepts types there too, but
+    /// KSwiftK's AST builder does not bind them yet, so the grammar keeps
+    /// rejecting them instead of silently dropping the annotations.
+    mutating func loopVariable(allowType: Bool = true) throws {
+        try name()
+        if allowType, take(.symbol(.colon)) { try type() }
     }
     mutating func startsClassDeclaration() -> Bool {
         let start = index
@@ -531,9 +545,7 @@ private struct JVMSourceGrammar {
             }
             if take(.keyword(.finally)) { handled = true; try block() }
             guard handled else { throw Unsupported() }
-            return
-        }
-        if take(.keyword(.when)) {
+        } else if take(.keyword(.when)) {
             let hasSubject = kind == .symbol(.lParen)
             if hasSubject {
                 try require(.symbol(.lParen))
