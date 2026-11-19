@@ -480,7 +480,8 @@ public final class ASTArena: @unchecked Sendable {
             _destructuringDeclLayouts[remapper.remap(key)] = DestructuringDeclLayout(
                 syntax: value.syntax,
                 properties: value.properties.map { $0.map { remapper.remap($0) } },
-                mutableFlags: value.mutableFlags
+                mutableFlags: value.mutableFlags,
+                entryTypeRefs: value.entryTypeRefs.mapValues { remapper.remap($0) }
             )
         }
         _anonymousFunctionExpressions.formUnion(snapshot.anonymousFunctionExpressions.map { remapper.remap($0) })

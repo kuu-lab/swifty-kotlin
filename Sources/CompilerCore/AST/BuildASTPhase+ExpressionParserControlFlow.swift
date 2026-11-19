@@ -990,6 +990,7 @@ extension BuildASTPhase.ExpressionParser {
             var destructuringNames: [InternedString?] = []
             var destructuringProperties: [InternedString?] = []
             var destructuringMutableFlags: [Bool] = []
+            var entryTypeRefs: [Int: TypeRefID] = [:]
             var declaringEntryCount = 0
             var foundClosingDelimiter = false
             while let token = current() {
@@ -1050,13 +1051,15 @@ extension BuildASTPhase.ExpressionParser {
                     if entryDeclared {
                         declaringEntryCount += 1
                     }
-                    if matches(.symbol(.colon)) {
-                        _ = consume()
-                        while let t = current(),
-                              t.kind != .symbol(.comma),
-                              t.kind != closingKind
-                        {
-                            _ = consume()
+                    if let colon = consumeIf(.symbol(.colon)) {
+                        if let typeRef = parseTypeReference(colon.range, allowFunctionType: true) {
+                            entryTypeRefs[destructuringNames.count - 1] = typeRef
+                        } else {
+                            diagnostics?.error(
+                                "KSWIFTK-PARSE-0020",
+                                "Expected type after ':'.",
+                                range: current()?.range ?? colon.range
+                            )
                         }
                     }
                 } else {
@@ -1107,7 +1110,8 @@ extension BuildASTPhase.ExpressionParser {
                     DestructuringDeclLayout(
                         syntax: syntax,
                         properties: destructuringProperties,
-                        mutableFlags: declaringEntryCount > 0 ? destructuringMutableFlags : []
+                        mutableFlags: declaringEntryCount > 0 ? destructuringMutableFlags : [],
+                        entryTypeRefs: entryTypeRefs
                     ),
                     for: exprID
                 )

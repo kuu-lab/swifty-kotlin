@@ -32,6 +32,10 @@ import Testing
         "fun f(xs: List<String>) { for (x: String in xs) for (y: Int in 1..3) { println(x + y) } }",
         "fun f(xs: Map<String, Int>) { for ((k, v) in xs) { println(k + v) } }",
         "fun f(xs: Map<String, Int>) { for ((k, v) in xs) { for (x: String in xs.keys) { println(x) } } }",
+        "fun f(xs: List<Pair<String, Int>>) { for ((k: String, v) in xs) { println(k) } }",
+        "fun f(xs: List<Pair<String, Int>>) { for ((k, v: Int) in xs) { println(v) } }",
+        "fun f(xs: List<Pair<Map<String, Int>?, Int>>) { for ((k: Map<String, Int>?, v: Int) in xs) { println(v) } }",
+        "fun f(xs: List<Pair<String, Int>>) { for ((k: String, v: Int,) in xs) { println(k + v) } }",
         "fun f(xs: List<String>) {\n    for (x: String in xs) {\n        println(x)\n    }\n}",
     ])
     func acceptsTypedAndUntypedLoopVariables(source: String) {
@@ -48,10 +52,8 @@ import Testing
         // kotlinc: a loop variable is a single name; a comma ends the header.
         "fun f(xs: List<Int>) { for (x: Int, y in xs) { println(x) } }",
         "fun f(xs: List<Int>) { for ((k, v) in xs) { for (x: String, y in xs) { println(x) } } }",
-        // Typed destructuring entries are accepted by kotlinc but KSwiftK does
-        // not bind their types yet; keep rejecting rather than dropping them.
-        "fun f(xs: List<Pair<String, Int>>) { for ((k: String, v) in xs) { println(k) } }",
-        "fun f(xs: List<Pair<String, Int>>) { for ((k, v: Int) in xs) { println(k) } }",
+        "fun f(xs: List<Pair<String, Int>>) { for ((k:, v) in xs) { println(k) } }",
+        "fun f(xs: List<Pair<String, Int>>) { for ((k, v:) in xs) { println(v) } }",
     ])
     func rejectsInvalidLoopVariables(source: String) {
         rejects(source)
