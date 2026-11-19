@@ -280,47 +280,71 @@ extension ExprTypeChecker {
             thisType: objectType
         )
         if let compilationContext = driver.compilationContext {
-            DataFlowSemaPhase().collectMemberHeaders(
-                members: MemberDeclarations(
-                    functions: [],
-                    properties: [],
-                    nestedClasses: objectDecl.nestedClasses,
-                    nestedObjects: objectDecl.nestedObjects
-                ),
-                owner: OwnerContext(
-                    fqName: objectSymbolFQName,
-                    symbol: objectSymbol,
-                    type: objectType
-                ),
-                sourceFileID: ctx.currentFileID,
-                ctx: compilationContext,
-                ast: ast,
-                symbols: sema.symbols,
-                types: sema.types,
-                bindings: sema.bindings,
-                scope: objectScope,
-                diagnostics: sema.diagnostics,
-                interner: interner
-            )
+            var nestedEnclosingTypeParameters: [InternedString: SymbolID] = [:]
+            for typeParameterSymbol in driver.helpers.lexicalTypeParameterSymbols(in: ctx) {
+                guard let name = sema.symbols.symbol(typeParameterSymbol)?.name,
+                      nestedEnclosingTypeParameters[name] == nil,
+                      let visibleSymbol = driver.helpers.resolveTypeParameterSymbol(
+                          name, scope: objectScope, sema: sema
+                      )
+                else {
+                    continue
+                }
+                nestedEnclosingTypeParameters[name] = visibleSymbol
+            }
+            let nestedClassTypeParameterSymbols = sema.types.nominalTypeParameterSymbols(for: objectSymbol)
+            let uncollectedNestedClasses = objectDecl.nestedClasses.filter { sema.bindings.declSymbols[$0] == nil }
+            let uncollectedNestedObjects = objectDecl.nestedObjects.filter { sema.bindings.declSymbols[$0] == nil }
+            for nestedDeclID in objectDecl.nestedClasses + objectDecl.nestedObjects {
+                if let existingNested = sema.bindings.declSymbols[nestedDeclID] {
+                    objectScope.insert(existingNested)
+                }
+            }
+            if !uncollectedNestedClasses.isEmpty || !uncollectedNestedObjects.isEmpty {
+                DataFlowSemaPhase().collectMemberHeaders(
+                    members: MemberDeclarations(
+                        functions: [],
+                        properties: [],
+                        nestedClasses: uncollectedNestedClasses,
+                        nestedObjects: uncollectedNestedObjects
+                    ),
+                    owner: OwnerContext(
+                        fqName: objectSymbolFQName,
+                        symbol: objectSymbol,
+                        type: objectType
+                    ),
+                    sourceFileID: ctx.currentFileID,
+                    ctx: compilationContext,
+                    ast: ast,
+                    symbols: sema.symbols,
+                    types: sema.types,
+                    bindings: sema.bindings,
+                    scope: objectScope,
+                    diagnostics: sema.diagnostics,
+                    interner: interner,
+                    classTypeParameterSymbols: nestedClassTypeParameterSymbols,
+                    classLocalTypeParameters: nestedEnclosingTypeParameters
+                )
 
-            var nestedEnclosingClassScopes = enclosingClassScopes
-            nestedEnclosingClassScopes.append(objectSymbolFQName)
-            if let sourceFile = ast.file(for: ctx.currentFileID) {
-                for nestedDeclID in objectDecl.nestedClasses + objectDecl.nestedObjects {
-                    DataFlowSemaPhase().bindInheritanceEdges(
-                        declID: nestedDeclID,
-                        currentPackage: sourceFile.packageFQName,
-                        imports: sourceFile.imports,
-                        enclosingTypeParameters: [:],
-                        enclosingClassScopes: nestedEnclosingClassScopes,
-                        ast: ast,
-                        symbols: sema.symbols,
-                        bindings: sema.bindings,
-                        types: sema.types,
-                        diagnostics: sema.diagnostics,
-                        sourceManager: ctx.visibilityChecker.sourceManager,
-                        interner: interner
-                    )
+                var nestedEnclosingClassScopes = enclosingClassScopes
+                nestedEnclosingClassScopes.append(objectSymbolFQName)
+                if let sourceFile = ast.file(for: ctx.currentFileID) {
+                    for nestedDeclID in uncollectedNestedClasses + uncollectedNestedObjects {
+                        DataFlowSemaPhase().bindInheritanceEdges(
+                            declID: nestedDeclID,
+                            currentPackage: sourceFile.packageFQName,
+                            imports: sourceFile.imports,
+                            enclosingTypeParameters: nestedEnclosingTypeParameters,
+                            enclosingClassScopes: nestedEnclosingClassScopes,
+                            ast: ast,
+                            symbols: sema.symbols,
+                            bindings: sema.bindings,
+                            types: sema.types,
+                            diagnostics: sema.diagnostics,
+                            sourceManager: ctx.visibilityChecker.sourceManager,
+                            interner: interner
+                        )
+                    }
                 }
             }
         }
@@ -337,17 +361,19 @@ extension ExprTypeChecker {
             objectScope: objectScope,
             ctx: ctx
         )
-        inheritance.synthesizeDelegationForwardingForClass(
-            range: objectDecl.range,
-            memberFunctions: objectDecl.memberFunctions,
-            memberProperties: objectDecl.memberProperties,
-            classSymbol: objectSymbol,
-            classFQName: objectSymbolFQName,
-            symbols: sema.symbols,
-            bindings: sema.bindings,
-            types: sema.types,
-            interner: interner
-        )
+        if !pendingRecheck {
+            inheritance.synthesizeDelegationForwardingForClass(
+                range: objectDecl.range,
+                memberFunctions: objectDecl.memberFunctions,
+                memberProperties: objectDecl.memberProperties,
+                classSymbol: objectSymbol,
+                classFQName: objectSymbolFQName,
+                symbols: sema.symbols,
+                bindings: sema.bindings,
+                types: sema.types,
+                interner: interner
+            )
+        }
         for symbol in sema.symbols.classDelegationForwardingMethodSymbols(forClass: objectSymbol)
             + sema.symbols.classDelegationForwardingPropertySymbols(forClass: objectSymbol)
         {

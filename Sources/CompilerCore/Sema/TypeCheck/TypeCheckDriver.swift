@@ -774,7 +774,9 @@ final class TypeCheckDriver {
         for file in files {
             guard let inferCtx = inferenceContext(for: file) else { continue }
             let skipResidualStdlibBodies = compilationContext.map {
-                !$0.options.stdlibOnly && $0.sourceManager.origin(of: file.fileID) == .residualStdlib
+                !$0.options.stdlibOnly
+                    && $0.sourceManager.origin(of: file.fileID) == .residualStdlib
+                    && !$0.jvmConsumerEmittedStdlibFiles.contains(file.fileID)
             } ?? false
             for declID in file.topLevelDecls {
                 guard let decl = ast.arena.decl(declID),
