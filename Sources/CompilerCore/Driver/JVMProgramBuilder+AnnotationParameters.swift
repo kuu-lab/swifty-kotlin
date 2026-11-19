@@ -117,7 +117,7 @@ extension JVMProgramBuilder {
         lastToken: Token,
         message: String
     ) throws {
-        if !tokens.contains(where: { $0.kind == .symbol(.lParen) }) {
+        if AnnotationParsingSupport.constructionArgumentListStart(in: tokens, name: node.name) == nil {
             tokens += [Token(kind: .symbol(.lParen), range: lastToken.range), Token(kind: .symbol(.rParen), range: lastToken.range)]
         }
         let parser = BuildASTPhase.ExpressionParser(tokens: tokens, interner: context.interner, astArena: ast.arena, diagnostics: context.diagnostics)

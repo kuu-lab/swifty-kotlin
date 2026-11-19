@@ -104,6 +104,12 @@ private struct JVMSourceGrammar {
         try require(.symbol(.at)); try name()
         if take(.symbol(.colon)) { try name() }
         while take(.symbol(.dot)) { try name() }
+        if kind == .symbol(.lessThan) {
+            guard let typeArgumentsEnd = AnnotationParsingSupport.endOfTypeArguments(in: tokens, at: index) else {
+                throw Unsupported()
+            }
+            index = typeArgumentsEnd
+        }
         if take(.symbol(.lParen)) {
             var depth = 1
             while depth > 0 {
