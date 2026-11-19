@@ -1,6 +1,9 @@
 @file:kotlin.jvm.JvmName("StandardKt")
 package kotlin
 
+import kotlin.contracts.InvocationKind
+import kotlin.contracts.contract
+
 public inline fun repeat(times: Int, action: (Int) -> Unit) {
     var index = 0
     while (index < times) {
@@ -12,8 +15,16 @@ public inline fun repeat(times: Int, action: (Int) -> Unit) {
 public inline fun <T, R> T.let(block: (T) -> R): R = block(this)
 
 @kotlin.internal.InlineOnly
-public inline fun <T> T.takeIf(predicate: (T) -> Boolean): T? =
-    if (predicate(this)) this else null
+public inline fun <T> T.takeIf(predicate: (T) -> Boolean): T? {
+    contract { callsInPlace(predicate, InvocationKind.EXACTLY_ONCE) }
+    return if (predicate(this)) this else null
+}
+
+@kotlin.internal.InlineOnly
+public inline fun <T> T.takeUnless(predicate: (T) -> Boolean): T? {
+    contract { callsInPlace(predicate, InvocationKind.EXACTLY_ONCE) }
+    return if (!predicate(this)) this else null
+}
 
 public inline fun <T, R> T.run(block: T.() -> R): R = block()
 

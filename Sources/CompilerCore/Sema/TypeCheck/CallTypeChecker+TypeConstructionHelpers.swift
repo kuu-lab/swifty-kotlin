@@ -507,6 +507,12 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
     ) {
+        // A safe call (`?.`) skips the whole call -- lambda included -- when
+        // the receiver is null, so callsInPlace cannot guarantee that the
+        // lambda ran; kotlinc rejects definite assignment through it as well.
+        if case .safeMemberCall = ctx.ast.arena.expr(id) {
+            return
+        }
         let sema = ctx.sema
         let effects = sema.symbols.contractCallsInPlaceEffects(for: chosen)
         guard !effects.isEmpty,
