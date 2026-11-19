@@ -37,5 +37,23 @@ extension JVMBackendTests {
             #expect(extractions == 3)
         }
     }
+
+    // Backtick-escaped segments (mandatory for keyword package parts such as
+    // `annotation`) must still register the referenced JDK packages.
+    @Test
+    func jdkClasspathImportScanSeesThroughBacktickedSegments() throws {
+        let source = """
+        package com.example.`annotation`
+
+        import javax.`annotation`.processing.Generated
+        import java.`util`.Objects
+        import java.`util`.*
+        """
+        let paths = JVMJDKClasspath.importedPaths(in: source)
+        #expect(paths.contains("com.example.`annotation`"))
+        #expect(paths.contains("javax.`annotation`.processing.Generated"))
+        #expect(paths.contains("java.`util`.Objects"))
+        #expect(paths.contains("java.`util`.*"))
+    }
 }
 #endif
