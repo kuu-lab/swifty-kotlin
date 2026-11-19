@@ -354,6 +354,12 @@ extension JVMFunctionBuilder {
                   values.count == 1 else { return nil }
             let arguments = [try convert(receiver, to: receiverType), try convert(values[0], to: receiverType)]
             return try jdkCall("java/lang/Math", "copySign", [receiverType, receiverType], receiverType, arguments: arguments, resolved: resultType)
+        case "min", "max":
+            guard values.count == 2, entry.method.parameters.count == 2,
+                  entry.method.parameters[0] == entry.method.parameters[1],
+                  entry.method.result == entry.method.parameters[0],
+                  [.int, .long, .float, .double].contains(entry.method.parameters[0]) else { return nil }
+            return try jdkCall("java/lang/Math", name, entry.method.parameters, entry.method.result, arguments: values, resolved: resultType)
         default:
             return nil
         }

@@ -176,7 +176,7 @@ final class JVMMethodEmitter {
         let frames = try stackMaps(codeSize: code.count)
         return JVMMethodCode(
             name: try pool.utf8(function.reference.name), descriptor: try pool.utf8(function.reference.descriptor),
-            access: sanitizeVarargs((function.access ?? (function.isPrivate ? 0x000A : 0x0009)) | (function.typeParameters.contains(where: \.isReified) || function.isHiddenByDeprecation ? 0x1000 : 0)), code: code, stack: UInt16(maxStack),
+            access: sanitizeVarargs((function.access ?? (function.isPrivate ? 0x000A : 0x0009)) | (function.typeParameters.contains(where: \.isReified) || function.isHiddenByDeprecation ? 0x1000 : 0) | (function.isSynchronized ? 0x0020 : 0)), code: code, stack: UInt16(maxStack),
             locals: UInt16(function.locals.last.map { $0.slot + $0.type.width } ?? 0), frames: frames,
             exceptions: try function.handlers.compactMap { h in
                 guard let start = assembler.labels[h.start], let end = assembler.labels[h.end], let handler = assembler.labels[h.handler], start <= end else { throw JVMEmissionError.limit("Invalid JVM exception range.") }

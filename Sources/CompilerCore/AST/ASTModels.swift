@@ -1,4 +1,4 @@
-public struct ASTNodeID: Hashable, Sendable, Codable {
+public struct ASTNodeID: RawInt32ID {
     public let rawValue: Int32
 
     public static let invalid = ASTNodeID(rawValue: -1)
@@ -8,7 +8,7 @@ public struct ASTNodeID: Hashable, Sendable, Codable {
     }
 }
 
-public struct ExprID: Hashable, Sendable, Codable {
+public struct ExprID: RawInt32ID {
     public let rawValue: Int32
 
     public static let invalid = ExprID(rawValue: -1)
@@ -18,7 +18,7 @@ public struct ExprID: Hashable, Sendable, Codable {
     }
 }
 
-public struct TypeRefID: Hashable, Sendable, Codable {
+public struct TypeRefID: RawInt32ID {
     public let rawValue: Int32
 
     public static let invalid = TypeRefID(rawValue: -1)

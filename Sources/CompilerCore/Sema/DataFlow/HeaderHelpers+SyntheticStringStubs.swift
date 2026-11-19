@@ -3,7 +3,8 @@ extension DataFlowSemaPhase {
     func registerSyntheticStringStubs(
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner
+        interner: StringInterner,
+        isJVMTarget: Bool = false
     ) {
         _ = ensureKotlinTextPackage(symbols: symbols, interner: interner)
         let kotlinRootPkg = ensurePackage(path: ["kotlin"], symbols: symbols, interner: interner)
@@ -31,6 +32,18 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // `String.Companion.format` is synthesized only for the JVM backend, whose
+        // lowering emits `java/lang/String.format`. Native/Wasm resolve it from the
+        // bundled `StringFormat.kt` extension instead, so registering a body-less
+        // member here would shadow that working implementation.
+        if isJVMTarget {
+            registerStringCompanionFormatMembers(
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                stringClassSymbol: stringClassSymbol
+            )
+        }
     }
     private func ensureKotlinTextPackage(
         symbols: SymbolTable,

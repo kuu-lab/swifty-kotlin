@@ -84,8 +84,15 @@ extension JVMClasspathIndex {
             if first == "T" {
                 guard let end = remaining.firstIndex(of: ";") else { return nil }
                 let name = String(remaining[..<end])
-                guard canUseGenericMembers, methodTypeParameters.contains(name)
-                    || owner.classTypeParameterNames.contains(name) && !method.isStatic else { return nil }
+                // Only variables erasing to Object may become the stub's
+                // bound-less type parameter: a bounded variable (e.g.
+                // `T extends Number`) erases to its bound, and substituting
+                // the unbounded parameter would break parameter binding.
+                // Nested type arguments carry no descriptor, so they are
+                // unaffected by erasure.
+                guard canUseGenericMembers, (methodTypeParameters.contains(name)
+                    || owner.classTypeParameterNames.contains(name) && !method.isStatic),
+                      carrier == nil || carrier?.descriptor == "Ljava/lang/Object;" else { return nil }
                 remaining = remaining[remaining.index(after: end)...]
                 hasGenericType = true
                 return "`\(name)`"

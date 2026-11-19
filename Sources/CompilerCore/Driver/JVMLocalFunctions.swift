@@ -25,11 +25,8 @@ extension JVMFunctionBuilder {
     func localReferenceCaptureSymbols(in body: ExprID) -> Set<SymbolID> {
         guard let range = arena.exprRange(body) else { return [] }
         var captured: Set<SymbolID> = []
-        for i in arena.exprs.indices {
-            let expression = ExprID(rawValue: Int32(i))
-            guard let site = arena.exprRange(expression), site.start.file == range.start.file,
-                  site.start.offset >= range.start.offset, site.end.offset <= range.end.offset,
-                  let symbol = program.sema.bindings.callableReferenceBinding(for: expression)?.chosenCallee ?? program.sema.bindings.callBinding(for: expression)?.chosenCallee ?? program.sema.bindings.identifierSymbol(for: expression),
+        for expression in program.exprIDs(in: range) {
+            guard let symbol = program.sema.bindings.callableReferenceBinding(for: expression)?.chosenCallee ?? program.sema.bindings.callBinding(for: expression)?.chosenCallee ?? program.sema.bindings.identifierSymbol(for: expression),
                   program.sema.symbols.symbol(symbol)?.flags.contains(.localFunction) == true else { continue }
             captured.formUnion(program.sema.bindings.localFunctionCaptureSymbols(for: symbol))
             captured.formUnion(program.localFunctions[symbol]?.captures.compactMap { $0.local?.symbol } ?? [])

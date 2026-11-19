@@ -825,13 +825,16 @@ extension DataFlowSemaPhase {
     }
 
     /// Collects data-class and data-object generated members after superclass edges are bound.
+    /// `includeInterfaceValueClassMembers` is false for JVM targets, whose frontend synthesizes
+    /// value-class equals/hashCode itself; collecting the symbols there would shadow that path.
     func collectDataTypeGeneratedMembersAfterInheritance(
         ast: ASTModule,
         symbols: SymbolTable,
         bindings: BindingTable,
         types: TypeSystem,
         interner: StringInterner,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        includeInterfaceValueClassMembers: Bool
     ) {
         for rawDeclID in 0 ..< ast.arena.declCount {
             let declID = DeclID(rawValue: Int32(rawDeclID))
@@ -861,6 +864,21 @@ extension DataFlowSemaPhase {
             case let .objectDecl(objectDecl) where objectDecl.modifiers.contains(.data):
                 guard let symbol = bindings.declSymbols[declID],
                       let info = symbols.symbol(symbol)
+                else {
+                    continue
+                }
+                ownerSymbol = symbol
+                owner = info
+                requireDataTypeFlag = false
+            case .classDecl:
+                // A value class that implements an interface stays boxed as a
+                // nominal object for polymorphic dispatch, so boxed instances
+                // need the same structural equals/hashCode as data classes.
+                guard let symbol = bindings.declSymbols[declID],
+                      let info = symbols.symbol(symbol),
+                      includeInterfaceValueClassMembers,
+                      info.flags.contains(.valueType),
+                      symbols.valueClassImplementsInterface(symbol)
                 else {
                     continue
                 }
@@ -898,16 +916,20 @@ extension DataFlowSemaPhase {
                 scope: nil,
                 interner: interner
             )
-            collectSyntheticToString(
-                ownerSymbol: ownerSymbol,
-                ownerFQName: owner.fqName,
-                ownerType: ownerType,
-                requireDataTypeFlag: requireDataTypeFlag,
-                symbols: symbols,
-                types: types,
-                scope: nil,
-                interner: interner
-            )
+            // Value classes collected their synthetic toString during header
+            // collection; collecting it again here would duplicate the symbol.
+            if !owner.flags.contains(.valueType) {
+                collectSyntheticToString(
+                    ownerSymbol: ownerSymbol,
+                    ownerFQName: owner.fqName,
+                    ownerType: ownerType,
+                    requireDataTypeFlag: requireDataTypeFlag,
+                    symbols: symbols,
+                    types: types,
+                    scope: nil,
+                    interner: interner
+                )
+            }
         }
     }
 
@@ -1277,7 +1299,12 @@ extension DataFlowSemaPhase {
             fqName: hashCodeFQName,
             declSite: nil,
             visibility: .public,
+            // Value classes implementing an interface stay boxed as nominal
+            // objects; the override registration lets erased Any.hashCode()
+            // dispatch reach the synthesized member like it does for data
+            // classes through the structural runtime fallback.
             flags: symbols.symbol(ownerSymbol)?.kind == .annotationClass
+                || symbols.symbol(ownerSymbol)?.flags.contains(.valueType) == true
                 ? [.synthetic, .overrideMember] : [.synthetic]
         )
         symbols.setParentSymbol(ownerSymbol, for: funcSymbol)
@@ -1775,7 +1802,8 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner,
         bundledIndex: BundledDeclarationIndex = .empty,
-        projectsCoroutineContextIsActive: Bool = false
+        projectsCoroutineContextIsActive: Bool = false,
+        isJVMTarget: Bool = false
     ) {
         let skipStats = SyntheticStubSkipStatsCollector()
         let firstGeneratedSymbol = symbols.count
@@ -1791,7 +1819,8 @@ extension DataFlowSemaPhase {
             kotlinPropertiesPkg: kotlinPropertiesPkg,
             bundledIndex: bundledIndex,
             skipStats: skipStats,
-            projectsCoroutineContextIsActive: projectsCoroutineContextIsActive
+            projectsCoroutineContextIsActive: projectsCoroutineContextIsActive,
+            isJVMTarget: isJVMTarget
         )
 
         registerSyntheticDelegateRegistryStubs(

@@ -276,6 +276,23 @@ extension CallTypeChecker {
         {
             return nil
         }
+        // Sequence.flatMapTo/flatMapIndexedTo have Iterable and Sequence
+        // transform overloads; a user-declared extension with the same name
+        // must reach regular overload resolution instead of the bundled
+        // stdlib binding below.
+        if isSequenceReceiver,
+           calleeStr == "flatMapTo" || calleeStr == "flatMapIndexedTo",
+           hasUserDefinedCollectionExtensionCandidate(
+               named: request.calleeName,
+               receiverType: receiverType,
+               args: request.args,
+               range: request.range,
+               ctx: request.ctx,
+               locals: locals
+           )
+        {
+            return nil
+        }
         // KUU-1926: the collection HOF fast path only infers count's result
         // type for Collection/Iterable receivers, leaving the callee unbound.
         // Use regular overload resolution for the bundled Iterable declarations

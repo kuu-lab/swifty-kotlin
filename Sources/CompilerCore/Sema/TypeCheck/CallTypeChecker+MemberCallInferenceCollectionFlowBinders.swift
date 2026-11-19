@@ -62,7 +62,8 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     @discardableResult
     func bindBundledSequenceDestinationSourceFunction(
         typeArguments: [TypeID],
-        parameterMapping: [Int: Int]? = nil) -> Bool {
+        parameterMapping: [Int: Int]? = nil,
+        returnsSequence: Bool? = nil) -> Bool {
         let parameterMapping = parameterMapping
             ?? Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
         guard isSequenceReceiver else {
@@ -79,11 +80,33 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                   sema.symbols.isSourceBackedSymbol(candidate),
                   let signature = sema.symbols.functionSignature(for: candidate),
                   signature.parameterTypes.count == args.count,
-                  let signatureReceiver = signature.receiverType
+                  let signatureReceiver = signature.receiverType,
+                  receiverClassifier.isSequenceLikeType(signatureReceiver)
             else {
                 return false
             }
-            return receiverClassifier.isSequenceLikeType(signatureReceiver)
+            guard let returnsSequence else {
+                return true
+            }
+            guard let transformParameterIndex = signature.parameterTypes.indices.last,
+                  case let .functionType(transformType) = sema.types.kind(of: signature.parameterTypes[transformParameterIndex]),
+                  let returnSymbol = resolveClassTypeSymbol(transformType.returnType, sema: sema)?.1
+            else {
+                return false
+            }
+            let sequenceFQName = [
+                interner.intern("kotlin"),
+                interner.intern("sequences"),
+                interner.intern("Sequence"),
+            ]
+            let iterableFQName = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("Iterable"),
+            ]
+            return returnsSequence
+                ? returnSymbol.fqName == sequenceFQName
+                : returnSymbol.fqName == iterableFQName
         }) else {
             return false
         }

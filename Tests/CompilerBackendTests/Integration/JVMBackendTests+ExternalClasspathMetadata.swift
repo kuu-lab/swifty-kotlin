@@ -300,6 +300,22 @@ extension JVMBackendTests {
     }
 
     @Test
+    func explicitKotlinSuppressImportResolvesFromJvmStdlibClasspath() throws {
+        try withWorkspace { root in
+            let classpath = try m11Runtime().components(separatedBy: ":")
+            let result = try compile("""
+            import kotlin.Suppress
+
+            @Suppress("UNCHECKED_CAST")
+            class WitnessSuppress
+
+            fun main() { println("ok") }
+            """, root: root, mode: .jvmJar, classpath: classpath)
+            #expect(result.0 == 0, "\(result.1.map { $0.message })")
+        }
+    }
+
+    @Test
     func externalKotlinReceiverFunctionCallsMatchKotlinc() throws {
         try withWorkspace { root in
             let library = try externalReceiverLibraryJar(root)
