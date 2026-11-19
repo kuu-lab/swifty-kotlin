@@ -895,18 +895,89 @@ final class JVMClasspathIndex {
         return supertypeReference(name, childParams: child.classTypeParameterNames)
     }
 
+    private func coveredSuperclassReference(_ name: String, child: JVMClassInfo) -> String? {
+        guard let signature = child.genericSignature else { return nil }
+        let scalars = Array(signature)
+        var index = 0
+        if index < scalars.count, scalars[index] == "<" {
+            var depth = 0
+            while index < scalars.count {
+                if scalars[index] == "<" { depth += 1 }
+                else if scalars[index] == ">" {
+                    depth -= 1
+                    index += 1
+                    if depth == 0 { break }
+                    continue
+                }
+                index += 1
+            }
+            guard depth == 0 else { return nil }
+        }
+        guard index < scalars.count, scalars[index] == "L",
+              let parsed = signatureClassType(scalars, &index), parsed.binary == name
+        else { return nil }
+        return parsed.source
+    }
+
+    private func signatureClassType(_ scalars: [Character], _ index: inout Int) -> (binary: String, source: String)? {
+        guard index < scalars.count, scalars[index] == "L" else { return nil }
+        index += 1
+        let start = index
+        while index < scalars.count, scalars[index] != "<", scalars[index] != ";" { index += 1 }
+        let binary = String(scalars[start..<index])
+        guard !binary.isEmpty else { return nil }
+        var arguments: [String] = []
+        if index < scalars.count, scalars[index] == "<" {
+            index += 1
+            while index < scalars.count, scalars[index] != ">" {
+                if scalars[index] == "*" || scalars[index] == "+" || scalars[index] == "-" { return nil }
+                guard let argument = signatureTypeSource(scalars, &index) else { return nil }
+                arguments.append(argument)
+            }
+            guard index < scalars.count, scalars[index] == ">" else { return nil }
+            index += 1
+        }
+        guard index < scalars.count, scalars[index] == ";" else { return nil }
+        index += 1
+        let base = Self.dottedTypeName(binary)
+        return (binary, arguments.isEmpty ? base : base + "<" + arguments.joined(separator: ", ") + ">")
+    }
+
+    private func signatureTypeSource(_ scalars: [Character], _ index: inout Int) -> String? {
+        guard index < scalars.count else { return nil }
+        switch scalars[index] {
+        case "T":
+            index += 1
+            let start = index
+            while index < scalars.count, scalars[index] != ";" { index += 1 }
+            guard index < scalars.count else { return nil }
+            let name = String(scalars[start..<index])
+            index += 1
+            return JVMProgramBuilder.isIdentifier(name) ? name : nil
+        case "L":
+            return signatureClassType(scalars, &index)?.source
+        default:
+            return nil
+        }
+    }
+
     private func superclassReference(_ name: String, child: JVMClassInfo) -> String? {
-        if classes[name] == nil {
-            // Covered Kotlin superclass (bundled-stdlib source, no jar on the
-            // classpath): only constructors with a known arity can be called
-            // from the stub.
-            guard let argumentCount = Self.coveredSuperclassArgumentCounts[name],
-                  coveredSourceSupertype(name),
-                  let source = child.kotlinSupertypes[name.replacingOccurrences(of: "$", with: ".")]
+        // Covered Kotlin superclasses keep their Kotlin constructor instead of
+        // the placeholder no-argument constructor used by ordinary JVM stubs.
+        if let argumentCount = Self.coveredSuperclassArgumentCounts[name],
+           isCovered(name, covered: activeCoveredNames) {
+            let sourceName = name.replacingOccurrences(of: "$", with: ".")
+            guard let type = coveredSuperclassReference(name, child: child)
+                ?? child.kotlinSupertypes[sourceName]
+                ?? supertypeReference(name, child: child)
             else { return nil }
             let arguments = Array(repeating: "null!!", count: argumentCount).joined(separator: ", ")
-            return source + "(" + arguments + ")"
+            return type + "(" + arguments + ")"
         }
+        // Covered Kotlin superclass (bundled-stdlib source, no jar on the
+        // classpath): only constructors with a known arity can be called from
+        // the stub.
+        guard classes[name] != nil || !coveredSourceSupertype(name) else { return nil }
         guard let type = supertypeReference(name, childParams: child.classTypeParameterNames) else { return nil }
         // The covered class keeps its Kotlin constructor instead of the
         // placeholder no-argument constructor used by ordinary JVM stubs.
