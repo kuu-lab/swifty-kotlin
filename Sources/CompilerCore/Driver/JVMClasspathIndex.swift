@@ -466,7 +466,9 @@ final class JVMClasspathIndex {
             result.kotlinSuspendFunction = method.kotlinSuspendFunction
             result.isVarargs = method.isVarargs
             result.genericResultParameter = method.genericResultParameter
-            result.genericSignature = method.genericSignature
+            if method.owner.hasPrefix("java/") || method.owner.hasPrefix("javax/") {
+                result.genericSignature = method.genericSignature
+            }
             result.kotlinCollisionSourceName = method.kotlinCollisionSourceName
             result.kotlinFunction = method.kotlinFunction
             return result
