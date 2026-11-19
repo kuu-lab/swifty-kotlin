@@ -59,14 +59,14 @@ extension JVMClasspathIndex {
         let expectedMasks = (function.parameters.count + 31) / 32
             + (function.parameters.contains(where: \.hasDefault) ? 1 : 0)
         let masks = suffix.dropFirst()
-        return masks.count == expectedMasks && masks.allSatisfy { $0 == .int }
+        return masks.count == expectedMasks && masks.allSatisfy({ $0 == .int })
     }
 
-    func isComposeMemberCall(_ method: JVMForeignMethod, sourceParameterCount: Int) -> Bool {
+    func isComposeMemberCall(_ method: JVMForeignMethod, descriptorTypes: [JVMValueType]) -> Bool {
         guard let function = kotlinFunction(method) else { return false }
         let parameterCount = kotlinFunctionParameterCount(function)
         return isComposeMemberABI(method, function: function, parameterCount: parameterCount)
-            && function.parameters.count + (function.receiver == nil ? 0 : 1) == sourceParameterCount
+            && function.parameters.count + (function.receiver == nil ? 0 : 1) == descriptorTypes.count
     }
 
     func kotlinParameterDeclarations(_ parameters: [JVMKotlinParameterInfo], typeParameters: [Int: String]) -> [String] {
