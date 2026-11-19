@@ -735,9 +735,12 @@ extension ExprTypeChecker {
         let isRangeOperator = op == .rangeTo || op == .rangeUntil
         // Scalar ranges win only when the operand pair can form one (or a
         // concrete range candidate is viable). `1..Marker()` has no scalar
-        // range, so a user-defined generic `rangeTo` must remain visible.
+        // range, so a user-defined generic `rangeTo` must remain visible. Use
+        // the Nothing-peer-substituted operand types so `1.0..error(...)` still
+        // counts as a scalar pair.
         let isBuiltinScalarRangePair = isRangeOperator && lhsHasScalarRange
-            && ((sema.types.isSigned(lhs) && sema.types.isSigned(rhs)) || lhs == rhs)
+            && ((sema.types.isSigned(operatorReceiverType) && sema.types.isSigned(operatorArgumentType))
+                || operatorReceiverType == operatorArgumentType)
         let dropGenericRangeCandidatesWhenScalarRangeApplies = { (candidates: [SymbolID]) -> [SymbolID] in
             guard isRangeOperator, lhsHasScalarRange else {
                 return candidates
