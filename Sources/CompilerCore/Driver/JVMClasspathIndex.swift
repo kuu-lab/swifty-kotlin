@@ -2606,6 +2606,27 @@ final class JVMClasspathIndex {
             + parameters.joined(separator: ", ") + "): " + function.result + whereClause
     }
 
+    private func kotlinFunctionDeclaration(_ function: JVMKotlinFunctionInfo, owner: JVMClassInfo) -> String {
+        let typeParameters = (kotlinMetadata(owner)?.typeParameters ?? []) + function.typeParameters
+        let names = Dictionary(typeParameters.map { ($0.id, $0.name) }, uniquingKeysWith: { _, name in name })
+        let type = { (type: JVMKotlinType) in self.kotlinSourceType(type, parameters: names) }
+        let genericParameters = function.typeParameters.map { parameter in
+            let bound = parameter.bounds.first.map { ": " + type($0) } ?? ""
+            return "`\(parameter.name)`" + bound
+        }
+        let generics = genericParameters.isEmpty ? "" : "<" + genericParameters.joined(separator: ", ") + "> "
+        let parameters = kotlinParameterDeclarations(function.parameters, typeParameters: names)
+        let receiver: String
+        if let extensionType = function.receiver {
+            receiver = type(extensionType) + "."
+        } else { receiver = "" }
+        let operatorModifier = function.isOperator ? "operator " : ""
+        let infixModifier = function.isInfix ? "infix " : ""
+        let suspendModifier = function.isSuspend ? "suspend " : ""
+        return operatorModifier + infixModifier + suspendModifier
+            + "fun " + generics + receiver + "`\(function.name)`(" + parameters.joined(separator: ", ") + "): " + type(function.result)
+    }
+
     private func kotlinTypeParameterSyntax(
         _ parameters: [JVMKotlinFunction.TypeParameter]
     ) -> (generics: String, whereClause: String) {
