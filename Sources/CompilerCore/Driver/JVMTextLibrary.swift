@@ -463,6 +463,15 @@ extension JVMFunctionBuilder {
         guard let binding = program.sema.bindings.callBinding(for: id),
               program.inlineDeclarations[binding.chosenCallee] == nil,
               let entry = program.textLibraryMethods[binding.chosenCallee] else { return nil }
+        // Float/Double.toRawBits()/toBits() are @InlineOnly in kotlin-stdlib, so the
+        // kotlin.NumbersKt facade has no callable method. Lower them to the
+        // java.lang.Float/Double bit intrinsics, resolving the implicit receiver
+        // for receiver-less calls like `fun Double.bits() = toBits()`.
+        if let isRaw = stdlibBitReinterpretIsRaw(binding.chosenCallee, args: args),
+           let receiver = try receiverValue ?? receiver.map(requireValue) ?? implicitExtensionReceiver(id),
+           let emitted = try emitBitReinterpret(callee: binding.chosenCallee, receiver: receiver, isRaw: isRaw, id: id) {
+            return JVMIntrinsicResult(value: emitted)
+        }
         let method = entry.method
         if method.owner == "java/lang/Comparable", method.name == "compareTo", let receiver,
            case .memberCall = arena.expr(id), case let .nameRef(name, _) = arena.expr(receiver),
