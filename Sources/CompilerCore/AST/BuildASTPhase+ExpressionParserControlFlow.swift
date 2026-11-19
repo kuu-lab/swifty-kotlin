@@ -450,10 +450,17 @@ extension BuildASTPhase.ExpressionParser {
 
     private func whenBranchBodyConsumedCount(startIndex: Int, endIndex: Int, bodyEndOffset: Int) -> Int {
         var scan = startIndex
+        var depth = BuildASTPhase.BracketDepth()
         while scan < endIndex {
-            if tokens[scan].range.start.offset >= bodyEndOffset {
+            let token = tokens[scan]
+            // The assignment's source range ends at the value's last token,
+            // which can precede closing delimiters that belong to it (the `)`
+            // in `x = (20)`). Keep consuming while a bracket opened inside the
+            // body is still unclosed.
+            if token.range.start.offset >= bodyEndOffset, depth.isBracketBraceParenTopLevel {
                 break
             }
+            depth.track(token.kind)
             scan += 1
         }
         return scan - startIndex

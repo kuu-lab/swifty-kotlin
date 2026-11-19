@@ -71,6 +71,36 @@ extension JVMBackendTests {
                 println(x)
                 println(y)
             }
+            fun parenthesizedAssignment() {
+                var x = 0
+                when (1) {
+                    1 -> x = 1
+                    else -> x = (20)
+                }
+                println(x)
+                when (2) {
+                    1 -> x = 1
+                    else -> x = (20)
+                }
+                println(x)
+            }
+            fun mixedAssignmentOperators() {
+                var x = 0
+                when (1) {
+                    1 -> x = 10 else -> x += 20
+                }
+                println(x)
+                var y = 0
+                when (2) {
+                    1 -> y = 10 else -> y += 20
+                }
+                println(y)
+                var z = 0
+                when (1) {
+                    1 -> z += 10 else -> z = 20
+                }
+                println(z)
+            }
             fun main() {
                 println(blockThenElse(1))
                 println(blockThenElse(2))
@@ -84,8 +114,10 @@ extension JVMBackendTests {
                 ifBodyThenElse(2)
                 assignmentBodies()
                 expressionBeforeAssignmentEntry()
+                parenthesizedAssignment()
+                mixedAssignmentOperators()
             }
-            """, expected: "one\nother\ntrue\nfalse\none\nother\n10\n30\npositive\nfallback\n20\n30\n20\n10\n40\n0\n30\n", mode: mode, root: root)
+            """, expected: "one\nother\ntrue\nfalse\none\nother\n10\n30\npositive\nfallback\n20\n30\n20\n10\n40\n0\n30\n1\n20\n10\n20\n10\n", mode: mode, root: root)
         }
     }
 }
