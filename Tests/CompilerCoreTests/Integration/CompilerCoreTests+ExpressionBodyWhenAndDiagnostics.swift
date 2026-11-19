@@ -710,6 +710,25 @@ extension CompilerCoreTests {
                 is Int -> null
                 else -> null
             }
+
+        val step = 1
+        class Box<T>
+
+        fun stepBranch(value: Int): Int =
+            when (value) {
+                1 -> step
+                -1 -> 2
+                else -> 0
+            }
+
+        fun genericCastAssignment(value: Any): Any? {
+            var out: Any? = null
+            when (1) {
+                1 -> out = value as Box<*>
+                else -> out = null
+            }
+            return out
+        }
         """
 
         try withTemporaryFiles(contents: [source]) { paths in
