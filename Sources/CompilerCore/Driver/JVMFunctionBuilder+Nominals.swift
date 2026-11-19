@@ -58,6 +58,12 @@ extension JVMFunctionBuilder {
     func nominalValue(_ id: ExprID) throws -> JVMValue? {
         if let scalar = try scalarConstant(id) { return scalar }
         guard let symbol = program.sema.bindings.identifierSymbol(for: id) else { return nil }
+        if let unitClassSymbol = program.sema.types.unitClassSymbol, symbol == unitClassSymbol {
+            program.functionArities.insert(0)
+            let type: JVMValueType = .reference("kotlin/Unit", nullable: false), result = try value(type)
+            instructions.append(.getStatic(JVMField(owner: "kotlin/Unit", name: "INSTANCE", type: type, access: 0x19), result))
+            return result
+        }
         if let entry = program.sema.symbols.symbol(symbol) {
             let fqName = entry.fqName
             let knownNames = KnownCompilerNames(interner: context.interner)
