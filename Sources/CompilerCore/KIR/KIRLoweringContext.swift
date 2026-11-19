@@ -161,6 +161,12 @@ final class KIRLoweringContext {
     /// lowering so recursive nested-object passes do not emit duplicates.
     private var objectInitializerSymbols: Set<SymbolID> = []
 
+    /// Objects whose declarations are intentionally omitted from this module's
+    /// KIR output (currently bundled stdlib files skipped for `.kirDump`).
+    /// Guard calls for them must be dropped rather than resolved to a
+    /// same-module lazy initializer that will never be emitted.
+    private var objectLazyInitOmittedSymbols: Set<SymbolID> = []
+
     /// Maps a source-backed enum class to the guarded function that
     /// constructs its entries once (constructor arguments, body property
     /// initializers, `init` blocks, entry-body properties). Entry references
@@ -784,6 +790,14 @@ final class KIRLoweringContext {
         objectInitializerSymbols.contains(objectSymbol)
     }
 
+    func markObjectLazyInitOmitted(for objectSymbol: SymbolID) {
+        objectLazyInitOmittedSymbols.insert(objectSymbol)
+    }
+
+    func isObjectLazyInitOmitted(for objectSymbol: SymbolID) -> Bool {
+        objectLazyInitOmittedSymbols.contains(objectSymbol)
+    }
+
     func registerEnumLazyInit(for enumSymbol: SymbolID, symbol: SymbolID, name: InternedString) {
         enumLazyInitByOwner[enumSymbol] = (symbol, name)
     }
@@ -803,6 +817,7 @@ final class KIRLoweringContext {
         objectLazyInitBySymbol.removeAll(keepingCapacity: true)
         deferredObjectLazyInitSymbols.removeAll(keepingCapacity: true)
         objectInitializerSymbols.removeAll(keepingCapacity: true)
+        objectLazyInitOmittedSymbols.removeAll(keepingCapacity: true)
         enumLazyInitByOwner.removeAll(keepingCapacity: true)
         enumEntryStorageSlots.removeAll(keepingCapacity: true)
         powerAssertCaptureStack.removeAll(keepingCapacity: true)
