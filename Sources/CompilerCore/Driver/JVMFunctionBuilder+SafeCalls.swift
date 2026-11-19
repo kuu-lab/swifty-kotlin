@@ -8,7 +8,13 @@ extension JVMFunctionBuilder {
         guard args.isEmpty, let symbol = program.sema.symbols.symbol(callee),
               symbol.declSite.map({ context.sourceManager.origin(of: $0.start.file) != .user }) ?? true
         else { return nil }
-        switch context.interner.resolve(symbol.name) {
+        // Restrict to the bundled kotlin.* declarations by fqName: a same-named
+        // extension loaded from a classpath JAR (e.g. package ext) also carries a
+        // non-.user declSite origin, so the origin guard alone would misroute it
+        // to the java.lang intrinsic instead of the user's extension.
+        let fqName = symbol.fqName
+        guard fqName.count == 2, context.interner.resolve(fqName[0]) == "kotlin" else { return nil }
+        switch context.interner.resolve(fqName[1]) {
         case "toRawBits": return true
         case "toBits": return false
         default: return nil
