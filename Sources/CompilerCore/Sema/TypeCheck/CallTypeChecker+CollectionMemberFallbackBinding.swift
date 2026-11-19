@@ -1136,7 +1136,6 @@ extension CallTypeChecker {
         guard memberName == knownNames.addAll || memberName == knownNames.removeAll || memberName == knownNames.retainAll else {
             return nil
         }
-        let isMutableListReceiver = receiverFQName == knownNames.kotlinCollectionsMutableListFQName
         if isMutableSetReceiver || sema.requiresResolvedLibraryCalls, !safeCall, sema.types.nullability(of: receiverType) == .nullable {
             sema.diagnostics.error(
                 "KSWIFTK-SEMA-0026",
@@ -1214,24 +1213,18 @@ extension CallTypeChecker {
         guard let parameterID else {
             return nil
         }
-        // The native List/Set collection bridge expects a Collection. Keep the
-        // source Iterable overload for non-Collection iterables so ranges are
-        // materialized before reaching that bridge.
-        guard sema.requiresResolvedLibraryCalls
-                || !isMutableListReceiver
-                || memberName == knownNames.addAll
-                || parameterID == knownNames.iterable
-        else {
-            return nil
-        }
+        // Non-Collection arguments (Array, Sequence, Iterable) must bind the
+        // source extension overloads, which materialize the argument into a
+        // Collection before it reaches the native List/Set bridge (that bridge
+        // only accepts a Collection). MutableSet.addAll(Array) is the exception:
+        // it has a dedicated synthetic bridge, so keep it off the source path.
         guard sema.requiresResolvedLibraryCalls
                 || !isMutableSetReceiver
-                || memberName == knownNames.addAll
-                || parameterID == knownNames.iterable
+                || memberName != knownNames.addAll
+                || parameterID != knownNames.array
         else {
             return nil
         }
-        guard sema.requiresResolvedLibraryCalls || !isMutableSetReceiver || parameterID != knownNames.array else { return nil }
 
         let sourceFQName = knownNames.kotlinCollectionsPackage + [memberName]
         let candidate = sema.symbols.lookupAll(fqName: sourceFQName).first { candidate in
