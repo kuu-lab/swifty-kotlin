@@ -107,6 +107,27 @@ extension JVMClasspathIndex {
         }
     }
 
+    /// Binary names of every class a Kotlin metadata type can reference,
+    /// including generic arguments that JVM erasure drops from descriptors.
+    static func kotlinMetadataClassNames(_ type: JVMKotlinType, into names: inout Set<String>) {
+        switch type {
+        case .named(let name, let arguments, _):
+            names.insert(name)
+            for argument in arguments {
+                if let nested = argument.type { kotlinMetadataClassNames(nested, into: &names) }
+            }
+        case .parameter:
+            break
+        case .flexible(let lower, let upper):
+            kotlinMetadataClassNames(lower, into: &names)
+            kotlinMetadataClassNames(upper, into: &names)
+        case .function(let inputs, let result, let receiver, _, _, let context):
+            for input in inputs + context { kotlinMetadataClassNames(input, into: &names) }
+            kotlinMetadataClassNames(result, into: &names)
+            if let receiver { kotlinMetadataClassNames(receiver, into: &names) }
+        }
+    }
+
     private func kotlinErasure(_ type: JVMKotlinType, parameters: [JVMTypeParameter], boxed: Bool = false) -> String {
         switch type {
         case .named(let name, let arguments, let nullable):

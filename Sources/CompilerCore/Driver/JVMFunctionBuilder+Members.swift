@@ -186,7 +186,8 @@ extension JVMFunctionBuilder {
                     return JVMProperty(name: name, type: type, getter: getter, setter: nil, field: nil, modifiers: [.public])
                 }
                 let names: [String]
-                if info.flags & 0x2000 != 0 || (owner.hasPrefix("java/util/") && name == "size") {
+                if info.flags & 0x2000 != 0
+                    || (name == "size" && context.jvmImports?.isJavaCollectionOrMapClass(owner) == true) {
                     names = [name]
                 } else {
                     names = name.hasPrefix("is") && name.count > 2 ? [name, "get" + capital] : ["get" + capital]
@@ -436,9 +437,8 @@ extension JVMFunctionBuilder {
 }
 
 extension JVMProgramBuilder {
-    func emitAccessors(_ plan: JVMClassPlan, _ declaration: PropertyDecl, _ property: JVMProperty) throws -> [JVMFunction] {
-        let propertyID = plan.properties.first(where: { $0.1.range == declaration.range })?.0
-        let propertySymbol = propertyID.flatMap { sema.bindings.declSymbol(for: $0) }
+    func emitAccessors(_ plan: JVMClassPlan, _ propertyID: DeclID, _ declaration: PropertyDecl, _ property: JVMProperty) throws -> [JVMFunction] {
+        let propertySymbol = sema.bindings.declSymbol(for: propertyID)
         var accessorTypeParameters: [JVMTypeParameter] = []
         if !declaration.typeParams.isEmpty {
             guard let propertySymbol,
@@ -518,6 +518,12 @@ extension JVMProgramBuilder {
             if plan.isFacade { f.access = (f.isPrivate ? 2 : 1) | 8 | 16; f.isSynthetic = false }
             f.typeParameters = accessorTypeParameters
             let setter = f.reference.result == .unit
+            if let symbol = propertySymbol {
+                f.isSynchronized = try annotationRecords(for: symbol).contains {
+                    $0.annotationFQName == KnownCompilerAnnotation.jvmSynchronized.qualifiedName
+                        && $0.useSiteTarget == (setter ? "set" : "get")
+                }
+            }
             if declaration.receiverType != nil {
                 f.javaParameters.append(JVMMethodParameter("$this$" + property.name))
             }
