@@ -1607,25 +1607,36 @@ final class ControlFlowTypeChecker {
         if let finallyExpr {
             // Finally is always checked for side effects, but it does not participate in try-expr type inference.
             var finallyLocals = locals
+            let preFinallyReturnStateCounts = Dictionary(
+                uniqueKeysWithValues: ctx.lambdaReturnScopes.map { ($0.exprID, $0.returnLocalStates.count) }
+            )
             _ = driver.inferExpr(finallyExpr, ctx: ctx, locals: &finallyLocals, expectedType: nil, isStatementContext: true)
             locals = finallyLocals
             // Finally also runs on abrupt paths, so fold its definite
             // assignments into return states recorded inside this try;
             // otherwise callsInPlace definite assignment would reject code
-            // kotlinc accepts when the lambda returns from inside try.
-            for scope in ctx.lambdaReturnScopes {
-                let start = preTryReturnStateCounts[scope.exprID] ?? 0
-                guard scope.returnLocalStates.count > start else { continue }
-                for index in start..<scope.returnLocalStates.count {
-                    var state = scope.returnLocalStates[index]
-                    for (name, finallyLocal) in finallyLocals where finallyLocal.isInitialized {
-                        guard var entry = state[name], entry.symbol == finallyLocal.symbol,
-                              !entry.isInitialized
-                        else { continue }
-                        entry.isInitialized = true
-                        state[name] = entry
+            // kotlinc accepts when the lambda returns from inside try. A
+            // return inside finally itself completes the lambda before
+            // finally's remaining assignments, so no folding is sound then.
+            let finallyCompletedAbruptly = ctx.lambdaReturnScopes.contains { scope in
+                scope.returnLocalStates.count > (preFinallyReturnStateCounts[scope.exprID] ?? 0)
+            }
+            if !finallyCompletedAbruptly {
+                for scope in ctx.lambdaReturnScopes {
+                    let start = preTryReturnStateCounts[scope.exprID] ?? 0
+                    let end = preFinallyReturnStateCounts[scope.exprID] ?? start
+                    guard end > start else { continue }
+                    for index in start..<end {
+                        var state = scope.returnLocalStates[index]
+                        for (name, finallyLocal) in finallyLocals where finallyLocal.isInitialized {
+                            guard var entry = state[name], entry.symbol == finallyLocal.symbol,
+                                  !entry.isInitialized
+                            else { continue }
+                            entry.isInitialized = true
+                            state[name] = entry
+                        }
+                        scope.returnLocalStates[index] = state
                     }
-                    scope.returnLocalStates[index] = state
                 }
             }
         }

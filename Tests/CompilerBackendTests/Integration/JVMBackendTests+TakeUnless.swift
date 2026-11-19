@@ -78,8 +78,25 @@ extension JVMBackendTests {
             println(x)
         }
         """
+        // A return inside finally completes the lambda before finally's
+        // remaining assignments, so x may still be uninitialized.
+        let finallyReturn = """
+        fun main() {
+            var x: Int
+            "hi".takeUnless lit@{
+                try {
+                    if (it.isEmpty()) return@lit false
+                } finally {
+                    if (it.length > 1) return@lit true
+                    x = 5
+                }
+                true
+            }
+            println(x)
+        }
+        """
         try withWorkspace { root in
-            for source in [safeCall, earlyReturn] {
+            for source in [safeCall, earlyReturn, finallyReturn] {
                 let result = try compile(source, root: root, mode: mode)
                 try #require(result.0 != 0, "expected definite-assignment failure")
                 #expect(result.1.contains { $0.message.contains("must be initialized") })
