@@ -1012,9 +1012,19 @@ struct KotlinContractsEffectModelTests {
         import kotlin.contracts.ExperimentalExtendedContracts
         import kotlin.contracts.contract
 
+        class Effect { class Value }
+
         @OptIn(ExperimentalContracts::class, ExperimentalExtendedContracts::class)
         inline fun guarded(flag: Boolean, block: () -> Unit): Boolean {
             contract { flag holdsIn block }
+            return flag
+        }
+
+        // kotlinc resolves names in contract conditions with ordinary file
+        // scope: the user-defined Effect.Value must win over kotlin.contracts.Effect.
+        @OptIn(ExperimentalContracts::class)
+        inline fun guardedType(flag: Boolean, x: Any?): Boolean {
+            contract { returns(true) implies (x is Effect.Value) }
             return flag
         }
 

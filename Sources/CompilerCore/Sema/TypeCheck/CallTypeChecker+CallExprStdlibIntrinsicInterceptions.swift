@@ -198,14 +198,19 @@ extension CallTypeChecker {
         }
         guard !hasCallableUserOverload else { return nil }
 
-        // kotlinc resolves contract-description calls (`holdsIn`, ...) against
-        // the kotlin.contracts package without requiring an import; expose the
-        // package to the lambda body only, not to the surrounding file.
+        // kotlinc resolves the holdsIn contract-description call against
+        // kotlin.contracts.holdsIn even when the file declares its own
+        // top-level holdsIn, while every other name in the contract
+        // conditions (types like Effect, InvocationKind, ...) keeps ordinary
+        // file scope. Mirror that: expose only holdsIn to the lambda body.
         let contractsScope = WildcardImportScope(parent: ctx.scope, symbols: sema.symbols)
+        let holdsInName = interner.intern("holdsIn")
         contractsScope.addPackage([
             interner.intern("kotlin"),
             interner.intern("contracts"),
-        ]) { _ in true }
+        ]) { symbolID in
+            sema.symbols.symbol(symbolID)?.name == holdsInName
+        }
         var contractCtx = ctx.with(implicitReceiverType: builderType)
         contractCtx.scope = contractsScope
         _ = driver.inferExpr(
