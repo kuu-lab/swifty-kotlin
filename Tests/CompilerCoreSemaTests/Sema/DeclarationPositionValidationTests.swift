@@ -1904,6 +1904,18 @@ struct DeclarationPositionValidationTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
+    @Test func publicProtectedPropertyInAnonymousObjectIsRejected() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            open class Base
+            class Holder {
+                val adapter = object : Base() {
+                    public protected val value: Int = 1
+                }
+            }
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0402", in: ctx)
+    }
+
     @Test func constructorInsideObjectIsRejected() throws {
         let ctx = try semaContext(for: """
             object O { constructor() }
