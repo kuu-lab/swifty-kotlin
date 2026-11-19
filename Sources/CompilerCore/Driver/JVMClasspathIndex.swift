@@ -1369,6 +1369,8 @@ final class JVMClasspathIndex {
                     && !(info.name == "androidx/compose/runtime/ComposablesKt" && $0.source.name == "currentComposer"
                         && $0.getter.name == "getCurrentComposer" && $0.getter.descriptor == "(L\(JVMCompose.composer);I)L\(JVMCompose.composer);")
             }
+            let metadata = kotlinMetadata(info)
+            let typeAliases = metadata?.typeAliases ?? []
             let isFileFacade = info.isKotlinFileFacade ?? (short.hasSuffix("Kt") && !info.isAnnotation)
             if info.flags & 0x4000 != 0 {
                 source += enumDeclaration(info, name: short)
@@ -1387,16 +1389,20 @@ final class JVMClasspathIndex {
             } else if isFileFacade {
                 // The facade class itself stays importable: `import api.HelloKt`
                 // resolves the nominal and `HelloKt.member(...)` reaches its
-                // statics through the companion, matching Kotlin/JVM.
-                source += "class `\(short)` private constructor() {\n"
-                if !statics.isEmpty {
-                    source += "companion object {\n"
-                    for method in statics {
-                        source += "external " + functionDeclaration(method, asFacadeMember: true) + "\n"
+                // statics through the companion, matching Kotlin/JVM. A public
+                // typealias with the facade name owns that classifier instead.
+                let hasFacadeNameAlias = typeAliases.contains { $0.isPublic && $0.name == short }
+                if !hasFacadeNameAlias {
+                    source += "class `\(short)` private constructor() {\n"
+                    if !statics.isEmpty {
+                        source += "companion object {\n"
+                        for method in statics {
+                            source += "external " + functionDeclaration(method, asFacadeMember: true) + "\n"
+                        }
+                        source += "}\n"
                     }
                     source += "}\n"
                 }
-                source += "}\n"
                 for method in statics {
                     if let suspend = method.kotlinSuspendFunction, method.kotlinFunction == nil {
                         source += "external " + functionDeclaration(method, asExtension: suspend.receiverIsNullable != nil) + "\n"
@@ -1426,6 +1432,11 @@ final class JVMClasspathIndex {
                         ? "@androidx.compose.runtime.Composable" + (isReadOnly ? " @androidx.compose.runtime.ReadOnlyComposable" : "") + " "
                         : ""
                     source += "val \(receiver)`\(property.name)`: \(property.result) \(annotation)get() = null!!\n"
+                }
+                for alias in typeAliases {
+                    if let declaration = typeAliasDeclaration(alias, metadata: metadata) {
+                        source += declaration
+                    }
                 }
             } else {
                 if info.flags & 0x2000 != 0 {
@@ -1476,7 +1487,12 @@ final class JVMClasspathIndex {
                 }.compactMap { supertypeReference($0, child: info) }
                 if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
                 source += " {\n"
-                source += memberDeclarations(info: info, members: info.methods, allowsCompanion: !isObjectStub, projectsKotlinObject: isObjectStub)
+                source += memberDeclarations(info: info, members: info.methods, allowsCompanion: !isNonCancellable, projectsKotlinObject: isObjectStub)
+                for alias in typeAliases {
+                    if let declaration = typeAliasDeclaration(alias, metadata: metadata) {
+                        source += declaration
+                    }
+                }
                 if info.name == Self.compositionLocal, let getter = compositionLocalGetter,
                    let type = info.classTypeParameterNames.first {
                     let readonly = getter.annotations.contains {
@@ -2204,6 +2220,11 @@ final class JVMClasspathIndex {
                     for method in info.methods where method.isStatic && isExposed(method) {
                         lazyTopLevelFunctionsByPackage[package, default: []].append((method.sourceName, name))
                     }
+                    if let metadata = kotlinMetadata(info), metadata.isPackage {
+                        for alias in metadata.typeAliases where alias.isPublic {
+                            lazyTopLevelByPackage[package, default: []].append((alias.name, name))
+                        }
+                    }
                 }
             }
             // Imports name Kotlin callables by package, not their JVM facade.
@@ -2301,6 +2322,9 @@ final class JVMClasspathIndex {
                 for entry in lazyTopLevelFunctionsByPackage[package] ?? [] where entry.member == member {
                     matched.insert(entry.name)
                 }
+                for entry in lazyTopLevelByPackage[package] ?? [] where entry.short == member {
+                    matched.insert(entry.name)
+                }
             }
             identifierMatches(filePackage, identifiers: identifiers, packages: starPackages, includeCallables: true)
         }
@@ -2355,6 +2379,13 @@ final class JVMClasspathIndex {
             }
             for (property, _) in info.kotlinTopLevelProperties {
                 markSourceTypes([property.result] + [property.receiver].compactMap { $0 })
+            }
+            if let metadata = kotlinMetadata(info) {
+                for alias in metadata.typeAliases where alias.isPublic || alias.isProtected {
+                    if let type = typeAliasExpandedSource(alias, metadata: metadata) {
+                        markSourceTypes([type.replacingOccurrences(of: "`", with: "")])
+                    }
+                }
             }
             markSourceTypes(info.kotlinMemberProperties.values.map(\.sourceType))
             markSourceTypes(Array(info.kotlinParameterizedSupertypes.values))
@@ -2633,6 +2664,27 @@ final class JVMClasspathIndex {
         let suspendModifier = function.isSuspend ? "suspend " : ""
         return operatorModifier + infixModifier + suspendModifier
             + "fun " + generics + receiver + "`\(function.name)`(" + parameters.joined(separator: ", ") + "): " + type(function.result)
+    }
+
+    private func typeAliasExpandedSource(_ alias: JVMKotlinTypeAliasInfo, metadata: JVMKotlinClassMetadata?) -> String? {
+        guard let expanded = alias.expandedType ?? alias.underlyingType else { return nil }
+        let typeParameters = (metadata?.typeParameters ?? []) + alias.typeParameters
+        let names = Dictionary(typeParameters.map { ($0.id, $0.name) }, uniquingKeysWith: { _, name in name })
+        return kotlinSourceType(expanded, parameters: names)
+    }
+
+    private func typeAliasDeclaration(_ alias: JVMKotlinTypeAliasInfo, metadata: JVMKotlinClassMetadata?) -> String? {
+        guard alias.isPublic || (alias.isProtected && metadata?.isPackage == false),
+              let expanded = typeAliasExpandedSource(alias, metadata: metadata) else { return nil }
+        let parameters = alias.typeParameters.map { parameter in
+            let typeParameters = (metadata?.typeParameters ?? []) + alias.typeParameters
+            let names = Dictionary(typeParameters.map { ($0.id, $0.name) }, uniquingKeysWith: { _, name in name })
+            let bound = parameter.bounds.first.map { ": " + kotlinSourceType($0, parameters: names) } ?? ""
+            return "`\(parameter.name)`" + bound
+        }.joined(separator: ", ")
+        let visibility = alias.isProtected && metadata?.isPackage == false ? "protected " : ""
+        return visibility + "typealias `\(alias.name)`" + (parameters.isEmpty ? "" : "<\(parameters)>")
+            + " = " + expanded + "\n"
     }
 
     private func parameters(_ method: JVMForeignMethod, droppingReceiver: Bool = false, javaTypes: [String]? = nil, classTypeVariables: (parameters: [Int: String], result: String?)? = nil) -> String {
