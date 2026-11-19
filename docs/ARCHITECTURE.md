@@ -429,7 +429,7 @@ CI は 2 つの workflow に分かれる。`.github/workflows/ci.yml` は PR と
 | ジョブ | 内容 |
 |---|---|
 | `repository-checks` | Action pin 検証、`TODO.md` タスク ID 重複、fuzzer キーワード、テスト並列度設定、npm ci 限定チェック、Kotlin compiler archive 検証ポリシー、`jscpd --config .jscpd-ci.json`（閾値超過で失敗） |
-| `swift-checks` | 2 レーンの matrix（`Build all targets` / `Run SmokeTests`）。両方 `Scripts/build_swift_tests.sh` でテストバンドルをビルドし、SmokeTests 側だけ `KSWIFTK_CI_SMOKE_ONLY=1` と `SWIFT_SMOKE_FILTER` で `CompilerCoreTests.SmokeTests` を実行する |
+| `swift-checks` | 単一ジョブ `Build all targets`。`Scripts/build_swift_tests.sh` で全ターゲットのテストバンドルをビルドするだけで、テストは実行しない（`SmokeTests` は PR ゲートから外れ、nightly の `verify-core` shard 1 で実行する） |
 | `ci-gate` | 上記全ジョブの成功を集約する。ジョブを増減しても ruleset の変更は不要 |
 
 `nightly-full.yml`:
@@ -456,7 +456,7 @@ macOS runner 上での検証は `nightly-full.yml` の `kotlinx-io-reference`（
 - [`setup-self-hosted`](../.github/actions/setup-self-hosted/action.yml) — Linux / macOS ランナーの共通準備
 - [`setup-swift`](../.github/actions/setup-swift/action.yml) — 指定バージョン（6.3）の Swift ツールチェーンを用意し、バージョン一致を検証
 - [`setup-llvm`](../.github/actions/setup-llvm/action.yml) — `llvm-dev` を導入し `llvm-config` から `KSWIFTK_LLVM_DYLIB` 等を導出（`verify-self-hosted` のみ）
-- [`setup-swiftpm-cache`](../.github/actions/setup-swiftpm-cache/action.yml) — `.build` を actions/cache から復元。`swift-checks`（ci.yml）と `build-debug-tests` / `build-release-kswiftc`（nightly-full.yml）が `save: "false"`（restore-only）で使用。全ターゲット用は `fast`、SmokeTests 用は `fast-smoke` のキーを使う
+- [`setup-swiftpm-cache`](../.github/actions/setup-swiftpm-cache/action.yml) — `.build` を actions/cache から復元。`swift-checks`（ci.yml）と `build-debug-tests` / `build-release-kswiftc`（nightly-full.yml）が `save: "false"`（restore-only）で使用し、バリアントごとに `fast` / `release-kswiftc` のキーを使う
 
 `setup-llvm` で LLVM を明示的に導入するのは `verify-self-hosted` と `mutation-fuzzer`（`kotlinx-io-apple-candidate` は brew の LLVM を `KSWIFTK_LLVM_DYLIB` に設定する）。`verify-diff` / `verify-jvm-diff` / `verify-wasm` は `setup-llvm` を使わず、release `kswiftc` が実行時に `KSWIFTK_LLVM_DYLIB` または既定候補パスから `libLLVM` を `dlopen` する（§2。WASM エミッタは LLVM 非依存）。
 
