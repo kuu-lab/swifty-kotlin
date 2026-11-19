@@ -46,6 +46,19 @@ extension JVMBackendTests {
                 true
             }
             println(w)
+            // An assignment before a conditional return in finally still
+            // counts on every path.
+            var v: Int
+            "hey".takeUnless lit2@{
+                try {
+                    if (it.isEmpty()) return@lit2 false
+                } finally {
+                    v = 5
+                    if (it.length > 1) return@lit2 true
+                }
+                true
+            }
+            println(v)
         }
         """
         try withWorkspace { root in
@@ -53,7 +66,7 @@ extension JVMBackendTests {
             try #require(result.0 == 0, "\(result.1.map(\.message))")
             let artifact = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path
             let execution = try java(["-cp", artifact, "HelloKt"])
-            #expect(execution.stdout == "null\nhi\nnull\ntrue\n-1\n5\n7\n3\n9\n")
+            #expect(execution.stdout == "null\nhi\nnull\ntrue\n-1\n5\n7\n3\n9\n5\n")
             #expect(execution.stderr.isEmpty)
         }
     }
