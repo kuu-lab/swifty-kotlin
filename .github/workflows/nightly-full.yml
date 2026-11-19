@@ -1137,7 +1137,9 @@ jobs:
           test -d .build
           mkdir -p "$SWIFT_CAS_PATH"
       - name: Run dead-code audit
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p "$RUNNER_TEMP/nightly-audits/dead-code"
           bash Scripts/dead_code_audit.sh \
             --self-test \
