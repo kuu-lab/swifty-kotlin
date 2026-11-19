@@ -2184,7 +2184,7 @@ final class JVMClasspathIndex {
                 markSourceTypes([property.result] + [property.receiver].compactMap { $0 })
             }
             if let metadata = kotlinMetadata(info) {
-                for alias in metadata.typeAliases where alias.isPublic {
+                for alias in metadata.typeAliases where alias.isPublic || alias.isProtected {
                     if let type = typeAliasExpandedSource(alias, metadata: metadata) {
                         markSourceTypes([type.replacingOccurrences(of: "`", with: "")])
                     }
@@ -2367,14 +2367,16 @@ final class JVMClasspathIndex {
     }
 
     private func typeAliasDeclaration(_ alias: JVMKotlinTypeAliasInfo, metadata: JVMKotlinClassMetadata?) -> String? {
-        guard alias.isPublic, let expanded = typeAliasExpandedSource(alias, metadata: metadata) else { return nil }
+        guard alias.isPublic || (alias.isProtected && metadata?.isPackage == false),
+              let expanded = typeAliasExpandedSource(alias, metadata: metadata) else { return nil }
         let parameters = alias.typeParameters.map { parameter in
             let typeParameters = (metadata?.typeParameters ?? []) + alias.typeParameters
             let names = Dictionary(typeParameters.map { ($0.id, $0.name) }, uniquingKeysWith: { _, name in name })
             let bound = parameter.bounds.first.map { ": " + kotlinSourceType($0, parameters: names) } ?? ""
             return "`\(parameter.name)`" + bound
         }.joined(separator: ", ")
-        return "typealias `\(alias.name)`" + (parameters.isEmpty ? "" : "<\(parameters)>")
+        let visibility = alias.isProtected && metadata?.isPackage == false ? "protected " : ""
+        return visibility + "typealias `\(alias.name)`" + (parameters.isEmpty ? "" : "<\(parameters)>")
             + " = " + expanded + "\n"
     }
 

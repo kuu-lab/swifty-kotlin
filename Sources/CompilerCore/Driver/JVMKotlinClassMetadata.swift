@@ -52,6 +52,7 @@ struct JVMKotlinTypeAliasInfo {
     let underlyingType: JVMKotlinType?
     let expandedType: JVMKotlinType?
     let isPublic: Bool
+    let isProtected: Bool
 }
 
 /// Kotlin's JVM annotation stores a length-prefixed string table followed by
@@ -112,7 +113,8 @@ extension JVMKotlinClassMetadata {
             return JVMKotlinTypeAliasInfo(
                 name: name, typeParameters: typeParameters,
                 underlyingType: underlyingType, expandedType: expandedType,
-                isPublic: (flags >> 1) & 7 == 3
+                isPublic: (flags >> 1) & 7 == 3,
+                isProtected: (flags >> 1) & 7 == 2
             )
         }
         return Self(classFlags: isClass ? message.integer(1) ?? 6 : 0,

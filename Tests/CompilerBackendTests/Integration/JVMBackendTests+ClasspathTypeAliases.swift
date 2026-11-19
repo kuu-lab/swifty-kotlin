@@ -32,7 +32,14 @@ extension JVMBackendTests {
 
         fun collisionValue(): Int = 3
         """.write(to: root.appendingPathComponent("Collision.kt"), atomically: true, encoding: .utf8)
-        _ = try jvmTool("kotlinc", ["Bitmap.kt", "Collision.kt", "-cp", classes.path, "-d", "coil-bitmap.jar"], root: root)
+        try """
+        package coil3
+
+        open class ProtectedBase {
+            protected typealias Alias = fixture.Target
+        }
+        """.write(to: root.appendingPathComponent("Protected.kt"), atomically: true, encoding: .utf8)
+        _ = try jvmTool("kotlinc", ["Bitmap.kt", "Collision.kt", "Protected.kt", "-cp", classes.path, "-d", "coil-bitmap.jar"], root: root)
         return (root.appendingPathComponent("coil-bitmap.jar"), classes)
     }
 
@@ -84,6 +91,16 @@ extension JVMBackendTests {
             fun main() { println(collisionIsNull(null)); println(collisionValue()) }
             """, root: root, mode: .jvmJar, classpath: classpath)
             try #require(collision.0 == 0, "\(collision.1.map(\.message))")
+
+            let protectedAlias = try compile("""
+            import coil3.ProtectedBase
+
+            class ConsumerSub : ProtectedBase() {
+                fun check(value: ProtectedBase.Alias?): Boolean = value == null
+            }
+            fun main() { println(ConsumerSub().check(null)) }
+            """, root: root, mode: .jvmJar, classpath: classpath)
+            try #require(protectedAlias.0 == 0, "\(protectedAlias.1.map(\.message))")
 
             let missing = try compile("""
             import coil3.Missing
