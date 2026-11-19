@@ -133,8 +133,7 @@ final class JVMProgramBuilder {
         return try JVMClasspathIndex.type(actual, sema: sema, ctx: context)
     }
     func parameterType(_ id: TypeID) throws -> JVMValueType {
-        let value = try type(id)
-        return value == .unit ? .reference("kotlin/Unit", nullable: false) : value
+        try type(id).withBoxedUnit
     }
     func hasSourceRangeOperator(_ id: ExprID) -> Bool {
         if let symbol = sema.bindings.callBinding(for: id)?.chosenCallee,
@@ -849,10 +848,14 @@ final class JVMFunctionBuilder {
             {
                 throw fail("Unsupported JVM labeled super call to an outer class.", id)
             }
-            if case .thisRef = expr, let symbol = program.sema.bindings.identifierSymbol(for: id), let receiver = contextualReceivers[symbol] { return try convert(receiver, to: program.expressionType(id)) }
-            if case .thisRef = expr, let extensionValue { return try convert(extensionValue, to: program.expressionType(id)) }
+            if case .thisRef = expr {
+                let bound = program.sema.bindings.identifierSymbol(for: id).flatMap { contextualReceivers[$0] }
+                if let receiver = bound ?? extensionValue {
+                    return try convert(receiver, to: program.expressionType(id).withBoxedUnit)
+                }
+            }
             guard !beforeDelegation, let thisValue else { throw fail("JVM this/super requires an initialized instance.", id) }
-            if case .thisRef = expr { return try convert(thisValue, to: program.expressionType(id)) }
+            if case .thisRef = expr { return try convert(thisValue, to: program.expressionType(id).withBoxedUnit) }
             return thisValue
         case let .nameRef(name, _):
             if let composer = try readCurrentComposer(id) { return composer }
