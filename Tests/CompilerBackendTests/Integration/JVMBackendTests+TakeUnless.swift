@@ -35,6 +35,30 @@ extension JVMBackendTests {
             var z: Int
             "hey".takeUnless zz@{ z = 3; return@zz true }
             println(z)
+            // finally runs on the return path too, so its assignment counts.
+            var w: Int
+            "yo".takeUnless lit@{
+                try {
+                    if (it.isEmpty()) return@lit false
+                } finally {
+                    w = 9
+                }
+                true
+            }
+            println(w)
+            // An assignment before a conditional return in finally still
+            // counts on every path.
+            var v: Int
+            "hey".takeUnless lit2@{
+                try {
+                    if (it.isEmpty()) return@lit2 false
+                } finally {
+                    v = 5
+                    if (it.length > 1) return@lit2 true
+                }
+                true
+            }
+            println(v)
         }
         """
         try withWorkspace { root in
@@ -42,8 +66,36 @@ extension JVMBackendTests {
             try #require(result.0 == 0, "\(result.1.map(\.message))")
             let artifact = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path
             let execution = try java(["-cp", artifact, "HelloKt"])
-            #expect(execution.stdout == "null\nhi\nnull\ntrue\n-1\n5\n7\n3\n")
+            #expect(execution.stdout == "null\nhi\nnull\ntrue\n-1\n5\n7\n3\n9\n5\n")
             #expect(execution.stderr.isEmpty)
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func contractLambdaReturnInsideTryFinallyKeepsDefiniteAssignment(mode: EmitMode) throws {
+        // buildList ships a callsInPlace(EXACTLY_ONCE) contract on master. A
+        // labeled return inside try-with-finally must keep master's
+        // fall-through definite-assignment behavior: the return-path tracking
+        // added for takeUnless cannot see finally's effects and must not
+        // reject this valid program. Compile-only: the JVM test artifact does
+        // not bundle kotlin.collections.CollectionsKt for execution.
+        let source = """
+        fun main() {
+            var x: Int
+            buildList {
+                try {
+                    add(1)
+                    return@buildList
+                } finally {
+                    x = 5
+                }
+            }
+            println(x)
+        }
+        """
+        try withWorkspace { root in
+            let result = try compile(source, root: root, mode: mode)
+            #expect(result.0 == 0, "\(result.1.map(\.message))")
         }
     }
 
