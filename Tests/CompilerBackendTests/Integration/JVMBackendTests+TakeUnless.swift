@@ -72,6 +72,37 @@ extension JVMBackendTests {
     }
 
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func takeUnlessEarlyReturnInsideTryReadsFinallyAssignment(mode: EmitMode) throws {
+        // The empty receiver takes the labeled return inside try, so this
+        // exercises the early-return path at runtime: finally still assigns
+        // and the read afterwards observes it. Stock kotlinc prints a blank
+        // line then 11; kswiftc must produce the same output.
+        let source = """
+        fun main() {
+            var e: Int
+            val r = "".takeUnless lit@{
+                try {
+                    if (it.isEmpty()) return@lit false
+                } finally {
+                    e = 11
+                }
+                true
+            }
+            println(r)
+            println(e)
+        }
+        """
+        try withWorkspace { root in
+            let result = try compile(source, root: root, mode: mode)
+            try #require(result.0 == 0, "\(result.1.map(\.message))")
+            let artifact = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path
+            let execution = try java(["-cp", artifact, "HelloKt"])
+            #expect(execution.stdout == "\n11\n")
+            #expect(execution.stderr.isEmpty)
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func contractLambdaReturnInsideTryFinallyKeepsDefiniteAssignment(mode: EmitMode) throws {
         // buildList ships a callsInPlace(EXACTLY_ONCE) contract on master. A
         // labeled return inside try-with-finally must keep master's
