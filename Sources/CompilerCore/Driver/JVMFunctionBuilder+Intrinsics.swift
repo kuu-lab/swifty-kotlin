@@ -539,7 +539,7 @@ extension JVMFunctionBuilder {
             // below would miscompile the call (e.g. Collection.removeAll for
             // MutableCollection.removeAll(Array)). Members that keep bespoke
             // intrinsic lowering for their extension callees stay on this path.
-            if !["filterKeys", "filterValues", "mapKeys", "mapValues", "getOrElse", "getOrPut"].contains(member),
+            if !["filterKeys", "filterValues", "mapKeys", "mapValues", "getOrElse", "getOrPut", "forEach"].contains(member),
                collectionCallIsExtension(id) {
                 return nil
             }
@@ -550,6 +550,42 @@ extension JVMFunctionBuilder {
             }
             let source = try convert(requireValue(receiverID), to: .reference(owner, nullable: false))
             let result = try program.expressionType(id)
+            if member == "forEach", owner == "java/util/Map" {
+                guard args.count == 1, !args[0].isSpread,
+                      let signature = functionType(args[0].expr),
+                      signature.params.count == 1 || signature.params.count == 2
+                else { throw fail("JVM Map forEach requires a callback.", id) }
+                // Evaluate the callback argument before creating the iterator so a
+                // non-literal callback's side effects happen before iteration, matching
+                // kotlinc's argument-before-body order. A lambda literal is captured
+                // before it is lowered as a closure so a non-local return can inline into
+                // the enclosing function; the two-argument (K, V) overload is not inline
+                // in Kotlin, so it keeps the closure path and rejects a non-local return.
+                let inlined: InlineLambda? = {
+                    guard signature.params.count == 1, case .lambdaLiteral = arena.expr(args[0].expr) else { return nil }
+                    return InlineLambda(id: args[0].expr, scopes: scopes, dispatch: thisValue, receiver: extensionValue, contexts: contextualReceivers, returns: inlineReturns, arguments: inlineArguments, lexicalLambda: lambdaID, stack: inlineStack)
+                }()
+                let callback = inlined == nil ? try requireValue(args[0].expr) : nil
+                let entries = try jdkCall("java/util/Map", "entrySet", [], .reference("java/util/Set", nullable: false), receiver: source, interface: true)!
+                let iterator = try jdkCall("java/lang/Iterable", "iterator", [], .reference("java/util/Iterator", nullable: false), receiver: entries, interface: true)!
+                let test = label(), end = label()
+                mark(test)
+                let hasNext = try jdkCall("java/util/Iterator", "hasNext", [], .boolean, receiver: iterator, interface: true)!
+                instructions.append(.jumpIfFalse(hasNext, end))
+                let entry = try jdkCall("java/util/Iterator", "next", [], object, receiver: iterator, interface: true)!
+                if signature.params.count == 2 {
+                    let key = try jdkCall("java/util/Map$Entry", "getKey", [], object, receiver: entry, interface: true)!
+                    let value = try jdkCall("java/util/Map$Entry", "getValue", [], object, receiver: entry, interface: true)!
+                    _ = try invoke(callback!, signature: signature, arguments: [key, value], resultType: .unit)
+                } else if let inlined {
+                    _ = try expandLambda(inlined, values: [try convert(entry, to: program.type(signature.params[0]))], id: id)
+                } else {
+                    _ = try invoke(callback!, signature: signature, arguments: [entry], resultType: .unit)
+                }
+                if !terminated { jump(test) }
+                mark(end)
+                return JVMIntrinsicResult(value: nil)
+            }
             var values: [JVMValue] = []
             for arg in args { values.append(try requireValue(arg.expr)) }
             let parameters: [JVMValueType], returns: JVMValueType, actual: String
