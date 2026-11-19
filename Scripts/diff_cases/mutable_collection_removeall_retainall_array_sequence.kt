@@ -25,6 +25,14 @@ fun main() {
     println(retainSetSequence.retainAll(sequenceOf(2, 4)))
     println(retainSetSequence)
 
+    val removeSetArray = mutableSetOf(1, 2, 3, 4)
+    println(removeSetArray.removeAll(arrayOf(2, 4)))
+    println(removeSetArray)
+
+    val retainSetArray = mutableSetOf(1, 2, 3, 4)
+    println(retainSetArray.retainAll(arrayOf(2, 4)))
+    println(retainSetArray)
+
     val retainEmptyArray = mutableListOf(1, 2, 3)
     println(retainEmptyArray.retainAll(emptyArray<Int>()))
     println(retainEmptyArray)
