@@ -1140,8 +1140,8 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/nightly-audits/dead-code"
           bash Scripts/dead_code_audit.sh \
-            --output-dir "$RUNNER_TEMP/nightly-audits/dead-code" \
-            --verbose | tee "$RUNNER_TEMP/nightly-audits/dead-code-summary.txt"
+            --self-test \
+            --output-dir "$RUNNER_TEMP/nightly-audits/dead-code" | tee "$RUNNER_TEMP/nightly-audits/dead-code-summary.txt"
       - name: Run fiction audit
         env:
           DUMP_SURFACE: "1"
