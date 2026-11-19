@@ -119,7 +119,6 @@ jobs:
     timeout-minutes: 60
     env:
       KSWIFTK_CI_FAST_BUILD: "1"
-      KSWIFTK_CI_SMOKE_ONLY: "0"
       SWIFT_BUILD_SYSTEM: native
       SWIFT_ENABLE_COMPILE_CACHE: "1"
       SWIFT_ENABLE_CACHE_REMARKS: "1"
@@ -164,7 +163,7 @@ jobs:
             echo '('
             echo 'set -e'
             echo 'worker_count="$(nproc)"'
-            echo "export KSWIFTK_CI_SMOKE_ONLY=$KSWIFTK_CI_SMOKE_ONLY KSWIFTK_OPTIMIZE_COMPILER_CORE=1"
+            echo 'export KSWIFTK_OPTIMIZE_COMPILER_CORE=1'
             echo 'export KSWIFTK_CI_FAST_BUILD=1 SWIFT_BUILD_SYSTEM=native SWIFT_ENABLE_COMPILE_CACHE=1 SWIFT_ENABLE_CACHE_REMARKS=1'
             echo 'export SWIFT_CAS_PATH="$PWD/.build/out/CompilationCache.noindex"'
             echo "bash Scripts/build_swift_tests.sh -j \"\$worker_count\" $SWIFT_XSWIFTC_FLAGS"
