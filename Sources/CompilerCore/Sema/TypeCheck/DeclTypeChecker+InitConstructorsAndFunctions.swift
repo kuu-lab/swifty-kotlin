@@ -596,6 +596,17 @@ extension DeclTypeChecker {
                     range: ctor.range
                 )
             }
+            if hasPrimaryConstructor,
+               let delegation = ctor.delegationCall,
+               delegation.kind == .super_,
+               !ownerIsExpectDeclaration
+            {
+                sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0054",
+                    "Primary constructor call expected.",
+                    range: delegation.range
+                )
+            }
 
             typeCheckConstructorDelegation(
                 ctor: ctor,

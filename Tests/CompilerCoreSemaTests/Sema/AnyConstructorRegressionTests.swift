@@ -264,6 +264,26 @@ struct AnyConstructorRegressionTests {
     }
 
     @Test
+    func primaryConstructorRejectsSuperDelegation() throws {
+        let source = """
+        package ksp805
+
+        class Foo(val text: String) {
+            constructor() : super()
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.contains { $0.code == "KSWIFTK-SEMA-0054" && $0.message.contains("Primary constructor call expected") },
+            "Primary constructor should reject super() delegation: \(errors)"
+        )
+    }
+
+    @Test
     func explicitAnyConstructorRemainsAValidDelegationTarget() throws {
         let source = """
         package ksp805

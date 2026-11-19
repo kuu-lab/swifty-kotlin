@@ -132,6 +132,28 @@ struct LocalClassSecondarySuperConstructorTests {
         #expect(genericBinding.substitutedTypeArguments == [sema.types.stringType])
     }
 
+    @Test
+    func localPrimaryConstructorRejectsSuperDelegation() throws {
+        let ctx = try makeContext(
+            """
+            fun box(): String {
+                class Local(val text: String) {
+                    constructor() : super()
+                }
+                return Local("OK").text
+            }
+            """,
+            useLibrary: false
+        )
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.contains { $0.code == "KSWIFTK-SEMA-0054" && $0.message.contains("Primary constructor call expected") },
+            "Local primary constructor should reject super() delegation: \(errors)"
+        )
+    }
+
     private func makeContext(_ source: String, useLibrary: Bool) throws -> CompilationContext {
         if useLibrary {
             TestStdlibCache.shared.prepare()
