@@ -46,3 +46,15 @@ public inline fun <K, V, R> Map<K, V>.mapValues(transform: (Map.Entry<K, V>) -> 
     }
     return result
 }
+
+public inline fun <K, V> Map<K, V>.forEach(action: (Map.Entry<K, V>) -> Unit) {
+    for (entry in this.entries) {
+        action(entry)
+    }
+}
+
+public inline fun <K, V> Map<K, V>.forEach(action: (K, V) -> Unit) {
+    for (entry in this.entries) {
+        action(entry.key, entry.value)
+    }
+}

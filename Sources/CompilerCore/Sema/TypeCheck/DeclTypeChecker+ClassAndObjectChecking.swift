@@ -815,6 +815,53 @@ extension DeclTypeChecker {
         }
     }
 
+    /// Objects are static: a nested or companion object cannot call the
+    /// enclosing class's instance members. Keep the parent's nested
+    /// classifiers visible, but reparent the object's scope past the class
+    /// member scope so an unrelated member name cannot hide top-level
+    /// overloads.
+    private func enclosingClassifierScopeForObject(
+        ownerSymbol: SymbolID,
+        ctx: TypeInferenceContext
+    ) -> Scope? {
+        let sema = ctx.sema
+        guard let owner = sema.symbols.symbol(ownerSymbol), owner.kind == .object,
+              let parentSymbol = sema.symbols.parentSymbol(for: ownerSymbol),
+              let parent = sema.symbols.symbol(parentSymbol),
+              [.class, .interface, .enumClass, .annotationClass].contains(parent.kind),
+              let enclosingScope = ctx.scope as? ClassMemberScope,
+              enclosingScope.owner == parentSymbol,
+              let outerParent = enclosingScope.parent
+        else { return nil }
+        // A ClassMemberScope with no value members bound keeps the parent's
+        // declared and inherited classifiers visible through deferredCandidates,
+        // while instance functions/properties remain unreachable.
+        let classifiers = ClassMemberScope(
+            parent: outerParent,
+            symbols: sema.symbols,
+            ownerSymbol: parentSymbol,
+            thisType: nil
+        )
+        if parent.kind == .enumClass {
+            let valuesName = ctx.interner.intern("values")
+            for valuesSymbol in sema.symbols.lookupAll(fqName: parent.fqName + [valuesName]) {
+                guard let values = sema.symbols.symbol(valuesSymbol),
+                      values.kind == .function,
+                      values.flags.contains([.synthetic, .static]),
+                      sema.symbols.parentSymbol(for: valuesSymbol) == parentSymbol
+                else {
+                    continue
+                }
+                classifiers.insert(valuesSymbol)
+            }
+            for child in sema.symbols.declaredChildren(of: parentSymbol) {
+                guard let childInfo = sema.symbols.symbol(child), childInfo.kind == .field else { continue }
+                classifiers.insert(child)
+            }
+        }
+        return classifiers
+    }
+
     func buildClassMemberScope(
         ownerSymbol: SymbolID,
         ownerType: TypeID,
@@ -890,7 +937,7 @@ extension DeclTypeChecker {
         // A class inherits the unqualified companion shorthand of its class
         // supertypes. Keep each superclass in its own scope so the nearest
         // companion wins while lookup continues through the rest of the chain.
-        var companionScopeParent: Scope = ctx.scope
+        var companionScopeParent: Scope = enclosingClassifierScopeForObject(ownerSymbol: ownerSymbol, ctx: ctx) ?? ctx.scope
         if let owner = sema.symbols.symbol(ownerSymbol), owner.kind == .class || owner.kind == .object {
             var inheritedClassSymbols: [SymbolID] = []
             var classQueue = sema.symbols.directSupertypes(for: ownerSymbol).filter {

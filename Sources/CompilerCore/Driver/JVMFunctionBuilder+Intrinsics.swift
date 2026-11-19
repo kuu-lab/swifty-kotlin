@@ -539,7 +539,7 @@ extension JVMFunctionBuilder {
             // below would miscompile the call (e.g. Collection.removeAll for
             // MutableCollection.removeAll(Array)). Members that keep bespoke
             // intrinsic lowering for their extension callees stay on this path.
-            if !["filterKeys", "filterValues", "mapKeys", "mapValues", "getOrElse", "getOrPut"].contains(member),
+            if !["filterKeys", "filterValues", "mapKeys", "mapValues", "getOrElse", "getOrPut", "forEach"].contains(member),
                collectionCallIsExtension(id) {
                 return nil
             }
@@ -550,6 +550,42 @@ extension JVMFunctionBuilder {
             }
             let source = try convert(requireValue(receiverID), to: .reference(owner, nullable: false))
             let result = try program.expressionType(id)
+            if member == "forEach", owner == "java/util/Map" {
+                guard args.count == 1, !args[0].isSpread,
+                      let signature = functionType(args[0].expr),
+                      signature.params.count == 1 || signature.params.count == 2
+                else { throw fail("JVM Map forEach requires a callback.", id) }
+                // Evaluate the callback argument before creating the iterator so a
+                // non-literal callback's side effects happen before iteration, matching
+                // kotlinc's argument-before-body order. A lambda literal is captured
+                // before it is lowered as a closure so a non-local return can inline into
+                // the enclosing function; the two-argument (K, V) overload is not inline
+                // in Kotlin, so it keeps the closure path and rejects a non-local return.
+                let inlined: InlineLambda? = {
+                    guard signature.params.count == 1, case .lambdaLiteral = arena.expr(args[0].expr) else { return nil }
+                    return InlineLambda(id: args[0].expr, scopes: scopes, dispatch: thisValue, receiver: extensionValue, contexts: contextualReceivers, returns: inlineReturns, arguments: inlineArguments, lexicalLambda: lambdaID, stack: inlineStack)
+                }()
+                let callback = inlined == nil ? try requireValue(args[0].expr) : nil
+                let entries = try jdkCall("java/util/Map", "entrySet", [], .reference("java/util/Set", nullable: false), receiver: source, interface: true)!
+                let iterator = try jdkCall("java/lang/Iterable", "iterator", [], .reference("java/util/Iterator", nullable: false), receiver: entries, interface: true)!
+                let test = label(), end = label()
+                mark(test)
+                let hasNext = try jdkCall("java/util/Iterator", "hasNext", [], .boolean, receiver: iterator, interface: true)!
+                instructions.append(.jumpIfFalse(hasNext, end))
+                let entry = try jdkCall("java/util/Iterator", "next", [], object, receiver: iterator, interface: true)!
+                if signature.params.count == 2 {
+                    let key = try jdkCall("java/util/Map$Entry", "getKey", [], object, receiver: entry, interface: true)!
+                    let value = try jdkCall("java/util/Map$Entry", "getValue", [], object, receiver: entry, interface: true)!
+                    _ = try invoke(callback!, signature: signature, arguments: [key, value], resultType: .unit)
+                } else if let inlined {
+                    _ = try expandLambda(inlined, values: [try convert(entry, to: program.type(signature.params[0]))], id: id)
+                } else {
+                    _ = try invoke(callback!, signature: signature, arguments: [entry], resultType: .unit)
+                }
+                if !terminated { jump(test) }
+                mark(end)
+                return JVMIntrinsicResult(value: nil)
+            }
             var values: [JVMValue] = []
             for arg in args { values.append(try requireValue(arg.expr)) }
             let parameters: [JVMValueType], returns: JVMValueType, actual: String
@@ -753,14 +789,39 @@ extension JVMFunctionBuilder {
             return .reference(String(descriptor.dropFirst().dropLast()), nullable: true)
         }
     }
-    func indexedGet(_ receiver: ExprID, _ indices: [ExprID], _ id: ExprID) throws -> JVMValue? {
+    private func isSafeChainIndexedReceiver(_ receiver: ExprID) -> Bool {
+        guard !arena.isParenthesized(receiver) else { return false }
+        switch arena.expr(receiver) {
+        case .safeMemberCall:
+            let chosen = program.sema.bindings.callBinding(for: receiver)?.chosenCallee
+                ?? program.sema.bindings.identifierSymbol(for: receiver)
+            guard let chosen else { return false }
+            let memberResultType: TypeID?
+            if let signature = program.sema.symbols.functionSignature(for: chosen) {
+                memberResultType = signature.returnType
+            } else {
+                memberResultType = program.sema.symbols.propertyType(for: chosen)
+            }
+            return memberResultType.map { program.sema.types.nullability(of: $0) == .nonNull } ?? false
+        case .indexedAccess:
+            guard let valueType = program.sema.bindings.safeChainIndexedValueType(for: receiver) else { return false }
+            return program.sema.types.nullability(of: valueType) == .nonNull
+        default:
+            return false
+        }
+    }
+
+    func indexedGet(_ receiver: ExprID, _ indices: [ExprID], _ id: ExprID, precomputedReceiverValue: JVMValue? = nil) throws -> JVMValue? {
+        if precomputedReceiverValue == nil, isSafeChainIndexedReceiver(receiver) {
+            return try safeChainIndexedGet(receiver, indices, id)
+        }
         let args = indices.map { CallArgument(expr: $0) }
-        if let call = try inlineCall(args, receiver: receiver, id: id)
-            ?? sourceCall(args, receiver: receiver, id: id) { return call.value }
+        if let call = try inlineCall(args, receiver: receiver, receiverValue: precomputedReceiverValue, id: id)
+            ?? sourceCall(args, receiver: receiver, receiverValue: precomputedReceiverValue, id: id) { return call.value }
         guard indices.count == 1 else { throw fail("JVM indexing requires one index.", id) }
         let arguments = indices.map { CallArgument(expr: $0) }
         if let call = try textLibraryCall(arguments, receiver: receiver, id: id), let value = call.value { return value }
-        if let call = try sourceCall(arguments, receiver: receiver, id: id), let value = call.value {
+        if let call = try sourceCall(arguments, receiver: receiver, receiverValue: precomputedReceiverValue, id: id), let value = call.value {
             return try convert(value, to: program.expressionType(id))
         }
         var object = try requireValue(receiver)
@@ -795,6 +856,44 @@ extension JVMFunctionBuilder {
         guard ["java/util/List", "kotlin/enums/EnumEntries", "java/util/Map"].contains(owner) else { throw fail("Unsupported JVM indexed receiver.") }
         return try jdkCall(owner, "get", [["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? .int : .reference("java/lang/Object", nullable: true)], .reference("java/lang/Object", nullable: true), receiver: receiver, arguments: [index], interface: true, resolved: type)!
     }
+
+    /// `a?.b[i]` is one guarded read: when the safe receiver is null, the index
+    /// expressions and `get` are skipped instead of running on null.
+    private func safeChainIndexedGet(_ receiver: ExprID, _ indices: [ExprID], _ id: ExprID) throws -> JVMValue? {
+        let receiverValue = try requireValue(receiver)
+        let type = try program.expressionType(id)
+        let result = type == .unit ? nil : try value(type)
+        let nullCase = label(), end = label()
+        let null = try constant(.null, .reference("java/lang/Object", nullable: true)), check = try value(.boolean)
+        instructions.append(.referenceCompare(.notEqual, receiverValue, null, check))
+        instructions.append(.jumpIfFalse(check, nullCase))
+        let saved = evaluatedOperands
+        defer { evaluatedOperands = saved }
+        let nonNullType: JVMValueType
+        if let name = receiverValue.type.referenceName { nonNullType = .reference(name, nullable: false) }
+        else { nonNullType = receiverValue.type }
+        evaluatedOperands[receiver] = try convert(receiverValue, to: nonNullType)
+        let returned: JVMValue?
+        do { returned = try indexedGet(receiver, indices, id, precomputedReceiverValue: evaluatedOperands[receiver]) }
+        catch is JVMTerminatedExpression { returned = nil }
+        if !terminated {
+            if let result {
+                if let returned {
+                    instructions.append(.copy(try convert(returned, to: type), result))
+                } else {
+                    guard type.referenceName == "kotlin/Unit" else { throw fail("JVM safe indexed access must produce a value.", id) }
+                    program.functionArities.insert(0)
+                    instructions.append(.getStatic(JVMField(owner: "kotlin/Unit", name: "INSTANCE", type: .reference("kotlin/Unit", nullable: false), access: 0x19), result))
+                }
+            }
+            jump(end)
+        }
+        mark(nullCase)
+        if let result { instructions.append(.constant(.null, result)) }
+        mark(end)
+        return result
+    }
+
     func requireWritableArguments(_ receiver: ExprID, at id: ExprID) throws {
         guard let semantic = program.sema.bindings.exprType(for: receiver), case let .classType(t) = program.sema.types.kind(of: semantic) else { return }
         for argument in t.args {
@@ -1043,6 +1142,22 @@ extension JVMFunctionBuilder {
         }
         else { throw fail("JVM for requires an array or iterable collection.", id) }
 
+        // A loop variable with an explicit declared type that is a reference
+        // supertype of a primitive element (e.g. `for (x: Any in doubleArray)`)
+        // must keep the boxed value in the local: reads convert the local to the
+        // declared type, and boxing a primitive local on every read would break
+        // referential identity (`x === x`). Box once per iteration instead.
+        var loopStorageType = elementType
+        var loopElementBoxType: JVMValueType?
+        if destructuringNames == nil,
+           let declaredType = program.sema.bindings.loopVariableType(for: id) {
+            let declaredStorage = try localStorageType(declaredType)
+            if elementType.referenceName == nil, declaredStorage.referenceName != nil {
+                loopStorageType = declaredStorage
+                loopElementBoxType = declaredStorage
+            }
+        }
+
         let indexedElementType: JVMValueType?
         if let withIndexReceiver {
             if source.type.isCharSequence { indexedElementType = .char }
@@ -1058,7 +1173,7 @@ extension JVMFunctionBuilder {
             } else { throw fail("JVM withIndex requires an iterable receiver.", id) }
         } else { indexedElementType = nil }
 
-        let local = try value(elementType), test = label(), advance = label(), exit = label()
+        let local = try value(loopStorageType), test = label(), advance = label(), exit = label()
         scopes.append([name: Local(value: local, mutable: false)]); defer { scopes.removeLast() }
         func emitBody() throws {
             if let destructuringNames {
@@ -1091,7 +1206,12 @@ extension JVMFunctionBuilder {
                 let item = try makeIndexedValue(withIndexCounter, element, as: elementType)
                 instructions.append(.copy(item, local))
                 try incrementWithIndexCounter(withIndexCounter)
-            } else { instructions.append(.copy(element, local)) }
+            } else {
+                let storedElement: JVMValue
+                if let loopElementBoxType { storedElement = try convert(element, to: loopElementBoxType) }
+                else { storedElement = element }
+                instructions.append(.copy(storedElement, local))
+            }
             try emitBody()
             mark(advance)
             let one = try constant(.int(1), .int)
@@ -1176,7 +1296,12 @@ extension JVMFunctionBuilder {
                 let item = try makeIndexedValue(withIndexCounter, next, as: elementType)
                 instructions.append(.copy(item, local))
                 try incrementWithIndexCounter(withIndexCounter)
-            } else { instructions.append(.copy(next, local)) }
+            } else {
+                let storedNext: JVMValue
+                if let loopElementBoxType { storedNext = try convert(next, to: loopElementBoxType) }
+                else { storedNext = next }
+                instructions.append(.copy(storedNext, local))
+            }
             try emitBody()
             mark(advance); jump(test)
         }

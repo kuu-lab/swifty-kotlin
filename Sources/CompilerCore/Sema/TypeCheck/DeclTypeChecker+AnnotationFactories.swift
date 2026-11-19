@@ -55,7 +55,7 @@ extension DeclTypeChecker {
             }
             if hasDedicatedJSArgumentValidation { continue }
 
-            if !tokens.contains(where: { $0.kind == .symbol(.lParen) }) {
+            if AnnotationParsingSupport.constructionArgumentListStart(in: tokens, name: annotation.name) == nil {
                 tokens.append(Token(kind: .symbol(.lParen), range: last.range))
                 tokens.append(Token(kind: .symbol(.rParen), range: last.range))
             }
@@ -66,8 +66,11 @@ extension DeclTypeChecker {
             let constructionScope: Scope
             if annotation.name.contains(".") {
                 let alias = ctx.interner.intern(annotation.name)
-                guard let argumentStart = tokens.firstIndex(where: { $0.kind == .symbol(.lParen) }) else { continue }
-                tokens.replaceSubrange(0..<argumentStart, with: [Token(kind: .identifier(alias), range: first.range)])
+                let replacementEnd = min(
+                    AnnotationParsingSupport.qualifiedNameTokenCount(for: annotation.name),
+                    tokens.count
+                )
+                tokens.replaceSubrange(0..<replacementEnd, with: [Token(kind: .identifier(alias), range: first.range)])
                 let scope = BaseScope(parent: ctx.scope, symbols: sema.symbols)
                 scope.insertWithAlias(annotationSymbol, asName: alias)
                 constructionScope = scope
@@ -142,10 +145,16 @@ extension DeclTypeChecker {
         ctx: TypeInferenceContext
     ) -> ExprID? {
         let arguments: [CallArgument]
+        let typeArgs: [TypeRefID]
         let range: SourceRange
         switch ctx.ast.arena.expr(expression) {
-        case let .call(_, _, arguments_, range_), let .memberCall(_, _, _, arguments_, range_):
+        case let .call(_, typeArgs_, arguments_, range_):
             arguments = arguments_
+            typeArgs = typeArgs_
+            range = range_
+        case let .memberCall(_, _, typeArgs_, arguments_, range_):
+            arguments = arguments_
+            typeArgs = typeArgs_
             range = range_
         default:
             return nil
@@ -153,7 +162,7 @@ extension DeclTypeChecker {
         guard let annotationName = ctx.sema.symbols.symbol(annotationClass)?.name else { return nil }
         let callee = ctx.ast.arena.appendExpr(.nameRef(annotationName, range))
         let construction = ctx.ast.arena.appendExpr(.call(
-            callee: callee, typeArgs: [], args: arguments, range: range
+            callee: callee, typeArgs: typeArgs, args: arguments, range: range
         ))
         return construction
     }

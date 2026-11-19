@@ -208,7 +208,9 @@ extension JVMFunctionBuilder {
                     }
                 }()
                 let names: [String]
-                if info.flags & 0x2000 != 0 || javaMapViewMethod != nil || (owner.hasPrefix("java/util/") && name == "size") {
+                if info.flags & 0x2000 != 0
+                    || javaMapViewMethod != nil
+                    || (name == "size" && context.jvmImports?.isJavaCollectionOrMapClass(owner) == true) {
                     names = [javaMapViewMethod ?? name]
                 } else {
                     names = name.hasPrefix("is") && name.count > 2 ? [name, "get" + capital] : ["get" + capital]
@@ -464,9 +466,8 @@ extension JVMFunctionBuilder {
 }
 
 extension JVMProgramBuilder {
-    func emitAccessors(_ plan: JVMClassPlan, _ declaration: PropertyDecl, _ property: JVMProperty) throws -> [JVMFunction] {
-        let propertyID = plan.properties.first(where: { $0.1.range == declaration.range })?.0
-        let propertySymbol = propertyID.flatMap { sema.bindings.declSymbol(for: $0) }
+    func emitAccessors(_ plan: JVMClassPlan, _ propertyID: DeclID, _ declaration: PropertyDecl, _ property: JVMProperty) throws -> [JVMFunction] {
+        let propertySymbol = sema.bindings.declSymbol(for: propertyID)
         var accessorTypeParameters: [JVMTypeParameter] = []
         if !declaration.typeParams.isEmpty {
             guard let propertySymbol,
@@ -546,6 +547,12 @@ extension JVMProgramBuilder {
             if plan.isFacade { f.access = (f.isPrivate ? 2 : 1) | 8 | 16; f.isSynthetic = false }
             f.typeParameters = accessorTypeParameters
             let setter = f.reference.result == .unit
+            if let symbol = propertySymbol {
+                f.isSynchronized = try annotationRecords(for: symbol).contains {
+                    $0.annotationFQName == KnownCompilerAnnotation.jvmSynchronized.qualifiedName
+                        && $0.useSiteTarget == (setter ? "set" : "get")
+                }
+            }
             if declaration.receiverType != nil {
                 f.javaParameters.append(JVMMethodParameter("$this$" + property.name))
             }
@@ -786,8 +793,8 @@ extension JVMProgramBuilder {
                 parents += parent.properties.flatMap { [$0.2.getter] + ($0.2.setter.map { [$0] } ?? []) }
             } else if let source = try? className(symbol) {
                 let name = JVMClasspathIndex.builtinName(source) ?? source
-                let known = Array(methods.values) + Array(collectionInterfaceMethods.values) + textLibraryMethods.values.map(\.method)
-                parents += context.jvmImports?.classes[name]?.methods.filter { !$0.isStatic && !$0.isConstructor } ?? known.filter { $0.owner == name && !$0.isStatic && !$0.isConstructor }.sorted { $0.name + $0.descriptor < $1.name + $1.descriptor }
+                parents += context.jvmImports?.classes[name]?.methods.filter { !$0.isStatic && !$0.isConstructor }
+                    ?? foreignMethodsOwned(by: name).filter { !$0.isStatic && !$0.isConstructor }.sorted { $0.name + $0.descriptor < $1.name + $1.descriptor }
             }
             for next in sema.symbols.directSupertypes(for: symbol) { visit(next) }
         }

@@ -104,6 +104,12 @@ private struct JVMSourceGrammar {
         try require(.symbol(.at)); try name()
         if take(.symbol(.colon)) { try name() }
         while take(.symbol(.dot)) { try name() }
+        if kind == .symbol(.lessThan) {
+            guard let typeArgumentsEnd = AnnotationParsingSupport.endOfTypeArguments(in: tokens, at: index) else {
+                throw Unsupported()
+            }
+            index = typeArgumentsEnd
+        }
         if take(.symbol(.lParen)) {
             var depth = 1
             while depth > 0 {
@@ -161,13 +167,25 @@ private struct JVMSourceGrammar {
             index += 1
         }
     }
+    mutating func parameterPrefix(properties: Bool) throws {
+        while kind == .symbol(.at) { try annotation() }
+        guard properties else {
+            while take(.keyword(.noinline)) || take(.keyword(.crossinline)) || take(.keyword(.vararg)) {}
+            return
+        }
+        while true {
+            let before = index
+            while take(.keyword(.noinline)) || take(.keyword(.crossinline)) || take(.keyword(.vararg)) {}
+            modifiers()
+            if take(.keyword(.val)) || take(.keyword(.var)) { break }
+            guard index != before else { break }
+        }
+    }
     mutating func parameters(properties: Bool = false, requireTypes: Bool = true, allowDefaults: Bool = true) throws {
         try require(.symbol(.lParen))
         if !take(.symbol(.rParen)) {
             repeat {
-                while kind == .symbol(.at) { try annotation() }
-                while take(.keyword(.noinline)) || take(.keyword(.crossinline)) || take(.keyword(.vararg)) {}
-                if properties { modifiers(); _ = take(.keyword(.val)) || take(.keyword(.var)) }
+                try parameterPrefix(properties: properties)
                 try name()
                 if requireTypes { try require(.symbol(.colon)); try type() }
                 else if take(.symbol(.colon)) { try type() }
@@ -396,10 +414,10 @@ private struct JVMSourceGrammar {
         } else if take(.keyword(.for)) {
             try require(.symbol(.lParen))
             if take(.symbol(.lParen)) {
-                repeat { try name() } while take(.symbol(.comma))
+                repeat { try loopVariable(allowType: false) } while take(.symbol(.comma))
                 try require(.symbol(.rParen))
             } else {
-                try name()
+                try loopVariable()
             }
             try require(.keyword(.in))
             try expression(allowNewlines: true); try require(.symbol(.rParen)); try body()
@@ -415,6 +433,14 @@ private struct JVMSourceGrammar {
                 index += 1; try expression(allowNewlines: allowNewlines)
             }
         }
+    }
+    /// A for-header loop variable: `x` or `x: T`. Destructuring entries are
+    /// parsed with `allowType: false`: kotlinc accepts types there too, but
+    /// KSwiftK's AST builder does not bind them yet, so the grammar keeps
+    /// rejecting them instead of silently dropping the annotations.
+    mutating func loopVariable(allowType: Bool = true) throws {
+        try name()
+        if allowType, take(.symbol(.colon)) { try type() }
     }
     mutating func startsClassDeclaration() -> Bool {
         let start = index
@@ -561,6 +587,7 @@ private struct JVMSourceGrammar {
             try declaration(member: false)
         } else if take(.keyword(.super)) {
             if take(.symbol(.lessThan)) { try type(nullable: false); try require(.symbol(.greaterThan)) }
+            if take(.symbol(.at)) { try name() }
         } else { switch kind {
         case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .charLiteral, .floatLiteral, .doubleLiteral, .keyword(.true), .keyword(.false), .keyword(.null): index += 1
         case .keyword(.this): index += 1; if take(.symbol(.at)) { try name() }

@@ -5,8 +5,9 @@ final class JVMProgramBuilder {
     let ast: ASTModule
     let sema: SemaModule
     var classes: [SymbolID: JVMClassPlan] = [:]
-    var methods: [SymbolID: JVMForeignMethod] = [:]
-    var collectionInterfaceMethods: [SymbolID: JVMForeignMethod] = [:]
+    var methodTablesVersion = 0
+    var methods: [SymbolID: JVMForeignMethod] = [:] { didSet { methodTablesVersion &+= 1 } }
+    var collectionInterfaceMethods: [SymbolID: JVMForeignMethod] = [:] { didSet { methodTablesVersion &+= 1 } }
     var properties: [SymbolID: JVMProperty] = [:]
     var foreignInterfaceDefaultMethodsCache: [SymbolID: [String: (method: JVMForeignMethod, owner: String)]] = [:]
     var facadeName = ""
@@ -34,11 +35,38 @@ final class JVMProgramBuilder {
     }()
     var sourceRangeResultSymbols: Set<SymbolID> = []
     var inlineTypeArguments: [SymbolID: TypeID] = [:]
-    var textLibraryMethods: [SymbolID: JVMTextLibraryMethod] = [:]
+    var textLibraryMethods: [SymbolID: JVMTextLibraryMethod] = [:] { didSet { methodTablesVersion &+= 1 } }
     var textLibraryProperties: [SymbolID: JVMForeignMethod] = [:]
     var textLibraryFields: [SymbolID: JVMField] = [:]
     let platformOperations: [String: JVMPlatformOperation]
     var rawAnnotationConstructions: [String: ExprID] = [:]
+
+    private var methodsByOwnerCache: [String: [SymbolID]]?
+    private var foreignMethodsByOwnerCache: [String: [JVMForeignMethod]]?
+    private var methodOwnerCacheVersion = -1
+
+    func methodSymbolsOwned(by owner: String) -> [SymbolID] {
+        rebuildMethodOwnerCachesIfNeeded()
+        return methodsByOwnerCache?[owner] ?? []
+    }
+
+    func foreignMethodsOwned(by owner: String) -> [JVMForeignMethod] {
+        rebuildMethodOwnerCachesIfNeeded()
+        return foreignMethodsByOwnerCache?[owner] ?? []
+    }
+
+    private func rebuildMethodOwnerCachesIfNeeded() {
+        guard methodOwnerCacheVersion != methodTablesVersion else { return }
+        var bySymbol: [String: [SymbolID]] = [:]
+        for (symbol, method) in methods { bySymbol[method.owner, default: []].append(symbol) }
+        methodsByOwnerCache = bySymbol
+        var byMethod: [String: [JVMForeignMethod]] = [:]
+        for method in methods.values { byMethod[method.owner, default: []].append(method) }
+        for method in collectionInterfaceMethods.values { byMethod[method.owner, default: []].append(method) }
+        for entry in textLibraryMethods.values { byMethod[entry.method.owner, default: []].append(entry.method) }
+        foreignMethodsByOwnerCache = byMethod
+        methodOwnerCacheVersion = methodTablesVersion
+    }
 
     init(context: CompilationContext) throws {
         guard let ast = context.ast, let sema = context.sema else {
@@ -348,7 +376,7 @@ final class JVMProgramBuilder {
             }
             var facadeFunctions: [JVMFunction] = []
             if let plan = facadePlan {
-                for (_, declaration, property) in plan.properties { facadeFunctions += try emitAccessors(plan, declaration, property) }
+                for (propertyID, declaration, property) in plan.properties { facadeFunctions += try emitAccessors(plan, propertyID, declaration, property) }
                 if plan.properties.contains(where: { !isComputedExtension($0.1) }) {
                     let b = try nominalBuilder(plan, name: "<clinit>", staticBody: true)
                     for (symbol, field) in plan.propertyTokens.sorted(by: { $0.value.name < $1.value.name }) {
@@ -776,6 +804,13 @@ final class JVMFunctionBuilder {
         case let .stringTemplate(parts, _): return try constantFoldedText(id) ?? stringTemplate(parts)
         case let .stringLiteral(s, _): return try constant(.string(context.interner.resolve(s)), .string)
         case .thisRef, .superRef:
+            if case let .superRef(_, label, _) = expr, label != nil,
+               let symbol = program.sema.bindings.identifierSymbol(for: id), let owner,
+               symbol != owner.symbol,
+               symbol != SyntheticSymbolScheme.receiverParameterSymbol(for: owner.symbol)
+            {
+                throw fail("Unsupported JVM labeled super call to an outer class.", id)
+            }
             if case .thisRef = expr, let symbol = program.sema.bindings.identifierSymbol(for: id), let receiver = contextualReceivers[symbol] { return try convert(receiver, to: program.expressionType(id)) }
             if case .thisRef = expr, let extensionValue { return try convert(extensionValue, to: program.expressionType(id)) }
             guard !beforeDelegation, let thisValue else { throw fail("JVM this/super requires an initialized instance.", id) }
