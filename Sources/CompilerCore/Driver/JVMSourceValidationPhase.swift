@@ -267,8 +267,11 @@ private struct JVMSourceGrammar {
             try typeParameters()
             // Parse either a function name or a receiver type followed by its name.
             let start = index
-            do { try type(); guard kind == .symbol(.lParen) else { throw Unsupported() } }
-            catch { index = start; try name() }
+            do {
+                while kind == .symbol(.at) { try annotation() }
+                try type()
+                guard kind == .symbol(.lParen) else { throw Unsupported() }
+            } catch { index = start; try name() }
             try parameters()
             if take(.symbol(.colon)) { try type() }
             try whereConstraints()

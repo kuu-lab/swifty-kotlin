@@ -258,8 +258,7 @@ extension JVMProgramBuilder {
                   (p.typeParams.isEmpty || plan.isFacade && p.receiverType != nil), p.contextReceivers.isEmpty,
                   p.explicitBackingField == nil,
                   p.modifiers.subtracting([.public, .private, .protected, .internal, .open, .final, .abstract, .override, .lateinit, .const, .inline]).isEmpty,
-                  p.getter?.isInline != true, p.setter?.isInline != true,
-                  p.getter?.annotations.isEmpty ?? true, p.setter?.annotations.isEmpty ?? true else { throw JVMFrontendError(message: "Unsupported JVM property declaration.") }
+                  p.getter?.isInline != true, p.setter?.isInline != true else { throw JVMFrontendError(message: "Unsupported JVM property declaration.") }
             guard !sema.composableFunctions.contains(symbol) else {
                 throw JVMFrontendError(message: "JVM @Composable property accessors are unsupported.", range: p.range)
             }
