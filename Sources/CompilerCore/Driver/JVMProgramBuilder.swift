@@ -1219,6 +1219,9 @@ extension JVMFunctionBuilder {
         if let receiver, receiver.type.referenceName == nil { object = try convert(receiver, to: .reference("java/lang/Object", nullable: false)) }
         if method.isConstructor {
             object = try value(method.result)
+            // NEW triggers the owner's <clinit> (companion initialization);
+            // kotlinc emits it before evaluating constructor arguments.
+            instructions.append(.allocate(method.owner, object!))
         }
         var values: [JVMValue] = []
         for (index, pair) in zip(args, method.parameters).enumerated() {
@@ -1240,7 +1243,6 @@ extension JVMFunctionBuilder {
         }
         let resultType = method.isConstructor ? method.result : try program.expressionType(id)
         let result = method.isConstructor || method.result == .unit || resultType == .unit ? nil : try value(resultType)
-        if method.isConstructor, let object { instructions.append(.allocate(method.owner, object)) }
         instructions.append(.foreignCall(method, receiver: object, arguments: values, result: result))
         return method.isConstructor ? object : result
     }

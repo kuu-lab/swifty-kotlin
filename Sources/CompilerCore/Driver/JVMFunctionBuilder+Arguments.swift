@@ -240,6 +240,9 @@ extension JVMFunctionBuilder {
         let importedDefaults = importedDefault != nil || importedConstructor?.defaults != nil || importedConstructorDefault != nil
             ? program.sema.symbols.functionSignature(for: symbol)?.valueParameterHasDefaultValues : nil
         let object = constructor ? try value(method!.result) : nil
+        // NEW triggers the owner's <clinit> (companion initialization); kotlinc
+        // emits it before evaluating constructor arguments, so allocate first.
+        if let object { instructions.append(.allocate(method!.owner, object)) }
         var composableParameters = context.jvmImports?.importedComposableParameters[symbol] ?? []
         if isComposable, let signature = program.sema.symbols.functionSignature(for: symbol) {
             for (index, parameter) in signature.valueParameterSymbols.enumerated()
@@ -289,7 +292,6 @@ extension JVMFunctionBuilder {
                                       result: result, at: id)
             return JVMIntrinsicResult(value: try result.map { try convert($0, to: resultType) })
         }
-        if let object { instructions.append(.allocate(method!.owner, object)) }
         if let importedConstructor {
             let target = usesDefaults ? importedConstructor.defaults : importedConstructor.bridge
             guard let target else { throw fail("Missing JVM value-parameter constructor bridge.", id) }
