@@ -150,6 +150,43 @@ extension LocalDeclTypeChecker {
         }
     }
 
+    /// For `a?.b[i]` and chained reads like `a?.b[i][j]`, the indexed `get`
+    /// runs on the non-null value inside the safe chain. A safe member must
+    /// select a non-null member; a nested safe indexed read continues only when
+    /// its stored element type is non-null, so nullable elements keep the
+    /// ordinary unsafe-receiver diagnostic.
+    private func nonNullSafeChainReceiverType(
+        _ receiverExpr: ExprID,
+        inferredReceiverType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        let sema = ctx.sema
+        guard !ctx.ast.arena.isParenthesized(receiverExpr) else { return nil }
+        switch ctx.ast.arena.expr(receiverExpr) {
+        case .safeMemberCall:
+            let chosen = sema.bindings.callBinding(for: receiverExpr)?.chosenCallee
+                ?? sema.bindings.identifierSymbol(for: receiverExpr)
+            guard let chosen else { return nil }
+            let memberResultType: TypeID?
+            if let signature = sema.symbols.functionSignature(for: chosen) {
+                memberResultType = signature.returnType
+            } else {
+                memberResultType = sema.symbols.propertyType(for: chosen)
+            }
+            guard let memberResultType,
+                  sema.types.nullability(of: memberResultType) == .nonNull
+            else { return nil }
+            return sema.types.makeNonNullable(inferredReceiverType)
+        case .indexedAccess:
+            guard let valueType = sema.bindings.safeChainIndexedValueType(for: receiverExpr),
+                  sema.types.nullability(of: valueType) == .nonNull
+            else { return nil }
+            return valueType
+        default:
+            return nil
+        }
+    }
+
     func inferIndexedAccessExpr(
         _ id: ExprID,
         receiverExpr: ExprID,
@@ -157,7 +194,8 @@ extension LocalDeclTypeChecker {
         range: SourceRange,
         expectedType: TypeID?,
         ctx: TypeInferenceContext,
-        locals: inout LocalBindings
+        locals: inout LocalBindings,
+        isSafeChain: Bool
     ) -> TypeID {
         let ast = ctx.ast
         let sema = ctx.sema
@@ -170,12 +208,32 @@ extension LocalDeclTypeChecker {
         var receiverCtx = ctx
         receiverCtx.isConditionallyEvaluated = ctx.receiverConditionallyEvaluated
         let inferredReceiverType = driver.inferExpr(receiverExpr, ctx: receiverCtx, locals: &locals, expectedType: nil)
+        var effectiveIsSafeChain = isSafeChain
+        var operatorReceiverType = inferredReceiverType
+        if isSafeChain,
+           let nonNullSafeReceiverType = nonNullSafeChainReceiverType(
+               receiverExpr,
+               inferredReceiverType: inferredReceiverType,
+               ctx: ctx
+           )
+        {
+            operatorReceiverType = nonNullSafeReceiverType
+        } else {
+            effectiveIsSafeChain = false
+        }
 
         let getName = interner.intern("get")
         let receiverInfo = indexedOperatorMemberCandidates(
-            named: getName, receiverExpr: receiverExpr, receiverType: inferredReceiverType, ctx: ctx
+            named: getName, receiverExpr: receiverExpr, receiverType: operatorReceiverType, ctx: ctx
         )
         let receiverType = receiverInfo.receiverType
+        func safeChainResultType(_ type: TypeID) -> TypeID {
+            if effectiveIsSafeChain {
+                sema.bindings.bindSafeChainIndexedValueType(id, type: type)
+                return sema.types.makeNullable(type)
+            }
+            return type
+        }
         let allGetMembers = receiverInfo.allMembers
         var getCandidates = receiverInfo.candidates
         if getCandidates.isEmpty {
@@ -295,8 +353,9 @@ extension LocalDeclTypeChecker {
                     substitution: mergedSubstitution,
                     typeVarBySymbol: typeVarBySymbol
                 )
-                sema.bindings.bindExprType(id, type: returnType)
-                return returnType
+                let finalType = safeChainResultType(returnType)
+                sema.bindings.bindExprType(id, type: finalType)
+                return finalType
             }
         }
 
@@ -340,8 +399,9 @@ extension LocalDeclTypeChecker {
                         )
                     )
                     sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
-                    sema.bindings.bindExprType(id, type: signature.returnType)
-                    return signature.returnType
+                    let finalType = safeChainResultType(signature.returnType)
+                    sema.bindings.bindExprType(id, type: finalType)
+                    return finalType
                 }
             }
         }
@@ -375,8 +435,9 @@ extension LocalDeclTypeChecker {
             failureMessage: "Argument type mismatch."
         )
         if sema.types.isSubtype(receiverType, sema.types.stringType) {
-            sema.bindings.bindExprType(id, type: sema.types.charType)
-            return sema.types.charType
+            let finalType = safeChainResultType(sema.types.charType)
+            sema.bindings.bindExprType(id, type: finalType)
+            return finalType
         }
         guard !isCanonicalAtomicArrayReceiver(receiverType, sema: sema, interner: interner) else {
             ctx.sema.diagnostics.error(
@@ -398,8 +459,9 @@ extension LocalDeclTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
-        sema.bindings.bindExprType(id, type: elementType)
-        return elementType
+        let finalType = safeChainResultType(elementType)
+        sema.bindings.bindExprType(id, type: finalType)
+        return finalType
     }
 
     func inferIndexedAssignExpr(
