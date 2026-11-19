@@ -101,6 +101,18 @@ extension JVMBackendTests {
                 }
                 println(z)
             }
+            fun castAssignment() {
+                val a: Any = 5
+                var y = 0
+                when (1) {
+                    1 -> y = (a as Int) else -> y = 2
+                }
+                println(y)
+                when (2) {
+                    1 -> y = (a as Int) else -> y = 3
+                }
+                println(y)
+            }
             fun main() {
                 println(blockThenElse(1))
                 println(blockThenElse(2))
@@ -116,8 +128,9 @@ extension JVMBackendTests {
                 expressionBeforeAssignmentEntry()
                 parenthesizedAssignment()
                 mixedAssignmentOperators()
+                castAssignment()
             }
-            """, expected: "one\nother\ntrue\nfalse\none\nother\n10\n30\npositive\nfallback\n20\n30\n20\n10\n40\n0\n30\n1\n20\n10\n20\n10\n", mode: mode, root: root)
+            """, expected: "one\nother\ntrue\nfalse\none\nother\n10\n30\npositive\nfallback\n20\n30\n20\n10\n40\n0\n30\n1\n20\n10\n20\n10\n5\n3\n", mode: mode, root: root)
         }
     }
 }
