@@ -81,6 +81,7 @@ extension JVMProgramBuilder {
               [
                   "kotlin.Deprecated", "kotlin.ReplaceWith", "kotlin.SinceKotlin",
                   "kotlin.DeprecatedSinceKotlin", "kotlin.RequiresOptIn", "kotlin.ExperimentalUnsignedTypes",
+                  KnownCompilerAnnotation.jvmSynchronized.qualifiedName,
               ].contains(name),
               let declaration = declarationIDsBySymbol[symbol]?.first,
               case let .classDecl(c) = ast.arena.decl(declaration), c.modifiers.contains(.annotationClass) else { return nil }
@@ -373,6 +374,9 @@ extension JVMProgramBuilder {
 
     func annotated(_ function: JVMFunction, symbol: SymbolID, signature providedSignature: FunctionSignature? = nil) throws -> JVMFunction {
         var f = function; f.annotations = try annotations(for: symbol, target: nil)
+        f.isSynchronized = try annotationRecords(for: symbol).contains {
+            $0.annotationFQName == KnownCompilerAnnotation.jvmSynchronized.qualifiedName && $0.useSiteTarget == nil
+        }
         applyDeprecation(f.annotations, to: &f)
         if let raw = sema.symbols.annotations(for: symbol).first(where: {
             $0.annotationFQName == KnownCompilerAnnotation.jvmName.qualifiedName && $0.useSiteTarget != "file"
