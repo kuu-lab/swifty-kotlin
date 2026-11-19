@@ -2221,8 +2221,8 @@ final class JVMClasspathIndex {
         "java/io/Reader", "java/io/SequenceInputStream", "java/io/Writer",
         // java.lang compatibility anchors.
         "java/lang/AutoCloseable", "java/lang/ClassLoader",
-        // java.math/java.util anchors from the String/Char stub registrations.
-        "java/math/BigDecimal", "java/util/Locale",
+        // java.util anchor from the String/Char stub registrations.
+        "java/util/Locale",
         // java.util.concurrent.atomic scalar/reference/array family
         // (HeaderHelpers+SyntheticAtomicResidualRegistry).
         "java/util/concurrent/atomic/AtomicInteger",

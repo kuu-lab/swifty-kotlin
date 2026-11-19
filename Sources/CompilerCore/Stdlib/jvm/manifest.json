@@ -381,6 +381,11 @@
       "excludeFromStdlibBuild": false
     },
     {
+      "path": "declarations/BigDecimals.kt",
+      "virtualPath": "<kswiftk-jvm>/m21-big-decimals-inline.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "declarations/AbstractList.kt",
       "virtualPath": "<kswiftk-jvm>/abstractList.kt",
       "excludeFromStdlibBuild": true
