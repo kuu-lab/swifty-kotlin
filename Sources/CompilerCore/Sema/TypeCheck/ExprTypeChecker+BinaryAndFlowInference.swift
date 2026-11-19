@@ -780,7 +780,7 @@ extension ExprTypeChecker {
             return ctx.resolver.probeCall(
                 candidates: [candidate],
                 call: operatorCall,
-                expectedType: nil,
+                expectedType: expectedType,
                 implicitReceiverType: operatorReceiverType,
                 ctx: sema
             ).viableCandidates.isEmpty
