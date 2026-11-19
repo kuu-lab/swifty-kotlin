@@ -91,4 +91,59 @@ if ensure_maven_jar atomicfu-jvm unused 0.33.0 "$TEMP_DIR/integrity.jar" '' know
   exit 1
 fi
 [[ -s "$TEMP_DIR/integrity.jar" ]]
-echo 'PASS diff_kotlinc dependency selection'
+
+# CI may override the script defaults for cache-keyed lanes. Those workflow
+# values are second copies of the same pins, so they must not drift from the
+# defaults that local differential runs select when no override is present.
+DIFF_KOTLINC_SCRIPT="$SCRIPT_DIR/diff_kotlinc.sh"
+CI_DIR="$SCRIPT_DIR/../.github"
+
+default_dependency_version() {
+  local variable="$1" assignment version
+  assignment="$(grep -m1 -E "^${variable}=" "$DIFF_KOTLINC_SCRIPT" || true)"
+  [[ -n "$assignment" ]] || return 1
+  version="$(printf '%s\n' "$assignment" | sed -E 's/.*:-([0-9][^}"]*)\}.*/\1/')"
+  [[ "$version" =~ ^[0-9][0-9A-Za-z.+-]*$ ]] || return 1
+  printf '%s\n' "$version"
+}
+
+check_dependency_pin() {
+  local script_var="$1" aliases="$2" expected hit content var value
+  local pin_line_regex="^[[:space:]]*([A-Za-z0-9_]+):[[:space:]]*['\"]?([0-9][0-9A-Za-z.+-]*)['\"]?[[:space:]]*(#.*)?$"
+  if ! expected="$(default_dependency_version "$script_var")"; then
+    echo "FAIL: could not read default ${script_var} from ${DIFF_KOTLINC_SCRIPT}" >&2
+    exit 1
+  fi
+  while IFS= read -r hit; do
+    [[ -n "$hit" ]] || continue
+    content="${hit#*:*:}"
+    if [[ "$content" =~ $pin_line_regex ]]; then
+      var="${BASH_REMATCH[1]}"
+      value="${BASH_REMATCH[2]}"
+      if [[ "$value" != "$expected" ]]; then
+        echo "FAIL: ${var} in ${hit%%:*} selects ${value}, but ${script_var} default is ${expected}" >&2
+        exit 1
+      fi
+    fi
+  done < <(grep -RInE "^[[:space:]]*(${aliases}):[[:space:]]*[\"']?[0-9]" "$CI_DIR" --include='*.yml' --include='*.yaml' || true)
+}
+
+check_dependency_pin KOTLINC_COROUTINES_VERSION 'KOTLINX_COROUTINES_VERSION|KOTLINC_COROUTINES_VERSION'
+check_dependency_pin KOTLINC_KOTLINX_IO_VERSION 'KOTLINX_IO_VERSION|KOTLINC_KOTLINX_IO_VERSION'
+check_dependency_pin KOTLINC_ATOMICFU_VERSION 'KOTLINC_ATOMICFU_VERSION'
+check_dependency_pin KOTLINC_SERIALIZATION_VERSION 'KOTLINC_SERIALIZATION_VERSION'
+
+# A valid YAML line comment must not let a drifted override slip past the check.
+reject_ci_dir="$TEMP_DIR/reject-ci"
+mkdir -p "$reject_ci_dir/workflows"
+cat >"$reject_ci_dir/workflows/nightly-full.yml" <<'EOF'
+env:
+  KOTLINX_COROUTINES_VERSION: "0.0.0" # pinned reference
+EOF
+if ( CI_DIR="$reject_ci_dir"; check_dependency_pin KOTLINC_COROUTINES_VERSION 'KOTLINX_COROUTINES_VERSION|KOTLINC_COROUTINES_VERSION' ) 2>"$TEMP_DIR/reject.log"; then
+  echo 'FAIL: commented CI pin drift was accepted' >&2
+  exit 1
+fi
+grep -F 'selects 0.0.0' "$TEMP_DIR/reject.log" >/dev/null
+
+echo 'PASS diff_kotlinc dependency selection and CI pin consistency'

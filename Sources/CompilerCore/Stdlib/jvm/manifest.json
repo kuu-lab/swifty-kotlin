@@ -404,6 +404,11 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "declarations/MonitorBridges.kt",
+      "virtualPath": "<kswiftk-jvm>/monitor-bridges.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "declarations/PairFunctions.kt",
       "virtualPath": "<kswiftk-jvm>/m20-pair-inline.kt",
       "excludeFromStdlibBuild": true

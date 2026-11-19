@@ -397,8 +397,8 @@ JVM 呼び出しの owner として利用できる。非公開の型や protecte
 import alias、オーバーロード、参照型の引数・戻り値も使用できる。
 公式 Kotlin が生成したクラスも Java の JVM signature として読み込める。
 KSwiftK 生成のファイル facade は `import demo.ApiKt` → `ApiKt.add(...)` で再利用できる。
-外部 Kotlin JAR の metadata は import 時には解釈せず、Java の公開 ABI として扱うため、
-トップレベル関数も facade クラスを介して呼び出す。
+外部 Kotlin JAR では kotlin.Metadata を読み、Kotlin の関数 signature（parameter 名とデフォルト引数の有無を含む）を
+復元する。metadata による復元がない宣言は Java の公開 ABI として扱う。トップレベル関数は facade クラスを介して呼び出せる。
 
 Java の参照 signature は platform 型として扱い、推論した公開戻り型にも flexible 型を記録する。
 非 nullable のローカルや戻り値へ変換する境界と `!!` は NPE 検査を行う。
@@ -447,8 +447,8 @@ constructor を生成し、metadata に既定値フラグを記録する。全 p
 Java 用 noarg constructor も生成する（inner／enum と、明示的な noarg constructor がある場合を除く）。
 Java は通常の全引数メソッド／constructor を呼べる。公式 Kotlin は名前付き引数と省略引数を利用できる。
 suspend の default bridge では Continuation が mask より前に位置する。
-外部 JAR の import は従来通り erased JVM signature であり、その Kotlin metadata から parameter 名や
-デフォルト式を取り込む機能は含まない。
+外部 JAR の import では Kotlin metadata から parameter 名とデフォルト引数の有無を取り込む。
+デフォルト式そのものは取り込まず、省略可能な parameter には `= null!!` の placeholder を付けた宣言を合成する。
 
 ## クラス委譲・委譲プロパティ・lazy・lateinit（M10）
 

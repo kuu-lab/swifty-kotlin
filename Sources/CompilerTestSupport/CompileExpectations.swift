@@ -44,33 +44,6 @@ struct ExpectedDiagnostic: Sendable {
         ExpectedDiagnostic(severity: .warning, code: code, messageContains: message, count: count)
     }
 
-    /// note 診断を期待する。`code` 省略時はコード不問。
-    static func note(
-        _ code: String? = nil,
-        containing message: String? = nil,
-        count: Int = 1
-    ) -> ExpectedDiagnostic {
-        ExpectedDiagnostic(severity: .note, code: code, messageContains: message, count: count)
-    }
-
-    /// info 診断を期待する。`code` 省略時はコード不問。
-    static func info(
-        _ code: String? = nil,
-        containing message: String? = nil,
-        count: Int = 1
-    ) -> ExpectedDiagnostic {
-        ExpectedDiagnostic(severity: .info, code: code, messageContains: message, count: count)
-    }
-
-    /// severity 不問の診断を期待する。
-    static func anySeverity(
-        _ code: String? = nil,
-        containing message: String? = nil,
-        count: Int = 1
-    ) -> ExpectedDiagnostic {
-        ExpectedDiagnostic(severity: nil, code: code, messageContains: message, count: count)
-    }
-
     func matches(_ diagnostic: Diagnostic) -> Bool {
         if let severity, diagnostic.severity != severity { return false }
         if let code, diagnostic.code != code { return false }
@@ -351,27 +324,4 @@ func loweringContext(
     )
 }
 
-/// `sources` を 1 モジュールとして frontend→Lowering まで実行する複数ファイル版。
-func loweringContext(
-    from sources: [String],
-    expecting expected: [ExpectedDiagnostic] = [],
-    moduleName: String = "TestModule",
-    frontendFlags: [String] = [],
-    includeStdlib: Bool = true,
-    stdlibLibraryPath: String? = nil,
-    allowDefaultStdlibLibrary: Bool = false,
-    sourceLocation: Testing.SourceLocation = #_sourceLocation
-) throws -> CompilationContext {
-    try compileContext(
-        from: sources,
-        through: .lowering,
-        expecting: expected,
-        moduleName: moduleName,
-        frontendFlags: frontendFlags,
-        includeStdlib: includeStdlib,
-        stdlibLibraryPath: stdlibLibraryPath,
-        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary,
-        sourceLocation: sourceLocation
-    )
-}
 #endif

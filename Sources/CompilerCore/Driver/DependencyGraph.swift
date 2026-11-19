@@ -145,8 +145,10 @@ public final class DependencyGraph: Codable {
     }
 
     public func serialize() throws -> Data {
+        // Compact: deps.json is machine-read cache state, and pretty-printing
+        // inflates both its size and the encode/decode time of every build.
         let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
+        encoder.outputFormatting = [.sortedKeys]
         return try encoder.encode(self)
     }
 

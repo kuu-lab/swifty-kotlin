@@ -367,6 +367,24 @@ extension JVMClasspathIndex {
                 method("java/util/SortedSet", "tailSet", [object], .reference("java/util/SortedSet", nullable: false), interface: true),
                 method("java/util/SortedSet", "subSet", [object, object], .reference("java/util/SortedSet", nullable: false), interface: true),
             ]),
+            ("java/util/Queue", """
+            package java.util
+            interface Queue<E> : kotlin.collections.MutableCollection<E> {
+                override operator fun iterator(): kotlin.collections.MutableIterator<E>
+                fun offer(element: E): Boolean
+                fun poll(): E?
+                fun element(): E
+                fun peek(): E?
+                fun remove(): E
+            }
+            """, 0x0601, "java/lang/Object", [
+                method("java/util/Queue", "iterator", [], .reference("java/util/Iterator", nullable: false), interface: true),
+                method("java/util/Queue", "offer", [object], .boolean, interface: true),
+                method("java/util/Queue", "poll", [], object, interface: true),
+                method("java/util/Queue", "element", [], object, interface: true),
+                method("java/util/Queue", "peek", [], object, interface: true),
+                method("java/util/Queue", "remove", [], object, interface: true),
+            ]),
             ("java/lang/Void", """
             package java.lang
             class Void private constructor()

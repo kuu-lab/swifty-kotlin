@@ -28,8 +28,7 @@ enum GoldenHarnessTargetSection {
         targets: [String],
         ctx: StableRenderContext,
         sema: SemaModule,
-        sourceManager: SourceManager,
-        interner: StringInterner
+        sourceManager: SourceManager
     ) throws -> [String] {
         let classifier = GoldenSymbolOriginClassifier(
             sema: sema,

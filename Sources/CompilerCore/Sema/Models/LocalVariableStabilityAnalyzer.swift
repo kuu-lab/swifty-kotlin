@@ -86,7 +86,10 @@ final class LocalVariableStabilityAnalyzer {
     }
 
     /// A resolved in-place compound assignment mutates the receiver without rebinding
-    /// the local, so it is not a reassignment for stability purposes.
+    /// the local, so it is not a reassignment for stability purposes. Deferred writes
+    /// stay recorded as closure mutations: kotlinc still rejects member smart casts on
+    /// a local mutated in a capturing closure even when the write resolves to an
+    /// in-place `plusAssign` family operator.
     func markCompoundAssignmentAsInPlace(_ expression: ExprID, declaration: ExprID) {
         guard var active = reassigned[declaration], active.contains(expression) else { return }
         active.remove(expression)
@@ -94,16 +97,6 @@ final class LocalVariableStabilityAnalyzer {
             reassigned.removeValue(forKey: declaration)
         } else {
             reassigned[declaration] = active
-        }
-
-        mutationValues[declaration]?.removeValue(forKey: expression)
-        if mutationValues[declaration]?.isEmpty == true {
-            mutationValues.removeValue(forKey: declaration)
-        }
-        if let mutations = mutationValues[declaration] {
-            mutationScopes[declaration] = Set(mutations.values.map { $0.scopes })
-        } else {
-            mutationScopes.removeValue(forKey: declaration)
         }
     }
 
