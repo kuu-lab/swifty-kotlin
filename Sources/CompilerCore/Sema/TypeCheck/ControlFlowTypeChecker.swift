@@ -1542,6 +1542,9 @@ final class ControlFlowTypeChecker {
         // them cannot leak to the enclosing conditional path.
         branchCtx.isConditionallyEvaluated = false
 
+        let preTryReturnStateCounts = Dictionary(
+            uniqueKeysWithValues: ctx.lambdaReturnScopes.map { ($0.exprID, $0.returnLocalStates.count) }
+        )
         var tryBodyLocals = preTryLocals
         var tryBodyType = driver.inferExpr(
             body, ctx: branchCtx, locals: &tryBodyLocals,
@@ -1606,6 +1609,25 @@ final class ControlFlowTypeChecker {
             var finallyLocals = locals
             _ = driver.inferExpr(finallyExpr, ctx: ctx, locals: &finallyLocals, expectedType: nil, isStatementContext: true)
             locals = finallyLocals
+            // Finally also runs on abrupt paths, so fold its definite
+            // assignments into return states recorded inside this try;
+            // otherwise callsInPlace definite assignment would reject code
+            // kotlinc accepts when the lambda returns from inside try.
+            for scope in ctx.lambdaReturnScopes {
+                let start = preTryReturnStateCounts[scope.exprID] ?? 0
+                guard scope.returnLocalStates.count > start else { continue }
+                for index in start..<scope.returnLocalStates.count {
+                    var state = scope.returnLocalStates[index]
+                    for (name, finallyLocal) in finallyLocals where finallyLocal.isInitialized {
+                        guard var entry = state[name], entry.symbol == finallyLocal.symbol,
+                              !entry.isInitialized
+                        else { continue }
+                        entry.isInitialized = true
+                        state[name] = entry
+                    }
+                    scope.returnLocalStates[index] = state
+                }
+            }
         }
 
         if !normalCompletionLocals.isEmpty {
