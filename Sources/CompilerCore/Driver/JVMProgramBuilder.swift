@@ -1217,12 +1217,20 @@ extension JVMFunctionBuilder {
         guard args.count == method.parameters.count, !(method.isConstructor && (context.jvmImports?.classes[method.owner]?.flags ?? 0) & 0x0400 != 0) else { throw fail("Unsupported JVM constructor or argument count.", id) }
         var object = receiver
         if let receiver, receiver.type.referenceName == nil { object = try convert(receiver, to: .reference("java/lang/Object", nullable: false)) }
+        var pendingConstructorAllocation = false
         if method.isConstructor {
-            object = try value(method.result)
+            let allocated = try value(method.result)
+            object = allocated
             // NEW triggers the owner's <clinit> (companion initialization);
             // kotlinc emits it before evaluating constructor arguments.
-            instructions.append(.allocate(method.owner, object!))
+            instructions.append(.allocate(method.owner, allocated))
+            // Track the uninitialized receiver like anonymous-object
+            // allocations so loop/tailrec backedges and exception handlers
+            // null it out while arguments are still being evaluated.
+            pendingAllocations.append(allocated)
+            pendingConstructorAllocation = true
         }
+        defer { if pendingConstructorAllocation { pendingAllocations.removeLast() } }
         var values: [JVMValue] = []
         for (index, pair) in zip(args, method.parameters).enumerated() {
             let (arg, type) = pair
