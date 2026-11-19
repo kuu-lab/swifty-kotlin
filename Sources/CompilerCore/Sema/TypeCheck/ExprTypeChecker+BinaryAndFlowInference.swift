@@ -720,18 +720,19 @@ extension ExprTypeChecker {
         // covers receivers without a concrete range representation (String,
         // user Comparable types), matching upstream where the concrete
         // `Int.rangeTo` members win over the extension.
-        if lhsIsPrimitive, op == .rangeTo || op == .rangeUntil {
-            operatorCandidates = operatorCandidates.filter { candidate in
-                guard let signature = sema.symbols.functionSignature(for: candidate),
-                      let receiverType = signature.receiverType
-                else {
-                    return true
-                }
-                if case .typeParam = sema.types.kind(of: receiverType) {
-                    return false
-                }
+        let isTypeParamReceiverCandidate = { (candidate: SymbolID) -> Bool in
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  let receiverType = signature.receiverType
+            else {
+                return false
+            }
+            if case .typeParam = sema.types.kind(of: receiverType) {
                 return true
             }
+            return false
+        }
+        if lhsIsPrimitive, op == .rangeTo || op == .rangeUntil {
+            operatorCandidates = operatorCandidates.filter { !isTypeParamReceiverCandidate($0) }
         }
         // A built-in or bundled rangeTo candidate can exist for the receiver
         // while rejecting the RHS type. Kotlin then considers visible operator
@@ -776,6 +777,11 @@ extension ExprTypeChecker {
                     operatorCandidates = extensionCandidates
                 }
             }
+        }
+        // The fallback above can rediscover the generic stdlib rangeTo; primitive
+        // range expressions must still use the scalar range path.
+        if lhsIsPrimitive, op == .rangeTo || op == .rangeUntil {
+            operatorCandidates = operatorCandidates.filter { !isTypeParamReceiverCandidate($0) }
         }
         // `collectOperatorCandidates` deliberately excludes primitive receivers
         // from member lookup for non-range operators. That also hides scoped
