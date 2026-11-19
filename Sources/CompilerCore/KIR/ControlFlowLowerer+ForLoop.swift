@@ -1454,7 +1454,8 @@ extension ControlFlowLowerer {
             let propertyBinding = syntax == .parentheses
                 ? sema.bindings.destructuringProperty(for: exprID, index: index)
                 : nil
-            let componentType = propertyBinding?.type
+            let typedEntry = sema.bindings.typedForDestructuringEntry(for: exprID, index: index)
+            let componentType = typedEntry?.component ?? propertyBinding?.type
                 ?? candidates.first.flatMap { sema.symbols.propertyType(for: $0) }
                 ?? sema.types.anyType
             let componentResult = arena.appendTemporary(type: componentType)
@@ -1518,7 +1519,11 @@ extension ControlFlowLowerer {
 
             if let symbol = candidates.first {
                 previousValues.append((symbol, driver.ctx.localValue(for: symbol)))
-                driver.ctx.setLocalValue(componentResult, for: symbol)
+                let local = convertForDestructuringLocal(
+                    componentResult, from: componentType, to: typedEntry?.declared,
+                    arena: arena, instructions: &instructions
+                )
+                driver.ctx.setLocalValue(local, for: symbol)
             }
         }
 
@@ -1650,7 +1655,8 @@ extension ControlFlowLowerer {
             let propertyBinding = syntax == .parentheses
                 ? sema.bindings.destructuringProperty(for: exprID, index: index)
                 : nil
-            let componentType = propertyBinding?.type
+            let typedEntry = sema.bindings.typedForDestructuringEntry(for: exprID, index: index)
+            let componentType = typedEntry?.component ?? propertyBinding?.type
                 ?? candidates.first.flatMap { sema.symbols.propertyType(for: $0) }
                 ?? sema.types.anyType
             let componentResult = arena.appendTemporary(type: componentType)
@@ -1693,7 +1699,11 @@ extension ControlFlowLowerer {
 
             if let symbol = candidates.first {
                 previousValues.append((symbol, driver.ctx.localValue(for: symbol)))
-                driver.ctx.setLocalValue(componentResult, for: symbol)
+                let local = convertForDestructuringLocal(
+                    componentResult, from: componentType, to: typedEntry?.declared,
+                    arena: arena, instructions: &instructions
+                )
+                driver.ctx.setLocalValue(local, for: symbol)
             }
         }
 
@@ -1723,5 +1733,18 @@ extension ControlFlowLowerer {
         let unit = arena.appendExpr(.unit, type: sema.types.unitType)
         instructions.append(.constValue(result: unit, value: .unit))
         return unit
+    }
+
+    private func convertForDestructuringLocal(
+        _ component: KIRExprID,
+        from componentType: TypeID,
+        to declaredType: TypeID?,
+        arena: KIRArena,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        guard let declaredType, declaredType != componentType else { return component }
+        let local = arena.appendTemporary(type: declaredType)
+        instructions.append(.copy(from: component, to: local))
+        return local
     }
 }

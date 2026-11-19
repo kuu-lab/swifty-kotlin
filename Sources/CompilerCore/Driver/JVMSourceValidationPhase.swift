@@ -415,7 +415,7 @@ private struct JVMSourceGrammar {
         } else if take(.keyword(.for)) {
             try require(.symbol(.lParen))
             if take(.symbol(.lParen)) {
-                repeat { try loopVariable(allowType: false) } while take(.symbol(.comma))
+                repeat { try loopVariable() } while take(.symbol(.comma)) && kind != .symbol(.rParen)
                 try require(.symbol(.rParen))
             } else {
                 try loopVariable()
@@ -435,13 +435,9 @@ private struct JVMSourceGrammar {
             }
         }
     }
-    /// A for-header loop variable: `x` or `x: T`. Destructuring entries are
-    /// parsed with `allowType: false`: kotlinc accepts types there too, but
-    /// KSwiftK's AST builder does not bind them yet, so the grammar keeps
-    /// rejecting them instead of silently dropping the annotations.
-    mutating func loopVariable(allowType: Bool = true) throws {
+    mutating func loopVariable() throws {
         try name()
-        if allowType, take(.symbol(.colon)) { try type() }
+        if take(.symbol(.colon)) { try type() }
     }
     mutating func startsClassDeclaration() -> Bool {
         let start = index

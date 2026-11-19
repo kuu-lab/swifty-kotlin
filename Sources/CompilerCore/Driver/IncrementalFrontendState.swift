@@ -6,7 +6,8 @@ public struct IncrementalFrontendState: Codable {
     // adding quotes around segments and dollar prefixes to closing quotes.
     // Version 7 preserves expression annotation prefixes in AST snapshots.
     // Version 8 preserves the source delimiter for for-loop destructuring.
-    public static let supportedVersion = 8
+    // Version 9 preserves explicit for-loop destructuring entry types.
+    public static let supportedVersion = 9
 
     public let version: Int
     public let buildConfigurationHash: String
