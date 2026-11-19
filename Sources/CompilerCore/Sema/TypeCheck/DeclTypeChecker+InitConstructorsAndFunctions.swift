@@ -390,10 +390,10 @@ extension DeclTypeChecker {
         return actual
     }
 
-    /// Inheritance binding adds kotlin.Any to classes without an explicit
-    /// superclass. That implicit edge represents nominal inheritance, but it
-    /// is not an explicit constructor delegation target for `super()`.
-    func explicitClassSuperclassSymbol(
+    /// Secondary `super(...)` delegates to the class-kind superclass from the
+    /// header. With no explicit class superclass, inheritance binding makes
+    /// `kotlin.Any` the delegation target.
+    func constructorSuperclassSymbol(
         _ classDecl: ClassDecl,
         ctx: TypeInferenceContext
     ) -> SymbolID? {
@@ -426,7 +426,17 @@ extension DeclTypeChecker {
                 continue
             }
         }
-        return nil
+        // Enums extend kotlin.Enum and annotation classes extend kotlin.Annotation;
+        // neither takes kotlin.Any as its constructor delegation target.
+        guard !classDecl.modifiers.contains(.enumModifier),
+              !classDecl.modifiers.contains(.annotationClass)
+        else {
+            return nil
+        }
+        return ctx.sema.symbols.lookup(fqName: [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("Any"),
+        ])
     }
 
     /// Kotlin scopes primary constructor parameters declared without `val`/`var`
@@ -511,7 +521,7 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine,
         ownerSymbol: SymbolID? = nil,
         hasPrimaryConstructor: Bool = true,
-        explicitSuperclassSymbol: SymbolID? = nil,
+        superclassSymbol: SymbolID? = nil,
         baseLocals: LocalBindings = [:]
     ) {
         let sema = ctx.sema
@@ -591,7 +601,7 @@ extension DeclTypeChecker {
                 ctor: ctor,
                 currentCtorSymbolID: currentCtorSymbolID,
                 ownerSymbol: ownerSymbol,
-                explicitSuperclassSymbol: explicitSuperclassSymbol,
+                superclassSymbol: superclassSymbol,
                 ctx: constructorCtx,
                 locals: &locals
             )
@@ -631,7 +641,7 @@ extension DeclTypeChecker {
         ctor: ConstructorDecl,
         currentCtorSymbolID: SymbolID?,
         ownerSymbol: SymbolID?,
-        explicitSuperclassSymbol: SymbolID?,
+        superclassSymbol: SymbolID?,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
     ) {
@@ -639,14 +649,14 @@ extension DeclTypeChecker {
         guard let delegation = ctor.delegationCall else { return }
 
         // Resolve candidates and their expected superclass type with the same owner.
-        let explicitSuperclassSymbol = explicitSuperclassSymbol.map { superclass in
+        let linkedSuperclassSymbol = superclassSymbol.map { superclass in
             linkedActualConstructorOwner(superclass, sema: sema)
         }
-        let targetOwner = delegation.kind == .this ? ownerSymbol : explicitSuperclassSymbol
+        let targetOwner = delegation.kind == .this ? ownerSymbol : linkedSuperclassSymbol
         let delegationTargetFQName = resolveDelegationTarget(
             delegation: delegation,
             ownerSymbol: ownerSymbol,
-            explicitSuperclassSymbol: explicitSuperclassSymbol,
+            superclassSymbol: linkedSuperclassSymbol,
             ctx: ctx
         )
 
@@ -685,7 +695,7 @@ extension DeclTypeChecker {
                 var delegationLocals = locals
                 if let companionOwner = delegation.kind == .this
                     ? ownerSymbol
-                    : (explicitSuperclassSymbol ?? ownerSymbol)
+                    : (linkedSuperclassSymbol ?? ownerSymbol)
                 {
                     let delegationHeader = companionHeaderDelegationContext(
                         superclassSymbol: companionOwner,
@@ -703,7 +713,7 @@ extension DeclTypeChecker {
                         ? constructorOwnerType(ownerSymbol, ctx: ctx)
                         : constructorSuperclassType(
                             ownerSymbol: ownerSymbol,
-                            superclassSymbol: explicitSuperclassSymbol,
+                            superclassSymbol: linkedSuperclassSymbol,
                             ctx: ctx
                         ),
                     ctx: delegationArgCtx,
@@ -917,7 +927,7 @@ extension DeclTypeChecker {
     private func resolveDelegationTarget(
         delegation: ConstructorDelegationCall,
         ownerSymbol: SymbolID?,
-        explicitSuperclassSymbol: SymbolID?,
+        superclassSymbol: SymbolID?,
         ctx: TypeInferenceContext
     ) -> [InternedString] {
         let sema = ctx.sema
@@ -930,7 +940,7 @@ extension DeclTypeChecker {
             }
             return []
         case .super_:
-            guard ownerSymbol != nil, let superclass = explicitSuperclassSymbol,
+            guard ownerSymbol != nil, let superclass = superclassSymbol,
                   let superSym = sema.symbols.symbol(superclass)
             else { return [] }
             return superSym.fqName + [ctx.interner.intern("<init>")]

@@ -161,7 +161,7 @@ extension DiagnosticCodeCoverageTests {
     @Test
     func testDiagnosticCodeCoverageSema() throws {
         let sources: [String] = [
-            // testSema0021SuperDelegationWithoutSuperclass
+            // testSema0021NotEmittedForImplicitAnySuperclass
             """
             package sample0
 
@@ -465,7 +465,7 @@ extension DiagnosticCodeCoverageTests {
             try runSema(ctx)
             _ = try #require(ctx.sema)
 
-            // === testSema0021SuperDelegationWithoutSuperclass ===
+            // === testSema0021NotEmittedForImplicitAnySuperclass ===
 
             do {
 
@@ -473,11 +473,8 @@ extension DiagnosticCodeCoverageTests {
 
                 let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
 
-                let codes = sample0Diagnostics.map(\.code)
-                #expect(
-                    codes.contains("KSWIFTK-SEMA-0021") || codes.contains("KSWIFTK-SEMA-0055"),
-                    "Expected SEMA-0021 or SEMA-0055 for super() delegation without superclass, got: \(codes)"
-                )
+                assertNoDiagnostic("KSWIFTK-SEMA-0021", in: sample0Diagnostics)
+                assertNoDiagnostic("KSWIFTK-SEMA-0055", in: sample0Diagnostics)
 
             }
 
@@ -729,7 +726,7 @@ extension DiagnosticCodeCoverageTests {
 
                 let sample4Diagnostics = diagnosticsForPath(sample4Path, in: ctx)
 
-                assertNoDiagnostic("KSWIFTK-SEMA-0070", in: sample4Diagnostics)
+                assertHasDiagnostic("KSWIFTK-SEMA-0070", in: sample4Diagnostics)
 
             }
 
