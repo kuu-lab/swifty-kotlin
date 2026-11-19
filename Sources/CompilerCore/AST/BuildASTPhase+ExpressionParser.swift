@@ -57,6 +57,11 @@ extension BuildASTPhase {
         /// assignment — a legal form their fallback handles — disable it.
         var reportsTrailingAssignmentOperator = true
 
+        /// When-branch bodies are reparsed as expression slices that can still
+        /// be followed by the enclosing `when`'s `else ->`; that `else` is not
+        /// a stray if-else token.
+        var allowsTrailingWhenBranchElse = false
+
         // Bounded declaration prefixes must not accept recovered expressions
         // whose operand or control-flow branch was cut off by the slice.
         private(set) var hasIncompleteExpression = false
@@ -163,7 +168,7 @@ extension BuildASTPhase {
                     break
                 }
             }
-            if let strayElseToken {
+            if let strayElseToken, !isAllowedTrailingWhenBranchElse() {
                 diagnostics?.error(
                     "KSWIFTK-PARSE-0018",
                     "Unexpected 'else' after if expression.",
@@ -175,6 +180,18 @@ extension BuildASTPhase {
 
         private func parseAssignmentOrExpression() -> ExprID? {
             parseExpression(minPrecedence: 0)
+        }
+
+        private func isAllowedTrailingWhenBranchElse() -> Bool {
+            guard allowsTrailingWhenBranchElse else {
+                return false
+            }
+            if current()?.kind == .keyword(.else), peek(1)?.kind == .symbol(.arrow) {
+                return true
+            }
+            return current()?.kind == .symbol(.semicolon)
+                && peek(1)?.kind == .keyword(.else)
+                && peek(2)?.kind == .symbol(.arrow)
         }
 
         func parseExpression(minPrecedence: Int, implicitLambdaLabel: InternedString? = nil) -> ExprID? {
