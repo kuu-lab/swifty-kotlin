@@ -98,6 +98,18 @@ struct JVMClassReader {
     func text(_ index: Int) throws -> String { guard let s = strings[index] else { throw Invalid() }; return s }
     func className(_ index: Int) throws -> String { guard let s = classes[index] else { throw Invalid() }; return try text(s) }
 
+    static func matchesTopLevelPropertyGetter(_ method: JVMForeignMethod, property: JVMKotlinTopLevelProperty) -> Bool {
+        let logicalParameters = property.receiver == nil ? 0 : 1
+        guard method.isStatic && !method.isProtected && method.name == property.getterName
+            && method.descriptor == property.getterDescriptor && method.result != .unit
+        else { return false }
+        if method.parameters.count == logicalParameters { return true }
+        let hidden = method.parameters.dropFirst(logicalParameters)
+        return method.annotations.contains(where: { $0.descriptor == "Landroidx/compose/runtime/Composable;" })
+            && hidden.first?.referenceName == JVMCompose.composer
+            && hidden.dropFirst().allSatisfy { $0 == .int }
+    }
+
     /// Import a single result type parameter and any Class<T> parameters
     /// sharing it. Other parameter types must match their erased descriptors.
     private static func genericResultParameter(
@@ -749,10 +761,7 @@ struct JVMClassReader {
         }
         if let metadata = classAttributes.kotlinMetadata, let properties = try? metadata.topLevelProperties(byteLimit: bytes.count) {
             for property in properties {
-                guard let getter = methods.first(where: {
-                    $0.isStatic && !$0.isProtected && $0.name == property.getterName && $0.descriptor == property.getterDescriptor
-                        && $0.parameters.count == (property.receiver == nil ? 0 : 1) && $0.result != .unit
-                }) else { continue }
+                guard let getter = methods.first(where: { Self.matchesTopLevelPropertyGetter($0, property: property) }) else { continue }
                 info.kotlinTopLevelProperties.append((property, getter))
             }
         }

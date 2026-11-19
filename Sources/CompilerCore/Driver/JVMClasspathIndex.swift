@@ -1235,6 +1235,8 @@ final class JVMClasspathIndex {
             let topLevelProperties = info.kotlinTopLevelProperties.filter {
                 !isContextIsActive($0.source, $0.getter)
                     && $0.getter.parameters.allSatisfy(exposeSuspendType) && exposeSuspendType($0.getter.result)
+                    && !(info.name == "androidx/compose/runtime/ComposablesKt" && $0.source.name == "currentComposer"
+                        && $0.getter.name == "getCurrentComposer" && $0.getter.descriptor == "(L\(JVMCompose.composer);I)L\(JVMCompose.composer);")
             }
             let isFileFacade = info.isKotlinFileFacade ?? (short.hasSuffix("Kt") && !info.isAnnotation)
             if info.flags & 0x4000 != 0 {
@@ -1285,9 +1287,14 @@ final class JVMClasspathIndex {
                         source += "external fun \(kotlinType(receiver)).`\(method.name)`(\(rest)): \(kotlinType(method.result))\n"
                     }
                 }
-                for (property, _) in topLevelProperties {
+                for (property, getter) in topLevelProperties {
                     let receiver = property.receiver.map { $0 + "." } ?? ""
-                    source += "val \(receiver)`\(property.name)`: \(property.result) get() = null!!\n"
+                    let isComposable = getter.annotations.contains { $0.descriptor == "Landroidx/compose/runtime/Composable;" }
+                    let isReadOnly = isComposable && getter.annotations.contains { $0.descriptor == "Landroidx/compose/runtime/ReadOnlyComposable;" }
+                    let annotation = isComposable
+                        ? "@androidx.compose.runtime.Composable" + (isReadOnly ? " @androidx.compose.runtime.ReadOnlyComposable" : "") + " "
+                        : ""
+                    source += "val \(receiver)`\(property.name)`: \(property.result) \(annotation)get() = null!!\n"
                 }
             } else {
                 if info.flags & 0x2000 != 0 {
