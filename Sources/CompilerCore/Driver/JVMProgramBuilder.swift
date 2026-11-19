@@ -776,6 +776,13 @@ final class JVMFunctionBuilder {
         case let .stringTemplate(parts, _): return try constantFoldedText(id) ?? stringTemplate(parts)
         case let .stringLiteral(s, _): return try constant(.string(context.interner.resolve(s)), .string)
         case .thisRef, .superRef:
+            if case let .superRef(_, label, _) = expr, label != nil,
+               let symbol = program.sema.bindings.identifierSymbol(for: id), let owner,
+               symbol != owner.symbol,
+               symbol != SyntheticSymbolScheme.receiverParameterSymbol(for: owner.symbol)
+            {
+                throw fail("Unsupported JVM labeled super call to an outer class.", id)
+            }
             if case .thisRef = expr, let symbol = program.sema.bindings.identifierSymbol(for: id), let receiver = contextualReceivers[symbol] { return try convert(receiver, to: program.expressionType(id)) }
             if case .thisRef = expr, let extensionValue { return try convert(extensionValue, to: program.expressionType(id)) }
             guard !beforeDelegation, let thisValue else { throw fail("JVM this/super requires an initialized instance.", id) }

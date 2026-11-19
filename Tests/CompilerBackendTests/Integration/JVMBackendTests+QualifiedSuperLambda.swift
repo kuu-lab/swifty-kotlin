@@ -42,6 +42,30 @@ extension JVMBackendTests {
     }
 
     @Test
+    func labeledOuterClassSuperCallIsRejected() throws {
+        try withWorkspace { root in
+            let result = try compile("""
+            open class Base {
+                open val value: Int = 1
+                fun who(): Int = value
+            }
+            class Outer : Base() {
+                override val value: Int = 10
+                inner class Inner : Base() {
+                    override val value: Int = 100
+                    fun callOuterSuper(): Int = super@Outer.who()
+                }
+            }
+            fun main() {
+                println(Outer().Inner().callOuterSuper())
+            }
+            """, root: root, mode: .jvmJar)
+            #expect(result.0 != 0)
+            #expect(result.1.contains { $0.code == "KSWIFTK-JVM-0001" && $0.message.contains("outer class") })
+        }
+    }
+
+    @Test
     func unresolvedQualifiedSuperLabelIsRejected() throws {
         try withWorkspace { root in
             let result = try compile("""
