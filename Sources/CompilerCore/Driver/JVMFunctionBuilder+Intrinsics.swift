@@ -754,17 +754,25 @@ extension JVMFunctionBuilder {
         }
     }
     private func isSafeChainIndexedReceiver(_ receiver: ExprID) -> Bool {
-        guard !arena.isParenthesized(receiver), case .safeMemberCall = arena.expr(receiver) else { return false }
-        let chosen = program.sema.bindings.callBinding(for: receiver)?.chosenCallee
-            ?? program.sema.bindings.identifierSymbol(for: receiver)
-        guard let chosen else { return false }
-        let memberResultType: TypeID?
-        if let signature = program.sema.symbols.functionSignature(for: chosen) {
-            memberResultType = signature.returnType
-        } else {
-            memberResultType = program.sema.symbols.propertyType(for: chosen)
+        guard !arena.isParenthesized(receiver) else { return false }
+        switch arena.expr(receiver) {
+        case .safeMemberCall:
+            let chosen = program.sema.bindings.callBinding(for: receiver)?.chosenCallee
+                ?? program.sema.bindings.identifierSymbol(for: receiver)
+            guard let chosen else { return false }
+            let memberResultType: TypeID?
+            if let signature = program.sema.symbols.functionSignature(for: chosen) {
+                memberResultType = signature.returnType
+            } else {
+                memberResultType = program.sema.symbols.propertyType(for: chosen)
+            }
+            return memberResultType.map { program.sema.types.nullability(of: $0) == .nonNull } ?? false
+        case .indexedAccess:
+            guard let valueType = program.sema.bindings.safeChainIndexedValueType(for: receiver) else { return false }
+            return program.sema.types.nullability(of: valueType) == .nonNull
+        default:
+            return false
         }
-        return memberResultType.map { program.sema.types.nullability(of: $0) == .nonNull } ?? false
     }
 
     func indexedGet(_ receiver: ExprID, _ indices: [ExprID], _ id: ExprID, precomputedReceiverValue: JVMValue? = nil) throws -> JVMValue? {
@@ -807,13 +815,12 @@ extension JVMFunctionBuilder {
         return try jdkCall(owner, "get", [["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? .int : .reference("java/lang/Object", nullable: true)], .reference("java/lang/Object", nullable: true), receiver: object, arguments: [index], interface: true, resolved: type)!
     }
 
-    /// `a?.b[i]` is one guarded read: when the safe member result is null, the
-    /// index expressions and `get` are skipped instead of running on null.
-    private func safeChainIndexedGet(_ receiver: ExprID, _ indices: [ExprID], _ id: ExprID) throws -> JVMValue {
+    /// `a?.b[i]` is one guarded read: when the safe receiver is null, the index
+    /// expressions and `get` are skipped instead of running on null.
+    private func safeChainIndexedGet(_ receiver: ExprID, _ indices: [ExprID], _ id: ExprID) throws -> JVMValue? {
         let receiverValue = try requireValue(receiver)
         let type = try program.expressionType(id)
-        guard type != .unit else { throw fail("JVM safe indexed access must produce a value.", id) }
-        let result = try value(type)
+        let result = type == .unit ? nil : try value(type)
         let nullCase = label(), end = label()
         let null = try constant(.null, .reference("java/lang/Object", nullable: true)), check = try value(.boolean)
         instructions.append(.referenceCompare(.notEqual, receiverValue, null, check))
@@ -824,13 +831,23 @@ extension JVMFunctionBuilder {
         if let name = receiverValue.type.referenceName { nonNullType = .reference(name, nullable: false) }
         else { nonNullType = receiverValue.type }
         evaluatedOperands[receiver] = try convert(receiverValue, to: nonNullType)
-        guard let returned = try indexedGet(receiver, indices, id, precomputedReceiverValue: evaluatedOperands[receiver]) else {
-            throw fail("JVM safe indexed access must produce a value.", id)
+        let returned: JVMValue?
+        do { returned = try indexedGet(receiver, indices, id, precomputedReceiverValue: evaluatedOperands[receiver]) }
+        catch is JVMTerminatedExpression { returned = nil }
+        if !terminated {
+            if let result {
+                if let returned {
+                    instructions.append(.copy(try convert(returned, to: type), result))
+                } else {
+                    guard type.referenceName == "kotlin/Unit" else { throw fail("JVM safe indexed access must produce a value.", id) }
+                    program.functionArities.insert(0)
+                    instructions.append(.getStatic(JVMField(owner: "kotlin/Unit", name: "INSTANCE", type: .reference("kotlin/Unit", nullable: false), access: 0x19), result))
+                }
+            }
+            jump(end)
         }
-        instructions.append(.copy(try convert(returned, to: type), result))
-        jump(end)
         mark(nullCase)
-        instructions.append(.constant(.null, result))
+        if let result { instructions.append(.constant(.null, result)) }
         mark(end)
         return result
     }

@@ -55,5 +55,25 @@ struct SafeChainIndexedAccessTests {
         try runSema(ctx)
         #expect(ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
+
+    @Test func safeChainIndexedAccessSupportsNestedNonNullElements() throws {
+        let ctx = makeContextFromSource("""
+        class Matrix(val rows: List<List<Int>>)
+
+        fun nestedLookup(box: Matrix?): Int? = box?.rows[1][0]
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func safeChainIndexedAccessRejectsNestedNullableElements() throws {
+        let ctx = makeContextFromSource("""
+        class Matrix(val rows: List<List<Int>?>)
+
+        fun nestedLookup(box: Matrix?): Int? = box?.rows[0][0]
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif

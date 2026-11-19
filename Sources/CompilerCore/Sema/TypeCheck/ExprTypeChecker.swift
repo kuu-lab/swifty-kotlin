@@ -30,14 +30,19 @@ final class ExprTypeChecker {
         return false
     }
 
-    /// Whether `id` is the safe member access that directly feeds an indexed
-    /// read (`a?.b[i]`). Parentheses end the safe chain, so `(a?.b)[i]` is not
-    /// guarded; `!!` is a separate `.nullAssert` node and already excluded.
+    /// Whether `id` can continue a safe indexed-access chain (`a?.b[i]`,
+    /// `a?.b[i][j]`). Parentheses and `!!` end the chain; member-result and
+    /// element nullability are checked during indexed-access inference.
     func isUnguardedSafeIndexedAccessReceiver(_ id: ExprID, ast: ASTModule) -> Bool {
-        guard !ast.arena.isParenthesized(id), case .safeMemberCall = ast.arena.expr(id) else {
+        guard !ast.arena.isParenthesized(id) else { return false }
+        switch ast.arena.expr(id) {
+        case .safeMemberCall:
+            return true
+        case let .indexedAccess(receiver, _, _):
+            return isUnguardedSafeIndexedAccessReceiver(receiver, ast: ast)
+        default:
             return false
         }
-        return true
     }
 
     // swiftlint:disable:next cyclomatic_complexity

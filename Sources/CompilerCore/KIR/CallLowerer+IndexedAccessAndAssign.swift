@@ -1,22 +1,29 @@
 
 extension CallLowerer {
 
-    /// Mirrors Sema's safe-chain indexed read: `a?.b[i]` lowers as one guarded
-    /// access so a null safe receiver skips both the index expressions and `get`.
+    /// Mirrors Sema's safe-chain indexed read: `a?.b[i]` and chained reads like
+    /// `a?.b[i][j]` lower as guarded accesses so a null receiver skips both the
+    /// index expressions and `get`.
     private func isSafeChainIndexedReceiver(_ receiverExpr: ExprID, ast: ASTModule, sema: SemaModule) -> Bool {
-        guard !ast.arena.isParenthesized(receiverExpr),
-              case .safeMemberCall = ast.arena.expr(receiverExpr)
-        else { return false }
-        let chosen = sema.bindings.callBinding(for: receiverExpr)?.chosenCallee
-            ?? sema.bindings.identifierSymbol(for: receiverExpr)
-        guard let chosen else { return false }
-        let memberResultType: TypeID?
-        if let signature = sema.symbols.functionSignature(for: chosen) {
-            memberResultType = signature.returnType
-        } else {
-            memberResultType = sema.symbols.propertyType(for: chosen)
+        guard !ast.arena.isParenthesized(receiverExpr) else { return false }
+        switch ast.arena.expr(receiverExpr) {
+        case .safeMemberCall:
+            let chosen = sema.bindings.callBinding(for: receiverExpr)?.chosenCallee
+                ?? sema.bindings.identifierSymbol(for: receiverExpr)
+            guard let chosen else { return false }
+            let memberResultType: TypeID?
+            if let signature = sema.symbols.functionSignature(for: chosen) {
+                memberResultType = signature.returnType
+            } else {
+                memberResultType = sema.symbols.propertyType(for: chosen)
+            }
+            return memberResultType.map { sema.types.nullability(of: $0) == .nonNull } ?? false
+        case .indexedAccess:
+            guard let valueType = sema.bindings.safeChainIndexedValueType(for: receiverExpr) else { return false }
+            return sema.types.nullability(of: valueType) == .nonNull
+        default:
+            return false
         }
-        return memberResultType.map { sema.types.nullability(of: $0) == .nonNull } ?? false
     }
 
     func lowerIndexedAccessExpr(
