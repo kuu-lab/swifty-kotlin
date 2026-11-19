@@ -48,6 +48,12 @@ extension JVMFunctionBuilder {
         let name = context.interner.resolve(symbol.name)
         let resultType = try program.expressionType(id)
         let object: JVMValueType = .reference("java/lang/Object", nullable: true)
+        if symbol.kind == .constructor, args.count == 1, args.allSatisfy({ $0.label == nil && !$0.isSpread }),
+           let parent = program.sema.symbols.parentSymbol(for: symbolID),
+           (try? program.className(parent)) == "java/util/concurrent/atomic/AtomicReference" {
+            let value = try convert(requireValue(args[0].expr), to: object)
+            return JVMIntrinsicResult(value: try convert(constructJDK("java/util/concurrent/atomic/AtomicReference", parameters: [object], arguments: [value]), to: resultType))
+        }
         if fq == "kotlin/io/path/Path", name == "Path", args.count >= 1, args.allSatisfy({ !$0.isSpread }) {
             let path = try convert(requireValue(args[0].expr), to: .string)
             let more = Array(args.dropFirst())
@@ -533,6 +539,10 @@ extension JVMFunctionBuilder {
             if owner == "java/util/ArrayList" { owner = "java/util/List" }
             if owner == "java/util/LinkedHashSet" { owner = "java/util/Set" }
             if owner == "java/util/LinkedHashMap" || owner == "java/util/HashMap" { owner = "java/util/Map" }
+            if member == "isNullOrEmpty", args.isEmpty,
+               ["java/util/Collection", "java/util/List", "java/util/Set", "java/util/Map"].contains(owner) {
+                return try collectionIsNullOrEmpty(receiverID, owner: owner, id: id)
+            }
             let isIteratorRemove = owner == "java/util/Iterator" && member == "remove"
             // Sema's chosen callee is authoritative for member vs extension:
             // when it picked a Kotlin extension, the fixed JDK member signature
@@ -847,8 +857,14 @@ extension JVMFunctionBuilder {
             let result = try value(elementType)
             instructions.append(.arrayGet(object, index, result)); return result
         }
-        guard let owner = object.type.referenceName, ["java/util/List", "kotlin/enums/EnumEntries", "java/util/Map"].contains(owner) else { throw fail("Unsupported JVM indexed receiver.") }
-        return try jdkCall(owner, "get", [["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? .int : .reference("java/lang/Object", nullable: true)], .reference("java/lang/Object", nullable: true), receiver: object, arguments: [index], interface: true, resolved: type)!
+        guard var owner = object.type.referenceName else { throw fail("Unsupported JVM indexed receiver.") }
+        var receiver = object
+        if context.jvmImports?.isJavaConcurrentMapClass(owner) == true {
+            owner = "java/util/Map"
+            receiver = try convert(object, to: .reference("java/util/Map", nullable: false))
+        }
+        guard ["java/util/List", "kotlin/enums/EnumEntries", "java/util/Map"].contains(owner) else { throw fail("Unsupported JVM indexed receiver.") }
+        return try jdkCall(owner, "get", [["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? .int : .reference("java/lang/Object", nullable: true)], .reference("java/lang/Object", nullable: true), receiver: receiver, arguments: [index], interface: true, resolved: type)!
     }
 
     /// `a?.b[i]` is one guarded read: when the safe receiver is null, the index
@@ -930,9 +946,15 @@ extension JVMFunctionBuilder {
             let index = try convert(index, to: .int), source = try convert(source, to: arrayComponent(object.type))
             instructions.append(.arraySet(object, index, source)); return
         }
-        guard let owner = object.type.referenceName, ["java/util/List", "kotlin/enums/EnumEntries", "java/util/Map"].contains(owner) else { throw fail("Unsupported JVM indexed receiver.") }
+        guard var owner = object.type.referenceName else { throw fail("Unsupported JVM indexed receiver.") }
+        var receiver = object
+        if context.jvmImports?.isJavaConcurrentMapClass(owner) == true {
+            owner = "java/util/Map"
+            receiver = try convert(object, to: .reference("java/util/Map", nullable: false))
+        }
+        guard ["java/util/List", "kotlin/enums/EnumEntries", "java/util/Map"].contains(owner) else { throw fail("Unsupported JVM indexed receiver.") }
         let any: JVMValueType = .reference("java/lang/Object", nullable: true)
-        _ = try jdkCall(owner, ["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? "set" : "put", [["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? .int : any, any], any, receiver: object, arguments: [index, source], interface: true)
+        _ = try jdkCall(owner, ["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? "set" : "put", [["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? .int : any, any], any, receiver: receiver, arguments: [index, source], interface: true)
     }
     func indexedCompound(_ op: CompoundAssignOp, _ receiver: ExprID, _ indices: [ExprID], _ source: ExprID, _ id: ExprID) throws -> JVMValue? {
         guard indices.count == 1 else { throw fail("JVM indexing requires one index.", id) }

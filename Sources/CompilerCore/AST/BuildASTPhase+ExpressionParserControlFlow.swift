@@ -379,6 +379,7 @@ extension BuildASTPhase.ExpressionParser {
         // it only consumes the assignment's target and stops at `=`. The
         // leftover `=` is therefore expected here, not a stray token.
         parser.reportsTrailingAssignmentOperator = false
+        parser.allowsTrailingWhenBranchElse = true
         var body: ExprID?
         if branchTokens.first?.kind == .symbol(.at) || branchTokens.first?.kind == .symbol(.lBrace) {
             body = parser.parseControlFlowBodyExpression()
@@ -386,10 +387,20 @@ extension BuildASTPhase.ExpressionParser {
             body = parser.parse()
         }
         var consumedCount = parser.index - parser.tokens.startIndex
-        if body == nil || consumedCount < branchTokens.count {
+        let nextTokenIsAssignment = parser.index < tokens.endIndex
+            && isWhenBranchAssignmentOperator(tokens[parser.index].kind)
+        if body == nil || (consumedCount < branchTokens.count && nextTokenIsAssignment) {
             if let assignBody = parseWhenBranchAssignmentBody(branchTokens) {
                 body = assignBody
-                consumedCount = branchTokens.count
+                if let bodyEndOffset = astArena.exprRange(assignBody)?.end.offset {
+                    consumedCount = whenBranchBodyConsumedCount(
+                        startIndex: startIndex,
+                        endIndex: endIndex,
+                        bodyEndOffset: bodyEndOffset
+                    )
+                } else {
+                    consumedCount = branchTokens.count
+                }
             }
         }
         guard let body else {
@@ -407,12 +418,14 @@ extension BuildASTPhase.ExpressionParser {
             interner: interner,
             astArena: astArena,
             parseExpression: { subTokens in
-                BuildASTPhase.ExpressionParser(
+                let parser = BuildASTPhase.ExpressionParser(
                     tokens: subTokens,
                     interner: self.interner,
                     astArena: self.astArena,
                     diagnostics: self.diagnostics
-                ).parse()
+                )
+                parser.allowsTrailingWhenBranchElse = true
+                return parser.parse()
             },
             parseTypeReference: { _ in nil },
             resolveDeclarationName: { _, _ in nil },
@@ -423,6 +436,45 @@ extension BuildASTPhase.ExpressionParser {
             context: context,
             options: .blockExpression
         )
+    }
+
+    private func isWhenBranchAssignmentOperator(_ kind: TokenKind) -> Bool {
+        switch kind {
+        case .symbol(.assign), .symbol(.plusAssign), .symbol(.minusAssign),
+             .symbol(.starAssign), .symbol(.slashAssign), .symbol(.percentAssign):
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func whenBranchBodyConsumedCount(startIndex: Int, endIndex: Int, bodyEndOffset: Int) -> Int {
+        var scan = startIndex
+        var depth = BuildASTPhase.BracketDepth()
+        while scan < endIndex {
+            let token = tokens[scan]
+            if token.range.start.offset >= bodyEndOffset {
+                // Past the value's last token, only closing delimiters that
+                // balance brackets opened inside the body (the `)` in
+                // `x = (20)`) belong to it. Anything else means the body
+                // expression ended earlier and must not be swallowed.
+                guard !depth.isBracketBraceParenTopLevel, isWhenBranchClosingDelimiter(token.kind) else {
+                    break
+                }
+            }
+            depth.track(token.kind)
+            scan += 1
+        }
+        return scan - startIndex
+    }
+
+    private func isWhenBranchClosingDelimiter(_ kind: TokenKind) -> Bool {
+        switch kind {
+        case .symbol(.rParen), .symbol(.rBracket), .symbol(.rBrace):
+            return true
+        default:
+            return false
+        }
     }
 
     private func findWhenBranchBodyEnd(startIndex: Int) -> Int {

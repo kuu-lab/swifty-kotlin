@@ -269,6 +269,7 @@ public struct JVMForeignMethod: Sendable {
     public var isVarargs = false
     public var isSuspend = false
     public var isProtected = false
+    var isSynthetic = false
     public var annotations: [JVMAnnotation] = []
     public var annotationDefault: JVMAnnotationValue? = nil
     // Classpath methods keep their physical descriptor until bound to a Kotlin call.
