@@ -54,5 +54,17 @@ extension JVMBackendTests {
             #expect(execution.stderr.isEmpty)
         }
     }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func nullableComparableUpperBoundComparisonAfterNullChecks(mode: EmitMode) throws {
+        try assertJVM("""
+        class Box<T : Comparable<T>?>(val v: T?) {
+            fun isGreater(o: T?): Boolean = v != null && o != null && v > o
+        }
+        fun main() {
+            println(Box(1).isGreater(0))
+        }
+        """, "true\n", mode: mode)
+    }
 }
 #endif

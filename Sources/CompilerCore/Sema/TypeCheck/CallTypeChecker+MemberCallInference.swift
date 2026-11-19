@@ -789,8 +789,11 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext
     ) -> TypeID {
         let sema = ctx.sema
-        guard case let .superRef(nil, nil, range) = ctx.ast.arena.expr(receiverID),
-              let currentType = ctx.implicitReceiverType,
+        guard case let .superRef(nil, label, range) = ctx.ast.arena.expr(receiverID) else {
+            return receiverType
+        }
+        let currentType = label.flatMap { ctx.resolveQualifiedThis(label: $0) } ?? ctx.implicitReceiverType
+        guard let currentType,
               case let .classType(currentClass) = sema.types.kind(of: currentType)
         else {
             return receiverType

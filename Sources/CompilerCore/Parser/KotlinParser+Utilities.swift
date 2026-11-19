@@ -169,10 +169,18 @@ extension KotlinParser {
 
         let parsesValueParameters = allowsValueParameters
             && opening == .lParen && closing == .rParen
-        var atValueParameterStart = true
         var valueParameterPrefixEnd: Int?
         var valueParameterTypeArgumentDepth = 0
         var valueParameterInDefaultValue = false
+        // Whether the current parameter's prefix is complete (its `name:` or
+        // a default `=` was seen). Only an incomplete prefix may shield a
+        // declaration-looking newline; afterwards a missing ')' must recover
+        // at the next declaration instead of absorbing it as a parameter.
+        var valueParameterPrefixComplete = false
+        // Tracks `@` / `@ name` so the use-site-target colon (`@field:`) is
+        // not mistaken for the parameter name colon.
+        var valueParameterAtPending = false
+        var valueParameterAtTargetPending = false
         let whenSubjectVariablePrefixEnd = allowsWhenSubjectVariable
             ? lookaheadWhenSubjectVariablePrefixEnd()
             : nil
@@ -183,10 +191,14 @@ extension KotlinParser {
                 _ = consumeToken(into: &children, range: &range)
                 return arena.appendNode(kind: .statement, range: range.value ?? invalidRange, children)
             }
-            // A proven parameter prefix or anonymous default expression may
-            // cross a declaration-looking newline. Keep recovery boundaries
-            // for a missing ')' and following named declarations.
-            if parsesValueParameters, closingSymbols.count == 1, atValueParameterStart,
+            // A proven parameter prefix — including annotations or modifiers
+            // split across newlines inside one parameter — or an anonymous
+            // default expression may cross a declaration-looking newline.
+            // Keep recovery boundaries for a missing ')' and following named
+            // declarations: once the current parameter's prefix is complete,
+            // a new parameter can only start after a comma, so a proven
+            // prefix here would be an unrelated declaration.
+            if parsesValueParameters, closingSymbols.count == 1, !valueParameterPrefixComplete,
                hasLeadingNewline(token), isLikelyTopLevelDeclarationStart(token) {
                 valueParameterPrefixEnd = lookaheadValueParameterPrefixEnd()
             }
@@ -210,13 +222,21 @@ extension KotlinParser {
                 // A generic type's comma is not a new parameter. Conversely,
                 // '<' in a default expression may be a comparison, not a type.
                 if token.kind == .symbol(.comma), valueParameterTypeArgumentDepth == 0 {
-                    atValueParameterStart = true
                     valueParameterPrefixEnd = nil
                     valueParameterInDefaultValue = false
+                    valueParameterPrefixComplete = false
+                    valueParameterAtPending = false
+                    valueParameterAtTargetPending = false
                 } else {
-                    atValueParameterStart = false
+                    // The first top-level colon that is not a use-site-target
+                    // colon ends the parameter prefix; a default value does too.
+                    if token.kind == .symbol(.colon), valueParameterTypeArgumentDepth == 0,
+                       !valueParameterAtTargetPending {
+                        valueParameterPrefixComplete = true
+                    }
                     if token.kind == .symbol(.assign) {
                         valueParameterInDefaultValue = true
+                        valueParameterPrefixComplete = true
                     } else if token.kind == .symbol(.lessThan) {
                         if !valueParameterInDefaultValue || valueParameterTypeArgumentDepth > 0
                             || valueParameterDefaultStartsTypeArguments() {
@@ -224,6 +244,19 @@ extension KotlinParser {
                         }
                     } else if token.kind == .symbol(.greaterThan), valueParameterTypeArgumentDepth > 0 {
                         valueParameterTypeArgumentDepth -= 1
+                    }
+                }
+                switch token.kind {
+                case .symbol(.at):
+                    valueParameterAtPending = true
+                    valueParameterAtTargetPending = false
+                default:
+                    if valueParameterAtPending, isIdentifierLike(token.kind) {
+                        valueParameterAtPending = false
+                        valueParameterAtTargetPending = true
+                    } else {
+                        valueParameterAtPending = false
+                        valueParameterAtTargetPending = false
                     }
                 }
             }
