@@ -684,5 +684,44 @@ extension CompilerCoreTests {
         }
     }
 
+    /// A when-branch body that continues after a trailing binary operator must
+    /// not be truncated when the RHS line is followed by another `is` branch:
+    /// the scanner used to mistake the RHS for a new branch header because the
+    /// next `is ... ->` made it reach an arrow.
+    @Test func testWhenBranchBodyBinaryOperatorBeforeNextIsBranch() throws {
+        let source = """
+        open class Dialect
+        class MysqlDialect : Dialect()
+        class SqlServerDialect : Dialect()
+        class PostgresDialect : Dialect()
+
+        fun accepts(dialect: Dialect, unsigned: String, signed: String): Boolean =
+            when (dialect) {
+                is MysqlDialect -> unsigned.isNotEmpty() || signed.isNotEmpty()
+                is SqlServerDialect -> unsigned.startsWith("byte") ||
+                    signed.startsWith("short")
+                is PostgresDialect -> signed.startsWith("short")
+                else -> false
+            }
+
+        fun nullability(value: Any): String? =
+            when (value) {
+                is String -> value as String?
+                is Int -> null
+                else -> null
+            }
+        """
+
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+
+            let diagnostics = diagnosticsForPath(paths[0], in: ctx)
+            assertNoDiagnostic("KSWIFTK-PARSE-0001", in: diagnostics)
+            assertNoDiagnostic("KSWIFTK-PARSE-0010", in: diagnostics)
+            assertNoDiagnostic("KSWIFTK-SEMA-0004", in: diagnostics)
+        }
+    }
+
 }
 #endif

@@ -439,6 +439,7 @@ extension BuildASTPhase.ExpressionParser {
                 }
                 if scan > startIndex,
                    hasLeadingNewline(token),
+                   whenBranchBodyTokenCanEndExpression(at: tokens.index(before: scan)),
                    startsWhenBranchHeader(at: scan)
                 {
                     return scan
@@ -466,6 +467,42 @@ extension BuildASTPhase.ExpressionParser {
         }
 
         return scan
+    }
+
+    /// Whether the token at `index` can be the last token of a when-branch body expression.
+    /// A line break after an operator or keyword that still expects an operand
+    /// continues the body, so the next line cannot open a new entry even if a
+    /// later `->` makes it look like a branch header.
+    private func whenBranchBodyTokenCanEndExpression(at index: Int) -> Bool {
+        let token = tokens[index]
+        switch token.kind {
+        case .symbol(.bangBang), .symbol(.plusPlus), .symbol(.minusMinus):
+            // Postfix operators can close the body expression.
+            return true
+        case .symbol(.plus), .symbol(.minus), .symbol(.star), .symbol(.slash), .symbol(.percent),
+             .symbol(.ampAmp), .symbol(.barBar),
+             .symbol(.equalEqual), .symbol(.bangEqual), .symbol(.tripleEqual), .symbol(.notTripleEqual),
+             .symbol(.lessThan), .symbol(.lessOrEqual), .symbol(.greaterThan), .symbol(.greaterOrEqual),
+             .symbol(.questionColon), .symbol(.dotDot), .symbol(.dotDotLt),
+             .symbol(.dot), .symbol(.questionDot), .symbol(.bang), .symbol(.doubleColon),
+             .symbol(.assign), .symbol(.plusAssign), .symbol(.minusAssign), .symbol(.starAssign),
+             .symbol(.slashAssign), .symbol(.percentAssign),
+             .symbol(.comma), .symbol(.colon):
+            return false
+        case .keyword(.is), .keyword(.as), .keyword(.in), .keyword(.else):
+            return false
+        case let .identifier(name):
+            let resolved = interner.resolve(name)
+            // `downTo`/`step` are parsed as binary operators when they follow
+            // an expression; in that position they still expect an operand.
+            if resolved == "downTo" || resolved == "step" {
+                let previous = tokens.index(before: index)
+                return index == tokens.startIndex || !whenBranchBodyTokenCanEndExpression(at: previous)
+            }
+            return true
+        default:
+            return true
+        }
     }
 
     private func startsWhenBranchHeader(at startIndex: Int) -> Bool {
