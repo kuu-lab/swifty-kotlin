@@ -100,5 +100,41 @@ extension JVMBackendTests {
             #expect(execution.stderr.isEmpty)
         }
     }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func concurrentMapCustomGetKeepsJavaSignature(mode: EmitMode) throws {
+        try withWorkspace { root in
+            let library = try ownStdlibRuntime()
+            try """
+            package dep;
+            public class WeirdMap<K, V> extends java.util.concurrent.ConcurrentHashMap<K, V> {
+                public int get(int key) { return key * 2; }
+            }
+            """.write(to: root.appendingPathComponent("WeirdMap.java"), atomically: true, encoding: .utf8)
+            let dependency = root.appendingPathComponent("dependency").path
+            let compiled = try jvmTool("javac", ["--release", "8", "-d", dependency, "WeirdMap.java"], root: root)
+            try #require(compiled.exitCode == 0, "\(compiled.stderr)")
+            let dependencyJar = root.appendingPathComponent("dependency.jar").path
+            _ = try jvmTool("jar", ["cf", dependencyJar, "-C", dependency, "."], root: root)
+
+            let source = """
+            import dep.WeirdMap
+
+            fun main() {
+                val m = WeirdMap<String, String>()
+                val index: Int = m.get(21)
+                println(index)
+            }
+            """
+            let classpath = [library.path, dependencyJar]
+            let result = try compile(source, root: root, mode: mode, classpath: classpath)
+            try #require(result.0 == 0, "\(result.1.map(\.message))")
+
+            let artifact = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path
+            let execution = try java(["-cp", ([artifact] + classpath).joined(separator: ":"), "HelloKt"])
+            #expect(execution.stdout == "42\n")
+            #expect(execution.stderr.isEmpty)
+        }
+    }
 }
 #endif

@@ -1650,7 +1650,8 @@ final class JVMClasspathIndex {
             if !info.isInterface { source += "external " }
             let javaTypeParameterResult: String? = {
                 guard usesKotlinMetadata, method.kotlinSuspendFunction == nil else { return nil }
-                if isJavaConcurrentMapClass(info.name), method.name == "get", method.sourceParameters.count == 1 {
+                if isJavaConcurrentMapClass(info.name), method.name == "get", method.sourceParameters.count == 1,
+                   method.descriptor == "(Ljava/lang/Object;)Ljava/lang/Object;" {
                     let value = info.classTypeParameterNames.count > 1 ? info.classTypeParameterNames[1] : "kotlin.Any"
                     return value + "?"
                 }
