@@ -2459,7 +2459,8 @@ final class JVMClasspathIndex {
         let parameters = kotlinParameterDeclarations(function.parameters, typeParameters: names)
         let receiver: String
         if let extensionType = function.receiver {
-            receiver = type(extensionType) + "."
+            let receiverType = type(extensionType)
+            receiver = (sourceTypeIsTopLevelFunction(receiverType) ? "(\(receiverType))" : receiverType) + "."
         } else { receiver = "" }
         let operatorModifier = function.isOperator ? "operator " : ""
         let infixModifier = function.isInfix ? "infix " : ""
