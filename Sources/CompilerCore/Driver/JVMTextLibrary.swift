@@ -414,10 +414,14 @@ extension JVMFunctionBuilder {
         if method.annotations.contains(where: { $0.descriptor == "Landroidx/compose/runtime/Composable;" }) {
             guard let composer = activeComposer else { throw fail("JVM @Composable property getters require an active Composer.", id) }
             guard activeRegions.isEmpty else { throw fail("JVM @Composable calls are unsupported inside a try expression.", id) }
-            guard let composerIndex = method.parameters.firstIndex(where: { $0.referenceName == JVMCompose.composer }),
-                  composerIndex <= 1,
-                  method.parameters.dropFirst(composerIndex + 1).allSatisfy({ $0 == .int })
-            else { throw fail("Unsupported JVM composable property getter signature.", id) }
+            let maskCount = method.parameters.reversed().prefix(while: { $0 == .int }).count
+            let composerIndex = method.parameters.count - maskCount - 1
+            guard maskCount > 0, composerIndex >= 0, composerIndex <= 1 else {
+                throw fail("Unsupported JVM composable property getter signature.", id)
+            }
+            guard method.parameters[composerIndex].referenceName == JVMCompose.composer else {
+                throw fail("Unsupported JVM composable property getter signature.", id)
+            }
             var prefix: [JVMValue] = []
             if composerIndex == 1 {
                 guard let receiverValue = try receiver.map(requireValue) ?? implicitExtensionReceiver(id) else {
@@ -427,7 +431,7 @@ extension JVMFunctionBuilder {
             }
             let unchanged = try constant(.int(0), .int)
             var hidden = [composer]
-            hidden.append(contentsOf: repeatElement(unchanged, count: method.parameters.count - composerIndex - 1))
+            hidden.append(contentsOf: repeatElement(unchanged, count: maskCount))
             let resultType = try program.expressionType(id)
             let result = try value(foreignResultType(method.result, resolved: resultType))
             try beginComposeGroup(composer, key: composeCallKey(at: id))
