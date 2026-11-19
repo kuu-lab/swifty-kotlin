@@ -771,7 +771,19 @@ extension ExprTypeChecker {
             guard let symbol = sema.symbols.symbol(candidate) else {
                 return false
             }
-            return symbol.fqName.starts(with: knownNames.kotlinRangesPackageFQName)
+            if symbol.fqName.starts(with: knownNames.kotlinRangesPackageFQName) {
+                return true
+            }
+            // A visible but inapplicable user extension must not hide the
+            // builtin floating range: `1.0..2.0` with only `rangeTo(Marker)`
+            // still has to produce `ClosedFloatingPointRange<Double>`.
+            return ctx.resolver.probeCall(
+                candidates: [candidate],
+                call: operatorCall,
+                expectedType: nil,
+                implicitReceiverType: operatorReceiverType,
+                ctx: sema
+            ).viableCandidates.isEmpty
         }
         let dropGenericRangeCandidatesWhenScalarRangeApplies = { (candidates: [SymbolID]) -> [SymbolID] in
             guard isRangeOperator, lhsHasScalarRange else {
