@@ -732,9 +732,34 @@ extension ExprTypeChecker {
             return false
         }
         let lhsHasScalarRange = sema.types.isBuiltinArithmeticOperand(operatorReceiverType)
-        if lhsHasScalarRange, op == .rangeTo || op == .rangeUntil {
-            operatorCandidates = operatorCandidates.filter { !isTypeParamReceiverCandidate($0) }
+        let isRangeOperator = op == .rangeTo || op == .rangeUntil
+        // Scalar ranges win only when the operand pair can form one (or a
+        // concrete range candidate is viable). `1..Marker()` has no scalar
+        // range, so a user-defined generic `rangeTo` must remain visible.
+        let isBuiltinScalarRangePair = isRangeOperator && lhsHasScalarRange
+            && ((sema.types.isSigned(lhs) && sema.types.isSigned(rhs)) || lhs == rhs)
+        let dropGenericRangeCandidatesWhenScalarRangeApplies = { (candidates: [SymbolID]) -> [SymbolID] in
+            guard isRangeOperator, lhsHasScalarRange else {
+                return candidates
+            }
+            if isBuiltinScalarRangePair {
+                return candidates.filter { !isTypeParamReceiverCandidate($0) }
+            }
+            let concreteCandidates = candidates.filter { !isTypeParamReceiverCandidate($0) }
+            guard !concreteCandidates.isEmpty,
+                  !ctx.resolver.probeCall(
+                      candidates: concreteCandidates,
+                      call: operatorCall,
+                      expectedType: nil,
+                      implicitReceiverType: operatorReceiverType,
+                      ctx: sema
+                  ).viableCandidates.isEmpty
+            else {
+                return candidates
+            }
+            return candidates.filter { !isTypeParamReceiverCandidate($0) }
         }
+        operatorCandidates = dropGenericRangeCandidatesWhenScalarRangeApplies(operatorCandidates)
         // A built-in or bundled rangeTo candidate can exist for the receiver
         // while rejecting the RHS type. Kotlin then considers visible operator
         // extensions; keep member precedence by retrying only when the current
@@ -779,13 +804,10 @@ extension ExprTypeChecker {
                 }
             }
         }
-        // The fallback above can rediscover generic rangeTo operators; scalar
-        // range expressions must still use the scalar range path. Boolean has no
-        // scalar range, so Boolean and other non-scalar generic operators keep
-        // the normal extension path.
-        if lhsHasScalarRange, op == .rangeTo || op == .rangeUntil {
-            operatorCandidates = operatorCandidates.filter { !isTypeParamReceiverCandidate($0) }
-        }
+        // The fallback above can rediscover generic rangeTo operators. Apply the
+        // same scalar-range gate again: it must not hide a user extension when
+        // the RHS cannot form a scalar range (for example `1..Marker()`).
+        operatorCandidates = dropGenericRangeCandidatesWhenScalarRangeApplies(operatorCandidates)
         // `collectOperatorCandidates` deliberately excludes primitive receivers
         // from member lookup for non-range operators. That also hides scoped
         // operator extensions because they aren't members. Search for those
