@@ -1542,9 +1542,6 @@ final class ControlFlowTypeChecker {
         // them cannot leak to the enclosing conditional path.
         branchCtx.isConditionallyEvaluated = false
 
-        let preTryReturnStateCounts = Dictionary(
-            uniqueKeysWithValues: ctx.lambdaReturnScopes.map { ($0.exprID, $0.returnLocalStates.count) }
-        )
         var tryBodyLocals = preTryLocals
         var tryBodyType = driver.inferExpr(
             body, ctx: branchCtx, locals: &tryBodyLocals,
@@ -1607,47 +1604,8 @@ final class ControlFlowTypeChecker {
         if let finallyExpr {
             // Finally is always checked for side effects, but it does not participate in try-expr type inference.
             var finallyLocals = locals
-            let preFinallyReturnStateCounts = Dictionary(
-                uniqueKeysWithValues: ctx.lambdaReturnScopes.map { ($0.exprID, $0.returnLocalStates.count) }
-            )
             _ = driver.inferExpr(finallyExpr, ctx: ctx, locals: &finallyLocals, expectedType: nil, isStatementContext: true)
             locals = finallyLocals
-            // Finally also runs on abrupt paths, so fold its definite
-            // assignments into return states recorded inside this try;
-            // otherwise callsInPlace definite assignment would reject code
-            // kotlinc accepts when the lambda returns from inside try. Only
-            // symbols finally initializes on every completion path of its
-            // own may be folded: a return@label inside finally skips
-            // finally's remaining assignments, and kotlinc rejects the read
-            // in that case.
-            var finallyGuaranteedSymbols = Set(
-                finallyLocals.values.filter { $0.isInitialized }.map { $0.symbol }
-            )
-            for scope in ctx.lambdaReturnScopes {
-                let internalStart = preFinallyReturnStateCounts[scope.exprID] ?? 0
-                for state in scope.returnLocalStates[internalStart...] {
-                    finallyGuaranteedSymbols.formIntersection(
-                        Set(state.values.filter { $0.isInitialized }.map { $0.symbol })
-                    )
-                }
-            }
-            for scope in ctx.lambdaReturnScopes {
-                let start = preTryReturnStateCounts[scope.exprID] ?? 0
-                let end = preFinallyReturnStateCounts[scope.exprID] ?? start
-                guard end > start else { continue }
-                for index in start..<end {
-                    var state = scope.returnLocalStates[index]
-                    for (name, finallyLocal) in finallyLocals
-                    where finallyLocal.isInitialized && finallyGuaranteedSymbols.contains(finallyLocal.symbol) {
-                        guard var entry = state[name], entry.symbol == finallyLocal.symbol,
-                              !entry.isInitialized
-                        else { continue }
-                        entry.isInitialized = true
-                        state[name] = entry
-                    }
-                    scope.returnLocalStates[index] = state
-                }
-            }
         }
 
         if !normalCompletionLocals.isEmpty {

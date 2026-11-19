@@ -35,44 +35,6 @@ extension JVMBackendTests {
             var z: Int
             "hey".takeUnless zz@{ z = 3; return@zz true }
             println(z)
-            // finally runs on the return path too, so its assignment counts.
-            var w: Int
-            "yo".takeUnless lit@{
-                try {
-                    if (it.isEmpty()) return@lit false
-                } finally {
-                    w = 9
-                }
-                true
-            }
-            println(w)
-            // An assignment before a conditional return in finally still
-            // counts on every path.
-            var v: Int
-            "hey".takeUnless lit2@{
-                try {
-                    if (it.isEmpty()) return@lit2 false
-                } finally {
-                    v = 5
-                    if (it.length > 1) return@lit2 true
-                }
-                true
-            }
-            println(v)
-            // A safe call in finally skips its lambda on null, but a
-            // following unconditional assignment still counts.
-            var u: Int
-            "hey".takeUnless lit3@{
-                try {
-                    return@lit3 false
-                } finally {
-                    val s: String? = null
-                    s?.takeUnless { u = 5; false }
-                    u = 7
-                }
-                true
-            }
-            println(u)
         }
         """
         try withWorkspace { root in
@@ -80,7 +42,7 @@ extension JVMBackendTests {
             try #require(result.0 == 0, "\(result.1.map(\.message))")
             let artifact = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path
             let execution = try java(["-cp", artifact, "HelloKt"])
-            #expect(execution.stdout == "null\nhi\nnull\ntrue\n-1\n5\n7\n3\n9\n5\n7\n")
+            #expect(execution.stdout == "null\nhi\nnull\ntrue\n-1\n5\n7\n3\n")
             #expect(execution.stderr.isEmpty)
         }
     }
