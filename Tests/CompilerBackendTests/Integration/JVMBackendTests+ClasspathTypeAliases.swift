@@ -20,10 +20,19 @@ extension JVMBackendTests {
         package coil3
 
         typealias Bitmap = fixture.Target
+        private typealias HiddenBitmap = fixture.Target
+        internal typealias InternalBitmap = fixture.Target
 
         fun bitmapLabel(bitmap: Bitmap): String = bitmap.label()
         """.write(to: root.appendingPathComponent("Bitmap.kt"), atomically: true, encoding: .utf8)
-        _ = try jvmTool("kotlinc", ["Bitmap.kt", "-cp", classes.path, "-d", "coil-bitmap.jar"], root: root)
+        try """
+        package coil3
+
+        typealias CollisionKt = fixture.Target
+
+        fun collisionValue(): Int = 3
+        """.write(to: root.appendingPathComponent("Collision.kt"), atomically: true, encoding: .utf8)
+        _ = try jvmTool("kotlinc", ["Bitmap.kt", "Collision.kt", "-cp", classes.path, "-d", "coil-bitmap.jar"], root: root)
         return (root.appendingPathComponent("coil-bitmap.jar"), classes)
     }
 
@@ -67,12 +76,31 @@ extension JVMBackendTests {
             #expect(execution.stdout == "null\n")
             #expect(execution.stderr.isEmpty)
 
+            let collision = try compile("""
+            import coil3.CollisionKt
+            import coil3.collisionValue
+
+            fun collisionIsNull(value: CollisionKt?): Boolean = value == null
+            fun main() { println(collisionIsNull(null)); println(collisionValue()) }
+            """, root: root, mode: .jvmJar, classpath: classpath)
+            try #require(collision.0 == 0, "\(collision.1.map(\.message))")
+
             let missing = try compile("""
             import coil3.Missing
             fun main() {}
             """, root: root, mode: .jvmJar, classpath: classpath)
             #expect(missing.0 != 0)
             #expect(missing.1.contains { $0.code == "KSWIFTK-SEMA-UNRESOLVED-IMPORT" })
+
+            for alias in ["HiddenBitmap", "InternalBitmap"] {
+                let hidden = try compile("""
+                import coil3.\(alias)
+
+                fun hiddenIsNull(value: \(alias)?): Boolean = value == null
+                """, root: root, mode: .jvmJar, classpath: classpath)
+                #expect(hidden.0 != 0)
+                #expect(hidden.1.contains { $0.code == "KSWIFTK-SEMA-UNRESOLVED-IMPORT" })
+            }
         }
     }
 }

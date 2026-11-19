@@ -1250,16 +1250,20 @@ final class JVMClasspathIndex {
             } else if isFileFacade {
                 // The facade class itself stays importable: `import api.HelloKt`
                 // resolves the nominal and `HelloKt.member(...)` reaches its
-                // statics through the companion, matching Kotlin/JVM.
-                source += "class `\(short)` private constructor() {\n"
-                if !statics.isEmpty {
-                    source += "companion object {\n"
-                    for method in statics {
-                        source += "external " + functionDeclaration(method, asFacadeMember: true) + "\n"
+                // statics through the companion, matching Kotlin/JVM. A public
+                // typealias with the facade name owns that classifier instead.
+                let hasFacadeNameAlias = typeAliases.contains { $0.isPublic && $0.name == short }
+                if !hasFacadeNameAlias {
+                    source += "class `\(short)` private constructor() {\n"
+                    if !statics.isEmpty {
+                        source += "companion object {\n"
+                        for method in statics {
+                            source += "external " + functionDeclaration(method, asFacadeMember: true) + "\n"
+                        }
+                        source += "}\n"
                     }
                     source += "}\n"
                 }
-                source += "}\n"
                 for method in statics {
                     if let suspend = method.kotlinSuspendFunction, method.kotlinFunction == nil {
                         source += "external " + functionDeclaration(method, asExtension: suspend.receiverIsNullable != nil) + "\n"
@@ -2026,7 +2030,7 @@ final class JVMClasspathIndex {
                         lazyTopLevelFunctionsByPackage[package, default: []].append((method.sourceName, name))
                     }
                     if let metadata = kotlinMetadata(info), metadata.isPackage {
-                        for alias in metadata.typeAliases {
+                        for alias in metadata.typeAliases where alias.isPublic {
                             lazyTopLevelByPackage[package, default: []].append((alias.name, name))
                         }
                     }
@@ -2180,7 +2184,7 @@ final class JVMClasspathIndex {
                 markSourceTypes([property.result] + [property.receiver].compactMap { $0 })
             }
             if let metadata = kotlinMetadata(info) {
-                for alias in metadata.typeAliases {
+                for alias in metadata.typeAliases where alias.isPublic {
                     if let type = typeAliasExpandedSource(alias, metadata: metadata) {
                         markSourceTypes([type.replacingOccurrences(of: "`", with: "")])
                     }
@@ -2363,7 +2367,7 @@ final class JVMClasspathIndex {
     }
 
     private func typeAliasDeclaration(_ alias: JVMKotlinTypeAliasInfo, metadata: JVMKotlinClassMetadata?) -> String? {
-        guard let expanded = typeAliasExpandedSource(alias, metadata: metadata) else { return nil }
+        guard alias.isPublic, let expanded = typeAliasExpandedSource(alias, metadata: metadata) else { return nil }
         let parameters = alias.typeParameters.map { parameter in
             let typeParameters = (metadata?.typeParameters ?? []) + alias.typeParameters
             let names = Dictionary(typeParameters.map { ($0.id, $0.name) }, uniquingKeysWith: { _, name in name })

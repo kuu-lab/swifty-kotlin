@@ -51,6 +51,7 @@ struct JVMKotlinTypeAliasInfo {
     let typeParameters: [JVMTypeParameter]
     let underlyingType: JVMKotlinType?
     let expandedType: JVMKotlinType?
+    let isPublic: Bool
 }
 
 /// Kotlin's JVM annotation stores a length-prefixed string table followed by
@@ -107,9 +108,11 @@ extension JVMKotlinClassMetadata {
             let underlyingType = try decoder.type(alias, field: 4, indexField: 5)
             let expandedType = try decoder.type(alias, field: 6, indexField: 7)
             guard underlyingType != nil || expandedType != nil else { return nil }
+            let flags = alias.integer(1) ?? 6
             return JVMKotlinTypeAliasInfo(
                 name: name, typeParameters: typeParameters,
-                underlyingType: underlyingType, expandedType: expandedType
+                underlyingType: underlyingType, expandedType: expandedType,
+                isPublic: (flags >> 1) & 7 == 3
             )
         }
         return Self(classFlags: isClass ? message.integer(1) ?? 6 : 0,
