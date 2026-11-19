@@ -591,14 +591,6 @@ public fun <T> MutableIterable<T>.removeAll(predicate: (T) -> Boolean): Boolean 
     return changed
 }
 
-public fun <T> MutableCollection<T>.removeAll(predicate: (T) -> Boolean): Boolean {
-    val removed = mutableListOf<T>()
-    for (element in this) {
-        if (predicate(element)) removed.add(element)
-    }
-    return removeAll(removed)
-}
-
 public fun <T> MutableCollection<in T>.removeAll(elements: Iterable<T>): Boolean {
     val removed = if (elements is Collection<*>) elements as Collection<T> else elements.toList()
     return __jvmRemoveAllCollection(this, removed)

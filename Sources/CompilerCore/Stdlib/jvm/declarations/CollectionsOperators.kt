@@ -15,7 +15,6 @@ fun <T> MutableCollection<in T>.addAll(elements: Iterable<T>): Boolean = null!!
 fun <T> MutableCollection<in T>.addAll(elements: Array<out T>): Boolean = null!!
 fun <T> MutableCollection<in T>.addAll(elements: kotlin.sequences.Sequence<T>): Boolean = null!!
 fun <T> MutableIterable<T>.removeAll(predicate: (T) -> Boolean): Boolean = null!!
-fun <T> MutableCollection<T>.removeAll(predicate: (T) -> Boolean): Boolean = null!!
 fun <T> MutableCollection<in T>.removeAll(elements: Iterable<T>): Boolean = null!!
 fun <T> MutableCollection<in T>.removeAll(elements: Array<out T>): Boolean = null!!
 fun <T> MutableCollection<in T>.removeAll(elements: kotlin.sequences.Sequence<T>): Boolean = null!!
