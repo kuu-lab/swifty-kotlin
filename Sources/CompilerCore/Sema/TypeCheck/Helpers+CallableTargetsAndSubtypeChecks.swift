@@ -1272,9 +1272,12 @@ extension TypeCheckHelpers {
             // exact `T`-as-return shape qualifies: a parameter nested inside a
             // compound return (`Box<T>`) is not interchangeable with the whole
             // expected return, parameters with real upper bounds must keep
-            // those bounds checked here (only the trivial `Any`/`Any?` bound
-            // is exempt: every type satisfies it), and reified parameters
-            // still require concrete call-site arguments.
+            // those bounds checked here, and reified parameters still require
+            // concrete call-site arguments. Only the nullable `Any?` bound is
+            // exempt: nothing downstream re-checks a deferred parameter's
+            // declared bounds once the enclosing call solves its inference
+            // parameter, and `Any?` accepts every type (including nullable
+            // ones) while a non-null `Any` bound does not.
             var deferredReturnSubstitution: [SymbolID: TypeID] = [:]
             if let postponedReturnTypeParameter,
                let expectedFunctionType,
@@ -1291,7 +1294,7 @@ extension TypeCheckHelpers {
                     guard actualReturnParameter.symbol == symbol,
                           !signature.reifiedTypeParameterIndices.contains(index),
                           upperBounds(index, symbol).allSatisfy({
-                              $0 == types.anyType || $0 == types.nullableAnyType
+                              $0 == types.nullableAnyType
                           }),
                           !inputs.contains(where: { types.typeContainsTypeParam($0, symbol: symbol) })
                     else { continue }

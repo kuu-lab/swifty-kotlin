@@ -327,12 +327,12 @@ struct GenericCallableReferenceInferenceTests {
         fun <T> retOnly(value: Int): T = TODO()
         fun catchIt(f: () -> Int): Int = combine(f, ::retOnly, { error: Throwable -> 0 })
         """,
-        // An explicit trivial `Any` bound is still satisfiable by every
-        // type, so it defers like an unbounded parameter.
+        // An explicit nullable `Any?` bound accepts every type, so it defers
+        // like an unbounded parameter.
         """
         fun <A, B> combine(block: () -> A, transform: (A) -> B, recover: (Throwable) -> B): B = TODO()
         fun <R> right(value: R): R = value
-        fun <R : Any> left(error: Throwable): R = throw error
+        fun <R : Any?> left(error: Throwable): R = throw error
         fun catchIt(f: () -> Int): Int = combine(f, ::right, ::left)
         """,
     ])
