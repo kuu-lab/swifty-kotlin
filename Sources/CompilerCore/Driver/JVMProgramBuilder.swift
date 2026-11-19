@@ -16,6 +16,7 @@ final class JVMProgramBuilder {
     var localFunctions: [SymbolID: JVMLocalFunctionPlan] = [:]
     var syntheticFunctions: [String: [JVMFunction]] = [:]
     var closureClasses: [JVMClass] = []
+    private var _exprRangeIndex: [FileID: [(start: Int, end: Int, expr: ExprID)]]?
     var metroFactoryFields: [SymbolID: JVMField] = [:]
     var metroClasses: [JVMClass] = []
     var functionArities: Set<Int> = []
@@ -46,6 +47,43 @@ final class JVMProgramBuilder {
         }
         self.context = context; self.ast = ast; self.sema = sema
         self.platformOperations = context.options.stdlibOnly ? try JVMStdlibCatalog.platformOperations() : [:]
+    }
+
+    /// Expressions whose source range lies within `range`, found through a
+    /// per-file start-offset index built once. Per-lambda capture analysis runs
+    /// for every closure, so rescanning the whole expression arena each time is
+    /// quadratic in module size.
+    func exprIDs(in range: SourceRange) -> [ExprID] {
+        let index = expressionRangeIndex()
+        guard let entries = index[range.start.file] else { return [] }
+        var lo = 0, hi = entries.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if entries[mid].start < range.start.offset { lo = mid + 1 } else { hi = mid }
+        }
+        var result: [ExprID] = []
+        var i = lo
+        while i < entries.count, entries[i].start <= range.end.offset {
+            if entries[i].end <= range.end.offset { result.append(entries[i].expr) }
+            i += 1
+        }
+        return result
+    }
+
+    private func expressionRangeIndex() -> [FileID: [(start: Int, end: Int, expr: ExprID)]] {
+        if let index = _exprRangeIndex { return index }
+        var grouped: [FileID: [(start: Int, end: Int, expr: ExprID)]] = [:]
+        let arena = ast.arena
+        for i in arena.exprs.indices {
+            let id = ExprID(rawValue: Int32(i))
+            guard let r = arena.exprRange(id) else { continue }
+            grouped[r.start.file, default: []].append((r.start.offset, r.end.offset, id))
+        }
+        var index: [FileID: [(start: Int, end: Int, expr: ExprID)]] = [:]
+        index.reserveCapacity(grouped.count)
+        for (file, entries) in grouped { index[file] = entries.sorted { $0.start < $1.start } }
+        _exprRangeIndex = index
+        return index
     }
 
     /// Consumer compiles without an explicit JVM classpath keep the legacy
