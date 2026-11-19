@@ -721,7 +721,8 @@ final class DataFlowSemaPhase: CompilerPhase {
                 bindings: bindings,
                 types: types,
                 interner: ctx.interner,
-                diagnostics: ctx.diagnostics
+                diagnostics: ctx.diagnostics,
+                includeInterfaceValueClassMembers: !ctx.options.emit.isJVM
             )
         }
         withSubPhaseTiming("registerChannelSendChannelSubtype", timer: ctx.phaseTimer) {
