@@ -406,6 +406,12 @@ enum DiagnosticRegistry {
             summary: "Context parameters must be named or declared anonymous with '_'."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0031",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Getter cannot have parameters."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-PARSE-TYPE-DEPTH",
             pass: "PARSE",
             defaultSeverity: .error,

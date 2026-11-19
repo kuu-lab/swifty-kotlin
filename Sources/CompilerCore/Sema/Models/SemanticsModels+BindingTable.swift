@@ -23,6 +23,10 @@ public final class BindingTable {
     }
 
     public private(set) var exprTypes: [ExprID: TypeID] = [:]
+    /// For a safe-chain indexed read (`a?.b[i]`), the indexed `get` result type
+    /// before the chain's nullable result wrapper. A following indexed access
+    /// may continue the chain only when this value type is non-null.
+    public private(set) var safeChainIndexedValueTypes: [ExprID: TypeID] = [:]
     /// The ABI type that consumes a generic call result. This can be wider
     /// than the substituted expression type, as for `println(f<Int?>())`.
     public private(set) var genericCallConsumerTypes: [ExprID: TypeID] = [:]
@@ -317,6 +321,7 @@ public final class BindingTable {
     /// ordinary candidate path records afterwards.
     public func removeExprBindings(_ expr: ExprID) {
         exprTypes.removeValue(forKey: expr)
+        safeChainIndexedValueTypes.removeValue(forKey: expr)
         genericCallConsumerTypes.removeValue(forKey: expr)
         lambdaDeclaredExpectedReturnTypes.removeValue(forKey: expr)
         compoundAssignReceiverTypes.removeValue(forKey: expr)
@@ -532,6 +537,7 @@ public final class BindingTable {
         worker.annotationFactoryExpressions = annotationFactoryExpressions
         worker.primaryConstructorPropertyAnnotations = primaryConstructorPropertyAnnotations
         worker.exprTypes = exprTypes
+        worker.safeChainIndexedValueTypes = safeChainIndexedValueTypes
         worker.genericCallConsumerTypes = genericCallConsumerTypes
         worker.lambdaDeclaredExpectedReturnTypes = lambdaDeclaredExpectedReturnTypes
         worker.compoundAssignReceiverTypes = compoundAssignReceiverTypes
@@ -637,6 +643,14 @@ public final class BindingTable {
 
     public func bindExprType(_ expr: ExprID, type: TypeID) {
         exprTypes[expr] = type
+    }
+
+    public func bindSafeChainIndexedValueType(_ expr: ExprID, type: TypeID) {
+        safeChainIndexedValueTypes[expr] = type
+    }
+
+    public func safeChainIndexedValueType(for expr: ExprID) -> TypeID? {
+        safeChainIndexedValueTypes[expr]
     }
 
     public func bindCompoundAssignReceiverType(_ expr: ExprID, type: TypeID) {

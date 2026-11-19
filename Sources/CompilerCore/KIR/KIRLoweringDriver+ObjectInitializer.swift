@@ -38,6 +38,7 @@ extension KIRLoweringDriver {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
+        guard !ctx.isObjectLazyInitOmitted(for: objectSymbol) else { return }
         if sema.symbols.externalLinkNameIfKnown(for: objectSymbol) != nil {
             return
         }

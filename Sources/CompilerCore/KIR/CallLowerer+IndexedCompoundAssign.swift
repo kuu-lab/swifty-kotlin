@@ -339,7 +339,19 @@ extension CallLowerer {
             return unit
         }
 
-        let getResult = arena.appendTemporary(type: elementType)
+        // The get() half reads through the same erased ABI as `b[i]`; keep the
+        // result unboxed only until the claim checkcast below so a
+        // heap-polluted element is verified before any primitive unbox
+        // (KUU-3668), mirroring lowerIndexedAccessExpr.
+        let preservesErasedGenericResult = kirShouldCheckErasedGenericCallResult(
+            exprID: exprID,
+            boundType: elementType,
+            sema: sema,
+            erasedLambdaReturnClaims: driver.ctx.erasedLambdaReturnClaimStack
+        )
+        let getResult = arena.appendTemporary(
+            type: preservesErasedGenericResult ? sema.types.nullableAnyType : elementType
+        )
         let normalizedGetArguments = driver.callSupportLowerer.normalizedCallArguments(
             providedArguments: loweredIndices,
             callBinding: getCallBinding,

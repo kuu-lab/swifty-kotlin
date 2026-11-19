@@ -22,7 +22,7 @@ extension JVMProgramBuilder {
     func dataMethods(_ plan: JVMClassPlan, existing: [JVMFunction]) throws -> [JVMFunction] {
         let props = try dataProperties(plan), type: JVMValueType = .reference(plan.name, nullable: false)
         var generated: [JVMFunction] = []
-        let symbols = methods.keys.filter { methods[$0]?.owner == plan.name && sema.symbols.symbol($0)?.flags.contains(.synthetic) == true }.sorted { $0.rawValue < $1.rawValue }
+        let symbols = methodSymbolsOwned(by: plan.name).filter { sema.symbols.symbol($0)?.flags.contains(.synthetic) == true }.sorted { $0.rawValue < $1.rawValue }
         for symbol in symbols {
             let method = methods[symbol]!
             guard !existing.contains(where: { $0.reference.name == method.name && $0.reference.descriptor == method.descriptor }) else { continue }
