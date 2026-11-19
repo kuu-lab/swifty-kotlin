@@ -3,7 +3,7 @@ import Foundation
 extension JVMProgramBuilder {
     func prepareDelegateInterfaces() throws {
         for symbol in sema.symbols.allSymbols() where symbol.kind == .function {
-            guard let parent = sema.symbols.parentSymbol(for: symbol.id), let name = try? className(parent), ["kotlin/properties/ReadOnlyProperty", "kotlin/properties/ReadWriteProperty", "kotlin/Lazy"].contains(name), let sig = sema.symbols.functionSignature(for: symbol.id) else { continue }
+            guard let parent = sema.symbols.parentSymbol(for: symbol.id), let name = try? className(parent), ["kotlin/properties/ReadOnlyProperty", "kotlin/properties/ReadWriteProperty", "kotlin/properties/PropertyDelegateProvider", "kotlin/Lazy"].contains(name), let sig = sema.symbols.functionSignature(for: symbol.id) else { continue }
             let params = try sig.parameterTypes.map(type), result = try type(sig.returnType)
             methods[symbol.id] = JVMForeignMethod(owner: name, name: context.interner.resolve(symbol.name), descriptor: "(" + params.map(\.descriptor).joined() + ")" + result.descriptor, parameters: params, result: result, isStatic: false, isInterface: true, isAbstract: true)
         }

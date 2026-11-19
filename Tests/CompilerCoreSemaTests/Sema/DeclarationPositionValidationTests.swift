@@ -1881,6 +1881,41 @@ struct DeclarationPositionValidationTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0401", in: ctx)
     }
 
+    @Test func protectedPropertyInsideObjectIsRejected() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            object O { protected val value: Int get() = 1 }
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0401", in: ctx)
+    }
+
+    @Test func protectedOverrideMembersInAnonymousObjectAreAccepted() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            open class Base {
+                protected open fun value(): Int = 1
+                protected open val label: Int get() = 1
+            }
+            class Holder {
+                val adapter = object : Base() {
+                    protected override fun value(): Int = 2
+                    protected override val label: Int get() = 2
+                }
+            }
+            """)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func publicProtectedPropertyInAnonymousObjectIsRejected() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            open class Base
+            class Holder {
+                val adapter = object : Base() {
+                    public protected val value: Int = 1
+                }
+            }
+            """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0402", in: ctx)
+    }
+
     @Test func constructorInsideObjectIsRejected() throws {
         let ctx = try semaContext(for: """
             object O { constructor() }

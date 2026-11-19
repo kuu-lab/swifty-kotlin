@@ -113,6 +113,44 @@ extension JVMBackendTests {
         }
     }
 
+    @Test
+    func classpathExtensionShadowsStdlibBitReinterpret() throws {
+        let library = try ownStdlibLibrary()
+        try withWorkspace { root in
+            // A real kotlinc-built library exporting same-named Float extensions with
+            // distinct return values, so classpath metadata is authoritative.
+            let extSource = """
+            package ext
+            fun Float.myCustomBits(): Int = 777
+            fun Float.toBits(): Int = 888
+            """
+            try extSource.write(to: root.appendingPathComponent("ext.kt"), atomically: true, encoding: .utf8)
+            _ = try jvmTool("kotlinc", ["ext.kt", "-d", "extlib.jar"], root: root)
+            let extlib = root.appendingPathComponent("extlib.jar").path
+
+            let consumer = """
+            import ext.myCustomBits
+            import ext.toBits
+            fun main() {
+                println(1.5f.myCustomBits())
+                println(1.5f.toBits())
+            }
+            """
+            let app = try m22Build(root: root, sources: [("consumer.kt", consumer)], name: "app.jar", mode: .jvmJar, classpath: [extlib])
+            try #require(app.1 == 0, "\(app.2.map(\.message))")
+            // The explicit classpath extension must shadow kotlin.toBits, so the stdlib
+            // bit-reinterpret lowering must not fire for it.
+            let run = try java(["-cp", app.0.path + ":" + extlib + ":" + library.path, "ConsumerKt"])
+            #expect(run.stdout == "777\n888\n")
+            #expect(run.stderr.isEmpty)
+
+            _ = try jvmTool("kotlinc", ["consumer.kt", "-cp", extlib, "-d", "reference.jar"], root: root)
+            let reference = try java(["-cp", root.appendingPathComponent("reference.jar").path + ":" + extlib + ":" + m11Runtime(), "ConsumerKt"])
+            #expect(reference.stdout == "777\n888\n")
+            #expect(reference.stderr.isEmpty)
+        }
+    }
+
     private static let ownStdlibCases = [
         "inferredMutableCallableReferences",
         "reflectionParameterNames",

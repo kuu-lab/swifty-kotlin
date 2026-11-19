@@ -92,6 +92,21 @@ extension CallTypeChecker {
             return ctx.sema.types.errorType
         }
 
+        // A `!!` on a definitely-null reference types the receiver itself as
+        // `Nothing`, but kotlinc resolves member accesses on that receiver
+        // against the asserted declared type — the operand's declared type
+        // made non-null (KUU-4593). The receiver expression binding keeps its
+        // real `Nothing` type; only member resolution uses the asserted type.
+        var memberReceiverType = receiverType
+        if !safeCall,
+           receiverType == ctx.sema.types.nothingType,
+           let receiverExpr = ctx.ast.arena.expr(receiverID),
+           case let .nullAssert(operandID, _) = receiverExpr,
+           let assertedType = nullAssertedOperandType(operandID, ctx: ctx, locals: locals)
+        {
+            memberReceiverType = assertedType
+        }
+
         // A `?.` call evaluates its arguments only when the receiver is
         // non-null, so a stable receiver reference narrows to non-null while
         // they are checked (`x?.let { x.length }`, `map[x]` inside the
@@ -136,7 +151,7 @@ extension CallTypeChecker {
                 let result = enforceFunctionInvocationSyntax(
                     narrowedRequest,
                     result: inferMemberCallOnReceiver(
-                        narrowedRequest, receiverType: receiverType, locals: &narrowedLocals
+                        narrowedRequest, receiverType: memberReceiverType, locals: &narrowedLocals
                     )
                 )
                 // Keep argument-side effects on other locals, but restore
@@ -156,7 +171,7 @@ extension CallTypeChecker {
 
         let result = enforceFunctionInvocationSyntax(
             request,
-            result: inferMemberCallOnReceiver(request, receiverType: receiverType, locals: &locals)
+            result: inferMemberCallOnReceiver(request, receiverType: memberReceiverType, locals: &locals)
         )
         checkObjectQualifierOptInCoverage(request)
         return result
@@ -789,8 +804,11 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext
     ) -> TypeID {
         let sema = ctx.sema
-        guard case let .superRef(nil, nil, range) = ctx.ast.arena.expr(receiverID),
-              let currentType = ctx.implicitReceiverType,
+        guard case let .superRef(nil, label, range) = ctx.ast.arena.expr(receiverID) else {
+            return receiverType
+        }
+        let currentType = label.flatMap { ctx.resolveQualifiedThis(label: $0) } ?? ctx.implicitReceiverType
+        guard let currentType,
               case let .classType(currentClass) = sema.types.kind(of: currentType)
         else {
             return receiverType

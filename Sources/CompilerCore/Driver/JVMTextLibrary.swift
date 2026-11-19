@@ -354,6 +354,34 @@ extension JVMFunctionBuilder {
                   values.count == 1 else { return nil }
             let arguments = [try convert(receiver, to: receiverType), try convert(values[0], to: receiverType)]
             return try jdkCall("java/lang/Math", "copySign", [receiverType, receiverType], receiverType, arguments: arguments, resolved: resultType)
+        case "abs":
+            // java.lang.Math.abs has matching int/long/float/double overloads.
+            guard values.count == 1, entry.method.parameters.count == 1,
+                  entry.method.result == entry.method.parameters[0],
+                  [.int, .long, .float, .double].contains(entry.method.parameters[0]) else { return nil }
+            return try jdkCall("java/lang/Math", "abs", entry.method.parameters, entry.method.result, arguments: values, resolved: resultType)
+        case "min", "max":
+            guard values.count == 2, entry.method.parameters.count == 2,
+                  entry.method.parameters[0] == entry.method.parameters[1],
+                  entry.method.result == entry.method.parameters[0],
+                  [.int, .long, .float, .double].contains(entry.method.parameters[0]) else { return nil }
+            return try jdkCall("java/lang/Math", name, entry.method.parameters, entry.method.result, arguments: values, resolved: resultType)
+        case "sqrt":
+            // java.lang.Math.sqrt only takes double; widen Float through double.
+            guard values.count == 1 else { return nil }
+            if entry.method.result == .float {
+                let argument = try convert(values[0], to: .double)
+                guard let result = try jdkCall("java/lang/Math", "sqrt", [.double], .double, arguments: [argument]) else { return nil }
+                return try convert(result, to: .float)
+            }
+            return try jdkCall("java/lang/Math", "sqrt", entry.method.parameters, entry.method.result, arguments: values, resolved: resultType)
+        case "pow":
+            // java.lang.Math.pow only takes double; widen Float/Int operands through double.
+            guard let receiver, values.count == 1, entry.method.result.unsignedName == nil else { return nil }
+            let base = try convert(receiver, to: .double)
+            let exponent = try convert(values[0], to: .double)
+            guard let result = try jdkCall("java/lang/Math", "pow", [.double, .double], .double, arguments: [base, exponent]) else { return nil }
+            return try convert(result, to: entry.method.result)
         default:
             return nil
         }
@@ -396,6 +424,21 @@ extension JVMFunctionBuilder {
             instructions.append(.getStatic(JVMField(owner: "kotlin/time/DurationUnit", name: context.interner.resolve(fqName[4]).uppercased(), type: unitType, access: 0x4019), unit))
             return try jdkCall("kotlin/time/DurationKt", "toDuration", [source.type, unitType], .long, arguments: [source, unit], resolved: program.expressionType(id))
         }
+        // kotlin.math.absoluteValue is @InlineOnly in kotlin-stdlib, so its facade
+        // getter is private. Lower it to java.lang.Math.abs like the abs() function.
+        if let fqName = program.sema.symbols.symbol(symbol)?.fqName, fqName.count == 3,
+           context.interner.resolve(fqName[0]) == "kotlin",
+           context.interner.resolve(fqName[1]) == "math",
+           context.interner.resolve(fqName[2]) == "absoluteValue",
+           let source = try receiver.map(requireValue) ?? implicitExtensionReceiver(id) {
+            let resultType = try program.expressionType(id)
+            let carrier = source.type.numericCarrier ?? source.type
+            guard [.int, .long, .float, .double].contains(carrier),
+                  carrier.unsignedName == nil, resultType.unsignedName == nil else { return nil }
+            let argument = try convert(source, to: carrier)
+            guard let absValue = try jdkCall("java/lang/Math", "abs", [carrier], carrier, arguments: [argument]) else { return nil }
+            return try convert(absValue, to: resultType)
+        }
         if let field = program.textLibraryFields[symbol] {
             let loaded = try value(field.type)
             instructions.append(.getStatic(field, loaded))
@@ -411,6 +454,34 @@ extension JVMFunctionBuilder {
             let result = try value(.int); instructions.append(.binary(.subtract, size, try constant(.int(1), .int), result)); return result
         }
         guard let method = program.textLibraryProperties[symbol] ?? context.jvmImports?.importedTopLevelGetters[symbol] else { return nil }
+        if method.annotations.contains(where: { $0.descriptor == "Landroidx/compose/runtime/Composable;" }) {
+            guard let composer = activeComposer else { throw fail("JVM @Composable property getters require an active Composer.", id) }
+            guard activeRegions.isEmpty else { throw fail("JVM @Composable calls are unsupported inside a try expression.", id) }
+            let maskCount = method.parameters.reversed().prefix(while: { $0 == .int }).count
+            let composerIndex = method.parameters.count - maskCount - 1
+            guard maskCount > 0, composerIndex >= 0, composerIndex <= 1 else {
+                throw fail("Unsupported JVM composable property getter signature.", id)
+            }
+            guard method.parameters[composerIndex].referenceName == JVMCompose.composer else {
+                throw fail("Unsupported JVM composable property getter signature.", id)
+            }
+            var prefix: [JVMValue] = []
+            if composerIndex == 1 {
+                guard let receiverValue = try receiver.map(requireValue) ?? implicitExtensionReceiver(id) else {
+                    throw fail("Missing JVM extension property receiver.", id)
+                }
+                prefix.append(try convert(receiverValue, to: method.parameters[0]))
+            }
+            let unchanged = try constant(.int(0), .int)
+            var hidden = [composer]
+            hidden.append(contentsOf: repeatElement(unchanged, count: maskCount))
+            let resultType = try program.expressionType(id)
+            let result = try value(foreignResultType(method.result, resolved: resultType))
+            try beginComposeGroup(composer, key: composeCallKey(at: id))
+            instructions.append(.foreignCall(method, receiver: nil, arguments: prefix + hidden, result: result))
+            _ = try jdkCall(JVMCompose.composer, JVMCompose.end, [], .unit, receiver: composer, interface: true)
+            return try convert(result, to: resultType)
+        }
         if method.isStatic {
             if method.parameters.isEmpty {
                 return try jdkCall(method.owner, method.name, [], method.result, resolved: program.expressionType(id))
@@ -435,6 +506,15 @@ extension JVMFunctionBuilder {
         guard let binding = program.sema.bindings.callBinding(for: id),
               program.inlineDeclarations[binding.chosenCallee] == nil,
               let entry = program.textLibraryMethods[binding.chosenCallee] else { return nil }
+        // Float/Double.toRawBits()/toBits() are @InlineOnly in kotlin-stdlib, so the
+        // kotlin.NumbersKt facade has no callable method. Lower them to the
+        // java.lang.Float/Double bit intrinsics, resolving the implicit receiver
+        // for receiver-less calls like `fun Double.bits() = toBits()`.
+        if let isRaw = stdlibBitReinterpretIsRaw(binding.chosenCallee, args: args),
+           let receiver = try receiverValue ?? receiver.map(requireValue) ?? implicitExtensionReceiver(id),
+           let emitted = try emitBitReinterpret(callee: binding.chosenCallee, receiver: receiver, isRaw: isRaw, id: id) {
+            return JVMIntrinsicResult(value: emitted)
+        }
         let method = entry.method
         if method.owner == "java/lang/Comparable", method.name == "compareTo", let receiver,
            case .memberCall = arena.expr(id), case let .nameRef(name, _) = arena.expr(receiver),

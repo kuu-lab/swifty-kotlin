@@ -5,8 +5,9 @@ final class JVMProgramBuilder {
     let ast: ASTModule
     let sema: SemaModule
     var classes: [SymbolID: JVMClassPlan] = [:]
-    var methods: [SymbolID: JVMForeignMethod] = [:]
-    var collectionInterfaceMethods: [SymbolID: JVMForeignMethod] = [:]
+    var methodTablesVersion = 0
+    var methods: [SymbolID: JVMForeignMethod] = [:] { didSet { methodTablesVersion &+= 1 } }
+    var collectionInterfaceMethods: [SymbolID: JVMForeignMethod] = [:] { didSet { methodTablesVersion &+= 1 } }
     var properties: [SymbolID: JVMProperty] = [:]
     var foreignInterfaceDefaultMethodsCache: [SymbolID: [String: (method: JVMForeignMethod, owner: String)]] = [:]
     var facadeName = ""
@@ -16,6 +17,7 @@ final class JVMProgramBuilder {
     var localFunctions: [SymbolID: JVMLocalFunctionPlan] = [:]
     var syntheticFunctions: [String: [JVMFunction]] = [:]
     var closureClasses: [JVMClass] = []
+    private var _exprRangeIndex: [FileID: [(start: Int, end: Int, expr: ExprID)]]?
     var metroFactoryFields: [SymbolID: JVMField] = [:]
     var metroClasses: [JVMClass] = []
     var functionArities: Set<Int> = []
@@ -34,11 +36,38 @@ final class JVMProgramBuilder {
     }()
     var sourceRangeResultSymbols: Set<SymbolID> = []
     var inlineTypeArguments: [SymbolID: TypeID] = [:]
-    var textLibraryMethods: [SymbolID: JVMTextLibraryMethod] = [:]
+    var textLibraryMethods: [SymbolID: JVMTextLibraryMethod] = [:] { didSet { methodTablesVersion &+= 1 } }
     var textLibraryProperties: [SymbolID: JVMForeignMethod] = [:]
     var textLibraryFields: [SymbolID: JVMField] = [:]
     let platformOperations: [String: JVMPlatformOperation]
     var rawAnnotationConstructions: [String: ExprID] = [:]
+
+    private var methodsByOwnerCache: [String: [SymbolID]]?
+    private var foreignMethodsByOwnerCache: [String: [JVMForeignMethod]]?
+    private var methodOwnerCacheVersion = -1
+
+    func methodSymbolsOwned(by owner: String) -> [SymbolID] {
+        rebuildMethodOwnerCachesIfNeeded()
+        return methodsByOwnerCache?[owner] ?? []
+    }
+
+    func foreignMethodsOwned(by owner: String) -> [JVMForeignMethod] {
+        rebuildMethodOwnerCachesIfNeeded()
+        return foreignMethodsByOwnerCache?[owner] ?? []
+    }
+
+    private func rebuildMethodOwnerCachesIfNeeded() {
+        guard methodOwnerCacheVersion != methodTablesVersion else { return }
+        var bySymbol: [String: [SymbolID]] = [:]
+        for (symbol, method) in methods { bySymbol[method.owner, default: []].append(symbol) }
+        methodsByOwnerCache = bySymbol
+        var byMethod: [String: [JVMForeignMethod]] = [:]
+        for method in methods.values { byMethod[method.owner, default: []].append(method) }
+        for method in collectionInterfaceMethods.values { byMethod[method.owner, default: []].append(method) }
+        for entry in textLibraryMethods.values { byMethod[entry.method.owner, default: []].append(entry.method) }
+        foreignMethodsByOwnerCache = byMethod
+        methodOwnerCacheVersion = methodTablesVersion
+    }
 
     init(context: CompilationContext) throws {
         guard let ast = context.ast, let sema = context.sema else {
@@ -46,6 +75,43 @@ final class JVMProgramBuilder {
         }
         self.context = context; self.ast = ast; self.sema = sema
         self.platformOperations = context.options.stdlibOnly ? try JVMStdlibCatalog.platformOperations() : [:]
+    }
+
+    /// Expressions whose source range lies within `range`, found through a
+    /// per-file start-offset index built once. Per-lambda capture analysis runs
+    /// for every closure, so rescanning the whole expression arena each time is
+    /// quadratic in module size.
+    func exprIDs(in range: SourceRange) -> [ExprID] {
+        let index = expressionRangeIndex()
+        guard let entries = index[range.start.file] else { return [] }
+        var lo = 0, hi = entries.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if entries[mid].start < range.start.offset { lo = mid + 1 } else { hi = mid }
+        }
+        var result: [ExprID] = []
+        var i = lo
+        while i < entries.count, entries[i].start <= range.end.offset {
+            if entries[i].end <= range.end.offset { result.append(entries[i].expr) }
+            i += 1
+        }
+        return result
+    }
+
+    private func expressionRangeIndex() -> [FileID: [(start: Int, end: Int, expr: ExprID)]] {
+        if let index = _exprRangeIndex { return index }
+        var grouped: [FileID: [(start: Int, end: Int, expr: ExprID)]] = [:]
+        let arena = ast.arena
+        for i in arena.exprs.indices {
+            let id = ExprID(rawValue: Int32(i))
+            guard let r = arena.exprRange(id) else { continue }
+            grouped[r.start.file, default: []].append((r.start.offset, r.end.offset, id))
+        }
+        var index: [FileID: [(start: Int, end: Int, expr: ExprID)]] = [:]
+        index.reserveCapacity(grouped.count)
+        for (file, entries) in grouped { index[file] = entries.sorted { $0.start < $1.start } }
+        _exprRangeIndex = index
+        return index
     }
 
     /// Consumer compiles without an explicit JVM classpath keep the legacy
@@ -67,8 +133,7 @@ final class JVMProgramBuilder {
         return try JVMClasspathIndex.type(actual, sema: sema, ctx: context)
     }
     func parameterType(_ id: TypeID) throws -> JVMValueType {
-        let value = try type(id)
-        return value == .unit ? .reference("kotlin/Unit", nullable: false) : value
+        try type(id).withBoxedUnit
     }
     func hasSourceRangeOperator(_ id: ExprID) -> Bool {
         if let symbol = sema.bindings.callBinding(for: id)?.chosenCallee,
@@ -348,7 +413,7 @@ final class JVMProgramBuilder {
             }
             var facadeFunctions: [JVMFunction] = []
             if let plan = facadePlan {
-                for (_, declaration, property) in plan.properties { facadeFunctions += try emitAccessors(plan, declaration, property) }
+                for (propertyID, declaration, property) in plan.properties { facadeFunctions += try emitAccessors(plan, propertyID, declaration, property) }
                 if plan.properties.contains(where: { !isComputedExtension($0.1) }) {
                     let b = try nominalBuilder(plan, name: "<clinit>", staticBody: true)
                     for (symbol, field) in plan.propertyTokens.sorted(by: { $0.value.name < $1.value.name }) {
@@ -776,10 +841,21 @@ final class JVMFunctionBuilder {
         case let .stringTemplate(parts, _): return try constantFoldedText(id) ?? stringTemplate(parts)
         case let .stringLiteral(s, _): return try constant(.string(context.interner.resolve(s)), .string)
         case .thisRef, .superRef:
-            if case .thisRef = expr, let symbol = program.sema.bindings.identifierSymbol(for: id), let receiver = contextualReceivers[symbol] { return try convert(receiver, to: program.expressionType(id)) }
-            if case .thisRef = expr, let extensionValue { return try convert(extensionValue, to: program.expressionType(id)) }
+            if case let .superRef(_, label, _) = expr, label != nil,
+               let symbol = program.sema.bindings.identifierSymbol(for: id), let owner,
+               symbol != owner.symbol,
+               symbol != SyntheticSymbolScheme.receiverParameterSymbol(for: owner.symbol)
+            {
+                throw fail("Unsupported JVM labeled super call to an outer class.", id)
+            }
+            if case .thisRef = expr {
+                let bound = program.sema.bindings.identifierSymbol(for: id).flatMap { contextualReceivers[$0] }
+                if let receiver = bound ?? extensionValue {
+                    return try convert(receiver, to: program.expressionType(id).withBoxedUnit)
+                }
+            }
             guard !beforeDelegation, let thisValue else { throw fail("JVM this/super requires an initialized instance.", id) }
-            if case .thisRef = expr { return try convert(thisValue, to: program.expressionType(id)) }
+            if case .thisRef = expr { return try convert(thisValue, to: program.expressionType(id).withBoxedUnit) }
             return thisValue
         case let .nameRef(name, _):
             if let composer = try readCurrentComposer(id) { return composer }

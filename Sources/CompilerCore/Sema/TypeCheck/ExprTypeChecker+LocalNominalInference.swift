@@ -881,6 +881,29 @@ extension ExprTypeChecker {
                 interner: interner
             )
         }
+        // A local value class implementing an interface stays boxed as a
+        // nominal object and needs structural equals/hashCode like data
+        // classes; local declarations skip the module-wide post-inheritance
+        // pass, and their superclass edges are already bound here. JVM targets
+        // skip this: their frontend synthesizes value-class equals/hashCode itself.
+        if driver.compilationContext?.options.emit.isJVM != true,
+           sema.symbols.symbol(classSymbol)?.flags.contains(.valueType) == true,
+           sema.symbols.valueClassImplementsInterface(classSymbol)
+        {
+            let dataFlow = DataFlowSemaPhase()
+            dataFlow.collectSyntheticHashCode(
+                ownerSymbol: classSymbol,
+                ownerFQName: classFQName, ownerType: classType,
+                requireDataTypeFlag: false, symbols: sema.symbols, types: sema.types,
+                scope: classScope, interner: interner
+            )
+            dataFlow.collectSyntheticEquals(
+                ownerSymbol: classSymbol,
+                ownerFQName: classFQName, ownerType: classType,
+                requireDataTypeFlag: false, symbols: sema.symbols, types: sema.types,
+                scope: classScope, interner: interner
+            )
+        }
         for ctorSymbol in constructorSymbols {
             classScope.insert(ctorSymbol)
         }

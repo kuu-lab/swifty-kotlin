@@ -23,6 +23,25 @@ import Testing
         #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
     }
 
+    @Test
+    func acceptsGenericAnnotationApplications() throws {
+        let context = makeContextFromSource("""
+        annotation class TA<T>
+        annotation class TB<T, U>
+        @TA<Int> class C {
+            @TA<String> fun f(@TA<Boolean> x: Int): Int = x
+            @TA<Long> val p: Int = 1
+        }
+        @TB<Int, List<String>> fun top() {}
+        @TA<List<List<Int>>> class Nested
+        annotation class Flag(val value: Boolean)
+        @TA<@Flag(2 > 1) Int> class ComparisonInTypeArgument
+        """, emit: .jvmJar)
+        try LexPhase().run(context)
+        try JVMSourceValidationPhase().run(context)
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+    }
+
     @Test(arguments: [
         "fun value(): Int = @",
         "fun value(): Int = @A",

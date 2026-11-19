@@ -20,6 +20,7 @@ struct JVMClassInfo {
     var kotlinReadOnlyCollectionSupertypes: [String: String] = [:]
     var kotlinComparableSupertype: String?
     var kotlinParameterizedSupertypes: [String: String] = [:]
+    var kotlinSupertypes: [String: String] = [:]
     var kotlinLoweredConstructors: [(source: JVMKotlinValueConstructor, entry: JVMForeignMethod, defaults: JVMForeignMethod?)] = []
     var kotlinValueClassConstructors: [(source: JVMKotlinValueConstructor, adapter: JVMForeignMethod)] = []
     var annotations: [JVMAnnotation] = []
@@ -97,6 +98,18 @@ struct JVMClassReader {
     }
     func text(_ index: Int) throws -> String { guard let s = strings[index] else { throw Invalid() }; return s }
     func className(_ index: Int) throws -> String { guard let s = classes[index] else { throw Invalid() }; return try text(s) }
+
+    static func matchesTopLevelPropertyGetter(_ method: JVMForeignMethod, property: JVMKotlinTopLevelProperty) -> Bool {
+        let logicalParameters = property.receiver == nil ? 0 : 1
+        guard method.isStatic && !method.isProtected && method.name == property.getterName
+            && method.descriptor == property.getterDescriptor && method.result != .unit
+        else { return false }
+        if method.parameters.count == logicalParameters { return true }
+        let hidden = method.parameters.dropFirst(logicalParameters)
+        return method.annotations.contains(where: { $0.descriptor == "Landroidx/compose/runtime/Composable;" })
+            && hidden.first?.referenceName == JVMCompose.composer
+            && hidden.dropFirst().allSatisfy { $0 == .int }
+    }
 
     /// Import a single result type parameter and any Class<T> parameters
     /// sharing it. Other parameter types must match their erased descriptors.
@@ -543,7 +556,6 @@ struct JVMClassReader {
         for _ in 0..<methodCount {
             let access = try u2(), nameIndex = try u2(), descriptorIndex = try u2()
             let methodName = try text(Int(nameIndex)), descriptor = try text(Int(descriptorIndex))
-            let methodInfo = try methodAttributes(parseAnnotations: parseAnnotations || hasComposableAnnotation || hasJvmOverloads)
             let isDefaultArgumentMethod = access & 0x1009 == 0x1009 && methodName.hasSuffix("$default")
             let isSyntheticConstructor = hasKotlinMetadata && access & 0x1001 == 0x1001 && methodName == "<init>"
                 && descriptor.hasSuffix("Lkotlin/jvm/internal/DefaultConstructorMarker;)V")
@@ -552,8 +564,12 @@ struct JVMClassReader {
                 && methodName == "actionStartActivity" && descriptor == "(Landroidx/glance/action/ActionParameters;)Landroidx/glance/action/Action;"
             let isReifiedWorkBuilder = hasKotlinMetadata && name == "androidx/work/OneTimeWorkRequestKt"
                 && methodName == "OneTimeWorkRequestBuilder" && descriptor == "()Landroidx/work/OneTimeWorkRequest$Builder;"
+            let isKotlinMetadataSynthetic = hasKotlinMetadata && access & 0x1000 != 0 && access & 0x0040 == 0
+                && !isDefaultArgumentMethod && !isValueAdapter && !isSyntheticConstructor
+                && !isReifiedGlanceAction && !isReifiedWorkBuilder
+            let methodInfo = try methodAttributes(parseAnnotations: parseAnnotations || hasComposableAnnotation || hasJvmOverloads || isKotlinMetadataSynthetic)
             if access & 0x0005 != 0,
-               (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod || isValueAdapter || isSyntheticConstructor || isReifiedGlanceAction || isReifiedWorkBuilder), methodName != "<clinit>",
+               (access & 0x1040 == 0 || access & 0x0040 != 0 || hasKotlinMetadata || isDefaultArgumentMethod || isValueAdapter || isSyntheticConstructor || isReifiedGlanceAction || isReifiedWorkBuilder), methodName != "<clinit>",
                let signature = try? (descriptorCache?.parse(descriptor) ?? JVMDescriptor.parse(descriptor)),
                signature.0.reduce(0, { $0 + $1.width }) <= (access & 8 != 0 ? 255 : 254) {
                 var method = JVMForeignMethod(owner: name, name: methodName, descriptor: descriptor,
@@ -561,10 +577,17 @@ struct JVMClassReader {
                     isStatic: access & 8 != 0, isInterface: flags & 0x0200 != 0, isAbstract: access & 0x0400 != 0)
                 method.isFinal = access & 16 != 0
                 method.isProtected = access & 0x0004 != 0
+                method.isSynthetic = isKotlinMetadataSynthetic
                 method.isVarargs = access & 0x0080 != 0
                 method.genericResultParameter = Self.genericResultParameter(in: methodInfo.signature, method: method)
+                if name == "androidx/work/WorkRequest$Builder", let signature = methodInfo.signature {
+                    for parameter in ["B", "W"] where signature.hasSuffix(")T\(parameter);") {
+                        method.kotlinOwnerResultParameter = parameter
+                    }
+                }
                 method.annotations = methodInfo.annotations
                 method.annotationDefault = methodInfo.annotationDefault
+                method.genericSignature = methodInfo.signature
                 if isSyntheticConstructor { syntheticConstructors.append(method) }
                 else if isDefaultArgumentMethod { defaultArgumentMethods.append(method) }
                 else if access & 0x0040 != 0 { bridgeMethods.append(method) }
@@ -587,9 +610,13 @@ struct JVMClassReader {
         let hasValueAdapters = valueCarrier.map { carrier in
             methods.contains { $0.isStatic && $0.name == "box-impl" && $0.descriptor == "(" + carrier.descriptor + ")L" + name + ";" }
         } ?? false
+        // Decode read-only collection supertypes for every Kotlin class: the
+        // payload keeps only kotlin/collections/{Collection,List,Map,Set}
+        // entries, and user classes like `abstract class JsonArrayLike :
+        // List<String>` need their declared type arguments (with nullability)
+        // instead of the erased `List<Any>` fallback.
         var readOnlyCollectionSupertypes: [String: String] = [:]
-        if flags & 0x0200 != 0, let metadata = classAttributes.kotlinMetadata,
-           interfaces.contains(where: { $0 == "kotlin/jvm/internal/markers/KMappedMarker" }) {
+        if let metadata = classAttributes.kotlinMetadata {
             readOnlyCollectionSupertypes = (try? metadata.readOnlyCollectionSupertypes(byteLimit: bytes.count)) ?? [:]
         }
         let hasReadOnlyListSupertype = readOnlyCollectionSupertypes["java/util/List"] != nil
@@ -708,6 +735,16 @@ struct JVMClassReader {
         if !functionTypeMemberNames.isEmpty, let metadata = classAttributes.kotlinMetadata {
             info.kotlinParameterizedSupertypes = (try? metadata.parameterizedSupertypes(byteLimit: bytes.count)) ?? [:]
         }
+        // Supertypes are parsed only when the classfile names a kotlin.*
+        // parent: those classes are never on the classpath as stubs (the
+        // frontend provides them as sources), so classpath stubs otherwise
+        // lose the Kotlin hierarchy edge (e.g. CoroutineDispatcher's
+        // AbstractCoroutineContextElement superclass).
+        let hasKotlinSupertype = info.superclass?.hasPrefix("kotlin/") == true
+            || info.interfaces.contains { $0.hasPrefix("kotlin/") }
+        if hasKotlinSupertype, let metadata = classAttributes.kotlinMetadata {
+            info.kotlinSupertypes = (try? metadata.kotlinSupertypes(byteLimit: bytes.count)) ?? [:]
+        }
         if hasValueAdapters, interfaces.contains("java/lang/Comparable"), let metadata = classAttributes.kotlinMetadata {
             info.kotlinComparableSupertype = try? metadata.comparableSupertype(byteLimit: bytes.count)
         }
@@ -743,10 +780,7 @@ struct JVMClassReader {
         }
         if let metadata = classAttributes.kotlinMetadata, let properties = try? metadata.topLevelProperties(byteLimit: bytes.count) {
             for property in properties {
-                guard let getter = methods.first(where: {
-                    $0.isStatic && !$0.isProtected && $0.name == property.getterName && $0.descriptor == property.getterDescriptor
-                        && $0.parameters.count == (property.receiver == nil ? 0 : 1) && $0.result != .unit
-                }) else { continue }
+                guard let getter = methods.first(where: { Self.matchesTopLevelPropertyGetter($0, property: property) }) else { continue }
                 info.kotlinTopLevelProperties.append((property, getter))
             }
         }

@@ -1651,32 +1651,6 @@ extension ExprTypeChecker {
         }
     }
 
-    /// The non-null declared type a `!!` operand would assert when flow has
-    /// narrowed the reference to `Nothing?` (a definitely-null value). kotlinc
-    /// resolves an operator on a direct `!!` receiver against this asserted
-    /// type while the expression's own type stays `Nothing` (KUU-4593).
-    /// Returns nil when the operand is not a resolvable stable reference or
-    /// carries no declared type, in which case the operand stays `Nothing`.
-    private func nullAssertedOperandType(
-        _ operandID: ExprID,
-        ctx: TypeInferenceContext,
-        locals: LocalBindings
-    ) -> TypeID? {
-        let sema = ctx.sema
-        guard let operandExpr = ctx.ast.arena.expr(operandID) else { return nil }
-        let symbol: SymbolID?
-        switch operandExpr {
-        case let .nameRef(name, _):
-            symbol = locals[name]?.symbol ?? sema.bindings.identifierSymbols[operandID]
-        default:
-            symbol = nil
-        }
-        guard let symbol, let declaredType = sema.symbols.propertyType(for: symbol) else {
-            return nil
-        }
-        return sema.types.definitelyNonNullForm(of: declaredType)
-    }
-
     /// A nominal `step` receiver is valid only when it is one of the concrete
     /// `kotlin.ranges` range/progression classes — the only types that carry a
     /// bundled `step` overload. The generic `ClosedRange`/`OpenEndRange`

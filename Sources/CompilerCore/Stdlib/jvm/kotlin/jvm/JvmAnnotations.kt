@@ -9,3 +9,11 @@ annotation class JvmName(val name: String)
 annotation class JvmRepeatable(val value: kotlin.reflect.KClass<out Annotation>)
 @kotlin.annotation.Retention(kotlin.annotation.AnnotationRetention.BINARY)
 annotation class JvmField
+@kotlin.annotation.Target(kotlin.annotation.AnnotationTarget.FIELD)
+@kotlin.annotation.Retention(kotlin.annotation.AnnotationRetention.SOURCE)
+@kotlin.annotation.MustBeDocumented
+annotation class Volatile
+@kotlin.annotation.Target(kotlin.annotation.AnnotationTarget.FIELD)
+@kotlin.annotation.Retention(kotlin.annotation.AnnotationRetention.SOURCE)
+@kotlin.annotation.MustBeDocumented
+annotation class Transient

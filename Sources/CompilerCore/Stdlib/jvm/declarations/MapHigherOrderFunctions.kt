@@ -1,5 +1,16 @@
 package kotlin.collections
 
+import kotlin.contracts.contract
+
+public inline fun <K, V> Map<out K, V>?.isNullOrEmpty(): Boolean {
+    contract {
+        returns(false) implies (this != null)
+    }
+    val value = this
+    if (value == null) return true
+    return value.isEmpty()
+}
+
 public inline fun <K, V> Map<K, V>.getOrElse(key: K, defaultValue: () -> V): V {
     val value = this[key]
     if (value != null) return value
@@ -45,4 +56,16 @@ public inline fun <K, V, R> Map<K, V>.mapValues(transform: (Map.Entry<K, V>) -> 
         result[entry.key] = transform(entry)
     }
     return result
+}
+
+public inline fun <K, V> Map<K, V>.forEach(action: (Map.Entry<K, V>) -> Unit) {
+    for (entry in this.entries) {
+        action(entry)
+    }
+}
+
+public inline fun <K, V> Map<K, V>.forEach(action: (K, V) -> Unit) {
+    for (entry in this.entries) {
+        action(entry.key, entry.value)
+    }
 }

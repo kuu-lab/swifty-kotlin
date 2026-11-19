@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.properties.PropertyDelegateProvider
 import kotlin.properties.ReadOnlyProperty
 import kotlin.properties.ReadWriteProperty

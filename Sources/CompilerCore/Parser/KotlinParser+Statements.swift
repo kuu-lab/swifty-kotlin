@@ -1058,6 +1058,13 @@ extension KotlinParser {
             guard consumeDeclarationLookaheadWork(&work, at: cursor) else { return .overBudget }
             cursor += 2
         }
+        if stream.peek(cursor).kind == .symbol(.lessThan) {
+            let typeArgumentsEnd = offsetPastTypeArguments(from: cursor)
+            while cursor < typeArgumentsEnd {
+                guard consumeDeclarationLookaheadWork(&work, at: cursor) else { return .overBudget }
+                cursor += 1
+            }
+        }
         guard stream.peek(cursor).kind == .symbol(.lParen) else { return .complete(cursor) }
         var closingSymbols: [Symbol] = [.rParen]
         cursor += 1
@@ -1120,6 +1127,41 @@ extension KotlinParser {
             }
             index += 1
         } while depth > 0
+        return index
+    }
+
+    func offsetPastTypeArguments(from offset: Int) -> Int {
+        var angleDepth = 0
+        var parenDepth = 0
+        var bracketDepth = 0
+        var braceDepth = 0
+        var templateDepth = 0
+        var index = offset
+        while true {
+            let kind = stream.peek(index).kind
+            if kind == .eof { break }
+            let inExpressionGroup = parenDepth > 0 || bracketDepth > 0 || braceDepth > 0 || templateDepth > 0
+            if !inExpressionGroup {
+                if kind == .symbol(.lessThan) {
+                    angleDepth += 1
+                } else if kind == .symbol(.greaterThan) {
+                    angleDepth -= 1
+                    if angleDepth == 0 { return index + 1 }
+                }
+            }
+            switch kind {
+            case .symbol(.lParen): parenDepth += 1
+            case .symbol(.rParen): parenDepth = max(0, parenDepth - 1)
+            case .symbol(.lBracket): bracketDepth += 1
+            case .symbol(.rBracket): bracketDepth = max(0, bracketDepth - 1)
+            case .symbol(.lBrace): braceDepth += 1
+            case .symbol(.rBrace): braceDepth = max(0, braceDepth - 1)
+            case .templateExprStart: templateDepth += 1
+            case .templateExprEnd: templateDepth = max(0, templateDepth - 1)
+            default: break
+            }
+            index += 1
+        }
         return index
     }
 

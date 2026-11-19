@@ -22,6 +22,9 @@ public enum JVMValueType: Hashable, Sendable {
         }
     }
     public var width: Int { self == .unit ? 0 : (self == .long || self == .ulong || self == .double ? 2 : 1) }
+    var withBoxedUnit: JVMValueType {
+        self == .unit ? .reference("kotlin/Unit", nullable: false) : self
+    }
     public var isNumeric: Bool { [.int, .long, .float, .double, .byte, .short, .char, .uint, .ulong, .ubyte, .ushort].contains(self) }
     /// The primitive carrier used for numeric operations, without changing the
     /// reference descriptor required by generic bounds and nullable values.
@@ -218,6 +221,7 @@ public struct JVMFunction {
     public var parameterDefaultFlags: [Bool] = []
     public var kotlinParameterOffset = 0
     public var isInline = false
+    public var isSynchronized = false
     public var callsInPlaceEffects: [Int: InvocationKind] = [:]
     public var inlineContinuation: JVMValue? = nil
     public var inlineSuspendValueResults: [String: JVMSuspendValueResult] = [:]
@@ -268,11 +272,14 @@ public struct JVMForeignMethod: Sendable {
     public var isVarargs = false
     public var isSuspend = false
     public var isProtected = false
+    var isSynthetic = false
     public var annotations: [JVMAnnotation] = []
     public var annotationDefault: JVMAnnotationValue? = nil
     // Classpath methods keep their physical descriptor until bound to a Kotlin call.
     var kotlinSuspendFunction: JVMKotlinSuspendFunction?
     var genericResultParameter: (name: String, classParameterIndices: Set<Int>)?
+    var genericSignature: String?
+    var kotlinOwnerResultParameter: String?
     var kotlinConstructorParameterNames: [String]?
     var kotlinCollisionSourceName: String?
     var kotlinFunction: JVMKotlinFunction?

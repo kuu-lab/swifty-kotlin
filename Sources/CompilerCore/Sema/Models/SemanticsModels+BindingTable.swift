@@ -23,6 +23,10 @@ public final class BindingTable {
     }
 
     public private(set) var exprTypes: [ExprID: TypeID] = [:]
+    /// For a safe-chain indexed read (`a?.b[i]`), the indexed `get` result type
+    /// before the chain's nullable result wrapper. A following indexed access
+    /// may continue the chain only when this value type is non-null.
+    public private(set) var safeChainIndexedValueTypes: [ExprID: TypeID] = [:]
     /// The ABI type that consumes a generic call result. This can be wider
     /// than the substituted expression type, as for `println(f<Int?>())`.
     public private(set) var genericCallConsumerTypes: [ExprID: TypeID] = [:]
@@ -96,6 +100,8 @@ public final class BindingTable {
     public private(set) var workerExecuteJobRanges: [ExprID: SourceRange] = [:]
 
     public private(set) var loopIterationBindings: [ExprID: LoopIterationBinding] = [:]
+    /// Explicitly declared type of a single for-loop variable (`for (x: T in xs)`), keyed by the for expression.
+    public private(set) var loopVariableTypes: [ExprID: TypeID] = [:]
     public private(set) var indexedCompoundAssignOperatorBindings: [ExprID: IndexedCompoundAssignOperatorBinding] = [:]
     public private(set) var indexedCompoundAssignElementOperatorBindings: [ExprID: IndexedCompoundAssignElementOperatorBinding] = [:]
     public private(set) var callableTargets: [ExprID: CallableTarget] = [:]
@@ -308,6 +314,7 @@ public final class BindingTable {
     /// than re-resolving by name.
     public private(set) var destructuringComponentCallees: [ExprID: [Int: SymbolID]] = [:]
     var destructuringPropertyBindings: [ExprID: [Int: DestructuringPropertyBinding]] = [:]
+    private var typedForDestructuringEntries: [ExprID: [Int: (component: TypeID, declared: TypeID)]] = [:]
 
     /// Drops every binding recorded for `expr` so the expression can be
     /// re-inferred from scratch. Speculative call resolution uses this when
@@ -317,6 +324,7 @@ public final class BindingTable {
     /// ordinary candidate path records afterwards.
     public func removeExprBindings(_ expr: ExprID) {
         exprTypes.removeValue(forKey: expr)
+        safeChainIndexedValueTypes.removeValue(forKey: expr)
         genericCallConsumerTypes.removeValue(forKey: expr)
         lambdaDeclaredExpectedReturnTypes.removeValue(forKey: expr)
         compoundAssignReceiverTypes.removeValue(forKey: expr)
@@ -332,6 +340,7 @@ public final class BindingTable {
         callableReferenceBindings.removeValue(forKey: expr)
         workerExecuteJobRanges.removeValue(forKey: expr)
         loopIterationBindings.removeValue(forKey: expr)
+        loopVariableTypes.removeValue(forKey: expr)
         indexedCompoundAssignOperatorBindings.removeValue(forKey: expr)
         indexedCompoundAssignElementOperatorBindings.removeValue(forKey: expr)
         callableTargets.removeValue(forKey: expr)
@@ -393,6 +402,7 @@ public final class BindingTable {
         anyToStringCallableRefs.remove(expr)
         destructuringComponentCallees.removeValue(forKey: expr)
         destructuringPropertyBindings.removeValue(forKey: expr)
+        typedForDestructuringEntries.removeValue(forKey: expr)
     }
 
     /// The initial independent-body contract permits scalar expression types,
@@ -421,6 +431,7 @@ public final class BindingTable {
         if !workerExecuteCallees.isEmpty { return false }
         if !workerExecuteJobRanges.isEmpty { return false }
         if !loopIterationBindings.isEmpty { return false }
+        if !loopVariableTypes.isEmpty { return false }
         if !indexedCompoundAssignOperatorBindings.isEmpty { return false }
         if !indexedCompoundAssignElementOperatorBindings.isEmpty { return false }
         if !callableTargets.isEmpty { return false }
@@ -503,6 +514,7 @@ public final class BindingTable {
         if !capturedLocalTypesBySymbol.isEmpty { return false }
         if !destructuringComponentCallees.isEmpty { return false }
         if !destructuringPropertyBindings.isEmpty { return false }
+        if !typedForDestructuringEntries.isEmpty { return false }
         return true
     }
 
@@ -532,6 +544,7 @@ public final class BindingTable {
         worker.annotationFactoryExpressions = annotationFactoryExpressions
         worker.primaryConstructorPropertyAnnotations = primaryConstructorPropertyAnnotations
         worker.exprTypes = exprTypes
+        worker.safeChainIndexedValueTypes = safeChainIndexedValueTypes
         worker.genericCallConsumerTypes = genericCallConsumerTypes
         worker.lambdaDeclaredExpectedReturnTypes = lambdaDeclaredExpectedReturnTypes
         worker.compoundAssignReceiverTypes = compoundAssignReceiverTypes
@@ -548,6 +561,7 @@ public final class BindingTable {
         worker.workerExecuteCallees = workerExecuteCallees
         worker.workerExecuteJobRanges = workerExecuteJobRanges
         worker.loopIterationBindings = loopIterationBindings
+        worker.loopVariableTypes = loopVariableTypes
         worker.indexedCompoundAssignOperatorBindings = indexedCompoundAssignOperatorBindings
         worker.indexedCompoundAssignElementOperatorBindings = indexedCompoundAssignElementOperatorBindings
         worker.callableTargets = callableTargets
@@ -630,6 +644,7 @@ public final class BindingTable {
         worker.capturedLocalTypesBySymbol = capturedLocalTypesBySymbol
         worker.destructuringComponentCallees = destructuringComponentCallees
         worker.destructuringPropertyBindings = destructuringPropertyBindings
+        worker.typedForDestructuringEntries = typedForDestructuringEntries
         return worker
     }
 
@@ -637,6 +652,14 @@ public final class BindingTable {
 
     public func bindExprType(_ expr: ExprID, type: TypeID) {
         exprTypes[expr] = type
+    }
+
+    public func bindSafeChainIndexedValueType(_ expr: ExprID, type: TypeID) {
+        safeChainIndexedValueTypes[expr] = type
+    }
+
+    public func safeChainIndexedValueType(for expr: ExprID) -> TypeID? {
+        safeChainIndexedValueTypes[expr]
     }
 
     public func bindCompoundAssignReceiverType(_ expr: ExprID, type: TypeID) {
@@ -739,6 +762,10 @@ public final class BindingTable {
         loopIterationBindings[expr] = binding
     }
 
+    public func bindLoopVariableType(_ expr: ExprID, type: TypeID) {
+        loopVariableTypes[expr] = type
+    }
+
     public func bindIndexedCompoundAssignOperator(_ expr: ExprID, binding: IndexedCompoundAssignOperatorBinding) {
         indexedCompoundAssignOperatorBindings[expr] = binding
     }
@@ -802,6 +829,14 @@ public final class BindingTable {
 
     func destructuringProperty(for expr: ExprID, index: Int) -> DestructuringPropertyBinding? {
         destructuringPropertyBindings[expr]?[index]
+    }
+
+    func bindTypedForDestructuringEntry(_ expr: ExprID, index: Int, component: TypeID, declared: TypeID) {
+        typedForDestructuringEntries[expr, default: [:]][index] = (component, declared)
+    }
+
+    func typedForDestructuringEntry(for expr: ExprID, index: Int) -> (component: TypeID, declared: TypeID)? {
+        typedForDestructuringEntries[expr]?[index]
     }
 
     public func bindContractCallsInPlaceInitializedSymbols(_ expr: ExprID, symbols: [SymbolID]) {
@@ -1098,6 +1133,10 @@ public final class BindingTable {
 
     public func loopIterationBinding(for expr: ExprID) -> LoopIterationBinding? {
         loopIterationBindings[expr]
+    }
+
+    public func loopVariableType(for expr: ExprID) -> TypeID? {
+        loopVariableTypes[expr]
     }
 
     public func indexedCompoundAssignOperatorBinding(for expr: ExprID) -> IndexedCompoundAssignOperatorBinding? {

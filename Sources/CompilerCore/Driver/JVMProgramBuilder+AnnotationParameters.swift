@@ -61,6 +61,15 @@ extension JVMProgramBuilder {
             let annotationFqName = info.fqName.map(context.interner.resolve).joined(separator: ".")
             if annotationFqName == "kotlin.OptIn" { continue }
             if isPlanlessKotlinInternalAnnotation(annotationFqName, owner: owner) { continue }
+            if ["kotlin.jvm.Volatile", "kotlin.jvm.Transient"].contains(annotationFqName), target == "field" {
+                if !node.arguments.isEmpty {
+                    throw JVMFrontendError(message: "Too many arguments for 'constructor(): \(node.name)'.", range: node.constructionTokens?.first?.range)
+                }
+                if !records.contains(where: { $0.usageID != nil && $0.usageID == node.usageID }) {
+                    records.append(MetadataAnnotationRecord(annotationFQName: annotationFqName, arguments: node.arguments, useSiteTarget: target, usageID: node.usageID))
+                }
+                continue
+            }
             guard annotationPlan(owner) != nil else { throw JVMFrontendError(message: "Unsupported JVM parameter annotation: " + node.name) }
             if var tokens = node.constructionTokens, let last = tokens.last {
                 try rememberRawAnnotationConstruction(node, tokens: &tokens, lastToken: last, message: "Unsupported JVM parameter annotation arguments.")
@@ -117,7 +126,7 @@ extension JVMProgramBuilder {
         lastToken: Token,
         message: String
     ) throws {
-        if !tokens.contains(where: { $0.kind == .symbol(.lParen) }) {
+        if AnnotationParsingSupport.constructionArgumentListStart(in: tokens, name: node.name) == nil {
             tokens += [Token(kind: .symbol(.lParen), range: lastToken.range), Token(kind: .symbol(.rParen), range: lastToken.range)]
         }
         let parser = BuildASTPhase.ExpressionParser(tokens: tokens, interner: context.interner, astArena: ast.arena, diagnostics: context.diagnostics)

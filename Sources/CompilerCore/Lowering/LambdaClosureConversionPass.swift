@@ -31,30 +31,22 @@ final class LambdaClosureConversionPass: LoweringPass {
     }
 
     /// Pre-computed call-site index to avoid repeated O(#functions * #instructions)
-    /// scans during capture-count validation and throwing detection.
+    /// scans during capture-count validation.
     private struct CallSiteIndex {
         var arityBySymbol: [SymbolID: Set<Int>] = [:]
         var arityByName: [InternedString: Set<Int>] = [:]
-        var throwingBySymbol: Set<SymbolID> = []
-        var throwingByName: Set<InternedString> = []
 
         static func build(from module: KIRModule) -> CallSiteIndex {
             var index = CallSiteIndex()
             for decl in module.arena.declarations {
                 guard case let .function(fn) = decl else { continue }
                 for instruction in fn.body {
-                    if case let .call(symbol, callee, arguments, _, canThrow, _, _, _) = instruction {
+                    if case let .call(symbol, callee, arguments, _, _, _, _, _) = instruction {
                         let arity = arguments.count
                         if let symbol {
                             index.arityBySymbol[symbol, default: []].insert(arity)
-                            if canThrow {
-                                index.throwingBySymbol.insert(symbol)
-                            }
                         }
                         index.arityByName[callee, default: []].insert(arity)
-                        if canThrow {
-                            index.throwingByName.insert(callee)
-                        }
                     }
                 }
             }
@@ -69,10 +61,6 @@ final class LambdaClosureConversionPass: LoweringPass {
                 return true
             }
             return false
-        }
-
-        func isCalledWithCanThrow(symbol: SymbolID, name: InternedString) -> Bool {
-            return throwingBySymbol.contains(symbol) || throwingByName.contains(name)
         }
     }
 
@@ -102,11 +90,7 @@ final class LambdaClosureConversionPass: LoweringPass {
                    function: function,
                    lambdaExprID: lambdaExprID(from: function.name, interner: ctx.interner),
                    callSiteIndex: callSiteIndex
-               ) > 0,
-               !callSiteIndex.isCalledWithCanThrow(
-                   symbol: function.symbol,
-                   name: function.name
-               )
+               ) > 0
             {
                 return true
             }
@@ -221,13 +205,6 @@ final class LambdaClosureConversionPass: LoweringPass {
                 callSiteIndex: callSiteIndex
             )
             if captureCount > 0 {
-                if callSiteIndex.isCalledWithCanThrow(
-                    symbol: function.symbol,
-                    name: function.name
-                ) {
-                    continue
-                }
-
                 results.append(LambdaCaptureInfo(
                     function: function,
                     captureParamCount: captureCount,

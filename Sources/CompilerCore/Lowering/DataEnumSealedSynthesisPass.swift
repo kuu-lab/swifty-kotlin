@@ -82,6 +82,31 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                     existingSymbol: syntheticToString, module: module, sema: sema,
                     existingFunctionSymbols: existingFunctionSymbols, interner: ctx.interner
                 )
+                // A value class implementing an interface stays boxed as a
+                // nominal object for polymorphic dispatch. Boxed instances
+                // need the structural equals/hashCode data classes get, or
+                // == falls back to reference equality and hashCode to identity.
+                if sema.symbols.valueClassImplementsInterface(nominalSymbol.id) {
+                    let equalsName = ctx.interner.intern("equals")
+                    let syntheticEquals = sema.symbols.lookupAll(
+                        fqName: nominalSymbol.fqName + [equalsName]
+                    ).first { sema.symbols.symbol($0)?.flags.contains(.synthetic) == true }
+                    appendSyntheticDataClassEqualsIfNeeded(
+                        owner: nominalSymbol,
+                        properties: dataClassPropertySymbols(owner: nominalSymbol, symbols: sema.symbols),
+                        existingSymbol: syntheticEquals, module: module, sema: sema,
+                        existingFunctionSymbols: existingFunctionSymbols, interner: ctx.interner
+                    )
+                    let hashCodeName = ctx.interner.intern("hashCode")
+                    let syntheticHashCode = sema.symbols.lookupAll(
+                        fqName: nominalSymbol.fqName + [hashCodeName]
+                    ).first { sema.symbols.symbol($0)?.flags.contains(.synthetic) == true }
+                    appendSyntheticDataClassHashCodeIfNeeded(
+                        owner: nominalSymbol, existingSymbol: syntheticHashCode,
+                        module: module, sema: sema,
+                        existingFunctionSymbols: existingFunctionSymbols, interner: ctx.interner
+                    )
+                }
             }
             if nominalSymbol.kind == .annotationClass {
                 synthesizeAnnotationHelpers(

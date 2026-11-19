@@ -316,7 +316,15 @@ extension JVMProgramBuilder {
             // static field on that object, matching kotlinc's layout.
             let staticObjectField = exposedField && plan.isObject
             let immutableField = !p.isVar && (!plan.isObject || staticObjectField)
-            let field = hasField && p.delegateExpression == nil ? JVMField(owner: plan.name, name: name, type: backingFieldType, access: (p.modifiers.contains(.lateinit) || exposedField ? self.access(fieldModifiers) : 2) | (plan.isFacade || staticObjectField ? 8 : 0) | (immutableField ? 16 : 0)) : nil
+            let propertyAnnotationRecords = try annotationRecords(for: symbol)
+            let fieldAnnotations = propertyAnnotationRecords.filter { $0.useSiteTarget == nil || $0.useSiteTarget == "field" }
+            let hasVolatileField = fieldAnnotations.contains { $0.annotationFQName == "kotlin.jvm.Volatile" }
+            if hasVolatileField && !p.isVar {
+                throw JVMFrontendError(message: "'@Volatile' annotation cannot be used on immutable properties.", range: p.range)
+            }
+            let fieldFlagAccess: UInt16 = (hasVolatileField ? 0x40 : 0)
+                | (fieldAnnotations.contains { $0.annotationFQName == "kotlin.jvm.Transient" } ? 0x80 : 0)
+            let field = hasField && p.delegateExpression == nil ? JVMField(owner: plan.name, name: name, type: backingFieldType, access: (p.modifiers.contains(.lateinit) || exposedField ? self.access(fieldModifiers) : 2) | (plan.isFacade || staticObjectField ? 8 : 0) | (immutableField ? 16 : 0) | fieldFlagAccess) : nil
             var property = JVMProperty(name: name, type: type, getter: getter, setter: setter, field: field, modifiers: p.modifiers)
             property.isGetterInline = p.modifiers.contains(.inline) || p.getter?.isInline == true
             property.isSetterInline = p.modifiers.contains(.inline) || p.setter?.isInline == true
@@ -330,7 +338,11 @@ extension JVMProgramBuilder {
             if p.delegateExpression != nil {
                 let storage = sema.symbols.delegateStorageSymbol(for: symbol) ?? SymbolID(rawValue: -(symbol.rawValue + 50000))
                 guard let semantic = sema.symbols.delegateProvideDelegateSymbol(for: symbol).flatMap({ sema.symbols.functionSignature(for: $0)?.returnType }) ?? sema.symbols.propertyType(for: storage) ?? p.delegateExpression.flatMap({ sema.bindings.exprType(for: $0) }) else { throw JVMFrontendError(message: "Missing JVM delegate storage type.", range: p.range) }
-                var delegateField = JVMField(owner: plan.name, name: name + "$delegate", type: try self.type(semantic), access: 2 | (plan.isObject ? 0 : 16) | (plan.isFacade ? 8 : 0))
+                if propertyAnnotationRecords.contains(where: { $0.annotationFQName == "kotlin.jvm.Volatile" && $0.useSiteTarget == "delegate" }) {
+                    throw JVMFrontendError(message: "'@Volatile' annotation cannot be used on delegated properties.", range: p.range)
+                }
+                let delegateTransient = propertyAnnotationRecords.contains { $0.annotationFQName == "kotlin.jvm.Transient" && $0.useSiteTarget == "delegate" }
+                var delegateField = JVMField(owner: plan.name, name: name + "$delegate", type: try self.type(semantic), access: 2 | (plan.isObject ? 0 : 16) | (plan.isFacade ? 8 : 0) | (delegateTransient ? 0x80 : 0))
                 delegateField.annotations = try annotations(for: symbol, target: "delegate")
                 property.delegateField = delegateField
                 property.delegateSymbol = symbol
@@ -355,7 +367,12 @@ extension JVMProgramBuilder {
     }
     func emitClasses() throws -> [JVMClass] {
         var results: [JVMClass] = [], emitted: Set<SymbolID> = []
-        while let plan = classes.values.filter({ !emitted.contains($0.symbol) && (!$0.isAnonymous || $0.anonymousSuper != nil) }).sorted(by: { ($0.isAnonymous ? 1 : 0, $0.name) < ($1.isAnonymous ? 1 : 0, $1.name) }).first {
+        // `classes` is fixed by prepareClasses, but anonymous object plans only
+        // become eligible while their enclosing bodies are emitted, so re-check
+        // eligibility against this pre-sorted order on every pass instead of
+        // re-sorting all plans each time.
+        let orderedPlans = classes.values.sorted { ($0.isAnonymous ? 1 : 0, $0.name) < ($1.isAnonymous ? 1 : 0, $1.name) }
+        while let plan = orderedPlans.first(where: { !emitted.contains($0.symbol) && (!$0.isAnonymous || $0.anonymousSuper != nil) }) {
             emitted.insert(plan.symbol)
             var functions: [JVMFunction] = []
             for (declaration, method) in plan.methods {
@@ -373,8 +390,8 @@ extension JVMProgramBuilder {
                 functions.append(function)
                 functions += try jvmOverloads(function, declaration: declaration, symbol: symbol, owner: plan)
             }
-            for (_, declaration, property) in plan.properties {
-                functions += try emitAccessors(plan, declaration, property)
+            for (propertyID, declaration, property) in plan.properties {
+                functions += try emitAccessors(plan, propertyID, declaration, property)
             }
             if plan.isObject { functions.append(try emitObjectConstructor(plan)) }
             if plan.isAnonymous { functions.append(try emitAnonymousConstructor(plan)) }

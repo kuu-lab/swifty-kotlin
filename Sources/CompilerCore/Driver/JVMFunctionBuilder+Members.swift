@@ -104,6 +104,19 @@ extension JVMFunctionBuilder {
         return nil
     }
 
+    func javaImportedTypeInherits(_ name: String, _ target: String) -> Bool {
+        guard let imports = context.jvmImports else { return false }
+        var visited: Set<String> = []
+        var pending = [name]
+        while let current = pending.popLast() {
+            if current == target { return true }
+            guard visited.insert(current).inserted, let info = imports.classes[current] else { continue }
+            if let superclass = info.superclass { pending.append(superclass) }
+            pending.append(contentsOf: info.interfaces)
+        }
+        return false
+    }
+
     func propertyBinding(_ id: ExprID) -> JVMProperty? {
         let sema = program.sema
         func sourceProperty(for candidate: SymbolID) -> JVMProperty? {
@@ -185,18 +198,35 @@ extension JVMFunctionBuilder {
                    sema.symbols.symbol(parent)?.kind == .object {
                     return JVMProperty(name: name, type: type, getter: getter, setter: nil, field: nil, modifiers: [.public])
                 }
+                let javaMapViewMethod: String? = {
+                    guard context.jvmImports?.isJavaConcurrentMapClass(owner) == true else { return nil }
+                    switch name {
+                    case "keys": return "keySet"
+                    case "values": return "values"
+                    case "entries": return "entrySet"
+                    default: return nil
+                    }
+                }()
                 let names: [String]
-                if info.flags & 0x2000 != 0 || (owner.hasPrefix("java/util/") && name == "size") {
-                    names = [name]
+                if info.flags & 0x2000 != 0
+                    || javaMapViewMethod != nil
+                    || (name == "size" && context.jvmImports?.isJavaCollectionOrMapClass(owner) == true) {
+                    names = [javaMapViewMethod ?? name]
                 } else {
                     names = name.hasPrefix("is") && name.count > 2 ? [name, "get" + capital] : ["get" + capital]
+                }
+                let acceptsGetterResult = { (method: JVMForeignMethod) -> Bool in
+                    if method.result.descriptor == type.descriptor { return true }
+                    guard javaMapViewMethod != nil, let target = type.referenceName,
+                          let resultName = method.result.referenceName else { return false }
+                    return self.javaImportedTypeInherits(resultName, target)
                 }
                 // Companion members compile to static methods on the outer
                 // classfile; instance members stay virtual.
                 let imported = info.methods.first(where: {
-                    names.contains($0.name) && !$0.isStatic && !$0.isConstructor && $0.parameters.isEmpty && $0.result.descriptor == type.descriptor
+                    names.contains($0.name) && !$0.isStatic && !$0.isConstructor && $0.parameters.isEmpty && acceptsGetterResult($0)
                 }) ?? info.methods.first(where: {
-                    names.contains($0.name) && $0.isStatic && $0.parameters.isEmpty && $0.result.descriptor == type.descriptor
+                    names.contains($0.name) && $0.isStatic && $0.parameters.isEmpty && acceptsGetterResult($0)
                 })
                 if let imported {
                     var getter = JVMForeignMethod(
@@ -436,9 +466,8 @@ extension JVMFunctionBuilder {
 }
 
 extension JVMProgramBuilder {
-    func emitAccessors(_ plan: JVMClassPlan, _ declaration: PropertyDecl, _ property: JVMProperty) throws -> [JVMFunction] {
-        let propertyID = plan.properties.first(where: { $0.1.range == declaration.range })?.0
-        let propertySymbol = propertyID.flatMap { sema.bindings.declSymbol(for: $0) }
+    func emitAccessors(_ plan: JVMClassPlan, _ propertyID: DeclID, _ declaration: PropertyDecl, _ property: JVMProperty) throws -> [JVMFunction] {
+        let propertySymbol = sema.bindings.declSymbol(for: propertyID)
         var accessorTypeParameters: [JVMTypeParameter] = []
         if !declaration.typeParams.isEmpty {
             guard let propertySymbol,
@@ -518,6 +547,12 @@ extension JVMProgramBuilder {
             if plan.isFacade { f.access = (f.isPrivate ? 2 : 1) | 8 | 16; f.isSynthetic = false }
             f.typeParameters = accessorTypeParameters
             let setter = f.reference.result == .unit
+            if let symbol = propertySymbol {
+                f.isSynchronized = try annotationRecords(for: symbol).contains {
+                    $0.annotationFQName == KnownCompilerAnnotation.jvmSynchronized.qualifiedName
+                        && $0.useSiteTarget == (setter ? "set" : "get")
+                }
+            }
             if declaration.receiverType != nil {
                 f.javaParameters.append(JVMMethodParameter("$this$" + property.name))
             }
@@ -758,8 +793,8 @@ extension JVMProgramBuilder {
                 parents += parent.properties.flatMap { [$0.2.getter] + ($0.2.setter.map { [$0] } ?? []) }
             } else if let source = try? className(symbol) {
                 let name = JVMClasspathIndex.builtinName(source) ?? source
-                let known = Array(methods.values) + Array(collectionInterfaceMethods.values) + textLibraryMethods.values.map(\.method)
-                parents += context.jvmImports?.classes[name]?.methods.filter { !$0.isStatic && !$0.isConstructor } ?? known.filter { $0.owner == name && !$0.isStatic && !$0.isConstructor }.sorted { $0.name + $0.descriptor < $1.name + $1.descriptor }
+                parents += context.jvmImports?.classes[name]?.methods.filter { !$0.isStatic && !$0.isConstructor }
+                    ?? foreignMethodsOwned(by: name).filter { !$0.isStatic && !$0.isConstructor }.sorted { $0.name + $0.descriptor < $1.name + $1.descriptor }
             }
             for next in sema.symbols.directSupertypes(for: symbol) { visit(next) }
         }
