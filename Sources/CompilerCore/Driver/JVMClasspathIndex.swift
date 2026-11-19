@@ -24,6 +24,7 @@ final class JVMClasspathIndex {
     private var kotlinFacadeGetters: [FileID: [JVMForeignMethod]] = [:]
     var composeStaticContracts: [FileID: (method: JVMForeignMethod, composable: JVMCompose.ImportedCall?)] = [:]
     var importedComposeCalls: [SymbolID: JVMCompose.ImportedCall] = [:]
+    var importedComposableSymbols: Set<SymbolID> = []
     var glanceActivityFile: FileID?
     var oneTimeWorkRequestBuilderFile: FileID?
     var contextServiceFile: FileID?
@@ -378,8 +379,10 @@ final class JVMClasspathIndex {
             }
             // A nested singleton remains a value even if some of its sealed
             // parent's subclasses are outside the parent stub.
-            let isObject = info.isKotlinObject && !info.methods.contains { $0.isStatic && isExposed($0) }
-            if isObject {
+            let isSealedObject = info.isKotlinObject
+                && classes[owner].map { sealedSubclasses(of: $0).contains(info.name) } == true
+                && !info.methods.contains { $0.isStatic && isExposed($0) }
+            if isSealedObject {
                 source += indentation + visibility + "object `\(name)`"
             } else if info.isInterface {
                 source += indentation + visibility + interfaceKeyword(info) + " `\(name)`" + typeParameters
@@ -407,7 +410,8 @@ final class JVMClasspathIndex {
             // Kotlin forbids companion objects inside inner (non-static
             // member) classes; their statics are unreachable anyway.
             source += memberDeclarations(info: info, members: info.methods,
-                                         allowsCompanion: !isObject && entry.access & 0x0008 != 0)
+                                         allowsCompanion: !isSealedObject && entry.access & 0x0008 != 0,
+                                         projectsKotlinObject: isSealedObject)
             source += nestedClassDeclarations(of: entry.name, indentation: indentation + "    ")
             source += indentation + "}\n"
         }
@@ -679,13 +683,17 @@ final class JVMClasspathIndex {
         return false
     }
 
+    private func memberSourceName(for method: JVMForeignMethod) -> String {
+        kotlinFunction(method)?.name ?? method.sourceName
+    }
+
     private func isExposed(_ method: JVMForeignMethod) -> Bool {
         if JVMAndroidXActivityViewModel.isEntry(owner: method.owner, name: method.name, descriptor: method.descriptor) {
             return false
         }
         if method.isReifiedGlanceAction || method.isReifiedWorkBuilder || JVMAndroidXContextService.isEntry(method) { return false }
         if Self.isReifiedHiltViewModel(owner: method.owner, name: method.name, descriptor: method.descriptor) { return false }
-        let exposedName = method.sourceName
+        let exposedName = memberSourceName(for: method)
         // Exclude generated static forwarders. The companion's instance method
         // can still implement a user-declared factory interface.
         if method.isStatic, method.annotations.contains(where: { $0.descriptor == JVMMetro.invoke }) { return false }
@@ -1378,6 +1386,8 @@ final class JVMClasspathIndex {
                     && !(info.name == "androidx/compose/runtime/ComposablesKt" && $0.source.name == "currentComposer")
                     && (!$0.getter.composePropertyABI(hasReceiver: $0.source.receiver != nil) || hasComposeRuntime)
                     && $0.getter.parameters.allSatisfy(exposeSuspendType) && exposeSuspendType($0.getter.result)
+                    && !(info.name == "androidx/compose/runtime/ComposablesKt" && $0.source.name == "currentComposer"
+                        && $0.getter.name == "getCurrentComposer" && $0.getter.descriptor == "(L\(JVMCompose.composer);I)L\(JVMCompose.composer);")
             }
             let isFileFacade = info.isKotlinFileFacade ?? (short.hasSuffix("Kt") && !info.isAnnotation)
             if info.flags & 0x4000 != 0 {
@@ -1436,10 +1446,13 @@ final class JVMClasspathIndex {
                 }
                 for (property, getter) in topLevelProperties {
                     let receiver = property.receiver.map { $0 + "." } ?? ""
-                    let annotation = getter.composePropertyABI(hasReceiver: property.receiver != nil)
-                        ? " @androidx.compose.runtime.Composable" : ""
+                    let isComposable = getter.annotations.contains { $0.descriptor == "Landroidx/compose/runtime/Composable;" }
+                    let isReadOnly = isComposable && getter.annotations.contains { $0.descriptor == "Landroidx/compose/runtime/ReadOnlyComposable;" }
+                    let annotation = isComposable
+                        ? "@androidx.compose.runtime.Composable" + (isReadOnly ? " @androidx.compose.runtime.ReadOnlyComposable" : "") + " "
+                        : ""
                     let (generics, whereClause) = kotlinTypeParameterSyntax(property.typeParameters)
-                    source += "val \(generics)\(receiver)`\(property.name)`: \(property.result)\(whereClause)\(annotation) get() = null!!\n"
+                    source += "val \(generics)\(receiver)`\(property.name)`: \(property.result)\(whereClause) \(annotation)get() = null!!\n"
                 }
             } else {
                 if info.flags & 0x2000 != 0 {
@@ -1458,8 +1471,8 @@ final class JVMClasspathIndex {
                 } else {
                 let isNonCancellable = info.name == "kotlinx/coroutines/NonCancellable" && info.isKotlinObject
                     && info.superclass == "kotlin/coroutines/AbstractCoroutineContextElement"
-                let isObject = isNonCancellable || info.isKotlinObject && own.allSatisfy { !$0.isStatic }
-                if isObject {
+                let isObjectStub = isNonCancellable || info.isKotlinObject
+                if isObjectStub {
                     source += "object `\(short)`"
                 } else if info.isInterface {
                     source += interfaceKeyword(info) + " `\(short)`"
@@ -1488,7 +1501,7 @@ final class JVMClasspathIndex {
                 let bounds = javaTypeParameterBounds(info).bounds
                 if !bounds.isEmpty { source += " where " + bounds.joined(separator: ", ") }
                 source += " {\n"
-                source += memberDeclarations(info: info, members: info.methods, allowsCompanion: !isNonCancellable)
+                source += memberDeclarations(info: info, members: info.methods, allowsCompanion: !isObjectStub, projectsKotlinObject: isObjectStub)
                 if info.name == Self.compositionLocal, info.kotlinMemberProperties["current"] == nil,
                    let getter = compositionLocalGetter,
                    let type = info.classTypeParameterNames.first {
@@ -1544,7 +1557,7 @@ final class JVMClasspathIndex {
         return name
     }
 
-    private func memberDeclarations(info: JVMClassInfo, members: [JVMForeignMethod], allowsCompanion: Bool = true) -> String {
+    private func memberDeclarations(info: JVMClassInfo, members: [JVMForeignMethod], allowsCompanion: Bool = true, projectsKotlinObject: Bool = false) -> String {
         let metadata = kotlinMetadata(info)
         let own = members.filter { $0.kotlinSuspendFunction?.receiverIsNullable == nil && isExposed($0) }
         let statics = own.filter { $0.isStatic && $0.kotlinFunction?.valueOperatorParameterDescriptors == nil }
@@ -1740,20 +1753,20 @@ final class JVMClasspathIndex {
             candidate.entry.parameters.prefix(candidate.source.parameters.count).allSatisfy(exposeSuspendType)
         }
         let loweredDescriptors = Set(loweredConstructors.map { $0.entry.descriptor })
-        for method in own where method.isConstructor && !method.parameters.isEmpty && !loweredDescriptors.contains(method.descriptor) {
+        for method in own where !projectsKotlinObject && method.isConstructor && !method.parameters.isEmpty && !loweredDescriptors.contains(method.descriptor) {
             let genericTypes = javaGenericTypes(method)
             let types = genericTypes?.typeParameters.isEmpty == true ? genericTypes?.parameters : nil
             source += (method.isProtected ? "protected " : "") + "constructor("
                 + parameters(method, javaTypes: types) + ") : this() {}\n"
         }
-        for (constructor, _, defaults) in loweredConstructors {
+        for (constructor, _, defaults) in loweredConstructors where !projectsKotlinObject {
             let declarations = constructor.parameters.map { parameter in
                 let defaultValue = parameter.hasDefaultValue && defaults != nil ? " = null!!" : ""
                 return "`\(parameter.name!)`: " + parameter.sourceType + defaultValue
             }
             source += constructor.visibility + "constructor(" + declarations.joined(separator: ", ") + ") : this() {}\n"
         }
-        for (constructor, adapter) in info.kotlinValueClassConstructors where adapter.parameters.allSatisfy(exposeSuspendType) {
+        for (constructor, adapter) in info.kotlinValueClassConstructors where !projectsKotlinObject && adapter.parameters.allSatisfy(exposeSuspendType) {
             let declarations = constructor.parameters.compactMap { parameter in
                 parameter.name.map { "`\($0)`: " + parameter.sourceType }
             }
@@ -2014,7 +2027,7 @@ final class JVMClasspathIndex {
         if !allowsCompanion, info.isKotlinObject {
             for declaration in constantFields { source += declaration }
         }
-        if allowsCompanion, metadata?.companion == nil, companion != nil || !statics.isEmpty || !constantFields.isEmpty || !runtimeFields.isEmpty {
+        if allowsCompanion, !projectsKotlinObject, metadata?.companion == nil, companion != nil || !statics.isEmpty || !constantFields.isEmpty || !runtimeFields.isEmpty {
             source += "companion object"
             if let name = staticCompanionObjectName(for: info) { source += " \(name)" }
             if let companion {
@@ -2093,6 +2106,18 @@ final class JVMClasspathIndex {
                 source += nestedClassDeclarations(of: companion.name)
             }
             source += "}\n"
+        }
+        if projectsKotlinObject {
+            for declaration in constantFields { source += declaration }
+            for declaration in runtimeFields { source += declaration }
+            for (name, property) in info.kotlinStaticProperties.sorted(by: { $0.key < $1.key })
+                where isExposed(property.getter) {
+                let type = kotlinType(property.getter.result) + (property.isNullable ? "?" : "")
+                source += "val `\(name)`: \(type) get() = null!!\n"
+            }
+            for method in statics {
+                source += "external " + functionDeclaration(method) + "\n"
+            }
         }
         return source
     }
@@ -2828,7 +2853,7 @@ final class JVMClasspathIndex {
         if let indexed = methodsByOwnerAndName[info.name] {
             candidates = indexed[name] ?? []
         } else if info.methods.count >= 24 {
-            let indexed = Dictionary(grouping: info.methods, by: \.sourceName)
+            let indexed = Dictionary(grouping: info.methods, by: { memberSourceName(for: $0) })
             methodsByOwnerAndName[info.name] = indexed
             candidates = indexed[name] ?? []
         } else {
@@ -2908,9 +2933,14 @@ final class JVMClasspathIndex {
         }
         guard let method = candidates.first(where: {
             $0.kotlinFunction?.mangledMemberParameterDescriptors == nil
-                && $0.sourceName == name && ($0.kotlinSuspendFunction != nil) == signature.isSuspend
-                && $0.descriptor.hasPrefix(descriptor) && $0.isStatic == staticMember
+                && memberSourceName(for: $0) == name && ($0.kotlinSuspendFunction != nil) == signature.isSuspend
+                && ($0.descriptor.hasPrefix(descriptor)
+                    || isComposeMemberCall($0, descriptorTypes: descriptorTypes))
+                && ($0.isStatic == staticMember || info.isKotlinObject)
         }) else { return }
+        if isComposeMemberCall(method, descriptorTypes: descriptorTypes) {
+            importedComposableSymbols.insert(symbol.id)
+        }
         if let logical = method.logicalSuspendMethod {
             // The call IR holds the logical signature. Coroutine lowering
             // restores the classfile ABI and supplies its own continuation.
@@ -2966,6 +2996,7 @@ final class JVMClasspathIndex {
         })
         classpathStubFiles = foreignFiles
         facadeMethodsByRange = [:]
+        importedComposableSymbols = []
         if let ast = ctx.ast {
             for file in ast.files {
                 if let getters = kotlinFacadeGetters[file.fileID] {

@@ -800,8 +800,8 @@ extension JVMProgramBuilder {
                 parents += parent.properties.flatMap { [$0.2.getter] + ($0.2.setter.map { [$0] } ?? []) }
             } else if let source = try? className(symbol) {
                 let name = JVMClasspathIndex.builtinName(source) ?? source
-                let known = Array(methods.values) + Array(collectionInterfaceMethods.values) + textLibraryMethods.values.map(\.method)
-                parents += context.jvmImports?.classes[name]?.methods.filter { !$0.isStatic && !$0.isConstructor } ?? known.filter { $0.owner == name && !$0.isStatic && !$0.isConstructor }.sorted { $0.name + $0.descriptor < $1.name + $1.descriptor }
+                parents += context.jvmImports?.classes[name]?.methods.filter { !$0.isStatic && !$0.isConstructor }
+                    ?? foreignMethodsOwned(by: name).filter { !$0.isStatic && !$0.isConstructor }.sorted { $0.name + $0.descriptor < $1.name + $1.descriptor }
             }
             for next in sema.symbols.directSupertypes(for: symbol) { visit(next) }
         }
