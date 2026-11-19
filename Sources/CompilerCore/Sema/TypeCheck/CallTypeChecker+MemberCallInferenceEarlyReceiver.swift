@@ -94,7 +94,6 @@ extension CallTypeChecker {
         _ argumentExpr: ExprID,
         parameterTypes: [TypeID],
         expectedCallResultType: TypeID?,
-        nullableResult: Bool,
         fallbackReturnType: TypeID,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
@@ -102,10 +101,13 @@ extension CallTypeChecker {
         let sema = ctx.sema
         var returnCandidates: [TypeID] = []
         if let expectedCallResultType {
+            // Both `firstNotNullOf` and `firstNotNullOfOrNull` transforms return
+            // `R?`, so the lambda body's expected return is always nullable. A
+            // non-null seed (e.g. `Unit` for a discarded result) would trigger
+            // Unit-coercion that discards the body's `null` and break
+            // null-skipping, diverging from kotlinc.
             let nonNullExpected = sema.types.makeNonNullable(expectedCallResultType)
-            let seeded = nullableResult
-                ? sema.types.makeNullable(nonNullExpected)
-                : nonNullExpected
+            let seeded = sema.types.makeNullable(nonNullExpected)
             if seeded != sema.types.anyType,
                seeded != sema.types.nullableAnyType,
                seeded != fallbackReturnType

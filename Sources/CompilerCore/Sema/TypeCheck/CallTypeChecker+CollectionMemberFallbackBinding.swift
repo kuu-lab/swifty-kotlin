@@ -520,7 +520,6 @@ extension CallTypeChecker {
                     lambdaArgExpr,
                     parameterTypes: [receiverElementType],
                     expectedCallResultType: expectedType,
-                    nullableResult: memberName == "firstNotNullOfOrNull",
                     fallbackReturnType: sema.types.nullableAnyType,
                     ctx: ctx,
                     locals: &locals
