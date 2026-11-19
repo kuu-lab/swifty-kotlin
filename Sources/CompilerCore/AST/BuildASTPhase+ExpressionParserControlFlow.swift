@@ -540,18 +540,36 @@ extension BuildASTPhase.ExpressionParser {
     /// Whether the closing `>` at `index` belongs to a type argument list in an
     /// `is`/`as` type rather than to a comparison operator.
     private func isClosingTypeArgument(at index: Int, bodyStart: Int) -> Bool {
-        var depth = 1
+        var angleDepth = 1
+        var parenDepth = 0
+        var bracketDepth = 0
+        var braceDepth = 0
         var openIndex: Int?
         var cursor = tokens.index(before: index)
-        while cursor >= bodyStart {
+        scan: while cursor >= bodyStart {
             let kind = tokens[cursor].kind
-            if kind == .symbol(.greaterThan) {
-                depth += 1
-            } else if kind == .symbol(.lessThan) {
-                depth -= 1
-                if depth == 0 {
-                    openIndex = cursor
-                    break
+            switch kind {
+            case .symbol(.rParen): parenDepth += 1
+            case .symbol(.lParen):
+                if parenDepth > 0 { parenDepth -= 1 }
+            case .symbol(.rBracket): bracketDepth += 1
+            case .symbol(.lBracket):
+                if bracketDepth > 0 { bracketDepth -= 1 }
+            case .symbol(.rBrace): braceDepth += 1
+            case .symbol(.lBrace):
+                if braceDepth > 0 { braceDepth -= 1 }
+            default:
+                break
+            }
+            if parenDepth == 0 && bracketDepth == 0 && braceDepth == 0 {
+                if kind == .symbol(.greaterThan) {
+                    angleDepth += 1
+                } else if kind == .symbol(.lessThan) {
+                    angleDepth -= 1
+                    if angleDepth == 0 {
+                        openIndex = cursor
+                        break scan
+                    }
                 }
             }
             if cursor == bodyStart { break }

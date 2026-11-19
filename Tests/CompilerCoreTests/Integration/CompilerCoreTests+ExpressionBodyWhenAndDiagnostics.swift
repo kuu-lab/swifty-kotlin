@@ -729,6 +729,14 @@ extension CompilerCoreTests {
             }
             return out
         }
+
+        fun comparisonAfterParenthesizedCast(value: Any): Boolean =
+            when (value) {
+                is Int -> ((value as Int) < 0) || 10 >
+                    0
+                is String -> value.isNotEmpty()
+                else -> false
+            }
         """
 
         try withTemporaryFiles(contents: [source]) { paths in
