@@ -374,7 +374,13 @@ private struct JVMSourceGrammar {
     }
     mutating func body(allowNewlines: Bool = false) throws {
         while kind == .symbol(.at) { try annotation() }
-        if kind == .symbol(.lBrace) { try block() } else { try statement(allowNewlines: allowNewlines) }
+        if kind == .symbol(.lBrace) {
+            // A control-flow body whose braces open with a lambda signature
+            // (`{ p -> ... }`) is a lambda literal, matching kotlinc; any
+            // other brace opens a block.
+            var probe = self
+            if probe.scanLambdaSignature() { try lambda() } else { try block() }
+        } else { try statement(allowNewlines: allowNewlines) }
     }
     mutating func condition() throws {
         try require(.symbol(.lParen)); try expression(allowNewlines: true); try require(.symbol(.rParen))
@@ -483,24 +489,35 @@ private struct JVMSourceGrammar {
         }
     }
     mutating func lambda() throws {
-        try require(.symbol(.lBrace))
-        let start = index
-        do {
-            if !take(.symbol(.arrow)) {
-                repeat {
-                    if take(.symbol(.lParen)) {
-                        repeat { try name() } while take(.symbol(.comma))
-                        try require(.symbol(.rParen))
-                    } else { try name() }
-                    if take(.symbol(.colon)) { try type() }
-                } while take(.symbol(.comma))
-                try require(.symbol(.arrow))
-            }
-        } catch { index = start }
+        if !scanLambdaSignature() { try require(.symbol(.lBrace)) }
         semicolons()
         while !take(.symbol(.rBrace)) {
             guard kind != .eof else { throw Unsupported() }
             try statement(); try separator(); semicolons()
+        }
+    }
+
+    /// Consumes a lambda parameter signature (`{`, optional parameters, `->`)
+    /// when the tokens have that shape, leaving `index` just after the arrow.
+    /// Otherwise restores `index` to its entry value and returns false, so a
+    /// plain block or a parameterless lambda body keeps its original parse.
+    mutating func scanLambdaSignature() -> Bool {
+        let entry = index
+        guard take(.symbol(.lBrace)) else { return false }
+        if take(.symbol(.arrow)) { return true }
+        do {
+            repeat {
+                if take(.symbol(.lParen)) {
+                    repeat { try name() } while take(.symbol(.comma))
+                    try require(.symbol(.rParen))
+                } else { try name() }
+                if take(.symbol(.colon)) { try type() }
+            } while take(.symbol(.comma))
+            guard take(.symbol(.arrow)) else { throw Unsupported() }
+            return true
+        } catch {
+            index = entry
+            return false
         }
     }
     mutating func anonymousFunction() throws {
