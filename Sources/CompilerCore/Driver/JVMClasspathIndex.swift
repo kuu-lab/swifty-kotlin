@@ -2362,7 +2362,7 @@ final class JVMClasspathIndex {
         if usesKotlinMetadata, let owner = declaringClass(for: method), let function = kotlinFunction(method) {
             return kotlinFunctionDeclaration(function, owner: owner)
         }
-        if usesKotlinMetadata, method.kotlinSuspendFunction == nil, let function = method.kotlinFunction {
+        if usesKotlinMetadata, let function = method.kotlinFunction {
             return kotlinFunctionDeclaration(function, asFacadeMember: asFacadeMember, acceptsDefaults: acceptsDefaults)
         }
         let suspend = method.kotlinSuspendFunction
