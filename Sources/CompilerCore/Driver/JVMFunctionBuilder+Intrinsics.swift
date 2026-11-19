@@ -857,8 +857,14 @@ extension JVMFunctionBuilder {
             let result = try value(elementType)
             instructions.append(.arrayGet(object, index, result)); return result
         }
-        guard let owner = object.type.referenceName, ["java/util/List", "kotlin/enums/EnumEntries", "java/util/Map"].contains(owner) else { throw fail("Unsupported JVM indexed receiver.") }
-        return try jdkCall(owner, "get", [["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? .int : .reference("java/lang/Object", nullable: true)], .reference("java/lang/Object", nullable: true), receiver: object, arguments: [index], interface: true, resolved: type)!
+        guard var owner = object.type.referenceName else { throw fail("Unsupported JVM indexed receiver.") }
+        var receiver = object
+        if context.jvmImports?.isJavaConcurrentMapClass(owner) == true {
+            owner = "java/util/Map"
+            receiver = try convert(object, to: .reference("java/util/Map", nullable: false))
+        }
+        guard ["java/util/List", "kotlin/enums/EnumEntries", "java/util/Map"].contains(owner) else { throw fail("Unsupported JVM indexed receiver.") }
+        return try jdkCall(owner, "get", [["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? .int : .reference("java/lang/Object", nullable: true)], .reference("java/lang/Object", nullable: true), receiver: receiver, arguments: [index], interface: true, resolved: type)!
     }
 
     /// `a?.b[i]` is one guarded read: when the safe receiver is null, the index
@@ -940,9 +946,15 @@ extension JVMFunctionBuilder {
             let index = try convert(index, to: .int), source = try convert(source, to: arrayComponent(object.type))
             instructions.append(.arraySet(object, index, source)); return
         }
-        guard let owner = object.type.referenceName, ["java/util/List", "kotlin/enums/EnumEntries", "java/util/Map"].contains(owner) else { throw fail("Unsupported JVM indexed receiver.") }
+        guard var owner = object.type.referenceName else { throw fail("Unsupported JVM indexed receiver.") }
+        var receiver = object
+        if context.jvmImports?.isJavaConcurrentMapClass(owner) == true {
+            owner = "java/util/Map"
+            receiver = try convert(object, to: .reference("java/util/Map", nullable: false))
+        }
+        guard ["java/util/List", "kotlin/enums/EnumEntries", "java/util/Map"].contains(owner) else { throw fail("Unsupported JVM indexed receiver.") }
         let any: JVMValueType = .reference("java/lang/Object", nullable: true)
-        _ = try jdkCall(owner, ["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? "set" : "put", [["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? .int : any, any], any, receiver: object, arguments: [index, source], interface: true)
+        _ = try jdkCall(owner, ["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? "set" : "put", [["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? .int : any, any], any, receiver: receiver, arguments: [index, source], interface: true)
     }
     func indexedCompound(_ op: CompoundAssignOp, _ receiver: ExprID, _ indices: [ExprID], _ source: ExprID, _ id: ExprID) throws -> JVMValue? {
         guard indices.count == 1 else { throw fail("JVM indexing requires one index.", id) }

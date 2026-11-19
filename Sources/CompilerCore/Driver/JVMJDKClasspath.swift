@@ -44,6 +44,10 @@ struct JVMJDKClasspath {
                 }
                 if importedPackages.contains("java/util/concurrent") {
                     recursivePackages.insert("java/util/concurrent")
+                    // Concurrent collection classes extend java.util interfaces
+                    // (Map/Collection/Set); import that package too so their
+                    // stubs can expose the Kotlin collection surface.
+                    packages.insert("java/util")
                 }
             }
         }
