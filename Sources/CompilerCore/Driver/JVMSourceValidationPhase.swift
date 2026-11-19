@@ -423,10 +423,10 @@ private struct JVMSourceGrammar {
             try require(.keyword(.in))
             try expression(allowNewlines: true); try require(.symbol(.rParen)); try body()
         } else if take(.keyword(.return)) {
-            if take(.symbol(.at)) { try name() }
+            if !newlineBeforeCurrent(), take(.symbol(.at)) { try name() }
             if kind != .symbol(.rBrace), kind != .symbol(.semicolon), !newlineBeforeCurrent() { try expression() }
         } else if take(.keyword(.break)) || take(.keyword(.continue)) {
-            if take(.symbol(.at)) { try name() }
+            if !newlineBeforeCurrent(), take(.symbol(.at)) { try name() }
             return
         } else {
             try expression(allowNewlines: allowNewlines)
@@ -525,12 +525,12 @@ private struct JVMSourceGrammar {
     mutating func primary(allowNewlines: Bool = false) throws {
         while kind == .symbol(.at) { try annotation() }
         if take(.keyword(.return)) {
-            if take(.symbol(.at)) { try name() }
+            if !newlineBeforeCurrent(), take(.symbol(.at)) { try name() }
             if kind != .templateExprEnd, kind != .symbol(.rBrace), kind != .symbol(.semicolon), !newlineBeforeCurrent() { try expression() }
             return
         }
         if take(.keyword(.break)) || take(.keyword(.continue)) {
-            if take(.symbol(.at)) { try name() }
+            if !newlineBeforeCurrent(), take(.symbol(.at)) { try name() }
             return
         }
         if take(.keyword(.throw)) { try expression(); return }
@@ -591,10 +591,10 @@ private struct JVMSourceGrammar {
             try declaration(member: false)
         } else if take(.keyword(.super)) {
             if take(.symbol(.lessThan)) { try type(nullable: false); try require(.symbol(.greaterThan)) }
-            if take(.symbol(.at)) { try name() }
+            if !newlineBeforeCurrent(), take(.symbol(.at)) { try name() }
         } else { switch kind {
         case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .charLiteral, .floatLiteral, .doubleLiteral, .keyword(.true), .keyword(.false), .keyword(.null): index += 1
-        case .keyword(.this): index += 1; if take(.symbol(.at)) { try name() }
+        case .keyword(.this): index += 1; if !newlineBeforeCurrent(), take(.symbol(.at)) { try name() }
         case .identifier, .backtickedIdentifier, .softKeyword, .keyword(.value): try name()
         case .stringQuote, .rawStringQuote, .multiDollarStringQuote, .multiDollarRawStringQuote:
             let quote = kind
