@@ -59,6 +59,20 @@ extension JVMBackendTests {
                 true
             }
             println(v)
+            // A safe call in finally skips its lambda on null, but a
+            // following unconditional assignment still counts.
+            var u: Int
+            "hey".takeUnless lit3@{
+                try {
+                    return@lit3 false
+                } finally {
+                    val s: String? = null
+                    s?.takeUnless { u = 5; false }
+                    u = 7
+                }
+                true
+            }
+            println(u)
         }
         """
         try withWorkspace { root in
@@ -66,7 +80,7 @@ extension JVMBackendTests {
             try #require(result.0 == 0, "\(result.1.map(\.message))")
             let artifact = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path
             let execution = try java(["-cp", artifact, "HelloKt"])
-            #expect(execution.stdout == "null\nhi\nnull\ntrue\n-1\n5\n7\n3\n9\n5\n")
+            #expect(execution.stdout == "null\nhi\nnull\ntrue\n-1\n5\n7\n3\n9\n5\n7\n")
             #expect(execution.stderr.isEmpty)
         }
     }
@@ -108,8 +122,26 @@ extension JVMBackendTests {
             println(x)
         }
         """
+        // A safe call in finally may skip its lambda entirely, so an
+        // assignment that only happens inside its argument is conditional;
+        // kotlinc rejects the read.
+        let finallySafeCall = """
+        fun main() {
+            var x: Int
+            val s: String? = null
+            "hi".takeUnless lit@{
+                try {
+                    if (it.isEmpty()) return@lit false
+                } finally {
+                    s?.takeUnless { x = 5; false }
+                }
+                true
+            }
+            println(x)
+        }
+        """
         try withWorkspace { root in
-            for source in [safeCall, earlyReturn, finallyReturn] {
+            for source in [safeCall, earlyReturn, finallyReturn, finallySafeCall] {
                 let result = try compile(source, root: root, mode: mode)
                 try #require(result.0 != 0, "expected definite-assignment failure")
                 #expect(result.1.contains { $0.message.contains("must be initialized") })
