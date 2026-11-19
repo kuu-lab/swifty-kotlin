@@ -69,7 +69,8 @@ extension JVMClasspathIndex {
         let sourceCount = function.parameters.count + (function.receiver == nil ? 0 : 1)
         guard sourceCount == descriptorTypes.count, method.parameters.count >= descriptorTypes.count else { return false }
         return zip(method.parameters.prefix(descriptorTypes.count), descriptorTypes).allSatisfy { physical, logical in
-            physical.descriptor == logical.descriptor || importedValueCarrier(for: logical)?.descriptor == physical.descriptor
+            let expected: JVMValueType = logical == .unit ? .reference("kotlin/Unit", nullable: false) : logical
+            return physical.descriptor == expected.descriptor || importedValueCarrier(for: expected)?.descriptor == physical.descriptor
         }
     }
 
