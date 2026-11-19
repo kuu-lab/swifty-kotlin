@@ -39,5 +39,47 @@ extension JVMBackendTests {
             #expect(reference.stderr.isEmpty)
         }
     }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func propertyDelegateProviderSamAndTypedDelegatesCompileWithoutClasspath(mode: EmitMode) throws {
+        let library = try ownStdlibLibrary()
+        try withWorkspace { root in
+            let source = """
+            import kotlin.properties.PropertyDelegateProvider
+            import kotlin.properties.ReadOnlyProperty
+            import kotlin.reflect.KProperty
+
+            interface Holder
+
+            class ReadOnly(private val value: String) : ReadOnlyProperty<Holder, String> {
+                override fun getValue(thisRef: Holder, property: KProperty<*>): String = value
+            }
+
+            class Provider : PropertyDelegateProvider<Holder, ReadOnlyProperty<Holder, String>> {
+                override fun provideDelegate(thisRef: Holder, property: KProperty<*>): ReadOnlyProperty<Holder, String> = ReadOnly("typed")
+            }
+
+            fun provider(): PropertyDelegateProvider<Holder, ReadOnlyProperty<Holder, String>> = Provider()
+
+            class Command : Holder {
+                val sam: String by PropertyDelegateProvider<Holder, ReadOnlyProperty<Holder, String>> { _, _ -> ReadOnly("sam") }
+                val typed: String by provider()
+            }
+
+            fun main() {
+                val command = Command()
+                println(command.sam)
+                println(command.typed)
+            }
+            """
+            let result = try compile(source, root: root, mode: mode)
+            #expect(result.0 == 0, "\(result.1.map(\.message))")
+            let artifact = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path
+            let execution = try java(["-cp", artifact + ":" + library.path, "HelloKt"])
+            #expect(execution.exitCode == 0)
+            #expect(execution.stdout == "sam\ntyped\n")
+            #expect(execution.stderr.isEmpty)
+        }
+    }
 }
 #endif
