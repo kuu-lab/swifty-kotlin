@@ -94,12 +94,23 @@ extension DataFlowAnalyzer {
             guard let targetType else { return true }
             // localDeclarations tracks mutable locals only; immutable aliases
             // must also be excluded from this conservative value proof.
-            let localSymbols = Set(sema.symbols.allSymbols().filter { $0.kind == .local }.map(\.id))
             return !localStability.closureWritesPreserve(
-                declaration, type: targetType, ast: ast, sema: sema, localSymbols: localSymbols
+                declaration, type: targetType, ast: ast, sema: sema, localSymbols: localFlowSymbols(sema: sema)
             )
         } ?? false
         return (DataFlowReference(root: local.symbol), local.type, isStable && !mutatedInClosure)
+    }
+
+    /// `.local` symbols are append-only during sema, so the set is cached by
+    /// symbol count instead of being rebuilt (O(all symbols)) per proof.
+    private func localFlowSymbols(sema: SemaModule) -> Set<SymbolID> {
+        let all = sema.symbols.allSymbols()
+        if let cached = localFlowSymbolCache, cached.symbolCount == all.count {
+            return cached.symbols
+        }
+        let symbols = Set(all.filter { $0.kind == .local }.map(\.id))
+        localFlowSymbolCache = (all.count, symbols)
+        return symbols
     }
 
     /// Flow-fact roots must denote stable *values*: synthetic receiver
