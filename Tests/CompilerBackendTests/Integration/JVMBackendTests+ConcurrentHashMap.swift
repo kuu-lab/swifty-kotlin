@@ -22,6 +22,12 @@ extension JVMBackendTests {
                 println(m.values.size)
                 println(m["empty"])
                 println(m["k"])
+                println(m.keys.contains("value"))
+                println(m.keys.contains("k"))
+                println(m.keys.remove("k"))
+                println(m.size)
+                println(m.entries.size)
+                println(m["k"])
             }
             """
             let result = try compile(source, root: root, mode: mode, classpath: [library.path])
@@ -29,7 +35,7 @@ extension JVMBackendTests {
 
             let artifact = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path
             let execution = try java(["-cp", artifact + ":" + library.path, "HelloKt"])
-            #expect(execution.stdout == "true\n2\nnull\nv\n")
+            #expect(execution.stdout == "true\n2\nnull\nv\ntrue\ntrue\ntrue\n1\n1\nnull\n")
             #expect(execution.stderr.isEmpty)
         }
     }
