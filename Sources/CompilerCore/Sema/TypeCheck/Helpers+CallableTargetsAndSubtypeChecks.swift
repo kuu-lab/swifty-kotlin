@@ -1268,20 +1268,28 @@ extension TypeCheckHelpers {
             // bound here would hide it from the enclosing call's solver (the
             // expected return is the call's own postponed inference parameter).
             // Defer it to that parameter instead, so the call's other
-            // arguments can still determine the final instantiation.
+            // arguments can still determine the final instantiation. Only the
+            // exact `T`-as-return shape qualifies: a parameter nested inside a
+            // compound return (`Box<T>`) is not interchangeable with the whole
+            // expected return, bounded parameters must keep their declared
+            // bounds checked here, and reified parameters still require
+            // concrete call-site arguments.
             var deferredReturnSubstitution: [SymbolID: TypeID] = [:]
             if let postponedReturnTypeParameter,
                let expectedFunctionType,
                case let .functionType(expectedFunction) = types.kind(of: expectedFunctionType),
                case let .typeParam(expectedParameter) = types.kind(of: expectedFunction.returnType),
                expectedParameter.symbol == postponedReturnTypeParameter,
-               case let .functionType(actualFunction) = types.kind(of: inferredType)
+               case let .functionType(actualFunction) = types.kind(of: inferredType),
+               case let .typeParam(actualReturnParameter) = types.kind(of: actualFunction.returnType)
             {
                 let inputs = actualFunction.contextReceivers
                     + (actualFunction.receiver.map { [$0] } ?? [])
                     + actualFunction.params
-                for symbol in signature.typeParameterSymbols {
-                    guard types.typeContainsTypeParam(actualFunction.returnType, symbol: symbol),
+                for (index, symbol) in signature.typeParameterSymbols.enumerated() {
+                    guard actualReturnParameter.symbol == symbol,
+                          !signature.reifiedTypeParameterIndices.contains(index),
+                          upperBounds(index, symbol).isEmpty,
                           !inputs.contains(where: { types.typeContainsTypeParam($0, symbol: symbol) })
                     else { continue }
                     deferredReturnSubstitution[symbol] = expectedFunction.returnType

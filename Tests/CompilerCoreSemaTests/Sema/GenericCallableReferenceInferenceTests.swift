@@ -336,6 +336,23 @@ struct GenericCallableReferenceInferenceTests {
     }
 
     @Test
+    func keepsCompoundReturnParameterOnDeferredUpperBoundFallback() throws {
+        // The return type parameter nested inside `Box<T>` is not the whole
+        // expected return, so it must not be identified with the enclosing
+        // call's inference parameter; the upper-bound fallback still applies
+        // and the call solver verifies `Box<Any?>` from the lambda sibling.
+        let ctx = makeContextFromSource("""
+        class Box<T>(val value: T)
+        fun <T> makeBox(): Box<T> = TODO()
+        fun <B> choose(factory: () -> B, fallback: () -> B): B = fallback()
+        fun test(): Box<Any?> = choose(::makeBox, { Box<Any?>(null) })
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Expected compound return reference to keep upper-bound fallback, got: \(errors)")
+    }
+
+    @Test
     func stillRejectsAmbiguousConstructorReferenceWithoutExpectedType() throws {
         // `::C` with multiple constructors and no expected function type must
         // stay ambiguous, matching kotlinc.
