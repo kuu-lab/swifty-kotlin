@@ -2037,6 +2037,9 @@ final class JVMClasspathIndex {
         func matchTokenPrefixes(_ token: String, includeCallables: Bool = false) {
             let unescaped = token.replacingOccurrences(of: "`", with: "")
             let parts = unescaped.split(separator: ".").map(String.init)
+            // Segments that are only escapes (e.g. "`.`" inside a string
+            // literal) strip down to separators, leaving no parts at all.
+            guard !parts.isEmpty else { return }
             for end in 1...parts.count {
                 let prefix = parts.prefix(end).joined(separator: ".")
                 if let binaries = normalizedToBinary[prefix] { matched.formUnion(binaries) }
