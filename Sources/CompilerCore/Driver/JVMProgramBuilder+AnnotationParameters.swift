@@ -61,6 +61,12 @@ extension JVMProgramBuilder {
             let annotationFqName = info.fqName.map(context.interner.resolve).joined(separator: ".")
             if annotationFqName == "kotlin.OptIn" { continue }
             if isPlanlessKotlinInternalAnnotation(annotationFqName, owner: owner) { continue }
+            if ["kotlin.jvm.Volatile", "kotlin.jvm.Transient"].contains(annotationFqName), target == "field" {
+                if !records.contains(where: { $0.usageID != nil && $0.usageID == node.usageID }) {
+                    records.append(MetadataAnnotationRecord(annotationFQName: annotationFqName, arguments: node.arguments, useSiteTarget: target, usageID: node.usageID))
+                }
+                continue
+            }
             guard annotationPlan(owner) != nil else { throw JVMFrontendError(message: "Unsupported JVM parameter annotation: " + node.name) }
             if var tokens = node.constructionTokens, let last = tokens.last {
                 try rememberRawAnnotationConstruction(node, tokens: &tokens, lastToken: last, message: "Unsupported JVM parameter annotation arguments.")
