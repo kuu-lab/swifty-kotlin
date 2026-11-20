@@ -1,7 +1,5 @@
 package kotlin.collections
 
-// MIGRATION-COL-003
-
 public inline fun <T> List<T>.filter(predicate: (T) -> Boolean): List<T> {
     val result = mutableListOf<T>()
     var i = 0
