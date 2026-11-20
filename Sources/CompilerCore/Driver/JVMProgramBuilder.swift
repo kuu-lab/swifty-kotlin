@@ -318,13 +318,34 @@ final class JVMProgramBuilder {
         return array.args == [.invariant(string)] || array.args == [.out(string)]
     }
 
+    private func isExpectDeclaration(_ id: DeclID) -> Bool {
+        switch ast.arena.decl(id) {
+        case let .funDecl(declaration): declaration.modifiers.contains(.expect)
+        case let .propertyDecl(declaration): declaration.modifiers.contains(.expect)
+        case let .classDecl(declaration): declaration.modifiers.contains(.expect)
+        case let .interfaceDecl(declaration): declaration.modifiers.contains(.expect)
+        case let .objectDecl(declaration): declaration.modifiers.contains(.expect)
+        case let .typeAliasDecl(declaration): declaration.modifiers.contains(.expect)
+        default: false
+        }
+    }
+
     func build() throws -> JVMProgram {
         func isComputedExtension(_ property: PropertyDecl) -> Bool {
             property.receiverType != nil && property.initializer == nil
                 && property.delegateExpression == nil && property.explicitBackingField == nil
         }
 
-        let files = ast.files.filter { context.sourceManager.origin(of: $0.fileID) == .user }
+        // A Kotlin Multiplatform target compiles its common and platform source
+        // sets together; Sema matched each `expect` with its `actual`, which
+        // alone produces bytecode.
+        let files = ast.files.filter { context.sourceManager.origin(of: $0.fileID) == .user }.map { file in
+            ASTFile(
+                fileID: file.fileID, packageFQName: file.packageFQName, imports: file.imports,
+                topLevelDecls: file.topLevelDecls.filter { !isExpectDeclaration($0) },
+                scriptBody: file.scriptBody, annotations: file.annotations, range: file.range
+            )
+        }
         guard !files.isEmpty else { throw JVMFrontendError(message: "JVM compilation requires source files.") }
         let names = try files.map { try Self.fileIdentity(for: $0, context: context) }
         let sourceGroups = Dictionary(grouping: files.indices, by: { names[$0].0 })
