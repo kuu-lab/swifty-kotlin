@@ -152,9 +152,6 @@ extension LLVMCAPIBindings {
     /// `LLVMStructTypeKind` raw value per the stable LLVM-C ABI (`llvm-c/Core.h`).
     private static let structTypeKind: Int32 = 10
 
-    /// Lets callers distinguish a flat string struct from a raw (boxed) Int64 handle
-    /// before emitting struct-field-extraction IR. Returns `false` (safe default) if
-    /// type info is unavailable.
     func isAggregateStructValue(_ value: LLVMValueRef?) -> Bool {
         guard let typeOfFn, let getTypeKindFn, let type = typeOfFn(value) else {
             return false
@@ -311,7 +308,6 @@ extension LLVMCAPIBindings {
         return constStructInContextFn(context, &mutable, UInt32(mutable.count), packed ? 1 : 0)
     }
 
-    /// Build a global string pointer that correctly handles embedded null bytes.
     func buildGlobalStringPtrNullSafe(
         _ builder: LLVMBuilderRef?,
         context: LLVMContextRef?,
@@ -326,13 +322,10 @@ extension LLVMCAPIBindings {
             return buildGlobalStringPtr(builder, value: value, name: name)
         }
 
-        // Slow path: construct a [N+1 x i8] global constant manually using
-        // LLVMConstStringInContext which accepts an explicit length.
         guard let constStringFn = constStringInContextFn,
               let arrayTypeFn = arrayTypeFn,
               let int8Ty = int8TypeInContextFn(context)
         else {
-            // Fallback: use the C-string API anyway (data after null will be wrong).
             return buildGlobalStringPtr(builder, value: value, name: name)
         }
 
@@ -358,8 +351,6 @@ extension LLVMCAPIBindings {
         setInternalLinkage(global)
 
         let zero = constInt(int8TypeInContextFn(context), value: 0)
-        // We need i32 type for GEP indices. Use i64 and hope LLVM accepts it,
-        // or use int32 if available.
         let zeroIdx: LLVMValueRef?
         if let int32Fn = int32TypeFn, let i32Ty = int32Fn(context) {
             zeroIdx = constIntFn(i32Ty, 0, 0)
@@ -378,8 +369,6 @@ extension LLVMCAPIBindings {
             }
         }
 
-        // If GEP2 is not available, the global pointer itself can be cast.
-        // This is a last-resort fallback.
         return global
     }
 }
