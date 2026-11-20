@@ -98,6 +98,10 @@ public final class CompilerDriver {
             }
         }
 
+        // Android Java sources compile before Sema against the runtime jar,
+        // whose provider the backend installs when its phases are created.
+        let earlyBackend = !options.android.javaSources.isEmpty && options.includeJVMRuntime
+            ? backendPhases() : nil
         let syntaxPhases: [CompilerPhase] = [LoadSourcesPhase()]
             + (options.emit.isJVM ? [JVMPreparationPhase()] : []) + [
             LexPhase(),
@@ -124,7 +128,7 @@ public final class CompilerDriver {
             } else if ctx.options.runsImmediately {
                 runExitCode = runImmediately(ctx: ctx)
             } else {
-                let backend = backendPhases()
+                let backend = earlyBackend ?? backendPhases()
                 executePhases(ctx: ctx, phases: backend, incrementalEnabled: false)
             }
         }

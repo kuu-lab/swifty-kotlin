@@ -107,14 +107,24 @@ enum AndroidPackaging {
         // d8 keeps only classes; ServiceLoader registrations such as
         // kotlinx.coroutines' Main dispatcher live in jar resources.
         let staging = work.appendingPathComponent("apk-extra", isDirectory: true)
-        var extraEntries = try stageJavaResources(from: programInputs, into: staging)
-        extraEntries += try stageNativeLibraries(inputs?.libraries, into: staging)
-        if !extraEntries.isEmpty {
+        let javaResources = try stageJavaResources(from: programInputs, into: staging)
+        if !javaResources.isEmpty {
             try AndroidBuildTool.run(
                 tool: "zip", executable: zip,
-                arguments: ["-q", unsignedAPK] + extraEntries,
+                arguments: ["-q", unsignedAPK] + javaResources,
                 currentDirectoryPath: staging.path,
                 phaseTimer: phaseTimer, subPhaseName: "Android/add-resources"
+            )
+        }
+        // Native libraries are stored uncompressed (`zipalign -p` then page-aligns
+        // them) so `android:extractNativeLibs="false"` can map them in place.
+        let nativeLibraries = try stageNativeLibraries(inputs?.libraries, into: staging)
+        if !nativeLibraries.isEmpty {
+            try AndroidBuildTool.run(
+                tool: "zip", executable: zip,
+                arguments: ["-q", "-0", unsignedAPK] + nativeLibraries,
+                currentDirectoryPath: staging.path,
+                phaseTimer: phaseTimer, subPhaseName: "Android/add-native-libraries"
             )
         }
 

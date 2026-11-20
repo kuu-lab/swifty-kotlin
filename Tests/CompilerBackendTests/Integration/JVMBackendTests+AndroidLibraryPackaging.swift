@@ -33,6 +33,10 @@ extension JVMBackendTests {
             _ = try jvmTool("jar", ["cf", aar.appendingPathComponent("classes.jar").path, "-C", classes.path, "."], root: root)
             try "<resources><string name=\"title\">Widget</string></resources>"
                 .write(to: aar.appendingPathComponent("res/values/strings.xml"), atomically: true, encoding: .utf8)
+            let jni = aar.appendingPathComponent("jni/arm64-v8a", isDirectory: true)
+            try fileManager.createDirectory(at: jni, withIntermediateDirectories: true)
+            try String(repeating: "compressible native code ", count: 200)
+                .write(to: jni.appendingPathComponent("libwidget.so"), atomically: true, encoding: .utf8)
             try """
             <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="lib.widget">
                 <application>
@@ -104,8 +108,14 @@ extension JVMBackendTests {
             let keystore = root.appendingPathComponent("debug.keystore")
             try Data().write(to: keystore)
             let input = root.appendingPathComponent("Main.kt")
-            try "package app\nfun label(): String = lib.widget.Widget().name()\n"
+            try "package app\nfun label(): String = lib.widget.Widget().name() + Bridge.mark()\n"
                 .write(to: input, atomically: true, encoding: .utf8)
+            // A Java source using kotlin.* needs the runtime jar before Sema,
+            // even when no earlier compilation installed its provider.
+            let bridge = root.appendingPathComponent("Bridge.java")
+            try "package app; public final class Bridge { public static String mark() { return kotlin.Unit.INSTANCE.toString(); } }"
+                .write(to: bridge, atomically: true, encoding: .utf8)
+            AndroidBuildInputs.runtimeJarProvider = nil
             let output = root.appendingPathComponent("app.apk")
             var android = AndroidOptions(sdkPath: root.path, manifestPath: manifest.path, keystorePath: keystore.path)
             android.dependencies = ["org.example:widget:1.0"]
@@ -115,9 +125,10 @@ extension JVMBackendTests {
             android.applicationID = "app.debug"
             android.targetSdk = 34
             android.debuggable = true
+            android.javaSources = [bridge.path]
             let options = CompilerOptions(
                 moduleName: "LibraryApp", inputs: [input.path], outputPath: output.path, emit: .apk,
-                target: .hostDefault(), android: android
+                target: .hostDefault(), includeJVMRuntime: true, android: android
             )
             let result = CompilerDriver(backendPhases: makeBackendPhases).runForTesting(options: options)
             try #require(result.exitCode == 0, "\(result.diagnostics.map(\.message))")
@@ -144,6 +155,8 @@ extension JVMBackendTests {
             #expect(names.contains("META-INF/services/lib.Service"))
             #expect(!names.contains("META-INF/LICENSE.txt"))
             #expect(!names.contains("META-INF/MANIFEST.MF"))
+            // Stored, so `android:extractNativeLibs="false"` can map it in place.
+            #expect(apk.entries.first { $0.name == "lib/arm64-v8a/libwidget.so" }?.compressionMethod == 0)
             #expect(fileManager.fileExists(atPath: root.appendingPathComponent("maven-cache/org/example/widget/1.0/widget-1.0.aar").path))
         }
     }

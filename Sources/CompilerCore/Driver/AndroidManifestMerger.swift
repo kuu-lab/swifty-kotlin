@@ -37,8 +37,9 @@ package enum AndroidManifestMerger {
         if merged[attribute: "package"] == nil { merged[attribute: "package"] = namespace }
         let toolsPrefix = Self.toolsPrefix(of: merged)
         var removals: Set<String> = []
-        collectRemovals(merged, toolsPrefix: toolsPrefix, path: "", into: &removals)
+        // Library keys are compared after expansion, so the app's must be too.
         resolve(merged, package: namespace, applicationID: applicationID)
+        collectRemovals(merged, toolsPrefix: toolsPrefix, path: "", into: &removals)
 
         for library in libraries {
             let manifest = library.manifest.copy()

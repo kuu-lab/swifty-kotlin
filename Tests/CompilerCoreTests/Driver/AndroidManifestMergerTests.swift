@@ -117,6 +117,30 @@ struct AndroidManifestMergerTests {
     }
 
     @Test
+    func removalsMatchRelativeNamesAndPlaceholders() throws {
+        let app = try parse("""
+            <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+                      xmlns:tools="http://schemas.android.com/tools" package="org.example">
+                <application>
+                    <activity android:name=".Hidden" tools:node="remove" />
+                </application>
+                <permission android:name="${applicationId}.DYNAMIC" tools:node="remove" />
+            </manifest>
+            """)
+        let library = try parse("""
+            <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="lib">
+                <permission android:name="${applicationId}.DYNAMIC" />
+                <application><activity android:name="org.example.Hidden" /></application>
+            </manifest>
+            """)
+        let merged = AndroidManifestMerger.merge(
+            app: app, namespace: "org.example", applicationID: "org.example.app", libraries: [("lib", library)]
+        )
+        #expect(merged.children("permission").isEmpty)
+        #expect(merged.child("application")?.children("activity").isEmpty == true)
+    }
+
+    @Test
     func identicalNamelessElementsAreDeduplicated() throws {
         let app = try parse("""
             <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="org.example">

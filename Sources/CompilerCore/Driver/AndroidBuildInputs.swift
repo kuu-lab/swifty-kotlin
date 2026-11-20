@@ -79,7 +79,10 @@ package final class AndroidBuildInputs {
             }
             classpath.append(resources.path)
         }
-        if options.includeJVMRuntime, let provider = runtimeJarProvider {
+        if options.includeJVMRuntime {
+            guard let provider = runtimeJarProvider else {
+                throw AndroidPackagingError.toolchain("-include-runtime with Java sources needs the JVM backend's runtime provider.")
+            }
             let runtime = directory.appendingPathComponent("kotlin-runtime.jar")
             try provider(options).write(to: runtime)
             classpath.append(runtime.path)

@@ -174,7 +174,8 @@ package final class AndroidResourceLink {
         let manifests = (libraries?.libraries ?? []).compactMap { library in
             library.manifest.map { (package: library.package, manifest: $0) }
         }
-        guard !manifests.isEmpty || app[attribute: "package"] == nil else { return (path, package) }
+        // Merge even without libraries: `${applicationId}` placeholders and
+        // `tools:` markers in the app manifest itself must be processed.
         let merged = AndroidManifestMerger.merge(
             app: app, namespace: package,
             applicationID: options.applicationID ?? package,

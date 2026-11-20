@@ -36,9 +36,12 @@ package final class MavenDependencyResolver {
     }
 
     package func resolve(_ roots: [MavenCoordinate]) throws -> [MavenResolvedArtifact] {
+        for root in roots {
+            _ = try Self.coordinate(group: root.module.group, artifact: root.module.artifact, version: root.version)
+        }
         var selected: [MavenModuleID: String] = [:]
         for iteration in 0... {
-            let (order, requests) = try traverse(roots: roots, selected: selected)
+            let (order, requests, failures) = try traverse(roots: roots, selected: selected)
             var next: [MavenModuleID: String] = [:]
             for module in order {
                 guard let versions = requests[module] else { continue }
@@ -48,6 +51,11 @@ package final class MavenDependencyResolver {
             // graph that keeps flipping is accepted as-is after the cap.
             if next == selected || iteration == 32 {
                 selected = next
+                // Metadata of a version that lost a conflict may be missing;
+                // only a failure of a version that stays selected is fatal.
+                for module in order {
+                    if let failure = failures[module], failure.version == selected[module] { throw failure.error }
+                }
                 var artifacts: [MavenResolvedArtifact] = []
                 for module in order {
                     guard let version = selected[module] else { continue }
@@ -80,7 +88,8 @@ package final class MavenDependencyResolver {
     /// to the first requested version for modules not yet selected).
     private func traverse(
         roots: [MavenCoordinate], selected: [MavenModuleID: String]
-    ) throws -> ([MavenModuleID], [MavenModuleID: Requests]) {
+    ) throws -> ([MavenModuleID], [MavenModuleID: Requests], [MavenModuleID: (version: String, error: Error)]) {
+        var failures: [MavenModuleID: (version: String, error: Error)] = [:]
         var requests: [MavenModuleID: Requests] = [:]
         var order: [MavenModuleID] = []
         var queue: [MavenModuleID] = []
@@ -104,7 +113,13 @@ package final class MavenDependencyResolver {
             let module = queue[index]
             index += 1
             guard let version = selected[module] ?? requests[module]?.newest else { continue }
-            let node = try descriptor(MavenCoordinate(module: module, version: version))
+            let node: Descriptor
+            do {
+                node = try descriptor(MavenCoordinate(module: module, version: version))
+            } catch {
+                failures[module] = (version, error)
+                continue
+            }
             for constraint in node.constraints {
                 constraints[constraint.module, default: []].append(constraint.version)
                 requests[constraint.module]?.add(constraint.version, strict: false)
@@ -113,7 +128,7 @@ package final class MavenDependencyResolver {
                 request(dependency.module, dependency.version, strict: dependency.strict)
             }
         }
-        return (order, requests)
+        return (order, requests, failures)
     }
 
     // MARK: - Metadata
@@ -164,26 +179,23 @@ package final class MavenDependencyResolver {
         if let redirect = variant["available-at"] as? [String: Any],
            let group = redirect["group"] as? String, let artifact = redirect["module"] as? String,
            let version = redirect["version"] as? String {
-            descriptor.dependencies.append(Dependency(
-                module: MavenModuleID(group: group, artifact: artifact), version: version, strict: false
-            ))
+            let target = try Self.coordinate(group: group, artifact: artifact, version: version)
+            descriptor.dependencies.append(Dependency(module: target.module, version: target.version, strict: false))
             return descriptor
         }
-        func dependencies(_ key: String) -> [Dependency] {
-            (variant[key] as? [[String: Any]] ?? []).compactMap { entry in
+        func dependencies(_ key: String) throws -> [Dependency] {
+            try (variant[key] as? [[String: Any]] ?? []).compactMap { entry in
                 guard let group = entry["group"] as? String, let artifact = entry["module"] as? String,
                       let version = entry["version"] as? [String: Any] else { return nil }
                 let strictly = version["strictly"] as? String
                 guard let value = strictly ?? version["requires"] as? String ?? version["prefers"] as? String
                 else { return nil }
-                return Dependency(
-                    module: MavenModuleID(group: group, artifact: artifact),
-                    version: value, strict: strictly != nil
-                )
+                let target = try Self.coordinate(group: group, artifact: artifact, version: value)
+                return Dependency(module: target.module, version: target.version, strict: strictly != nil)
             }
         }
-        descriptor.dependencies = dependencies("dependencies")
-        descriptor.constraints = dependencies("dependencyConstraints")
+        descriptor.dependencies = try dependencies("dependencies")
+        descriptor.constraints = try dependencies("dependencyConstraints")
         descriptor.files = (variant["files"] as? [[String: Any]] ?? []).compactMap { entry in
             guard let url = entry["url"] as? String,
                   url.hasPrefix(coordinate.module.artifact + "-" + coordinate.version) else {
@@ -191,7 +203,10 @@ package final class MavenDependencyResolver {
                 // per-file cache paths; AndroidX and kotlinx do not use them.
                 return nil
             }
-            return String(url.dropFirst(coordinate.module.artifact.count + coordinate.version.count + 1))
+            let suffix = String(url.dropFirst(coordinate.module.artifact.count + coordinate.version.count + 1))
+            // The suffix names a cache file: it must stay in the version directory.
+            guard !suffix.contains("/"), !suffix.contains("\\"), !suffix.contains("..") else { return nil }
+            return suffix
         }
         return descriptor
     }
@@ -229,12 +244,12 @@ package final class MavenDependencyResolver {
         if packaging != "pom" {
             descriptor.files = [packaging == "aar" ? ".aar" : ".jar"]
         }
-        for dependency in pom.root.child("dependencies")?.children("dependency") ?? [] {
+        for dependency in pom.dependencies {
             let scope = dependency.value("scope") ?? "compile"
             guard scope == "compile" || scope == "runtime", dependency.value("optional") != "true",
                   let group = dependency.value("groupId").map(pom.expand),
                   let artifact = dependency.value("artifactId").map(pom.expand) else { continue }
-            let module = MavenModuleID(group: group, artifact: artifact)
+            let module = try Self.coordinate(group: group, artifact: artifact, version: "0").module
             guard let rawVersion = dependency.value("version").map(pom.expand) ?? pom.managedVersions[module]
             else {
                 throw MavenResolutionError.metadata(
@@ -244,6 +259,7 @@ package final class MavenDependencyResolver {
             let pinned = rawVersion.hasPrefix("[") && rawVersion.hasSuffix("]") && !rawVersion.contains(",")
             let version = rawVersion.trimmingCharacters(in: CharacterSet(charactersIn: "[]()"))
                 .split(separator: ",").first.map(String.init) ?? rawVersion
+            _ = try Self.coordinate(group: group, artifact: artifact, version: version)
             descriptor.dependencies.append(Dependency(module: module, version: version, strict: pinned))
         }
         return descriptor
@@ -253,6 +269,14 @@ package final class MavenDependencyResolver {
         let root: AndroidXMLElement
         var properties: [String: String]
         var managedVersions: [MavenModuleID: String]
+        /// `<dependency>` elements, inherited from parents unless redeclared.
+        var dependencies: [AndroidXMLElement] = []
+
+        func key(_ dependency: AndroidXMLElement) -> MavenModuleID? {
+            guard let group = dependency.value("groupId").map(expand),
+                  let artifact = dependency.value("artifactId").map(expand) else { return nil }
+            return MavenModuleID(group: group, artifact: artifact)
+        }
 
         var packaging: String { root.value("packaging").map(expand) ?? "jar" }
 
@@ -269,7 +293,11 @@ package final class MavenDependencyResolver {
         }
     }
 
-    private func loadPOM(_ coordinate: MavenCoordinate, depth: Int = 0) throws -> POM {
+    private func loadPOM(_ coordinate: MavenCoordinate, visiting: Set<MavenCoordinate> = []) throws -> POM {
+        guard !visiting.contains(coordinate), visiting.count < 16 else {
+            throw MavenResolutionError.metadata(coordinate.description, detail: "cyclic or too deep parent/BOM chain")
+        }
+        let visiting = visiting.union([coordinate])
         let file = try repositories.require(coordinate, suffix: ".pom")
         let root: AndroidXMLElement
         do {
@@ -278,15 +306,16 @@ package final class MavenDependencyResolver {
             throw MavenResolutionError.metadata(coordinate.description, detail: "\(error)")
         }
         var pom = POM(root: root, properties: [:], managedVersions: [:])
-        if depth < 8, let parent = root.child("parent"),
+        if let parent = root.child("parent"),
            let group = parent.value("groupId"), let artifact = parent.value("artifactId"),
            let version = parent.value("version") {
             let inherited = try loadPOM(
-                MavenCoordinate(module: MavenModuleID(group: group, artifact: artifact), version: version),
-                depth: depth + 1
+                try Self.coordinate(group: group, artifact: artifact, version: version),
+                visiting: visiting
             )
             pom.properties = inherited.properties
             pom.managedVersions = inherited.managedVersions
+            pom.dependencies = inherited.dependencies
         }
         for property in root.child("properties")?.children ?? [] {
             pom.properties[property.localName] = property.text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -300,12 +329,48 @@ package final class MavenDependencyResolver {
         ] {
             pom.properties[key] = value
         }
+        // Versions this POM manages explicitly win over imported BOMs; among
+        // BOMs the first import wins, as in Maven.
+        var imports: [MavenCoordinate] = []
         for managed in root.child("dependencyManagement")?.child("dependencies")?.children("dependency") ?? [] {
-            guard let group = managed.value("groupId").map(pom.expand),
-                  let artifact = managed.value("artifactId").map(pom.expand),
-                  let version = managed.value("version").map(pom.expand) else { continue }
-            pom.managedVersions[MavenModuleID(group: group, artifact: artifact)] = version
+            guard let module = pom.key(managed), let version = managed.value("version").map(pom.expand) else { continue }
+            if managed.value("type") == "pom", managed.value("scope") == "import" {
+                imports.append(try Self.coordinate(group: module.group, artifact: module.artifact, version: version))
+            } else {
+                pom.managedVersions[module] = version
+            }
         }
+        let explicit = Set(pom.managedVersions.keys)
+        var imported: [MavenModuleID: String] = [:]
+        for bom in imports {
+            for (module, version) in try loadPOM(bom, visiting: visiting).managedVersions
+                where imported[module] == nil && !explicit.contains(module) {
+                imported[module] = version
+            }
+        }
+        pom.managedVersions.merge(imported) { current, _ in current }
+        var dependencies = pom.dependencies
+        for dependency in root.child("dependencies")?.children("dependency") ?? [] {
+            let key = pom.key(dependency)
+            dependencies.removeAll { key != nil && pom.key($0) == key }
+            dependencies.append(dependency)
+        }
+        pom.dependencies = dependencies
         return pom
+    }
+
+    /// Coordinates read from metadata name cache paths and URLs, so a
+    /// component must not escape its directory.
+    static func coordinate(group: String, artifact: String, version: String) throws -> MavenCoordinate {
+        let coordinate = MavenCoordinate(module: MavenModuleID(group: group, artifact: artifact), version: version)
+        guard [group, artifact, version].allSatisfy(Self.isSafePathComponent) else {
+            throw MavenResolutionError.invalidCoordinate(coordinate.description)
+        }
+        return coordinate
+    }
+
+    static func isSafePathComponent(_ text: String) -> Bool {
+        !text.isEmpty && text != "." && text != ".." && !text.contains("/") && !text.contains("\\")
+            && !text.contains("..") && !text.contains(":")
     }
 }

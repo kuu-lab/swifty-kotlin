@@ -170,6 +170,104 @@ struct MavenDependencyResolverTests {
     }
 
     @Test
+    func pomInheritsParentDependenciesAndImportsBOMs() throws {
+        try withRepository { repo in
+            try repo.publish("g:bom:1", files: [".pom": """
+                <project><groupId>g</groupId><artifactId>bom</artifactId><version>1</version><packaging>pom</packaging>
+                  <dependencyManagement><dependencies>
+                    <dependency><groupId>g</groupId><artifactId>helper</artifactId><version>2</version></dependency>
+                    <dependency><groupId>g</groupId><artifactId>pinned</artifactId><version>9</version></dependency>
+                  </dependencies></dependencyManagement>
+                </project>
+                """])
+            try repo.publish("g:parent:1", files: [".pom": """
+                <project><groupId>g</groupId><artifactId>parent</artifactId><version>1</version><packaging>pom</packaging>
+                  <dependencies>
+                    <dependency><groupId>g</groupId><artifactId>inherited</artifactId><version>1</version></dependency>
+                    <dependency><groupId>g</groupId><artifactId>overridden</artifactId><version>1</version></dependency>
+                  </dependencies>
+                </project>
+                """])
+            try repo.publish("g:widget:1", files: [
+                ".pom": """
+                    <project>
+                      <parent><groupId>g</groupId><artifactId>parent</artifactId><version>1</version></parent>
+                      <artifactId>widget</artifactId>
+                      <dependencyManagement><dependencies>
+                        <dependency><groupId>g</groupId><artifactId>pinned</artifactId><version>3</version></dependency>
+                        <dependency><groupId>g</groupId><artifactId>bom</artifactId><version>1</version><type>pom</type><scope>import</scope></dependency>
+                      </dependencies></dependencyManagement>
+                      <dependencies>
+                        <dependency><groupId>g</groupId><artifactId>helper</artifactId></dependency>
+                        <dependency><groupId>g</groupId><artifactId>pinned</artifactId></dependency>
+                        <dependency><groupId>g</groupId><artifactId>overridden</artifactId><version>2</version></dependency>
+                      </dependencies>
+                    </project>
+                    """,
+                ".jar": "widget",
+            ])
+            for coordinate in ["g:inherited:1", "g:overridden:2", "g:helper:2", "g:pinned:3"] {
+                let artifact = try #require(MavenCoordinate(parsing: coordinate)).module.artifact
+                try repo.publish(coordinate, files: [
+                    ".pom": "<project><groupId>g</groupId><artifactId>\(artifact)</artifactId><version>0</version></project>",
+                    ".jar": artifact,
+                ])
+            }
+            // Parent dependencies are inherited unless the child redeclares them,
+            // imported BOM versions apply, and the POM's own management wins over the BOM.
+            #expect(Set(try repo.resolve(["g:widget:1"])) == [
+                "g:widget:1|widget-1.jar", "g:inherited:1|inherited-1.jar", "g:overridden:2|overridden-2.jar",
+                "g:helper:2|helper-2.jar", "g:pinned:3|pinned-3.jar",
+            ])
+        }
+    }
+
+    @Test
+    func unfetchableMetadataOfALosingVersionIsNotFatal() throws {
+        try withRepository { repo in
+            try repo.publish("g:app:1", files: [
+                ".module": try module("g:app:1", file: ".jar", dependencies: [("g:core", "1"), ("g:bridge", "1")]),
+                ".jar": "app",
+            ])
+            try repo.publish("g:core:1", files: [
+                ".module": try module("g:core:1", file: ".jar", dependencies: [("g:obsolete", "1")]), ".jar": "old",
+            ])
+            try repo.publish("g:bridge:1", files: [
+                ".module": try module("g:bridge:1", file: ".jar", dependencies: [("g:core", "2")]), ".jar": "bridge",
+            ])
+            try repo.publish("g:core:2", files: [".module": try module("g:core:2", file: ".jar"), ".jar": "new"])
+            // g:obsolete:1 is published nowhere, but only core 1 (which loses) needs it.
+            #expect(try repo.resolve(["g:app:1"]) == [
+                "g:app:1|app-1.jar", "g:core:2|core-2.jar", "g:bridge:1|bridge-1.jar",
+            ])
+        }
+    }
+
+    @Test
+    func metadataCannotNameFilesOutsideTheCache() throws {
+        try withRepository { repo in
+            func isInvalidCoordinate(_ body: () throws -> Void) -> Bool {
+                do { try body() } catch MavenResolutionError.invalidCoordinate { return true } catch {}
+                return false
+            }
+            // A dependency coordinate climbing out of its directory.
+            try repo.publish("g:evil:1", files: [".module": try module("g:evil:1", file: ".jar", dependencies: [("../../g:escape", "1")])])
+            #expect(isInvalidCoordinate { _ = try repo.resolve(["g:evil:1"]) })
+            let resolver = MavenDependencyResolver(repositories: MavenRepositorySet(
+                repositories: [repo.root.absoluteString], cacheDirectory: repo.cache.path, offline: false
+            ))
+            let escaping = MavenCoordinate(module: MavenModuleID(group: "g", artifact: "x"), version: "../../1")
+            #expect(isInvalidCoordinate { _ = try resolver.resolve([escaping]) })
+            // A file URL climbing out of the version directory is not an artifact.
+            try repo.publish("g:files:1", files: [".module": """
+                {"formatVersion":"1.1","variants":[{"name":"runtime","attributes":{"org.gradle.category":"library",\
+                "org.gradle.usage":"java-runtime"},"files":[{"name":"x","url":"files-1/../../../../escape.jar"}]}]}
+                """])
+            #expect(try repo.resolve(["g:files:1"]).isEmpty)
+        }
+    }
+
+    @Test
     func missingArtifactsAndOfflineMissesAreReported() throws {
         try withRepository { repo in
             #expect(throws: MavenResolutionError.self) { try repo.resolve(["g:absent:1.0"]) }
