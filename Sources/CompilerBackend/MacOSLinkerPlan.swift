@@ -7,9 +7,6 @@ import Darwin
 import Glibc
 #endif
 
-/// Reuses the Swift driver's single clang link job. Compatibility archives,
-/// SDK paths and deployment flags stay owned by the selected Swift toolchain.
-/// Debug links (which can also run dsymutil) continue to use the driver.
 struct MacOSLinkerPlan: Codable {
     let cacheKey: String
     let executable: String
@@ -25,9 +22,6 @@ struct MacOSLinkerPlan: Codable {
             + libraryPaths.map { "-L\($0)" } + libraries.map { "-l\($0)" }
     }
 
-    /// Absolute paths the driver force-loads via `-force_load <path>` pairs.
-    /// `nil` when a `-force_load` token lacks an absolute-path argument — an
-    /// argument shape the caller must not rewrite.
     var forceLoadedPaths: [String]? {
         var paths: [String] = []
         var index = arguments.startIndex
@@ -101,7 +95,6 @@ struct MacOSLinkerPlan: Codable {
         }
         guard let plan = parse(output, cacheKey: key), trustedExecutable(plan.executable) else { return nil }
 
-        // Cache failure must not prevent linking (read-only installations, for example).
         try? FileManager.default.createDirectory(
             at: cacheDirectory, withIntermediateDirectories: true,
             attributes: [.posixPermissions: 0o700]
@@ -146,14 +139,11 @@ struct MacOSLinkerPlan: Codable {
         for path in tokens where path.hasPrefix("/") && path != "/dev/null" && path != outputMarker {
             guard let value = signature(path) else { return nil }
             dependencies[path] = value
-            // SDK/toolchain metadata can change without the directory mtime changing.
             for name in ["SDKSettings.json", "SDKSettings.plist"] {
                 let metadata = URL(fileURLWithPath: path).appendingPathComponent(name).path
                 if let value = signature(metadata) { dependencies[metadata] = value }
             }
         }
-        // With an xcrun shim, the selected toolchain's real driver can change
-        // independently of /usr/bin/swiftc and the clang binary.
         let toolchainBin = URL(fileURLWithPath: executable).deletingLastPathComponent()
         for name in ["swiftc", "swift-driver"] {
             let path = toolchainBin.appendingPathComponent(name).path
@@ -172,7 +162,6 @@ struct MacOSLinkerPlan: Codable {
         return arguments[outputIndex + 1] == outputMarker
     }
 
-    /// Decode the driver's shell-escaped display without invoking a shell.
     static func tokenize(_ line: String) -> [String]? {
         var tokens: [String] = []
         var token = ""
@@ -205,11 +194,6 @@ struct MacOSLinkerPlan: Codable {
 
     static func signature(_ path: String) -> String? {
         let resolved = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
-        // `attributesOfItem` pays several xattr syscalls per file; the
-        // incremental environment fingerprint signs every runtime object
-        // (~236 files) and each cached-plan dependency every compile, so use
-        // a single stat(2) for the same fields (symlink-following, same as
-        // attributesOfItem).
         var info = stat()
         guard resolved.withCString({ stat($0, &info) == 0 }) else { return nil }
         #if canImport(Darwin)
