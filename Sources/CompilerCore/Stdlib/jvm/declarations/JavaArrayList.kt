@@ -1,6 +1,9 @@
 package java.util
 // JDK declaration only; implementation remains in the JDK.
 class ArrayList<T>: kotlin.collections.MutableList<T> {
+    constructor()
+    constructor(initialCapacity: Int)
+    constructor(elements: kotlin.collections.Collection<out T>)
     override val size: Int get() = 0
     override fun isEmpty(): Boolean = false
     override fun contains(element: T): Boolean = false
