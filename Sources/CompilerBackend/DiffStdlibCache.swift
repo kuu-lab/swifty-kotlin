@@ -7,9 +7,6 @@ import Darwin
 import Glibc
 #endif
 
-/// Content-addressed stdlib resolution for repeated local diff invocations.
-/// The ordinary compiler's packaged and explicit-artifact shortcuts are not
-/// used here: a diff must match this compiler and its bundled sources.
 public enum DiffStdlibCache {
     public enum Error: Swift.Error, CustomStringConvertible {
         case fingerprintUnavailable
@@ -48,8 +45,6 @@ public enum DiffStdlibCache {
             preserveInvalidArtifacts: true,
             additionalValidator: { isIntactArtifact(at: $0) }
         ) { outputBase in
-            // Keep the artifact independent of Runtime sources and the host
-            // linker; the ordinary link phase resolves those inputs separately.
             let path = try StdlibArtifactBuilder.build(outputBase: outputBase, target: target)
             guard currentFingerprint() == identity else { throw Error.inputsChangedDuringBuild }
             try sealArtifact(at: path)
@@ -151,9 +146,6 @@ public enum DiffStdlibCache {
         "SDKROOT",
     ]
 
-    /// Filter out transient CI / shell / diff-harness variables (such as
-    /// `GITHUB_*`, `DIFF_*`, or `TMPDIR`) that vary between workflow steps on
-    /// the same runner without affecting the stdlib `.kklib` build output.
     static func relevantEnvironment(from environment: [String: String]) -> [String: String] {
         var filtered: [String: String] = [:]
         for (key, value) in environment {
@@ -178,8 +170,6 @@ public enum DiffStdlibCache {
         return FileFingerprint.compute(for: path, contents: bytes).contentHash
     }
 
-    /// Each field is length-delimited before hashing so arbitrary environment
-    /// values or paths cannot produce ambiguous identities.
     static func fingerprint(
         executable: String,
         sources: String,
