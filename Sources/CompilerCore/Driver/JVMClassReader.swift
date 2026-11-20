@@ -28,6 +28,9 @@ struct JVMClassInfo {
     var kotlinAnnotationVarargElementNames: Set<String> = []
     var kotlinStaticProperties: [String: (getter: JVMForeignMethod, isNullable: Bool)] = [:]
     var kotlinMemberProperties: [String: (getter: JVMForeignMethod, sourceType: String)] = [:]
+    /// Member properties whose getter is `@Composable`: the JVM getter also
+    /// takes the Composer and changed masks (`MaterialTheme.colorScheme`).
+    var kotlinComposableMemberProperties: [String: (getter: JVMForeignMethod, sourceType: String)] = [:]
     var kotlinTopLevelProperties: [(source: JVMKotlinTopLevelProperty, getter: JVMForeignMethod)] = []
     var kotlinMultifileParts: [String] = []
     var isKotlinMultifilePart = false
@@ -98,6 +101,15 @@ struct JVMClassReader {
     }
     func text(_ index: Int) throws -> String { guard let s = strings[index] else { throw Invalid() }; return s }
     func className(_ index: Int) throws -> String { guard let s = classes[index] else { throw Invalid() }; return try text(s) }
+
+    /// An instance getter the Compose compiler lowered: `@Composable`, taking
+    /// only the Composer and one changed mask.
+    static func isComposableMemberGetter(_ method: JVMForeignMethod) -> Bool {
+        !method.isStatic && !method.isProtected && method.name.hasPrefix("get") && method.result != .unit
+            && method.parameters.count == 2 && method.parameters[0].referenceName == JVMCompose.composer
+            && method.parameters[1] == .int
+            && method.annotations.contains(where: { $0.descriptor == "Landroidx/compose/runtime/Composable;" })
+    }
 
     static func matchesTopLevelPropertyGetter(_ method: JVMForeignMethod, property: JVMKotlinTopLevelProperty) -> Bool {
         let logicalParameters = property.receiver == nil ? 0 : 1
@@ -789,7 +801,8 @@ struct JVMClassReader {
             info.isKotlinObject = (try? metadata.isObject(byteLimit: bytes.count)) == true
         }
         if let metadata = classAttributes.kotlinMetadata,
-           hasReadOnlyMapSupertype || isKotlinObject || name.hasSuffix("$Companion") || methods.contains(where: {
+           hasReadOnlyMapSupertype || isKotlinObject || name.hasSuffix("$Companion")
+               || methods.contains(where: Self.isComposableMemberGetter) || methods.contains(where: {
                $0.name.hasPrefix("get") && ($0.name.contains("-")
                    || flags & 0x0200 != 0 && $0.isAbstract && $0.result.referenceName == "kotlinx/coroutines/flow/StateFlow")
                    || $0.isFinal && !$0.isStatic && $0.parameters.isEmpty
@@ -800,6 +813,10 @@ struct JVMClassReader {
                 guard let getter = methods.first(where: {
                     !$0.isProtected && $0.name == property.getterName && $0.descriptor == property.getterDescriptor && $0.result != .unit
                 }) else { continue }
+                if Self.isComposableMemberGetter(getter), let sourceType = property.sourceType, !property.isVar {
+                    info.kotlinComposableMemberProperties[property.name] = (getter, sourceType)
+                    continue
+                }
                 if isKotlinObject && getter.isStatic && getter.parameters.isEmpty {
                     // Kotlin objects may expose a property's accessor only as @JvmStatic.
                     info.kotlinStaticProperties[property.name] = (getter, property.isNullable)

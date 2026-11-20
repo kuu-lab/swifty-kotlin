@@ -453,7 +453,7 @@ extension JVMFunctionBuilder {
             if context.interner.resolve(property.name) == "length" { return size }
             let result = try value(.int); instructions.append(.binary(.subtract, size, try constant(.int(1), .int), result)); return result
         }
-        guard let method = program.textLibraryProperties[symbol] ?? context.jvmImports?.importedTopLevelGetters[symbol] else { return nil }
+        guard let method = program.textLibraryProperties[symbol] ?? context.jvmImports?.importedPropertyGetters[symbol] else { return nil }
         if method.annotations.contains(where: { $0.descriptor == "Landroidx/compose/runtime/Composable;" }) {
             guard let composer = activeComposer else { throw fail("JVM @Composable property getters require an active Composer.", id) }
             guard activeRegions.isEmpty else { throw fail("JVM @Composable calls are unsupported inside a try expression.", id) }
@@ -466,7 +466,13 @@ extension JVMFunctionBuilder {
                 throw fail("Unsupported JVM composable property getter signature.", id)
             }
             var prefix: [JVMValue] = []
-            if composerIndex == 1 {
+            var instance: JVMValue?
+            if !method.isStatic {
+                guard let receiverExpr = receiver else {
+                    throw fail("Missing JVM receiver for a @Composable member property.", id)
+                }
+                instance = try convert(requireValue(receiverExpr), to: .reference(method.owner, nullable: false))
+            } else if composerIndex == 1 {
                 guard let receiverValue = try receiver.map(requireValue) ?? implicitExtensionReceiver(id) else {
                     throw fail("Missing JVM extension property receiver.", id)
                 }
@@ -478,7 +484,7 @@ extension JVMFunctionBuilder {
             let resultType = try program.expressionType(id)
             let result = try value(foreignResultType(method.result, resolved: resultType))
             try beginComposeGroup(composer, key: composeCallKey(at: id))
-            instructions.append(.foreignCall(method, receiver: nil, arguments: prefix + hidden, result: result))
+            instructions.append(.foreignCall(method, receiver: instance, arguments: prefix + hidden, result: result))
             _ = try jdkCall(JVMCompose.composer, JVMCompose.end, [], .unit, receiver: composer, interface: true)
             return try convert(result, to: resultType)
         }

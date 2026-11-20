@@ -18,7 +18,7 @@ final class JVMClasspathIndex {
     var importedValueParameterConstructors: [SymbolID: (bridge: JVMForeignMethod, defaults: JVMForeignMethod?)] = [:]
     var importedConstructorDefaults: [SymbolID: JVMForeignMethod] = [:]
     var importedComposableParameters: [SymbolID: Set<Int>] = [:]
-    var importedTopLevelGetters: [SymbolID: JVMForeignMethod] = [:]
+    var importedPropertyGetters: [SymbolID: JVMForeignMethod] = [:]
     private var kotlinFacadeMethods: [FileID: [JVMForeignMethod]] = [:]
     private var facadeMethodsByRange: [SourceRange: JVMForeignMethod] = [:]
     private var kotlinFacadeGetters: [FileID: [JVMForeignMethod]] = [:]
@@ -617,6 +617,7 @@ final class JVMClasspathIndex {
             imported.kotlinAnnotationVarargElementNames = info.kotlinAnnotationVarargElementNames
             imported.kotlinStaticProperties = info.kotlinStaticProperties
             imported.kotlinMemberProperties = info.kotlinMemberProperties
+            imported.kotlinComposableMemberProperties = info.kotlinComposableMemberProperties
             imported.kotlinTopLevelProperties = info.kotlinTopLevelProperties
             classes[info.name] = imported
         }
@@ -2134,6 +2135,16 @@ final class JVMClasspathIndex {
             }
             source += "val `\(name)`: \(property.sourceType)" + (info.isInterface ? "\n" : " get() = null!!\n")
         }
+        // CompositionLocal.current keeps its dedicated contract.
+        if !info.isInterface, info.name != Self.compositionLocal {
+            for (name, property) in info.kotlinComposableMemberProperties.sorted(by: { $0.key < $1.key })
+                where exposedKotlinProperties[name] == nil && exposeSuspendType(property.getter.result) {
+                let readOnly = property.getter.annotations.contains {
+                    $0.descriptor == "Landroidx/compose/runtime/ReadOnlyComposable;"
+                } ? " @androidx.compose.runtime.ReadOnlyComposable" : ""
+                source += "val `\(name)`: \(property.sourceType) @androidx.compose.runtime.Composable\(readOnly) get() = null!!\n"
+            }
+        }
         for (field, type) in instanceFields {
             let setter = field.isFinal ? "" : " set(value) {}"
             // Preserve the existing override relationship when this field
@@ -3317,6 +3328,22 @@ final class JVMClasspathIndex {
         importedComposableSymbols = []
         if let ast = ctx.ast {
             for file in ast.files {
+                if let composable = sourceClasses[file.fileID]?.kotlinComposableMemberProperties, !composable.isEmpty {
+                    for declaration in file.topLevelDecls {
+                        let members: [DeclID]
+                        switch ast.arena.decl(declaration) {
+                        case let .classDecl(owner): members = owner.memberProperties
+                        case let .objectDecl(owner): members = owner.memberProperties
+                        default: continue
+                        }
+                        for member in members {
+                            guard case let .propertyDecl(property) = ast.arena.decl(member),
+                                  let getter = composable[ctx.interner.resolve(property.name)]?.getter,
+                                  let symbol = sema.bindings.declSymbol(for: member) else { continue }
+                            importedPropertyGetters[symbol] = getter
+                        }
+                    }
+                }
                 if let getters = kotlinFacadeGetters[file.fileID] {
                     let properties = file.topLevelDecls.filter { declaration in
                         if case .propertyDecl = ast.arena.decl(declaration) { return true }
@@ -3325,7 +3352,7 @@ final class JVMClasspathIndex {
                     if properties.count == getters.count {
                         for (declaration, getter) in zip(properties, getters) {
                             if let symbol = sema.bindings.declSymbol(for: declaration) {
-                                importedTopLevelGetters[symbol] = getter
+                                importedPropertyGetters[symbol] = getter
                             }
                         }
                     }
