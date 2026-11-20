@@ -25,8 +25,6 @@ public final class CodegenPhase: CompilerPhase {
         let backend = try withSubPhaseTiming("init", timer: ctx.phaseTimer) {
             try makeBackend(ctx: ctx)
         }
-        // Shared by the reflection records, inline-KIR artifacts, and library
-        // metadata: the map is a pure function of module + interner + symbols.
         let functionLinkInfo = withSubPhaseTiming("linkInfo", timer: ctx.phaseTimer) {
             makeFunctionLinkInfo(module: kir, ctx: ctx, fileFacadeNamesByFileID: fileFacadeNamesByFileID)
         }
@@ -68,9 +66,6 @@ public final class CodegenPhase: CompilerPhase {
 
             case .executable:
                 if ctx.options.target.isWasm {
-                    // WebAssembly executables are modules, not host objects:
-                    // the wasm emitter writes the final .wasm directly and the
-                    // Link phase is bypassed.
                     let path = outputPath(base: ctx.options.outputPath, defaultExtension: "wasm")
                     try emitWasmModule(module: kir, outputPath: path, ctx: ctx)
                     ctx.storeGeneratedWasmPath(path)
@@ -125,9 +120,6 @@ public final class CodegenPhase: CompilerPhase {
         return base
     }
 
-    /// Runs the custom KIR→wasm emitter and writes the module. The entry
-    /// symbol is resolved the same way Link does so `_start`/`main` wraps the
-    /// real `main` function.
     private func emitWasmModule(module kir: KIRModule, outputPath: String, ctx: CompilationContext) throws {
         var entrySymbol: SymbolID?
         if let ast = ctx.ast, let sema = ctx.sema {
@@ -187,7 +179,6 @@ public final class CodegenPhase: CompilerPhase {
         try fm.createDirectory(atPath: objectsDir, withIntermediateDirectories: true)
         try fm.createDirectory(atPath: inlineDir, withIntermediateDirectories: true)
 
-        // KUU-2814: `-Xfrontend stdlib-bitcode` also ships the optimized LLVM
         // module as bitcode (~2x the object size) for LTO experiments. Opt-in
         // because no consumer reads it: measured on hello.kt, importing the
         // needed stdlib bitcode and re-running codegen costs ~6s versus 0.42s
@@ -298,9 +289,6 @@ public final class CodegenPhase: CompilerPhase {
     }
 
     private func makeBackend(ctx: CompilationContext) throws -> LLVMBackend {
-        // `-Xfrontend codegen-parallel` opts into partitioned function-body
-        // emission; `-Xfrontend jobs=N` supplies the worker count (the same
-        // knob BuildAST and parallel Sema already share).
         let parallelJobs = ctx.options.frontendFlags.contains("codegen-parallel")
             ? ctx.frontendJobs
             : 1
@@ -377,7 +365,6 @@ public final class CodegenPhase: CompilerPhase {
                 ?? function.body
             let referencedExpressions = Set(inlineBody.flatMap(inlineReferencedExpressions))
             let bodyLines = inlineBody.filter { instruction in
-                // Expanded lambdas need no address, and their standalone bodies may not be exported.
                 if case let .constValue(result, .symbolRef(_)) = instruction {
                     return referencedExpressions.contains(result)
                 }
@@ -419,9 +406,6 @@ public final class CodegenPhase: CompilerPhase {
             }
             let mangled: String
             if isInitBody, let linkName = functionLinkNamesBySymbol[function.symbol] {
-                // Init-family bodies ship under their `kk_fn_` link name so a
-                // backend without object linking (wasm) can materialize them
-                // from the artifact the same way imported calls resolve.
                 mangled = linkName
             } else if let symbol = sema.symbols.symbol(function.symbol) {
                 mangled = mangler.mangle(
@@ -431,8 +415,6 @@ public final class CodegenPhase: CompilerPhase {
                 )
             } else if functionName.hasSuffix("$default"),
                       let linkName = functionLinkNamesBySymbol[function.symbol] {
-                // Inline default stubs also require call-site expansion. Their
-                // existing metadata link name identifies the serialized body.
                 mangled = linkName
             } else {
                 continue
@@ -488,10 +470,6 @@ public final class CodegenPhase: CompilerPhase {
         }
     }
 
-    /// Names of compiler-synthesized module-init functions whose bodies only
-    /// exist in the artifact's object file on native targets. Shipping their
-    /// serialized KIR alongside the inline bodies lets backends without an
-    /// object linker (wasm) materialize them on demand.
     private static let libraryInitBodyNamePrefixes = [
         "__object_init_", "__companion_init_", "__enum_static_init_",
         "__kk_library_top_level_init_", "__kk_synthetic_companion_init_",
@@ -515,7 +493,6 @@ public final class CodegenPhase: CompilerPhase {
         case let .virtualCall(_, _, receiver, arguments, _, _, _, _):
             [receiver] + arguments
         case let .copy(from, to):
-            // Both operands can reference symbol-backed storage.
             [from, to]
         case let .jumpIfNotNull(value, _), let .storeGlobal(value, _),
              let .rethrow(value), let .returnValue(value), let .resumeNonLocalReturn(value):
@@ -645,9 +622,6 @@ public final class CodegenPhase: CompilerPhase {
         }
     }
 
-    /// Serialized field columns shared by `.call` and `.virtualCall`: both
-    /// record kinds lead with the same symbol/callee/args/result/throw/link
-    /// fields before appending their kind-specific fields.
     private func serializeInlineCallFields(
         symbol: SymbolID?,
         callee: InternedString,
