@@ -115,8 +115,6 @@ struct LLVMEntryPointObjectEmitter {
                 }
             }
         } catch {
-            // On success the caller owns the directory and removes it after linking; on failure it
-            // never receives the path, so drop the private directory here to avoid leaking it.
             try? FileManager.default.removeItem(at: objectURL.deletingLastPathComponent())
             throw error
         }
@@ -305,9 +303,6 @@ struct LLVMEntryPointObjectEmitter {
         ) else {
             throw LLVMEntryPointObjectEmitterError.invalidIR("failed to declare thread wait function")
         }
-        // -Xassertions=always-enable/always-disable bakes the process-wide
-        // kotlin.assert state into the binary: the entry wrapper overrides the
-        // environment-derived startup state before Kotlin `main` runs.
         let assertionsSetFunction: LLVMCAPIBindings.LLVMValueRef?
         if assertionsMode.forcedState != nil {
             guard let setter = bindings.addFunction(
@@ -421,10 +416,6 @@ struct LLVMEntryPointObjectEmitter {
         )
     }
 
-    /// `-Xassertions=always-enable` / `always-disable` fix the process-wide
-    /// `kotlin.assert` state before Kotlin `main` runs, matching kotlinc's
-    /// compile-time assertions modes. `jvm`/`legacy` leave the
-    /// environment-derived startup state untouched (KUU-2751).
     private func emitAssertionsOverride(
         builder: LLVMCAPIBindings.LLVMBuilderRef,
         primitiveTypes: LLVMEntryPointPrimitiveTypes,
@@ -459,8 +450,6 @@ struct LLVMEntryPointObjectEmitter {
         functions: LLVMEntryPointFunctions,
         constants: LLVMEntryPointConstants
     ) throws {
-        // `main`'s own result is deliberately discarded: only the call's side
-        // effects and the thrown channel matter to the process status.
         _ = try emitEntryResult(
             builder: builder,
             functionTypes: functionTypes,
@@ -548,11 +537,6 @@ struct LLVMEntryPointObjectEmitter {
         functions: LLVMEntryPointFunctions,
         constants: LLVMEntryPointConstants
     ) throws {
-        // KUU-3991: route the escaped exception through the same uncaught
-        // report a JVM thread's uncaughtException handler produces —
-        // `Exception in thread "main" <type>: <message>` plus the saved
-        // frames — before the LINK-0003 trailer, so the exception type and
-        // message are no longer lost.
         guard let thrownValue = bindings.buildLoad(
             builder,
             type: primitiveTypes.int64Type,
