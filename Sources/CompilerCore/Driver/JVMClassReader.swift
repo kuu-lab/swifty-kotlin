@@ -103,9 +103,12 @@ struct JVMClassReader {
     func className(_ index: Int) throws -> String { guard let s = classes[index] else { throw Invalid() }; return try text(s) }
 
     /// An instance getter the Compose compiler lowered: `@Composable`, taking
-    /// only the Composer and one changed mask.
+    /// only the Composer and one changed mask. A value-class result mangles
+    /// the name (`getColor-0d7_KjU`) and erases the result to its carrier;
+    /// that shape is not imported.
     static func isComposableMemberGetter(_ method: JVMForeignMethod) -> Bool {
-        !method.isStatic && !method.isProtected && method.name.hasPrefix("get") && method.result != .unit
+        !method.isStatic && !method.isProtected && method.name.hasPrefix("get") && !method.name.contains("-")
+            && method.result != .unit
             && method.parameters.count == 2 && method.parameters[0].referenceName == JVMCompose.composer
             && method.parameters[1] == .int
             && method.annotations.contains(where: { $0.descriptor == "Landroidx/compose/runtime/Composable;" })

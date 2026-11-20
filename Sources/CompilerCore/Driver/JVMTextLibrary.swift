@@ -468,10 +468,10 @@ extension JVMFunctionBuilder {
             var prefix: [JVMValue] = []
             var instance: JVMValue?
             if !method.isStatic {
-                guard let receiverExpr = receiver else {
-                    throw fail("Missing JVM receiver for a @Composable member property.", id)
-                }
-                instance = try convert(requireValue(receiverExpr), to: .reference(method.owner, nullable: false))
+                // An imported object member (`import fixture.Theme.scheme`) or an
+                // implicit receiver resolves like any other member reference.
+                let object = try receiver.map(requireValue) ?? importedSingleton(method.owner) ?? unconvertedInstance(id)
+                instance = try convert(object, to: .reference(method.owner, nullable: false))
             } else if composerIndex == 1 {
                 guard let receiverValue = try receiver.map(requireValue) ?? implicitExtensionReceiver(id) else {
                     throw fail("Missing JVM extension property receiver.", id)

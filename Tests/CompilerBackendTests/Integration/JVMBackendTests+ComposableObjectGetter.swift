@@ -8,6 +8,8 @@ extension JVMBackendTests {
     /// getter on a Kotlin object. Its classfile getter also takes the Composer
     /// and changed mask, so it never matched the zero-argument member property
     /// shape and the stub declared no `colorScheme` (KSWIFTK-SEMA-0024).
+    /// Covers qualified reads, an imported member read without a receiver, and
+    /// a companion's getter (a nested classfile in the same stub).
     @Test
     func importedObjectComposableGetterBindsToItsLoweredAccessor() throws {
         let stdlib = try ownStdlibLibrary()
@@ -19,36 +21,63 @@ extension JVMBackendTests {
             // object Theme {
             //     val scheme: String @Composable @ReadOnlyComposable get() = "scheme"
             // }
-            let theme = try #require(Data(base64Encoded: """
-            yv66vgAAADQANwEADWZpeHR1cmUvVGhlbWUHAAEBABBqYXZhL2xhbmcvT2JqZWN0BwADAQAGPGluaXQ+AQADKClWDAAFAAYKAAQA
-            BwEABHRoaXMBAA9MZml4dHVyZS9UaGVtZTsBAAlnZXRTY2hlbWUBADgoTGFuZHJvaWR4L2NvbXBvc2UvcnVudGltZS9Db21wb3Nl
-            cjtJKUxqYXZhL2xhbmcvU3RyaW5nOwEAJUxhbmRyb2lkeC9jb21wb3NlL3J1bnRpbWUvQ29tcG9zYWJsZTsBAC1MYW5kcm9pZHgv
-            Y29tcG9zZS9ydW50aW1lL1JlYWRPbmx5Q29tcG9zYWJsZTsBABRMa290bGluL2p2bS9Kdm1OYW1lOwEABG5hbWUBACNMb3JnL2pl
-            dGJyYWlucy9hbm5vdGF0aW9ucy9Ob3ROdWxsOwEAJExvcmcvamV0YnJhaW5zL2Fubm90YXRpb25zL051bGxhYmxlOwEABnNjaGVt
-            ZQgAEwEACSRjb21wb3NlcgEAI0xhbmRyb2lkeC9jb21wb3NlL3J1bnRpbWUvQ29tcG9zZXI7AQAIJGNoYW5nZWQBAAFJAQAIPGNs
-            aW5pdD4KAAIABwEACElOU1RBTkNFDAAbAAoJAAIAHAEAByRzdGFibGUBABVMa290bGluL2p2bS9Kdm1GaWVsZDsBADVMYW5kcm9p
-            ZHgvY29tcG9zZS9ydW50aW1lL2ludGVybmFsL1N0YWJpbGl0eUluZmVycmVkOwEACnBhcmFtZXRlcnMDAAAAAQEAEUxrb3RsaW4v
-            TWV0YWRhdGE7AQACbXYDAAAAAgMAAAAEAwAAAAABAAFrAQACeGkDAAAAMAEAAmQxAQBqwIAiCgIYAgoCEMCACgIIAwoCEA4KAggC
-            CgIYAgoCGAIKAhgCCsCACMOHAhjAgDICMAFCCQgCwqIGBAgCEANSGRAEGgIwBThHegIICHoCCAnCogYGGgQIBhAHw4oBDAgKEggI
-            CxIECAMQAgEAAmQyAQAAAQAIVGhlbWUua3QBABtSdW50aW1lSW52aXNpYmxlQW5ub3RhdGlvbnMBAARDb2RlAQAPTGluZU51bWJl
-            clRhYmxlAQASTG9jYWxWYXJpYWJsZVRhYmxlAQAkUnVudGltZUludmlzaWJsZVBhcmFtZXRlckFubm90YXRpb25zAQAKU291cmNl
-            RmlsZQEAGVJ1bnRpbWVWaXNpYmxlQW5ub3RhdGlvbnMAMQACAAQAAAACABkAGwAKAAEAMAAAAAYAAQARAAAAGQAeABgAAQAwAAAA
-            BgABAB8AAAADAAIABQAGAAEAMQAAAC8AAQABAAAABSq3AAixAAAAAgAyAAAABgABAAAABQAzAAAADAABAAAABQAJAAoAAAARAAsA
-            DAADADEAAABBAAEAAwAAAAMSFLAAAAACADIAAAAGAAEAAgAHADMAAAAgAAMAAAADAAkACgAAAAAAAwAVABYAAQAAAAMAFwAYAAIA
-            MAAAABcABAANAAAADgAAAA8AAQAQcwALABEAAAA0AAAACQIAAQASAAAAAAAIABkABgABADEAAAAXAAIAAAAAAAu7AAJZtwAaswAd
-            sQAAAAAAAwA1AAAAAgAvADYAAABPAAEAIwAFACRbAANJACVJACZJACcAKEkAIgApSQAqACtbAAFzACwALVsADHMACnMALnMABXMA
-            BnMAE3MALnMAC3MADHMADXMADnMAIHMAIQAwAAAACwABACAAAQAhSQAi
+            // class Host {
+            //     companion object {
+            //         val label: String @Composable @ReadOnlyComposable get() = "companion"
+            //     }
+            // }
+            let fixture = try #require(Data(base64Encoded: """
+            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
+            AAYABgCBAQAAmgkAAAAA
             """, options: .ignoreUnknownCharacters))
-            let provider = root.appendingPathComponent("provider/fixture")
-            try FileManager.default.createDirectory(at: provider, withIntermediateDirectories: true)
-            try theme.write(to: provider.appendingPathComponent("Theme.class"))
+            let provider = root.appendingPathComponent("provider.jar")
+            try fixture.write(to: provider)
             let consumer = """
             import androidx.compose.runtime.Composable
+            import fixture.Host
             import fixture.Theme
+            import fixture.Theme.scheme
 
-            @Composable fun label(): String = Theme.scheme + "!"
+            @Composable fun label(): String = Theme.scheme + "!" + scheme + "/" + Host.label
             """
-            let classpath = [root.appendingPathComponent("provider").path, runtime.path, stdlib.path]
+            let classpath = [provider.path, runtime.path, stdlib.path]
             let (app, exit, diagnostics) = try m22Build(
                 root: root, sources: [("Screen.kt", consumer)], name: "app.jar", classpath: classpath
             )
@@ -65,7 +94,7 @@ extension JVMBackendTests {
             try #require(driver.exitCode == 0, "\(driver.stderr)")
             let run = try java(["-Xverify:all", "-cp", cp + ":" + root.path, "Driver"])
             #expect(run.exitCode == 0, "\(run.stderr)")
-            #expect(run.stdout == "scheme!\n")
+            #expect(run.stdout == "scheme!scheme/companion\n")
         }
     }
 }

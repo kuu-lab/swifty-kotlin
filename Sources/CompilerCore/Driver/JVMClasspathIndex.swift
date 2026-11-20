@@ -732,6 +732,13 @@ final class JVMClasspathIndex {
     }
     func hasClassFile(_ name: String) -> Bool { hierarchyClasses[name] != nil }
 
+    private func composablePropertyDeclaration(_ name: String, _ property: (getter: JVMForeignMethod, sourceType: String)) -> String {
+        let readOnly = property.getter.annotations.contains {
+            $0.descriptor == "Landroidx/compose/runtime/ReadOnlyComposable;"
+        } ? " @androidx.compose.runtime.ReadOnlyComposable" : ""
+        return "val `\(name)`: \(property.sourceType) @androidx.compose.runtime.Composable\(readOnly) get() = null!!\n"
+    }
+
     /// Java `ConcurrentMap` is Kotlin's mutable-map surface; its JDK classes
     /// still come from classfiles, but their stubs must satisfy `MutableMap`.
     func isJavaConcurrentMapClass(_ name: String) -> Bool {
@@ -2139,10 +2146,7 @@ final class JVMClasspathIndex {
         if !info.isInterface, info.name != Self.compositionLocal {
             for (name, property) in info.kotlinComposableMemberProperties.sorted(by: { $0.key < $1.key })
                 where exposedKotlinProperties[name] == nil && exposeSuspendType(property.getter.result) {
-                let readOnly = property.getter.annotations.contains {
-                    $0.descriptor == "Landroidx/compose/runtime/ReadOnlyComposable;"
-                } ? " @androidx.compose.runtime.ReadOnlyComposable" : ""
-                source += "val `\(name)`: \(property.sourceType) @androidx.compose.runtime.Composable\(readOnly) get() = null!!\n"
+                source += composablePropertyDeclaration(name, property)
             }
         }
         for (field, type) in instanceFields {
@@ -2315,6 +2319,10 @@ final class JVMClasspathIndex {
                     where exposeSuspendType(property.getter.result) && info.kotlinStaticProperties[name] == nil {
                     source += "val `\(name)`: \(property.sourceType) get() = null!!\n"
                 }
+                for (name, property) in companion.kotlinComposableMemberProperties.sorted(by: { $0.key < $1.key })
+                    where exposeSuspendType(property.getter.result) && info.kotlinStaticProperties[name] == nil {
+                    source += composablePropertyDeclaration(name, property)
+                }
                 for method in companion.methods where !method.isStatic && !method.isConstructor && isExposed(method) {
                     if statics.contains(where: { $0.name == method.name && $0.descriptor == method.descriptor })
                         && !overridesParent(method, in: companion) { continue }
@@ -2332,6 +2340,10 @@ final class JVMClasspathIndex {
                 for (name, property) in companion.kotlinMemberProperties.sorted(by: { $0.key < $1.key })
                     where exposeSuspendType(property.getter.result) && info.kotlinStaticProperties[name] == nil {
                     source += "val `\(name)`: \(property.sourceType) get() = null!!\n"
+                }
+                for (name, property) in companion.kotlinComposableMemberProperties.sorted(by: { $0.key < $1.key })
+                    where exposeSuspendType(property.getter.result) && info.kotlinStaticProperties[name] == nil {
+                    source += composablePropertyDeclaration(name, property)
                 }
                 for method in companion.methods where !method.isStatic && !method.isConstructor && isExposed(method) {
                     if statics.contains(where: { $0.name == method.name && $0.descriptor == method.descriptor })
@@ -2665,6 +2677,7 @@ final class JVMClasspathIndex {
                 }
             }
             markSourceTypes(info.kotlinMemberProperties.values.map(\.sourceType))
+            markSourceTypes(info.kotlinComposableMemberProperties.values.map(\.sourceType))
             markSourceTypes(Array(info.kotlinParameterizedSupertypes.values))
             // Covered Kotlin supertypes render from kotlinSupertypes; their
             // type arguments can name lazy classpath classes that no other
@@ -3328,20 +3341,55 @@ final class JVMClasspathIndex {
         importedComposableSymbols = []
         if let ast = ctx.ast {
             for file in ast.files {
-                if let composable = sourceClasses[file.fileID]?.kotlinComposableMemberProperties, !composable.isEmpty {
-                    for declaration in file.topLevelDecls {
-                        let members: [DeclID]
+                if let owner = sourceClasses[file.fileID] {
+                    // Nested classes and companions render into the same stub
+                    // file; their getters live on `Outer$Inner` classfiles.
+                    func bindComposableGetters(_ declaration: DeclID, binaryName: String) {
+                        let members: [DeclID], nested: [DeclID]
                         switch ast.arena.decl(declaration) {
-                        case let .classDecl(owner): members = owner.memberProperties
-                        case let .objectDecl(owner): members = owner.memberProperties
-                        default: continue
+                        case let .classDecl(type):
+                            members = type.memberProperties
+                            nested = type.nestedClasses + type.nestedObjects + [type.companionObject].compactMap { $0 }
+                        case let .objectDecl(type):
+                            members = type.memberProperties
+                            nested = type.nestedClasses + type.nestedObjects
+                        case let .interfaceDecl(type):
+                            members = []
+                            nested = type.nestedClasses + type.nestedObjects + [type.companionObject].compactMap { $0 }
+                        default: return
                         }
-                        for member in members {
-                            guard case let .propertyDecl(property) = ast.arena.decl(member),
-                                  let getter = composable[ctx.interner.resolve(property.name)]?.getter,
-                                  let symbol = sema.bindings.declSymbol(for: member) else { continue }
-                            importedPropertyGetters[symbol] = getter
+                        let info = classes[binaryName] ?? hierarchyClasses[binaryName]
+                        if let composable = info?.kotlinComposableMemberProperties, !composable.isEmpty {
+                            for member in members {
+                                guard case let .propertyDecl(property) = ast.arena.decl(member),
+                                      let getter = composable[ctx.interner.resolve(property.name)]?.getter,
+                                      let symbol = sema.bindings.declSymbol(for: member) else { continue }
+                                importedPropertyGetters[symbol] = getter
+                            }
                         }
+                        for child in nested {
+                            let name: InternedString? = switch ast.arena.decl(child) {
+                            case let .classDecl(type): type.name
+                            case let .objectDecl(type): type.name
+                            case let .interfaceDecl(type): type.name
+                            default: nil
+                            }
+                            // An unnamed companion parses with an empty name.
+                            if let name {
+                                let simple = ctx.interner.resolve(name)
+                                bindComposableGetters(child, binaryName: binaryName + "$" + (simple.isEmpty ? "Companion" : simple))
+                            }
+                        }
+                    }
+                    let short = owner.name.split(separator: "/").last.map(String.init) ?? owner.name
+                    for declaration in file.topLevelDecls {
+                        let name: InternedString? = switch ast.arena.decl(declaration) {
+                        case let .classDecl(type): type.name
+                        case let .objectDecl(type): type.name
+                        case let .interfaceDecl(type): type.name
+                        default: nil
+                        }
+                        if let name, ctx.interner.resolve(name) == short { bindComposableGetters(declaration, binaryName: owner.name) }
                     }
                 }
                 if let getters = kotlinFacadeGetters[file.fileID] {
