@@ -298,6 +298,55 @@ struct ContractCallSiteEffectsTests {
     }
 
     @Test
+    func shadowedLocalDeclarationPreservesExactlyOnceInitialization() throws {
+        let declarations = """
+        import kotlin.contracts.*
+        @OptIn(ExperimentalContracts::class)
+        inline fun once(block: () -> Unit) {
+            contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
+            block()
+        }
+        @OptIn(ExperimentalContracts::class)
+        inline fun maybeOnce(block: () -> Unit) {
+            contract { callsInPlace(block, InvocationKind.AT_MOST_ONCE) }
+        }
+        """
+        let sources = [
+            """
+            package shadowExactlyOnce
+            \(declarations)
+            fun probe() {
+                var x: Int
+                once {
+                    x = 5
+                    val x = 10
+                }
+                println(x)
+            }
+            """,
+            """
+            package shadowAtMostOnce
+            \(declarations)
+            fun probe() {
+                var x: Int
+                maybeOnce {
+                    x = 5
+                    val x = 10
+                }
+                println(x)
+            }
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            let acceptedErrors = diagnosticsForPath(paths[0], in: ctx).filter { $0.severity == .error }
+            #expect(acceptedErrors.isEmpty, "\(acceptedErrors)")
+            assertHasDiagnostic("KSWIFTK-SEMA-0031", in: diagnosticsForPath(paths[1], in: ctx))
+        }
+    }
+
+    @Test
     func contractInvocationInitializesCapturedValWithoutReassignmentError() throws {
         let sources = [
             """

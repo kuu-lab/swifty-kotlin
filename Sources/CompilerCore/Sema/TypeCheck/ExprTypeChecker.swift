@@ -1010,8 +1010,7 @@ final class ExprTypeChecker {
                 // The receiver temporary needs a private scope, but evaluation of
                 // its LHS/RHS must still update smart casts of existing outer symbols.
                 for (name, outerLocal) in locals {
-                    if let blockLocal = blockLocals[name],
-                       blockLocal.symbol == outerLocal.symbol,
+                    if let blockLocal = blockLocals.binding(named: name, matching: outerLocal.symbol),
                        (preservesOuterDataFlow
                            || (outerLocal.isMutable && sema.types.nullability(of: sema.symbols.propertyType(for: outerLocal.symbol) ?? outerLocal.type) == .nullable))
                            || (!outerLocal.isInitialized && blockLocal.isInitialized)
