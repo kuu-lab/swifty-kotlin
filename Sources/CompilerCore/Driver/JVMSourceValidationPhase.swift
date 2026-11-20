@@ -162,7 +162,9 @@ private struct JVMSourceGrammar {
         }
     }
     mutating func modifiers() {
-        while [.public, .private, .internal, .protected, .open, .final, .abstract, .override, .inline, .tailrec, .suspend, .sealed, .data, .enum, .companion, .inner, .operator, .infix, .lateinit, .annotation, .value, .const].contains(where: { kind == .keyword($0) }) {
+        // `expect`/`actual`: Kotlin Multiplatform compiles a JVM/Android target
+        // from the common and platform source sets together.
+        while [.public, .private, .internal, .protected, .open, .final, .abstract, .override, .inline, .tailrec, .suspend, .sealed, .data, .enum, .companion, .inner, .operator, .infix, .lateinit, .annotation, .value, .const, .expect, .actual].contains(where: { kind == .keyword($0) }) {
             // "value" is also a valid parameter/property name.
             if kind == .keyword(.value), tokens[min(index + 1, tokens.count - 1)].kind != .keyword(.class) { break }
             index += 1
@@ -259,6 +261,7 @@ private struct JVMSourceGrammar {
         }
         let isEnum = tokens[declarationStart..<index].contains { $0.kind == .keyword(.enum) }
         let isCompanion = tokens[declarationStart..<index].contains { $0.kind == .keyword(.companion) }
+        let isExpect = tokens[declarationStart..<index].contains { $0.kind == .keyword(.expect) }
         if take(.keyword(.typealias)) {
             try name(); try typeParameters(); try require(.symbol(.assign)); try type(); return
         }
@@ -277,7 +280,7 @@ private struct JVMSourceGrammar {
             try whereConstraints()
             if take(.symbol(.assign)) { try expression() }
             else if kind == .symbol(.lBrace) { try block() }
-            else if !member { throw Unsupported() }
+            else if !member && !isExpect { throw Unsupported() }
         } else if kind == .keyword(.class) || kind == .keyword(.interface) || kind == .keyword(.fun) || kind == .keyword(.object) {
             _ = take(.keyword(.fun))
             let isInterface = take(.keyword(.interface))
