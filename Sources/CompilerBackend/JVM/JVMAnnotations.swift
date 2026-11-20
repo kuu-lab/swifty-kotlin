@@ -1,7 +1,6 @@
 import Foundation
 import CompilerCore
 
-/// JVMS 4.7 annotation attributes share the constant pool with ordinary code.
 enum JVMAnnotations {
     static func value(_ value: JVMAnnotationValue, pool: JVMConstantPool) throws -> Data {
         var b = JVMBytes()
