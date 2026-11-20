@@ -81,7 +81,7 @@ struct JVMKotlinClassProperty {
 
 struct JVMKotlinTopLevelProperty {
     let name: String
-    let typeParameters: [JVMKotlinFunction.TypeParameter]
+    var typeParameters: [JVMKotlinFunction.TypeParameter] = []
     let receiver: String?
     let result: String
     let getterName: String
