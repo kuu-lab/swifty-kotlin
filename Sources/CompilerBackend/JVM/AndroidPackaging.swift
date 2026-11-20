@@ -2,12 +2,7 @@ import Foundation
 
 import CompilerCore
 
-/// Post-processes JVM classfiles into Android artifacts using the SDK
-/// build-tools: `d8` for DEX, then `aapt2`/`zip`/`zipalign`/`apksigner` for a
-/// signed APK. All work happens in a private temporary directory; the final
-/// artifact is moved to `options.outputPath` only after every step succeeds.
 enum AndroidPackaging {
-    /// `--emit dex`: classes.jar -> d8 -> ZIP archive of `classes*.dex`.
     static func emitDex(
         options: CompilerOptions,
         className: String,
@@ -43,8 +38,6 @@ enum AndroidPackaging {
         try installArtifact(from: dexArchive, to: options.outputPath)
     }
 
-    /// `--emit apk`: add the program's dex files to the aapt2-linked APK,
-    /// align it and sign it.
     static func emitAPK(
         options: CompilerOptions,
         className: String,
@@ -67,7 +60,6 @@ enum AndroidPackaging {
         let androidJar = resources.androidJarPath
         let work = resources.directory
 
-        // 1. DEX the program jar plus every classpath jar into a directory.
         let jar = try JVMJarArchive.emit(
             className: className, classFile: classFile,
             hasMain: hasMain, module: module, classes: classes
@@ -99,7 +91,6 @@ enum AndroidPackaging {
             phaseTimer: phaseTimer, subPhaseName: "Android/add-dex"
         )
 
-        // 3. Align, then sign.
         var alignedAPK = unsignedAPK
         if let zipalign = toolchain.zipalignPath {
             alignedAPK = work.appendingPathComponent("aligned.apk").path
@@ -121,8 +112,6 @@ enum AndroidPackaging {
         try installArtifact(from: signedAPK, to: options.outputPath)
     }
 
-    // MARK: - Toolchain
-
     private static func resolveToolchain(options: CompilerOptions) throws -> AndroidToolchain {
         do {
             return try AndroidSDKLocator.locate(
@@ -135,9 +124,6 @@ enum AndroidPackaging {
         }
     }
 
-    // MARK: - d8
-
-    /// Classpath entries that become d8 program inputs (jars/zips are dexed
     /// into the artifact). The framework `android.jar` is excluded: it is
     /// already the `--lib` bootclasspath and must never be dexed.
     private static func dexProgramInputs(options: CompilerOptions, androidJarPath: String?) -> [String] {
@@ -155,7 +141,6 @@ enum AndroidPackaging {
         }
     }
 
-    /// Classpath entries that only resolve symbols for d8 (directories).
     private static func dexClasspathEntries(options: CompilerOptions, androidJarPath: String?) -> [String] {
         let androidJar = androidJarPath.map {
             URL(fileURLWithPath: $0).standardizedFileURL.path
@@ -208,11 +193,6 @@ enum AndroidPackaging {
         return names
     }
 
-    // MARK: - APK packaging
-
-    /// apksigner arguments for the resolved keystore. The default debug
-    /// keystore at `~/.android/debug.keystore` is generated via `keytool`
-    /// when absent, matching Gradle's debug-signing behaviour.
     private static func signingArguments(
         options: CompilerOptions,
         phaseTimer: PhaseTimer?
@@ -266,8 +246,6 @@ enum AndroidPackaging {
         )
     }
 
-    /// Moves the finished artifact into place, replacing any previous output.
-    /// The parent directory is created when missing.
     private static func installArtifact(from source: String, to destination: String) throws {
         let fileManager = FileManager.default
         let destinationURL = URL(fileURLWithPath: destination).standardizedFileURL
