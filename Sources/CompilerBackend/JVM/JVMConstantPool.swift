@@ -16,7 +16,6 @@ enum JVMEmissionError: Error, CustomStringConvertible {
     }
 }
 
-/// Big-endian classfile data. All narrowing conversions are checked by callers.
 struct JVMBytes {
     var data = Data()
 
