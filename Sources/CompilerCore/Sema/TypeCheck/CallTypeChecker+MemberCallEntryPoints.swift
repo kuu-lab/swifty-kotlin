@@ -5,9 +5,6 @@ extension CallTypeChecker {
         locals: inout LocalBindings, expectedType: TypeID?, explicitTypeArgs: [TypeID] = []
     ) -> TypeID {
         let knownNames = KnownCompilerNames(interner: ctx.interner)
-        // Same foreign-typeParam guard as `inferCallExpr`: an enclosing
-        // call's own inference variable must not reach the callee as a
-        // same-symbol pin target (e.g. `xs.listOf(x.listOf(y))`).
         var memberExpectedType = expectedType
         if let expected = expectedType {
             memberExpectedType = dropForeignTypeParamExpectedType(expected, ctx: ctx)
@@ -46,8 +43,6 @@ extension CallTypeChecker {
         return result
     }
 
-    /// Only Kotlin-approved primitive bitwise/shift members and UInt/ULong
-    /// compareTo have infix eligibility; arithmetic names must resolve extensions.
     func isInfixPrimitiveIntrinsic(
         _ calleeName: InternedString, receiverType: TypeID?, ctx: TypeInferenceContext
     ) -> Bool {
