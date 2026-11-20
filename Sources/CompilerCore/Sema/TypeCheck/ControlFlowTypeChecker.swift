@@ -1541,6 +1541,13 @@ final class ControlFlowTypeChecker {
         // Try/catch bodies run on their own locals copies; narrowing inside
         // them cannot leak to the enclosing conditional path.
         branchCtx.isConditionallyEvaluated = false
+        if finallyExpr != nil {
+            // Returns inside the try body or a catch clause complete the lambda
+            // only after `finally` runs, so their recorded locals cannot account
+            // for finally's effects; callsInPlace return-path tracking skips
+            // them and keeps the fall-through state as the only guarantee.
+            branchCtx.enclosingTryFinallyDepth += 1
+        }
 
         var tryBodyLocals = preTryLocals
         var tryBodyType = driver.inferExpr(

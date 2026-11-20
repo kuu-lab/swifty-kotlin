@@ -462,7 +462,7 @@ final class ExprTypeChecker {
                     )
                 }
             }
-            if let lambdaReturnScope {
+            if let lambdaReturnScope, ctx.enclosingTryFinallyDepth == 0 {
                 lambdaReturnScope.returnLocalStates.append(locals)
             }
             sema.bindings.bindExprType(id, type: sema.types.nothingType)
