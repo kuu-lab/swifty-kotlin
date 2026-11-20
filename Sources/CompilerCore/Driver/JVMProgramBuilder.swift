@@ -1219,6 +1219,10 @@ extension JVMFunctionBuilder {
         if let receiver, receiver.type.referenceName == nil { object = try convert(receiver, to: .reference("java/lang/Object", nullable: false)) }
         if method.isConstructor {
             object = try value(method.result)
+            // NEW triggers the owner's <clinit> (companion initialization);
+            // kotlinc runs it before evaluating constructor arguments. Force it
+            // eagerly here and keep the allocation itself after the arguments.
+            instructions.append(.initializeClass(method.owner))
         }
         var values: [JVMValue] = []
         for (index, pair) in zip(args, method.parameters).enumerated() {

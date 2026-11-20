@@ -240,6 +240,10 @@ extension JVMFunctionBuilder {
         let importedDefaults = importedDefault != nil || importedConstructor?.defaults != nil || importedConstructorDefault != nil
             ? program.sema.symbols.functionSignature(for: symbol)?.valueParameterHasDefaultValues : nil
         let object = constructor ? try value(method!.result) : nil
+        // NEW triggers the owner's <clinit> (companion initialization); kotlinc
+        // runs it before evaluating constructor arguments. Force it eagerly here
+        // and keep the allocation itself after the arguments (below).
+        if constructor { instructions.append(.initializeClass(method!.owner)) }
         var composableParameters = context.jvmImports?.importedComposableParameters[symbol] ?? []
         if isComposable, let signature = program.sema.symbols.functionSignature(for: symbol) {
             for (index, parameter) in signature.valueParameterSymbols.enumerated()
