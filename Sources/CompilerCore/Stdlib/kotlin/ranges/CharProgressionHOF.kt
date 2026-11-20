@@ -6,8 +6,6 @@ import kotlin.internal.KsSymbolName
 import kotlin.native.NoInline
 import kotlin.random.Random
 
-// MIGRATION-RANGE-002: CharProgression higher-order functions, moved verbatim from RangeHOF.kt.
-
 private fun charProgressionDescription(progression: CharProgression): String {
     val step = progression.step
     return if (step > 0) {
