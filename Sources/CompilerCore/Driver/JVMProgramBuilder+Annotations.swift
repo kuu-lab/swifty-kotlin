@@ -379,6 +379,15 @@ extension JVMProgramBuilder {
         f.isSynchronized = try annotationRecords(for: symbol).contains {
             $0.annotationFQName == KnownCompilerAnnotation.jvmSynchronized.qualifiedName && $0.useSiteTarget == nil
         }
+        // kotlinc marks @JvmSynthetic functions ACC_SYNTHETIC so javac cannot
+        // resolve them, while Kotlin metadata keeps them callable from Kotlin.
+        if !f.isConstructor, !f.isValueConstructor,
+           sema.symbols.annotations(for: symbol).contains(where: {
+               KnownCompilerAnnotation.jvmSynthetic.matches($0.annotationFQName) && $0.useSiteTarget == nil
+           }) {
+            f.access = (f.access ?? (f.isPrivate ? 0x000A : 0x0009)) | 0x1000
+            f.isJvmSynthetic = true
+        }
         applyDeprecation(f.annotations, to: &f)
         if let raw = sema.symbols.annotations(for: symbol).first(where: {
             $0.annotationFQName == KnownCompilerAnnotation.jvmName.qualifiedName && $0.useSiteTarget != "file"
