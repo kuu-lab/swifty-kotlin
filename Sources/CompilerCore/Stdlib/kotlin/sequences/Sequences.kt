@@ -1,7 +1,5 @@
 package kotlin.sequences
 
-// MIGRATION-SEQ-001 / KSP-441〜447
-
 public fun <T> Iterable<T>.asSequence(): Sequence<T> {
     val list = this.toList()
     return object : Sequence<T> {
