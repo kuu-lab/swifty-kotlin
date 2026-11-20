@@ -470,7 +470,12 @@ extension JVMFunctionBuilder {
             if !method.isStatic {
                 // An imported object member (`import fixture.Theme.scheme`) or an
                 // implicit receiver resolves like any other member reference.
-                let object = try receiver.map(requireValue) ?? importedSingleton(method.owner) ?? unconvertedInstance(id)
+                // Only a Kotlin object's INSTANCE stands in for the receiver; a
+                // class with a same-typed static field still uses `this` or the
+                // extension receiver Sema chose.
+                let isObject = context.jvmImports?.classes[method.owner]?.isKotlinObject == true
+                let object = try receiver.map(requireValue)
+                    ?? (isObject ? importedSingleton(method.owner) : nil) ?? unconvertedInstance(id)
                 instance = try convert(object, to: .reference(method.owner, nullable: false))
             } else if composerIndex == 1 {
                 guard let receiverValue = try receiver.map(requireValue) ?? implicitExtensionReceiver(id) else {
