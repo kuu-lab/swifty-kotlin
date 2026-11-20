@@ -11,9 +11,8 @@ set -euo pipefail
 # `--emit library`, and writes a TSV of diagnostic-code counts per module.
 #
 # This is a diagnostic probe, not a golden/regression test: it does not run
-# kotlinc, is not wired into CI, and a module failing to compile is expected
-# (see docs/ktor-build-status.md for the current gap inventory). Re-run this
-# after compiler changes to see whether the gap inventory shrank.
+# kotlinc, is not wired into CI, and a module failing to compile is expected.
+# Re-run this after compiler changes to see whether the diagnostic counts shrank.
 #
 # Usage:
 #   bash Scripts/ktor_build.sh                  # fetch + compile all modules
