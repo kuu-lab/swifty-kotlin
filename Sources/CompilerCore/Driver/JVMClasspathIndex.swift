@@ -677,6 +677,7 @@ final class JVMClasspathIndex {
         // can still implement a user-declared factory interface.
         if method.isStatic, method.annotations.contains(where: { $0.descriptor == JVMMetro.invoke }) { return false }
         guard method.isConstructor || JVMProgramBuilder.isIdentifier(exposedName) else { return false }
+        if isReplacedByComposeContract(method) { return false }
         if method.isSynthetic, isHiddenByDeprecation(method) { return false }
         if method.isSynthetic, method.kotlinFunction == nil, method.kotlinSuspendFunction == nil,
            kotlinFunction(method) == nil { return false }
