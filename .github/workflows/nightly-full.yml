@@ -1167,12 +1167,17 @@ jobs:
             cat "$RUNNER_TEMP/nightly-audits/fiction-audit.txt"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+      # always(): a failed audit (e.g. the dead-code self-test) still leaves
+      # its candidate lists under nightly-audits/; upload them for diagnosis.
+      # Keep master's healthy-run guard: a successful job with no audit files
+      # is still an error, while an already-failed job only warns.
       - name: Upload audit artifacts
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: nightly-audits-${{ github.run_id }}
           path: ${{ runner.temp }}/nightly-audits
-          if-no-files-found: error
+          if-no-files-found: ${{ job.status == 'success' && 'error' || 'warn' }}
           retention-days: 30
 
   kotlinx-io-reference:
