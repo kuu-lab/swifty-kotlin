@@ -33,13 +33,16 @@ final class JVMPreparationPhase: CompilerPhase {
                 })
                 jdkClasspath = try JVMJDKClasspath.prepare(for: ctx)
             }
-            if o.emit == .apk, o.android.resourcePath != nil {
+            let libraries = o.emit == .dex || o.emit == .apk
+                ? try AndroidBuildInputs.resolveLibraries(o.android)
+                : nil
+            if o.emit == .apk, o.android.resourcePath != nil || libraries != nil {
                 let toolchain = try AndroidSDKLocator.locate(
                     sdkPath: o.android.sdkPath, buildToolsVersion: o.android.buildToolsVersion,
                     compileSdk: o.android.compileSdk
                 )
                 ctx.androidResourceLink = try AndroidResourceLink.prepare(
-                    options: o.android, toolchain: toolchain, phaseTimer: ctx.phaseTimer
+                    options: o.android, toolchain: toolchain, libraries: libraries, phaseTimer: ctx.phaseTimer
                 )
             }
             if o.emit == .dex || o.emit == .apk {
@@ -61,6 +64,19 @@ final class JVMPreparationPhase: CompilerPhase {
                 }) {
                     classpath.append(androidJar)
                 }
+                // Library and Java-source jars resolve lazily as well: an app's
+                // runtime closure (Compose is ~100 jars) is far larger than
+                // what its sources reference.
+                let inputs = try AndroidBuildInputs.prepare(
+                    options: o, androidJarPath: androidJar, libraries: libraries,
+                    resourceClassFiles: ctx.androidResourceLink?.classFiles ?? [],
+                    phaseTimer: ctx.phaseTimer
+                )
+                ctx.androidBuildInputs = inputs
+                for jar in inputs.dexJars {
+                    lazyPaths.insert(URL(fileURLWithPath: jar).standardizedFileURL.path)
+                    classpath.append(jar)
+                }
             }
             let source = sourceDeclarations(in: ctx)
             let imports = try JVMClasspathIndex.load(
@@ -77,6 +93,9 @@ final class JVMPreparationPhase: CompilerPhase {
             return
         } catch let error as AndroidPackagingError {
             ctx.diagnostics.error("KSWIFTK-ANDROID-0002", error.description, range: nil)
+            return
+        } catch let error as MavenResolutionError {
+            ctx.diagnostics.error("KSWIFTK-ANDROID-0003", "Cannot resolve Android dependencies: \(error.description)", range: nil)
             return
         } catch {
             ctx.diagnostics.error("KSWIFTK-JVM-0003", "Cannot read JVM classpath: \(error)", range: nil)

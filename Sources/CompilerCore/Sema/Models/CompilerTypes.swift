@@ -150,6 +150,38 @@ public struct AndroidOptions: Equatable, Sendable {
     public var storePassword: String?
     /// Key password (`--android-key-pass`). Falls back to `storePassword`.
     public var keyPassword: String?
+    /// Maven coordinates (`--android-dependency group:artifact:version`)
+    /// resolved with their runtime closure and packaged like Gradle's
+    /// `implementation` dependencies.
+    public var dependencies: [String] = []
+    /// Local `.aar`/`.jar` files packaged into the app (`--android-library`).
+    public var libraries: [String] = []
+    /// Repositories searched for `dependencies` (`--maven-repository`).
+    /// Empty means Google's Maven repository, then Maven Central.
+    public var mavenRepositories: [String] = []
+    /// Download cache (`--maven-cache`); defaults to `~/.kswiftk/maven`.
+    public var mavenCachePath: String?
+    /// Resolve only from the cache (`--offline`).
+    public var offline: Bool = false
+    /// Package of the app's `R` class and of relative component names,
+    /// for manifests without a `package` attribute (`--android-namespace`).
+    public var namespace: String?
+    /// Application ID (`--android-application-id`); defaults to the namespace.
+    public var applicationID: String?
+    /// `targetSdkVersion` (`--android-target-sdk`).
+    public var targetSdk: Int?
+    /// `versionCode` / `versionName` (`--android-version-code`, `--android-version-name`).
+    public var versionCode: Int?
+    public var versionName: String?
+    /// Mark the application debuggable (`--android-debuggable`), as AGP
+    /// debug builds do.
+    public var debuggable: Bool = false
+    /// Java sources compiled with `javac` before the Kotlin sources, which
+    /// can then call them (`.java` inputs).
+    public var javaSources: [String] = []
+
+    /// Whether any library input or Maven dependency is present.
+    public var hasLibraryInputs: Bool { !dependencies.isEmpty || !libraries.isEmpty }
 
     public init(
         sdkPath: String? = nil,
