@@ -151,6 +151,34 @@ extension JVMBackendTests {
         }
     }
 
+    // Regression: Float/Double.toBits()/toRawBits() were once declared both in
+    // Stdlib/jvm/kotlin/Numbers.kt (runtimeFacade kotlin.NumbersKt) and in
+    // Stdlib/jvm/declarations/Numbers.kt. The duplicate JVM-erased callables
+    // (KSWIFTK-SEMA-0001) broke every `--emit jar` and `--stdlib-only --emit jar`
+    // build. The own-stdlib jar must build and all four functions — explicit and
+    // implicit-receiver — must resolve and match kotlinc's inlined bit intrinsics.
+    @Test
+    func ownStdlibBitReinterpretFunctionsBuildAndRun() throws {
+        let library = try ownStdlibLibrary()
+        try withWorkspace { root in
+            let consumer = """
+            fun Double.implicitToBits(): Long = toBits()
+            fun main() {
+                println(1.5f.toBits())
+                println(1.5f.toRawBits())
+                println(1.5.toBits())
+                println(1.5.toRawBits())
+                println(1.5.implicitToBits())
+            }
+            """
+            let app = try m22Build(root: root, sources: [("consumer.kt", consumer)], name: "app.jar", mode: .jvmJar)
+            try #require(app.1 == 0, "\(app.2.map(\.message))")
+            let run = try java(["-cp", app.0.path + ":" + library.path, "ConsumerKt"])
+            #expect(run.stdout == "1069547520\n1069547520\n4609434218613702656\n4609434218613702656\n4609434218613702656\n")
+            #expect(run.stderr.isEmpty)
+        }
+    }
+
     private static let ownStdlibCases = [
         "inferredMutableCallableReferences",
         "reflectionParameterNames",
