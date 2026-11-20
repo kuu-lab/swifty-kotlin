@@ -13,12 +13,14 @@ extension JVMBackendTests {
         let library = ("SynthLib.kt", """
             package synth
 
+            import kotlin.jvm.JvmName
             import kotlin.jvm.JvmStatic
             import kotlin.jvm.JvmSynthetic
 
             class SynthLib {
                 fun visible(x: Int): Int = x + 1
                 @JvmSynthetic fun hidden(x: Int): Int = x + 2
+                @JvmSynthetic @JvmName("renamedSynthetic") fun namedSynthetic(x: Int): Int = x + 7
 
                 companion object {
                     @JvmStatic fun compVisible(x: Int): Int = x + 3
@@ -55,6 +57,9 @@ extension JVMBackendTests {
             // The @JvmStatic forwarder follows the companion function's annotation.
             #expect(isSynthetic(libraryDump.stdout, signature: "int compHidden(int);") == true)
             #expect(isSynthetic(libraryDump.stdout, signature: "int compVisible(int);") == false)
+            // @JvmName + @JvmSynthetic: both the impl and the renamed adapter are synthetic.
+            #expect(isSynthetic(libraryDump.stdout, signature: "int namedSynthetic$jvmName$renamedSynthetic(int);") == true)
+            #expect(isSynthetic(libraryDump.stdout, signature: "int renamedSynthetic(int);") == true)
 
             let companionDump = try javap(["-v", "-p", "-classpath", classes.path, "synth.SynthLib$Companion"])
             #expect(companionDump.exitCode == 0, "\(companionDump.stderr)")
@@ -75,6 +80,7 @@ extension JVMBackendTests {
                 public static void main(String[] args) {
                     SynthLib s = new SynthLib();
                     System.out.println(s.hidden(1));
+                    System.out.println(s.namedSynthetic(1));
                     System.out.println(SynthLib.compHidden(1));
                     System.out.println(SynthLibKt.topHidden(1));
                 }
@@ -128,6 +134,7 @@ extension JVMBackendTests {
             fun main() {
                 val s = SynthLib()
                 println(s.hidden(1))
+                println(s.namedSynthetic(1))
                 println(s.visible(1))
                 println(SynthLib.compHidden(1))
                 println(SynthLib.compVisible(1))
@@ -141,7 +148,31 @@ extension JVMBackendTests {
                 "-cp", callerRoot.appendingPathComponent("classes").path + ":" + classes.path, "HelloKt",
             ])
             #expect(execution.exitCode == 0, "\(execution.stderr)")
-            #expect(execution.stdout == "3\n2\n5\n4\n6\n7\n")
+            #expect(execution.stdout == "3\n8\n2\n5\n4\n6\n7\n")
+
+            // kotlinc must resolve each Kotlin signature exactly once: duplicated
+            // metadata entries make its overload resolution ambiguous.
+            let consumer = root.appendingPathComponent("Consumer.kt")
+            try """
+            import synth.*
+
+            fun main() {
+                val s = SynthLib()
+                println(s.hidden(1))
+                println(s.namedSynthetic(1))
+                println(SynthLib.compHidden(1))
+                println(topHidden(1))
+            }
+            """.write(to: consumer, atomically: true, encoding: .utf8)
+            let runtime = try m11Runtime()
+            var kotlincAccepted = false
+            do {
+                _ = try jvmTool("kotlinc", [consumer.path, "-cp", classes.path + ":" + runtime, "-d", root.appendingPathComponent("consumer-out").path], root: root)
+                kotlincAccepted = true
+            } catch {
+                #expect(Bool(false), "kotlinc rejected the KSwiftK library: \(error)")
+            }
+            #expect(kotlincAccepted)
         }
     }
 }
