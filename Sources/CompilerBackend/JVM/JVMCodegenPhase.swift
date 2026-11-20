@@ -10,7 +10,6 @@ final class JVMCodegenPhase: CompilerPhase {
             throw CompilerPipelineError.outputUnavailable
         }
         do {
-            // Validate and construct all bytes before touching the destination.
             let target = ctx.options.jvmTarget
             let classIndex = JVMClassFile.ClassIndex(program)
             let classFile = try JVMClassFile.emit(program, target: target, javaParameters: ctx.options.javaParameters, classIndex: classIndex)
