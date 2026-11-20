@@ -50,6 +50,17 @@ extension JVMBackendTests {
     }
 
     @Test
+    func launcherNotePrintedByProgramIsKept() {
+        let environment = ["JDK_JAVA_OPTIONS": "-Xmx1g", "JAVA_TOOL_OPTIONS": "-Xmx2g"]
+        let jdkNote = "NOTE: Picked up JDK_JAVA_OPTIONS: -Xmx1g\n"
+        let toolNote = "Picked up JAVA_TOOL_OPTIONS: -Xmx2g\n"
+        // The toolchain prints each note once; a program repeating the same line
+        // afterwards is program stderr and must survive.
+        let result = CommandResult(exitCode: 0, stdout: "", stderr: jdkNote + toolNote + toolNote + "real\n")
+        #expect(result.withoutJavaLauncherNotes(environment: environment).stderr == toolNote + "real\n")
+    }
+
+    @Test
     func programStderrIsStillDetectedAfterLauncherNotes() throws {
         try withWorkspace { root in
             try """

@@ -16,11 +16,15 @@ extension CommandResult {
     func withoutJavaLauncherNotes(environment: [String: String]) -> CommandResult {
         var stderr = self.stderr
         let notes = javaLauncherNoteCandidates(in: environment)
+        // The launcher/VM print each note at most once, before program output;
+        // consume each candidate once so program output resembling a note is kept.
+        var consumed = Set<Int>()
         var removedAny = true
         while removedAny {
             removedAny = false
-            for note in notes where stderr.hasPrefix(note) {
+            for (index, note) in notes.enumerated() where !consumed.contains(index) && stderr.hasPrefix(note) {
                 stderr.removeFirst(note.count)
+                consumed.insert(index)
                 removedAny = true
             }
         }
