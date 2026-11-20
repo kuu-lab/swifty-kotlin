@@ -4,7 +4,6 @@ import Testing
 @testable import CompilerTestSupport
 
 extension ASTModelsTests {
-    // MARK: - Expr variants
 
     @Test
     func testExprIntLiteral() {
@@ -524,8 +523,6 @@ extension ASTModelsTests {
             #expect(label == interner.intern("Outer"))
         } else { Issue.record("Expected .thisRef with label") }
     }
-
-    // MARK: - ASTArena expr() method
 
     @Test
     func testASTArenaExprLookup() {
