@@ -1,7 +1,5 @@
 import Foundation
 
-/// All branch targets are stack-neutral. Conditional branches use a short
-/// inverted test over goto_w, so large methods never truncate branch offsets.
 struct JVMAssembler {
     var code = JVMBytes()
     var labels: [Int: Int] = [:]
