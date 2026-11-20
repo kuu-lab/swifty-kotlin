@@ -4,7 +4,6 @@ import Testing
 
 @Suite
 struct KlibManifestTests {
-    // MARK: - Java properties parsing
 
     @Test
     func propertiesParseBasicForms() throws {
@@ -37,8 +36,6 @@ struct KlibManifestTests {
         let dict = Dictionary(pairs, uniquingKeysWith: { _, last in last })
         #expect(dict["a"] == "2")
     }
-
-    // MARK: - KlibManifest
 
     @Test
     func manifestRequiresUniqueName() {
@@ -75,8 +72,6 @@ struct KlibManifestTests {
         let manifest = try KlibManifest(contents: "unique_name=d\ncompiler_version=2.4.20-dev-7885\n")
         #expect(manifest.compilerVersion == KlibManifest.Version("2.4.20"))
     }
-
-    // MARK: - Compatibility gate
 
     @Test
     func compatibilitySupportedAbi() throws {
