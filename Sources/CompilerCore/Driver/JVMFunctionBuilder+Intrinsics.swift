@@ -316,18 +316,6 @@ extension JVMFunctionBuilder {
 
     func intrinsicMember(_ receiverID: ExprID, name: InternedString, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
         let member = context.interner.resolve(name)
-        if ["toRawBits", "toBits"].contains(member), args.isEmpty,
-           let sourceType = try? program.expressionType(receiverID),
-           sourceType == .double || sourceType == .float
-        {
-            let value = try requireValue(receiverID)
-            if sourceType == .double {
-                let jdkName = member == "toRawBits" ? "doubleToRawLongBits" : "doubleToLongBits"
-                return JVMIntrinsicResult(value: try jdkCall("java/lang/Double", jdkName, [.double], .long, arguments: [value]))
-            }
-            let jdkName = member == "toRawBits" ? "floatToRawIntBits" : "floatToIntBits"
-            return JVMIntrinsicResult(value: try jdkCall("java/lang/Float", jdkName, [.float], .int, arguments: [value]))
-        }
         if member == "readBytes", args.isEmpty, let callee = program.sema.bindings.callBinding(for: id)?.chosenCallee,
            program.sema.symbols.externalLinkName(for: callee) == "__kk_input_stream_readAllBytes" {
             return JVMIntrinsicResult(value: try jdkCall(
