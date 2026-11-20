@@ -161,6 +161,39 @@ extension JVMBackendTests {
         }
     }
 
+    /// `runFrontend` (analysis without codegen) also compiles Android Java
+    /// sources, so it must install the runtime-jar provider the way the full
+    /// pipeline does.
+    @Test
+    func frontendOnlyRunCompilesJavaSourcesAgainstTheRuntimeJar() throws {
+        try withWorkspace { root in
+            let tools = root.appendingPathComponent("build-tools/36.1.0", isDirectory: true)
+            let platform = root.appendingPathComponent("platforms/android-36.1", isDirectory: true)
+            for directory in [tools, platform] {
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            }
+            try writeFakeAndroidJar(to: platform.appendingPathComponent("android.jar"), root: root)
+            let d8 = tools.appendingPathComponent("d8")
+            try "#!/bin/sh\nexit 0\n".write(to: d8, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: d8.path)
+            let bridge = root.appendingPathComponent("Bridge.java")
+            try "package app; public final class Bridge { public static String mark() { return kotlin.Unit.INSTANCE.toString(); } }"
+                .write(to: bridge, atomically: true, encoding: .utf8)
+            let input = root.appendingPathComponent("Main.kt")
+            try "package app\nfun mark(): String = Bridge.mark()\n".write(to: input, atomically: true, encoding: .utf8)
+            AndroidBuildInputs.runtimeJarProvider = nil
+            var android = AndroidOptions(sdkPath: root.path)
+            android.javaSources = [bridge.path]
+            let options = CompilerOptions(
+                moduleName: "FrontendApp", inputs: [input.path], outputPath: root.appendingPathComponent("app.zip").path,
+                emit: .dex, target: .hostDefault(), includeJVMRuntime: true, android: android
+            )
+            let result = CompilerDriver(backendPhases: makeBackendPhases).runFrontend(options: options)
+            let errors = result.context.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "\(errors.map(\.message))")
+        }
+    }
+
     @Test
     func apkJavaResourceFilterMatchesAGPDefaults() {
         for kept in ["META-INF/services/kotlinx.coroutines.CoroutineExceptionHandler",
