@@ -105,7 +105,7 @@ run_swift_test() {
 run_filter_chunks() {
     local total=$(( $# / 2 ))
     local chunk=1
-    local flag pattern
+    local flag pattern status failed_status=""
 
     while (( $# > 0 )); do
         flag="$1"
@@ -115,11 +115,19 @@ run_filter_chunks() {
         # SwiftPM 6.2 does not reliably combine repeated --filter flags,
         # so each chunk must run as its own swift test invocation.
         echo "shard_swift_tests.sh: running filter chunk ${chunk}/${total}." >&2
-        run_swift_test "$flag" "$pattern" || return $?
+        status=0
+        run_swift_test "$flag" "$pattern" || status=$?
+        if (( status != 0 )); then
+            if [[ "${KSWIFTK_SHARD_CONTINUE_ON_FAILURE:-0}" != "1" ]]; then
+                return "$status"
+            fi
+            echo "shard_swift_tests.sh: filter chunk ${chunk}/${total} failed with $status; continuing." >&2
+            failed_status="$status"
+        fi
         chunk=$(( chunk + 1 ))
     done
 
-    return 0
+    return "${failed_status:-0}"
 }
 
 # Appends --filter args for each alternation chunk read from stdin, wrapped as
@@ -229,7 +237,7 @@ if [[ "$mode" == "dynamic" ]]; then
     # too long" (observed with CompilerBackendTests: 9000+ tests total).
     # SwiftPM 6.2 does not reliably OR repeated --filter flags, so chunk the
     # alternation across multiple invocations instead of one huge argument.
-    chunk_size=400
+    chunk_size="${KSWIFTK_SHARD_DYNAMIC_CHUNK_SIZE:-400}"
     declare -a filter_args=()
     # Swift Testing may append a runtime case path after the identifier
     # printed by `swift test list`; XCTest ends at the listed identifier.
@@ -429,7 +437,7 @@ if (( ${#own_types[@]} > 0 )); then
     if [[ "$will_be_serial" == true ]]; then
         chunk_size=50
     else
-        chunk_size=300
+        chunk_size="${KSWIFTK_SHARD_STATIC_CHUNK_SIZE:-300}"
     fi
     append_filter_chunks "^${target_prefix}\\." "(/|\$)" filter_args < <(
         printf '%s\n' "${own_types[@]}" | chunk_alternations "$chunk_size"
