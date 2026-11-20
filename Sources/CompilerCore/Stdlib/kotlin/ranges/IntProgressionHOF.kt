@@ -6,8 +6,6 @@ import kotlin.internal.KsSymbolName
 import kotlin.native.NoInline
 import kotlin.random.Random
 
-// MIGRATION-RANGE-002: IntProgression higher-order functions, moved verbatim from RangeHOF.kt.
-
 public inline fun IntProgression.forEach(action: (Int) -> Unit) {
     for (element in this) { action(element) }
 }
