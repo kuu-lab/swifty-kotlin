@@ -715,8 +715,7 @@ the command above is the local equivalent.
 `ktor_build.sh` sparse-clones pinned snapshots of Ktor's core `common` source
 sets (`ktor-io`, `ktor-utils`, `ktor-http`) and their kotlinx-io dependency
 into a cache dir outside the repo, compiles each with `kswiftc --emit
-library`, and writes a per-module TSV of diagnostic-code counts (see
-`docs/ktor-build-status.md` for the current gap inventory). It is a
+library`, and writes a per-module TSV of diagnostic-code counts. It is a
 diagnostic probe, not a CI-wired regression test — a module failing to
 compile is expected until the remaining gaps close.
 
