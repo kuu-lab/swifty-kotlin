@@ -973,7 +973,7 @@ extension BuildASTPhase {
         }
         var candidateModifiers: Modifiers = []
         var modifierEntries: [(element: Modifiers.Element, name: String, range: SourceRange)] = []
-        for token in modifierPrefixTokens {
+        for token in Self.tokensOutsideAnnotationArguments(modifierPrefixTokens) {
             if token.kind == .keyword(.val) || token.kind == .keyword(.var) {
                 diagnoseValVarParameterKeyword(token, site: site)
                 continue
@@ -1163,6 +1163,22 @@ extension BuildASTPhase {
                 }
             }
         }
+    }
+
+    /// The modifier prefix of a parameter also holds its annotations, whose
+    /// argument lists are expressions: in `@SerialName(value = "id")` the
+    /// `value` is a named argument, not the `value` modifier.
+    static func tokensOutsideAnnotationArguments<S: Sequence>(_ tokens: S) -> [Token] where S.Element == Token {
+        var depth = 0
+        var result: [Token] = []
+        for token in tokens {
+            switch token.kind {
+            case .symbol(.lParen): depth += 1
+            case .symbol(.rParen): depth = max(0, depth - 1)
+            default: if depth == 0 { result.append(token) }
+            }
+        }
+        return result
     }
 
     private func emitParameterModifierConflict(_ name: String, partner: String, range: SourceRange) {
