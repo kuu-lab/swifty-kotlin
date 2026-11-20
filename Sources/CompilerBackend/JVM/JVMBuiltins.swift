@@ -1,8 +1,5 @@
 import Foundation
 
-/// Kotlin compilers resolve mapped JVM types through built-in package fragments.
-/// These fragments describe this bootstrap library's supported API; no bytes are
-/// read from an installed Kotlin distribution.
 enum JVMBuiltins {
     private final class Fragment {
         typealias Proto = JVMMetadata.Proto
