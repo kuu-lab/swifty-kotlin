@@ -1,8 +1,4 @@
 extension CallTypeChecker {
-    /// A qualified member import binds the named singleton, whereas lookup
-    /// through a nullable implicit receiver must still check that receiver.
-    /// Imported extensions keep their declared receiver even when their
-    /// bundled owner is an object after header collection.
     func importedObjectDispatchReceiverCandidates(
         named name: InternedString?,
         candidates: [SymbolID],
@@ -20,9 +16,6 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext
     ) -> [SymbolID: SymbolID] {
         guard let name, let file = ctx.currentASTFile else { return [:] }
-        // Wildcard imports of a JDK static facade (`import java.lang.Math.*`)
-        // contribute the facade object's members at wildcard priority, so they
-        // must also supply the object dispatch receiver (KUU-4008).
         let imports = file.imports.filter {
             $0.isWildcard || ($0.alias ?? $0.path.last) == name
         }
@@ -48,9 +41,6 @@ extension CallTypeChecker {
             else { continue }
 
             for importDecl in imports {
-                // A named import ends in the member name, so the dispatch
-                // owner is the path's parent; a wildcard import of a static
-                // facade names the owner itself (`import java.lang.Math.*`).
                 let ownerPath: [InternedString]
                 if importDecl.isWildcard {
                     ownerPath = importDecl.path
@@ -59,8 +49,6 @@ extension CallTypeChecker {
                     ownerPath = Array(importDecl.path.dropLast())
                 }
                 let importedObjects = ctx.sema.symbols.lookupAll(fqName: ownerPath)
-                // A Java class exposes its static methods through a projected
-                // companion, but imports name the class as the declaring owner.
                 if ctx.sema.symbols.isJVMJavaMethod(candidate),
                    importedObjects.contains(where: {
                        ctx.sema.symbols.companionObjectSymbolIfKnown(for: $0) == dispatchOwner
@@ -80,8 +68,6 @@ extension CallTypeChecker {
         return result
     }
 
-    /// Member extensions still need their source-level extension receiver,
-    /// but an import through an object also supplies its dispatch receiver.
     func importedObjectDispatchReceiverTypes(
         named name: InternedString?,
         candidates: [SymbolID],
@@ -102,14 +88,6 @@ extension CallTypeChecker {
         let lambdaLiteralIndices: Set<Int>
         let inputOnlyLambdaIndices: Set<Int>
         let blockedLambdaRefinement: Bool
-        /// True when a bare (no declared parameter list) lambda argument relies on an
-        /// implicit single parameter (`it`) whose type can't be fixed before overload
-        /// resolution, because the remaining candidates each expect exactly one
-        /// parameter but disagree on its type (DEBT-SEMA-004). Unlike
-        /// `blockedLambdaRefinement`, which only forces an ambiguity diagnostic when a
-        /// candidate opts in via `@OverloadResolutionByLambdaReturnType`, this case is
-        /// unresolvable regardless of that annotation: there is no locally-known type
-        /// to check the lambda body against.
         let hasUnresolvableImplicitLambdaParameter: Bool
     }
 
@@ -183,17 +161,6 @@ extension CallTypeChecker {
         )
     }
 
-    /// Uses a generic call's expected result to specialize callable-reference
-    /// inputs that use the same type parameter. The reference's return remains
-    /// open for final call inference.
-    ///
-    /// The result can fix a type parameter wherever it occurs in the callee's
-    /// return type — directly (`fun <T> id(f: (T) -> Int): T`) or nested
-    /// inside a composite (`fun <T> make(f: (T) -> Int): (T) -> Int`, whose
-    /// `(T) -> Int` result determines `T` contravariantly). Without the
-    /// composite case a vararg reference such as `::countG` sees an
-    /// unspecialized `(T) -> Int` expectation and binds its scalar vararg
-    /// adaptation instead of the packed-array shape (KUU-3805).
     private func contextualCallableReferenceInputType(
         _ expectation: TypeID,
         callResultType: TypeID?,
@@ -213,9 +180,6 @@ extension CallTypeChecker {
         else { return nil }
 
         let inputs = (function.receiver.map { [$0] } ?? []) + function.params + function.contextReceivers
-        // Function-level type parameters that the call's expected result can
-        // fix: each occurs in the callee's return type and in the reference's
-        // inputs, while the reference's own return stays open.
         let resultParameters: [(symbol: SymbolID, index: Int)] = signature.typeParameterSymbols
             .enumerated()
             .compactMap { index, symbol in
@@ -391,9 +355,6 @@ extension CallTypeChecker {
                 continue
             }
             argumentCtx.callArgumentExprBeingInferred = argument.expr
-            // Anonymous functions are blocks around a synthetic local function
-            // and callable reference. Defer them like callable references so
-            // their declaration body is first checked with the parameter type.
             if ast.arena.isAnonymousFunction(argument.expr) {
                 continue
             }
@@ -403,10 +364,6 @@ extension CallTypeChecker {
             case .callableRef:
                 break
             case .intLiteral:
-                // Always re-infer an unsuffixed int literal against the surviving
-                // candidates' parameter type, even if a previous pass already gave
-                // it a default Int. This lets member calls like
-                // `shortArray.binarySearch(20)` narrow to Short/Byte.
                 let literalExpectedType = uniformNumericLiteralParameterType(
                     at: index,
                     argumentLabel: argument.label,
@@ -417,9 +374,6 @@ extension CallTypeChecker {
                     argument.expr, ctx: argumentCtx, locals: &locals, expectedType: literalExpectedType
                 )
             case .uintLiteral:
-                // Contextualize suffixed unsigned literals too. Kotlin narrows
-                // constants such as 1u to UByte/UShort parameters when the value
-                // fits, which is needed by source-backed unsigned extensions.
                 let literalExpectedType = uniformUnsignedLiteralParameterType(
                     at: index,
                     argumentLabel: argument.label,
@@ -438,9 +392,6 @@ extension CallTypeChecker {
                     }
                     continue
                 }
-                // Constant-folded unary +/- over an int literal should see the
-                // candidates' parameter type, just like a bare int literal, so
-                // `byteArrayOf(1, -1)` and `shortArrayOf(1, -1)` resolve.
                 let literalExpectedType = uniformNumericLiteralParameterType(
                     at: index,
                     argumentLabel: argument.label,
@@ -484,9 +435,6 @@ extension CallTypeChecker {
                     let emittedError = sema.diagnostics.diagnostics.dropFirst(diagnosticsCheckpoint).contains {
                         $0.severity == .error
                     }
-                    // A lifted covariant result supplies a hint, not an exact
-                    // argument requirement. A fixed Box<Int> factory can fail
-                    // against Box<Any> while still satisfying the outer Base<Any>.
                     if expectedTypeHintIndices.contains(index),
                        contextualType == sema.types.errorType || emittedError {
                         sema.diagnostics.rollback(to: diagnosticsCheckpoint)
@@ -498,12 +446,6 @@ extension CallTypeChecker {
                         continue
                     }
                     if contextualType == sema.types.errorType || emittedError {
-                        // The override is only a contextual hint: an argument
-                        // that cannot be inferred under it may still resolve
-                        // plainly, letting an inapplicable member fall through
-                        // to an extension overload (KUU-4188). Roll back the
-                        // failed pass's diagnostics and re-infer without the
-                        // hint, the same recovery the hint indices above use.
                         sema.diagnostics.rollback(to: diagnosticsCheckpoint)
                         removedDiagnostics.forEach { sema.diagnostics.emit($0) }
                         discardedExpectedTypeHintIndices.insert(index)
@@ -526,8 +468,6 @@ extension CallTypeChecker {
             }
         }
 
-        // Class-name values must denote their companions before they constrain
-        // receiver lambdas, e.g. the block in `with(Duration) { ... }`.
         for (index, argument) in args.enumerated() {
             if let type = inferredNonLambdaArgTypes[index],
                let companionType = driver.helpers.retypeClassNameAsCompanionValue(
@@ -550,8 +490,6 @@ extension CallTypeChecker {
             blockedLambdaRefinement = true
         }
 
-        // Resolve source function returns only after header-based argument
-        // pruning, so an inapplicable same-named overload cannot look recursive.
         if candidates.contains(where: {
             driver.inferredReturnFunctions[$0] != nil
                 && !driver.checkedInferredReturnFunctions.contains($0)
@@ -570,10 +508,6 @@ extension CallTypeChecker {
             }
         }
 
-        // Each argument's expected type is computed and applied before moving to
-        // the next one, so an already-inferred lambda constrains the arguments
-        // that follow it: in `fold({ k, e -> ... }, { k, acc, e -> ... })` the
-        // accumulator type is only pinned down by the first lambda's return type.
         var argTypes = [TypeID](repeating: sema.types.errorType, count: args.count)
         for (index, argument) in args.enumerated() {
             defer { ctx.dataFlow.localStability.inPlaceLambdaScopes.remove(argument.expr) }
@@ -655,8 +589,6 @@ extension CallTypeChecker {
                         )
                     }
                 case .callableRef:
-                    // Keep the reference's return type for final call inference;
-                    // the outer result can still specialize matching input parameters.
                     contextualArgExpectedTypes[index] = contextualCallableReferenceArgumentType(
                         at: index,
                         argumentLabel: argument.label,
@@ -694,10 +626,6 @@ extension CallTypeChecker {
                         ctx: ctx
                     )
                 case let .binary(op, _, _, _) where op == .elvis:
-                    // Elvis branches need the candidate parameter type, e.g.
-                    // `resumeWith(throwable?.let { Result.failure(it) } ?: RESUME)`
-                    // where `Result.failure`'s return-only `T` is only
-                    // determinable from `resumeWith`'s `Result<T>` parameter.
                     contextualArgExpectedTypes[index] = uniformContextualParameterType(
                         for: argument,
                         at: index,
@@ -706,7 +634,6 @@ extension CallTypeChecker {
                         ctx: ctx
                     )
                 case let .lambdaLiteral(lambdaParams, _, _, _):
-                    // Prove non-escaping invocation before checking the lambda body.
                     markInPlaceLambdaScopeIfApplicable(
                         argument.expr,
                         at: index,
@@ -727,16 +654,6 @@ extension CallTypeChecker {
                         sema: sema,
                         ctx: ctx
                     )
-                    // For a generic scope function such as `T.let(block: (T) -> R): R`,
-                    // the expected call result fixes R before the lambda body is
-                    // inferred. Keep the receiver-derived T in the expected lambda
-                    // while replacing only its matching return type parameter.
-                    // Use the same narrowed candidates that supplied the lambda shape:
-                    // an inapplicable unqualified extension must not hide this context.
-                    // An Elvis LHS result may stay nullable (`x?.let { ... } ?: fb`),
-                    // so its expected type only bounds R from above; forcing the
-                    // non-null form would reject a legitimately nullable body
-                    // before overload resolution can pick `R = T?` (KUU-4279).
                     let contextualLambdaType = contextualCallableArgumentType(
                         expectation.type,
                         callResultType: ctx.isElvisBranchExpectedTypeHint
@@ -807,11 +724,6 @@ extension CallTypeChecker {
                     }
                     if expectation.blocksRefinement {
                         blockedLambdaRefinement = true
-                        // A lambda with no declared parameter list (`{ it }` or `{ ... }`)
-                        // has no locally-known type to fall back on; if the surviving
-                        // candidates each want exactly one parameter but disagree on its
-                        // type, there is no way to check the body without guessing which
-                        // overload was meant.
                         if lambdaParams.isEmpty,
                            expectation.hasAmbiguousImplicitParameterShape,
                            lambdaBodyUsesImplicitIt(argument.expr, ctx: ctx)
@@ -935,8 +847,6 @@ extension CallTypeChecker {
         }
 
         let refinedArgTypes = args.enumerated().map { index, argument -> TypeID in
-            // Infer generic SAM arguments from the lambda's actual function
-            // inputs, rather than its provisional interface containing free T.
             if lambdaLiteralIndices.contains(index),
                case .classType = sema.types.kind(of: argTypes[index]),
                sema.bindings.isSamConversion(argument.expr),
@@ -951,7 +861,6 @@ extension CallTypeChecker {
                 return functionType
             }
             let type = argTypes[index]
-            // A bare `ClassName` argument denotes the class's companion object.
             if !lambdaLiteralIndices.contains(index),
                let companionType = driver.helpers.retypeClassNameAsCompanionValue(
                    argument.expr, currentType: type, ast: ast, sema: sema
@@ -974,14 +883,6 @@ extension CallTypeChecker {
         )
     }
 
-    /// A nested SAM constructor call like `Sup { 7 }` produces a value whose
-    /// type IS the bound interface, so the outer call must check it directly
-    /// (`listOf<Sup>(Sup { 7 })` needs `Sup <: Sup`, not `() -> Int <: Sup`,
-    /// KUU-4027). The lambda's function type is only the right witness when
-    /// the interface's own type arguments still depend on the enclosing
-    /// call's inference — a star projection or one of the call's type
-    /// variables inside the bound interface type, e.g. `Converter<String, R>`
-    /// in `apply(Converter { it }, "abc")`.
     private func samConstructorArgumentNeedsFunctionTypeWitness(
         for samLambda: ExprID,
         candidates: [SymbolID],
@@ -1008,11 +909,6 @@ extension CallTypeChecker {
         )
     }
 
-    /// Resolution funnel for argument-bearing calls. Wraps the resolver so a
-    /// nested-call argument whose own inference failure was already reported —
-    /// a bare `emptyList()` carrying `KSWIFTK-SEMA-INFER` — can still be
-    /// rescued when the *chosen* candidate's parameter pins its type the way
-    /// kotlinc's joint inference does (KUU-4002).
     func resolveCallRespectingLambdaReturnType(
         candidates: [SymbolID],
         args: [CallArgument],
@@ -1096,21 +992,9 @@ extension CallTypeChecker {
             calleeName: calleeName,
             args: resolvedArgs,
             explicitTypeArgs: explicitTypeArgs,
-            // `import C.fi` supplies C as the dispatch receiver for member
-            // extensions too: `x.fi()` must specialize the declaring generic
-            // owner (`C : I<String>` binds `T`). The bound-object set stays
-            // gated — it rewrites `implicitReceiverType` for ordinary members,
-            // which only unqualified import calls opt into (KUU-4510).
             dispatchReceiverTypes: additionalDispatchReceiverTypes
                 + importedObjectDispatchReceiverTypes(named: calleeName, candidates: candidates, ctx: ctx)
                 + ctx.implicitReceiverMemberLookupEntries().map {
-                    // Inside a builder-inference callback an implicit receiver
-                    // can still hold the outer call's unsolved variables
-                    // (`Scope<E>` from `binding`'s receiver parameter). Once
-                    // the body's earlier evidence pinned them — e.g. a member
-                    // extension's receiver match — resolution must see the
-                    // solved owner so member-extension class parameters bind
-                    // to the concrete argument (KUU-4079).
                     resolvedBuilderInferenceType($0.type, ctx: ctx)
                 },
             boundObjectDispatchReceiverCandidates: additionalBoundObjectDispatchReceiverCandidates.union(
@@ -1127,8 +1011,6 @@ extension CallTypeChecker {
             driver.inferredReturnFunctions[$0] != nil
                 && !driver.checkedInferredReturnFunctions.contains($0)
         }) {
-            // Select by receiver and arguments before inferring a return. An
-            // unselected overload must not introduce a false dependency cycle.
             let selection = ctx.resolver.resolveCall(
                 candidates: candidates,
                 call: call,
@@ -1205,9 +1087,6 @@ extension CallTypeChecker {
             )
         }
 
-        // These ambiguity checks only apply when lambda-return-type overload
-        // resolution is actually attempted (inputOnlyLambdaIndices is non-empty).
-        // Running them earlier would incorrectly reject single-candidate calls.
         if functionParameterArgumentPositions.count > 1, hasRefinementAnnotation {
             return ambiguousCallResult(range: range, candidateSymbols: candidates, sema: ctx.sema)
         }
@@ -1256,9 +1135,6 @@ extension CallTypeChecker {
         else {
             return ambiguousCallResult(range: range, candidateSymbols: viableSymbols, sema: ctx.sema)
         }
-        // When all viable candidates share the same input-only HOF shape, the
-        // apparent ambiguity is structural — not semantic. Fall back to the standard
-        // resolver which picks the most specific receiver type.
         if viableSymbols.allSatisfy({
             Self.inputOnlyExternalLinkNames.contains(ctx.sema.symbols.externalLinkName(for: $0) ?? "")
         }) {
@@ -1313,8 +1189,6 @@ extension CallTypeChecker {
     }
 
     func overloadResolutionExpectedType(from expectedType: TypeID?, sema: SemaModule) -> TypeID? {
-        // Unit contexts accept and discard any expression result, so Unit must
-        // not act as a return-type constraint while choosing an overload.
         guard expectedType != sema.types.unitType else {
             return nil
         }
@@ -1354,15 +1228,6 @@ extension CallTypeChecker {
             )))
         }
 
-        // Except for bound object members, a candidate that declares an
-        // extension/member receiver cannot be chosen without an explicit or
-        // implicit receiver -- buildReceiverConstraints rejects it
-        // outright in that case. Without pruning it here too, an unqualified
-        // call such as `measureTimedValue { ... }` still sees an unrelated
-        // same-named extension (e.g. `TimeSource.measureTimedValue`) as a live
-        // candidate for the lambda's expected type, corrupting it even though
-        // that extension can never actually be selected. A present-but-
-        // mismatched receiver is left to final resolution, unchanged.
         let effectiveReceiverType = receiverType ?? ctx.implicitReceiverType
         let candidates = effectiveReceiverType != nil
             ? candidates
@@ -1409,19 +1274,12 @@ extension CallTypeChecker {
                 {
                     continue
                 }
-                // SAM conversion can make a function value applicable even
-                // without a nominal subtype relation. Early tower selection
-                // must leave that decision to contextual argument inference.
                 if forImplicitMemberApplicability,
                    isFunctionTypeLike(inferredType, sema: sema),
                    driver.helpers.samFunctionType(for: parameterType, sema: sema) != nil
                 {
                     continue
                 }
-                // A parameter whose type is still an unsubstituted type
-                // parameter (`initialValue: R`) never passes a subtype check
-                // before inference runs, so judge those positions by shape:
-                // reject incompatible function or nominal type shapes.
                 guard typeMentionsTypeParameter(parameterType, sema: sema) else {
                     return false
                 }
@@ -1438,13 +1296,6 @@ extension CallTypeChecker {
                     return false
                 }
             }
-            // Overloads that differ only in the arity of a function-typed
-            // parameter (Grouping.fold's initialValue vs. initialValueSelector
-            // forms) can be told apart before inference when the lambda spells
-            // out its parameters: a `{ a, b -> ... }` argument can only match a
-            // two-parameter function type. Without this the surviving
-            // candidates disagree on the lambda's shape and no expected type is
-            // pushed into the body, leaving its parameters untyped.
             for (argIndex, argument) in args.enumerated() where !forImplicitMemberApplicability {
                 guard case let .lambdaLiteral(lambdaParams, _, _, _) = ctx.ast.arena.expr(argument.expr)
                 else {
@@ -1466,8 +1317,6 @@ extension CallTypeChecker {
                     }
                     continue
                 }
-                // Without a parameter list, only zero parameters or a single
-                // implicit `it` can be supplied, never two or more.
                 if lambdaParams.isEmpty {
                     if functionType.params.count > 1 {
                         return false
@@ -1479,13 +1328,6 @@ extension CallTypeChecker {
             return true
         }
 
-        // Prune candidates whose declared receiver the call-site receiver can
-        // never satisfy: `onEach` is declared on `Sequence`, `Iterable`,
-        // `Map`, and `CharSequence`, but a `String` receiver can only ever
-        // select the `CharSequence` overload. Infeasible siblings still go
-        // through final resolution unchanged — leaving them in this set only
-        // corrupts the lambda's expected type with irreconcilable parameter
-        // shapes and leaves implicit `it` untyped.
         let receiverFeasible = narrowed.filter { candidate in
             if sema.symbols.symbol(candidate)?.kind == .constructor {
                 return true
@@ -1501,20 +1343,10 @@ extension CallTypeChecker {
         }
         narrowed = receiverFeasible.isEmpty ? narrowed : receiverFeasible
 
-        // Contextualization normally restores the original candidates when
-        // pruning found none. Tower applicability needs the actual empty set,
-        // and must defer every lambda-body preference to the selected tier.
         if forImplicitMemberApplicability {
             return narrowed
         }
 
-        // A bare lambda literal is itself a function value. When overloads
-        // differ between a function-typed parameter and an unconstrained type
-        // parameter at the same position, prefer the function-typed candidates
-        // so the lambda receives a single contextual type. Otherwise a generic
-        // overload can also bind its type parameter to the lambda's function
-        // type, leaving equivalent candidates and untyped `it` parameters in
-        // later lambdas. This is a general shape rule, not a stdlib-name rule.
         let emptyLambdaIndices = args.indices.filter { argIndex in
             guard case let .lambdaLiteral(lambdaParams, _, _, _) = ctx.ast.arena.expr(args[argIndex].expr),
                   lambdaParams.isEmpty
@@ -1576,10 +1408,6 @@ extension CallTypeChecker {
             return lambdaShapeNarrowed
         }
 
-        // A null-only producer has no non-null lower bound from which the
-        // generic `() -> T?` overload can infer T. Kotlin resolves this case
-        // through the bottom-type overload, but that overload must not win for
-        // ordinary producers such as `{ 42 }`.
         let nullOnlyLambdaIndices = emptyLambdaIndices.filter { argIndex in
             lambdaBodyIsNullLiteral(args[argIndex].expr, ctx: ctx)
         }
@@ -1612,8 +1440,6 @@ extension CallTypeChecker {
         return narrowed.isEmpty ? candidates : narrowed
     }
 
-    /// Used only to keep the lambda expected-type candidate set free
-    /// of same-named overloads that final resolution could never select.
     private func receiverConstraintIsFeasible(
         signature: FunctionSignature,
         receiverType: TypeID?,
@@ -1627,11 +1453,6 @@ extension CallTypeChecker {
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
         let nonNullDeclared = sema.types.makeNonNullable(declaredReceiver)
         if case let .typeParam(receiverTypeParam) = sema.types.kind(of: nonNullDeclared) {
-            // Bare type-parameter receiver (`C : Iterable<T>`, `S : CharSequence`):
-            // judge feasibility by the parameter's upper bounds after
-            // substituting the receiver variable itself, so F-bounded contracts
-            // (`T : Comparable<T>`) still hold. Bounds that stay type parameters
-            // (`C : R`) constrain a different variable and are skipped.
             let signatureBounds: [TypeID]
             if let index = signature.typeParameterSymbols.firstIndex(of: receiverTypeParam.symbol),
                signature.typeParameterUpperBoundsList.indices.contains(index) {
@@ -1681,8 +1502,6 @@ extension CallTypeChecker {
         guard let declaredClass = resolveClassType(nonNullDeclared, sema: sema),
               let actualClass = resolveClassType(nonNullReceiver, sema: sema)
         else {
-            // Non-nominal actual receiver (e.g. primitive String) or an opaque
-            // declared receiver: fall back to the subtype oracle.
             return sema.types.isSubtype(nonNullReceiver, nonNullDeclared)
         }
         return declaredClass.classSymbol == actualClass.classSymbol
@@ -1692,11 +1511,6 @@ extension CallTypeChecker {
             )
     }
 
-    /// Whether the only candidate for the call declares this argument as a
-    /// function type whose parameter types are written out concretely in source
-    /// (no type parameter left for inference to substitute). Such a signature
-    /// is authoritative even where it says `Any`, unlike the `Any` inference
-    /// falls back to when a type variable stays unsolved (BUG-163).
     private func declaresConcreteLambdaParameterTypes(
         at index: Int,
         args: [CallArgument],
@@ -1760,9 +1574,6 @@ extension CallTypeChecker {
         ctx.dataFlow.localStability.inPlaceLambdaScopes.insert(exprID)
     }
 
-    /// Preserves the declared type-parameter return target (`() -> T`) for KIR
-    /// erased-generic claim checks even when contextual propagation replaces it
-    /// with a call-result type (`() -> Any?`).
     private func recordLambdaDeclaredReturnExpectationIfErased(
         _ exprID: ExprID,
         expectationType: TypeID?,
@@ -1895,11 +1706,6 @@ extension CallTypeChecker {
                 sema: sema
             ) ?? expectation
         }
-        // The discarded call result can guide a generic lambda result only
-        // when the type parameter is not already constrained by another
-        // argument. For example, `minOfWith(Comparator<Int>()) { ... }` must
-        // keep the selector result as Int even when the whole call is coerced
-        // to Unit by an enclosing lambda.
         if let argumentIndex,
            let lambdaParameterIndex = parameterIndexForCallArgument(
                at: argumentIndex, label: argumentLabel, in: signature, sema: sema
@@ -1925,8 +1731,6 @@ extension CallTypeChecker {
                 }
             }
         }
-        // The call result is an upper constraint, not an equality. A broad
-        // expected result must not replace a stricter declaration bound.
         var contextualResult = callResultType
         let parameterIndex = signature.typeParameterSymbols.firstIndex(of: resultParameter.symbol)
         let declaredBounds = parameterIndex.flatMap {
@@ -1946,12 +1750,6 @@ extension CallTypeChecker {
         )))
     }
 
-    /// Collection HOFs return the lambda's result through a class type
-    /// (`Iterable<R>.flatMap` -> `List<R>`) instead of a bare type parameter.
-    /// When the expected call result determines the corresponding type
-    /// argument, substitute it into the lambda's expected return type so a
-    /// nested generic call in the body can infer its own type arguments
-    /// (KUU-4464).
     private func contextualNestedResultLambdaType(
         _ expectation: TypeID?,
         callResultType: TypeID?,
@@ -2031,13 +1829,6 @@ extension CallTypeChecker {
         )))
     }
 
-    /// Per-candidate contextual type for a lambda argument when the call's
-    /// surviving candidates disagree on the lambda's function type. The
-    /// expected call result constrains the candidate's return type parameters
-    /// (e.g. `Iterable<T>.flatMap`'s `R` through `List<R> <: Iterable<T>`),
-    /// which then specializes the lambda's expected parameter type so a
-    /// nested generic call in the body can infer its own type arguments
-    /// (KUU-4464).
     private func contextualLambdaExpectedTypeForCandidate(
         signature: FunctionSignature,
         argumentIndex: Int,
