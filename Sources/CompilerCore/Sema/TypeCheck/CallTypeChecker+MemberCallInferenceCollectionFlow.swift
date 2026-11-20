@@ -6,19 +6,9 @@ extension CallTypeChecker {
         receiverType: TypeID,
         locals: inout LocalBindings
     ) -> TypeID? {
-        // `recv.name` without parentheses is property-access syntax: it can
-        // only bind a property (or accessor), never one of the collection
-        // functions this fast path models. A same-named extension property
-        // must win over `first()`/`last()`/`count()` here, and when no
-        // property applies regular resolution still binds the function so
-        // enforceFunctionInvocationSyntax reports SEMA-0309 (KUU-4387).
         if request.args.isEmpty, !request.ast.arena.isExplicitCall(request.id) {
             return nil
         }
-        // Primitive-array source members are bundled Kotlin extensions, not collection or
-        // sequence operations. Unsigned arrays currently also classify as
-        // synthetic sequences, so let exact primitive-array source lookup run
-        // before the generic collection-flow fast path.
         if !collectPrimitiveArraySourceMembers(
             named: request.calleeName,
             receiverType: receiverType,
@@ -36,10 +26,6 @@ extension CallTypeChecker {
         ).isEmpty {
             return nil
         }
-        // Fallback for receivers that were never routed through a `flow { }`/operator
-        // call (e.g. a user function declared `fun f(): Flow<Int>`), so the
-        // `isFlowExpr`/`isFlowSymbol` bindings were never marked. Recover the
-        // same information directly from the receiver's inferred class type.
         let flowClassSymbol = request.sema.symbols.lookup(fqName: [
             request.interner.intern("kotlinx"), request.interner.intern("coroutines"),
             request.interner.intern("flow"), request.interner.intern("Flow"),
@@ -74,10 +60,6 @@ extension CallTypeChecker {
                 return nil
             }
         }
-        // Prefer the instantiated receiver type when it is available. Flow
-        // expressions can retain the builder's generic element variable in
-        // flowElementType even after an explicit call type argument (for
-        // example flowOf<Int>(...)) has fixed the public receiver to Flow<Int>.
         let flowElementType: TypeID = if let firstArg = receiverFlowClassType?.args.first {
             switch firstArg {
             case let .invariant(t), let .out(t), let .in(t):
@@ -131,12 +113,9 @@ extension CallTypeChecker {
             request.sema.types.makeNonNullable(receiverType),
             sema: request.sema
         )
-        // Concrete collection receivers retain their existing owner-specific paths.
         let isIterableIndexReceiver = !isSequenceReceiver
             && !receiverClassifier.isCollectionLikeType(receiverType)
             && receiverClassifier.isNominalIterableType(receiverType)
-        // Range/Progression aggregates have an independent runtime dispatch
-        // family. Keep that ownership out of the Iterable source migration.
         let isRangeReceiver = MemberRuntimeDispatch.rangeReceiverKind(
             receiverExpr: request.receiverID,
             receiverType: receiverType,
@@ -152,8 +131,6 @@ extension CallTypeChecker {
             && request.args.isEmpty
             && request.knownNames.progressionFirstLastMemberNames.contains(request.calleeName)
         let isActiveCollectionHOFName: Bool = {
-            // zip is source-backed. Regular overload resolution must validate the
-            // other collection/Sequence argument and respect user extensions.
             guard request.knownNames.collectionHOFNames.contains(request.calleeName),
                   request.calleeName != request.knownNames.zip
             else { return false }
@@ -179,8 +156,6 @@ extension CallTypeChecker {
         }()
         let calleeStr = request.interner.resolve(request.calleeName)
         if calleeStr == "flatten", !isSequenceReceiver {
-            // Let overload resolution choose between List<List<T>> and
-            // Iterable<Iterable<T>> using the nested receiver's variance.
             return nil
         }
         let isPrimitiveOperatorReducerReference: Bool = {
@@ -206,10 +181,6 @@ extension CallTypeChecker {
                 return false
             }
         }()
-        // Explicit or annotated List.reduce calls need ordinary applicability
-        // and distinct S/T types. Unannotated binary lambdas and primitive
-        // operator references without type arguments use the receiver element
-        // context (S = T).
         if calleeStr == "reduce",
            let listOwner = request.sema.symbols.lookupNominal(fqName: request.knownNames.kotlinCollectionsListFQName),
            driver.helpers.allNominalSymbols(of: receiverType, types: request.sema.types, symbols: request.sema.symbols).contains(where: {
@@ -259,11 +230,6 @@ extension CallTypeChecker {
                 return nil
             }
         }
-        // KUU-4476: the fast path below only models the bundled
-        // `partition(predicate)` shape — `case "partition"` binds anyType for
-        // any other arity. A user-declared `partition` extension (e.g.
-        // kotlin-result's zero-argument `Iterable<Result<V, E>>.partition()`)
-        // must reach regular overload resolution instead.
         if calleeStr == "partition",
            hasUserDefinedCollectionExtensionCandidate(
                named: request.calleeName,
@@ -276,10 +242,6 @@ extension CallTypeChecker {
         {
             return nil
         }
-        // Sequence.flatMapTo/flatMapIndexedTo have Iterable and Sequence
-        // transform overloads; a user-declared extension with the same name
-        // must reach regular overload resolution instead of the bundled
-        // stdlib binding below.
         if isSequenceReceiver,
            calleeStr == "flatMapTo" || calleeStr == "flatMapIndexedTo",
            hasUserDefinedCollectionExtensionCandidate(
@@ -293,10 +255,6 @@ extension CallTypeChecker {
         {
             return nil
         }
-        // KUU-1926: the collection HOF fast path only infers count's result
-        // type for Collection/Iterable receivers, leaving the callee unbound.
-        // Use regular overload resolution for the bundled Iterable declarations
-        // so predicate checking and inline non-local returns retain their contract.
         if calleeStr == "count",
            (isCollectionReceiver || isIterableReceiver),
            !isSequenceReceiver,
@@ -316,10 +274,6 @@ extension CallTypeChecker {
             return nil
         }
         let isIterableIndexFamilyHOF = ["indexOf", "indexOfFirst", "indexOfLast"].contains(calleeStr)
-        // KSP-983: a nominal Iterable receiver must use the exact bundled
-        // Iterable max-family declarations. Let regular overload resolution
-        // select the Comparable/Float/Double and lambda-return overloads;
-        // concrete List/Set/Map/Sequence paths remain under their own owners.
         if request.knownNames.iterableMaxFamilyNames.contains(request.calleeName),
            (isCollectionReceiver || isIterableReceiver),
            !isSequenceReceiver,
@@ -344,9 +298,6 @@ extension CallTypeChecker {
                 || (calleeStr == "none" && isIterableReceiver)
                 || (calleeStr == "asSequence" && isIterableReceiver)
                 || ((calleeStr == "runningReduce" || calleeStr == "runningReduceIndexed") && isIterableReceiver))
-            // Array.map has a dedicated bundled Array extension. Keep vararg
-            // Array receivers on regular overload resolution so the source
-            // function supplies the lambda's return-type constraints.
             && !(isArrayReceiver && calleeStr == "map")
             && !isULongProgressionFirstLastCall
             && !(calleeStr == "binarySearch"
@@ -361,20 +312,12 @@ extension CallTypeChecker {
             // parameter" rejection.
             && !(request.knownNames.destinationCollectionHOFs.contains(request.calleeName) && request.args.count != 2)
 
-        // KSP-957: the generic Iterable/Map on-family declarations are real
-        // source-backed overloads. Let regular overload resolution select
-        // them; the collection fast path only knows the legacy List/Sequence
-        // shapes and would otherwise erase the receiver-preserving return type.
         let isSourceBackedGenericOnEach = !isSequenceReceiver
             && !isArrayReceiver
             && !isListReceiver
             && !isStringReceiver
             && (isCollectionReceiver || isIterableReceiver || isMapReceiver)
             && (calleeStr == "onEach" || calleeStr == "onEachIndexed")
-        // KSP-969: bind the generic Iterable drop family for a statically
-        // Iterable receiver as well as concrete collection receivers. List
-        // overloads are attempted first so the more specific source-backed
-        // declaration keeps winning for List values.
         let isIterableDropFamily = !isSequenceReceiver
             && (calleeStr == "drop" || calleeStr == "dropWhile")
             && (isCollectionReceiver || isIterableReceiver)
@@ -470,8 +413,6 @@ extension CallTypeChecker {
                 name: request.calleeName
             )
         } ?? false
-        // Buffer has defaulted and named parameters, so normal overload
-        // resolution must select the declaration and map its arguments.
         if isFlowReceiver,
            hasBundledFlowDeclaration,
            !["buffer", "transform", "takeWhile", "dropWhile", "catch", "retry", "retryWhen"].contains(request.interner.resolve(request.calleeName)),
@@ -487,10 +428,6 @@ extension CallTypeChecker {
                locals: &locals
            )
         {
-            // The builtin path above supplies the contextual lambda types and
-            // Flow element-type tracking. Once a Flow operator has a bundled
-            // Kotlin declaration, retain that source-backed symbol as the
-            // call target so lowering cannot fall back to a name-only bridge.
             let flowPackageFQName = [
                 request.interner.intern("kotlinx"),
                 request.interner.intern("coroutines"),
@@ -511,10 +448,6 @@ extension CallTypeChecker {
                 else {
                     return false
                 }
-                // SharedFlow declares pass-through overloads with the same
-                // name and arity. The Flow intrinsic path must bind the
-                // source declaration for this receiver, rather than whichever
-                // same-named overload happens to be first in the symbol table.
                 return signature.parameterTypes.count == request.args.count
                     && declaredReceiverFQName == flowOwnerFQNameForPriorityCheck
             }),
@@ -633,11 +566,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// True when a user-source extension (or local function) named `calleeName`
-    /// is visible, receiver-compatible, and arity-compatible with `args`.
-    /// The collection HOF fast path only models bundled stdlib shapes, so
-    /// such a candidate must defer the call to regular overload resolution
-    /// (same gate the `reduce` fast path applies inline, KUU-1926/KUU-4476).
     private func hasUserDefinedCollectionExtensionCandidate(
         named calleeName: InternedString,
         receiverType: TypeID,
