@@ -1763,6 +1763,10 @@ extension DataFlowSemaPhase {
         }
         symbols.addDelegatedInterface(interfaceSymbol.id, forClass: classSymbol)
         symbols.setClassDelegationExpr(delegateExpression, forClass: classSymbol, interface: interfaceSymbol.id)
+        if let existingField = symbols.classDelegationField(forClass: classSymbol, interface: interfaceSymbol.id) {
+            symbols.setPropertyType(interfaceType, for: existingField)
+            return existingField
+        }
         let interfaceName = interner.resolve(interfaceSymbol.fqName.last ?? interner.intern(""))
         let fieldName = interner.intern("$delegate_\(interfaceName)")
         let fieldSymbol = symbols.define(

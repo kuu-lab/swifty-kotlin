@@ -4,6 +4,13 @@ final class LambdaReturnInferenceScope {
     let label: InternedString?
     let expectedReturnType: TypeID?
     var returnValueTypes: [ExprID: TypeID] = [:]
+    /// Local state at each `return@label` that completes this lambda, so
+    /// callsInPlace definite-assignment only counts locals initialized on
+    /// every completion path (fall-through included by the caller). Returns
+    /// inside a try body/catch clause of a try-with-finally are not recorded:
+    /// finally runs before the lambda completes, and its effects are not part
+    /// of the recorded locals.
+    var returnLocalStates: [LocalBindings] = []
 
     init(exprID: ExprID, label: InternedString?, expectedReturnType: TypeID?) {
         self.exprID = exprID
@@ -124,6 +131,13 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// against the surrounding named function's return type rather than the
     /// lambda's predicate/result type.
     var lambdaDepth: Int = 0
+    /// Number of enclosing try bodies/catch clauses whose `finally` has not run
+    /// yet at the expression currently being inferred. A `return@label` inside
+    /// such a region completes the lambda only after `finally` runs, so its
+    /// recorded locals cannot account for finally's effects; callsInPlace
+    /// return-path tracking skips those states and keeps the enclosing lambda's
+    /// fall-through state as the only guarantee (matching pre-tracking behavior).
+    var enclosingTryFinallyDepth = 0
     /// Independent of return targets: initializers cannot inherit suspension.
     var suspensionContext = SuspensionContext()
     var defaultArgumentComposableFunction: SymbolID?
@@ -287,6 +301,9 @@ struct TypeInferenceContext: CustomStringConvertible {
         copy.loopDepth = 0
         copy.loopLabelStack = []
         copy.loopFlowScopes = []
+        // A nested lambda's returns complete before any enclosing `finally`
+        // runs, so try/finally pending state does not cross this boundary.
+        copy.enclosingTryFinallyDepth = 0
         return copy
     }
 

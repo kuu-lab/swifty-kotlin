@@ -323,13 +323,34 @@ final class JVMProgramBuilder {
         return array.args == [.invariant(string)] || array.args == [.out(string)]
     }
 
+    private func isExpectDeclaration(_ id: DeclID) -> Bool {
+        switch ast.arena.decl(id) {
+        case let .funDecl(declaration): declaration.modifiers.contains(.expect)
+        case let .propertyDecl(declaration): declaration.modifiers.contains(.expect)
+        case let .classDecl(declaration): declaration.modifiers.contains(.expect)
+        case let .interfaceDecl(declaration): declaration.modifiers.contains(.expect)
+        case let .objectDecl(declaration): declaration.modifiers.contains(.expect)
+        case let .typeAliasDecl(declaration): declaration.modifiers.contains(.expect)
+        default: false
+        }
+    }
+
     func build() throws -> JVMProgram {
         func isComputedExtension(_ property: PropertyDecl) -> Bool {
             property.receiverType != nil && property.initializer == nil
                 && property.delegateExpression == nil && property.explicitBackingField == nil
         }
 
-        let files = ast.files.filter { context.sourceManager.origin(of: $0.fileID) == .user }
+        // A Kotlin Multiplatform target compiles its common and platform source
+        // sets together; Sema matched each `expect` with its `actual`, which
+        // alone produces bytecode.
+        let files = ast.files.filter { context.sourceManager.origin(of: $0.fileID) == .user }.map { file in
+            ASTFile(
+                fileID: file.fileID, packageFQName: file.packageFQName, imports: file.imports,
+                topLevelDecls: file.topLevelDecls.filter { !isExpectDeclaration($0) },
+                scriptBody: file.scriptBody, annotations: file.annotations, range: file.range
+            )
+        }
         guard !files.isEmpty else { throw JVMFrontendError(message: "JVM compilation requires source files.") }
         let names = try files.map { try Self.fileIdentity(for: $0, context: context) }
         let sourceGroups = Dictionary(grouping: files.indices, by: { names[$0].0 })
@@ -980,6 +1001,12 @@ final class JVMFunctionBuilder {
                     }
                     return nil
                 }
+                if arena.isIncrementDecrement(id), op == .plusAssign || op == .minusAssign,
+                   let result = try resolvedIncrementDecrementValue(receiver: left, id: id, expectedResult: field.type) {
+                    let converted = try convert(result, to: field.type)
+                    instructions.append(property.getter.isStatic ? .putStatic(field, converted) : .putField(field, thisValue!, converted))
+                    return arena.incrementDecrementReturnsValue(id) ? converted : nil
+                }
                 let right = try compoundOperand(rhs, target: field.type)
                 if terminated { return nil }
                 guard try permitsCompound(left.type, right.type) else { throw fail("Unsupported JVM backing field conversion.", id) }
@@ -1002,6 +1029,13 @@ final class JVMFunctionBuilder {
                     try writeLocal(local, convert(result, to: local.value.type))
                 }
                 return nil
+            }
+            if arena.isIncrementDecrement(id), op == .plusAssign || op == .minusAssign,
+               let result = try resolvedIncrementDecrementValue(receiver: old, id: id, expectedResult: local.value.type) {
+                guard local.mutable else { throw fail("Cannot reassign JVM val.", id) }
+                let converted = try convert(result, to: local.value.type)
+                try writeLocal(local, converted)
+                return arena.incrementDecrementReturnsValue(id) ? converted : nil
             }
             guard local.mutable, local.value.type.isNumeric || local.value.type.isText else { throw fail("JVM compound assignment requires a mutable numeric local.", id) }
             let rawRight = try compoundOperand(rhs, target: old.type)
@@ -1229,6 +1263,10 @@ extension JVMFunctionBuilder {
         if let receiver, receiver.type.referenceName == nil { object = try convert(receiver, to: .reference("java/lang/Object", nullable: false)) }
         if method.isConstructor {
             object = try value(method.result)
+            // NEW triggers the owner's <clinit> (companion initialization);
+            // kotlinc runs it before evaluating constructor arguments. Force it
+            // eagerly here and keep the allocation itself after the arguments.
+            instructions.append(.initializeClass(method.owner))
         }
         var values: [JVMValue] = []
         for (index, pair) in zip(args, method.parameters).enumerated() {

@@ -189,7 +189,7 @@ kklib リンクと `this[key]!! += v` の parse/sema 対応で大半のカスケ
 なった。上流 kotlinx-io モジュールを `-I` でリンクすると、bundled stdlib が同名
 declaration の所有権を持つため上流側がすべて `KSWIFTK-LIB-0031` で無視され、逆に解決が
 壊れる（ktor_io で 195 errors）。そのため `module_deps` は kotlinx_io を下流にリンクしない
-構成に更新した。この構成での最新計測値:
+構成に更新した。この構成での当時の計測値（#13638 / #13639 マージ前の履歴）:
 
 | モジュール | exit | files | errors | warnings |
 |---|---|---|---|---|
@@ -225,10 +225,36 @@ shadow）の時点では ktor_http の実残件は **4 errors**: `Mimes.kt:1007/
   継続するフォールスルー、および invariant 型引数を持つ LUB の `out` 投影結合
   （`KSerializer<Any?>` ∪ `KSerializer<out Any>` → `KSerializer<out Any?>`）
 
+## master `2858a85a06` 再計測（2026-11-20）
+
+#13252（`Mimes.kt` の `flatMapTo(ArrayList)` 推論）は #13639、#13253（`Versions.kt` の
+`map` ラムダ内 `check` 呼び出し）は #13638 で修正され、両方が master にマージされた後の
+再計測。コンパイラは未変更の master `2858a85a0630f8d8f011495882304588410efb2e` から
+ビルドした `.build/debug/kswiftc`（debug ビルド）。入力は従来どおり Ktor 3.6.0
+（commit `111c5807d0a9004c8e0f17ae01e12a71aae56a29`）と kotlinx-io 0.9.1
+（commit `362bdc35e159bad6da1e08101c8321792d762281`）の common ソースセットのみで、
+`bash Scripts/ktor_build.sh` が `--emit library` でコンパイルした。実行はコンパイルまでで、
+リンク・実行はしていない（common ソースセットは実行可能な `main` を持たないため）。
+
+| モジュール | exit | files | errors | warnings |
+|---|---|---|---|---|
+| kotlinx_io | 0 | 30 | 0 | 0 |
+| ktor_io | 0 | 45 | 0 | 3 |
+| ktor_utils | 0 | 55 | 0 | 8 |
+| ktor_http | 0 | 62 | 0 | 2 |
+
+ktor_http は **0 errors** になった。残る診断は warning のみで、内訳は ktor_io が
+`KSWIFTK-SEMA-0102`×2 と `KSWIFTK-SEMA-DEPRECATED`×1、ktor_utils が
+`KSWIFTK-SEMA-UNCHECKED`×4・`KSWIFTK-SEMA-0102`×3・`KSWIFTK-SEMA-DEPRECATED`×1、
+ktor_http が `KSWIFTK-SEMA-0102`×1 と `KSWIFTK-LIB-0004`×1。上の `d52aa0b2e8` + #13254
+時点の表は履歴として残す。
+
 ## まとめ
 
-pinned `ktor-io` は consumer まで含めて O0/O2 で動作し、`ktor_build.sh` の ktor_io プローブも
-0 errors を維持している。ktor_utils も coroutines 内部 API を internal 可視性のまま解決し、
-55 files / 0 errors / 5 warnings でコンパイルできる。`d52aa0b2e8` + #13254 の再計測で
-ktor_http は 62 files / **4 errors**（`flatMapTo(ArrayList)` 推論・`check` ラムダ内解決、
-#13252/#13253 起票済み）まで絞れた。
+pinned `ktor-io` は consumer まで含めて O0/O2 で動作する（2026-10-16 時点の計測）。
+`ktor_build.sh` の4モジュールプローブは、#13638 / #13639 のマージ後の master
+`2858a85a06`（2026-11-20 再計測）で **全モジュール 0 errors** になった
+（kotlinx_io 30 files、ktor_io 45 files / 3 warnings、ktor_utils 55 files / 8 warnings、
+ktor_http 62 files / 2 warnings）。ktor_http の最後の 4 errors（#13252/#13253）は
+#13639 / #13638 で解消した。なお consumer ハーネスの O0/O2 PASS はリンク・実行を含む
+別ハーネス（`Scripts/ktor_io_consumer.sh`）の結果で、上記プローブはコンパイルのみ。

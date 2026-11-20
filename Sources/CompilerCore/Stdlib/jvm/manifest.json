@@ -373,6 +373,12 @@
       "excludeFromStdlibBuild": false
     },
     {
+      "path": "declarations/BigDecimals.kt",
+      "virtualPath": "<kswiftk-jvm>/big-decimals.kt",
+      "runtimeFacade": "kotlin/NumbersKt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "declarations/AbstractList.kt",
       "virtualPath": "<kswiftk-jvm>/abstractList.kt",
       "excludeFromStdlibBuild": true
@@ -574,11 +580,6 @@
       "path": "declarations/Console.kt",
       "virtualPath": "<kswiftk-jvm>/console.kt",
       "excludeFromStdlibBuild": true
-    },
-    {
-      "path": "declarations/MonitorBridges.kt",
-      "virtualPath": "<kswiftk-jvm>/monitor-bridges.kt",
-      "excludeFromStdlibBuild": false
     },
     {
       "path": "declarations/PlatformBridges.kt",

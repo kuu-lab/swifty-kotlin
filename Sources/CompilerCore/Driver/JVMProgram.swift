@@ -151,6 +151,7 @@ public enum JVMInstruction {
     case call(JVMFunctionReference, [JVMValue], JVMValue?)
     case invokeDynamic(name: String, descriptor: String, captures: [JVMValue], samDescriptor: String, implementation: JVMFunctionReference, instantiatedDescriptor: String, result: JVMValue)
     case allocate(String, JVMValue)
+    case initializeClass(String)
     case abandonAllocations([JVMValue])
     case foreignCall(JVMForeignMethod, receiver: JVMValue?, arguments: [JVMValue], result: JVMValue?)
     case getStatic(JVMField, JVMValue)
@@ -211,6 +212,9 @@ public struct JVMFunction {
     public var normalReturnConditionParameter: Int? = nil
     public var kotlinReceiver: JVMKotlinType? = nil
     public var isSynthetic: Bool = false
+    /// User-declared `@JvmSynthetic`: stays in Kotlin metadata while the
+    /// classfile method carries ACC_SYNTHETIC, hiding it from Java sources.
+    public var isJvmSynthetic: Bool = false
     public var isMetadataHidden: Bool = false
     public var isSuspend = false
     public var suspendValueResult: JVMSuspendValueResult? = nil

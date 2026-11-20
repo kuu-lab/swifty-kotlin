@@ -15,7 +15,7 @@ extension JVMProgramBuilder {
         guard let symbol = sema.symbols.symbol(symbolID), symbol.kind == .constructor,
               let parent = sema.symbols.parentSymbol(for: symbolID), classes[parent] == nil,
               let source = try? className(parent), let name = source == "kotlin/Any" ? "java/lang/Object" : JVMClasspathIndex.builtinName(source),
-              (name.hasPrefix("java/lang/") || ["java/util/NoSuchElementException", "java/util/AbstractCollection", "java/util/AbstractList", "java/util/AbstractSet", "java/util/AbstractMap", "kotlin/collections/AbstractList", "kotlin/collections/AbstractSet", "kotlin/collections/IntIterator", "kotlin/NotImplementedError", "kotlin/UninitializedPropertyAccessException"].contains(name)), let signature = sema.symbols.functionSignature(for: symbolID),
+              (name.hasPrefix("java/lang/") || ["java/util/NoSuchElementException", "java/util/AbstractCollection", "java/util/AbstractList", "java/util/AbstractSet", "java/util/AbstractMap", "java/util/ArrayList", "kotlin/collections/AbstractList", "kotlin/collections/AbstractSet", "kotlin/collections/IntIterator", "kotlin/NotImplementedError", "kotlin/UninitializedPropertyAccessException"].contains(name)), let signature = sema.symbols.functionSignature(for: symbolID),
               let parameters = try? signature.parameterTypes.map(type) else { return nil }
         return JVMForeignMethod(owner: name, name: "<init>", descriptor: "(" + parameters.map(\.descriptor).joined() + ")V", parameters: parameters, result: .reference(name, nullable: false), isStatic: false, isInterface: false, isAbstract: false)
     }
@@ -680,6 +680,20 @@ extension JVMFunctionBuilder {
                 mark(end)
                 return JVMIntrinsicResult(value: answer)
             case "containsAll": actual = member; parameters = [.reference("java/util/Collection", nullable: false)]; returns = .boolean
+            case "isEmpty" where owner == "java/lang/Iterable":
+                let collectionOwners: Set<String> = [
+                    "java/util/Collection", "java/util/List", "java/util/Set",
+                    "java/util/ArrayList", "java/util/LinkedHashSet", "java/util/HashSet",
+                    "kotlin/enums/EnumEntries"
+                ]
+                if let receiverOwner = source.type.referenceName, collectionOwners.contains(receiverOwner) {
+                    return JVMIntrinsicResult(value: try jdkCall("java/util/Collection", "isEmpty", [], .boolean, receiver: source, interface: true))
+                }
+                let iterator = try jdkCall("java/lang/Iterable", "iterator", [], .reference("java/util/Iterator", nullable: false), receiver: source, interface: true)!
+                let hasNext = try jdkCall("java/util/Iterator", "hasNext", [], .boolean, receiver: iterator, interface: true)!
+                let empty = try value(.boolean)
+                instructions.append(.binary(.equal, hasNext, try constant(.boolean(false), .boolean), empty))
+                return JVMIntrinsicResult(value: empty)
             case "isEmpty", "hasNext", "hasPrevious": actual = member; parameters = []; returns = .boolean
             case "nextIndex", "previousIndex": actual = member; parameters = []; returns = .int
             case "iterator": actual = member; parameters = []; returns = .reference("java/util/Iterator", nullable: false)

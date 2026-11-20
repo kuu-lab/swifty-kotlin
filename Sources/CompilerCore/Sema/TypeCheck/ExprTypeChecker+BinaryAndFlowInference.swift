@@ -623,6 +623,21 @@ extension ExprTypeChecker {
         // the source expression's actual Nothing type for flow and lowering.
         let operatorReceiverType = nothingRangePeerType ?? lhs
         let operatorArgumentType = nothingRangePeerType ?? rhs
+        // For a floating-point range with a Nothing-typed RHS, keep the
+        // Nothing argument for overload resolution so user-defined `rangeTo`
+        // extensions remain applicable; scalar-pair tests still use the
+        // peer-substituted `operatorArgumentType`.
+        let operatorResolutionArgumentType: TypeID = {
+            guard (op == .rangeTo || op == .rangeUntil),
+                  rhs == sema.types.nothingType,
+                  lhs != sema.types.nothingType,
+                  let peer = nothingRangePeerType,
+                  peer == doubleType || peer == floatType
+            else {
+                return operatorArgumentType
+            }
+            return rhs
+        }()
         let lhsIsPrimitive = if case .primitive = sema.types.kind(of: operatorReceiverType) { true } else { false }
         let shouldUseInheritedEqualityDispatch: Bool = switch op {
         case .equal, .notEqual:
@@ -648,7 +663,7 @@ extension ExprTypeChecker {
             range: range,
             calleeName: operatorName,
             args: [CallArg(
-                type: operatorArgumentType,
+                type: operatorResolutionArgumentType,
                 signedIntegerLiteral: rhsIntegerLiteral.signed,
                 unsignedIntegerLiteral: rhsIntegerLiteral.unsigned
             )],
@@ -708,31 +723,90 @@ extension ExprTypeChecker {
         var operatorCandidates = driver.callChecker.preferMostSpecificMemberReceiverCandidates(
             collectedOperatorCandidates,
             receiverType: operatorReceiverType,
-            argumentTypes: [operatorArgumentType],
+            argumentTypes: [operatorResolutionArgumentType],
             sema: sema,
             interner: interner
         )
         // KSP-1281: the bundled generic `T.rangeTo`/`T.rangeUntil` extension in
-        // ranges/Stdlib.kt must not capture `..`/`..<` on primitive receivers —
-        // those keep the existing scalar range-handle path (markRangeExpr +
+        // ranges/Stdlib.kt must not capture `..`/`..<` on receivers with a scalar
+        // range — those keep the existing scalar range-handle path (markRangeExpr +
         // `__kk_*` construction), which the heap-allocated ComparableRange the
         // generic body builds cannot represent. The generic extension only
         // covers receivers without a concrete range representation (String,
         // user Comparable types), matching upstream where the concrete
         // `Int.rangeTo` members win over the extension.
-        if lhsIsPrimitive, op == .rangeTo || op == .rangeUntil {
-            operatorCandidates = operatorCandidates.filter { candidate in
-                guard let signature = sema.symbols.functionSignature(for: candidate),
-                      let receiverType = signature.receiverType
-                else {
-                    return true
-                }
-                if case .typeParam = sema.types.kind(of: receiverType) {
-                    return false
-                }
+        let isTypeParamReceiverCandidate = { (candidate: SymbolID) -> Bool in
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  let receiverType = signature.receiverType
+            else {
+                return false
+            }
+            if case .typeParam = sema.types.kind(of: receiverType) {
                 return true
             }
+            return false
         }
+        let lhsHasScalarRange = sema.types.isBuiltinArithmeticOperand(operatorReceiverType)
+        let isRangeOperator = op == .rangeTo || op == .rangeUntil
+        // Scalar ranges win only when the operand pair can form one (or a
+        // concrete range candidate is viable). `1..Marker()` has no scalar
+        // range, so a user-defined generic `rangeTo` must remain visible. Use
+        // the Nothing-peer-substituted operand types so `1.0..error(...)` still
+        // counts as a scalar pair.
+        let isBuiltinScalarRangePair = isRangeOperator && lhsHasScalarRange
+            && ((sema.types.isSigned(operatorReceiverType) && sema.types.isSigned(operatorArgumentType))
+                || operatorReceiverType == operatorArgumentType)
+        let isFloatingRangeReceiver = operatorReceiverType == doubleType || operatorReceiverType == floatType
+        // Kotlin lets user-defined `rangeTo` extensions win on Double/Float
+        // (the stdlib floating `rangeTo` is an extension, not a member), while
+        // the bundled generic stdlib `T.rangeTo` must still not capture scalar
+        // ranges. Integral/Char ranges keep the stricter member precedence.
+        let shouldDropGenericRangeCandidate = { (candidate: SymbolID) -> Bool in
+            guard isTypeParamReceiverCandidate(candidate) else {
+                return false
+            }
+            guard isFloatingRangeReceiver else {
+                return true
+            }
+            guard let symbol = sema.symbols.symbol(candidate) else {
+                return false
+            }
+            if symbol.fqName.starts(with: knownNames.kotlinRangesPackageFQName) {
+                return true
+            }
+            // A visible but inapplicable user extension must not hide the
+            // builtin floating range: `1.0..2.0` with only `rangeTo(Marker)`
+            // still has to produce `ClosedFloatingPointRange<Double>`.
+            return ctx.resolver.probeCall(
+                candidates: [candidate],
+                call: operatorCall,
+                expectedType: expectedType,
+                implicitReceiverType: operatorReceiverType,
+                ctx: sema
+            ).viableCandidates.isEmpty
+        }
+        let dropGenericRangeCandidatesWhenScalarRangeApplies = { (candidates: [SymbolID]) -> [SymbolID] in
+            guard isRangeOperator, lhsHasScalarRange else {
+                return candidates
+            }
+            if isBuiltinScalarRangePair {
+                return candidates.filter { !shouldDropGenericRangeCandidate($0) }
+            }
+            let concreteCandidates = candidates.filter { !isTypeParamReceiverCandidate($0) }
+            guard !concreteCandidates.isEmpty,
+                  !ctx.resolver.probeCall(
+                      candidates: concreteCandidates,
+                      call: operatorCall,
+                      expectedType: nil,
+                      implicitReceiverType: operatorReceiverType,
+                      ctx: sema
+                  ).viableCandidates.isEmpty
+            else {
+                return candidates
+            }
+            return candidates.filter { !shouldDropGenericRangeCandidate($0) }
+        }
+        operatorCandidates = dropGenericRangeCandidatesWhenScalarRangeApplies(operatorCandidates)
         // A built-in or bundled rangeTo candidate can exist for the receiver
         // while rejecting the RHS type. Kotlin then considers visible operator
         // extensions; keep member precedence by retrying only when the current
@@ -777,6 +851,10 @@ extension ExprTypeChecker {
                 }
             }
         }
+        // The fallback above can rediscover generic rangeTo operators. Apply the
+        // same scalar-range gate again: it must not hide a user extension when
+        // the RHS cannot form a scalar range (for example `1..Marker()`).
+        operatorCandidates = dropGenericRangeCandidatesWhenScalarRangeApplies(operatorCandidates)
         // `collectOperatorCandidates` deliberately excludes primitive receivers
         // from member lookup for non-range operators. That also hides scoped
         // operator extensions because they aren't members. Search for those
@@ -1012,7 +1090,7 @@ extension ExprTypeChecker {
                     let widenedCandidates = driver.callChecker.preferMostSpecificMemberReceiverCandidates(
                         operatorCandidates + outerExtensionCandidates,
                         receiverType: operatorReceiverType,
-                        argumentTypes: [operatorArgumentType],
+                        argumentTypes: [operatorResolutionArgumentType],
                         sema: sema,
                         interner: interner
                     )

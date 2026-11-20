@@ -1,11 +1,15 @@
 struct LocalBindings: ExpressibleByDictionaryLiteral, Sequence {
     typealias Value = (type: TypeID, symbol: SymbolID, isMutable: Bool, isInitialized: Bool)
     private var bindings: [InternedString: Value]
+    private var shadowedBindings: [InternedString: [Value]] = [:]
     var memberFlow: [DataFlowReference: VariableFlowState] = [:]
     var immutableLocalInitializers: [SymbolID: ExprID] = [:]
     var delegatedLocalSymbols: Set<SymbolID> = []
     var variableFacts: [SymbolID: DataFlowValueFacts] = [:]
     var invalidatedVariableFacts: Set<SymbolID> = []
+    /// Lambda-body scopes retain displaced outer bindings so callsInPlace
+    /// collection can still see initialization that a same-name local later shadows.
+    var preservesShadowedBindings = false
 
     init(dictionaryLiteral elements: (InternedString, Value)...) {
         bindings = Dictionary(uniqueKeysWithValues: elements)
@@ -13,7 +17,31 @@ struct LocalBindings: ExpressibleByDictionaryLiteral, Sequence {
 
     subscript(name: InternedString) -> Value? {
         get { bindings[name] }
-        set { bindings[name] = newValue }
+        set {
+            if preservesShadowedBindings,
+               let newValue,
+               let displaced = bindings[name],
+               displaced.symbol != newValue.symbol {
+                shadowedBindings[name, default: []].append(displaced)
+            }
+            bindings[name] = newValue
+        }
+    }
+
+    func binding(named name: InternedString, matching symbol: SymbolID) -> Value? {
+        if let current = bindings[name], current.symbol == symbol {
+            return current
+        }
+        return shadowedBindings[name]?.last(where: { $0.symbol == symbol })
+    }
+
+    func containsInitializedBinding(for symbol: SymbolID) -> Bool {
+        if bindings.values.contains(where: { $0.symbol == symbol && $0.isInitialized }) {
+            return true
+        }
+        return shadowedBindings.values.contains { stack in
+            stack.contains { $0.symbol == symbol && $0.isInitialized }
+        }
     }
 
     var values: Dictionary<InternedString, Value>.Values { bindings.values }
@@ -774,7 +802,9 @@ final class TypeCheckDriver {
         for file in files {
             guard let inferCtx = inferenceContext(for: file) else { continue }
             let skipResidualStdlibBodies = compilationContext.map {
-                !$0.options.stdlibOnly && $0.sourceManager.origin(of: file.fileID) == .residualStdlib
+                !$0.options.stdlibOnly
+                    && $0.sourceManager.origin(of: file.fileID) == .residualStdlib
+                    && !$0.jvmConsumerEmittedStdlibFiles.contains(file.fileID)
             } ?? false
             for declID in file.topLevelDecls {
                 guard let decl = ast.arena.decl(declID),

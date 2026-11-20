@@ -202,7 +202,7 @@ extension DeclTypeChecker {
             extraLocals: baseLocals,
             outerReceiversToKeep: classDecl.isInner ? ctx.outerReceiverTypes : ctx.singletonObjectOuterReceivers
         )
-        let explicitSuperclassSymbol = explicitClassSuperclassSymbol(classDecl, ctx: classCtx)
+        let superclassSymbol = constructorSuperclassSymbol(classDecl, ctx: classCtx)
         typeCheckSecondaryConstructors(
             classDecl.secondaryConstructors,
             ctx: classCtx,
@@ -210,7 +210,7 @@ extension DeclTypeChecker {
             diagnostics: diagnostics,
             ownerSymbol: symbol,
             hasPrimaryConstructor: classDecl.hasPrimaryConstructorSyntax,
-            explicitSuperclassSymbol: explicitSuperclassSymbol,
+            superclassSymbol: superclassSymbol,
             baseLocals: baseLocals
         )
         typeCheckClassDelegation(

@@ -162,7 +162,9 @@ private struct JVMSourceGrammar {
         }
     }
     mutating func modifiers() {
-        while [.public, .private, .internal, .protected, .open, .final, .abstract, .override, .inline, .tailrec, .suspend, .sealed, .data, .enum, .companion, .inner, .operator, .infix, .lateinit, .annotation, .value, .const].contains(where: { kind == .keyword($0) }) {
+        // `expect`/`actual`: Kotlin Multiplatform compiles a JVM/Android target
+        // from the common and platform source sets together.
+        while [.public, .private, .internal, .protected, .open, .final, .abstract, .override, .inline, .tailrec, .suspend, .sealed, .data, .enum, .companion, .inner, .operator, .infix, .lateinit, .annotation, .value, .const, .expect, .actual].contains(where: { kind == .keyword($0) }) {
             // "value" is also a valid parameter/property name.
             if kind == .keyword(.value), tokens[min(index + 1, tokens.count - 1)].kind != .keyword(.class) { break }
             index += 1
@@ -259,6 +261,7 @@ private struct JVMSourceGrammar {
         }
         let isEnum = tokens[declarationStart..<index].contains { $0.kind == .keyword(.enum) }
         let isCompanion = tokens[declarationStart..<index].contains { $0.kind == .keyword(.companion) }
+        let isExpect = tokens[declarationStart..<index].contains { $0.kind == .keyword(.expect) }
         if take(.keyword(.typealias)) {
             try name(); try typeParameters(); try require(.symbol(.assign)); try type(); return
         }
@@ -267,14 +270,17 @@ private struct JVMSourceGrammar {
             try typeParameters()
             // Parse either a function name or a receiver type followed by its name.
             let start = index
-            do { try type(); guard kind == .symbol(.lParen) else { throw Unsupported() } }
-            catch { index = start; try name() }
+            do {
+                while kind == .symbol(.at) { try annotation() }
+                try type()
+                guard kind == .symbol(.lParen) else { throw Unsupported() }
+            } catch { index = start; try name() }
             try parameters()
             if take(.symbol(.colon)) { try type() }
             try whereConstraints()
             if take(.symbol(.assign)) { try expression() }
             else if kind == .symbol(.lBrace) { try block() }
-            else if !member { throw Unsupported() }
+            else if !member && !isExpect { throw Unsupported() }
         } else if kind == .keyword(.class) || kind == .keyword(.interface) || kind == .keyword(.fun) || kind == .keyword(.object) {
             _ = take(.keyword(.fun))
             let isInterface = take(.keyword(.interface))
@@ -371,7 +377,13 @@ private struct JVMSourceGrammar {
     }
     mutating func body(allowNewlines: Bool = false) throws {
         while kind == .symbol(.at) { try annotation() }
-        if kind == .symbol(.lBrace) { try block() } else { try statement(allowNewlines: allowNewlines) }
+        if kind == .symbol(.lBrace) {
+            // A control-flow body whose braces open with a lambda signature
+            // (`{ p -> ... }`) is a lambda literal, matching kotlinc; any
+            // other brace opens a block.
+            var probe = self
+            if probe.scanLambdaSignature() { try lambda() } else { try block() }
+        } else { try statement(allowNewlines: allowNewlines) }
     }
     mutating func condition() throws {
         try require(.symbol(.lParen)); try expression(allowNewlines: true); try require(.symbol(.rParen))
@@ -480,24 +492,35 @@ private struct JVMSourceGrammar {
         }
     }
     mutating func lambda() throws {
-        try require(.symbol(.lBrace))
-        let start = index
-        do {
-            if !take(.symbol(.arrow)) {
-                repeat {
-                    if take(.symbol(.lParen)) {
-                        repeat { try name() } while take(.symbol(.comma))
-                        try require(.symbol(.rParen))
-                    } else { try name() }
-                    if take(.symbol(.colon)) { try type() }
-                } while take(.symbol(.comma))
-                try require(.symbol(.arrow))
-            }
-        } catch { index = start }
+        if !scanLambdaSignature() { try require(.symbol(.lBrace)) }
         semicolons()
         while !take(.symbol(.rBrace)) {
             guard kind != .eof else { throw Unsupported() }
             try statement(); try separator(); semicolons()
+        }
+    }
+
+    /// Consumes a lambda parameter signature (`{`, optional parameters, `->`)
+    /// when the tokens have that shape, leaving `index` just after the arrow.
+    /// Otherwise restores `index` to its entry value and returns false, so a
+    /// plain block or a parameterless lambda body keeps its original parse.
+    mutating func scanLambdaSignature() -> Bool {
+        let entry = index
+        guard take(.symbol(.lBrace)) else { return false }
+        if take(.symbol(.arrow)) { return true }
+        do {
+            repeat {
+                if take(.symbol(.lParen)) {
+                    repeat { try name() } while take(.symbol(.comma))
+                    try require(.symbol(.rParen))
+                } else { try name() }
+                if take(.symbol(.colon)) { try type() }
+            } while take(.symbol(.comma))
+            guard take(.symbol(.arrow)) else { throw Unsupported() }
+            return true
+        } catch {
+            index = entry
+            return false
         }
     }
     mutating func anonymousFunction() throws {

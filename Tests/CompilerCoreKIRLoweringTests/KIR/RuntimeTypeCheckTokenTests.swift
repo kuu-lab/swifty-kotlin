@@ -146,6 +146,29 @@ struct RuntimeTypeCheckTokenTests {
         #expect(kirErasedBoundaryCheckable(sourceInterfaceType, sema: sema))
     }
 
+    @Test func testErasedBoundaryRejectsValueClass() {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        let valueClassName = interner.intern("ListFoo")
+        let valueClassSymbol = symbols.define(
+            kind: .class,
+            name: valueClassName,
+            fqName: [interner.intern("example"), valueClassName],
+            declSite: makeRange(),
+            visibility: .public,
+            flags: [.valueType]
+        )
+        let valueClassType = types.make(.classType(ClassType(
+            classSymbol: valueClassSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+
+        #expect(!kirErasedBoundaryCheckable(valueClassType, sema: sema))
+    }
+
     @Test func testClassifyFunctionType() {
         let types = TypeSystem()
         let sema = makeSemaModule(types: types).ctx

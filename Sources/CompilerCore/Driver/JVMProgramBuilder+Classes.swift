@@ -75,7 +75,7 @@ extension JVMProgramBuilder {
         !modifiers.contains(.abstract) && (modifiers.contains(.final) || modifiers.intersection([.open, .override]).isEmpty)
     }
     func functionReference(_ function: FunDecl, symbol: SymbolID, member: Bool, allowComposable: Bool = false) throws -> JVMFunctionReference {
-        let allowed: Modifiers = member ? [.public, .private, .internal, .protected, .open, .final, .abstract, .override, .inline, .tailrec, .suspend, .operator, .infix] : [.public, .private, .internal, .inline, .tailrec, .suspend, .operator, .infix]
+        let allowed: Modifiers = member ? [.actual, .public, .private, .internal, .protected, .open, .final, .abstract, .override, .inline, .tailrec, .suspend, .operator, .infix] : [.actual, .public, .private, .internal, .inline, .tailrec, .suspend, .operator, .infix]
         guard function.modifiers.subtracting(allowed).isEmpty,
               let signature = sema.symbols.functionSignature(for: symbol) else { throw JVMFrontendError(message: "Unsupported JVM M5 function declaration.", range: function.range) }
         guard function.contextReceivers.count == signature.contextParameterTypes.count,
@@ -230,6 +230,9 @@ extension JVMProgramBuilder {
                     // The bundled collection registry can retain a synthetic
                     // constructor shell alongside the JVM source declaration.
                     if let entry = sema.symbols.symbol(symbol), entry.declSite == nil, entry.flags.contains(.synthetic) { continue }
+                    // An `expect class` shares the FQ name; its constructors are not emitted.
+                    if sema.symbols.symbol(symbol)?.flags.contains(.expectDeclaration) == true
+                        || sema.symbols.parentSymbol(for: symbol).flatMap({ sema.symbols.symbol($0) })?.flags.contains(.expectDeclaration) == true { continue }
                     guard let signature = sema.symbols.functionSignature(for: symbol), let site = sema.symbols.symbol(symbol)?.declSite else { throw JVMFrontendError(message: "Missing JVM constructor signature.") }
                     let primary = site == c.range
                     let declaration: ConstructorDecl
@@ -237,7 +240,7 @@ extension JVMProgramBuilder {
                     else if let secondary = c.secondaryConstructors.first(where: { $0.range == site }) { declaration = secondary }
                     else { throw JVMFrontendError(message: "Missing JVM secondary constructor.") }
                     sourceParameters[symbol] = declaration.valueParams
-                    guard declaration.modifiers.subtracting([.public, .protected, .internal, .private]).isEmpty else { throw JVMFrontendError(message: "Unsupported JVM constructor modifiers.") }
+                    guard declaration.modifiers.subtracting([.actual, .public, .protected, .internal, .private]).isEmpty else { throw JVMFrontendError(message: "Unsupported JVM constructor modifiers.") }
                     try validateSignature(signature, instance: true)
                     let valueParameters = try signature.parameterTypes.enumerated().map { index, parameter -> JVMValueType in
                         guard declaration.valueParams.indices.contains(index), declaration.valueParams[index].isVararg else { return try parameterType(parameter) }
@@ -257,9 +260,8 @@ extension JVMProgramBuilder {
             guard case let .propertyDecl(p) = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id), let propertyType = sema.symbols.propertyType(for: symbol),
                   (p.typeParams.isEmpty || plan.isFacade && p.receiverType != nil), p.contextReceivers.isEmpty,
                   p.explicitBackingField == nil,
-                  p.modifiers.subtracting([.public, .private, .protected, .internal, .open, .final, .abstract, .override, .lateinit, .const, .inline]).isEmpty,
-                  p.getter?.isInline != true, p.setter?.isInline != true,
-                  p.getter?.annotations.isEmpty ?? true, p.setter?.annotations.isEmpty ?? true else { throw JVMFrontendError(message: "Unsupported JVM property declaration.") }
+                  p.modifiers.subtracting([.actual, .public, .private, .protected, .internal, .open, .final, .abstract, .override, .lateinit, .const, .inline]).isEmpty,
+                  p.getter?.isInline != true, p.setter?.isInline != true else { throw JVMFrontendError(message: "Unsupported JVM property declaration.") }
             guard !sema.composableFunctions.contains(symbol) else {
                 throw JVMFrontendError(message: "JVM @Composable property accessors are unsupported.", range: p.range)
             }

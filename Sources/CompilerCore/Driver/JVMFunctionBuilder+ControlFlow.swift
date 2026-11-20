@@ -33,10 +33,11 @@ extension JVMFunctionBuilder {
         }
         if op == .rangeTo {
             if let symbol = program.sema.bindings.callBinding(for: id)?.chosenCallee,
-               program.inlineDeclarations[symbol] != nil || program.references[symbol] != nil || program.methods[symbol] != nil {
+               program.inlineDeclarations[symbol] != nil || program.references[symbol] != nil || program.methods[symbol] != nil || program.textLibraryMethods[symbol] != nil {
                 let args = [CallArgument(expr: rhs)]
                 if let call = try inlineCall(args, receiver: lhs, id: id)
-                    ?? sourceCall(args, receiver: lhs, id: id) { return call.value }
+                    ?? sourceCall(args, receiver: lhs, id: id)
+                    ?? textLibraryCall(args, receiver: lhs, id: id) { return call.value }
             }
             let lower = try requireValue(lhs), upper = try requireValue(rhs)
             if lower.type == .double, upper.type == .double {
@@ -328,7 +329,7 @@ extension JVMFunctionBuilder {
             return
         }
         let range: (BinaryOp, ExprID, ExprID)? = switch arena.expr(iterable) {
-        case let .binary(op, from, to, _) where [BinaryOp.rangeTo, .rangeUntil, .downTo].contains(op):
+        case let .binary(op, from, to, _) where [BinaryOp.rangeTo, .rangeUntil, .downTo].contains(op) && program.sema.bindings.isRangeExpr(iterable):
             (op, from, to)
         case let .memberCall(receiver, callee, _, args, _)
             where context.interner.resolve(callee) == "until" && args.count == 1 &&

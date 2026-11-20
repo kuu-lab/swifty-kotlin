@@ -33,6 +33,132 @@ extension JVMBackendTests {
         return root.appendingPathComponent("hidden-library.jar")
     }
 
+    private func externalReifiedFileFacadeLibraryJar(_ root: URL) throws -> URL {
+        try """
+        package fixture
+
+        import kotlin.reflect.KClass
+
+        open class ViewModel
+        class Lazy<T : Any>(val type: KClass<T>)
+        class Host
+
+        inline fun <reified VM : ViewModel> Host.viewModels(factoryProducer: () -> Any = { Any() }): Lazy<VM> = Lazy(VM::class)
+
+        inline fun <reified VM : ViewModel> Host.activityViewModels(factoryProducer: () -> Any = { Any() }, extrasProducer: () -> Any = { Any() }): Lazy<VM> = Lazy(VM::class)
+        """.write(to: root.appendingPathComponent("ViewModelLazy.kt"), atomically: true, encoding: .utf8)
+        _ = try jvmTool("kotlinc", ["ViewModelLazy.kt", "-d", "viewmodel-lazy.jar"], root: root)
+        return root.appendingPathComponent("viewmodel-lazy.jar")
+    }
+
+    private func externalReifiedFunctionTypeReceiverLibraryJar(_ root: URL) throws -> URL {
+        try """
+        package fixture
+
+        import kotlin.reflect.KClass
+
+        class Lazy<T : Any>(val type: KClass<T>)
+        open class ViewModel
+
+        inline fun <reified VM : ViewModel> (() -> Any).viewModels(factoryProducer: () -> Any = { Any() }): Lazy<VM> = Lazy(VM::class)
+        """.write(to: root.appendingPathComponent("FunctionTypeReceiver.kt"), atomically: true, encoding: .utf8)
+        _ = try jvmTool("kotlinc", ["FunctionTypeReceiver.kt", "-d", "function-type-receiver.jar"], root: root)
+        return root.appendingPathComponent("function-type-receiver.jar")
+    }
+
+    private func externalReifiedCallbackLibraryJar(_ root: URL) throws -> URL {
+        try """
+        package fixture
+
+        import kotlin.reflect.KClass
+
+        class Callback
+        open class ViewModel
+        class Lazy<T : Any>(val type: KClass<T>)
+        class Host
+
+        inline fun <reified VM : ViewModel> Host.viewModels(factoryProducer: () -> Callback = { Callback() }): Lazy<VM> = Lazy(VM::class)
+        """.write(to: root.appendingPathComponent("CallbackLazy.kt"), atomically: true, encoding: .utf8)
+        _ = try jvmTool("kotlinc", ["CallbackLazy.kt", "-d", "callback-lazy.jar"], root: root)
+        return root.appendingPathComponent("callback-lazy.jar")
+    }
+
+    @Test
+    func externalKotlinSyntheticReifiedFileFacadeExtensionResolves() throws {
+        try withWorkspace { root in
+            let library = try externalReifiedFileFacadeLibraryJar(root)
+            let compiled = try compile("""
+            package probe
+
+            import fixture.Host
+            import fixture.Lazy
+            import fixture.ViewModel
+            import fixture.activityViewModels
+            import fixture.viewModels
+
+            class MyViewModel : ViewModel()
+
+            fun main() {
+                val host = Host()
+                val model: Lazy<MyViewModel> = host.viewModels()
+                val other: Lazy<MyViewModel> = host.activityViewModels()
+            }
+            """, root: root, mode: .jvmJar, classpath: [library.path])
+            try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
+        }
+    }
+
+    @Test
+    func externalKotlinSyntheticReifiedFunctionTypeReceiverParses() throws {
+        try withWorkspace { root in
+            let library = try externalReifiedFunctionTypeReceiverLibraryJar(root)
+            let compiled = try compile("""
+            package probe
+
+            import fixture.Lazy
+            import fixture.ViewModel
+            import fixture.viewModels
+
+            class MyViewModel : ViewModel()
+
+            fun main() {
+                val factory: () -> Any = { Any() }
+                val model: Lazy<MyViewModel> = factory.viewModels()
+            }
+            """, root: root, mode: .jvmJar, classpath: [library.path])
+            try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
+        }
+    }
+
+    @Test
+    func externalKotlinSyntheticReifiedCallbackTypeJoinsLazyClosure() throws {
+        try withWorkspace { root in
+            let library = try externalReifiedCallbackLibraryJar(root)
+            let consumerPath = root.appendingPathComponent("consumer.kt").path
+            let ctx = CompilationContext(
+                options: CompilerOptions(
+                    moduleName: "CallbackLazyTest",
+                    inputs: [consumerPath],
+                    outputPath: root.appendingPathComponent("out").path,
+                    emit: .jvmJar,
+                    target: .hostDefault(),
+                    includeStdlib: false,
+                    allowDefaultStdlibLibrary: false
+                ),
+                sourceManager: SourceManager(),
+                diagnostics: DiagnosticEngine(),
+                interner: StringInterner()
+            )
+            _ = ctx.sourceManager.addFile(path: consumerPath, contents: Data("import fixture.viewModels\nfun main() {}".utf8))
+            let index = try JVMClasspathIndex.load([library.path], automaticLazyClasspathMemberLimit: 0)
+            try index.inject(into: ctx)
+
+            let callbackID = try #require(ctx.sourceManager.fileID(forPath: "<kswiftk-jvm-import>/fixture/Callback.kt"))
+            let callback = String(decoding: ctx.sourceManager.contents(of: callbackID), as: UTF8.self)
+            #expect(callback.contains("class `Callback`"))
+        }
+    }
+
     @Test
     func externalKotlinSyntheticReifiedMemberResolvesBesideOverload() throws {
         try withWorkspace { root in

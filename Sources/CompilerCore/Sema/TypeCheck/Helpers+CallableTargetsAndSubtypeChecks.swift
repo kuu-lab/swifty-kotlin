@@ -1263,20 +1263,63 @@ extension TypeCheckHelpers {
                 unitCoercedCallableReferenceType(callableType, expectedFunctionType: expected, sema: sema)
             } ?? callableType
             let typeVars = types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+            // A type parameter that occurs only in the reference's return type
+            // has no input evidence to solve it, and binding it to its upper
+            // bound here would hide it from the enclosing call's solver (the
+            // expected return is the call's own postponed inference parameter).
+            // Defer it to that parameter instead, so the call's other
+            // arguments can still determine the final instantiation. Only the
+            // exact `T`-as-return shape qualifies: a parameter nested inside a
+            // compound return (`Box<T>`) is not interchangeable with the whole
+            // expected return, parameters with real upper bounds must keep
+            // those bounds checked here, and reified parameters still require
+            // concrete call-site arguments. Only the nullable `Any?` bound is
+            // exempt: nothing downstream re-checks a deferred parameter's
+            // declared bounds once the enclosing call solves its inference
+            // parameter, and `Any?` accepts every type (including nullable
+            // ones) while a non-null `Any` bound does not.
+            var deferredReturnSubstitution: [SymbolID: TypeID] = [:]
+            if let postponedReturnTypeParameter,
+               let expectedFunctionType,
+               case let .functionType(expectedFunction) = types.kind(of: expectedFunctionType),
+               case let .typeParam(expectedParameter) = types.kind(of: expectedFunction.returnType),
+               expectedParameter.symbol == postponedReturnTypeParameter,
+               case let .functionType(actualFunction) = types.kind(of: inferredType),
+               case let .typeParam(actualReturnParameter) = types.kind(of: actualFunction.returnType)
+            {
+                let inputs = actualFunction.contextReceivers
+                    + (actualFunction.receiver.map { [$0] } ?? [])
+                    + actualFunction.params
+                for (index, symbol) in signature.typeParameterSymbols.enumerated() {
+                    guard actualReturnParameter.symbol == symbol,
+                          !signature.reifiedTypeParameterIndices.contains(index),
+                          upperBounds(index, symbol).allSatisfy({
+                              $0 == types.nullableAnyType
+                          }),
+                          !inputs.contains(where: { types.typeContainsTypeParam($0, symbol: symbol) })
+                    else { continue }
+                    deferredReturnSubstitution[symbol] = expectedFunction.returnType
+                }
+            }
             var substitution: [TypeVarID: TypeID] = [:]
             var arguments: [TypeID] = []
             for (index, symbol) in signature.typeParameterSymbols.enumerated() {
                 guard let variable = typeVars[symbol] else { return nil }
-                let bounds = upperBounds(index, symbol)
-                var argument = bounds.isEmpty ? types.nullableAnyType : types.glb(bounds)
-                // An F-bounded parameter (`T : Comparable<T>`) would
-                // substitute to a type still mentioning the parameter
-                // itself; fall back to the trivial bound instead of
-                // leaking an unsubstituted type parameter.
-                if signature.typeParameterSymbols.contains(where: {
-                    types.typeContainsTypeParam(argument, symbol: $0)
-                }) {
-                    argument = types.nullableAnyType
+                var argument: TypeID
+                if let deferred = deferredReturnSubstitution[symbol] {
+                    argument = deferred
+                } else {
+                    let bounds = upperBounds(index, symbol)
+                    argument = bounds.isEmpty ? types.nullableAnyType : types.glb(bounds)
+                    // An F-bounded parameter (`T : Comparable<T>`) would
+                    // substitute to a type still mentioning the parameter
+                    // itself; fall back to the trivial bound instead of
+                    // leaking an unsubstituted type parameter.
+                    if signature.typeParameterSymbols.contains(where: {
+                        types.typeContainsTypeParam(argument, symbol: $0)
+                    }) {
+                        argument = types.nullableAnyType
+                    }
                 }
                 substitution[variable] = argument
                 arguments.append(argument)
