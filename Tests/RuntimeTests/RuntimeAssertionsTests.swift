@@ -17,8 +17,6 @@ private func runtimeBox<T: AnyObject>(from raw: Int, as type: T.Type) -> T? {
 @Suite(.runtimeIsolation(.gcOnly))
 struct RuntimeAssertionsTests {
 
-    // MARK: - RuntimeAssertionErrorBox
-
     @Test
     func testAssertionErrorBoxExceptionFQName() {
         let box = RuntimeAssertionErrorBox(message: "assertion failed")
@@ -68,8 +66,6 @@ struct RuntimeAssertionsTests {
         let box = RuntimeAssertionErrorBox(message: "test")
         #expect(runtimeValueIsThrowableBox(box))
     }
-
-    // MARK: - RuntimeIllegalStateExceptionBox
 
     @Test
     func testIllegalStateExceptionBoxExceptionFQName() {
@@ -122,8 +118,6 @@ struct RuntimeAssertionsTests {
         #expect(runtimeValueIsThrowableBox(box))
     }
 
-    // MARK: - RuntimeIllegalArgumentExceptionBox
-
     @Test
     func testIllegalArgumentExceptionBoxExceptionFQName() {
         let box = RuntimeIllegalArgumentExceptionBox(message: "bad argument")
@@ -175,8 +169,6 @@ struct RuntimeAssertionsTests {
         #expect(runtimeValueIsThrowableBox(box))
     }
 
-    // MARK: - RuntimeInvalidParameterExceptionBox
-
     @Test
     func testInvalidParameterExceptionBoxHasJavaIdentityAndIllegalArgumentHierarchy() {
         let box = RuntimeInvalidParameterExceptionBox(message: "bad parameter")
@@ -193,8 +185,6 @@ struct RuntimeAssertionsTests {
         #expect(box.cause == 0)
         #expect(runtimeValueIsThrowableBox(box))
     }
-
-    // MARK: - RuntimeNoWhenBranchMatchedExceptionBox
 
     @Test
     func testNoWhenBranchMatchedExceptionBoxExceptionFQName() {
@@ -228,8 +218,6 @@ struct RuntimeAssertionsTests {
                 "Throwable should be last in hierarchy")
     }
 
-    // MARK: - RuntimeConcurrentModificationExceptionBox
-
     @Test
     func testConcurrentModificationExceptionBoxExceptionFQName() {
         let box = RuntimeConcurrentModificationExceptionBox(message: "modified")
@@ -262,8 +250,6 @@ struct RuntimeAssertionsTests {
                 "Throwable should be last in hierarchy")
     }
 
-    // MARK: - RuntimeMalformedInputExceptionBox
-
     @Test
     func testMalformedInputExceptionBoxRuntimeIdentity() {
         let message = runtimeMalformedInputExceptionDefaultMessage
@@ -282,8 +268,6 @@ struct RuntimeAssertionsTests {
         #expect(runtimeValueIsThrowableBox(box))
     }
 
-    // MARK: - RuntimeInvalidMutabilityExceptionBox
-
     @Test
     func testInvalidMutabilityExceptionBoxRuntimeIdentity() {
         let box = RuntimeInvalidMutabilityExceptionBox(message: "mutation blocked")
@@ -299,8 +283,6 @@ struct RuntimeAssertionsTests {
         ])
         #expect(runtimeValueIsThrowableBox(box))
     }
-
-    // MARK: - RuntimeArrayIndexOutOfBoundsExceptionBox
 
     @Test
     func testArrayIndexOutOfBoundsExceptionBoxExceptionFQName() {
@@ -338,8 +320,6 @@ struct RuntimeAssertionsTests {
         #expect(arrayIndex < indexOutOfBounds)
     }
 
-    // MARK: - RuntimeNegativeArraySizeExceptionBox
-
     @Test
     func testNegativeArraySizeExceptionBoxExceptionFQName() {
         let box = RuntimeNegativeArraySizeExceptionBox(message: "-1")
@@ -371,8 +351,6 @@ struct RuntimeAssertionsTests {
         #expect(hierarchy.last == "kotlin.Throwable",
                 "Throwable should be last in hierarchy")
     }
-
-    // MARK: - Type Discrimination
 
     @Test
     func testAssertionErrorBoxIsDistinctFromIllegalStateBox() {
@@ -439,8 +417,6 @@ struct RuntimeAssertionsTests {
         )
     }
 
-    // MARK: - Cause Parameter
-
     @Test
     func testAssertionErrorBoxWithCause() {
         let box = RuntimeAssertionErrorBox(message: "caused error", cause: 42)
@@ -470,8 +446,6 @@ struct RuntimeAssertionsTests {
         let box = RuntimeConcurrentModificationExceptionBox(message: "caused concurrent modification", cause: 13)
         #expect(box.cause == 13)
     }
-
-    // MARK: - Empty Message
 
     @Test
     func testAssertionErrorBoxWithEmptyMessage() {
@@ -667,8 +641,6 @@ struct RuntimeAssertionsTests {
         #expect(messageOnlyBox.message == "-1")
         #expect(noArgBox.message == nil)
     }
-
-    // MARK: - kk_array_new_checked
 
     @Test
     func testArrayNewCheckedRejectsNegativeSizeWithoutAllocating() throws {
