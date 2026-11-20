@@ -1,7 +1,5 @@
 import CompilerCore
 
-/// Signatures and storage identities used by serialized inline bodies remain
-/// implementation details, but consumers need them to reconstruct their ABI.
 enum InlineMetadataDependencies {
     static func collect(module: KIRModule, sema: SemaModule) -> Set<SymbolID> {
         var required: Set<SymbolID> = []
@@ -16,7 +14,6 @@ enum InlineMetadataDependencies {
 
         for declaration in module.arena.declarations {
             guard case let .function(function) = declaration, function.isInline else { continue }
-            // Default stubs can have no Sema symbol but still serialize a body.
             let body = module.inlineBodiesBeforeFinallyLowering[function.symbol]
                 ?? module.inlineBodiesBeforeCoroutineLowering[function.symbol]
                 ?? function.body
