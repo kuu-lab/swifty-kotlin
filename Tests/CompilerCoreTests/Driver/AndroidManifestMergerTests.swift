@@ -93,6 +93,30 @@ struct AndroidManifestMergerTests {
     }
 
     @Test
+    func parsesTheXMLThatPOMsAndManifestsUse() throws {
+        let root = try parse("""
+            \u{FEFF}<?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE project>
+            <!-- licence header -->
+            <project xmlns="http://maven.apache.org/POM/4.0.0" attr='single &amp; "quoted"'>
+              <name>A &lt;b&gt; &#65;&#x42;</name>
+              <description><![CDATA[raw <text> & more]]></description>
+              <?ignored instruction?>
+              <empty/>
+            </project>
+            """)
+        #expect(root.name == "project")
+        #expect(root[attribute: "xmlns"] == "http://maven.apache.org/POM/4.0.0")
+        #expect(root[attribute: "attr"] == "single & \"quoted\"")
+        #expect(root.value("name") == "A <b> AB")
+        #expect(root.value("description") == "raw <text> & more")
+        #expect(root.children.map(\.name) == ["name", "description", "empty"])
+        for malformed in ["<a><b></a>", "<a>", "", "<a></a><b/>", "<a x=1/>", "<a>&nope;</a>"] {
+            #expect(throws: AndroidPackagingError.self) { try parse(malformed) }
+        }
+    }
+
+    @Test
     func identicalNamelessElementsAreDeduplicated() throws {
         let app = try parse("""
             <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="org.example">

@@ -1,12 +1,12 @@
 import Foundation
-#if canImport(FoundationXML)
-import FoundationXML
-#endif
 
 /// Minimal mutable XML tree for Maven POMs and Android manifests. Attribute
 /// names keep their source prefix (`android:name`), which is what both the
 /// manifest merger and aapt2 expect; namespace declarations stay ordinary
 /// attributes so serialization round-trips them.
+///
+/// Parsing is self-contained rather than FoundationXML: on Linux that
+/// module links against the host libxml2, whose symbols CI runners lack.
 package final class AndroidXMLElement {
     package var name: String
     package var attributes: [(String, String)]
@@ -55,15 +55,11 @@ package final class AndroidXMLElement {
     }
 
     package static func parse(_ data: Data) throws -> AndroidXMLElement {
-        let builder = Builder()
-        let parser = XMLParser(data: data)
-        parser.delegate = builder
-        parser.shouldProcessNamespaces = false
-        guard parser.parse(), let root = builder.root else {
-            let reason = parser.parserError.map { String(describing: $0) } ?? "no root element"
-            throw AndroidPackagingError.invalidInput("Malformed XML: \(reason)")
+        guard let text = String(data: data, encoding: .utf8) else {
+            throw AndroidPackagingError.invalidInput("Malformed XML: not UTF-8")
         }
-        return root
+        var reader = Reader(Array(text.unicodeScalars))
+        return try reader.document()
     }
 
     package func serialized() -> String {
@@ -106,33 +102,154 @@ package final class AndroidXMLElement {
         return result
     }
 
-    private final class Builder: NSObject, XMLParserDelegate {
-        var root: AndroidXMLElement?
-        var stack: [AndroidXMLElement] = []
+    /// Elements, attributes, text, comments, CDATA, the XML declaration and
+    /// DOCTYPE, and the predefined and numeric entities: what POMs and
+    /// Android manifests contain.
+    private struct Reader {
+        let scalars: [Unicode.Scalar]
+        var index = 0
 
-        func parser(
-            _ parser: XMLParser, didStartElement elementName: String,
-            namespaceURI: String?, qualifiedName: String?, attributes: [String: String]
-        ) {
-            // XMLParser reports attributes as an unordered dictionary; sort
-            // for deterministic output (aapt2 does not depend on order).
-            let element = AndroidXMLElement(
-                name: qualifiedName ?? elementName,
-                attributes: attributes.sorted { Self.attributeOrder($0.key, $1.key) }
-            )
-            if let parent = stack.last { parent.children.append(element) } else { root = element }
-            stack.append(element)
+        init(_ scalars: [Unicode.Scalar]) { self.scalars = scalars }
+
+        mutating func document() throws -> AndroidXMLElement {
+            if scalars.first == "\u{FEFF}" { index = 1 }
+            var root: AndroidXMLElement?
+            while true {
+                skipWhitespace()
+                guard index < scalars.count else { break }
+                if try skipMarkup() { continue }
+                guard root == nil, peek("<") else { throw fail("unexpected content outside the root element") }
+                root = try parseElement()
+            }
+            guard let root else { throw fail("no root element") }
+            return root
         }
 
-        func parser(
-            _ parser: XMLParser, didEndElement elementName: String,
-            namespaceURI: String?, qualifiedName: String?
-        ) {
-            _ = stack.popLast()
+        private mutating func parseElement() throws -> AndroidXMLElement {
+            try expect("<")
+            let element = AndroidXMLElement(name: try name(), attributes: [])
+            var attributes: [(String, String)] = []
+            while true {
+                skipWhitespace()
+                if consume("/>") { break }
+                if consume(">") {
+                    try content(of: element)
+                    break
+                }
+                let key = try name()
+                skipWhitespace()
+                try expect("=")
+                skipWhitespace()
+                guard index < scalars.count, scalars[index] == "\"" || scalars[index] == "'" else {
+                    throw fail("attribute \(key) has no quoted value")
+                }
+                let quote = scalars[index]
+                index += 1
+                var value = ""
+                while index < scalars.count, scalars[index] != quote {
+                    if scalars[index] == "&" { value += try entity() } else { value.unicodeScalars.append(scalars[index]); index += 1 }
+                }
+                try expect(String(quote))
+                attributes.append((key, value))
+            }
+            // Same order as before: xmlns first, then package/android:name, then the rest.
+            element.attributes = attributes.sorted { Self.attributeOrder($0.0, $1.0) }
+            return element
         }
 
-        func parser(_ parser: XMLParser, foundCharacters string: String) {
-            stack.last?.text += string
+        private mutating func content(of element: AndroidXMLElement) throws {
+            while index < scalars.count {
+                if consume("</") {
+                    let closing = try name()
+                    guard closing == element.name else { throw fail("</\(closing)> closes <\(element.name)>") }
+                    skipWhitespace()
+                    try expect(">")
+                    return
+                }
+                if consume("<![CDATA[") {
+                    while index < scalars.count, !peek("]]>") { element.text.unicodeScalars.append(scalars[index]); index += 1 }
+                    try expect("]]>")
+                } else if try skipMarkup() {
+                    continue
+                } else if peek("<") {
+                    element.children.append(try parseElement())
+                } else if scalars[index] == "&" {
+                    element.text += try entity()
+                } else {
+                    element.text.unicodeScalars.append(scalars[index])
+                    index += 1
+                }
+            }
+            throw fail("<\(element.name)> is not closed")
+        }
+
+        /// Comments, processing instructions and DOCTYPE carry nothing we use.
+        private mutating func skipMarkup() throws -> Bool {
+            for (open, close) in [("<!--", "-->"), ("<?", "?>"), ("<!DOCTYPE", ">")] where consume(open) {
+                while index < scalars.count, !peek(close) { index += 1 }
+                try expect(close)
+                return true
+            }
+            return false
+        }
+
+        private mutating func entity() throws -> String {
+            try expect("&")
+            var body = ""
+            while index < scalars.count, scalars[index] != ";", body.count < 12 {
+                body.unicodeScalars.append(scalars[index])
+                index += 1
+            }
+            try expect(";")
+            switch body {
+            case "amp": return "&"
+            case "lt": return "<"
+            case "gt": return ">"
+            case "quot": return "\""
+            case "apos": return "'"
+            default:
+                let value = body.hasPrefix("#x") ? UInt32(body.dropFirst(2), radix: 16)
+                    : body.hasPrefix("#") ? UInt32(body.dropFirst()) : nil
+                guard let value, let scalar = Unicode.Scalar(value) else { throw fail("unknown entity &\(body);") }
+                return String(Character(scalar))
+            }
+        }
+
+        private mutating func name() throws -> String {
+            var result = ""
+            while index < scalars.count {
+                let scalar = scalars[index]
+                guard scalar.properties.isAlphabetic || scalar.properties.numericType != nil
+                        || ":_-.".unicodeScalars.contains(scalar) else { break }
+                result.unicodeScalars.append(scalar)
+                index += 1
+            }
+            guard !result.isEmpty else { throw fail("expected a name") }
+            return result
+        }
+
+        private mutating func skipWhitespace() {
+            while index < scalars.count, scalars[index].properties.isWhitespace { index += 1 }
+        }
+
+        private func peek(_ text: String) -> Bool {
+            let pattern = Array(text.unicodeScalars)
+            return index + pattern.count <= scalars.count && Array(scalars[index..<index + pattern.count]) == pattern
+        }
+
+        private mutating func consume(_ text: String) -> Bool {
+            guard peek(text) else { return false }
+            index += text.unicodeScalars.count
+            return true
+        }
+
+        private mutating func expect(_ text: String) throws {
+            guard consume(text) else { throw fail("expected '\(text)'") }
+        }
+
+        private func fail(_ reason: String) -> AndroidPackagingError {
+            let line = scalars[..<min(index, scalars.count)].filter { $0 == "\n" }.count + 1
+            return .invalidInput("Malformed XML at line \(line): \(reason)")
         }
 
         /// `xmlns` declarations first, then `package`/`android:name`, then
