@@ -40,8 +40,6 @@ extension SymbolTableTests {
         #expect(symbols.parentSymbol(for: SymbolID(rawValue: 0)) == nil)
     }
 
-    // MARK: - Type Parameter Upper Bound
-
     @Test
     func testSetAndGetTypeParameterUpperBound() {
         let interner = StringInterner()
@@ -82,8 +80,6 @@ extension SymbolTableTests {
         #expect(symbols.typeParameterUpperBound(for: SymbolID(rawValue: 0)) == nil)
     }
 
-    // MARK: - Source File ID
-
     @Test
     func testSetAndGetSourceFileID() {
         let interner = StringInterner()
@@ -100,8 +96,6 @@ extension SymbolTableTests {
         #expect(symbols.sourceFileID(for: SymbolID(rawValue: 0)) == nil)
     }
 }
-
-// MARK: - BindingTable Tests
 
 @Suite
 struct BindingTableTests {
@@ -179,8 +173,6 @@ struct BindingTableTests {
         #expect(bindings.exprTypes[ExprID(rawValue: 1)] == stringType)
     }
 }
-
-// MARK: - Scope Tests
 
 @Suite
 struct ScopeTests {
@@ -323,8 +315,6 @@ struct ScopeTests {
     }
 }
 
-// MARK: - SemaModule Tests
-
 @Suite
 struct SemaModuleTests {
     @Test
@@ -342,8 +332,6 @@ struct SemaModuleTests {
         #expect(sema.importedInlineFunctions.isEmpty)
     }
 }
-
-// MARK: - FunctionSignature Tests
 
 @Suite
 struct FunctionSignatureTests {
@@ -404,8 +392,6 @@ struct FunctionSignatureTests {
         #expect(sig.typeParameterUpperBounds == [intType, nil])
     }
 }
-
-// MARK: - CallBinding Tests
 
 @Suite
 struct CallBindingTests {
