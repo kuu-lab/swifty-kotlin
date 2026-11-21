@@ -2,7 +2,6 @@ package java.util
 
 import java.security.MessageDigest
 
-/** A Java-compatible UUID with parsing and bit layout backed by Kotlin values. */
 public class UUID(
     private val mostSigBits: Long,
     private val leastSigBits: Long,
@@ -11,11 +10,9 @@ public class UUID(
 
     public fun getLeastSignificantBits(): Long = leastSigBits
 
-    /** JVM `get`-getter synthetic property view of `getMostSignificantBits()`. */
     public val mostSignificantBits: Long
         get() = mostSigBits
 
-    /** JVM `get`-getter synthetic property view of `getLeastSignificantBits()`. */
     public val leastSignificantBits: Long
         get() = leastSigBits
 
@@ -68,7 +65,6 @@ public class UUID(
             return kotlin.uuid.Uuid.random().toLongs { most, least -> UUID(most, least) }
         }
 
-        /** JVM `nameUUIDFromBytes`: MD5 digest with version-3/variant bits applied. */
         public fun nameUUIDFromBytes(name: ByteArray): UUID {
             val digest = MessageDigest.getInstance("MD5").digest(name)
             digest[6] = (digest[6].toInt() and 0x0F or 0x30).toByte()
