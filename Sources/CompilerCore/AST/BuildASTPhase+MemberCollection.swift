@@ -56,10 +56,6 @@ extension BuildASTPhase {
                 }
 
                 var constructorArgs: [CallArgument] = []
-                // The parser stores the `(...)` argument list as a `.statement`
-                // child and the anonymous class body as a `.block` child of the
-                // enum-entry node; their presence marks the written syntax even
-                // when they produce no arguments or members.
                 var hasConstructorCallSyntax = false
                 if let argsNodeID = arena.children(of: entryNodeID).compactMap({ child -> NodeID? in
                     guard case let .node(childID) = child,
@@ -94,11 +90,6 @@ extension BuildASTPhase {
                     from: entryNodeID, in: arena, interner: interner, astArena: astArena,
                     enumEntrySite: true
                 )
-                // Object declarations inside enum entries are prohibited on
-                // JVM ("named object 'X' cannot be local" / "'companion' is
-                // not applicable inside 'enum entry'"); EnumEntryDecl has no
-                // object slots, so they are diagnosed here instead of being
-                // silently dropped.
                 for declID in members.nestedObjects {
                     guard case let .objectDecl(objectDecl) = astArena.decl(declID) else {
                         continue
@@ -198,8 +189,6 @@ extension BuildASTPhase {
         var entries: [EnumEntryDecl] = []
         entries.reserveCapacity(segments.count)
         for segment in segments {
-            // Skip segments that contain declaration keywords — these are class member
-            // declarations that appear in non-enum class bodies, not enum entries.
             let hasDeclKeyword = segment.contains(where: { token in
                 switch token.kind {
                 case .keyword(.val), .keyword(.var), .keyword(.fun),
@@ -218,8 +207,6 @@ extension BuildASTPhase {
                 if let parsed = AnnotationParsingSupport.parseAnnotation(
                     from: segment, start: annotIndex, interner: interner, allowUseSiteTarget: false
                 ) {
-                    // Skip annotations that had an invalid (property) use-site target —
-                    // those belong to property declarations, not enum entries.
                     if parsed.invalidUseSiteTargetRange == nil {
                         annotations.append(parsed.annotation)
                     }
@@ -250,9 +237,6 @@ extension BuildASTPhase {
                 constructorArgs = parser.parseCallArguments()
                 bodySearchIndex = afterParen
             }
-            // A top-level `{` after the name (or its argument list) is the
-            // entry's anonymous class body — `A {}` counts even though it
-            // declares no members.
             let hasBody = segment[bodySearchIndex...].contains { $0.kind == .symbol(.lBrace) }
             let end = segment.last?.range.end ?? nameToken.range.end
             entries.append(EnumEntryDecl(
@@ -323,9 +307,6 @@ extension BuildASTPhase {
         else {
             return []
         }
-        // An unnamed `companion object : Supertype { ... }` has no identifier
-        // between `object` and the supertype colon, so the supertype list starts
-        // right after the introducer instead of after a name.
         let isUnnamedObject = declarationKeyword == .object
             && tokens[introducerIndex + 1].kind == .symbol(.colon)
         var index: Int
@@ -341,9 +322,6 @@ extension BuildASTPhase {
         }
         index = skipBalancedBracket(in: tokens, from: index, open: .symbol(.lessThan), close: .symbol(.greaterThan))
         index = skipBalancedBracket(in: tokens, from: index, open: .symbol(.lParen), close: .symbol(.rParen))
-        // Primary constructors may use the explicit `constructor` keyword with
-        // modifiers such as `actual`, a visibility modifier, and/or annotations.
-        // Walk general modifiers here just as scanPrimaryConstructorHeader does.
         while index < tokens.count {
             let token = tokens[index]
             if token.kind == .symbol(.at) {
@@ -381,12 +359,6 @@ extension BuildASTPhase {
             if depth.isAtTopLevel {
                 if token.kind == .symbol(.lBrace) {
                     if delegateBraceTracker.braceContinuesDelegateExpression() {
-                        // The brace belongs to the delegate expression
-                        // (`by { ... }`, `by when (x) { ... }`, `by if (c)
-                        // { } else { }`, `by object : C { }`, ...) and stays
-                        // inside the supertype entry. A top-level brace the
-                        // delegate expression cannot contain is the
-                        // declaration body and stays outside the entry.
                         delegateBraceTracker.note(token.kind, atTopLevel: true)
                         current.append(token)
                         depth.track(token.kind)
@@ -571,7 +543,6 @@ extension BuildASTPhase {
         var args: [CallArgument] = []
         var current: [Token] = []
         var depth = BracketDepth()
-        // Object-expression supertype lists contain top-level commas before the body.
         var isParsingObjectLiteralHeader = false
 
         func flush() {
@@ -606,9 +577,6 @@ extension BuildASTPhase {
                 isParsingObjectLiteralHeader = true
             }
             if token.kind == .symbol(.comma), depth.isAtTopLevel, !isParsingObjectLiteralHeader {
-                // An empty slot before the comma (`Base(,1)`, `Base(1,,2)`,
-                // `Base(,)`) is not a legal argument — only a trailing comma
-                // after a real argument is allowed (Kotlin 1.4+).
                 if current.isEmpty {
                     diagnostics?.error(
                         "KSWIFTK-PARSE-0022",
@@ -851,13 +819,6 @@ extension BuildASTPhase {
             properties.append(astArena.appendDecl(.propertyDecl(propDecl)))
         case .classDecl:
             let classDecl = makeClassDecl(from: childID, in: arena, interner: interner, astArena: astArena)
-            // kotlinc rejects named nominal declarations inside enum entry
-            // bodies: classes/interfaces outright, enum classes via the
-            // modifier check, annotation classes as both local and prohibited.
-            // `inner class` is the exception: kotlinc accepts it inside an
-            // enum entry body (the entry's anonymous class is a legal inner
-            // owner — `validateInnerPosition` allows `.enumEntry` sites too),
-            // and the KUU-3672 delegation test relies on it.
             if enumEntrySite, !classDecl.modifiers.contains(.inner) {
                 if classDecl.modifiers.contains(.enumModifier) {
                     diagnostics?.error(
@@ -901,8 +862,6 @@ extension BuildASTPhase {
             let objectDecl = makeObjectDecl(from: childID, in: arena, interner: interner, astArena: astArena)
             let declID = astArena.appendDecl(.objectDecl(objectDecl))
             if enumEntrySite {
-                // Enum entry bodies admit no named objects at all; companions
-                // report the modifier error instead and are not counted.
                 if objectDecl.modifiers.contains(.companion) {
                     diagnostics?.error(
                         "KSWIFTK-SEMA-0401",
@@ -925,10 +884,6 @@ extension BuildASTPhase {
                         "A declaration can have only one companion object.",
                         range: objectDecl.range
                     )
-                    // Keep the duplicate in the tree as a nested object so
-                    // member references still resolve and its members are
-                    // analyzed, like kotlinc — which also reports it under
-                    // `companion`-modifier site checks where applicable.
                     nestedObjects.append(declID)
                 }
             } else {
@@ -982,9 +937,6 @@ extension BuildASTPhase {
                 continue
             }
 
-            // Init blocks appear as statement-like nodes whose first direct
-            // token is the `init` soft keyword (same logic used by
-            // `declarationInitBlocks`).
             if isStatementLikeKind(childNode.kind) {
                 let headerTokens = collectDirectTokens(from: childID, in: arena).filter { token in
                     token.kind != .symbol(.semicolon)
@@ -1006,9 +958,6 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena
     ) -> ExprID? {
-        // A delegate expression follows the same call grammar as any other
-        // initializer.  In particular, a trailing lambda is the final call
-        // argument and must participate in overload resolution and inference.
         let tokens = propertyHeadTokens(
             from: nodeID,
             in: arena,
@@ -1022,8 +971,6 @@ extension BuildASTPhase {
         var byIndex: Int?
         var depth = BracketDepth()
         for (index, token) in tokens.enumerated() {
-            // Once the initializer starts, any `by` belongs to that expression,
-            // not to the property declaration.
             if token.kind == .symbol(.assign), depth.isAtTopLevel {
                 return nil
             }
