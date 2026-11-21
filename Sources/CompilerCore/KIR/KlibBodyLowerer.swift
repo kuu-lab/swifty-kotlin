@@ -1,9 +1,3 @@
-/// Runs during ``KIRLoweringDriver.lowerModule`` after every source file has
-/// been lowered, so the consumer `SymbolTable`/`TypeSystem` already hold the
-/// materialized declarations (PR4) and their synthesized layouts. Declarations
-/// without a serialized body keep their external/precompiled identity — only
-/// `bodyIndex`-carrying functions, constructors, accessors and field
-/// initializers become `KIRFunction`/`KIRGlobal` declarations here.
 final class KlibBodyLowerer {
     private let loaded: DataFlowSemaPhase.LoadedKlibModule
     private let driver: KIRLoweringDriver
@@ -16,14 +10,9 @@ final class KlibBodyLowerer {
     /// singleton — they run ahead of every other klib init instruction.
     private var eagerObjectInit = KIRLoweringEmitContext()
 
-    /// All serialized tables (types/signatures/strings/bodies) are file-local.
     private var fileIndex = 0
 
 
-    /// Serialized value-symbol signature index → bound KIR expression. Plays
-    /// the role `ctx.localValuesBySymbol` plays for source lowering: value
-    /// parameters map to their `.symbolRef` param expr, local `variable`s map
-    /// to a temporary slot.
     private var valueExprs: [Int: KIRExprID] = [:]
     private var mutableValues: Set<Int> = []
     private var mutableCells: [Int: KIRExprID] = [:]
@@ -36,39 +25,24 @@ final class KlibBodyLowerer {
     private var liftedLambdas: [KlibSignatureKey: LiftedLambda] = [:]
     private var typeParameterSymbols: [KlibSignatureKey: SymbolID] = [:]
     private var returnTargetSignatureIndexes: Set<Int> = []
-    /// The callable being translated, used to seed instance fields before a
-    /// serialized constructor delegates to its superclass.
     private var currentCallableSymbol: SymbolID?
-    /// `returnableBlock` symbol → (end label, result temp) so `return`s aimed
-    /// at it jump to its epilogue instead of returning from the function.
     private var returnableBlocks: [Int: (label: Int32, result: KIRExprID?, finallyDepth: Int)] = [:]
-    /// Kotlin `loopId` → KIR labels for `break`/`continue`.
     private var loopLabels: [Int32: (continueLabel: Int32, breakLabel: Int32, finallyDepth: Int)] = [:]
     private struct FinallyBlock {
         let expression: KlibIrExpression
         let exceptionHandlerDepth: Int
     }
     private var finallyBlocks: [FinallyBlock] = []
-    /// The `this` binding of the current constructor (its dispatch-receiver
-    /// parameter), used by `delegatingConstructorCall` and
-    /// `instanceInitializerCall`.
     private var thisExpr: KIRExprID?
 
 
-    /// Member field initializer bodies and anonymous-init bodies per class —
-    /// collected before emitting the class's members so a ctor's
-    /// `instanceInitializerCall` can expand them in member-declaration order.
     private var classInitBySymbol: [SymbolID: ClassInitInfo] = [:]
     private var emittedGlobals: Set<SymbolID> = []
-    /// Objects whose init functions were already synthesized — distinct from
-    /// `emittedGlobals` since a forward reference can create the slot first.
     private var emittedObjectInits: Set<SymbolID> = []
     private var reportedUnsupported: Set<String> = []
 
     private struct ClassInitInfo {
-        /// In member-declaration order.
         var fieldInitializers: [(field: SymbolID, bodyIndex: Int32, typeIndex: Int32)] = []
-        /// `IrAnonymousInitializer` bodies, also in declaration order.
         var anonymousInitBodyIndices: [Int32] = []
         var fileIndex: Int = 0
     }
@@ -93,9 +67,6 @@ final class KlibBodyLowerer {
     private var symbols: SymbolTable { sema.symbols }
     private var types: TypeSystem { sema.types }
 
-    /// Non-source KIR file holding every declaration materialized from this
-    /// klib plus the top-level initialization instructions the driver must
-    /// splice into the module initializer.
     struct Result {
         var file: KIRFile?
         var topLevelInitInstructions = KIRLoweringEmitContext()
@@ -131,8 +102,6 @@ final class KlibBodyLowerer {
         )
     }
 
-    /// A type-parameter signature is a local/composite signature, not its
-    /// containing class/function symbol. Preserve the metadata binder's IDs.
     private func bindTypeParameters(_ declaration: KlibIrDeclaration) {
         func bind(_ parameters: [KlibTypeParameter], to symbols: [SymbolID]) {
             for (parameter, symbol) in zip(parameters, symbols.suffix(parameters.count)) {
@@ -170,7 +139,6 @@ final class KlibBodyLowerer {
             return emitCallable(constructor.base)
         case .property(let property):
             let declIDs = emitPropertyAccessors(property)
-            // Top-level backing fields are real globals, not class slots.
             if let field = property.backingField {
                 emitTopLevelField(field)
             }
@@ -181,8 +149,6 @@ final class KlibBodyLowerer {
         case .class(let klass):
             return emitClass(klass)
         case .enumEntry:
-            // Ordinal slot + static init are synthesized by the enum pass
-            // once the enclosing class's `.nominalType` lands in the arena.
             return []
         case .anonymousInit, .typeParameter, .typeAlias,
              .valueParameter, .variable, .localDelegatedProperty:
@@ -190,9 +156,6 @@ final class KlibBodyLowerer {
         }
     }
 
-    /// `(fileIndex, signatureIndex)` → consumer `SymbolID`. The materializer
-    /// keyed every registered record; references outside this module (stdlib
-    /// artifacts, `depends` klibs) resolve by fully-qualified name.
     private func symbol(for ref: KlibSymbolRef, constructorAccess: KlibMemberAccess? = nil) -> SymbolID? {
         let key = KlibSignatureKey(fileIndex: fileIndex, signatureIndex: ref.signatureIndex)
         if let symbol = typeParameterSymbols[key] { return symbol }
@@ -238,15 +201,12 @@ final class KlibBodyLowerer {
                 return candidate
             }
 
-            // Native may name a fake override such as IllegalArgumentException.message.
             guard ref.kind == .property, let name = interned.last,
                   let owner = symbols.lookup(fqName: Array(interned.dropLast()))
             else { return nil }
             let receiverType = types.make(.classType(ClassType(classSymbol: owner, args: [], nullability: .nonNull)))
             return TypeCheckHelpers().lookupMemberProperty(named: name, receiverType: receiverType, sema: sema)?.symbol
         case .accessor(let propertySignature, let name, _, _, _):
-            // External accessor → the property's synthetic accessor symbol,
-            // mirroring `finalizeKlibModule`'s synthetic-key registration.
             guard propertySignature >= 0,
                   let propertyRef = KlibSymbolRef((Int64(propertySignature) << 8) | Int64(KlibSymbolKind.property.rawValue)),
                   let propertySymbol = ownModuleSymbol(propertySignature)
@@ -259,9 +219,6 @@ final class KlibBodyLowerer {
             return symbols.extensionPropertyGetterAccessor(for: propertySymbol)
                 ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
         case .composite(let container, let inner):
-            // Composite signatures wrap a nested signature inside a container
-            // (backing fields live as `<prop>+<field>` composites) — resolve
-            // the inner entry first, then the container.
             return ownModuleSymbol(inner) ?? ownModuleSymbol(container)
         case .fileLocal, .scopedLocal, .local, .file:
             return nil
@@ -272,7 +229,6 @@ final class KlibBodyLowerer {
         in candidates: [SymbolID],
         access: KlibMemberAccess
     ) -> SymbolID? {
-        // A constructor call carries its value arguments without an instance receiver.
         let arguments = if !access.arguments.isEmpty {
             access.arguments.map(Optional.some)
         } else if !access.argumentsPre240.isEmpty {
@@ -292,9 +248,6 @@ final class KlibBodyLowerer {
         return applicable.count == 1 ? applicable[0] : nil
     }
 
-    /// FQ name of the declaration a symbol ref points at — used to detect
-    /// compiler-intrinsic member calls (`kotlin.Int.plus` & friends) whose
-    /// symbols have no body anywhere and must map onto `kk_op_*` stubs.
     private func resolvedFqName(of ref: KlibSymbolRef, depth: Int = 0) -> String? {
         guard depth < 64, let signature = try? ir.signature(ref.signatureIndex, fileIndex: fileIndex) else { return nil }
         switch signature {
@@ -317,11 +270,6 @@ final class KlibBodyLowerer {
         case setter
     }
 
-    /// The consumer symbol is the synthetic accessor ID `finalizeKlibModule`
-    /// registered, so call sites and vtable slots resolve through the same key
-    /// space as source.
-    /// Synthetic accessor symbols have no `FunctionSignature` entry — the
-    /// signature is rebuilt from the property's recorded metadata instead.
     private func emitAccessor(
         _ function: KlibFunction,
         accessor: AccessorKind,
@@ -390,8 +338,6 @@ final class KlibBodyLowerer {
                 type: receiverType
             ))
         }
-        // `valueParameterSymbols` may be absent for imported records — bind by
-        // position then, synthesizing a unique symbol per slot.
         for (index, paramType) in signature.parameterTypes.enumerated() {
             let paramSymbol = index < signature.valueParameterSymbols.count
                 ? signature.valueParameterSymbols[index]
@@ -401,9 +347,6 @@ final class KlibBodyLowerer {
                 : paramType
             params.append(KIRParameter(symbol: paramSymbol, type: storageType))
         }
-        // Reified type parameters arrive as trailing `Int` token arguments at
-        // call sites — the params mirror source lowering so the body can read
-        // them via the same indices.
         if base.base.flags.isInline, !signature.reifiedTypeParameterIndices.isEmpty {
             for index in signature.reifiedTypeParameterIndices.sorted()
             where index < signature.typeParameterSymbols.count {
@@ -442,10 +385,6 @@ final class KlibBodyLowerer {
         return declarations
     }
 
-    /// KLIBs serialize default expressions rather than KSwiftK's `$default`
-    /// function. Rebuild that function with the same mask ABI used by source
-    /// calls. Bind resolved parameters in order so a default can read `this`
-    /// and earlier parameters, and evaluate defaults only when requested.
     private func emitDefaultStub(
         base: KlibFunctionBase,
         symbol: SymbolID,
@@ -485,7 +424,7 @@ final class KlibBodyLowerer {
             }
             let regularIndex = index - receiverCount
             guard regularIndex < base.regularParameters.count else {
-                forwarded.append(provided) // Reified type tokens.
+                forwarded.append(provided)
                 continue
             }
             let serialized = base.regularParameters[regularIndex]
@@ -518,8 +457,6 @@ final class KlibBodyLowerer {
            let dispatch = resolveVirtualDispatchKind(
                callee: symbol, receiverTypeID: arena.exprType(receiver), sema: sema, interner: interner
            ) {
-            // Kotlin forbids omitted arguments in super calls. Every mask
-            // bit therefore belongs to a parameter, including bit 30.
             body.append(.virtualCall(
                 symbol: symbol, callee: name, receiver: receiver,
                 arguments: Array(forwarded.dropFirst()), result: result,
@@ -532,9 +469,6 @@ final class KlibBodyLowerer {
         body.append(.endBlock)
         let stubSymbol = driver.callSupportLowerer.defaultStubSymbol(for: symbol)
         let stubParams = params + maskSymbols.map { KIRParameter(symbol: $0, type: types.longType) }
-        // The stub's receiver is an ordinary KIR parameter. Register its
-        // complete erased ABI so Any/T receivers and values are boxed at
-        // source and serialized call sites, including constructors.
         func erased(_ type: TypeID) -> TypeID {
             if case .typeParam = types.kind(of: type) { return types.anyType }
             return type
@@ -594,9 +528,6 @@ final class KlibBodyLowerer {
         thisExpr = nil
         currentCallableSymbol = symbol
 
-        // Member extensions carry both a dispatch and an extension receiver —
-        // the consumer signature only models one receiver, so there is no
-        // second binding slot. Rare enough to diagnose rather than support.
         if base.dispatchReceiver != nil && base.extensionReceiver != nil {
             reportUnsupported("member-extension receiver in \(debugName(of: base.base.symbol))")
         }
@@ -610,12 +541,6 @@ final class KlibBodyLowerer {
             if capture.isCell { mutableCells[capture.signatureIndex] = value }
         }
 
-        // Serialized `getValue`s on the dispatch/extension receiver parameter
-        // resolve to the receiver binding — the same convention source
-        // lowering establishes via `ctx.setImplicitReceiver`. Constructors
-        // have no serialized dispatch receiver, but `this` still occupies
-        // `params[0]` and is referenced implicitly by
-        // `delegatingConstructorCall`/`instanceInitializerCall`.
         let isConstructor = symbols.symbol(symbol)?.kind == .constructor
         var paramIndex = captures.count
         if !params.isEmpty,
@@ -630,8 +555,6 @@ final class KlibBodyLowerer {
             thisExpr = receiverExpr
             paramIndex += 1
         }
-        // Context parameters precede regular parameters in serialized call
-        // order; both map onto `signature.parameterTypes` slots in sequence.
         for parameter in base.contextParameters + base.regularParameters {
             guard paramIndex < params.count else { break }
             let param = params[paramIndex]
@@ -647,8 +570,6 @@ final class KlibBodyLowerer {
             reportUnsupported("undecodable body for \(debugName(of: base.base.symbol))")
         }
         if body.instructions.last.map(Self.isTerminator) != true {
-            // KIR convention: `<init>` returns `this` — the call site uses the
-            // call result as the constructed object.
             if isConstructor, let thisExpr {
                 body.append(.returnValue(thisExpr))
             } else {
@@ -671,9 +592,6 @@ final class KlibBodyLowerer {
         return [kirID]
     }
 
-    /// Lift the serialized body into a capture-first function and reuse the
-    /// same escaping-callable adapter as source lambdas. Rich references may
-    /// also bind an explicit prefix of the invoke function's parameters.
     private func translateLambda(
         _ function: KlibFunction,
         boundValues: [KlibIrExpression],
@@ -696,7 +614,6 @@ final class KlibBodyLowerer {
             reportUnsupported("lambda bound/invocation parameter count")
             return errorExpr(type: resultType, into: &body)
         }
-        // Bound expressions execute once, in their serialized order.
         let boundArguments = boundValues.map { translateExpression($0, into: &body) }
         let key = KlibSignatureKey(fileIndex: fileIndex, signatureIndex: function.base.base.symbol.signatureIndex)
         let lifted: LiftedLambda
@@ -770,7 +687,6 @@ final class KlibBodyLowerer {
                 thisExpr = savedThis
                 currentCallableSymbol = savedCallable
             }
-            // A lifted callable starts with its own handlers and finally scopes.
             withFinallyStackDepth(0) {
                 driver.ctx.withExceptionHandlerStackDepth(0) {
                     for declaration in emitCallableBody(
@@ -851,8 +767,6 @@ final class KlibBodyLowerer {
     private func emitClass(_ klass: KlibClass) -> [KIRDeclID] {
         guard let classSymbol = symbol(for: klass.base.symbol) else { return [] }
 
-        // Pre-collect init data so `instanceInitializerCall` inside any ctor
-        // expands field stores + anonymous-init bodies in declaration order.
         var initInfo = ClassInitInfo(fileIndex: fileIndex)
         for member in klass.declarations {
             switch member {
@@ -889,7 +803,6 @@ final class KlibBodyLowerer {
             case .class(let nested):
                 memberDeclIDs.append(contentsOf: emitClass(nested))
             case .enumEntry:
-                // Ordinal slot + init are synthesized by the enum pass.
                 break
             case .field(let field) where field.base.flags.isStaticField:
                 emitStaticField(field)
@@ -909,10 +822,6 @@ final class KlibBodyLowerer {
                 klass: klass, objectSymbol: classSymbol
             ))
         }
-        // Enum classes need no special-casing here: the `.nominalType` decl
-        // above is picked up by DataEnumSealedSynthesisPass, which emits the
-        // ordinal entry slots, `__enum_static_init`, values/valueOf/entries
-        // and helper functions exactly as it does for source enums.
         return declIDs
     }
 
@@ -929,7 +838,6 @@ final class KlibBodyLowerer {
         topLevelInit.appendRelocatingLabels(contentsOf: initContext)
     }
 
-    /// Static (companion-object-scoped) fields — stored in globals too.
     private func emitStaticField(_ field: KlibField) {
         emitTopLevelField(field)
     }
@@ -960,11 +868,6 @@ final class KlibBodyLowerer {
     }
 
 
-    /// Mirrors `synthesizeObjectInitializer`/`synthesizeObjectLazyInit` for an
-    /// imported object: an eager allocation+registration function invoked from
-    /// module init, and a `$initialized`-guarded lazy body that delegates to
-    /// the object's own `<init>` (which performs the super constructor call,
-    /// field stores and init blocks through its serialized body).
     private func emitObjectSingleton(klass: KlibClass, objectSymbol: SymbolID) -> [KIRDeclID] {
         let objectType = types.make(.classType(ClassType(
             classSymbol: objectSymbol, args: [], nullability: .nonNull
@@ -1063,11 +966,8 @@ final class KlibBodyLowerer {
         case .declaration(let declaration):
             translateLocalDeclaration(declaration, into: &body)
         case .branch, .catch:
-            // Only meaningful inside `when`/`try`, which consume them directly.
             reportUnsupported("stray branch/catch statement")
         case .syntheticBody:
-            // Enum `values`/`valueOf`/`entries` synthetic bodies — those
-            // functions are re-synthesized by import, not emitted here.
             break
         }
     }
@@ -1174,9 +1074,6 @@ final class KlibBodyLowerer {
                 return bound
             }
             if ref.kind == .receiverParameter, let thisExpr {
-                // Some Klib producers encode the dispatch receiver as a
-                // scoped receiver local rather than the declaration's
-                // signature-table parameter. It still denotes this instance.
                 return thisExpr
             }
             if let symbol = symbol(for: ref) {
@@ -1257,7 +1154,6 @@ final class KlibBodyLowerer {
                     body.append(.returnValue(returned))
                 }
             } else {
-                // Return through an inlined lambda boundary.
                 body.append(.nonLocalReturn(lowered))
             }
             return arena.appendExpr(.unit, type: types.nothingType)
@@ -1304,9 +1200,6 @@ final class KlibBodyLowerer {
                 reportUnsupported("unresolvable enum entry \(debugName(of: ref))")
                 return errorExpr(type: resultType, into: &body)
             }
-            // Source convention (`referenceStdlibEnumEntry`): an enum entry
-            // reference is a `.symbolRef` on its ordinal slot — boxing into a
-            // heap object happens at Any boundaries via `kk_enum_box_ordinal`.
             let expr = arena.appendExpr(.symbolRef(entrySymbol), type: resultType)
             body.append(.constValue(result: expr, value: .symbolRef(entrySymbol)))
             return expr
@@ -1430,7 +1323,6 @@ final class KlibBodyLowerer {
     }
 
     private func translateFinally(_ expression: KlibIrExpression, into body: inout KIRLoweringEmitContext) {
-        // Each emitted copy needs its own storage for locals declared in finally.
         let savedValues = valueExprs
         let savedMutableValues = mutableValues
         let savedCells = mutableCells
@@ -1448,7 +1340,6 @@ final class KlibBodyLowerer {
             let outerHandler = driver.ctx.exceptionHandlerStack.prefix(block.exceptionHandlerDepth).last
             let skipping = finallyBlocks.count - index
 
-            // A transfer from the cleanup itself can only unwind outer scopes.
             var cleanup = KIRLoweringEmitContext()
             withFinallyStackDepth(index) {
                 driver.ctx.withExceptionHandlerStackDepth(block.exceptionHandlerDepth) {
@@ -1484,12 +1375,6 @@ final class KlibBodyLowerer {
     }
 
 
-    /// Splits a serialized member access into receiver and regular-argument
-    /// lists. Kotlin 2.4 folds receivers into `arguments` (dispatch receiver
-    /// first, then extension receiver, then value parameters); pre-2.4
-    /// payloads carry them in dedicated fields. `nil` entries mark
-    /// default-argument slots — Kotlin resolves them through the callee's
-    /// `$default` stub, synthesized from the callee's serialized defaults.
     private func splitArguments(
         _ access: KlibMemberAccess,
         signature: FunctionSignature?
@@ -1571,8 +1456,6 @@ final class KlibBodyLowerer {
         resultType: TypeID,
         into body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
-        // Intrinsic member calls on primitives: the callee has no body in any
-        // artifact — source lowering maps the same member onto `kk_op_*`.
         if let intrinsic = intrinsicCall(
             ref, memberAccess: memberAccess, resultType: resultType, into: &body
         ) {
@@ -1593,7 +1476,6 @@ final class KlibBodyLowerer {
         let lowered = lowerArguments(split.regular, signature: signature, into: &body)
         let loweredArguments = lowered.values
 
-        // The expression type includes the call site's generic substitution.
         let result = arena.appendTemporary(type: resultType)
         let calleeName = self.calleeName(for: calleeSymbol, ref: ref)
 
@@ -1670,8 +1552,6 @@ final class KlibBodyLowerer {
             )
         }
 
-        // The KIR convention allocates the instance at the call site and
-        // passes it as `this` (arg 0) — same as source ctor calls.
         let (allocated, _) = emitObjectAllocation(
             classSymbol: classSymbol, objectType: objectType, into: &body
         )
@@ -1702,8 +1582,6 @@ final class KlibBodyLowerer {
         {
             emitNullFieldInitializers(classSymbol: currentClass, receiver: thisExpr, into: &body)
         }
-        // `kotlin.Any.<init>` is the compiler-provided empty constructor —
-        // allocation already happened at the call site; no call is emitted.
         if let ctorInfo = symbols.symbol(ctorSymbol),
            ctorInfo.flags.contains(.synthetic),
            symbols.parentSymbol(for: ctorSymbol) == types.anyClassSymbol
@@ -1755,8 +1633,6 @@ final class KlibBodyLowerer {
         }
     }
 
-    /// `kk_object_new` + the same type/vtable/itable/KClass registration block
-    /// source constructor call sites emit (the `CallLowerer` ctor path).
     private func emitObjectAllocation(
         classSymbol: SymbolID,
         objectType: TypeID,
@@ -1817,7 +1693,6 @@ final class KlibBodyLowerer {
             sema: sema, arena: arena, interner: interner,
             instructions: &body.instructions
         )
-        // Throwable subclasses capture a stack trace at allocation.
         if let throwableSymbol = symbols.lookup(fqName: [
             interner.intern("kotlin"), interner.intern("Throwable")
         ]) {
@@ -1838,10 +1713,6 @@ final class KlibBodyLowerer {
         return (allocated, classIDExpr)
     }
 
-    /// `instanceInitializerCall` expansion: member field initializer
-    /// expressions (e.g. ctor-parameter `val` captures) plus anonymous-init
-    /// bodies, in member-declaration order — what the Kotlin/Native
-    /// deserializer re-synthesizes into the class's anonymous initializer.
     private func emitInstanceInitializers(
         classSymbol: SymbolID?,
         into body: inout KIRLoweringEmitContext
@@ -1936,7 +1807,6 @@ final class KlibBodyLowerer {
                 reportUnsupported("non-branch statement inside when")
                 continue
             }
-            // Kotlin's else-branch condition is `const(true)`.
             if isConstTrue(condition) {
                 let value = translateExpression(branchResult, into: &body)
                 if let result { body.append(.copy(from: value, to: result)) }
@@ -2175,7 +2045,6 @@ final class KlibBodyLowerer {
                 arena: arena, instructions: &body.instructions
             )
         }
-        // Unknown target type → token 0 (runtime reports mismatch).
         let expr = arena.appendExpr(.intLiteral(0), type: types.intType)
         body.append(.constValue(result: expr, value: .intLiteral(0)))
         return expr
@@ -2189,7 +2058,6 @@ final class KlibBodyLowerer {
     ) -> KIRExprID {
         var arguments: [KIRExprID] = []
         var spreadFlags: [Bool] = []
-        // Evaluate each operand once in serialized order before packing the array.
         for element in elements {
             let (expression, isSpread): (KlibIrExpression, Bool) = switch element {
             case .expression(let value): (value, false)
@@ -2218,11 +2086,6 @@ final class KlibBodyLowerer {
     }
 
 
-    /// `kotlin.<Prim>.<op>` members have no serialized body anywhere — they are
-    /// compiler intrinsics that source lowering maps onto `kk_op_*`/`kk_*`
-    /// runtime stubs (the ABI lowering pass inserts unboxing afterwards).
-    /// Mirrors that mapping for serialized bodies so e.g. `a + b` inside an
-    /// imported function emits the same `kk_op_add` a source body would.
     private func intrinsicCall(
         _ ref: KlibSymbolRef,
         memberAccess: KlibMemberAccess,
@@ -2235,7 +2098,6 @@ final class KlibBodyLowerer {
         let owner = parts.dropLast().joined(separator: ".")
         let member = parts.last ?? ""
 
-        // Native serializes comparison operators as calls to IR built-ins.
         if owner == "kotlin.internal.ir" {
             let comparison: KIRBinaryOp? = switch member {
             case "EQEQ": .equal
@@ -2282,8 +2144,6 @@ final class KlibBodyLowerer {
             }
         }
 
-        // Native models array `size` as a member, while the bundled stdlib
-        // supplies an extension property backed by these typed intrinsics.
         if parts.count == 3, parts[0] == "kotlin", member == "size",
            KnownCompilerNames(interner: interner).isArrayLikeName(interner.intern(parts[1])),
            let bridge = symbols.lookup(fqName: [
@@ -2431,9 +2291,6 @@ final class KlibBodyLowerer {
     }
 
 
-    /// Reuses the primitive-mapping rules the declaration materializer encodes
-    /// through signature text, so `kotlin.Int` lands on `types.intType`
-    /// (required for correct boxing).
     private func decodeType(_ typeIndex: Int32) -> TypeID? {
         guard typeIndex >= 0,
               let type = try? ir.type(typeIndex, fileIndex: fileIndex)
