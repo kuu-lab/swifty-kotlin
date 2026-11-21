@@ -1,8 +1,4 @@
 extension KIRLoweringDriver {
-    /// Synthesizes KIR bodies for `@Parcelize` classes:
-    ///   - `describeContents(): Int`
-    ///   - `writeToParcel(dest: Parcel, flags: Int): Unit` (reading/writing fields)
-    ///   - `CREATOR.createFromParcel(parcel: Parcel): T` & `CREATOR.newArray(size: Int): Array<T?>`
     func synthesizeParcelizeMembers(
         classDecl _: ClassDecl,
         classSymbol: SymbolID,
@@ -17,7 +13,6 @@ extension KIRLoweringDriver {
         var classMemberDecls: [KIRDeclID] = []
         var moduleExtraDecls: [KIRDeclID] = []
 
-        // 1. describeContents(): Int -> returns 0
         if let describeContentsSymbol = info.describeContentsMethod,
            arena.function(for: describeContentsSymbol) == nil,
            let signature = sema.symbols.functionSignature(for: describeContentsSymbol)
@@ -40,7 +35,6 @@ extension KIRLoweringDriver {
             classMemberDecls.append(arena.appendDecl(.function(kirFunc)))
         }
 
-        // 2. writeToParcel(dest: Parcel, flags: Int): Unit
         if let writeToParcelSymbol = info.writeToParcelMethod,
            arena.function(for: writeToParcelSymbol) == nil,
            let signature = sema.symbols.functionSignature(for: writeToParcelSymbol)
@@ -124,7 +118,6 @@ extension KIRLoweringDriver {
             classMemberDecls.append(arena.appendDecl(.function(kirFunc)))
         }
 
-        // 3. CREATOR object (`createFromParcel` and `newArray`)
         if let creatorObjSym = info.creatorObjectSymbol {
             var creatorMemberDecls: [KIRDeclID] = []
 
