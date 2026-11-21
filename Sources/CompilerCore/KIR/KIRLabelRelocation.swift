@@ -1,7 +1,4 @@
 
-/// Negative jump targets temporarily represent loops outside a lambda's KIR
-/// function. Inline expansion rewrites their IDs when the target loop belongs
-/// to an enclosing lambda body, then resolves them once the loop is in scope.
 enum KIRExternalLoopJump {
     static func marker(for label: Int32) -> Int32 { -label }
 
@@ -59,9 +56,6 @@ enum KIRLabelRelocation {
         relocatingLabels(of: instructions, existingMaxLabelID: maxLabelID(in: existing))
     }
 
-    /// Callers that accumulate a stream incrementally — `KIRLoweringEmitContext`
-    /// tracks ``maxLabelID`` — pass the tracked value here so each append costs
-    /// O(instructions) instead of rescanning the whole accumulated buffer.
     static func relocatingLabels(
         of instructions: [KIRInstruction],
         existingMaxLabelID: Int32?
@@ -106,9 +100,6 @@ enum KIRLabelRelocation {
         return highest
     }
 
-    /// Single-instruction form of `maxLabelID(in:)`: every label-carrying
-    /// case yields at most one ID, so the answer needs no array allocation —
-    /// emit-heavy paths call this per appended instruction (KUU-3777).
     static func maxLabelID(of instruction: KIRInstruction) -> Int32? {
         switch instruction {
         case let .label(id):
@@ -126,8 +117,6 @@ enum KIRLabelRelocation {
         }
     }
 
-    /// The single place that enumerates the label-carrying instruction cases,
-    /// so a new one cannot be relocated by one caller and missed by another.
     static func labelIDs(of instruction: KIRInstruction) -> [Int32] {
         switch instruction {
         case let .label(id):
