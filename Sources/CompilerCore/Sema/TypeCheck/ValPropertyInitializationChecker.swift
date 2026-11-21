@@ -1,6 +1,3 @@
-/// Checks field initialization after receiver and constructor overload binding.
-/// Paths retain both possible writes (union, for val reassignment) and definite
-/// writes (intersection, for initialization on every normal constructor exit).
 final class ValPropertyInitializationChecker {
     private enum Exit: Hashable {
         case normal, returned, lambdaReturned, thrown
@@ -78,14 +75,8 @@ final class ValPropertyInitializationChecker {
     }
 
     func check() {
-        // DataFlow creates a fresh binding table for the active files. Include
-        // local classes and object literals added lazily during inference, which
-        // are not in the AST's pre-inference active declaration snapshot.
         for declID in sema.bindings.declSymbols.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
             guard let symbol = sema.bindings.declSymbol(for: declID) else { continue }
-            // `expect` marks propagate to members at any nesting depth (e.g. a
-            // `companion object` inside an `expect class`), so consult the
-            // inherited symbol flag rather than the decl's own modifiers.
             let isExpectDeclaration = sema.symbols.symbol(symbol)?.flags.contains(.expectDeclaration) == true
             switch ast.arena.decl(declID) {
             case let .classDecl(decl):
@@ -145,19 +136,12 @@ final class ValPropertyInitializationChecker {
                   declarationValidator.accessorHasBody(property.setter) else { return nil }
             return sema.bindings.declSymbol(for: id)
         })
-        // DeclarationPositionValidator handles owners without an initializer
-        // flow. Recheck deferred cases here, avoiding duplicate diagnostics.
         let isBundledStdlibOwner: Bool
         if let fileID = sema.symbols.symbol(symbol)?.declSite?.start.file {
             isBundledStdlibOwner = sourceManager?.origin(of: fileID)?.isBundledStdlib == true
         } else {
             isBundledStdlibOwner = false
         }
-        // Fields whose read actually dereferences backing storage. Only those
-        // are subject to kotlinc's "variable must be initialized" read check;
-        // computed accessors, `lateinit`, `const`, `expect`, `abstract`, and
-        // extension properties are plain calls or exempt by design. The
-        // bundled stdlib is exempt like the missing-initializer check above.
         backedFields = isBundledStdlibOwner ? [] : Set(properties.compactMap { id -> SymbolID? in
             guard case let .propertyDecl(property) = ast.arena.decl(id),
                   let field = sema.bindings.declSymbol(for: id),
@@ -191,14 +175,9 @@ final class ValPropertyInitializationChecker {
                 return field
             }) : []
         let declaredFields = Set(properties.compactMap { sema.bindings.declSymbol(for: $0) })
-        // Supertype-constructor arguments in the class header or an `object`
-        // declaration evaluate before the instance exists — `this` and its
-        // members are unavailable there (kotlinc: "cannot access '<this>'").
-        // The bundled stdlib is exempt like the other field checks above.
         if !isBundledStdlibOwner {
             checkDelegationArguments(superConstructorArgs)
         }
-        // Primary constructor property parameters have already been initialized.
         let parameterNames = Set(parameters.filter(\.isProperty).map(\.name))
         let parameterFields = fields.filter { field in
             sema.symbols.symbol(field).map { parameterNames.contains($0.name) } ?? false
@@ -235,19 +214,15 @@ final class ValPropertyInitializationChecker {
         var visiting: Set<SymbolID> = []
         func summary(_ symbol: SymbolID) -> Flow {
             if let cached = summaries[symbol] { return cached }
-            // Do not recursively expand a cyclic delegation graph.
             guard visiting.insert(symbol).inserted, let ctor = constructorsBySymbol[symbol] else { return initial }
             var flow = initial
             if ctor.delegationCall?.kind == .this,
                let target = sema.bindings.constructorDelegationCallBinding(for: symbol)?.chosenCallee {
                 flow = summary(target)
             }
-            // Constructor bodies run after every property declaration/init block,
-            // even when a constructor appears earlier in the source text.
             checkingConstructorBody = true
             walk(ctor.body, flow: &flow)
             checkingConstructorBody = false
-            // A bare return completes this constructor and resumes its caller.
             if let returned = flow.paths.removeValue(forKey: .returned) {
                 flow.merge(returned, at: .normal)
             }
@@ -255,20 +230,11 @@ final class ValPropertyInitializationChecker {
             visiting.remove(symbol)
             return flow
         }
-        // Properties after a class initializer sequence that never reaches a
-        // normal exit cannot be observed on a constructed instance. Keep the
-        // constructor-body checks below for normally completing initializers:
-        // a secondary constructor that itself never returns still follows the
-        // existing definite-initialization rule.
         let hasNormalInitializationPath = initial.paths[.normal] != nil
         if hasPrimaryConstructor && hasNormalInitializationPath {
             reportMissing(required, in: initial)
         }
         for ctor in constructors {
-            // Delegation-call arguments evaluate before the delegated
-            // constructor runs — and before the instance exists — so reading
-            // a member of the class being constructed is invalid regardless
-            // of initialization order.
             if !isBundledStdlibOwner {
                 checkDelegationArguments(ctor.delegationCall?.args ?? [])
             }
@@ -279,11 +245,6 @@ final class ValPropertyInitializationChecker {
         }
     }
 
-    /// Walks constructor-delegation arguments (`: this(...)`, `: super(...)`,
-    /// and supertype-constructor arguments) with `checkingDelegationArguments`
-    /// set so member reads/writes report "cannot access '<this>'" instead of
-    /// the initialization-order diagnostic. The scratch flow starts empty:
-    /// even an already-initialized member is unreachable without `this`.
     private func checkDelegationArguments(_ args: [CallArgument]) {
         guard !args.isEmpty else { return }
         checkingDelegationArguments = true
@@ -327,8 +288,6 @@ final class ValPropertyInitializationChecker {
         }
     }
 
-    /// Whether `receiver` denotes the instance being initialized: an implicit
-    /// access (nil) or `this` whose type is the checked owner.
     private func isOwnReceiver(_ receiver: ExprID?) -> Bool {
         guard let receiver else { return true }
         if case .thisRef = ast.arena.expr(receiver),
@@ -340,13 +299,6 @@ final class ValPropertyInitializationChecker {
         return false
     }
 
-    /// kotlinc's "cannot access '<this>' before the instance has been
-    /// initialized": constructor-delegation arguments and supertype-constructor
-    /// arguments evaluate before the instance exists, so any access to a
-    /// member of the class being constructed is invalid regardless of
-    /// initialization order. Deferred lambdas and local functions are exempt —
-    /// they run after construction — while inline lambda bodies still execute
-    /// during argument evaluation (`permitsInitialization` stays true there).
     private func checkPreInstanceAccess(_ id: ExprID, receiver: ExprID?, memberName: InternedString?, permitsInitialization: Bool) {
         guard permitsInitialization, deferredLambdaBodyDepth == 0 else { return }
         let field = sema.bindings.identifierSymbol(for: id) ?? memberName.flatMap { name in
@@ -395,18 +347,10 @@ final class ValPropertyInitializationChecker {
         }
         if permitsInitialization && ownReceiver && !beforeDeclaration {
             flow.paths[.normal]?.possible.insert(field)
-            // Calling a custom setter does not initialize the backing field.
             if !customSetterFields.contains(field) { flow.paths[.normal]?.definite.insert(field) }
         }
     }
 
-    /// kotlinc's "variable 'x' must be initialized": reading a backed member
-    /// property of the instance being initialized before the field is
-    /// definitely initialized reports an error instead of silently observing
-    /// a zeroed or null backing field at runtime. Reads inside lambdas and
-    /// local functions are deferred past initialization, so only direct
-    /// initializer code (`permitsInitialization` and outside any lambda) is
-    /// checked. Bound callable references (`this::y`) do not read the field.
     private func read(_ id: ExprID, receiver: ExprID?, memberName: InternedString? = nil, flow: Flow, permitsInitialization: Bool) {
         if checkingDelegationArguments {
             checkPreInstanceAccess(id, receiver: receiver, memberName: memberName,
@@ -418,9 +362,6 @@ final class ValPropertyInitializationChecker {
               inlineLambdaBodyDepth == 0,
               let initialized = flow.paths[.normal]
         else { return }
-        // Property reads normally carry an identifier binding to the property
-        // symbol. Qualified invokes like `this.picked()` bind nothing on the
-        // memberCall itself, so fall back to a member-name lookup in that case.
         let field: SymbolID? = sema.bindings.identifierSymbol(for: id) ?? memberName.flatMap { name in
             backedFields.first { sema.symbols.symbol($0)?.name == name }
         }
@@ -441,8 +382,6 @@ final class ValPropertyInitializationChecker {
     private func walk(_ id: ExprID, flow: inout Flow, permitsInitialization: Bool = true) {
         guard let expr = ast.arena.expr(id) else { return }
         guard let entry = flow.paths[.normal] else {
-            // Kotlin still checks writes following return/throw, without letting
-            // unreachable statements change the states reaching other branches.
             if flow.paths[.returned] != nil || flow.paths[.thrown] != nil {
                 var state = flow.paths[.returned] ?? flow.paths[.thrown] ?? State()
                 if let thrown = flow.paths[.thrown] { state.merge(thrown) }
@@ -479,7 +418,6 @@ final class ValPropertyInitializationChecker {
             if let entry = flow.paths.removeValue(forKey: .normal) {
                 var remaining = Flow(entry)
                 for arm in branches {
-                    // Conditions can execute even when their arm is not selected.
                     for condition in arm.conditions { walk(condition, flow: &remaining, permitsInitialization: permitsInitialization) }
                     if let guardExpr = arm.guard_ { walk(guardExpr, flow: &remaining, permitsInitialization: permitsInitialization) }
                     if let armEntry = remaining.paths[.normal] { flow.merge(branch(arm.body, from: armEntry)) }
@@ -515,8 +453,6 @@ final class ValPropertyInitializationChecker {
             walkLoop(body: body, condition: nil, label: ast.arena.loopLabel(for: id), atLeastOnce: false, flow: &flow, permitsInitialization: permitsInitialization)
         case let .tryExpr(body, catches, finallyExpr, _):
             var attempted = branch(body, from: entry)
-            // Exceptions may happen before any write in the try body. Preserve
-            // possible writes for reassignment, but only entry writes are definite.
             var catchEntry = entry
             for state in attempted.paths.values { catchEntry.possible.formUnion(state.possible) }
             for clause in catches { attempted.merge(branch(clause.body, from: catchEntry)) }
@@ -570,9 +506,6 @@ final class ValPropertyInitializationChecker {
             visit(receiver); for index in indices { visit(index) }; visit(value)
         case let .compoundAssign(_, name, value, _):
             visit(value)
-            // A compound assignment both reads the field and writes it back,
-            // which also counts as initialization for definite-init purposes.
-            // `val list += x` resolved to `plusAssign` only reads the field.
             read(id, receiver: nil, memberName: name, flow: flow, permitsInitialization: permitsInitialization)
             if !resolvesToAssignOperator(id) {
                 write(id, receiver: nil, memberName: name, flow: &flow, permitsInitialization: permitsInitialization)
@@ -626,7 +559,6 @@ final class ValPropertyInitializationChecker {
             walk(body, flow: &repeated, permitsInitialization: permitsInitialization)
             iteration.merge(repeated)
         }
-        // A constant-true loop completes only through a matching break.
         if constantCondition == true { iteration.paths[.normal] = nil }
         for label in matchingLabels {
             if let broken = iteration.paths.removeValue(forKey: .broken(label)) {
@@ -654,9 +586,6 @@ final class ValPropertyInitializationChecker {
                 continue
             }
 
-            // An inline callback may exit the constructor from inside its body.
-            // Keep that path separate from normal callback completion, since an
-            // inline function is not necessarily required to invoke its callback.
             var callback = Flow(entry)
             inlineLambdaBodyDepth += 1
             walk(body, flow: &callback, permitsInitialization: true)
