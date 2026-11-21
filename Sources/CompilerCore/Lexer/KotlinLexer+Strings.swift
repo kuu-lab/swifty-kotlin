@@ -44,8 +44,6 @@ extension KotlinLexer {
                     )
                 )
                 offset += 1
-                // A backticked identifier can follow `$` ("$`name`") just like a
-                // plain name; scanTemplateName only covers the plain form.
                 let templateName: Token? = byte(at: offset) == 0x60
                     ? scanBacktickedIdentifier(leadingTrivia: [], start: offset)
                     : scanTemplateName(leadingTrivia: [], start: offset)
@@ -328,11 +326,6 @@ extension KotlinLexer {
         }
     }
 
-    /// Scans a multi-dollar single-line string: `$$"..."`, `$$$"..."`, etc.
-    /// The `dollarCount` is the number of `$` in the prefix (e.g. 2 for `$$`).
-    /// Only `dollarCount` consecutive `$` followed by `{` triggers interpolation.
-    /// Only `dollarCount` consecutive `$` followed by an identifier start triggers simple name interpolation.
-    /// Fewer `$` are treated as literal text.
     func scanMultiDollarString(leadingTrivia: [TriviaPiece], start: Int, dollarCount: Int) -> [Token] {
         let openStart = offset
         offset += dollarCount + 1
@@ -396,8 +389,6 @@ extension KotlinLexer {
         return tokens
     }
 
-    /// Handles dollar interpolation logic for multi-dollar strings.
-    /// Assumes the current character is a dollar sign.
     private func scanDollarInterpolation(dollarCount: Int, segmentStart: inout Int, tokens: inout [Token]) {
         let consecutiveDollars = countConsecutiveDollars(at: offset)
         let afterDollars = offset + consecutiveDollars
@@ -510,7 +501,6 @@ extension KotlinLexer {
         return true
     }
 
-    /// Scans a multi-dollar raw (triple-quoted) string: `$$"""..."""`, `$$$"""..."""`, etc.
     func scanMultiDollarRawString(leadingTrivia: [TriviaPiece], start: Int, dollarCount: Int) -> [Token] {
         let quoteStart = offset
         offset += dollarCount + 3
@@ -560,7 +550,6 @@ extension KotlinLexer {
         return tokens
     }
 
-    /// The last three quotes in a run close the string; earlier quotes are content.
     private func advanceToRawStringClosingDelimiter() {
         var runEnd = offset + 3
         while runEnd < byteCount(), byte(at: runEnd) == 0x22 {
