@@ -1,8 +1,3 @@
-/// Extracted from `registerSyntheticCoroutineStubs`
-/// (HeaderHelpers+SyntheticCoroutineRegistry.swift). The extracted
-/// methods thread the shared registry state through `context` so the
-/// call order and side effects are unchanged.
-
 extension DataFlowSemaPhase {
     func registerCoroutinePackageTree(context: inout SyntheticCoroutineRegistryContext) {
         let symbols = context.symbols
@@ -69,8 +64,6 @@ extension DataFlowSemaPhase {
         let kotlinCoroutinesPkg = context.kotlinCoroutinesPkg
 
         let restrictsSuspensionFQName = kotlinCoroutinesPkg + [interner.intern("RestrictsSuspension")]
-        // The bundled declaration owns this annotation and its implicit constructor.
-        // Retain the residual registration only for --no-stdlib compilations.
         let sourceOwned = symbols.lookup(fqName: restrictsSuspensionFQName).flatMap { symbols.symbol($0)?.declSite } != nil
         if !bundledIndex.containsNominal(fqName: restrictsSuspensionFQName) && !sourceOwned {
             let restrictsSuspensionSymbol = ensureAnnotationClassSymbol(
