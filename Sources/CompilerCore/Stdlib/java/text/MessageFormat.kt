@@ -46,7 +46,6 @@ public class MessageFormat {
         applyPattern(pattern)
     }
 
-    /** (Re)parses the pattern; invalid syntax throws `IllegalArgumentException` like the JDK. */
     public fun applyPattern(pattern: String) {
         this.pattern = pattern
         this.elements = parsePattern(pattern)
@@ -80,7 +79,6 @@ public class MessageFormat {
                 continue
             }
             if (element.argIndex >= arguments.size) {
-                // JDK echoes the original "{...}" text for missing arguments.
                 out.append(element.rawText)
                 continue
             }
@@ -141,7 +139,6 @@ public class MessageFormat {
                 out.append(formatNumberValue(numberToBigDecimal(arg), currencyPattern, info))
             }
             NumberStyleKind.CUSTOM -> {
-                // Parsed eagerly in applyPattern; re-resolve defensively.
                 val pattern = element.numberPattern
                     ?: parseNumberPattern(element.formatStyle ?: DEFAULT_NUMBER_STYLE)
                 out.append(formatNumberValue(numberToBigDecimal(arg), pattern, info))
@@ -176,7 +173,6 @@ public class MessageFormat {
         }
         val style = element.formatStyle
         if (style == null || style.isEmpty()) {
-            // JDK default for {n,date}/{n,time} is the medium style.
             out.append(__messageFormatDateTime(if (isTime) DATETIME_KIND_TIME else DATETIME_KIND_DATE, DATETIME_STYLE_MEDIUM, millis, locale))
             return
         }
@@ -192,7 +188,6 @@ public class MessageFormat {
                 __messageFormatDateTime(if (isTime) DATETIME_KIND_TIME else DATETIME_KIND_DATE, styleIndex, millis, locale)
             )
         } else {
-            // Custom SimpleDateFormat pattern.
             out.append(__simpleDateFormatFormat(style, millis, locale))
         }
     }
@@ -222,13 +217,9 @@ public class MessageFormat {
                 break
             }
         }
-        // Intervals are [limit_i, limit_{i+1}); values below the first limit
-        // use the first message, matching the JDK ChoiceFormat behavior.
         val message = options[selected.coerceIn(0, options.size - 1)].message
         out.append(renderElements(parsePattern(message), arguments, locale))
     }
-
-    // MARK: - Pattern parsing
 
     private class FormatElement(
         val literal: String,
@@ -273,8 +264,6 @@ public class MessageFormat {
                         literal.append('\'')
                         i += 2
                     } else {
-                        // Quoted literal runs until the next apostrophe; an
-                        // unclosed quote quotes the rest of the pattern (JDK).
                         i++
                         while (i < pattern.length) {
                             if (pattern[i] == '\'') {
@@ -337,8 +326,6 @@ public class MessageFormat {
             formatType = pattern.substring(typeStart, i)
             if (i < pattern.length && pattern[i] == ',') {
                 i++
-                // The style extends to the matching '}', honoring nested
-                // braces so choice messages like "0#{1}|1#{2}" parse fully.
                 val styleStart = i
                 var depth = 1
                 while (i < pattern.length && depth > 0) {
@@ -353,7 +340,7 @@ public class MessageFormat {
                     throw IllegalArgumentException("Unmatched braces in the pattern \"$pattern\"")
                 }
                 formatStyle = pattern.substring(styleStart, i)
-                i++ // consume '}'
+                i++
                 braceConsumed = true
             }
         }
@@ -361,7 +348,7 @@ public class MessageFormat {
             if (i >= pattern.length || pattern[i] != '}') {
                 throw IllegalArgumentException("Unmatched braces in the pattern \"$pattern\"")
             }
-            i++ // consume '}'
+            i++
         }
         val rawText = pattern.substring(start, i)
 
@@ -391,7 +378,6 @@ public class MessageFormat {
                     else -> NumberStyleKind.CUSTOM
                 }
                 if (numberStyleKind == NumberStyleKind.CUSTOM) {
-                    // Eager validation like the JDK's DecimalFormat construction.
                     numberPattern = parseNumberPattern(style!!)
                 }
             }
@@ -439,8 +425,6 @@ public class MessageFormat {
         return options
     }
 
-    // MARK: - Number formatting
-
     private class NumberPatternBody(
         val prefix: String,
         val suffix: String,
@@ -461,7 +445,6 @@ public class MessageFormat {
     )
 
     private fun parseNumberPattern(pattern: String): NumberPattern {
-        // Split at the first unquoted ';' into positive/negative subpatterns.
         var semi = -1
         var inQuote = false
         var i = 0
@@ -485,7 +468,6 @@ public class MessageFormat {
         val positiveText = if (semi >= 0) pattern.substring(0, semi) else pattern
         val negativeText = if (semi >= 0) pattern.substring(semi + 1) else null
         val negativeBody = negativeText?.let {
-            // A second unquoted ';' is rejected by the JDK.
             var nestedQuote = false
             var k = 0
             var found = false
@@ -518,7 +500,6 @@ public class MessageFormat {
         if (text.isEmpty()) {
             throw IllegalArgumentException("Unparseable number pattern \"\"")
         }
-        // Locate the numeric core: first unquoted '0' or '#'.
         var coreStart = -1
         var quote = false
         var scan = 0
@@ -624,7 +605,6 @@ public class MessageFormat {
         )
     }
 
-    /** Resolves quoted literals in an affix; unquoted `%`/`‰` set the multiplier. */
     private fun resolvePatternAffix(raw: String): Pair<String, Int> {
         val out = StringBuilder()
         var multiplier = 1
@@ -765,13 +745,11 @@ public class MessageFormat {
         info: JavaTextNumberLocale,
     ): String {
         if (value.signum() == 0) {
-            // Zero renders with a zero mantissa, e.g. "0.00E0".
             val frac = "0".repeat(body.maxFracDigits.coerceAtLeast(body.minFracDigits))
             val mantissa = "0" + (if (frac.isNotEmpty()) "." + frac else "")
             return body.prefix.replace("¤", info.currencySymbol) + mantissa +
                 scientificSuffix(0, body, info)
         }
-        // decimal exponent of the first significant digit.
         val probe = decimalPointInfo(value)
         val exp10 = probe.pointPos - probe.firstSignificant - 1
         var mantissa = value.movePointLeft(exp10)
@@ -812,7 +790,6 @@ public class MessageFormat {
 
     private class DecimalParts(val intDigits: String, val fracDigits: String)
 
-    /** Splits a BigDecimal's canonical string form into integer/fraction digits. */
     private fun decimalDigits(value: BigDecimal): DecimalParts {
         val info = decimalPointInfo(value)
         val digits = info.digits
@@ -826,11 +803,6 @@ public class MessageFormat {
 
     private class DigitInfo(val digits: String, val pointPos: Int, val firstSignificant: Int)
 
-    /**
-     * Parses `BigDecimal.toString()` (plain or scientific) into a digit string
-     * `d` and point position `p` such that value = 0.d * 10^p (magnitude only;
-     * the sign is stripped).
-     */
     private fun decimalPointInfo(value: BigDecimal): DigitInfo {
         var s = value.toString()
         if (s.startsWith("-")) s = s.substring(1)
@@ -861,8 +833,6 @@ public class MessageFormat {
         }
         return groups.reversed().joinToString(separator)
     }
-
-    // MARK: - Locale data for number/currency/percent
 
     private class JavaTextNumberLocale(
         val groupingSeparator: String,
@@ -910,7 +880,6 @@ public class MessageFormat {
     private val NUMBER_LOCALE_ZH = JavaTextNumberLocale(",", ".", "", "%", "¤#,##0.00", "¥")
     private val NUMBER_LOCALE_ZH_TW = JavaTextNumberLocale(",", ".", "", "%", "¤#,##0.00", "$")
     private val NUMBER_LOCALE_ZH_HK = JavaTextNumberLocale(",", ".", "", "%", "¤#,##0.00", "HK$")
-    // NBSP = \u00A0, NNBSP = \u202F, LRM = \u200E (kept as escapes for readability).
     private val NUMBER_LOCALE_DE = JavaTextNumberLocale(".", ",", "", "\u00A0%", "#,##0.00\u00A0¤", "€")
     private val NUMBER_LOCALE_FR = JavaTextNumberLocale("\u202F", ",", "", "\u00A0%", "#,##0.00\u00A0¤", "¤")
     private val NUMBER_LOCALE_FR_CA = JavaTextNumberLocale("\u00A0", ",", "", "\u00A0%", "#,##0.00\u00A0¤", "$")
@@ -986,7 +955,6 @@ public class MessageFormat {
     )
 
     public companion object {
-        /** Static form equivalent to `MessageFormat(pattern).format(arguments)`. */
         public fun format(pattern: String, vararg arguments: Any?): String =
             MessageFormat(pattern).format(*arguments)
 
