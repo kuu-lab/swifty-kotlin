@@ -114,14 +114,6 @@ public fun AtomicLong.accumulateAndGet(x: Long, accumulator: (Long, Long) -> Lon
     }
 }
 
-// AtomicReferenceArray keeps its runtime-backed `*At` member cores (the
-// `kk_atomic_ref_array_*` exports use the `At` convention directly); these
-// are the JVM-named aliases and CAS-retry loops on top of them. The int/long
-// array classes define their members in their own source files because their
-// runtime bridges use a different naming convention. The registered element
-// type renders nullable (slots may hold null), so the aliased surface takes
-// `T?` through every boundary.
-
 public fun <T> AtomicReferenceArray<T>.getAndSet(index: Int, newValue: T?): T? =
     exchangeAt(index, newValue)
 
