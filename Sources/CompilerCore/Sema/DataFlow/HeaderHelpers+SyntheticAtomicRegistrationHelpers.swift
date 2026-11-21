@@ -1,9 +1,4 @@
 
-/// Shared low-level registration primitives for the `kotlin.concurrent`(`.atomics`)
-/// synthetic stub family, extracted from the Atomic residual registration surface.
-/// Used across the scalar (`HeaderHelpers+SyntheticAtomicScalarStubs.swift`) and
-/// array (`HeaderHelpers+SyntheticAtomicArrayStubs.swift`) registrations, so these
-/// stay `internal` rather than `private`.
 extension DataFlowSemaPhase {
 
     func registerAtomicConstructor(
