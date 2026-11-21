@@ -1,6 +1,5 @@
 import Foundation
 
-/// Platform edges are ABI data. Algorithms belong in the calling Kotlin source.
 struct JVMPlatformOperation: Decodable {
     let symbol: String
     let owner: String
