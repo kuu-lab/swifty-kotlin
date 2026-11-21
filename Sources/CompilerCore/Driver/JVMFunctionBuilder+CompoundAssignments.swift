@@ -4,8 +4,6 @@ extension JVMFunctionBuilder {
         let mutatesReceiver: Bool
     }
 
-    // Sema already selected either opAssign or the op used by reassignment.
-    // Pass the evaluated receiver through calls so getters and captures run once.
     func resolvedCompoundCall(_ op: CompoundAssignOp, receiver: JVMValue, rhs: ExprID, id: ExprID) throws -> ResolvedCompoundResult? {
         guard let binding = program.sema.bindings.callBinding(for: id),
               let symbol = program.sema.symbols.symbol(binding.chosenCallee) else { return nil }
@@ -29,9 +27,6 @@ extension JVMFunctionBuilder {
         return ResolvedCompoundResult(value: call.value, mutatesReceiver: mutatesReceiver)
     }
 
-    // `++` / `--` desugar to compoundAssign with an inc()/dec() binding and no
-    // RHS operator argument. Lower them through the resolved operator call so
-    // non-numeric receivers such as java.math.BigDecimal can be incremented.
     func resolvedIncrementDecrementValue(receiver: JVMValue, id: ExprID, expectedResult: JVMValueType) throws -> JVMValue? {
         let call = try inlineCall([], receiverValue: receiver, id: id, expectedResult: expectedResult)
             ?? sourceCall([], receiverValue: receiver, id: id, expectedResult: expectedResult)
