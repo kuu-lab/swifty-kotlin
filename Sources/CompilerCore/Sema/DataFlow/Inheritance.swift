@@ -66,13 +66,6 @@ extension DataFlowSemaPhase {
         // primary constructor.
         let isExpectDeclaration = symbols.symbol(symbol)?.flags.contains(.expectDeclaration) == true
         let requiresClassSupertypeConstructorInvocation: Bool
-        // A `()` supertype entry is impossible when the declaration has no
-        // primary constructor to run it through. Expect classes and objects
-        // never have an implicit constructor, so the bare-`()` forms are
-        // impossible there; a non-expect class only loses its implicit
-        // default constructor once it declares secondary constructors.
-        // Interfaces never reach this diagnostic — kotlinc reports their
-        // `()` entries as "interfaces cannot initialize supertypes".
         let supertypeInitImpossibleWithoutPrimaryConstructor: Bool
         switch decl {
         case let .classDecl(classDecl):
@@ -115,9 +108,6 @@ extension DataFlowSemaPhase {
             mergedEnclosingTypeParameters[name] = paramSymbol
         }
 
-        // Unresolved supertypes must not be dropped silently: report the
-        // written name on user sources only — bundled/residual stdlib
-        // declarations may reference profile-conditional types (KUU-3250).
         let declSite = symbols.symbol(symbol)?.declSite
         let reportUnresolved: ((InternedString) -> Void)? = {
             guard let fileID = symbols.sourceFileID(for: symbol) ?? declSite?.start.file,
@@ -154,8 +144,6 @@ extension DataFlowSemaPhase {
             guard let candidate = symbols.symbol(candidateID),
                   candidate.visibility == .internal
             else { return true }
-            // Internal declarations imported from a library artifact belong
-            // to that artifact's module and are invisible to this one.
             if candidate.flags.contains(.importedLibrary) {
                 return false
             }
@@ -181,10 +169,6 @@ extension DataFlowSemaPhase {
             let entry = index < superTypeEntries.count ? superTypeEntries[index] : nil
             let hasConstructorCall = entry?.hasConstructorCallSyntax == true
             let entryRange = entry?.range ?? symbols.symbol(symbol)?.declSite
-            // Interfaces cannot initialize supertypes: kotlinc rejects every
-            // `()` entry on an interface — "interfaces cannot initialize
-            // supertypes" — purely syntactically, even when the supertype
-            // name does not resolve (KUU-4132).
             if hasConstructorCall, case .interfaceDecl = decl, !isBundledStdlibDecl {
                 diagnostics.error(
                     "KSWIFTK-SEMA-0482",
@@ -192,13 +176,6 @@ extension DataFlowSemaPhase {
                     range: entryRange
                 )
             }
-            // A supertype constructor invocation is impossible when the
-            // declaration itself has no primary constructor to run it
-            // through — the same rule covers expect declarations, where the
-            // matching actual performs the initialization, and non-expect
-            // classes whose secondary constructors delegate via `super(...)`
-            // instead (KUU-4122, KUU-4132). The check is purely syntactic,
-            // so it also applies when the supertype fails to resolve.
             if hasConstructorCall,
                !isBundledStdlibDecl,
                supertypeInitImpossibleWithoutPrimaryConstructor
@@ -209,9 +186,6 @@ extension DataFlowSemaPhase {
                     range: entryRange
                 )
             }
-            // Expect declarations cannot invoke supertype constructors:
-            // initialization belongs to the matching actual declaration
-            // (kotlinc: "'expect' classes cannot initialize supertypes").
             if hasConstructorCall, isExpectDeclaration, !isBundledStdlibDecl {
                 diagnostics.error(
                     "KSWIFTK-SEMA-0475",
@@ -266,9 +240,6 @@ extension DataFlowSemaPhase {
                             range: entry.range ?? symbols.symbol(symbol)?.declSite
                         )
                     }
-                    // Interfaces have no constructor to invoke: kotlinc
-                    // rejects `I()` on any nominal with "this type does not
-                    // have a constructor" (KUU-4132).
                     if entry.hasConstructorCallSyntax,
                        !isBundledStdlibDecl,
                        symbols.symbol(resolved.symbol)?.kind == .interface
@@ -285,10 +256,6 @@ extension DataFlowSemaPhase {
                         ?? symbols.symbol(symbol)?.declSite?.start.file
                     let importedDeclFileID = symbols.sourceFileID(for: resolved.symbol)
                         ?? imported.declSite?.start.file
-                    // Bundled-stdlib `internal` declarations are module-scoped
-                    // like imported-library ones: a user source inheriting
-                    // one must get the access diagnostic rather than silently
-                    // resolving it (KUU-4232).
                     let crossesBundledModuleBoundary = imported.visibility == .internal
                         && !imported.flags.contains(.importedLibrary)
                         && accessFileID.map({ sourceManager?.origin(of: $0)?.isBundledStdlib == false }) == true
@@ -374,9 +341,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // Annotation classes ALWAYS implicitly extend kotlin.Annotation,
-        // regardless of other explicit supertypes (e.g. interfaces).
-        // Classes/objects/enums without an explicit class supertype get kotlin.Any.
         let annotationFQName = [interner.intern("kotlin"), interner.intern("Annotation")]
         let anyFQName = [interner.intern("kotlin"), interner.intern("Any")]
         if let symbolInfo = symbols.symbol(symbol) {
@@ -387,10 +351,6 @@ extension DataFlowSemaPhase {
             {
                 superSymbols.append(annotationSymbol)
             }
-            // Enum classes implicitly extend `kotlin.Enum<ThisEnum>`. The
-            // generated enum lowering registers the runtime edge later, but
-            // source-backed Comparable member lookup must see this conformance
-            // during Sema as well (e.g. `Direction.NORTH.compareTo(...)`).
             if symbolInfo.kind == .enumClass,
                let enumBaseSymbol = symbols.lookup(fqName: [
                    interner.intern("kotlin"),
@@ -430,8 +390,6 @@ extension DataFlowSemaPhase {
                     superSymbols.append(comparableSymbol)
                 }
             }
-            // Add implicit kotlin.Any for classes/objects/enums that have no
-            // class supertype yet (they may still implement interfaces).
             if symbolInfo.kind == .class || symbolInfo.kind == .object
                 || symbolInfo.kind == .enumClass || symbolInfo.kind == .annotationClass
             {
@@ -459,9 +417,6 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes(uniqueSuperSymbols, for: symbol)
         types.setNominalDirectSupertypes(uniqueSuperSymbols, for: symbol)
 
-        // The current nominal's fqName joins the scope chain so nested
-        // declarations resolve sibling classifiers (e.g. `Inner` inside
-        // `Container` -> `Container.Inner`) per Kotlin's scope nesting.
         var nestedScopes = enclosingClassScopes
         if let ownerFQName = symbols.symbol(symbol)?.fqName {
             nestedScopes.append(ownerFQName)
@@ -484,27 +439,13 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// How the declaring nominal context can (or cannot) supply the implicit
-    /// receiver an inner-class supertype constructor requires.
     enum InnerSupertypeReceiverContext {
-        /// `inner class C : I()` — C captures this@E1 plus E1's own inner chain.
         case memberInner
-        /// Non-inner member class/object — the enclosing `this` exists on the
-        /// class-scope receiver stack but cannot back the inner constructor.
         case memberNonInner
-        /// Companion object — the companion cuts the receiver chain entirely.
         case memberCompanion
-        /// Local class or anonymous object — captures the enclosing function's
-        /// implicit receivers, which follow the inner-class chain.
         case lexical
     }
 
-    /// KUU-3236: kotlinc rejects an inner class used as a supertype when the
-    /// declaration context cannot supply an implicit receiver of its
-    /// containing class ("constructor of the inner class 'I' can only be
-    /// called with a receiver of the containing class"), and emits
-    /// "outer class 'X' of non-inner class cannot be used as receiver" when
-    /// the would-be receiver is blocked by a non-inner boundary.
     func validateInnerClassSupertypeReceiver(
         resolvedSymbol: SymbolID,
         context: InnerSupertypeReceiverContext,
@@ -527,16 +468,12 @@ extension DataFlowSemaPhase {
         else {
             return
         }
-        // Only diagnose user source; bundled/imported declarations may have
-        // incomplete receiver models.
         guard let fileID = symbols.sourceFileID(for: declSymbol)
                 ?? symbols.symbol(declSymbol)?.declSite?.start.file,
               sourceManager?.origin(of: fileID) == .user
         else {
             return
         }
-        // Enclosing classes, outermost → innermost. Bail out when the chain
-        // cannot be modelled reliably rather than guessing a diagnostic.
         var enclosing: [SymbolID] = []
         enclosing.reserveCapacity(enclosingClassScopes.count)
         for fqName in enclosingClassScopes {
@@ -548,12 +485,6 @@ extension DataFlowSemaPhase {
             enclosing.append(enclosingID)
         }
 
-        // Receivers the inner constructor may use. Member contexts derive the
-        // enclosing `this` chain from the innermost class outward, stopping
-        // after the first non-inner class. Lexical contexts are also handed
-        // the actual implicit-receiver set (which includes extension
-        // receivers); unioning the chain covers positions where receivers are
-        // not pushed yet, such as inner-class super-constructor arguments.
         var usable: Set<SymbolID> = []
         switch context {
         case .memberInner, .lexical:
@@ -571,9 +502,6 @@ extension DataFlowSemaPhase {
             return
         }
 
-        // The class whose instance would have satisfied the receiver had the
-        // non-inner boundary not cut the chain: the first enclosing class the
-        // declaration cannot reach. Companion objects cut the chain entirely.
         let provider: SymbolID?
         switch context {
         case .memberCompanion:
@@ -623,10 +551,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Builds the candidate FQNs used by inheritance resolution for a type
-    /// reference. Inheritance is bound before file scopes are built, so this
-    /// mirrors the relevant file-scope lookup rules explicitly instead of
-    /// falling back to the global short-name index.
     private func inheritanceCandidatePaths(
         for path: [InternedString],
         currentPackage: [InternedString],
@@ -647,9 +571,6 @@ extension DataFlowSemaPhase {
             candidates.append(candidate)
         }
 
-        // Enclosing class scopes resolve sibling nested classifiers before
-        // package-level lookups, matching Kotlin's scope nesting (innermost
-        // scope first).
         for scope in enclosingClassScopes.reversed() {
             append(scope + path)
         }
@@ -695,9 +616,6 @@ extension DataFlowSemaPhase {
                 append(path)
             }
         } else {
-            // An imported classifier (including an alias) may qualify a nested
-            // supertype, e.g. CoroutineContext.Key<E>. Resolve that prefix before
-            // looking for a root-qualified path so the inheritance edge is kept.
             for importDecl in imports where !importDecl.isWildcard {
                 let importedName = importDecl.alias ?? importDecl.path.last
                 if importedName == path.first {
@@ -714,8 +632,6 @@ extension DataFlowSemaPhase {
                 append(path)
             }
             if !currentPackage.isEmpty {
-                // Allow nested/package-relative supertypes such as
-                // `TimeSource.WithComparableMarks` inside `kotlin.time`.
                 append(currentPackage + path)
             }
 
@@ -737,8 +653,6 @@ extension DataFlowSemaPhase {
                 }
             }
 
-            // Wildcard/package imports contribute the whole qualified path,
-            // e.g. `import kotlin.coroutines.*` + `CoroutineContext.Key`.
             for importDecl in imports where importDecl.alias == nil {
                 if symbols.importPathContributesMembers(importDecl.path, isWildcard: importDecl.isWildcard) {
                     append(importDecl.path + path)
@@ -773,13 +687,6 @@ extension DataFlowSemaPhase {
             path = refPath
             argRefs = refs
         case let .functionType(contextReceiverRefIDs, receiverRefID, paramRefIDs, returnRefID, isSuspend, _):
-            // KSP-682 / KSP-CAP-009: a function-type supertype such as
-            // `KProperty0<V> : () -> V` resolves to the kotlin.Function{N}
-            // nominal interface so property references inherit invoke(...).
-            // Suspend function types use the corresponding
-            // kotlin.coroutines.SuspendFunction{N} interface, whose invoke
-            // signature retains the suspend modifier. Context-receiver
-            // function types still have no nominal equivalent here.
             guard contextReceiverRefIDs.isEmpty else {
                 return nil
             }
@@ -832,8 +739,6 @@ extension DataFlowSemaPhase {
             else {
                 return nil
             }
-            // KUU-1084: FunctionN declares its type params in Kotlin order
-            // [P1..PN, R], so the supertype args carry params then return type.
             let functionArgs: [TypeArg] = paramTypes.map { .in($0) } + [.out(returnType)]
             validateProjections?(functionSymbol, functionArgs)
             return ResolvedSupertype(
@@ -844,9 +749,6 @@ extension DataFlowSemaPhase {
         case .intersection:
             return nil
         case let .annotated(baseRef, _):
-            // Type-use annotations (`class C : @Anno Base()`) do not change
-            // the inherited nominal; resolve the underlying ref instead of
-            // silently dropping the edge (KUU-3250).
             return resolveNominalSymbolAndTypeArgs(
                 baseRef,
                 currentPackage: currentPackage,
@@ -943,9 +845,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // Kotlin default imports are considered after primitive/builtin names
-        // in resolveTypeRefForInheritance. Supertype roots have no primitive
-        // representation, so they can use the default-import packages here.
         do {
             for defaultPackage in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
                 if let symbol = firstVisibleNominal(at: defaultPackage + path) {
@@ -953,19 +852,11 @@ extension DataFlowSemaPhase {
                 }
             }
         }
-        // The bare path is the root-package/absolute fallback for named
-        // packages: lowest priority, after the default imports, matching the
-        // ordering resolveNominalCandidates uses for signature types
-        // (KUU-4304). Root-package files already tried it as their
-        // same-package tier inside inheritanceCandidatePaths.
         if !currentPackage.isEmpty,
            let symbol = firstVisibleNominal(at: path)
         {
             return resolvedSupertype(symbol)
         }
-        // FunctionN interfaces have compiler-internal FQNs under the synthetic
-        // `kotlin.Function` package, but source code names them as `FunctionN`
-        // or `kotlin.FunctionN`.
         if let arity = types.functionNInterfaceArity(named: path, interner: interner),
            let functionN = ensureSyntheticFunctionInterface(
                arity: arity,
@@ -976,9 +867,6 @@ extension DataFlowSemaPhase {
         {
             return resolvedSupertype(functionN)
         }
-        // No visible candidate resolved: fall back to the first invisible
-        // nominal so the use site reports the visibility diagnostic rather
-        // than an unresolved name (KUU-4232).
         if let invisibleFallback {
             return resolvedSupertype(invisibleFallback)
         }
@@ -1000,11 +888,6 @@ extension DataFlowSemaPhase {
         return nil
     }
 
-    /// kotlinc names the first path segment that fails to resolve
-    /// (`unresolved reference 'NotExist'` for `NotExist.Nested`, `'Missing'`
-    /// for `Outer.Missing`, and `'NotExist'` for `kotlin.NotExist` where the
-    /// `kotlin` package itself resolves), so the reported segment walks the
-    /// prefixes in order (KUU-3250).
     private func unresolvedSupertypeSegment(
         path: [InternedString],
         currentPackage: [InternedString],
@@ -1019,9 +902,6 @@ extension DataFlowSemaPhase {
             if prefixPath.count == 1, enclosingTypeParameters[prefixPath[0]] != nil {
                 return true
             }
-            // Mirror the resolution tiers: lexical/package/import candidates,
-            // then default imports, then the root-package fallback that named
-            // packages reach only after the default imports (KUU-4304).
             let symbolResolves = self.inheritanceCandidatePaths(
                 for: prefixPath,
                 currentPackage: currentPackage,
@@ -1062,11 +942,6 @@ extension DataFlowSemaPhase {
         return path[path.count - 1]
     }
 
-    /// Member classifier lookup through `owner`'s supertype chain: inside
-    /// `Sub.M` the simple name `I` resolves to `Outer.I` because member
-    /// types are inherited like other members (KUU-3250). The owner's own
-    /// children are already covered by the `scope + path` fqName lookup,
-    /// so only supertypes are walked, closest first.
     ///
     /// Kotlin inherits nested classifiers through the superclass chain only,
     /// so only class supertypes are expanded: an interface supertype never
@@ -1112,9 +987,6 @@ extension DataFlowSemaPhase {
         return nil
     }
 
-    /// A fixed type argument of an alias target (`typealias Base = Box<String>`) is part
-    /// of the supertype even though the header spells no arguments; expand the alias so
-    /// the inheritance edge keeps `Box<String>` instead of an argument-less `Box`.
     private func expandTypeAliasSupertypeArgs(
         _ symbol: SymbolID,
         writtenArgs: [TypeArg],
@@ -1144,8 +1016,6 @@ extension DataFlowSemaPhase {
         return classType.args
     }
 
-    /// A supertype written through a type alias (e.g. `class R : AutoCloseable`, where
-    /// `kotlin.AutoCloseable` aliases `kotlin.io.Closeable`) must record the aliased
     /// nominal type: the alias symbol itself is neither open nor an interface, and it
     /// carries no layout, so leaving it in the inheritance edge suppresses both the
     /// subclassability check and vtable/itable synthesis for the implementer.
@@ -1165,10 +1035,6 @@ extension DataFlowSemaPhase {
             ?? classType.classSymbol
     }
 
-    /// Inheritance needs the platform declaration's body-bearing layout when a
-    /// source expect class has a matching actual declaration in the same module.
-    /// Keep the expect symbol when no actual nominal is available, as with a
-    /// common-only declaration that will be linked by a later compilation.
     private func resolveActualNominalSupertype(_ symbol: SymbolID, symbols: SymbolTable) -> SymbolID {
         guard let expect = symbols.symbol(symbol),
               expect.flags.contains(.expectDeclaration),
@@ -1184,9 +1050,6 @@ extension DataFlowSemaPhase {
             .first?.id ?? symbol
     }
 
-    /// Resolve type arguments through the enclosing classifier scopes as well
-    /// as package/import scopes, so nested self types such as `Hand` in
-    /// `Comparable<Hand>` keep their nominal identity.
     private func resolveTypeArgRefsForInheritance(
         _ argRefs: [TypeArgRef],
         currentPackage: [InternedString],
@@ -1286,8 +1149,6 @@ extension DataFlowSemaPhase {
             guard !path.isEmpty else {
                 return nil
             }
-            // A single-component name that matches an enclosing type parameter
-            // resolves to that type parameter (it shadows any same-named type).
             if path.count == 1, let typeParamSymbol = enclosingTypeParameters[path[0]] {
                 return types.make(.typeParam(TypeParamType(
                     symbol: typeParamSymbol,
@@ -1319,9 +1180,6 @@ extension DataFlowSemaPhase {
                     reportUnresolved: reportUnresolved,
                     candidateIsVisible: candidateIsVisible
                 )
-                // A bare inner-class name supplies no enclosing arguments, so
-                // the implicit enclosing instance fills those slots (`KeySet`
-                // inside `CIM<Value>` spells `CIM<Value>.KeySet`).
                 var nominalArgs = resolvedArgs
                 let enclosingCount = types.enclosingTypeParameterSymbols(for: nominalSymbol).count
                 if enclosingCount > 0 {
@@ -1359,14 +1217,6 @@ extension DataFlowSemaPhase {
                 }
                 return types.make(.classType(types.classType(for: nominalSymbol, arguments: nominalArgs, nullability: nullability)))
             }
-            // Enclosing class scopes also contribute member classifiers
-            // inherited through their supertypes (e.g. `I` -> `Outer.I`
-            // inside `Sub.M`); see resolveNominalSymbolAndTypeArgs (KUU-3250).
-            // Invisible candidates are skipped so a visible alternative in a
-            // lower tier can win; the first invisible nominal is remembered
-            // as a fallback so an all-invisible resolution still reports the
-            // visibility diagnostic rather than degrading to unresolved
-            // (KUU-4232).
             var invisibleFallback: SymbolID?
             func firstVisibleNominal(at fqName: [InternedString]) -> SymbolID? {
                 let matches = symbols.lookupAll(fqName: fqName)
@@ -1418,8 +1268,6 @@ extension DataFlowSemaPhase {
                     return builtinType
                 }
             }
-            // Kotlin default imports also apply to type arguments (e.g.
-            // class X : Comparable<Int>), so search the standard default-import packages.
             do {
                 for defaultPackage in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
                     if let nominalSymbol = firstVisibleNominal(at: defaultPackage + path) {
@@ -1427,16 +1275,11 @@ extension DataFlowSemaPhase {
                     }
                 }
             }
-            // Root-package/absolute fallback for named packages, below the
-            // default imports (KUU-4304).
             if !currentPackage.isEmpty,
                let nominalSymbol = firstVisibleNominal(at: path)
             {
                 return resolvedType(nominalSymbol)
             }
-            // No visible candidate resolved: fall back to the first invisible
-            // nominal so the use site reports the visibility diagnostic
-            // rather than an unresolved name (KUU-4232).
             if let invisibleFallback {
                 return resolvedType(invisibleFallback)
             }
@@ -1602,7 +1445,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    // P5-112: Validate that concrete subclasses of abstract classes override all abstract members.
     func validateAbstractOverrides(
         ast: ASTModule,
         symbols: SymbolTable,
@@ -1635,8 +1477,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// A `fun interface` must end up with exactly one effective abstract function
-    /// after own and inherited members have been collected.
     private func validateFunInterfaceContract(
         declID: DeclID,
         ast: ASTModule,
@@ -1660,8 +1500,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// CLASS-008: Validate class delegation (`: Interface by expr`).
-    /// Ensures delegated supertypes are interfaces (not classes) and records them for abstract override exemption.
     func validateClassDelegation(
         ast: ASTModule,
         symbols: SymbolTable,
@@ -1735,8 +1573,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Records the same delegation storage for header-time named nominals and
-    /// anonymous objects discovered later during body type checking.
     @discardableResult
     func registerClassDelegation(
         delegateExpression: ExprID,
@@ -1791,11 +1627,6 @@ extension DataFlowSemaPhase {
             switch decl {
             case let .classDecl(classDecl):
                 queue.append(contentsOf: classDecl.nestedClasses + classDecl.nestedObjects)
-                // Classes declared inside an enum entry's anonymous class body
-                // (e.g. `FOO { inner class Inner : I by FOO }`) are ordinary
-                // nominals parented by the entry field — they need the same
-                // delegation registration and abstract-override checks as any
-                // other nested class (KUU-3672).
                 queue.append(contentsOf: classDecl.enumEntries.flatMap(\.nestedClasses))
                 if let companion = classDecl.companionObject { queue.append(companion) }
             case let .interfaceDecl(interfaceDecl):
@@ -1811,11 +1642,8 @@ extension DataFlowSemaPhase {
         return result
     }
 
-    /// CLASS-008: Create synthetic method symbols for delegated interface methods
-    /// that the class does not override. These are used for itable layout and KIR lowering.
     private struct DelegationDispatchKey {
         let name: InternedString
-        // Member-extension overloads may differ only by their extension receiver.
         let extensionReceiverType: TypeID?
         let parameterTypes: [TypeID]
         let methodTypeParameters: [SymbolID]
@@ -1970,9 +1798,6 @@ extension DataFlowSemaPhase {
                 types: types
             )
 
-            // Walk the delegated interface plus its inherited interfaces so
-            // members declared on a super-interface (e.g. `Map.isEmpty` for a
-            // `MutableMap` delegate) are forwarded too. Nearest declaration wins.
             var ownerQueue: [SymbolID] = [interfaceSymbol]
             var visitedOwners: Set<SymbolID> = []
             var seenMethodKeys = classMethodKeys
@@ -2071,9 +1896,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// The concrete type arguments the delegated supertype applies to the
-    /// interface, e.g. `[String, Int]` for `by mapOf(...)` on `Map<String, Int>`
-    /// — the delegate field's declared type carries them.
     private func delegationFieldTypeArgs(
         fieldSymbol: SymbolID,
         symbols: SymbolTable,
@@ -2087,9 +1909,6 @@ extension DataFlowSemaPhase {
         return classType.args
     }
 
-    /// Maps `ownerInterface`'s type parameters to the concrete arguments the
-    /// delegation declaration supplies — e.g. `Map` gets `[String, Int]` when
-    /// the class delegates `MutableMap<String, Int>`.
     private func delegationSubstitution(
         for ownerInterface: SymbolID,
         delegatedInterface: SymbolID,
@@ -2189,8 +2008,6 @@ extension DataFlowSemaPhase {
             classSymbol: classSymbol, args: classTypeArgs, nullability: .nonNull
         )))
 
-        // Class parameters come from the delegating receiver; method parameters
-        // need fresh binders owned by this forwarder, including in their bounds.
         let interfaceMethodParameters = Array(ifaceSig.typeParameterSymbols.dropFirst(ifaceSig.classTypeParameterCount))
         let localNamespace = forwardingFQName + [interner.intern("$\(forwardingSymbol.rawValue)")]
         let methodParameters = interfaceMethodParameters.map { original in
@@ -2287,12 +2104,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Mirrors `synthesizeForwardingMethod` for a delegated interface
-    /// property: gives the class its own `val`/`var` symbol (so member
-    /// lookup on the class stops at this property instead of falling
-    /// through to the interface's own abstract declaration) that KIR
-    /// lowering later gives a real getter/setter body reading through the
-    /// delegate field.
     private func synthesizeForwardingProperty(
         propertySym: SemanticSymbol,
         propertyType: TypeID,
@@ -2427,12 +2238,6 @@ extension DataFlowSemaPhase {
             return
         }
 
-        // An expect declaration describes the common API but does not provide
-        // the platform implementation. Check inherited abstract obligations
-        // on its actual declaration, where the implementation is available.
-        // Every inherited abstract member this class still owes an
-        // implementation for. CLASS-008: members from an interface satisfied
-        // through `by` delegation are excluded.
         let overriddenMembers = collectOverriddenMemberNames(
             for: symbol,
             decl: decl,
@@ -2447,15 +2252,6 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         ).filter { missingMember in
-            // Data classes and data objects synthesize `componentN()`,
-            // `copy`, `toString()`, `hashCode()` and `equals()` unless a final
-            // inherited implementation wins. A generated member with the same
-            // name and arity implements the abstract member — or, when its
-            // signature cannot validly override, the conflict is already
-            // reported by the generated-member conflict check
-            // (KSWIFTK-SEMA-0436). The synthesized members are all regular
-            // (non-extension) members, so they can never satisfy an abstract
-            // member extension (KUU-3656).
             guard symbolInfo.flags.contains(.dataType),
                   let missingSymbol = symbols.symbol(missingMember),
                   !missingSymbol.flags.contains(.memberExtension),
@@ -2493,14 +2289,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// The names this declaration overrides, split by override family:
-    /// `override fun Any?.toString()` (member extension) satisfies abstract
-    /// member extensions, while `override fun toString()` satisfies regular
-    /// abstract members — neither satisfies the other (KUU-3656).
-    /// The member requirements this declaration's `override` members satisfy,
-    /// keyed by override family: a `fun` override can only cover a function
-    /// requirement and a `val`/`var` override only a property one — same-named
-    /// members of the other kind live in a separate namespace (KUU-4106).
     func collectOverriddenMemberNames(
         for _: SymbolID,
         decl: Decl,
@@ -2549,7 +2337,6 @@ extension DataFlowSemaPhase {
         return overriddenMembers
     }
 
-    // P5-78: Validate the package and module boundary of sealed hierarchies.
     func validateSealedHierarchy(
         ast: ASTModule,
         symbols: SymbolTable,
