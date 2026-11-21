@@ -109,8 +109,6 @@ extension KIRLoweringDriver {
             ))
         }
 
-        // MemberLowerer has already emitted nested constructors recursively.
-        // Add the reflection initializers and enum helpers here only once.
         lowerNestedClassConstructors(
             nestedDecls: classDecl.nestedClasses + allNestedObjects,
             shared: shared,
@@ -128,11 +126,6 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    /// Walks nested declarations (classes, objects, interfaces and their
-    /// companions, transitively) so constructor reflection initializers and
-    /// enum constructor-property helpers are synthesized for every enum in
-    /// the tree — including enums nested under objects, whose member bodies
-    /// `MemberLowerer` already emitted but which never reached this pass.
     func lowerNestedClassConstructors(
         nestedDecls: [DeclID],
         shared: KIRLoweringSharedContext,
@@ -173,8 +166,6 @@ extension KIRLoweringDriver {
                     compilationCtx: compilationCtx
                 ))
             case let .objectDecl(nestedObject):
-                // Objects declare no `<init>` symbols, so this emits the
-                // member-registration half only (KUU-4065).
                 declIDs.append(contentsOf: synthesizeNominalReflectionInitializer(
                     ownerSymbol: nestedSymbol,
                     ownerName: nestedObject.name,
@@ -219,11 +210,6 @@ extension KIRLoweringDriver {
         let arena = shared.arena
         var declIDs: [KIRDeclID] = []
         let intType = sema.types.intType
-        // Enum values are ordinal-backed, so a delegated supertype on an enum
-        // class stores its delegate in per-entry side storage read through the
-        // $enumConstructorProperty$ helper rather than an object field. An
-        // enum with no entries never gets that storage; its (unreachable)
-        // forwarders keep the ordinary field path.
         let usesEnumEntryStorage = sema.symbols.symbol(classSymbol)?.kind == .enumClass
             && sema.symbols.children(of: classSymbol).contains { childID in
                 sema.symbols.symbol(childID).map {
@@ -267,7 +253,6 @@ extension KIRLoweringDriver {
 
             var params: [KIRParameter] = []
             var dispatchReceiverExprID: KIRExprID?
-            // A member extension has the class instance and extension value as separate receivers.
             if sema.symbols.memberExtensionOwnerSymbol(for: info.interfaceMethodSymbol) != nil,
                let ownerInfo = sema.symbols.symbol(classSymbol)
             {
@@ -476,14 +461,6 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    /// Synthesizes getter/setter accessor bodies for delegated interface
-    /// properties (Inheritance.swift's `synthesizeForwardingProperty`
-    /// registered the Sema-side property symbol; this mirrors
-    /// `synthesizeClassDelegationForwardingMethods` for the accessor
-    /// functions). Each body reads the delegate out of its field, switches on
-    /// the delegate's runtime type the same way a forwarded method call does,
-    /// and calls the matching concrete implementer's own getter/setter
-    /// accessor — never the interface's null-returning abstract stub.
     func synthesizeClassDelegationForwardingPropertyAccessors(
         classSymbol: SymbolID,
         shared: KIRLoweringSharedContext,
@@ -606,9 +583,6 @@ extension KIRLoweringDriver {
             valueExprID = ve
         }
 
-        // Enum values are ordinal-backed: their delegate handles live in
-        // per-entry side storage read through the $enumConstructorProperty$
-        // helper (see synthesizeClassDelegationForwardingMethods).
         let usesEnumEntryStorage = ownerSym.kind == .enumClass
             && sema.symbols.children(of: classSymbol).contains { childID in
                 sema.symbols.symbol(childID).map {
@@ -714,9 +688,6 @@ extension KIRLoweringDriver {
            let externalLinkName = sema.symbols.externalLinkName(for: info.interfacePropertySymbol),
            !externalLinkName.isEmpty
         {
-            // BUG-240: runtime-bridged interface properties (e.g. Map's
-            // keys/values/entries → kk_map_*) have no concrete accessor to
-            // dispatch to; call the runtime bridge on the delegate directly.
             body.append(.call(
                 callee: interner.intern(externalLinkName),
                 arguments: callArgs,
@@ -728,8 +699,6 @@ extension KIRLoweringDriver {
                   let link = sema.symbols.externalLinkName(for: fallbackAccessorSymbol),
                   RuntimeABISpec.byName[link] != nil
         {
-            // Imported runtime bridges may live on the accessor rather than
-            // the property. Keep them ahead of the ordinary default getter.
             body.append(.call(
                 symbol: fallbackAccessorSymbol,
                 callee: accessorName,
@@ -913,9 +882,6 @@ extension KIRLoweringDriver {
         kind: PropertyAccessorKind,
         sema: SemaModule
     ) -> SymbolID {
-        // Source-declared runtime properties have no emitted getter body.
-        // Preserve their ABI link when selecting a concrete delegation target,
-        // just as imported accessors and the interface fallback already do.
         if kind == .getter,
            let link = sema.symbols.externalLinkName(for: propertySymbol),
            RuntimeABISpec.byName[link] != nil
@@ -940,16 +906,12 @@ extension KIRLoweringDriver {
         let accessorSymbol = classDelegationPropertyAccessorSymbol(
             for: interfacePropertySymbol, kind: accessorKind, sema: sema
         )
-        // Imported runtime-backed properties keep the bridge on their accessor,
-        // even when the interface property itself is abstract.
         if let link = sema.symbols.externalLinkName(for: accessorSymbol),
            RuntimeABISpec.byName[link] != nil {
             return accessorSymbol
         }
         guard let interfaceProperty = sema.symbols.symbol(interfacePropertySymbol),
               !interfaceProperty.flags.contains(.abstractType),
-              // A runtime-bridged property's synthetic accessor has no
-              // emitted body — resolve it through the bridge instead.
               (sema.symbols.externalLinkName(for: interfacePropertySymbol) ?? "").isEmpty
         else {
             return nil
@@ -1076,8 +1038,6 @@ extension KIRLoweringDriver {
     }
 
     private func isClassDelegationDispatchMember(_ member: SemanticSymbol, sema: SemaModule) -> Bool {
-        // Local source members and real delegation forwarders are executable
-        // implementations even though both carry the synthetic flag.
         !member.flags.contains(.synthetic)
             || sema.bindings.declSymbols.values.contains(member.id)
             || sema.symbols.classDelegationForwardingMethodInfo(for: member.id) != nil
@@ -1174,7 +1134,6 @@ extension KIRLoweringDriver {
            sema.symbols.symbol(resolvedSymbol)?.flags.contains(.synthetic) == true,
            sema.symbols.parentSymbol(for: resolvedSymbol) == sema.types.anyClassSymbol
         {
-            // Any's compiler-provided constructor is allocation-only.
             return
         }
         if let resolvedSymbol,
@@ -1186,8 +1145,6 @@ extension KIRLoweringDriver {
            sema.types.isNominalSubtypeSymbol(superclassSymbol, of: throwableSymbol),
            isRuntimeThrowableSuperConstructor(resolvedSymbol, sema: sema)
         {
-            // Runtime-backed Throwable factories return a separate box for
-            // both `this(...)` and `super(...)`; copy its state onto `this`.
             emitRuntimeThrowableSuperInitialization(
                 superCtorSymbol: resolvedSymbol,
                 superclassSymbol: superclassSymbol,
@@ -1341,13 +1298,6 @@ extension KIRLoweringDriver {
         body.append(.call(symbol: target, callee: shared.interner.intern("<init>"), arguments: argIDs, result: result, canThrow: false))
     }
 
-    /// Resolves the enclosing `declaredOuterSymbol` instance for an
-    /// inner-class super-constructor delegation (KUU-2955). `receiver` is
-    /// the object under construction: it may itself reach the outer
-    /// instance through its own `$outer` chain (`inner class D :
-    /// InnerBase`), or — when it is a non-inner local class (`class FooC :
-    /// A.AB` inside an `A` member/extension) — the instance arrives through
-    /// one of its captured receiver fields.
     private func innerSuperOuterInstance(
         declaredOuterSymbol: SymbolID,
         ownerSymbol: SymbolID,
