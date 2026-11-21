@@ -1,5 +1,3 @@
-/// Recognizes field initializers that write the value already supplied by a
-/// freshly allocated instance.
 enum KIRDefaultFieldInitializer {
     static func isDefaultValue(
         _ value: KIRExprKind,
