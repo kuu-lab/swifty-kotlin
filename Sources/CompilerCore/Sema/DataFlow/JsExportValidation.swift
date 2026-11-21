@@ -1,8 +1,5 @@
 import Foundation
 
-/// Performs the native front-end portion of Kotlin/JS `@JsExport` checking.
-/// This records and validates export intent; it does not emit JavaScript
-/// module exports or unmangled JS entry points.
 extension DataFlowSemaPhase {
     func validateJsExportDeclarations(
         ast: ASTModule,
