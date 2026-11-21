@@ -1,5 +1,4 @@
 extension DataEnumSealedSynthesisPass {
-    /// Annotation instances implement Any's methods without acquiring data-class APIs.
     func synthesizeAnnotationHelpers(
         nominalSymbol: SemanticSymbol,
         module: KIRModule,
@@ -31,7 +30,6 @@ extension DataEnumSealedSynthesisPass {
         )
     }
 
-    /// Canonical NaN bits implement boxed Float/Double equality for annotation members.
     func annotationCanonicalMemberValue(
         _ value: KIRExprID, type: TypeID, module: KIRModule, sema: SemaModule,
         interner: StringInterner, body: inout [KIRInstruction]
