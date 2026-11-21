@@ -21,12 +21,8 @@ struct NativeEmitter {
     static let dwarfLangC99: UInt32 = 11
     static let dwarfATESigned: UInt32 = 5
 
-    /// Legacy void/no-argument runtime call set retained for ABI compatibility.
-    /// Print and println are source-backed, so this intentionally stays empty.
     static let knownVoidNoArgCallees: Set<String> = []
 
-    // These calls receive a function value as their first argument; the KIR
-    // symbol is only an inline-lowering hint and never a direct native callee.
     static let functionValueInvokeCallees: Set<String> = Set([
         "kk_function_invoke", "kk_function_invoke_0",
         "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4",
@@ -75,12 +71,7 @@ struct NativeEmitter {
     let fileFacadeNamesByFileID: [Int32: String]
     let reflectionMetadataRecords: [MetadataRecord]
     let reflectionMetadataSymbolPrefix: String?
-    /// Symbols that should use linkonce_odr linkage (e.g. bundled stdlib functions compiled into
-    /// multiple compilation units). The linker deduplicates linkonce_odr definitions automatically.
     let linkOnceODRSymbols: Set<SymbolID>
-    /// Number of codegen worker partitions for function-body emission. Values
-    /// >1 emit function bodies into per-partition LLVM contexts/modules and
-    /// merge them with LLVMLinkModules2; 1 keeps fully serial emission.
     let parallelJobs: Int
 
     init(
@@ -216,10 +207,6 @@ struct NativeEmitter {
                 notNullCallee: notNullCallee,
                 callableTagCallees: callableTagCallees
             )
-            // A callback value can reach its sink through `!!`, local aliases and
-            // if/when merge copies. Follow those back to the literal `symbolRef`
-            // so the lambda gets the flat callback ABI that `kk_function_invoke_*`
-            // expects.
             func collectSymbolRefs(reaching root: KIRExprID, lambdaOnly: Bool) {
                 var visited: Set<KIRExprID> = []
                 var pending = [root]
@@ -252,8 +239,6 @@ struct NativeEmitter {
                     if case let .symbolRef(globalSymbol)? = module.arena.expr(to),
                        globalSymbols.contains(globalSymbol)
                     {
-                        // Keep the original function's Kotlin ABI; only its
-                        // generated global callable-reference thunk uses callback ABI.
                         collectTopLevelStringCallableRefThunks(reaching: from)
                     }
 
@@ -263,8 +248,6 @@ struct NativeEmitter {
                     }
 
                 case let .call(_, callee, arguments, _, _, _, _, _):
-                    // Imported inline bodies pack captured lambdas into closure
-                    // fields or launcher slots before invoking them as function values.
                     if packedValueCallees.contains(callee), arguments.count == 3 {
                         collectSymbolRefs(reaching: arguments[2], lambdaOnly: true)
                     }
@@ -276,8 +259,6 @@ struct NativeEmitter {
                     }
 
                 case let .returnValue(value):
-                    // A lambda returned as a function value is invoked by the caller
-                    // through `kk_function_invoke_*`, so it must use the callback ABI.
                     collectSymbolRefs(reaching: value, lambdaOnly: true)
 
                 default:
@@ -286,8 +267,6 @@ struct NativeEmitter {
             }
         }
         if !rawSymbols.isEmpty {
-            // Dispatch declarations and concrete overrides must share the callback ABI
-            // when a same-shaped implementation is registered for reflection.
             struct FunctionABIKey: Hashable {
                 let name: InternedString
                 let parameterCount: Int
@@ -317,10 +296,6 @@ struct NativeEmitter {
             }
         }
 
-        // Throwable.toString uses the runtime's raw string-handle ABI for both
-        // the bundled implementation and Kotlin-defined overrides. This keeps
-        // the vtable slot ABI uniform with the runtime bridge; call sites bridge
-        // the raw handle back to the Kotlin String aggregate.
         for declaration in module.arena.declarations {
             guard case let .function(function) = declaration,
                   isThrowableToStringFunction(function, interner: interner, symbols: symbols)
@@ -450,10 +425,6 @@ struct NativeEmitter {
             while abiIndex < spec.parameters.count {
                 let parameter = spec.parameters[abiIndex]
                 let name = parameter.name.lowercased()
-                // bodyRaw: kk_function_create_* stores adapter/lambda bodies invoked via
-                // kk_function_invoke, which uses the flat intptr callback ABI.
-                // selFn/cFn: comparator selector/comparator function pointers passed to
-                // RuntimeCollectionLambda1-compatible callbacks (e.g. kk_list_sortedBy).
                 if name.contains("fnptr") || name == "functionraw" || name == "bodyraw" || name.hasSuffix("fn") {
                     positions.append(kirIndex)
                 }
@@ -558,9 +529,6 @@ struct NativeEmitter {
                 }
             }
             if let bitcodeOutputPath {
-                // Post-optimization, pre-codegen module: what a thin-LTO
-                // consumer would merge. Written before object emission so the
-                // two artifacts describe the same IR.
                 try withSubPhaseTiming("writeBitcode", timer: phaseTimer) {
                     if let errorMessage = bindings.writeBitcode(built.module, to: bitcodeOutputPath) {
                         throw LLVMBackendError.nativeEmissionFailed(errorMessage)
@@ -594,10 +562,6 @@ struct NativeEmitter {
         return targetMachine
     }
 
-    /// For globals with a known fully-qualified name (e.g. properties and object
-    /// singletons) the name is derived from that FQN so that a precompiled
-    /// library and its consumers refer to the same storage. Otherwise it falls
-    /// back to the raw symbol identifier for backwards compatibility.
     fileprivate func stableGlobalSlotName(for symbol: SymbolID) -> String {
         if let sym = symbols?.symbol(symbol) {
             let fqn = sym.fqName.compactMap { interner.resolve($0) }.joined(separator: ".")
@@ -605,8 +569,6 @@ struct NativeEmitter {
                 let sanitized = fqn.map { c in
                     c.isLetter || c.isNumber || c == "_" ? String(c) : "_"
                 }.joined()
-                // Preserve existing library slot names unless distinct file-private
-                // declarations actually share this FQN in the current compilation.
                 if sym.visibility == .private,
                    !sym.flags.contains(.importedLibrary),
                    let symbols,
@@ -653,23 +615,12 @@ struct NativeEmitter {
         }
     }
 
-    /// Residual synthetic objects (for example `kotlin.system.System`) have no
-    /// object initializer in the precompiled stdlib artifact. Their singleton
-    /// receiver is only an ABI handle, so a consumer may keep an unresolved
-    /// weak root slot instead of requiring a definition that the artifact
-    /// intentionally does not export.
     private func shouldUseWeakImportedGlobalReference(for symbol: SymbolID) -> Bool {
         guard let symbols else { return false }
         return Self.shouldUseWeakImportedObjectGlobalReference(for: symbol, symbols: symbols)
             || Self.shouldUseWeakImportedEnumEntryGlobalReference(for: symbol, symbols: symbols)
     }
 
-    /// Entries of a synthetic enum (for example `kotlinx.coroutines.CoroutineStart`)
-    /// are symbolic markers: the stdlib artifact serializes them since KUU-2815
-    /// precomputed synthesis, but has no static initializer that would define
-    /// their root slots. A consumer therefore keeps a weak zero slot, matching
-    /// the value they had when the consumer synthesized them itself. A
-    /// source-backed enum owns a static initializer and a strong definition.
     static func shouldUseWeakImportedEnumEntryGlobalReference(
         for symbol: SymbolID,
         symbols: SymbolTable
@@ -685,8 +636,6 @@ struct NativeEmitter {
         return symbols.enumStaticInitSymbol(for: parentID) == nil
     }
 
-    /// A non-package parent is not sufficient to identify a companion object:
-    /// regular nested objects must use their own initializer metadata.
     static func shouldUseWeakImportedObjectGlobalReference(
         for symbol: SymbolID,
         symbols: SymbolTable
@@ -797,21 +746,12 @@ struct NativeEmitter {
         var partitionContexts: [LLVMCAPIBindings.LLVMContextRef] = []
 
         do {
-            // Create LLVM global variables for each KIR global declaration.
-            // Globals that back properties/singletons shared across .kklib modules
-            // are named by their stable fully-qualified name so a consumer object
-            // can reference the same storage defined in the library object.
             var llvmGlobalVariables = declareGlobals(
                 llvmModule: llvmModule,
                 int64Type: int64Type,
                 emitDefinitions: true
             )
 
-            // Imported-library globals (e.g. `Uuid.Companion.NIL`) are referenced by
-            // `loadGlobal`/`symbolRef` in the consumer module but are not present in
-            // the consumer's KIR global declarations because they live in the
-            // precompiled `.kklib`. Emit external declarations for them so the backend
-            // resolves them to the library definition instead of returning zero.
             ensureImportedGlobalReferences(
                 module: module,
                 llvmModule: llvmModule,
@@ -916,9 +856,6 @@ struct NativeEmitter {
         )
     }
 
-    /// Declares an LLVM global for every KIR global declaration. With
-    /// `emitDefinitions: false` only external declarations are created — used
-    /// by partition worker modules whose definitions merge in afterwards.
     func declareGlobals(
         llvmModule: LLVMCAPIBindings.LLVMModuleRef,
         int64Type: LLVMCAPIBindings.LLVMTypeRef,
@@ -933,8 +870,6 @@ struct NativeEmitter {
             return lhs.global.symbol.rawValue < rhs.global.symbol.rawValue
         }
         for (slotName, global) in globalDecls {
-            // `.klib` globals keep the imported flag but own their storage
-            // here — their bodies were materialized into this compilation.
             let isImported = symbols?.symbol(global.symbol)?.flags.contains(.importedLibrary) == true
                 && symbols?.isKlibDefinedGlobal(global.symbol) != true
             if let llvmGlobal = bindings.addGlobal(module: llvmModule, type: int64Type, name: slotName) {
@@ -943,7 +878,6 @@ struct NativeEmitter {
                 }
                 if emitDefinitions {
                     if isImported {
-                        // Imported globals are defined in another object file.
                         if shouldUseWeakImportedGlobalReference(for: global.symbol) {
                             bindings.setWeakAnyLinkage(llvmGlobal)
                             if let zero = bindings.constInt(int64Type, value: 0) {
@@ -969,21 +903,13 @@ struct NativeEmitter {
         return llvmGlobalVariables
     }
 
-    /// The products of the function-declaration pass shared by serial and
-    /// partitioned emission.
     struct DeclaredFunctions {
         var internalFunctions: [SymbolID: LLVMFunction] = [:]
         var internalSignatures: [SymbolID: (parameters: [TypeID], returnType: TypeID)] = [:]
         var internalFunctionsByLookupKey: [FunctionLookupKey: [KIRFunction]] = [:]
-        /// Functions with bodies to emit, sorted by generated C symbol so the
-        /// output order does not depend on KIR declaration order.
         var emittableFunctions: [(KIRFunction, String)] = []
     }
 
-    /// Declares every emittable function into `llvmModule`. Partition worker
-    /// modules call the same routine so their declarations match the primary
-    /// module name-for-name and type-for-type; bodies then attach to those
-    /// declarations when LLVMLinkModules2 merges the partition in.
     func declareFunctions(
         llvmModule: LLVMCAPIBindings.LLVMModuleRef,
         int64Type: LLVMCAPIBindings.LLVMTypeRef,
@@ -1057,8 +983,6 @@ struct NativeEmitter {
         return declared
     }
 
-    /// Created BEFORE function bodies are emitted so that debug locations can be set
-    /// on instructions during emission.
     func createDebugInfoContext(
         llvmModule: LLVMCAPIBindings.LLVMModuleRef,
         context _: LLVMCAPIBindings.LLVMContextRef,
@@ -1115,8 +1039,6 @@ struct NativeEmitter {
             parameterTypes: []
         )
 
-        // Build per-file DI metadata so that functions can reference their
-        // actual source file.
         let diFiles = buildDIFiles(diBuilder: diBuilder, defaultFile: diFile)
         let int64DIType = bindings.diBuilderCreateBasicType(
             diBuilder, name: "Int", sizeInBits: 64, encoding: Self.dwarfATESigned
