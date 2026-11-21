@@ -13,10 +13,6 @@ extension ExprLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let thisID = interner.intern("this")
-        // Receiver-function lambdas can bind implicit `it` to a semantic
-        // parameter symbol that differs from the synthetic KIR parameter
-        // symbol. Inlined lambdas that do not register their own params
-        // still resolve an outer `it` through its semantic symbol.
         if let paramSymbol = driver.ctx.lambdaParamSymbol(named: name),
            sema.bindings.identifierSymbols[exprID].map({
                guard $0 != paramSymbol,
@@ -149,8 +145,6 @@ extension ExprLowerer {
             instructions.append(.call(callee: helperName, arguments: [receiverExprID], result: result, canThrow: false))
             return result
         }
-        // Enum-entry properties are owned by their entry field in Sema, but
-        // use the containing enum's ordinal-keyed side storage at runtime.
         if let symbol = sema.bindings.identifierSymbols[exprID]
                 ?? sema.bindings.callBindings[exprID]?.chosenCallee,
            let propertyInfo = sema.symbols.symbol(symbol),
@@ -160,9 +154,6 @@ extension ExprLowerer {
            let activeReceiverExprID = driver.ctx.activeImplicitReceiverExprID()
         {
             let receiverExprID: KIRExprID
-            // An inner class stores its enclosing enum instance in `$outer`;
-            // enum-entry properties must dispatch on that ordinal value,
-            // not on the inner object currently being initialized.
             var outerInstructions: [KIRInstruction] = []
             if let outerReceiver = resolveOuterChainValue(
                 from: activeReceiverExprID,
@@ -180,10 +171,6 @@ extension ExprLowerer {
                 reaching: enumOwnerSymbol,
                 sema: sema
             ) {
-                // Object literals register the construction-site receiver as a
-                // captured outer receiver for the enclosing class. Enum entries
-                // must keep dispatching on that value while the anonymous object
-                // is the active implicit receiver.
                 receiverExprID = capturedReceiver
             } else if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
                       let capturedReceiver = driver.ctx.localValue(for: receiverSymbol)
@@ -248,9 +235,6 @@ extension ExprLowerer {
                    sema.types.makeNonNullable(extensionReceiverType)
                )
             {
-                // Member extension property references have two implicit
-                // receivers. The outer-receiver binding names the dispatch
-                // receiver; the active receiver supplies the extension value.
                 receiverExprID = activeReceiver
             } else if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
                let capturedReceiver = driver.ctx.localValue(for: receiverSymbol)
@@ -277,13 +261,6 @@ extension ExprLowerer {
             let resultType = boundType ?? sema.types.anyType
             let result = arena.appendTemporary(type: resultType
             )
-            // KUU-1451: bundled "property-style" members are modelled as
-            // zero-argument extension functions (`List.lastIndex`,
-            // `List.indices`, `Array.lastIndex`, ...). Sema records such a
-            // bare read as a call binding plus `implicitReceiverMemberNames`
-            // rather than a `.property` identifier symbol, so emit the call
-            // with the implicit receiver as the callee's first argument —
-            // matching the explicit `receiver.lastIndex` member-call shape.
             if let chosenCallee = sema.bindings.callBindings[exprID]?.chosenCallee,
                let calleeSymbol = sema.symbols.symbol(chosenCallee),
                calleeSymbol.kind == .function,
@@ -296,9 +273,6 @@ extension ExprLowerer {
                 } else {
                     calleeSymbol.name
                 }
-                // Facade callees are package-level extension functions —
-                // statically dispatched with the implicit receiver as the
-                // first argument.
                 instructions.append(.call(symbol: chosenCallee, callee: loweredCallee, arguments: [receiverExprID], result: result, canThrow: true))
                 return result
             }
@@ -312,13 +286,6 @@ extension ExprLowerer {
             ) {
                 return enumProperty
             }
-            // Enum entry body functions use the enum value itself as
-            // their implicit receiver. Its runtime representation is the
-            // entry ordinal, so the synthetic Enum.name property cannot
-            // be read as an ordinary stored property on that receiver.
-            // Route it through the same enum-name rewrite used for
-            // explicit receiver reads; ordinal is already the boxed
-            // receiver's integer payload.
             if (memberStr == "name" || memberStr == "ordinal"),
                let (_, receiverClass) = resolveClassTypeSymbol(
                    nonNullReceiverType,
@@ -367,9 +334,6 @@ extension ExprLowerer {
             let receiverMayBeCollection = resolveClassTypeSymbol(nonNullReceiverType, sema: sema)
                 .map { KnownCompilerNames(interner: interner).isCollectionLikeSymbol($0.symbol) }
                 ?? true
-            // Abstract class properties have no usable declaration-local
-            // field value. Resolve them through the class vtable before
-            // collection shortcuts or the stored-field fallback below.
             if let propertySymbol = sema.bindings.identifierSymbols[exprID],
                let (accessorSymbol, dispatch) = driver.callLowerer.tryResolvePropertyAccessorVirtualDispatch(
                    propertySymbol: propertySymbol,
@@ -420,9 +384,6 @@ extension ExprLowerer {
                 return driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema)
             }()
 
-            // Arrays have their own storage ABI and are not Collection handles.
-            // Implicit `size` reads in extension bodies must use the same
-            // array primitive as an explicit `this.size` read.
             if memberStr == "size", !implicitMemberUsesAccessor,
                ReceiverClassifier(sema: sema, interner: interner).isArrayLikeType(nonNullReceiverType)
             {
@@ -454,9 +415,6 @@ extension ExprLowerer {
                 return result
             }
 
-            // Some implicit member expressions carry their selected
-            // property only in the call binding. Preserve the same
-            // abstract/open class dispatch in that representation too.
             if let symbol = sema.bindings.identifierSymbols[exprID]
                 ?? sema.bindings.callBindings[exprID]?.chosenCallee,
                let propertyInfo = sema.symbols.symbol(symbol),
@@ -487,14 +445,6 @@ extension ExprLowerer {
                 return result
             }
 
-            // KSP-CAP-018: a computed object-literal property has no
-            // instance field anyone writes, so reading it through the
-            // implicit receiver has to call its `get` accessor — this path
-            // used to fall straight through to the field load below and
-            // return the zeroed slot. The explicit-receiver read
-            // (`tryLowerObjectLiteralStoredPropertyRead`) already did this;
-            // both now share one predicate so they cannot disagree about
-            // whether an accessor exists to call.
             if let symbol = sema.bindings.identifierSymbols[exprID],
                sema.bindings.isObjectLiteralPropertySymbol(symbol),
                driver.callLowerer.objectLiteralPropertyUsesAccessor(symbol, ast: ast, sema: sema)
@@ -578,9 +528,6 @@ extension ExprLowerer {
                 return interfaceRead
             }
 
-            // KSP-928: implicit reads of abstract/open class properties
-            // must dispatch through the class vtable. This is the path
-            // used by AbstractMap's skeletal methods for `entries`.
             if let symbol = sema.bindings.identifierSymbols[exprID],
                let propertyInfo = sema.symbols.symbol(symbol),
                propertyInfo.kind == .property,
@@ -621,8 +568,6 @@ extension ExprLowerer {
                 return result
             }
 
-            // A custom getter must run for implicit-receiver reads just as
-            // it does for an explicit `receiver.property` read.
             if let symbol = sema.bindings.identifierSymbols[exprID],
                let sym = sema.symbols.symbol(symbol),
                sym.kind == .property,
@@ -728,8 +673,6 @@ extension ExprLowerer {
             }
         }
         if let boundIdentifierSymbol = sema.bindings.identifierSymbols[exprID] {
-            // Unit uses the builtin value representation, including when
-            // its public singleton symbol comes from bundled Kotlin source.
             if boundIdentifierSymbol == sema.types.unitClassSymbol {
                 let unit = arena.appendExpr(.unit, type: sema.types.unitType)
                 instructions.append(.constValue(result: unit, value: .unit))
@@ -825,9 +768,6 @@ extension ExprLowerer {
                     interner: interner, instructions: &instructions
                 )
             }
-            // Inner named classes can resolve an outer local through a local
-            // nominal's capture field. Their member functions have no direct
-            // local value, so walk `$outer` to the nominal that owns the field.
             if sema.symbols.symbol(symbol)?.kind == .local,
                let receiver = driver.ctx.activeImplicitReceiverExprID(),
                let capturedValue = resolveOuterChainValue(
@@ -861,12 +801,6 @@ extension ExprLowerer {
                     instructions: &instructions
                 ) ?? value
             }
-            // A bare companion/object property reference can resolve
-            // directly to the property symbol without being marked as an
-            // implicit-receiver member. Computed object properties still
-            // have a one-parameter getter ABI, so materialize the singleton
-            // receiver instead of leaving PropertyLoweringPass to emit a
-            // zero-argument getter call.
             if let symInfo = sema.symbols.symbol(symbol),
                symInfo.kind == .property,
                let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
@@ -917,9 +851,6 @@ extension ExprLowerer {
                 instructions.append(.constValue(result: id, value: constant))
                 return id
             }
-            // Synthetic package/object properties backed by a runtime bridge
-            // are read directly. Object getters retain their singleton receiver;
-            // package getters (e.g. kotlinx.coroutines.isActive) take no receiver.
             let externalPropertyOwnerKind = sema.symbols.parentSymbol(for: symbol).flatMap {
                 sema.symbols.symbol($0)?.kind
             }
@@ -947,10 +878,6 @@ extension ExprLowerer {
                 ))
                 return result
             }
-            // Native stub properties with externalLinkName: call native function
-            // directly via the implicit receiver, bypassing field-offset dispatch.
-            // (e.g. kk_duration_inWholeNanoseconds accessed inside a bundled
-            // Kotlin source extension getter body.)
             if let sym = sema.symbols.symbol(symbol),
                sym.kind == .property,
                let externalLinkName = sema.symbols.externalLinkName(for: symbol),
@@ -1014,13 +941,6 @@ extension ExprLowerer {
                 let resultType = boundType
                     ?? sema.symbols.propertyType(for: symbol)
                     ?? sema.types.anyType
-                // BUG-inner-outer: an inner class's implicit receiver is
-                // its own instance, but a bare reference to a property
-                // declared on an *enclosing* class must read through
-                // the `$outer` chain instead of applying `ownerSymbol`'s
-                // field offset to the wrong object. A no-op for every
-                // other case, where the receiver already is (or
-                // subclasses) `ownerSymbol`.
                 let fieldReceiverExprID = resolveOuterChainValue(
                     from: receiverExprID,
                     to: ownerSymbol,
@@ -1047,16 +967,6 @@ extension ExprLowerer {
                     instructions: &instructions
                 )
             }
-            // No direct field offset (the property has a distinct backing
-            // field because it declares a custom accessor): dispatch to
-            // the getter accessor when a real `get() { ... }` body exists
-            // (mirrors CallLowerer+MemberPropertyReads.swift's explicit-
-            // receiver equivalent), otherwise fall back to reading the
-            // backing field's own storage directly, since the compiler-
-            // provided default getter is just `return field` — the same
-            // backing-field global that MemberLowerer+
-            // DelegatedAndAccessorLowering.swift's lowerAccessorBody
-            // resolves through the active receiver's instance layout.
             if let sym = sema.symbols.symbol(symbol),
                sym.kind == .property,
                let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(
@@ -1085,10 +995,6 @@ extension ExprLowerer {
                 ) {
                     return interfaceRead
                 }
-                // KSP-928: the abstract `entries` property in
-                // AbstractMap is resolved from an implicit receiver in
-                // its base-class methods, so use the subclass vtable
-                // entry instead of the generated abstract getter stub.
                 if let propertyInfo = sema.symbols.symbol(symbol),
                    propertyInfo.flags.contains(.abstractType)
                        || propertyInfo.flags.contains(.openType),
@@ -1144,9 +1050,6 @@ extension ExprLowerer {
                     )
                 }
             }
-            // Imported top-level properties with a custom getter have no
-            // global slot in the producing artifact; their reads dispatch
-            // to the precompiled getter accessor instead.
             if let sym = sema.symbols.symbol(symbol),
                sym.kind == .property,
                sema.symbols.propertyHasCustomGetter(for: symbol),
@@ -1213,10 +1116,6 @@ extension ExprLowerer {
                 ))
                 return result
             }
-            // Direct imports of singleton extension properties (such as
-            // Int.Companion.MAX_VALUE) bind to a package-owned property.
-            // Its storage is the getter, not a global slot; supply the
-            // declared singleton receiver when no implicit receiver matched.
             if sema.symbols.symbol(symbol)?.kind == .property,
                let receiverType = sema.symbols.extensionPropertyReceiverType(for: symbol),
                case let .classType(receiverClass) = sema.types.kind(of: receiverType),
@@ -1274,15 +1173,6 @@ extension ExprLowerer {
                         instructions: &instructions
                     )
                 }
-                // A custom setter or an explicit `field = ...` declaration
-                // (Kotlin 2.x backing field) gives the property a distinct
-                // backing field. Its compiler-provided default accessors
-                // read/write that field, so a bare storage reference must do
-                // the same — for package-owned properties just as for the
-                // object-owned ones this already handled. A property whose
-                // reads dispatch to a real getter accessor keeps loading its
-                // own symbol here so PropertyLoweringPass can rewrite the load
-                // into the emitted getter call.
                 let storageSymbol: SymbolID
                 if sym.kind == .property,
                    let backingField = sema.symbols.backingFieldSymbol(for: symbol),
@@ -1309,7 +1199,6 @@ extension ExprLowerer {
                        sema.types.kind(of: declaredStorageType), narrowedPrimitive: primitive
                    )
                 {
-                    // A flow-narrowed primitive may still be boxed in the global slot.
                     storageType = declaredStorageType
                 } else {
                     storageType = boundType ?? declaredStorageType ?? sema.types.anyType
@@ -1332,11 +1221,6 @@ extension ExprLowerer {
                     instructions: &instructions
                 ) ?? loadedValue
             }
-            // Synthetic singleton objects with an externalLinkName (e.g.
-            // kotlinx.coroutines.NonCancellable) resolve to a runtime handle via a
-            // direct zero-argument call, bypassing the eager module-init allocation
-            // used for real `object` declarations (which real objects need for their
-            // own stored state, but a synthetic native-backed singleton doesn't).
             if let sym = sema.symbols.symbol(symbol),
                sym.kind == .object,
                let externalLinkName = sema.symbols.externalLinkName(for: symbol),
@@ -1375,13 +1259,6 @@ extension ExprLowerer {
         return id
     }
 
-    /// The receiver value for an unqualified extension-property read. Sema
-    /// may have bound the reference to an enclosing receiver-tower entry —
-    /// a receiver-typed lambda's captured `this` (KUU-3914) — recorded as
-    /// `implicitReceiverOuterReceiver`; its captured value supplies the
-    /// extension receiver while the active implicit receiver (the lambda's
-    /// own) does not match. Otherwise the active implicit receiver itself
-    /// must satisfy the declared extension receiver type.
     private func implicitExtensionPropertyReceiverExpr(
         for exprID: ExprID,
         extensionReceiverType: TypeID,
