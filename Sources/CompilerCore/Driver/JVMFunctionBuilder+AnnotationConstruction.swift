@@ -1,6 +1,4 @@
 extension JVMFunctionBuilder {
-    /// Annotation classes are JVM interfaces. Their public reflection constructor
-    /// works with both the repository runtime and the official Kotlin runtime.
     func annotationConstruction(_ args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
         guard let binding = program.sema.bindings.callBinding(for: id),
               program.sema.symbols.symbol(binding.chosenCallee)?.kind == .constructor,
