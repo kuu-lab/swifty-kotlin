@@ -3,10 +3,6 @@ import Foundation
 package final class MetadataEncoder {
     package init() {}
 
-    /// Public and protected declarations form the cross-module API;
-    /// `includeNonPublic` additionally includes internal and private declarations.
-    /// `requiredNonPublicSymbols` keeps inline implementation dependencies with
-    /// their original visibility without exporting unrelated hidden declarations.
     package func buildRecords(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -214,10 +210,6 @@ package final class MetadataEncoder {
                 if isNonPublicEnumStaticHelper(symbolID: symbol.id, symbols: symbols, interner: interner) {
                     return false
                 }
-                // Exclude symbols declared in bundled stdlib virtual files (e.g. __bundled_*.kt).
-                // These are compiler internals and are always re-injected on every compilation.
-                // Source-backed nominal types that reuse a synthetic shell carry a sourceFileID
-                // but leave declSite nil, so also filter by the tracked source file ID.
                 if let declSite = symbol.declSite, excludeSourceFileIDs.contains(declSite.start.file.rawValue) {
                     return false
                 }
@@ -241,9 +233,6 @@ package final class MetadataEncoder {
         let exportedSymbolIDs = Set(exported.map(\.id))
         var records: [MetadataRecord] = []
         for symbol in exported {
-            // Runtime blobs consume a small projection of library metadata.
-            // Preserve the same selection and ordering, without constructing
-            // mangled signatures, contracts, annotations, or dispatch maps.
             if runtimeReflectionOnly {
                 records.append(buildRuntimeReflectionRecord(
                     for: symbol, symbols: symbols, interner: interner,
@@ -785,11 +774,6 @@ package final class MetadataEncoder {
                 }
             })
             externalLinkName = functionLinkNames[symbol.id] ?? symbols.externalLinkName(for: symbol.id)
-            // KUU-655: uses the (already override-corrected) local flag, not
-            // `signature.valueParameterHasDefaultValues` directly, and an
-            // override with an inherited defaults link points at the base
-            // stub it routes through rather than a stub it was never given
-            // (see the comment above).
             if valueParameterHasDefaultValues.contains(true) {
                 defaultStubExternalLinkName = inheritedStubLink ?? {
                     let stubSymbol = SyntheticSymbolScheme.defaultStubSymbol(for: symbol.id)
@@ -1093,9 +1077,6 @@ package final class MetadataEncoder {
         let isFunInterface = symbol.flags.contains(.funInterface)
         let isExpect = symbol.flags.contains(.expectDeclaration)
         let isActual = symbol.flags.contains(.actualDeclaration)
-        // Serialize isValueClass independently of whether the underlying type was found.
-        // Even if underlying type extraction fails, mark it as a value class so importers
-        // can identify it correctly; valueClassUnderlyingTypeSig may be nil in that case.
         let isValueClass = symbol.flags.contains(.valueType)
 
         let annotationEntries = symbols.annotations(for: symbol.id).compactMap { annotation -> MetadataAnnotationRecord? in
@@ -1110,7 +1091,6 @@ package final class MetadataEncoder {
             )
         }
 
-        // P5-78: collect sealed subclass FQ names for cross-module exhaustiveness
         var sealedSubclassFQNames: [String] = []
         if isSealedClass {
             let directSubs = symbols.sealedSubclasses(for: symbol.id) ?? symbols.directSubtypes(of: symbol.id)
@@ -1198,9 +1178,6 @@ package final class MetadataEncoder {
         )
     }
 
-    /// Encodes a nominal type's declaration-order type parameters as
-    /// `<typeSignature>:<variance>` pairs so importers can restore the generic
-    /// arity (constructor/member type-argument resolution needs it).
     private func serializeNominalTypeParameters(
         for symbol: SymbolID,
         symbols: SymbolTable,
@@ -1230,11 +1207,6 @@ package final class MetadataEncoder {
         return entries.joined(separator: ",")
     }
 
-    /// Internal storage-constructor FQ names that stay in the stdlib object
-    /// for source-backed implementation calls but are not exported
-    /// (KSP-911, KSP-908, KSP-1089, KSP-1093). A `true` value additionally
-    /// limits the exclusion to non-public overloads, so the same-named public
-    /// initializer factory keeps exporting.
     private static let unexportedStorageConstructors: [[String]: Bool] = [
         ["kotlin", "ULongArray"]: false,
         ["kotlin", "UIntArray"]: false,
@@ -1242,7 +1214,6 @@ package final class MetadataEncoder {
         ["kotlin", "concurrent", "AtomicLongArray"]: true,
     ]
 
-    /// Nominal kinds that carry layout information in metadata.
     static let nominalKinds: Set<SymbolKind> = [.class, .interface, .object, .enumClass, .annotationClass]
 
     private static func isSourceBackedDataOrAnnotationClassMember(
@@ -1271,10 +1242,6 @@ package final class MetadataEncoder {
         return false
     }
 
-    /// Synthetic enum members are only retained for source-backed shell enums
-    /// when they are one of Kotlin's public implicit enum helpers. This keeps
-    /// shell-backed metadata from exporting unrelated synthetic or non-public
-    /// enum members.
     private static func isPublicImplicitEnumClassHelper(
         _ symbol: SemanticSymbol,
         interner: StringInterner
@@ -1291,11 +1258,6 @@ package final class MetadataEncoder {
         }
     }
 
-    /// True when `symbolID` is a compiler-generated member of a source-backed enum
-    /// class (name, ordinal, values) or its companion (valueOf, entries). These
-    /// symbols are synthesized by HeaderCollection but are part of the public
-    /// surface of an enum class, so consumers that import the class from a
-    /// precompiled artifact must be able to resolve them.
     private static func isSourceBackedEnumClassMember(
         _ symbolID: SymbolID,
         symbols: SymbolTable,
@@ -1305,10 +1267,6 @@ package final class MetadataEncoder {
         var currentID = symbols.parentSymbolIfKnown(for: symbolID)
         while let parentID = currentID, let parent = symbols.symbol(parentID) {
             if Self.nominalKinds.contains(parent.kind) {
-                // The second disjunct: source-backed bundled enums may reuse a
-                // synthetic nominal shell (synthetic flag set, declSite nil)
-                // while still carrying a tracked sourceFileID. Callers that opt
-                // in treat those as source-backed too.
                 if parent.kind == .enumClass,
                    (!parent.flags.contains(.synthetic) && parent.declSite != nil)
                        || (allowShellBackedEnum
@@ -1320,15 +1278,10 @@ package final class MetadataEncoder {
                     }
                     return true
                 }
-                // Synthetic companions / nested anchors may sit between the
-                // member and the owning enum class; keep walking.
                 if parent.flags.contains(.synthetic) {
                     currentID = symbols.parentSymbolIfKnown(for: parentID)
                     continue
                 }
-                // valueOf / entries are synthesized on the companion object,
-                // which may be a user-declared (non-synthetic) companion. Walk
-                // through it to reach the owning enum class.
                 if parent.kind == .object,
                    let grandparentID = symbols.parentSymbolIfKnown(for: parentID),
                    symbols.companionObjectSymbol(for: grandparentID) == parentID
@@ -1597,8 +1550,6 @@ package final class MetadataEncoder {
         return lines.joined(separator: "\n") + "\n"
     }
 
-    /// Serialize metadata with a compact declaration index and a separately
-    /// addressable body. Legacy readers continue to accept `serialize(_:)`.
     package func serializeIndexed(_ records: [MetadataRecord]) -> String {
         let legacyLines = serialize(records)
             .split(whereSeparator: \.isNewline)
@@ -1771,10 +1722,6 @@ package final class MetadataEncoder {
         return sorted.map { "\($0.0)@\($0.1)" }.joined(separator: ",")
     }
 
-    /// True for compiler-generated enum static helpers (`values`, `valueOf`,
-    /// `entries`) that belong to a non-public enum class.  These slots are not
-    /// reachable from consumer code and cannot be resolved on import, so they
-    /// should be omitted from serialized vtable/itable layouts.
     private func isNonPublicEnumStaticHelper(
         symbolID: SymbolID,
         symbols: SymbolTable,
@@ -1895,7 +1842,6 @@ package final class MetadataEncoder {
             if isNonPublicEnumStaticHelper(symbolID: symbolID, symbols: symbols, interner: interner) {
                 return nil
             }
-            // Dependency interfaces are not re-exported, but their slots still belong to the layout.
             if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID),
                !symbol.flags.contains(.importedLibrary)
             {
@@ -1930,7 +1876,6 @@ package final class MetadataEncoder {
             parts.append("target:\(target)")
         }
         if !annotation.arguments.isEmpty {
-            // Keep literal provenance with the arguments in both wire formats.
             parts.append("literalFormat:canonical")
             let argsB64 = annotation.arguments.map { Data($0.utf8).base64EncodedString() }
             parts.append("args:\(argsB64.joined(separator: ","))")
