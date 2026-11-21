@@ -6,8 +6,6 @@ import Foundation
 /// another index has failed; each worker's first index always runs, and the
 /// lowest-index failure among executed tasks is still thrown.
 enum SemaPerFileExecutor {
-    /// Stored at indices a worker skipped after another index failed so every
-    /// slot still holds a result; never surfaced as the thrown error.
     private struct CancelledIndex: Error {}
 
     private final class FailureFlag: @unchecked Sendable {
