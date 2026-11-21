@@ -1,7 +1,5 @@
 import Foundation
 
-/// This report records measured ABI availability. It intentionally does not
-/// promote declaration resources or frontend inline bodies to JAR coverage.
 package enum JVMStdlibCoverage {
     package static func report(_ program: JVMProgram, classFiles: [(String, Data)]) throws -> Data {
         var classes: [String: JVMClassInfo] = [:]
