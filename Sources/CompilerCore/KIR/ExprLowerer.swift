@@ -19,9 +19,6 @@ final class ExprLowerer {
         if lambdaCapturedSymbols == nil {
             var captured = Set(sema.bindings.captureSymbolsByExpr.values.joined())
             captured.formUnion(sema.bindings.localFunctionCaptureSymbolsBySymbol.values.joined())
-            // Object literals and local nominals keep captures in a third
-            // table keyed by the owner nominal; their members lazily box a
-            // captured `var` at the construction site the same way.
             captured.formUnion(sema.bindings.objectLiteralCaptureSymbolsByOwner.values.joined())
             lambdaCapturedSymbols = captured
         }
