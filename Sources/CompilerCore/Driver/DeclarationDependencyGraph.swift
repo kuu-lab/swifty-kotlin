@@ -10,11 +10,9 @@ import Foundation
 /// The hashes are produced by the front end from syntax, never from `SymbolID`
 /// or arena indices, so they are stable across runs.
 public struct DeclarationUnit: Equatable, Codable, Sendable {
-    /// Fully qualified, overload-distinguishing identity (e.g. `pkg.foo(Int,String)`).
     public let id: String
     public let signatureHash: String
     public let bodyHash: String
-    /// Identities of the declarations this one references.
     public let references: Set<String>
 
     public init(id: String, signatureHash: String, bodyHash: String, references: Set<String>) {
@@ -25,7 +23,6 @@ public struct DeclarationUnit: Equatable, Codable, Sendable {
     }
 }
 
-/// Declaration-granularity counterpart of `DependencyGraph`.
 public struct DeclarationDependencyGraph: Equatable, Codable, Sendable {
     public private(set) var units: [String: DeclarationUnit]
 
@@ -77,15 +74,10 @@ public struct DeclarationDependencyGraph: Equatable, Codable, Sendable {
         return result.filter { units[$0] != nil }
     }
 
-    /// Content-address for one declaration's compiled output. Depends on the
-    /// declaration's own hashes, the *signatures* (not bodies) of everything it
-    /// references, and an `environment` hash covering compiler build, options
-    /// and the stdlib artifact — so a body edit elsewhere never changes it.
     public func cacheKey(for id: String, environment: String) -> String? {
         guard let unit = units[id] else { return nil }
         var parts = ["decl-v1", environment, unit.id, unit.signatureHash, unit.bodyHash]
         for reference in unit.references.sorted() {
-            // Unknown references (stdlib, externals) are pinned by `environment`.
             parts.append("\(reference)=\(units[reference]?.signatureHash ?? "external")")
         }
         return ContentAddressedStore.makeKey(parts: parts)
