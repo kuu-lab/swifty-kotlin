@@ -1,19 +1,9 @@
 extension DataFlowSemaPhase {
-    /// Which subset of the variance surface a pass inspects. Declared type
-    /// references are validated in DataFlow before type checking; inferred
-    /// member types exist only after TypeCheckSemaPhase has registered the
-    /// member signatures, so they are validated in a second pass invoked at
-    /// the end of type checking.
     private enum VarianceCheckPhase {
         case explicit
         case inferred
     }
 
-    /// Kotlin rules:
-    /// - `out T` (covariant): T may only appear in out positions (return types, val property types).
-    /// - `in T` (contravariant): T may only appear in in positions (function parameters).
-    /// - Private members are exempt from variance checks (Kotlin spec).
-    /// - Constructor parameters are exempt from variance checks.
     func validateDeclarationSiteVariance(
         ast: ASTModule,
         symbols: SymbolTable,
@@ -246,8 +236,6 @@ extension DataFlowSemaPhase {
         outerVarianceSymbolMap: [SymbolID: TypeVariance],
         phase: VarianceCheckPhase
     ) {
-        // Objects cannot declare type parameters; only the enclosing
-        // variance context applies.
         let varianceMap = outerVarianceMap
         if phase == .explicit {
             for superTypeRef in objectDecl.superTypeEntries.map(\.typeRef) {
@@ -272,11 +260,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Supertypes and type-parameter upper bounds are part of the declared
-    /// signature: a `T` written there sits at the supertype/bound's declared
-    /// variance position, so `class Source<out T> : Sink<T>` illegally places
-    /// `out T` in Sink's `in` position. Delegated supertypes are checked the
-    /// same way — the `by` clause does not exempt the type itself.
     private func validateSuperTypesAndBounds(
         _ typeParams: [TypeParamDecl],
         superTypeRefs: [TypeRefID],
@@ -337,9 +320,6 @@ extension DataFlowSemaPhase {
         return classDecl.isInner
     }
 
-    /// Member declarations are lazily bound and never enter `declSymbols`;
-    /// the decl-site index is how member symbols are recovered (the same
-    /// pattern the constructor checkers use).
     private func memberSymbolID(
         atDeclSite range: SourceRange, kind: SymbolKind, env: VarianceCheckEnv
     ) -> SymbolID? {
@@ -348,9 +328,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Nested nominal declarations are likewise absent from `declSymbols`;
-    /// recover the nominal symbol through the decl-site index when binding
-    /// lookup fails.
     private func nominalSymbolID(atDeclSite range: SourceRange?, env: VarianceCheckEnv) -> SymbolID? {
         guard let range else { return nil }
         return env.symbols.symbols(atDeclSite: range).first {
@@ -392,11 +369,6 @@ extension DataFlowSemaPhase {
         } else if phase == .inferred, !varianceSymbolMap.isEmpty,
                   let symbolID = memberSymbolID(atDeclSite: funDecl.range, kind: .function, env: env),
                   let returnType = env.symbols.functionSignature(for: symbolID)?.returnType {
-            // Expression-body functions publish an inferred return type; it
-            // still leaks the declaration-site parameter into an `out`
-            // position (`fun leak() = item` on `Sink<in T>`). The signature's
-            // own type-parameter symbols are distinct from the enclosing
-            // class's, so shadowed names (`fun <T> …`) resolve correctly.
             checkTypeIDVariance(returnType, position: .out,
                                 varianceSymbolMap: varianceSymbolMap, env: env, memberRange: funDecl.range)
         }
@@ -426,9 +398,6 @@ extension DataFlowSemaPhase {
         guard phase == .inferred, !varianceSymbolMap.isEmpty,
               let symbolID = memberSymbolID(atDeclSite: propertyDecl.range, kind: .property, env: env),
               let inferredType = env.symbols.propertyType(for: symbolID) else { return }
-        // Annotation-less `val x get() = …` / `var x = …` infer their public
-        // type from the initializer or getter; check the inferred type at the
-        // same positions a declared one occupies.
         if propertyDecl.isVar {
             checkTypeIDVariance(inferredType, position: .contravariant,
                                 varianceSymbolMap: varianceSymbolMap, env: env, memberRange: propertyDecl.range)
@@ -526,12 +495,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// TypeID-level twin of `checkTypeRefVariance` for inferred member types —
-    /// expression-body functions and annotation-less properties have no
-    /// TypeRef, but their inferred signatures are equally part of the
-    /// declaration's public surface. Keys are type-parameter symbols, so a
-    /// member redeclaring the parameter's name cannot hide a class `T` that
-    /// leaks into the inferred type.
     private func checkTypeIDVariance(
         _ typeID: TypeID,
         position: VariancePosition,
