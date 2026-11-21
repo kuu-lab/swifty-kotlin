@@ -1,11 +1,9 @@
 extension DataFlowSemaPhase {
-    /// Registers `String.Companion.format` members that the real Kotlin stdlib
     /// ships as `@InlineOnly` (so they carry no bytecode for the JVM classpath
     /// index to import). Without them, `String.format(...)` has no companion
     /// candidate and overload resolution falls back to the `String.format`
     /// extension, coercing the `StringCompanionObject` receiver to `String`
     /// and emitting a `checkcast` that fails at runtime. The JVM backend
-    /// lowers these synthetic members to `java/lang/String.format`.
     func registerStringCompanionFormatMembers(
         symbols: SymbolTable,
         types: TypeSystem,
