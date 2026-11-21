@@ -1,12 +1,4 @@
 
-// KSP-697: List and AbstractList nominal declarations are source-backed in the
-// bundled stdlib. KSP-700 moved the indexed/empty/list-iterator contracts to
-// collections/List/List.kt and collections/MutableList.kt; KSP-1063 added the
-// `size`/`iterator` redeclarations there. The Swift registrations below retain
-// the claimable `size`/`iterator` members (the source decls inherit their
-// runtime links — @KsSymbolName cannot annotate a property), plus the
-// no-stdlib/precompiled fallback for List.get.
-
 extension DataFlowSemaPhase {
     func registerSyntheticListStub(
         symbols: SymbolTable,
@@ -47,9 +39,6 @@ extension DataFlowSemaPhase {
             symbol: listTypeParamSymbol,
             nullability: .nonNull
         )))
-        // A source-declared or imported List already carries its real type
-        // parameter and supertype edges; only compiler-owned shells get the
-        // synthetic bootstrap decoration.
         if !symbols.isSourceBackedSymbol(listInterfaceSymbol) {
             types.setNominalTypeParameterSymbols([listTypeParamSymbol], for: listInterfaceSymbol)
             types.setNominalTypeParameterVariances([.out], for: listInterfaceSymbol)
@@ -170,7 +159,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Bundled source owns the declaration whenever the index contains it.
     private func registerListGetOperator(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -283,9 +271,6 @@ extension DataFlowSemaPhase {
             supertype: listInterfaceSymbol
         )
 
-        // The JVM no-stdlib fallback keeps AbstractList as a compiler shell while
-        // the JDK supplies its skeletal implementations. Model those concrete
-        // methods so List's abstract declarations are not reported as missing.
         registerSyntheticCollectionClassFunctionStub(
             name: "indexOf",
             ownerSymbol: abstractListSymbol,
