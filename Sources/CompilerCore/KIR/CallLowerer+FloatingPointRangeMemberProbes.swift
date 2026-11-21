@@ -7,14 +7,6 @@ extension CallLowerer {
     /// runtime representation first and fall through to virtual dispatch only
     /// for user-defined implementations — the same pattern the endpoint
     /// properties already use via `emitRuntimeFloatingPointEndpointFastPath`
-    /// (KUU-999).
-    ///
-    /// Emits the fast-path call, the null-sentinel compare, and the
-    /// interface-dispatch label; returns the end label the caller must append
-    /// after its own virtual-call instruction. Returns `nil` (emitting
-    /// nothing) when `chosenCallee` is not one of the source-declared
-    /// `contains`/`isEmpty`/`lessThanOrEquals` members on the two range
-    /// interfaces.
     func emitFloatingPointRangeMemberProbe<C: RangeReplaceableCollection>(
         chosenCallee: SymbolID?,
         receiverID: KIRExprID,
@@ -50,7 +42,6 @@ extension CallLowerer {
             probeName = "__kk_floating_range_isEmpty_or_null"
             arity = 0
         case "lessThanOrEquals":
-            // `ClosedRange` does not declare `lessThanOrEquals`.
             guard isClosedFloatingPointRange else { return nil }
             probeName = "__kk_floating_range_lessThanOrEquals_or_null"
             arity = 2
@@ -58,11 +49,6 @@ extension CallLowerer {
             return nil
         }
 
-        // Member signatures may prepend the receiver into `arguments`
-        // (`signature.receiverType != nil` extension-style convention, and the
-        // `in`-operator path passes `[container, element]` explicitly). Strip a
-        // leading receiver occurrence so the probe sees exactly
-        // `(receiver, declaredArgs...)`.
         var explicitArguments = arguments
         if let first = explicitArguments.first,
            first == receiverID || first == sourceReceiverID
