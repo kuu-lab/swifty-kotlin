@@ -1,18 +1,7 @@
 import Foundation
 
 extension DataFlowSemaPhase {
-    /// One compact-indexed (v3) `.kklib` whose records register on demand
-    /// instead of through an eager `registerShells` pass.
-    ///
-    /// `loadImportedLibrarySymbols` attaches one source per v3 artifact.
-    /// SymbolTable query paths find matching entries in lazily sorted index
-    /// ranges, so a shell is defined only when a lookup can actually reach it.
-    /// The `registerEntry` closure — owned by the import function so it shares
-    /// that function's shadow/link state — builds the shell and restores the
-    /// structural edges the removed eager post-pass established.
     final class IndexedLibrarySource: IndexedLibraryEntryProvider {
-        /// Position on the library search path, matching the library-dir
-        /// enumeration order.
         let importOrder: Int
         let isStdlibArtifact: Bool
 
@@ -20,17 +9,7 @@ extension DataFlowSemaPhase {
         private let interner: StringInterner
         private let moduleFQN: InternedString?
         private weak var symbols: SymbolTable?
-        /// Claims one index entry: builds the index shell, runs
-        /// `appendImportedBinding`, and restores parents, companion edges,
-        /// extension receivers, and link-name routing. The second parameter
-        /// resolves a nominal owner's type-parameter signature on demand. The
-        /// lookup closure reads the immutable metadata index and does not retain
-        /// the provider (the symbol table already does).
         private let registerEntry: (Int, (String) -> String?) -> SymbolID?
-        /// Index entries rejected by the import-time validation scan (e.g.
-        /// callable arity outside the supported range). They behave as if
-        /// the record were absent: not claimable, not counted, contributing
-        /// no link names, member keys, or package prefixes.
         private let rejectedIndices: Set<Int>
 
         init(
@@ -54,16 +33,9 @@ extension DataFlowSemaPhase {
             self.registerEntry = registerEntry
         }
 
-        // MARK: - Indexed-entry lookup
-
-        /// Index kinds that never surface through declaration lookup: they
-        /// encode part of an owner (parameters, backing state, locals) and
-        /// are claimed only through owner-driven drains.
         private static let machineryKinds: Set<SymbolKind> = [
             .valueParameter, .typeParameter, .backingField, .local, .label,
         ]
-        /// Kinds whose FQ-name prefixes can describe a package, mirroring the
-        /// eager synthetic-package pass (STDLIB-SHARED-011).
         private static let packageOwnerKinds: Set<SymbolKind> = [
             .class, .interface, .object, .enumClass, .annotationClass,
             .typeAlias, .function, .property, .constructor,
@@ -72,24 +44,14 @@ extension DataFlowSemaPhase {
             .object, .class, .interface, .annotationClass, .enumClass,
         ]
 
-        /// Entries already registered through any drain path. The pending
-        /// queries overlap (a member is claimable by FQ name, by parent, by
-        /// short name, and by link name), so claims key on the entry index —
-        /// `claim(index:)` is the single point that keeps registration
-        /// once-only.
         private var claimed: Set<Int> = []
         private var drainedFQNames: Set<String> = []
         private var drainedParents: Set<String> = []
         private var drainedShortNames: Set<String> = []
         private var drainedTypeParameterOwners: Set<String> = []
         private var expectEntriesDrained = false
-        /// Link-name lookup is uncommon and is built only if an imported inline
-        /// body asks for a producer link.
         private var pendingLinks: [Substring: LinkTarget] = [:]
         private var linksBuilt = false
-        /// Package prefixes the index contributes, with the constructor
-        /// exclusion applied (eager `syntheticPackagePaths` parity). Only
-        /// queried package scopes are retained.
         private var childPackagePrefixesByParent: [String: [[InternedString]]] = [:]
         private var nestedEntriesByFQName: [String: Bool] = [:]
         private var stdlibMemberKeysCache: Set<BundledMemberKey>?
@@ -104,9 +66,6 @@ extension DataFlowSemaPhase {
             fqName.map { interner.resolve($0) }.joined(separator: ".")
         }
 
-        /// Registers an unclaimed index entry exactly once. Returns the new
-        /// symbol, or `nil` when the entry was already claimed or its record
-        /// is shadowed/duplicate-merged into another library's symbol.
         @discardableResult
         private func claim(index: Int) -> SymbolID? {
             guard claimed.insert(index).inserted else { return nil }
@@ -176,8 +135,6 @@ extension DataFlowSemaPhase {
                     cursor = prefix
                 }
             }
-            // Constructor FQ names nest under their nominal owner. That owner
-            // path only becomes a package when no declaration occupies it.
             for candidate in constructorParents where !hasClaimableEntry(fqName: candidate) {
                 packagePrefixes.insert(candidate)
             }
@@ -210,8 +167,6 @@ extension DataFlowSemaPhase {
             }
             return packagePrefixes
         }
-
-        // MARK: - IndexedLibraryEntryProvider
 
         func drainEntries(fqName: [InternedString]) {
             let name = render(fqName)
@@ -267,11 +222,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        /// Registers every pending `isExpect` entry so expect/actual
-        /// validation covers the complete expect surface, not only the
-        /// entries earlier lookups happened to reach (KUU-3969). Lookup
-        /// indexes are not consulted: claims key on the entry index and already
-        /// deduplicate against lookup-driven drains.
         func drainExpectEntries() {
             guard !expectEntriesDrained else { return }
             expectEntriesDrained = true
@@ -345,9 +295,6 @@ extension DataFlowSemaPhase {
             return false
         }
 
-        /// Package prefixes nested directly under `parentFQName` (no further
-        /// segments), so a children drain can synthesize the same child
-        /// package shells the eager pass registered.
         func packagePrefixes(under parentFQName: [InternedString]) -> [[InternedString]] {
             let parent = render(parentFQName)
             if let cached = childPackagePrefixesByParent[parent] { return cached }
@@ -381,12 +328,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // MARK: - Import-phase resolvers
-
-        /// Resolves a producer external link name, registering its entry if
-        /// still pending. Getter links resolve through the property's
-        /// synthesized accessor, which exists only once the property's own
-        /// binding has been applied — the lazy materializer provides that.
         func resolveLinkName(_ name: String) -> SymbolID? {
             buildLinkMapIfNeeded()
             guard let target = pendingLinks.removeValue(forKey: Substring(name)),
@@ -399,8 +340,6 @@ extension DataFlowSemaPhase {
                 return claim(index: index).map(SyntheticSymbolScheme.defaultStubSymbol)
             case let .propertyGetter(index):
                 guard let property = claim(index: index) else {
-                    // Already registered through another drain; the apply-time
-                    // hook in the lazy loader owns the link map entry.
                     return nil
                 }
                 symbols.ensureLazyImportedMetadataLoaded(for: property)
@@ -408,9 +347,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        /// Function/constructor entries at `fqName` that no drain has claimed
-        /// yet. The phantom-parameter single-owner rule combines this with
-        /// the already-registered binding count.
         func pendingCallableCount(fqName: [InternedString]) -> Int {
             let name = render(fqName)
             return indexedFile.fQNameRange(matching: name).reduce(0) { count, position in
@@ -424,8 +360,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        /// Claims this index's type-parameter records owned under `fqName`,
-        /// returning their freshly registered symbols.
         func claimTypeParameterSymbols(forOwner fqName: [InternedString]) -> [SymbolID] {
             let owner = render(fqName)
             guard drainedTypeParameterOwners.insert(owner).inserted else { return [] }
@@ -446,10 +380,6 @@ extension DataFlowSemaPhase {
             return indexes.sorted().compactMap { claim(index: $0) }
         }
 
-        /// Member keys for the bundled-stdib merge, built straight from the
-        /// index so no shell (let alone signature) is needed for entries the
-        /// compilation never references. This independent query does not
-        /// initialize declaration-lookup state.
         func memberKeys() -> Set<BundledMemberKey> {
             if let cached = stdlibMemberKeysCache { return cached }
             var keys: Set<BundledMemberKey> = []
