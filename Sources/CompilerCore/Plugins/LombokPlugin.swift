@@ -1,10 +1,5 @@
 import Foundation
 
-/// kotlinc `lombok` (`org.jetbrains.kotlin.lombok`) compiler plugin equivalent.
-/// Processes `@lombok.*` annotations on classes and properties (as well as
-/// `lombok.config` supplied via `-P plugin:org.jetbrains.kotlin.lombok:config=<path>`)
-/// and synthesizes the corresponding accessors, withers, constructors, `toString`,
-/// `equals`/`hashCode`, `@Builder` types/factories, and logger fields.
 struct LombokPlugin: CompilerPlugin {
     let id = "org.jetbrains.kotlin.lombok"
 
@@ -42,8 +37,6 @@ struct LombokPlugin: CompilerPlugin {
         Self.applyLombok(configPaths: configPaths, context: context)
     }
 
-    /// Runs Lombok Sema transformations for all annotated user classes in the module.
-    /// Idempotent per class via `context.sema.lombokClasses`.
     static func applyLombok(
         configPaths: [String],
         context: CompilerPluginSemaContext
@@ -76,8 +69,6 @@ struct LombokPlugin: CompilerPlugin {
             )
         }
     }
-
-    // MARK: - Class Processing
 
     private static func processClass(
         _ classSymbol: SemanticSymbol,
@@ -122,7 +113,6 @@ struct LombokPlugin: CompilerPlugin {
             )
         )
 
-        // 1. @Getter / @Setter / @With
         let classGetterAnn = findAnnotation(classAnnotations, fqName: getterFQ)
         let classSetterAnn = findAnnotation(classAnnotations, fqName: setterFQ)
         let classWithAnn = findAnnotation(classAnnotations, fqName: withFQ)
@@ -137,7 +127,6 @@ struct LombokPlugin: CompilerPlugin {
                 prefixes: propAccessors.prefixes
             )
 
-            // Getter
             let propGetterAnn = findAnnotation(propAnns, fqName: getterFQ)
             let effectiveGetterLevel: LombokAccessLevel? = {
                 if let propGetterAnn {
@@ -178,7 +167,6 @@ struct LombokPlugin: CompilerPlugin {
                 }
             }
 
-            // Setter (mutable properties only unless explicitly annotated on property)
             let propSetterAnn = findAnnotation(propAnns, fqName: setterFQ)
             let isMutable = propSym.flags.contains(.mutable)
             let effectiveSetterLevel: LombokAccessLevel? = {
@@ -221,7 +209,6 @@ struct LombokPlugin: CompilerPlugin {
                 }
             }
 
-            // @With
             let propWithAnn = findAnnotation(propAnns, fqName: withFQ)
             let effectiveWithLevel: LombokAccessLevel? = {
                 if let propWithAnn {
@@ -255,7 +242,6 @@ struct LombokPlugin: CompilerPlugin {
             }
         }
 
-        // 2. @ToString
         if let toStringAnn = findAnnotation(classAnnotations, fqName: toStringFQ) ?? (hasData || hasValue ? MetadataAnnotationRecord(annotationFQName: toStringFQ) : nil) {
             let onlyIncluded = boolArgument(toStringAnn, name: "onlyExplicitlyIncluded") ?? config.toStringOnlyExplicitlyIncluded
             let includeFieldNames = boolArgument(toStringAnn, name: "includeFieldNames") ?? config.toStringIncludeFieldNames
@@ -293,7 +279,6 @@ struct LombokPlugin: CompilerPlugin {
             }
         }
 
-        // 3. @EqualsAndHashCode
         if let eqAnn = findAnnotation(classAnnotations, fqName: equalsAndHashCodeFQ) ?? (hasData || hasValue ? MetadataAnnotationRecord(annotationFQName: equalsAndHashCodeFQ) : nil) {
             let onlyIncluded = boolArgument(eqAnn, name: "onlyExplicitlyIncluded") ?? config.equalsOnlyExplicitlyIncluded
             let excludedNames = stringListArgument(eqAnn, name: "exclude")
@@ -348,7 +333,6 @@ struct LombokPlugin: CompilerPlugin {
             }
         }
 
-        // 4. Constructors: @NoArgsConstructor, @RequiredArgsConstructor, @AllArgsConstructor
         if let noArgsAnn = findAnnotation(classAnnotations, fqName: noArgsCtorFQ) {
             let level = accessLevel(from: noArgsAnn)
             let force = boolArgument(noArgsAnn, name: "force") ?? false
@@ -458,7 +442,6 @@ struct LombokPlugin: CompilerPlugin {
             }
         }
 
-        // 5. @Builder
         if let builderAnn = findAnnotation(classAnnotations, fqName: builderFQ) {
             synthesizeBuilder(
                 for: classSymbol,
@@ -472,7 +455,6 @@ struct LombokPlugin: CompilerPlugin {
             )
         }
 
-        // 6. Logging annotations (@Slf4j, @Log, etc.)
         if classAnnotations.contains(where: { logAnnotations.contains($0.annotationFQName) }) {
             let logName = interner.intern(config.logFieldName)
             let ownerForLog: SymbolID = config.logFieldIsStatic
@@ -501,8 +483,6 @@ struct LombokPlugin: CompilerPlugin {
 
         context.sema.lombokClasses[classID] = info
     }
-
-    // MARK: - Builder Synthesis
 
     private static func synthesizeBuilder(
         for classSymbol: SemanticSymbol,
@@ -557,7 +537,6 @@ struct LombokPlugin: CompilerPlugin {
             nullability: .nonNull
         )))
 
-        // Constructor for <Class>Builder
         let initName = interner.intern("<init>")
         let ctorFQ = builderFQ + [initName]
         let builderCtorID: SymbolID
@@ -594,7 +573,6 @@ struct LombokPlugin: CompilerPlugin {
             builderCtorID = ctorSym
         }
 
-        // Builder fields & fluent setters
         var fieldPairs: [(builderProp: SymbolID, targetProp: SymbolID)] = []
         var setterMethods: [SymbolID] = []
 
@@ -640,7 +618,6 @@ struct LombokPlugin: CompilerPlugin {
             }
         }
 
-        // build(): TargetClass
         let buildSym: SymbolID
         if let synthesized = defineMemberMethodIfAbsent(
             ownerSymbol: builderClassID,
@@ -665,7 +642,6 @@ struct LombokPlugin: CompilerPlugin {
             buildSym = symbols.lookupAll(fqName: builderFQ + [buildNameInterned]).first ?? .invalid
         }
 
-        // Companion.builder(): BuilderType
         let compID = ensureCompanionObject(for: classSymbol, info: &info, context: context)
         if let compSym = symbols.symbol(compID) {
             let compType = types.make(.classType(ClassType(
@@ -704,8 +680,6 @@ struct LombokPlugin: CompilerPlugin {
         info.builderInfo = builderInfo
         context.sema.lombokBuilderClasses[classID] = builderInfo
     }
-
-    // MARK: - Constructors & Companion Factories
 
     private static func synthesizeConstructorIfAbsent(
         classSymbol: SemanticSymbol,
@@ -892,8 +866,6 @@ struct LombokPlugin: CompilerPlugin {
         return compID
     }
 
-    // MARK: - Symbol Helpers
-
     private static func collectInstanceProperties(
         of classID: SymbolID,
         symbols: SymbolTable
@@ -974,8 +946,6 @@ struct LombokPlugin: CompilerPlugin {
         )
         return methodSym
     }
-
-    // MARK: - Annotation & Config Parsing Helpers
 
     private enum LombokAccessLevel {
         case `public`
