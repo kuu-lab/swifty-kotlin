@@ -19,16 +19,11 @@ import Glibc
 package enum TrustedFileSystem {
 
     package enum LoadableFileInspection: Sendable, Equatable {
-        /// The canonical absolute path of a file that passed every check.
         case trusted(String)
-        /// The first path component that failed a check — the file itself or
-        /// the nearest rejecting ancestor directory — and why.
         case rejected(component: String, reason: RejectionReason)
     }
 
     package enum RejectionReason: Sendable, Equatable {
-        /// Relative paths resolve against the process's CWD, which another
-        /// local user may influence.
         case notAbsolutePath
         case missing
         case notRegularFile
@@ -48,10 +43,6 @@ package enum TrustedFileSystem {
         }
     }
 
-    /// A directory is trusted only when it exists, is a directory, is not
-    /// writable by others or by a non-administrative group, and is owned by
-    /// `root` or the current user. This rejects directories another local user
-    /// could use to plant a malicious binary.
     package static func isTrustedDirectory(
         _ path: String,
         fileManager: FileManager = .default
@@ -83,18 +74,10 @@ package enum TrustedFileSystem {
         return resolvedPath
     }
 
-    /// Validates a path like `trustedLoadableFile`: it must be absolute, must
-    /// exist as a regular file, must be owned by `root` or the current user
-    /// and writable only by the owner or an administrative group, and every
-    /// ancestor directory must satisfy `isTrustedDirectory`. Unlike
-    /// `trustedLoadableFile` the result names the offending component so a
-    /// caller can explain why a candidate was skipped.
     package static func inspectLoadableFile(
         _ path: String,
         fileManager: FileManager = .default
     ) -> LoadableFileInspection {
-        // A relative path resolves against the process's CWD, which another
-        // local user may influence; only absolute paths are considered.
         guard path.hasPrefix("/") else {
             return .rejected(component: path, reason: .notAbsolutePath)
         }
@@ -152,9 +135,6 @@ package enum TrustedFileSystem {
         return owner == 0 || owner == getuid()
     }
 
-    /// Group names treated as administrative for the group-write exception:
-    /// `admin` (Homebrew-managed directories on macOS) and the
-    /// root-equivalent groups `wheel`, `root`, and `sudo`.
     static let administrativeGroupNames: Set<String> = [
         "admin",
         "root",
