@@ -4,7 +4,6 @@ import kotlin.math.floor
 
 import kotlin.internal.KsSymbolName
 
-/** JVM-shaped `java.awt.Color`: immutable ARGB color. */
 public class Color {
     public val value: Int
 
@@ -97,7 +96,6 @@ public class Color {
         public val CYAN: Color = Color(0, 255, 255)
         public val BLUE: Color = Color(0, 0, 255)
 
-        /** JVM-style `r,g,b` constants also exposed under UPPER_SNAKE names. */
         public val white: Color get() = WHITE
         public val lightGray: Color get() = LIGHT_GRAY
         public val gray: Color get() = GRAY
@@ -144,8 +142,6 @@ public class Color {
     }
 }
 
-/** JVM-shaped `java.awt.Point`: mutable integer location. `x`/`y` are public
- * fields as in the JDK. */
 public open class Point {
     public var x: Int
     public var y: Int
