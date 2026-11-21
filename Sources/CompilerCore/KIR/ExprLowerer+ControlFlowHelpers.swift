@@ -123,7 +123,6 @@ extension ExprLowerer {
         instructions: inout [KIRInstruction]
     ) {
         let blocks = driver.ctx.enclosingFinallyBlocks()
-        // The blocks array corresponds 1:1 to finallyBlockStack, so stackIndex == array index.
         let indexedBlocks = blocks.enumerated().map { (exprID: $0.element, stackIndex: $0.offset) }
         inlineFinallyBlocks(
             indexedBlocks,
@@ -133,9 +132,6 @@ extension ExprLowerer {
         )
     }
 
-    /// A finally block is skipped when the target loop was pushed *after*
-    /// the try-finally scope was entered (meaning the loop is nested inside
-    /// the try body and the break/continue stays within the try scope).
     func inlineFinallyBlocksForBreakOrContinue(
         label: InternedString?,
         ast: ASTModule,
@@ -178,17 +174,6 @@ extension ExprLowerer {
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let finallyDepth = driver.ctx.enclosingFinallyBlocks().count
 
-        // Process innermost-first (reversed) so that the stack is trimmed
-        // correctly: for each finally block, we temporarily set the stack
-        // depth to its original stack index so that re-entrant lowering only
-        // sees outer blocks.
-        //
-        // CODE-001 fix: Each inlined finally block is lowered into a separate
-        // instruction buffer, then wrapped with appendThrowAwareInstructions
-        // that routes exceptions to a *rethrow* label instead of the
-        // try scopes whose cleanup has already run. This matches Kotlin
-        // semantics where an exception thrown from a finally block propagates
-        // to the next outer exception handler.
         for i in stride(from: blocks.count - 1, through: 0, by: -1) {
             let entry = blocks[i]
             let exceptionHandlerDepth = driver.ctx.exceptionHandlerDepthForFinallyBlock(at: entry.stackIndex)
@@ -209,10 +194,6 @@ extension ExprLowerer {
                 }
             }
 
-            // Check whether the finally body contains any call / virtualCall
-            // instructions that could throw.  If it does, wrap with throw-aware
-            // routing; otherwise append directly to avoid unnecessary labels
-            // and exception-slot overhead.
             let hasThrowableCall = finallyInstructions.contains { (instr: KIRInstruction) -> Bool in
                 switch instr {
                 case .call,
@@ -225,9 +206,6 @@ extension ExprLowerer {
             }
 
             if hasThrowableCall {
-                // Allocate per-inlined-finally exception slots so that any
-                // throw inside the finally body is captured and rethrown
-                // outward rather than routed to the enclosing try's catch.
                 let exSlot = arena.appendTemporary(type: sema.types.nullableAnyType
                 )
                 let exTypeSlot = arena.appendTemporary(type: intType
