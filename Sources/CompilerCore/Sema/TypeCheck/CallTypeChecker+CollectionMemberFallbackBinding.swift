@@ -33,9 +33,6 @@ extension CallTypeChecker {
         }
         guard calleeName != knownNames.contains else { return nil }
 
-        // `size` is a collection property, but this fallback models it next to
-        // zero-argument collection functions. Keep an explicit `size()` call
-        // from taking the property-read fallback.
         if calleeName == knownNames.size,
            args.isEmpty,
            ctx.ast.arena.isExplicitCall(id)
@@ -60,8 +57,6 @@ extension CallTypeChecker {
             return nil
         }
         if calleeName == knownNames.containsAll {
-            // Expression markers also admit Iterable and Sequence values here,
-            // but containsAll belongs only to Collection and its subtypes.
             guard let collectionSymbol = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsCollectionFQName),
                   driver.helpers.allNominalSymbols(of: receiverType, types: sema.types, symbols: sema.symbols).contains(where: {
                       sema.types.isNominalSubtypeSymbol($0, of: collectionSymbol)
@@ -77,11 +72,6 @@ extension CallTypeChecker {
             interner: interner
         )
         let receiverClassification = receiverClassifier.classify(receiverID: receiverID)
-        // KUU-569: Int range expressions use their scalar runtime representation
-        // during Sema, while IntRange/IntProgression are nominal Iterable
-        // implementations. Recover that source-level conformance only in the
-        // no-candidate collection fallback; exact range extensions have already
-        // had priority in tryRangeMemberFallback/regular resolution.
         let rangeReceiverKind = MemberRuntimeDispatch.rangeReceiverKind(
             receiverExpr: receiverID,
             receiverType: receiverType,
@@ -173,23 +163,10 @@ extension CallTypeChecker {
             && receiverClassification.isIterableReceiver
         let isCollectionReceiver = receiverClassification.isCollectionReceiver
         let isSequenceReceiver = receiverClassification.isSequenceReceiver
-        // A receiver whose static type is nominally `Iterable<T>` (e.g. a local
-        // variable explicitly typed `Iterable<T>`, or a function parameter typed
-        // `Iterable<T>`) but isn't otherwise recognized as collection/sequence-like
-        // must still be admitted when ordinary symbol lookup found no candidates at
-        // all (isCollectionReceiver/isSequenceReceiver rely on either a concrete
-        // List/Set/Map/Sequence type or the isCollectionExpr propagation heuristic,
-        // which only fires for a fixed set of collection-factory call forms like
-        // listOf(...), not arbitrary functions returning List<T>). Restricted to the
-        // no-candidates case so members already resolved as real Iterable-owned
-        // symbols (e.g. Iterable.reduceRightIndexed) keep going through the normal
-        // overload resolver instead of this fallback's approximate typing.
         let admitIterableReceiver = admitNominalIterableReceiver
             && (receiverClassification.isIterableReceiver
                 || isRangeIterableReceiver
                 || isCharRangeJoinReceiver)
-        // Allow arrays to fall through to collection fallback only when
-        // tryArrayMemberFallback does not handle the member (isSupportedArrayMember returns false).
         guard !isClassNameReceiver,
               !(isArrayReceiver && isSupportedArrayMember(calleeName, knownNames: knownNames)),
               isCollectionReceiver
@@ -233,9 +210,6 @@ extension CallTypeChecker {
                 sema.types.floatType,
                 sema.types.doubleType,
             ]
-            // Kotlin only defines Iterable.average() for non-null numeric
-            // element types. Keep the legacy fallback from accepting a
-            // source-incompatible receiver when no source candidate matched.
             guard numericAverageElementTypes.contains(receiverElementType) else {
                 return nil
             }
@@ -250,9 +224,6 @@ extension CallTypeChecker {
         if let addAllFirstArgumentExpr,
            sema.bindings.exprTypes[addAllFirstArgumentExpr] == nil
         {
-            // The argument is being inferred as a call argument: a bare
-            // `emptyList()` keeps its Nothing-shaped intermediate so the
-            // addAll overloads can pin it (KUU-4002).
             var argumentCtx = ctx
             argumentCtx.callArgumentExprBeingInferred = addAllFirstArgumentExpr
             _ = driver.inferExpr(addAllFirstArgumentExpr, ctx: argumentCtx, locals: &locals)
@@ -275,10 +246,6 @@ extension CallTypeChecker {
             false
         }
 
-        // KUU-566: MutableSet predicate mutations are MutableIterable source
-        // extensions, not the collection-valued synthetic set members. Bind
-        // them before the generic fallback so the predicate element type is
-        // available while resolving MutableMap.MutableEntry.key/value.
         if let sourceType = bindMutableSetPredicateSourceExtension(
             exprID: id,
             memberName: calleeName,
@@ -291,12 +258,6 @@ extension CallTypeChecker {
             return sourceType
         }
 
-        // KSP-1019: MutableCollection's Iterable/Sequence/Array overloads are
-        // top-level Kotlin extensions, not interface members. Bind the exact
-        // source declaration before the generic collection fallback can select
-        // the unrelated Collection member or a runtime bridge. MutableList
-        // shares these migrated extensions. MutableSet also uses the source
-        // Iterable/Sequence addAll bodies (KUU-2154), retaining its Array member.
         if let sourceType = bindMutableCollectionSourceExtension(
             exprID: id,
             memberName: calleeName,
@@ -394,10 +355,6 @@ extension CallTypeChecker {
             return nil
         }
 
-        // flatten() is only valid on List<List<T>>. Reject when the element type
-        // is a KNOWN non-collection (e.g. Int).  If the element type is Any we
-        // cannot be sure — it may be List<Any> wrapping real lists at runtime,
-        // so we let it through to preserve the pre-migration behaviour.
         if calleeName == knownNames.flatten, !isSequenceReceiver,
            receiverElementType != sema.types.anyType,
            !receiverClassifier.isCollectionLikeType(receiverElementType) {
@@ -415,9 +372,6 @@ extension CallTypeChecker {
             if let firstArgument = args.first {
                 let otherExprID = firstArgument.expr
                 let otherIsFunctionLiteral = ctx.ast.arena.expr(otherExprID)?.isLambdaOrCallableRef ?? false
-                // Lambda and callable-reference arguments stay unbound until
-                // contextual inference runs; they are always function-typed,
-                // which no bundled `zip` first parameter accepts.
                 let boundOtherType = sema.bindings.exprTypes[otherExprID]
                     ?? (otherIsFunctionLiteral
                         ? nil
@@ -511,11 +465,6 @@ extension CallTypeChecker {
                 sema.bindings.markCollectionHOFLambdaExpr(lambdaArgExpr)
             }
             if memberName == "firstNotNullOf" || memberName == "firstNotNullOfOrNull" {
-                // firstNotNullOf*'s transform yields the result element
-                // directly, so the enclosing expected result fixes the
-                // transform's `R`; seed the lambda's expected return from the
-                // call's `expectedType` so a nested return-only generic call
-                // can infer its type argument (kotlinc accepts this shape).
                 inferFirstNotNullTransformArgument(
                     lambdaArgExpr,
                     parameterTypes: [receiverElementType],
@@ -540,8 +489,6 @@ extension CallTypeChecker {
                 locals: &locals,
                 expectedType: receiverElementType
             )
-            // This fast path bypasses normal overload argument validation.
-            // Insertion must still respect the mutable collection's element type.
             if memberName == "add",
                isMutableCollectionReceiverFlag || isMutableListReceiver || isMutableSetReceiver,
                !sema.types.isSubtype(argumentType, receiverElementType) {
@@ -778,9 +725,6 @@ extension CallTypeChecker {
             expectedType: expectedType,
             interner: interner
         )
-        // When the receiver is Sequence, sequence-returning operations (map,
-        // filter, etc.) should return Sequence<E> so the KIR builder's
-        // sequence HOF handler recognises chained calls (STDLIB-471).
         if isSequenceReceiver,
            isCollectionReturningMember(calleeName, isMapReceiver: false, isListReceiver: false, isSetReceiver: false, interner: interner),
            resultType == sema.types.anyType
@@ -837,9 +781,6 @@ extension CallTypeChecker {
              "union", "subtract", "withIndex", "shuffled":
             return true
         case "count":
-            // KUU-569 covers the predicate overload. Keep count() on its
-            // existing range-specific route so this fix does not change
-            // already-supported range members or their Golden ownership.
             return argCount == 1
         default:
             return false
@@ -939,8 +880,6 @@ extension CallTypeChecker {
         case "takeWhile", "dropWhile":
             returnType = sema.types.booleanType
         case "sumOf", "associateWith", "groupBy", "flatMap":
-            // Infer the body first, then re-infer with its concrete return type
-            // before overload resolution so generic result types stay precise.
             returnType = sema.types.anyType
         default:
             return nil
@@ -1215,8 +1154,6 @@ extension CallTypeChecker {
                     || hasNominalType(knownNames.kotlinCollectionsCollectionFQName)
                     || hasNominalType(knownNames.kotlinCollectionsMutableCollectionFQName)
         {
-            // Kotlin gives the MutableCollection member overload priority for
-            // Collection arguments; the extension must not replace that call.
             parameterID = nil
         } else if classifier.isIterableLikeType(argumentConstraintType)
                     || hasNominalType(knownNames.kotlinCollectionsIterableFQName)
@@ -1246,9 +1183,6 @@ extension CallTypeChecker {
         let candidate = sema.symbols.lookupAll(fqName: sourceFQName).first { candidate in
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.kind == .function,
-                  // Bundled source functions are non-synthetic; imported
-                  // stdlib metadata carries the same declarations as
-                  // synthetic + importedLibrary symbols.
                   (!symbol.flags.contains(.synthetic) || symbol.flags.contains(.importedLibrary)),
                   let signature = sema.symbols.functionSignature(for: candidate),
                   signature.parameterTypes.count == 1,
@@ -1292,18 +1226,12 @@ extension CallTypeChecker {
         // above has selected it.
         let receiverElementType: TypeID
         if let elementArgument = (sema.requiresResolvedLibraryCalls ? mutableCollectionArguments : mutableSetArguments)?.first {
-            // The writable lower bound of out/star-projected collections is Nothing.
-            // Lift through supertypes so a source class's own generic arguments
-            // cannot be mistaken for its mutable collection element type.
             let elementType = switch elementArgument {
             case let .invariant(type), let .in(type): type
             case .out, .star: sema.types.nothingType
             }
             if sema.requiresResolvedLibraryCalls,
                case let .typeParam(parameter) = sema.types.kind(of: elementType), let capture = parameter.capture {
-                // A capture's nullable upper bound does not make its writable
-                // lower bound nullable. Only an explicit T? in the original
-                // property/getter declaration permits a null write here.
                 let receiverDeclaration = sema.bindings.identifierSymbol(for: receiverID)
                     ?? sema.bindings.callBinding(for: receiverID)?.chosenCallee
                 let declaredReceiverType = receiverDeclaration.flatMap {
@@ -1654,9 +1582,6 @@ extension CallTypeChecker {
                 return chosen
             }
         }
-        // MutableMap.putAll(Map) is a member surface; the Iterable/Sequence/
-        // Array overloads are source-backed extensions. Keep the member path
-        // for Map arguments and choose the exact source parameter otherwise.
         if memberName == knownNames.putAll,
            argCount == 1,
            receiverClassifier.isMutableMapType(receiverType),
@@ -1923,17 +1848,9 @@ extension CallTypeChecker {
         let arityCandidates = lastArgIsFunctionLike
             ? allCandidates
             : allCandidates.filter { !hasFunctionTypedLastParam($0) }
-        // Prefer the overload whose parameter count matches the call-site
-        // argument count so that e.g. windowed(3, 2, true) resolves to the
-        // 3-param overload instead of the 2-param one.
         let arityMatched = arityCandidates.filter { candidate in
             sema.symbols.functionSignature(for: candidate)?.parameterTypes.count == argCount
         }
-        // When multiple candidates share the same owner and arity (for example,
-        // a user `List<Int>.shuffled(seed: Int)` extension alongside stdlib's
-        // `List<T>.shuffled(random: Random)`), discard candidates whose concrete
-        // parameter types cannot accept the already-inferred call arguments so
-        // receiver-element ranking cannot pick a type-incompatible overload.
         let conformingArityMatched: [SymbolID] = if arityMatched.count > 1, !argExprs.isEmpty {
             arityMatched.filter { candidate in
                 collectionFallbackCandidateAcceptsKnownArguments(
@@ -1975,9 +1892,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// Returns the receiver's element-type argument as seen from `owner`
-    /// (the nominal currently being walked), e.g. `Int` for a
-    /// `MutableCollection<Int>` call site once `Iterable` is the owner.
     private func collectionFallbackOwnerElementType(
         of type: TypeID,
         owner: SymbolID,
@@ -2002,13 +1916,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// KUU-3819: rank same-owner same-arity fallback candidates by the
-    /// declared receiver's element-type argument against the call site's
-    /// element type. An exact concrete element match (e.g. `Iterable<Double>`
-    /// for an `Iterable<Double>` receiver, matching Kotlin's non-generic
-    /// overload preference) wins; a generic receiver whose element is a
-    /// type parameter accepts any element and ranks next. Returns nil when
-    /// no candidate's element relates, preserving registration order.
     private func preferCollectionFallbackReceiverElementMatch(
         _ candidates: [SymbolID],
         owner: SymbolID,
@@ -2041,10 +1948,6 @@ extension CallTypeChecker {
         return genericMatch
     }
 
-    /// KUU-3862: a selector argument to the extrema family can be a lambda,
-    /// a callable reference, or any expression whose inferred type is a
-    /// function type (e.g. a `val selector: (Int) -> Int` local — which is
-    /// not `isLambdaOrCallableRef` but must still admit the HOF overloads).
     private func isCollectionFallbackSelectorArgFunctionTyped(
         _ expr: ExprID,
         ctx: TypeInferenceContext,
@@ -2062,15 +1965,6 @@ extension CallTypeChecker {
         return false
     }
 
-    /// KUU-3862: rank same-owner same-arity selector candidates by the
-    /// selector's inferred return type. A non-generic overload whose
-    /// selector return type matches exactly (e.g. `(T) -> Double` for a
-    /// selector inferred to return `Double`) wins over the generic
-    /// `(T) -> R` overload, mirroring Kotlin's non-generic overload
-    /// preference; the generic overload's `R` return is a type parameter
-    /// that accepts any selector result, so it ranks next. Returns nil
-    /// when no candidate's selector return type relates, preserving
-    /// registration order.
     private func preferCollectionFallbackSelectorReturnMatch(
         _ candidates: [SymbolID],
         selectorExpr: ExprID,
