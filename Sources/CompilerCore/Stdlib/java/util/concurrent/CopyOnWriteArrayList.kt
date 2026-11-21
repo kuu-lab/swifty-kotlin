@@ -37,7 +37,6 @@ public class CopyOnWriteArrayList<E> private constructor(
 
     override fun lastIndexOf(element: E): Int = storage.lastIndexOf(element)
 
-    /** JVM `indexOf(Object, int)`: first index at or after [index], or -1. */
     public fun indexOf(element: E, index: Int): Int {
         val snapshot = storage
         var cursor = if (index < 0) 0 else index
@@ -48,7 +47,6 @@ public class CopyOnWriteArrayList<E> private constructor(
         return -1
     }
 
-    /** JVM `lastIndexOf(Object, int)`: last index at or before [index], or -1. */
     public fun lastIndexOf(element: E, index: Int): Int {
         val snapshot = storage
         var cursor = if (index >= snapshot.size) snapshot.size - 1 else index
@@ -78,7 +76,6 @@ public class CopyOnWriteArrayList<E> private constructor(
 
     override fun addAll(index: Int, elements: Collection<E>): Boolean {
         if (elements.isEmpty()) {
-            // Still validates the position index like the JVM implementation.
             if (index < 0 || index > storage.size) {
                 throw IndexOutOfBoundsException("index: $index, size: ${storage.size}")
             }
@@ -92,7 +89,6 @@ public class CopyOnWriteArrayList<E> private constructor(
     }
 
     override fun remove(element: E): Boolean {
-        // Skip the copy when the element is absent — reads stay cheap.
         if (!storage.contains(element)) return false
         return guardedCopy { copy -> copy.remove(element) }
     }
@@ -117,11 +113,9 @@ public class CopyOnWriteArrayList<E> private constructor(
         }
     }
 
-    /** JVM `addIfAbsent`: appends [element] only when absent; true when added. */
     public fun addIfAbsent(element: E): Boolean {
         if (storage.contains(element)) return false
         return guardedCopy { copy ->
-            // Re-check inside the guard: a concurrent add may have won.
             if (copy.contains(element)) false else {
                 copy.add(element)
                 true
@@ -129,7 +123,6 @@ public class CopyOnWriteArrayList<E> private constructor(
         }
     }
 
-    /** JVM `addAllAbsent`: appends every absent element; returns the count added. */
     public fun addAllAbsent(elements: Collection<E>): Int {
         if (elements.isEmpty()) return 0
         return guardedCopy { copy ->
@@ -179,10 +172,6 @@ public class CopyOnWriteArrayList<E> private constructor(
 
     override fun toString(): String = storage.toString()
 
-    /**
-     * Replaces [storage] with a mutable copy after [block] mutates it. The
-     * copy-and-swap is what makes iterators stable snapshots.
-     */
     private inline fun <R> guardedCopy(block: (MutableList<E>) -> R): R {
         guard.lock()
         try {
@@ -196,7 +185,6 @@ public class CopyOnWriteArrayList<E> private constructor(
     }
 }
 
-/** Snapshot iterator whose mutators fail like the JVM COW ones. */
 private class CowIterator<E>(private val snapshot: List<E>) : MutableIterator<E> {
     private var cursor = 0
 
