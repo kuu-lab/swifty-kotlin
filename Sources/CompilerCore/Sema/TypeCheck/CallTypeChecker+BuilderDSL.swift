@@ -26,9 +26,6 @@ extension CallTypeChecker {
         for candidate in candidates {
             guard let signature = ctx.sema.symbols.functionSignature(for: candidate),
                   signature.receiverType == nil,
-                  // The experimental path handles annotated Kotlin builders, while
-                  // generic collection-receiver lambdas also need body-first
-                  // inference even when they are ordinary user declarations.
                   (hasExperimentalTypeInferenceAnnotation(candidate, sema: ctx.sema)
                     || hasGenericCollectionReceiverLambda(signature: signature, sema: ctx.sema, interner: ctx.interner)),
                   isEligibleExperimentalBuilderCandidate(
@@ -163,8 +160,6 @@ extension CallTypeChecker {
     }
 
     func builderDSLKind() -> BuilderDSLKind? {
-        // buildList, buildSet, and buildMap are fully Kotlinized (KSP-622, KSP-623)
-        // and use @ExperimentalTypeInference. They no longer use builder-DSL special handling.
         return nil
     }
 
@@ -176,7 +171,6 @@ extension CallTypeChecker {
         if locals[calleeName] != nil {
             return false
         }
-        // Synthetic stubs (e.g. kotlin.collections.buildList) are allowed.
         if ctx.cachedScopeLookup(calleeName).contains(where: { candidate in
             guard let sym = ctx.cachedSymbol(candidate) else { return false }
             return !sym.flags.contains(.synthetic)
@@ -690,7 +684,6 @@ extension CallTypeChecker {
             return substitution
         }
 
-        // Fully contextualized receivers need no out-of-scope mutation preview.
         guard typeVarBySymbol.contains(where: { symbol, variable in
             substitution[variable] == nil && sema.types.typeContainsTypeParam(receiverType, symbol: symbol)
         }) else {
@@ -933,8 +926,6 @@ extension CallTypeChecker {
                 collectBuilderDSLArgumentExprs(in: trailingExpr, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
             }
         case let .lambdaLiteral(_, body, _, _):
-            // `add`/`put` inside a nested lambda still targets the builder
-            // receiver unless a nearer receiver shadows it (KUU-4417).
             collectBuilderDSLArgumentExprs(in: body, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
         case let .forExpr(_, iterable, body, _, _),
              let .forDestructuringExpr(_, iterable, body, _, _):
@@ -1411,9 +1402,6 @@ extension CallTypeChecker {
         )))
     }
 
-    /// Leave open and callable parameter types to ordinary overload resolution.
-    /// Only reject a nearer candidate when its argument shape cannot accept a
-    /// lambda without inspecting the lambda body or its expected return type.
     private func produceCandidateMayAcceptLambda(
         _ candidate: SymbolID,
         call: ExprID,
@@ -1446,13 +1434,6 @@ extension CallTypeChecker {
         return true
     }
 
-    /// KSP-1573: bind `produce { }` / `produce(capacity) { }` to the bundled
-    /// source-backed `CoroutineScope.produce` extension. The element type
-    /// keeps the same `send`-scan inference the synthetic launcher path used,
-    /// but the bound callee is the real generic function whose block is a
-    /// boxed suspend lambda — not the kk_produce launcher thunk. Returns nil
-    /// when no source-backed produce overload applies (residual synthetic
-    /// path or user-defined produce handles the call instead).
     func tryBindSourceBackedProduceCall(
         _ id: ExprID,
         calleeName: InternedString,
@@ -1465,9 +1446,6 @@ extension CallTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
-        // The extension needs an implicit CoroutineScope receiver: an ambient
-        // coroutine-builder lambda scope, or an implicit receiver whose type
-        // is already a CoroutineScope.
         let hasScopeReceiver = ctx.isCoroutineBuilderLambdaScope
             || (ctx.implicitReceiverType.map {
                 isCoroutineScopeType($0, sema: sema, interner: interner)
@@ -1589,7 +1567,6 @@ extension CallTypeChecker {
             expectedType: lambdaExpectedType
         )
 
-        // Re-refine once the lambda has been checked, mirroring CORO-075.
         let refinedChannelType = produceBuilderChannelType(
             lambdaExprID: lastArgumentExprID,
             expectedType: expectedType,
@@ -1630,9 +1607,6 @@ extension CallTypeChecker {
         return resultType
     }
 
-    /// `true` when the expected type already pins the produce element type
-    /// through the `ReceiveChannel<E>`/`Channel<E>` result shape, leaving
-    /// the call to ordinary overload resolution (KUU-4313).
     private func produceExpectedTypePinsElementType(
         _ expectedType: TypeID?,
         sema: SemaModule,
@@ -1657,9 +1631,6 @@ extension CallTypeChecker {
             || symbol.fqName.last == interner.intern("Channel")
     }
 
-    /// The `send`-argument scan reduced to the element type it implies,
-    /// falling back to `Any` exactly like the bundled produce path when no
-    /// send argument type is recoverable.
     private func produceScannedElementType(
         lambdaExprID: ExprID,
         ctx: TypeInferenceContext,
@@ -1705,10 +1676,6 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
 
-        // An expected ReceiveChannel/Channel type already pins E through
-        // the result type — that is an ordinary-resolution case. An
-        // explicit `produce<T>` pins E directly and is handled below by
-        // forwarding the type argument to the resolver.
         guard !produceExpectedTypePinsElementType(expectedType, sema: sema, interner: interner),
               let range = ast.arena.exprRange(id),
               let lastArgumentExprID = args.last?.expr,
@@ -1757,8 +1724,6 @@ extension CallTypeChecker {
             return fnReceiver
         }
 
-        // An explicit `produce<T>` pins E outright; otherwise the
-        // `send`-scan supplies it (with the bundled path's `Any` fallback).
         func currentElementType() -> TypeID {
             explicitTypeArgs.first ?? produceScannedElementType(
                 lambdaExprID: lastArgumentExprID,
@@ -1774,8 +1739,6 @@ extension CallTypeChecker {
 
         let diagnosticsCheckpoint = sema.diagnostics.checkpoint()
 
-        // The non-lambda arguments do not depend on E; infer them once with
-        // the substituted parameter types as contextual hints.
         var argumentTypes = [TypeID](repeating: sema.types.errorType, count: args.count)
         for index in args.indices where index != args.count - 1 {
             let paramExpected: TypeID? = mapping[index].flatMap { parameterIndex in
@@ -2005,8 +1968,6 @@ extension CallTypeChecker {
             var scoped = shadowedNames
             for statementExprID in statements {
                 collectProduceBuilderSendExprs(in: statementExprID, ast: ast, interner: interner, shadowedNames: scoped, sendArgumentExprs: &sendArgumentExprs)
-                // A local declaration shadows outer bindings for the rest of
-                // the block, same as a nested lambda parameter does.
                 if let statement = ast.arena.expr(statementExprID),
                    case let .localDecl(name, _, _, _, _, _, _) = statement {
                     scoped.insert(name)
@@ -2060,9 +2021,6 @@ extension CallTypeChecker {
                 collectProduceBuilderSendExprs(in: finallyBody, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
             }
         case let .lambdaLiteral(params, bodyExpr, _, _):
-            // A nested lambda's parameters (and the implicit `it` of a
-            // parameterless literal) shadow outer locals inside its body;
-            // preview-local lookup must not see the shadowed spelling.
             var nestedShadowed = shadowedNames.union(params)
             if params.isEmpty {
                 nestedShadowed.insert(interner.intern("it"))
@@ -2120,8 +2078,6 @@ extension CallTypeChecker {
             yielded: &yieldedExprs,
             yieldedCollections: &yieldedCollectionExprs
         )
-        // Check the whole lambda so loop variables and local declarations shadow
-        // outer names during bootstrap. The real check uses the inferred element type.
         if sema.bindings.exprType(for: lambdaExprID) == nil || (yieldedExprs + yieldedCollectionExprs).contains(where: {
             sema.bindings.exprType(for: $0) == nil
         }), let scopeSymbol = sema.symbols.lookup(fqName: [
@@ -2230,8 +2186,6 @@ extension CallTypeChecker {
                 break
             }
         }
-        // Non-generic ranges and progressions carry their element type in the
-        // Iterable<T> supertype rather than in their own type arguments.
         return driver.helpers.iterableSupertypeElementType(
             for: nonNullType, sema: sema, interner: interner
         )
