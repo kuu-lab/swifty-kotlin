@@ -1,8 +1,4 @@
 extension CallLowerer {
-    /// Lowers a call expression targeted by the `power-assert` plugin.
-    /// Captures sub-expression values during evaluation of the first argument
-    /// and formats a multi-line diagram string lazily on failure, passing it as
-    /// the second (`lazyMessage: () -> Any`) argument to the companion overload.
     func lowerPowerAssertCallExpr(
         _ exprID: ExprID,
         info: PowerAssertCallInfo,
@@ -46,7 +42,6 @@ extension CallLowerer {
         instructions.append(.constValue(result: emptyConst, value: .stringLiteral(emptyLiteral)))
         instructions.append(.copy(from: emptyConst, to: msgExpr))
 
-        // Only evaluate toString() and build the diagram string when the assertion actually fails
         let condType = arena.exprType(condExprID)
             ?? sema.bindings.exprType(for: args[0].expr)
             ?? sema.types.booleanType
@@ -79,7 +74,6 @@ extension CallLowerer {
             instructions.append(.label(skipLabel))
         }
 
-        // Synthesize lazyMessage: () -> Any/String capturing msgExpr (1 capture)
         let overloadSig = sema.symbols.functionSignature(for: info.messageOverloadCallee)
         let overloadLambdaParamType = overloadSig?.parameterTypes.last
         let expectedFuncType: FunctionType = {
@@ -213,8 +207,6 @@ extension CallLowerer {
             return expr
         }
 
-        // 1. Line 1: call source text
-        // 2. Line 2: vertical pipes beneath each capture column
         let maxCol = sorted.last?.columnOffset ?? 0
         var pipesChars = Array(repeating: Character(" "), count: maxCol + 1)
         for item in sorted where item.columnOffset >= 0 && item.columnOffset < pipesChars.count {
