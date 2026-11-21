@@ -398,7 +398,6 @@ extension JVMProgramBuilder {
                 guard let field = property.field, field.constantValue != nil else { return property }
                 var property = property
                 if classes[companionOwner]?.isInterface == true {
-                    // Kotlin duplicates interface companion constants in both owners.
                     var duplicate = JVMField(owner: plan.name, name: field.name, type: field.type, access: field.access)
                     duplicate.annotations = field.annotations
                     duplicate.constantValue = field.constantValue
