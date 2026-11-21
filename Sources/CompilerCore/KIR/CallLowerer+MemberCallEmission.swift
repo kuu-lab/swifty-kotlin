@@ -69,8 +69,6 @@ extension CallLowerer {
                 typeVarBySymbol: typeVariables
             )
         }
-        // The binding's receiver came from overload resolution; prefer it over
-        // re-matching an erased or generic context type during lowering.
         if let preferredReceiverSymbol,
            let value = driver.ctx.localValue(for: preferredReceiverSymbol)
         {
@@ -143,11 +141,6 @@ extension CallLowerer {
         guard let owner = memberExtensionOwnerSymbol(for: callee, sema: sema),
               let ownerInfo = sema.symbols.symbol(owner)
         else { return nil }
-        // A receiver found under an owner that merely *reaches* the dispatch
-        // owner (a subtype like `Derived` for `Base`, or an `inner class`
-        // instance that must hop through its `$outer` link) is not yet a
-        // value of the owner's type — chain it, and reject values that
-        // cannot reach `owner` at all instead of passing them as-is.
         func resolveToOwner(_ exprID: KIRExprID?) -> KIRExprID? {
             exprID.flatMap {
                 resolveOuterChainValue(
@@ -210,12 +203,6 @@ extension CallLowerer {
         {
             return receiver
         }
-        // Imported object/companion extensions have no enclosing dispatch
-        // receiver. Their source bodies still require the singleton before
-        // the extension receiver, including primitive property getters.
-        // Imported companion extensions can bind as ordinary member calls,
-        // including property getters. They still need the singleton dispatch
-        // receiver even when no lexical receiver is active.
         if ownerInfo.kind == .object {
             driver.emitObjectLazyInitGuardIfNeeded(
                 objectSymbol: owner, arena: arena, sema: sema, interner: interner, instructions: &instructions
@@ -227,15 +214,6 @@ extension CallLowerer {
             instructions.append(.constValue(result: receiver, value: .symbolRef(owner)))
             return receiver
         }
-        // A smartcast on the implicit `this` (`when (this) { is Bob -> bar() }`)
-        // narrows it to the member extension's owner type in Sema, but the
-        // lowered receiver value keeps its declared type, so the
-        // `resolveToOwner` probes above cannot prove it reaches `owner`.
-        // Sema leaves the receiver marks empty exactly when the innermost
-        // implicit receiver supplied both receivers — the same value
-        // `activeImplicitReceiverExprID` materializes — so a declared
-        // extension receiver that is a subtype of `owner` proves `this`
-        // already is a valid dispatch receiver.
         if boundDispatchReceiverSymbol == nil,
            callExprID.flatMap({ sema.bindings.implicitExtensionReceiver(for: $0) }) == nil,
            callExprID.flatMap({ sema.bindings.implicitReceiverOuterReceiver(for: $0) }) == nil,
@@ -280,9 +258,6 @@ extension CallLowerer {
         {
             let receiverCount = (signature.receiverType == nil ? 0 : 1)
                 + (memberExtensionOwnerSymbol(for: accessor, sema: sema) == nil ? 0 : 1)
-            // The dispatch receiver instance supplies the owner class's type
-            // arguments for a member accessor; the trailing receiver argument
-            // matches `signature.receiverType`.
             let receiverTypeHint = receiverCount > 0 && result.count >= receiverCount
                 ? arena.exprType(result[receiverCount - 1])
                 : nil
@@ -409,13 +384,6 @@ extension CallLowerer {
         return receiverType == intType || receiverType == longType || receiverType == uintType || receiverType == ulongType || receiverType == ubyteType || receiverType == ushortType || receiverType == byteType || receiverType == shortType
     }
 
-    /// Whether `exprID`'s type is a primitive (numeric or Char), i.e. one of
-    /// the types the built-in `kk_op_*` arithmetic intrinsics actually accept.
-    /// A non-primitive argument (a user class, String, ...) means the callee
-    /// name only *looks* like a primitive operator; the real applicable
-    /// candidate is whatever Sema resolved (e.g. a user's
-    /// `operator fun Int.times(v: Vec)` extension), so the primitive fast
-    /// path in `shouldLowerPrimitiveInv`'s callers must not claim the call.
     func isNumericPrimitiveOperand(_ exprID: ExprID, sema: SemaModule) -> Bool {
         let type = sema.types.makeNonNullable(sema.bindings.exprTypes[exprID] ?? sema.types.anyType)
         if case .primitive = sema.types.kind(of: type) {
@@ -474,20 +442,10 @@ extension CallLowerer {
             arguments.insert(loweredReceiverID, at: 0)
             return
         }
-        // String.length: extension needs receiver even when chosenCallee is nil
-        // (e.g. mapIndexed { _, v -> v.length } where type inference may not bind).
-        // Always prepend receiver for "length"; codegen extracts the aggregate length
-        // field when the receiver is String. Other types would be a type error at use site.
         if calleeText == "length" {
             arguments.insert(loweredReceiverID, at: 0)
             return
         }
-        // Enum.name / Enum.ordinal are source-backed properties whose values are
-        // still materialized by compiler-owned per-enum helpers. When an older or
-        // source-less stdlib surface leaves the property unresolved, prepend the
-        // receiver so EnumNameAccessLoweringPass's generic (arguments.count == 1)
-        // rewrite can recover the same residual path. Gate on the receiver being
-        // enum-typed so unrelated "name"/"ordinal" members remain unaffected.
         if calleeText == "name" || calleeText == "ordinal",
            let (_, classSym) = resolveClassTypeSymbol(receiverType, sema: sema),
            classSym.kind == .enumClass
@@ -529,12 +487,6 @@ extension CallLowerer {
         arguments: [KIRExprID],
         instructions: inout [KIRInstruction]
     ) -> Bool {
-        // Enum entry implementations are stored as ordinary functions whose
-        // first argument is the ordinal-backed enum value. Route the resolved
-        // enum member through the predeclared ordinal dispatcher before any
-        // runtime-name or virtual-dispatch rewriting can select the abstract
-        // declaration itself.
-        //
         // BUG-A: `chosenCallee` may name a *shared* base (`kotlin.Enum.toString`,
         // or any interface member) that more than one enum class in this
         // compilation registers entry-body dispatch for. A single
@@ -544,7 +496,6 @@ extension CallLowerer {
         // *receiver's own* enum class fqName instead (deterministic from
         // `chosenCallee`'s mangled name, same as `enumToStringOverrideHelper`),
         // so `firstEnum.X.toString()` and `secondEnum.Y.toString()` never
-        // cross-resolve to each other's dispatch helper.
         if !hasOmittedDefaultArguments,
            !isSuperCall,
            let chosenCallee,
@@ -652,7 +603,6 @@ extension CallLowerer {
                 ))
                 finalArguments[0] = scopeHandle
             }
-            // Keep captures visible to suspend liveness before launcher rewriting.
             finalArguments.append(contentsOf: driver.ctx.callableValueInfo(for: finalArguments[3])?.captureArguments ?? [])
             instructions.append(.call(
                 symbol: chosenCallee, callee: interner.intern(scopeBuilderLink),
@@ -811,8 +761,6 @@ extension CallLowerer {
             sema: sema, arena: arena, interner: interner,
             instructions: &instructions, arguments: &finalArguments
         )
-        // Kotlin coroutine builders accept a suspend function as their extension
-        // receiver. Preserve the same boxed callable ABI as value parameters.
         if let chosenCallee,
            sema.symbols.isSourceBackedSymbol(chosenCallee),
            let receiverType = sema.symbols.functionSignature(for: chosenCallee)?.receiverType,
@@ -877,9 +825,6 @@ extension CallLowerer {
         if normalized.defaultMask != 0,
            let chosenCallee
         {
-            // KUU-655: an override that inherits its defaults never has its
-            // own stub; resolve to the base declaration's stub instead (see
-            // `defaultStubOwnerSymbol`).
             let stubOwner = driver.callSupportLowerer.defaultStubOwnerSymbol(for: chosenCallee, sema: sema, callBinding: callBinding)
             if sema.symbols.externalLinkName(for: chosenCallee)?.isEmpty ?? true ||
                 sema.symbols.externalLinkName(for: driver.callSupportLowerer.defaultStubSymbol(for: stubOwner)) != nil
@@ -893,12 +838,6 @@ extension CallLowerer {
                     instructions: &instructions,
                     arguments: &finalArguments
                 )
-                // KUU-655: a `super.f()` call that omits a defaulted
-                // argument must resolve the default *and* dispatch
-                // statically to the overridden implementation, never
-                // virtually to the runtime type's own override -- see the
-                // marker decoded in
-                // `CallSupportLowerer.generateDefaultStubFunction`.
                 var effectiveMasks = normalized.defaultMaskWords
                 if isSuperCall, !effectiveMasks.isEmpty {
                     if effectiveMasks.count > 1 {
@@ -956,9 +895,6 @@ extension CallLowerer {
            (1...2).contains(sourceArgExprs.count),
            finalArguments.count == sourceArgExprs.count + 1
         {
-            // The legacy range fallback lowers directly to the C bridge, so
-            // it must materialize Kotlin's default step and partialWindows
-            // values instead of relying on a source function's $default stub.
             let defaults: [Int64] = sourceArgExprs.count == 1 ? [1, 0] : [0]
             for value in defaults {
                 let argument = arena.appendExpr(.intLiteral(value), type: sema.types.intType)
@@ -992,9 +928,6 @@ extension CallLowerer {
                sema.bindings.exprTypes[sourceArgExprs[0]] ?? sema.types.anyType
            ) == sema.types.doubleType
         {
-            // KUU-3228: ClosedRange<Float>.contains(Double) truncates the
-            // argument via `toFloat` — the `floatRangeContains` extension
-            // semantics — before the Float range ABI sees it.
             let converted = arena.appendTemporary(type: sema.types.floatType)
             instructions.append(.call(
                 callee: interner.intern("kk_double_to_float"),
@@ -1004,9 +937,6 @@ extension CallLowerer {
             ))
             finalArguments[1] = converted
         }
-        // KUU-600: Regex.replace's transform uses the runtime callback ABI.
-        // Its Kotlin function-value argument must be split into the raw
-        // function pointer and closure environment expected by the bridge.
         if loweredCalleeText == "__kk_regex_replace_lambda",
            finalArguments.count == 3,
            sourceArgExprs.count == 2
@@ -1037,11 +967,6 @@ extension CallLowerer {
             ))
             finalArguments[0] = scopeHandle
         }
-        // BUG-049: `CoroutineScope.launch { block }` where `block` captures outer
-        // variables. The receiver scope is finalArguments[0] and the suspend lambda
-        // reference is finalArguments[1]; inject the lambda's captures after it so the
-        // coroutine lowering can thread them through the continuation (mirrors the free
-        // launch/withContext capture injection in CallLowerer).
         if loweredCalleeText == "kk_coroutine_scope_launch",
            finalArguments.count >= 2,
            let callableInfo = driver.ctx.callableValueInfo(for: finalArguments[1]),
@@ -1049,10 +974,6 @@ extension CallLowerer {
         {
             finalArguments.insert(contentsOf: callableInfo.captureArguments, at: 2)
         }
-        // A source-backed HashSet declaration is only the semantic target. Its
-        // runtime representation is a RuntimeSetBox, so a remapped set
-        // operation must not retain the source symbol for NativeEmitter's
-        // internal-function lookup; that would bypass the runtime ABI callee.
         let runtimeSetMemberCallee = runtimeBackedSetMemberCallee(
             memberName: calleeName,
             receiverType: receiver.type(in: sema) ?? sema.types.anyType,
@@ -1082,17 +1003,9 @@ extension CallLowerer {
             interner: interner
         )
         let usesRuntimeRangeMember = rangeInterfaceCallee.map { $0 == loweredCallee } == true
-        // Remapped runtime bridges must not retain a source symbol whose own
-        // external link would override the concrete runtime callee.
         let callSymbol: SymbolID? = usesRuntimeSetMember || usesRuntimeProgressionMember || usesRuntimeRangeMember
             ? nil
             : chosenCallee
-        // KSP-641: ClosedFloatingPointRange members are still compiler residuals,
-        // so lower the concrete Double/Float overload directly to the range ABI.
-        // The source-backed generic declaration remains available for overload
-        // resolution, while this path preserves the stdlib's empty-range and NaN
-        // behavior without dispatching synthetic range accessors through an
-        // unpopulated itable.
         if calleeName == knownNames.coerceIn,
            sourceArgExprs.count == 1,
            sema.bindings.isFloatingPointRangeExpr(sourceArgExprs[0])
@@ -1362,11 +1275,6 @@ extension CallLowerer {
             instructions.append(.constValue(result: continuationExpr, value: .intLiteral(0)))
             finalArguments.append(continuationExpr)
         }
-        // KSP-677: Mutex.withLock / Semaphore.withPermit / Lock.withLock are Kotlin
-        // source (Stdlib/kotlinx/coroutines/sync/Sync.kt, Stdlib/kotlin/concurrent/Lock.kt).
-        // The Mutex/Semaphore helpers compose lock()/unlock() and acquire()/release();
-        // Lock.withLock delegates to the demoted __kk_lock_withLock bridge via the general
-        // closure-taking ABI, so none of them need a dedicated closure-conversion branch.
         // Skip virtual dispatch when loweredMemberCalleeName remapped the callee
         // to a concrete runtime function (e.g. iterator → kk_list_iterator).
         // Virtual dispatch is only correct when no remapping occurred; a
@@ -1407,10 +1315,6 @@ extension CallLowerer {
                 sema: sema
             )
         } ?? false
-        // BroadcastChannel is the first source-backed SendChannel implementation;
-        // its receivers must reach tryEmitVirtualDispatch so the kk_channel_*
-        // bridges are bypassed in favour of the implementation's itable slot
-        // (KUU-4376). Mirrors the gate inside tryEmitVirtualDispatch.
         let usesBroadcastChannelVirtualBridge =
             receiver.type(in: sema).map {
                 isBroadcastChannelReceiverType($0, sema: sema, interner: interner)
@@ -1448,9 +1352,6 @@ extension CallLowerer {
                result: result, sema: sema, arena: arena, interner: interner
            )
         {
-            // KUU-763: floating-point range boxes carry no itable, so
-            // interface-typed `ClosedFloatingPointRange`/`ClosedRange` member
-            // calls probe the runtime representation before dispatching.
             if let probeEndLabel = emitFloatingPointRangeMemberProbe(
                 chosenCallee: chosenCallee,
                 receiverID: memberExtensionDispatchReceiver ?? receiver.loweredID,
@@ -1692,8 +1593,6 @@ extension CallLowerer {
         }
 
         if calleeName == knownNames.zip, argumentCount == 4 {
-            // Keep Iterable.zip(transform) on its inline source path so the
-            // callback's non-local return is expanded into the caller.
             return nil
         }
 
@@ -1703,8 +1602,6 @@ extension CallLowerer {
            let declaredReceiver = sema.symbols.functionSignature(for: chosenCallee)?.receiverType,
            isConcreteArrayLikeType(declaredReceiver, sema: sema, interner: interner)
         {
-            // Array and primitive-array zip extensions use their selected
-            // Kotlin bodies, including overloads whose argument is an Iterable.
             return nil
         }
 
@@ -1717,8 +1614,6 @@ extension CallLowerer {
                interner: interner
            )
         {
-            // KSP-999: Array overloads execute the bundled Kotlin source body;
-            // the materializing Iterable bridge is retained for Iterable inputs.
             return nil
         }
 
