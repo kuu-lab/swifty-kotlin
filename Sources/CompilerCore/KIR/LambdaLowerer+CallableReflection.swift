@@ -14,10 +14,6 @@ extension LambdaLowerer {
         receiverCount: Int,
         contextParameterCount: Int = 0,
         packedConstructorVarargs: Bool = false,
-        /// KUU-4491: `KClass.members` function handles name the member itself
-        /// as both callable and target. Routing them through the packed
-        /// member path gives the invoker virtual dispatch on the leading
-        /// receiver even when the member declares no vararg parameter.
         unboundMemberFunction: Bool = false,
         setterSymbol: SymbolID? = nil,
         includeInvocation: Bool = true,
@@ -93,18 +89,12 @@ extension LambdaLowerer {
                 let parameterFlags = (optional ? 1 : 0) | (vararg ? 2 : 0)
                 let parameterKind = index < receiverCount
                     ? callableReceiverParameterKind(targetSymbol: targetSymbol, signature: signature, sema: sema)
-                    : isContext ? 3 : 2 // CONTEXT or VALUE
+                    : isContext ? 3 : 2
                 let declarationType = vararg && signature?.parameterTypes.indices.contains(valueIndex) == true
                     ? signature?.parameterTypes[valueIndex] : nil
                 let reflectedType = vararg && packedPublicParameters && type != declarationType ? type : callableReflectionParameterType(
                     type, isVararg: vararg, declarationType: declarationType, sema: sema, interner: interner
                 )
-                // KUU-3864 — the public `KParameter.type` reflects the member
-                // in the *erased* receiver class parameterized by its own type
-                // parameters (the declared signature substituted through the
-                // supertype instantiation), never the use-site `Type::member`
-                // arguments. The invocation-ABI `type` still drives the type
-                // token used by `callBy` vararg packing.
                 let metadataType = reflectedTypes?.indices.contains(index) == true
                     ? reflectedTypes![index] : type
                 let metadataReflectedType = vararg
@@ -127,8 +117,6 @@ extension LambdaLowerer {
                 let result = arena.appendTemporary(type: sema.types.anyType)
                 instructions.append(.call(callee: interner.intern("__kk_kparameter_create_typed"), arguments: args,
                                           result: result, canThrow: false))
-                // KParameter.type is a real KType so primitive qualifiers and
-                // generic arguments render exactly like the JVM.
                 let parameterKType = driver.lowerKTypeExpr(
                     for: metadataReflectedType,
                     sema: sema,
@@ -164,8 +152,6 @@ extension LambdaLowerer {
                               interner: interner, arena: arena, requireNonNull: true, sema: sema, into: &instructions)
         }
         let environment = list(boxedCaptures)
-        // Ordinary ::Ctor values retain their existing invoke wrapper. Only
-        // reflection receives a separate wrapper whose parameters are packed.
         let packedConstructorWrapper = includeInvocation && !packedConstructorVarargs
             && captures.isEmpty && receiverCount == 0
             ? ast.flatMap { makePackedConstructorReflectionWrapper(
@@ -314,9 +300,6 @@ extension LambdaLowerer {
         return 1
     }
 
-    /// Allocates exactly as a source constructor call, using one packed
-    /// array per vararg. This wrapper belongs only to reflection; ordinary
-    /// invoke follows its independently inferred callable-reference type.
     private func makePackedConstructorReflectionWrapper(
         targetSymbol: SymbolID?,
         ast: ASTModule,
@@ -409,8 +392,6 @@ extension LambdaLowerer {
             return expr
         }
         let signature = targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }
-        // A reflection invocation consumes one packed array per vararg. Do
-        // not change the ordinary callable-reference wrapper or invoke type.
         let packedFunctionTarget: SymbolID? = {
             guard let targetSymbol, let signature,
                   sema.symbols.symbol(targetSymbol)?.kind == .function,
@@ -531,8 +512,6 @@ extension LambdaLowerer {
         if let packedFunctionTarget {
             let targetName = callableTargetName(for: packedFunctionTarget, sema: sema, interner: interner)
             func emitNormalPackedCall() {
-                // For source members the full target argument vector starts
-                // with its dispatch receiver, whether captured or unbound.
                 if signature?.receiverType != nil, captureTypes.count + receiverCount == 1,
                    let receiver = arguments.first {
                     // The unpacked argument list is `Any`-typed; interface
@@ -695,7 +674,6 @@ func callableReflectionParameterType(
     return sema.types.make(.classType(ClassType(classSymbol: arraySymbol, args: [.out(elementType)])))
 }
 
-/// Renders callable parameter metadata with the fully-qualified type notation used by KType.
 private func callableReflectionTypeName(
     of type: TypeID,
     sema: SemaModule,
