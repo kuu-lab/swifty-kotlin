@@ -1,6 +1,5 @@
 package java.util.zip
 
-/** Adler-32 checksum used by zlib streams. */
 public class Adler32 : Checksum {
     private var a = 1
     private var b = 0
