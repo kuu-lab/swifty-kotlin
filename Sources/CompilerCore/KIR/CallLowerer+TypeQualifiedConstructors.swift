@@ -1,7 +1,4 @@
 extension CallLowerer {
-    /// The qualifier of `Outer.Inner(...)` names a type, not an object value,
-    /// so the constructor must use the ordinary allocation path without a
-    /// receiver expression in the argument list.
     func tryLowerTypeQualifiedConstructorCall(
         _ exprID: ExprID,
         calleeName: InternedString,
