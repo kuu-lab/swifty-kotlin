@@ -1,4 +1,3 @@
-// Keep callable-reference thunks consistent with declaration auto-inlining.
 func shouldAutoInlineFunction(
     _ function: FunDecl,
     parameterTypes: [TypeID],
