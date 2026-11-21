@@ -147,7 +147,6 @@ extension DataFlowSemaPhase {
             let newArgs = classType.args.map(expandArg)
             let newEnclosingTypeArgs = classType.enclosingTypeArgs.map(expandArg)
             if symbols.symbol(classType.classSymbol)?.kind == .typeAlias {
-                // Cycles are reported by `validateTypeAliasCycles`; leave them as is.
                 guard !inProgress.contains(classType.classSymbol),
                       let resolved = resolveTypeAliasUnderlying(
                           classType.classSymbol, symbols: symbols, types: types,
