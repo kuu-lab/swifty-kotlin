@@ -1,15 +1,3 @@
-/// Built-in Compose compiler plugin (`androidx.compose.compiler.plugins.kotlin`).
-/// Supports `@Composable`, `@ReadOnlyComposable`, `@DisallowComposableCalls`,
-/// `@Stable`, and `@Immutable` annotations:
-///   - Validates `@Composable` declaration constraints (`suspend`, `main`, `var`/backing fields).
-///   - Records `@Composable` functions, getters, and `@Composable` function-type parameters
-///     for Sema context verification (`validateComposableContexts`).
-///   - Drives `ComposeLoweringPass` to inject `$composer: Composer?` and `$changed: Int`
-///     parameters and propagate them across `@Composable` call sites in KIR.
-///
-/// Configuration (kotlinc / compose-compiler-plugin compatible):
-///   -P plugin:androidx.compose.compiler.plugins.kotlin:<option>=<value>
-///   -Xplugin=.../compose-compiler-plugin.jar
 struct ComposePlugin: CompilerPlugin {
     let id = "androidx.compose.compiler.plugins.kotlin"
 
@@ -65,7 +53,6 @@ struct ComposePlugin: CompilerPlugin {
             fqName: ["androidx", "compose", "runtime", "Immutable"].map { interner.intern($0) }
         ) != nil
 
-        // 1. Scan AST declarations for @Composable functions, properties, parameters, and validation diagnostics.
         for file in context.ast.sortedFiles {
             for declID in file.topLevelDecls {
                 scanDeclRecursively(
@@ -80,7 +67,6 @@ struct ComposePlugin: CompilerPlugin {
             }
         }
 
-        // 2. Also include any @Composable functions from SymbolTable (e.g. imported libraries).
         for symbol in symbols.allSymbols() where symbol.kind == .function {
             let anns = symbols.annotations(for: symbol.id)
             if anns.contains(where: { isComposableAnnotation($0.annotationFQName, allowShort: hasComposableSym) }) {
