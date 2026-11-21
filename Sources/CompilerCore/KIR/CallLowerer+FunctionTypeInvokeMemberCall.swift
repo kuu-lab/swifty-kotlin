@@ -1,15 +1,4 @@
 
-/// Lowering for an explicit `.invoke(...)` member call whose receiver's own
-/// type is a function type (`(Int) -> Int`, `Int.(Int) -> Int`, ...).
-///
-/// Sema (`CallTypeChecker+MemberCallInferenceRegularResolution.swift`)
-/// intercepts this call shape directly, since a function-typed receiver has
-/// no nominal owner to dispatch a member through, and binds a
-/// `CallableValueCallBinding` exactly like a bare call (`f(3)`) or
-/// extension-receiver call sugar (`1.ef(2)`). This mirrors `lowerCallExpr`'s
-/// callable-value path (`CallLowerer.swift`) so all three forms share the
-/// same runtime ABI selection (`kk_function_invoke*`) and fast-path
-/// (`KIRCallableValueInfo`) lookup.
 extension CallLowerer {
     func tryLowerLexicalExtensionCallableInvocation(
         _ exprID: ExprID,
