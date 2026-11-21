@@ -1,8 +1,5 @@
 import Foundation
 
-/// Typed representation of a KSwiftK library manifest.json.
-/// Replaces untyped `[String: Any]` dictionary access with compile-time safe fields.
-///
 /// Uses a custom `init(from:)` that wraps each field in `try?` so that a type
 /// mismatch in one field (e.g. `"compilerVersion": 123` instead of a string)
 /// results in `nil` for that field rather than rejecting the entire manifest.
@@ -14,7 +11,6 @@ package struct LibraryManifest: Decodable {
     let moduleName: String?
     package let libraryKind: String?
     package let stdlibManifestHash: String?
-    /// Absent in artifacts that predate profiles; those are `full`.
     let stdlibProfile: String?
     let kotlinLanguageVersion: String?
     package let target: String?
@@ -85,8 +81,6 @@ extension DataFlowSemaPhase {
             guard fm.fileExists(atPath: path, isDirectory: &isDirectory) else {
                 continue
             }
-            // `.kklib` is always a directory bundle; a `.klib` search path may
-            // point at a packed archive (file) or an unpacked klib directory.
             if path.hasSuffix(".kklib") {
                 guard isDirectory.boolValue else { continue }
                 if seen.insert(path).inserted {
@@ -273,8 +267,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// The profile an artifact manifest declares; `nil` for an unknown name.
-    /// A manifest without the field predates profiles and is `full`.
     static func declaredStdlibProfile(of manifest: LibraryManifest) -> StdlibProfile? {
         guard let name = manifest.stdlibProfile, !name.isEmpty else { return .full }
         return StdlibProfile(rawValue: name)
@@ -309,7 +301,6 @@ extension DataFlowSemaPhase {
             isValid = false
         }
 
-        // moduleName: required, must be non-empty String
         if let moduleName = manifest.moduleName {
             if moduleName.isEmpty {
                 diagnostics.error(
@@ -348,7 +339,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // target: required for stdlib artifacts, optional otherwise
         if let targetString = manifest.target, !targetString.isEmpty {
             let currentTargetString = "\(currentTarget.arch)-\(currentTarget.vendor)-\(currentTarget.os)"
             if targetString != currentTargetString {
@@ -392,9 +382,6 @@ extension DataFlowSemaPhase {
                 isValid = false
             }
             if let stdlibManifestHash = manifest.stdlibManifestHash, !stdlibManifestHash.isEmpty {
-                // The artifact's own profile decides which source set its hash
-                // must match; whether that profile is the one this compilation
-                // asked for is checked by the importer (cache-safe).
                 let expectedHash = withSubPhaseTiming("manifestStdlibHash", timer: phaseTimer) {
                     BundledStdlib.manifestHash(
                         profile: Self.declaredStdlibProfile(of: manifest) ?? .full
@@ -418,7 +405,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // compilerVersion: informational, warn if empty
         if let compilerVersion = manifest.compilerVersion, compilerVersion.isEmpty {
             diagnostics.warning(
                 "KSWIFTK-LIB-0017",
@@ -471,8 +457,6 @@ extension DataFlowSemaPhase {
         }
 
         if isStdlibArtifact {
-            // Linker-free wasm stdlib artifacts ship KIR/metadata only and emit
-            // no host/target object files.
             if !currentTarget.isWasm, manifest.objects == nil || manifest.objects!.isEmpty {
                 diagnostics.error(
                     "KSWIFTK-LIB-0014",
