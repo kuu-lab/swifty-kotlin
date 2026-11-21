@@ -535,15 +535,9 @@ extension BuildASTPhase {
             var index = statementTokens.startIndex
             while index < statementTokens.endIndex {
                 let token = statementTokens[index]
-                // A top-level `=` is this statement's own plain assignment. A
-                // compound operator after it belongs to a following statement
-                // (a when-branch token slice can span same-line entries), so
-                // bail out and let plain assignment parsing handle it.
                 if token.kind == .symbol(.assign), depth.isBracketBraceParenTopLevel {
                     return nil
                 }
-                // See the plain-assignment scan above: a `<` comparison in the
-                // LHS must not hide a top-level compound-assign operator.
                 for (kind, op) in compoundOps where token.kind == kind && depth.isBracketBraceParenTopLevel {
                     foundIndex = index
                     foundOp = op
@@ -642,16 +636,11 @@ extension BuildASTPhase {
                     lhsExpr: lhsExpr, op: op, valueExpr: valueExpr, range: range, context: context
                 )
             case .thisRef:
-                // `this += x` can only mean `plusAssign` on the receiver —
-                // `this` is never assignable. Reuse the call-result desugar:
-                // an immutable temporary rejects binary-operator writeback.
                 assignment = desugarCallResultCompoundAssignment(
                     lhsExpr: lhsExpr, op: op, valueExpr: valueExpr, range: range, context: context
                 )
             case let .nullAssert(inner, _):
                 if case let .indexedAccess(receiver, indices, _) = context.astArena.expr(inner) {
-                    // `a[i]!! += v`: the lvalue is `a[i]`; the postfix `!!`
-                    // asserts the read element non-null (marked for Sema).
                     let compoundID = context.astArena.appendExpr(.indexedCompoundAssign(
                         op: op,
                         receiver: receiver,
@@ -679,8 +668,6 @@ extension BuildASTPhase {
             return assignment
         }
 
-        /// Keep a safe-call compound assignment conditional while reusing the
-        /// ordinary member-assignment path for its non-null branch.
         private static func desugarSafeMemberCompoundAssignment(
             receiverExpr: ExprID,
             calleeName: InternedString,
@@ -727,16 +714,10 @@ extension BuildASTPhase {
                 trailingExpr: nil,
                 range: range
             ))
-            // Like the call-result desugar below, the block is a compound
-            // assignment statement — never the value of a lambda/block body.
             context.astArena.markCallResultCompoundAssignmentBlock(block)
             return block
         }
 
-        /// Preserve the call-result receiver without introducing writable storage:
-        /// `{ val temporary = lhs(); temporary += rhs }`. The existing immutable-local
-        /// path resolves only applicable Unit-returning assignment operators and rejects
-        /// binary-operator writeback. Lowering evaluates the call once, before the RHS.
         private static func desugarCallResultCompoundAssignment(
             lhsExpr: ExprID,
             op: CompoundAssignOp,
@@ -744,7 +725,6 @@ extension BuildASTPhase {
             range: SourceRange,
             context: LocalStatementCoreContext
         ) -> ExprID {
-            // Source coordinates survive file-local arena merging unchanged.
             let name = context.interner.intern("$compound$\(range.start.file.rawValue)$\(range.start.offset)$\(range.end.offset)")
             let temporary = context.astArena.appendExpr(.localDecl(
                 name: name,
