@@ -42,9 +42,6 @@ struct NominalSupertypeClosureCacheEntry {
 public final class TypeSystem {
     private var nextCaptureIdentity = 0
 
-    /// KUU-3779: hot-path collector live only while `TypeCheckSemaPhase`'s
-    /// `type-check` sub-phase runs under `time-phases`; nil otherwise, so
-    /// instrumentation reduces to an optional load.
     var attribution: TypeCheckAttribution?
 
     func makeCapturedType(
@@ -88,10 +85,6 @@ public final class TypeSystem {
         )
     }
 
-    /// Preserves informative upper bounds when a star projection crosses a
-    /// nominal substitution. Trivial or dependent bounds fall back to `Any?`.
-    /// `origin` allows repeated reads through the same projected receiver to
-    /// share their capture while keeping different receiver declarations apart.
     func capturedTypeForStarProjection(
         parameter: SymbolID,
         ownerTypeParameters: [SymbolID],
@@ -120,59 +113,35 @@ public final class TypeSystem {
     private var nominalTypeParameterVariancesMap: [SymbolID: [TypeVariance]] = [:]
     private var nominalTypeParameterUpperBoundsMap: [SymbolID: [[TypeID]]] = [:]
     private var nominalTypeParameterSymbolsMap: [SymbolID: [SymbolID]] = [:]
-    /// Reverse lookup from a nominal's type-parameter symbol to its owning
-    /// nominal and position. Imported metadata keys bounds on the owner, so
-    /// star-projection bounds queries resolve them through this map.
     private var nominalTypeParameterOwnerMap: [SymbolID: (owner: SymbolID, index: Int)] = [:]
     private var nominalSupertypeTypeArgsMap: [SymbolID: [SymbolID: [TypeArg]]] = [:]
     private var nominalDirectSupertypesVersion: UInt64 = 0
     private var nominalSupertypeClosures: [SymbolID: NominalSupertypeClosureCacheEntry] = [:]
     private var nominalForwardLinksCache: [SymbolID: (targets: Set<SymbolID>, linkVersion: UInt64)] = [:]
-    // Break recursive argument joins such as A : Producer<A>, B : Producer<B>.
     var activeNominalLUBInputs: Set<Set<TypeID>> = []
     static let maxNominalLUBDepth = 16
 
     public internal(set) var comparableInterfaceSymbol: SymbolID?
 
-    /// The JVM `java.io.Serializable` marker interface. Populated after JVM
-    /// headers are collected so builtin value representations can participate
-    /// in its nominal subtype checks.
     public internal(set) var serializableInterfaceSymbol: SymbolID?
 
     public internal(set) var annotationInterfaceSymbol: SymbolID?
 
     public internal(set) var closeableInterfaceSymbol: SymbolID?
 
-    /// The symbol ID of the source-backed `kotlin.io.Closeable` interface.
-    /// Used to register synthetic IO nominals as subtypes of `Closeable` (which itself
-    /// extends `AutoCloseable`) so that user code can assign a stream/reader to a
-    /// `Closeable`-typed variable while `.use {}` lowering resolves `close()` from
-    /// the root `AutoCloseable` interface.
     public internal(set) var ioCloseableInterfaceSymbol: SymbolID?
 
     public internal(set) var charSequenceInterfaceSymbol: SymbolID?
 
-    /// Cached TypeID for source-backed `kotlin.AutoCloseable` (non-null).
-    /// Avoids repeated `make(...)` allocations on the hot path in `isCloseableReceiver`.
     public internal(set) var closeableTypeID: TypeID?
 
-    /// The symbol ID of the synthetic `kotlin.reflect.KFunction` interface (STDLIB-REFLECT-063).
-    /// Used in subtyping to allow function types to be assigned to KFunction<R> variables.
     public internal(set) var kFunctionInterfaceSymbol: SymbolID?
     public internal(set) var kCallableInterfaceSymbol: SymbolID?
 
-    /// The symbol of the bundled `kotlin.Function<R>` interface.
-    /// Function types are subtypes of this source-backed common function interface.
     public internal(set) var functionInterfaceSymbol: SymbolID?
 
-    /// The symbols of the synthetic `kotlin.Function.FunctionN` interfaces,
-    /// keyed by arity. Populated by `registerSyntheticFunctionInterface` so
-    /// subtyping can treat a function type as a subtype of the matching-arity
-    /// `FunctionN` nominal and vice versa (KUU-1084).
     public internal(set) var functionNInterfaceSymbols: [Int: SymbolID] = [:]
 
-    /// Returns the arity represented by a source-visible `FunctionN` spelling.
-    /// Kotlin's numbered function interfaces are defined through arity 255.
     func functionNInterfaceArity(named path: [InternedString], interner: StringInterner) -> Int? {
         guard let name = path.last else { return nil }
         let kotlinName = interner.intern("kotlin")
@@ -188,46 +157,23 @@ public final class TypeSystem {
         return arity
     }
 
-    /// The symbols of the synthetic `kotlin.coroutines.SuspendFunctionN`
-    /// interfaces, keyed by arity. These keep suspend function types distinct
-    /// from regular `FunctionN` types while exposing their suspend `invoke`.
     public internal(set) var suspendFunctionNInterfaceSymbols: [Int: SymbolID] = [:]
 
     public internal(set) var kClassInterfaceSymbol: SymbolID?
 
-    /// The symbol ID of the synthetic `kotlin.Number` abstract class, set during header registration.
-    /// Used in subtyping to allow numeric primitives (Int, Long, …) to satisfy `Number` upper bounds.
     public internal(set) var numberClassSymbol: SymbolID?
 
-    /// The symbol ID of the synthetic `kotlin.String` `.class`-kind symbol registered by
-    /// `HeaderHelpers.ensureClassSymbol` purely to host member declarations (CharSequence
-    /// conformance, byte-array constructors). Scope-based lookup for `String::class` finds
-    /// this symbol before ever reaching the builtin-name fallback, so `classRefTargetType`
-    /// resolves to `.classType(ClassType(classSymbol: stringClassSymbol))` — a disguised
-    /// nominal type distinct from the canonical `stringType` (`.stringStruct`) that an
-    /// ordinary `is String` check resolves to. `isSubtype` normalizes the disguise back to
-    /// `stringType` so the two representations compare as equal.
     public internal(set) var stringClassSymbol: SymbolID?
 
-    /// The symbol ID of the synthetic `kotlin.Char` `.class`-kind symbol (hosts companion
-    /// helpers). Same disguise-vs-canonical-`charType` situation as `stringClassSymbol`.
     public internal(set) var charClassSymbol: SymbolID?
 
-    /// The symbol ID of the synthetic `kotlin.Any` `.class`-kind symbol (hosts toString/
-    /// hashCode/equals member declarations). Same disguise-vs-canonical-`anyType` situation
-    /// as `stringClassSymbol`.
     public internal(set) var anyClassSymbol: SymbolID?
 
-    /// The source-backed `kotlin.Array` class. LUB synthesis uses this anchor
-    /// to retain its member surface with an out-projected element type.
     public internal(set) var arrayClassSymbol: SymbolID?
 
-    /// The source-backed `kotlin.Unit` object symbol used to resolve members on
-    /// the builtin Unit value representation.
     public internal(set) var unitClassSymbol: SymbolID?
 
 
-    /// Symbol table reference for SAM (fun interface) subtyping. Set during DataFlowSemaPhase.
     public weak var symbolTable: SymbolTable?
 
     public let errorType: TypeID
@@ -250,9 +196,6 @@ public final class TypeSystem {
     public let byteType: TypeID
     public let shortType: TypeID
 
-    /// Copy-on-write snapshot taken at the module barrier. Nominal metadata
-    /// is frozen while independent scalar bodies run; new worker TypeIDs never
-    /// escape without canonicalization on the module thread.
     func makeSemaWorkerTypes() -> TypeSystem {
         let worker = TypeSystem()
         worker.nextCaptureIdentity = nextCaptureIdentity
@@ -296,9 +239,6 @@ public final class TypeSystem {
         Array(idToKind.dropFirst(count))
     }
 
-    /// The worker snapshot prefix is identical to the module prefix. Replay
-    /// only its appended kinds, mapping references to preceding local kinds.
-    /// Calling this at each declaration's source position preserves ID order.
     func mergeWorkerTypes(_ kinds: [TypeKind], startingAt count: Int) -> [TypeID: TypeID] {
         var mapping: [TypeID: TypeID] = [:]
         for (offset, kind) in kinds.enumerated() {
@@ -353,10 +293,6 @@ public final class TypeSystem {
         kindToID = Dictionary(uniqueKeysWithValues: idToKind.enumerated().map { ($1, TypeID(rawValue: Int32($0))) })
     }
 
-    /// Returns `true` when the type is definitely non-nullable, either because
-    /// it is inherently non-null or because it is an intersection containing `Any`.
-    /// `T & Any` is Kotlin's "definitely non-nullable" type – even when T's upper
-    /// bound is nullable, the intersection guarantees non-nullability.
     public func isDefinitelyNonNull(_ type: TypeID) -> Bool {
         switch kind(of: type) {
         case .error:
@@ -382,16 +318,11 @@ public final class TypeSystem {
         case let .kClassType(kc):
             kc.nullability == .nonNull
         case let .intersection(parts):
-            // `Nothing? & T` holds only `null` — it is not definitely
-            // non-null even though `T`'s marker says non-null (KUU-2693).
             !parts.contains { kind(of: $0) == .nothing(.nullable) }
-                // T & Any is definitely non-null; any part being non-null suffices
                 && parts.contains { isDefinitelyNonNull($0) }
         }
     }
 
-    /// Nullability of an intersection type.
-    /// An intersection that contains `Any` (non-null) is definitely non-nullable.
     public func nullability(of type: TypeID) -> Nullability {
         switch kind(of: type) {
         case .error, .unit:
@@ -411,8 +342,6 @@ public final class TypeSystem {
         case let .kClassType(kc):
             kc.nullability
         case let .intersection(parts):
-            // `Nothing? & T` is a null-holding type — its only value is
-            // `null` in the `x == null` narrowing that produces it (KUU-2693).
             parts.contains { kind(of: $0) == .nothing(.nullable) }
                 ? .nullable
                 : parts.contains { nullability(of: $0) == .nonNull } ? .nonNull : .nullable
@@ -449,8 +378,6 @@ public final class TypeSystem {
             }
         case let .intersection(parts):
             if nullability == .nonNull {
-                // Drop the null conjunct so the parameter's identity
-                // survives joins: `Nothing? & T` → `T` (KUU-2693).
                 if parts.contains(where: { kind(of: $0) == .nothing(.nullable) }) {
                     let rest = parts.filter { kind(of: $0) != .nothing(.nullable) }
                     if rest.isEmpty { return nothingType }
@@ -459,14 +386,8 @@ public final class TypeSystem {
                 if parts.contains(where: { isDefinitelyNonNull($0) }) {
                     return type
                 }
-                // Add Any to make it definitely non-null
                 return make(.intersection(parts + [anyType]))
             }
-            // `.nullable` drops the `Any` non-null conjunct and re-applies
-            // nullability to what remains — `T & Any` becomes `T?`, matching
-            // Kotlin's nullable view of a definitely-non-null parameter.
-            // A `Nothing?` conjunct absorbs the result: `Nothing? & T?` can
-            // only hold `null` (KUU-2693).
             let remaining = parts.filter { kind(of: $0) != .any(.nonNull) }
             if remaining.contains(where: { kind(of: $0) == .nothing(.nullable) }) {
                 return nullableNothingType
@@ -515,10 +436,6 @@ public final class TypeSystem {
         withNullability(.nonNull, for: type)
     }
 
-    /// The definitely-non-null view of `type`: `T & Any` for a type
-    /// parameter (Kotlin's `T & Any` refinement used by `x != null` and
-    /// `x ?: ...` smart casts), otherwise the plain non-null marker. A bare
-    /// `T` stays null-capable through its implicit `Any?` bound (KUU-2693).
     public func definitelyNonNullForm(of type: TypeID) -> TypeID {
         if case .typeParam = kind(of: type) {
             return make(.intersection([makeNonNullable(type), anyType]))
@@ -527,7 +444,6 @@ public final class TypeSystem {
     }
 
     public func make(_ kind: TypeKind) -> TypeID {
-        // Keep Nothing as a two-state type; Nothing! is normalized to Nothing?.
         let normalizedKind: TypeKind = switch kind {
         case .nothing(.platformType):
             .nothing(.nullable)
@@ -591,10 +507,6 @@ public final class TypeSystem {
         return nominalDirectSupertypes[symbol] ?? []
     }
 
-    /// Cached transitive nominal-supertype reachability. `symbols` is the
-    /// candidate plus every symbol reachable through direct nominal edges;
-    /// `linkedTargets` folds each reachable symbol's expect/actual and
-    /// typealias forward links so subtype checks stay set lookups.
     func nominalSupertypeClosure(for symbol: SymbolID) -> NominalSupertypeClosureCacheEntry {
         while true {
             let linkVersion = currentNominalLinkVersion()
@@ -638,8 +550,6 @@ public final class TypeSystem {
         }
     }
 
-    /// Forward nominal links used by expect/actual and typealias subtype
-    /// checks: the actual symbol and the typealias's nominal target.
     func nominalForwardLinks(for symbol: SymbolID) -> Set<SymbolID> {
         guard let symbolTable else { return [] }
         let linkVersion = symbolTable.nominalLinkMutationVersion
@@ -727,9 +637,6 @@ public final class TypeSystem {
         return nominalBounds[owner.index]
     }
 
-    /// Type parameters captured from an `inner` class's enclosing class chain.
-    /// A static nested class forms a boundary, so its enclosing generic owners
-    /// are not included.
     public func enclosingTypeParameterSymbols(for nominal: SymbolID) -> [SymbolID] {
         guard let symbolTable,
               symbolTable.symbol(nominal)?.flags.contains(.innerClass) == true
@@ -751,20 +658,6 @@ public final class TypeSystem {
         enclosingTypeParameterSymbols(for: nominal) + nominalTypeParameterSymbols(for: nominal)
     }
 
-    /// The enclosing-instance type arguments a bare reference to an inner
-    /// class implies. `KeySet` inside `CIM<Value>` spells `CIM<Value>.KeySet`,
-    /// so a resolved class type must carry the enclosing owner's arguments in
-    /// `enclosingTypeArgs`; a qualified reference (`CIM<Int>.KeySet`)
-    /// supplies them explicitly.
-    ///
-    /// `enclosingInstanceTypes` lists the lexical receiver/owner types that
-    /// can back the implicit enclosing instance, innermost first. A self
-    /// type such as `CIM<Value>` lifts to `[Value]` directly; inside
-    /// `Sub : CIM<Int>` the instance is a `Sub`, so lifting it to `CIM`
-    /// yields `[Int]` rather than `CIM`'s own type parameter. When no
-    /// candidate lifts — e.g. a member of a non-`inner` nested class, whose
-    /// context has no enclosing instance — the reference keeps its bare
-    /// shape (empty `enclosingTypeArgs`), matching the previous behavior.
     public func implicitInnerClassEnclosingArgs(
         for nominal: SymbolID,
         enclosingInstanceTypes: [TypeID] = []
@@ -840,10 +733,6 @@ public final class TypeSystem {
         )
     }
 
-    /// Lifts a class type while retaining captured enclosing arguments for a
-    /// direct receiver-owner match. Inherited supertypes continue to use the
-    /// nominal inheritance map, whose arguments are expressed in the owner's
-    /// own type parameters.
     public func liftedNominalSupertypeArgs(
         from child: ClassType,
         to parent: SymbolID
@@ -863,7 +752,6 @@ public final class TypeSystem {
         typeContainsTypeParam(type) { $0.symbol == symbol }
     }
 
-    /// Returns whether a type contains a type parameter directly or through the upper bounds of its type parameters.
     public func typeContainsTypeParamThroughUpperBounds(_ type: TypeID, symbol: SymbolID) -> Bool {
         guard let symbolTable else {
             return typeContainsTypeParam(type, symbol: symbol)
@@ -995,9 +883,6 @@ public final class TypeSystem {
         return nil
     }
 
-    /// Replaces readable covariant star projections with their effective upper
-    /// bounds. Non-covariant projections stay unchanged, and bounds that depend
-    /// on unresolved projected parameters do not narrow the result.
     func substitutingCovariantStarUpperBounds(_ args: [TypeArg], for owner: SymbolID) -> [TypeArg] {
         guard args.contains(where: { if case .star = $0 { true } else { false } }) else {
             return args
@@ -1022,8 +907,6 @@ public final class TypeSystem {
             case let .invariant(type), let .out(type):
                 substitution[variable] = type
             case .in, .star:
-                // An in-projection supplies only a lower bound, so it cannot
-                // narrow another parameter's readable upper bound.
                 unresolvedStars[parameter] = variable
             }
         }
@@ -1056,23 +939,6 @@ public final class TypeSystem {
         return substitutedArgs
     }
 
-    /// Infers `subtype`'s own type arguments for a smart cast from a known
-    /// supertype instantiation, when `subtype` was checked for with no
-    /// explicit type arguments (`this is List`, not `this is List<Int>`).
-    ///
-    /// Kotlin's smart cast for this pattern is only sound because `subtype`'s
-    /// declared path to `supertype` passes each of `supertype`'s type
-    /// arguments straight through as one of `subtype`'s own bare type
-    /// parameters (e.g. `List<out E> : Collection<E>`, `Collection<E> :
-    /// Iterable<E>`, so a value known to be `Iterable<T>` that is also a
-    /// `List` must be a `List<T>`, never `List<*>`). This is checked
-    /// structurally: `subtype` is symbolically applied to its own type
-    /// parameters and lifted to `supertype` via `liftedNominalSupertypeArgs`;
-    /// any resulting position that isn't a bare reference back to one of
-    /// `subtype`'s own parameters (e.g. a declared path like `Foo<X> :
-    /// Bar<List<X>>`, which doesn't determine `X` from `Bar`'s argument
-    /// alone) is left unresolved (`.star`), matching today's conservative
-    /// behavior for that parameter.
     public func narrowedSubtypeArgs(
         forSubtype subtype: SymbolID,
         givenSupertype supertype: SymbolID,
