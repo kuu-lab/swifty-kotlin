@@ -4,9 +4,6 @@ import Foundation
 
 extension CallTypeChecker {
 
-    /// Extension-function candidates for a `receiver.calleeName(...)` call.
-    /// Kotlin admits these when no member candidate exists, and (KUU-946)
-    /// when every member proved inapplicable to the call.
     func collectExtensionCallCandidates(
         named calleeName: InternedString,
         memberLookupType: TypeID,
@@ -121,11 +118,6 @@ extension CallTypeChecker {
         if !dispatchMembers.isEmpty {
             scopeCandidates = dispatchMembers
         }
-        // Primitive-array source members are top-level extensions in
-        // kotlin.collections. Default-import lookup may stop at a
-        // same-named Sequence extension first (notably for
-        // UByteArray/UShortArray), so prefer the exact source
-        // receiver overload when one is present.
         let primitiveArraySourceCandidates = collectPrimitiveArraySourceMembers(
             named: calleeName,
             receiverType: nonNullReceiverForScope,
@@ -144,10 +136,6 @@ extension CallTypeChecker {
         } else if !requiresInfix, !primitiveArraySourceCandidates.isEmpty {
             scopeCandidates = primitiveArraySourceCandidates
         }
-        // Extension functions are excluded from scope by the scope
-        // builder so they don't shadow top-level calls.  Fall back
-        // to a direct symbol-table lookup by short name to find
-        // synthetic extension functions (e.g. Double.pow).
         if scopeCandidates.isEmpty, !requiresScopedBitwiseExtension {
             let nonNullReceiver = sema.types.makeNonNullable(memberLookupType)
             let scopedCandidates = Set(ctx.scope.lookupMergingChain(calleeName))
@@ -169,9 +157,6 @@ extension CallTypeChecker {
                 guard isUnsignedRandomExtensionVisible(symbol, named: calleeName, ctx: ctx) else {
                     return false
                 }
-                // Include bundled/user Kotlin source extensions, not only
-                // synthetic stubs, so source-backed Sequence transforms
-                // (map, filter, etc.) are visible as member-call candidates.
                 let kotlinMathPackage = knownNames.kotlinMathPackage
                 let isExplicitlyImportedKotlinMath = {
                     guard Array(symbol.fqName.dropLast()) == kotlinMathPackage,
@@ -260,9 +245,6 @@ extension CallTypeChecker {
                 {
                     return false
                 }
-                // Member extensions require a dispatch receiver in lexical scope.
-                // The scope and dispatch-member paths above already collect them;
-                // global short-name recovery must not make them callable outside it.
                 guard sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil else {
                     return false
                 }
@@ -292,9 +274,6 @@ extension CallTypeChecker {
                 else {
                     return false
                 }
-                // Exclude property accessor functions (getter/setter)
-                // whose parent is a property symbol.  Their short name
-                // is "get"/"set" and must not pollute member lookup.
                 if let parentID = sema.symbols.parentSymbol(for: candidate),
                    let parentSym = sema.symbols.symbol(parentID),
                    parentSym.kind == .property
@@ -337,13 +316,6 @@ extension CallTypeChecker {
                 )
             }
         }
-        // Bundled stdlib extension functions are conceptually members
-        // of their receiver type (e.g. AtomicIntArray.loadAt) and must
-        // resolve on member-style calls without an explicit import, the
-        // same way synthetic stubs used to. Ordinary scope lookup only
-        // finds them when imported, so as a final fallback — reached only
-        // when the call would otherwise be unresolved — match bundled
-        // stdlib extensions by receiver type.
         if scopeCandidates.isEmpty {
             scopeCandidates = collectBundledStdlibExtensionCandidates(
                 named: calleeName,
@@ -370,9 +342,6 @@ extension CallTypeChecker {
         return shadowFilteredExtensionCandidates(scopeCandidates, sema: sema)
     }
 
-    /// A user-source declaration shadows a bundled-stdlib declaration with
-    /// an identical signature: compiling e.g. kotlinx-coroutines sources
-    /// against the bundled stdlib must not see each extension twice.
     private func shadowFilteredExtensionCandidates(
         _ candidates: [SymbolID],
         sema: SemaModule
@@ -413,16 +382,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// KUU-946: Kotlin admits extension functions as call candidates whenever
-    /// every same-named member is inapplicable — members only shadow
-    /// extensions while one of them resolves. The primary path keeps
-    /// `allCandidates` member-only while any member exists, so a member set
-    /// that failed overload resolution ends in a diagnostic instead of ever
-    /// seeing the extensions. This re-runs the call against the extension
-    /// candidate set once all member routes have definitively failed, then
-    /// binds it with the same visibility/shaping/success steps the primary
-    /// path uses. Returns nil when no extension resolves so the caller can
-    /// still emit its member error.
     func tryBindShadowedExtensionCallFallback(
         _ request: MemberCallInferenceRequest,
         receiverType: TypeID,
@@ -434,16 +393,10 @@ extension CallTypeChecker {
         locals: inout LocalBindings
     ) -> TypeID? {
 
-        // A `super.` call can never bind an extension, and a class-name
-        // receiver only sees static members.
         guard !isClassNameReceiver, !isSuperCall else {
             return nil
         }
         let scopedExtensionCandidates = Set(request.ctx.scope.lookupMergingChain(request.calleeName))
-        // Receiver lambdas expose their owner's member extensions through the
-        // dispatch receiver rather than the lexical/import scope. Keep those
-        // candidates when an explicit receiver's ordinary members cannot
-        // accept the call (e.g. Parser.parse(source) beside State.Parser.parse()).
         let dispatchExtensionCandidates = Set(collectDispatchReceiverMemberExtensionCandidates(
             named: request.calleeName,
             extensionReceiverType: memberLookupType,
@@ -756,9 +709,6 @@ extension CallTypeChecker {
             && candidates.contains { candidateID in
                 request.sema.symbols.isSourceBackedSymbol(candidateID)
             }
-        // The collection fallback is member-shaped, but it ran on the member
-        // candidate set in the primary pass; the source-backed gate differs on
-        // the extension set, so re-evaluate it before generic resolution.
         if !hasSourceBackedCandidate, let fallbackType = tryCollectionMemberFallback(
             request.id,
             calleeName: request.calleeName,
@@ -898,9 +848,6 @@ extension CallTypeChecker {
         guard resolved.diagnostic == nil, let chosen = resolved.chosenCallee else {
             return nil
         }
-        // Same as the primary member-call binder: a call that resolved to a
-        // local extension function is a lexical reference to that local
-        // declaration, so keep the identifier binding on the call expr.
         if request.sema.symbols.symbol(chosen)?.flags.contains(.localFunction) == true {
             request.sema.bindings.bindIdentifier(request.id, symbol: chosen)
         }
