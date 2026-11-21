@@ -1,7 +1,4 @@
 
-/// Used for detecting duplicate conditions (Sema) and deduplicating
-/// OR-chain comparisons (KIR).  Returns `nil` for conditions that
-/// cannot be reliably compared (e.g. arbitrary expressions).
 func whenConditionKey(
     for conditionID: ExprID,
     ast: ASTModule,
@@ -20,8 +17,6 @@ func whenConditionKey(
     )
 }
 
-/// Split out to keep the switch statement in its own function so that
-/// the top-level helper stays below the cyclomatic-complexity threshold.
 private func whenConditionKeyFromExpr(
     _ expr: Expr,
     conditionID: ExprID,
@@ -96,7 +91,6 @@ private func memberCallKey(
     case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
         return symbolKey
     case .property, .field:
-        // Enum entries and constants identify values independently of their qualifier.
         if symbol.flags.contains(.constValue)
             || (symbol.kind == .field
                 && sema.symbols.lookupAll(fqName: Array(symbol.fqName.dropLast())).contains {
@@ -140,7 +134,6 @@ func deduplicateWhenConditions(
                 result.append(cond)
             }
         } else {
-            // Cannot compute a canonical key — keep the condition to be safe.
             result.append(cond)
         }
     }
