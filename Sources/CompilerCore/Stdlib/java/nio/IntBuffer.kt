@@ -1,6 +1,5 @@
 package java.nio
 
-/** A position-based view of an integer array. */
 public class IntBuffer private constructor(
     private val ints: IntArray,
     private val start: Int,
