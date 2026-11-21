@@ -8,7 +8,6 @@ final class KotlinLexer {
 
     var offset: Int = 0
     var templateExpressionNestingDepth: Int = 0
-    // Keep classification and interned IDs local to this lexer and its interner.
     var identifierKinds: [String: TokenKind] = [:]
 
     init(file: FileID, source: Data, interner: StringInterner, diagnostics: DiagnosticEngine) {
