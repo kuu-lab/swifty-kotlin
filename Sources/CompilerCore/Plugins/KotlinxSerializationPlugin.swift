@@ -1,17 +1,3 @@
-/// kotlinc `kotlinx.serialization` compiler plugin equivalent.
-/// Classes, objects, and enums annotated with `@Serializable`
-/// (`kotlinx.serialization.Serializable`) gain synthetic serialization support:
-///   - An automatic companion object (if none exists)
-///   - A synthetic `serializer()` function on the companion object returning `KSerializer<T>`
-///   - For classes and objects, a synthetic nested `$serializer` class implementing `KSerializer<T>`
-///
-/// Configuration:
-///   -P plugin:org.jetbrains.kotlinx.serialization:additionalAnnotation=<fqName>  (repeatable)
-///
-/// Validation rules matching kotlinc:
-///   - Target must be a class, object, or enum. Annotating interfaces or annotation classes
-///     emits `KSWIFTK-SEMA-0487` ('@Serializable' annotation is only supported for classes, objects, and enums).
-///   - Inner classes are not supported and emit `KSWIFTK-SEMA-0488` ('@Serializable' annotation is not supported for inner classes).
 struct KotlinxSerializationPlugin: CompilerPlugin {
     let id = "org.jetbrains.kotlinx.serialization"
 
@@ -35,7 +21,6 @@ struct KotlinxSerializationPlugin: CompilerPlugin {
                   hasTriggerAnnotation(symbol.id, triggers: triggers, symbols: symbols)
             else { continue }
 
-            // 1. Kind check: classes, objects, and enums can carry serializers.
             let isSupportedKind = symbol.kind == .class || symbol.kind == .object || symbol.kind == .enumClass
             if !isSupportedKind {
                 context.diagnostics.error(
@@ -46,7 +31,6 @@ struct KotlinxSerializationPlugin: CompilerPlugin {
                 continue
             }
 
-            // 2. Inner class check
             if symbol.flags.contains(.innerClass) {
                 context.diagnostics.error(
                     "KSWIFTK-SEMA-0488",
@@ -56,7 +40,6 @@ struct KotlinxSerializationPlugin: CompilerPlugin {
                 continue
             }
 
-            // 3. Generate serialization members
             Self.synthesizeSerializationMembers(
                 for: symbol,
                 context: context
@@ -111,7 +94,6 @@ struct KotlinxSerializationPlugin: CompilerPlugin {
             return
         }
 
-        // 1. Find or synthesize companion object
         let companionName = interner.intern("Companion")
         var companionSymbol: SymbolID? = symbols.companionObjectSymbol(for: classID)
 
@@ -138,7 +120,6 @@ struct KotlinxSerializationPlugin: CompilerPlugin {
             nullability: .nonNull
         )))
 
-        // 2. Synthesize serializer() on the companion object (if not already declared)
         let serializerName = interner.intern("serializer")
         var companionSerializerSymbol: SymbolID? = nil
 
@@ -167,7 +148,6 @@ struct KotlinxSerializationPlugin: CompilerPlugin {
                 interner: interner
             )
 
-            // For generic classes, serializer() takes KSerializer<T> for each type parameter
             var paramTypes: [TypeID] = []
             var valueParamSymbols: [SymbolID] = []
             for (idx, tpSym) in ownTypeParams.enumerated() {
@@ -207,7 +187,6 @@ struct KotlinxSerializationPlugin: CompilerPlugin {
             companionSerializerSymbol = serializerSym
         }
 
-        // 2. For classes and objects, synthesize a nested $serializer class.
         let genSerializerName = interner.intern("$serializer")
         let genSerializerFQName = classSymbol.fqName + [genSerializerName]
         var generatedSerializerClassSymbol: SymbolID? = symbols.lookup(fqName: genSerializerFQName)
@@ -230,7 +209,6 @@ struct KotlinxSerializationPlugin: CompilerPlugin {
                 nullability: .nonNull
             )))
 
-            // Synthesize parameterless constructor for $serializer
             let initName = interner.intern("<init>")
             let ctorSym = symbols.define(
                 kind: .constructor,
@@ -253,7 +231,6 @@ struct KotlinxSerializationPlugin: CompilerPlugin {
                 for: ctorSym
             )
 
-            // Attach KSerializer<T> supertype to $serializer
             if let kSerializerSym = resolveKSerializerSymbol(symbols: symbols, interner: interner) {
                 symbols.setDirectSupertypes([kSerializerSym], for: genSym)
                 symbols.setSupertypeTypeArgs([.invariant(classType)], for: genSym, supertype: kSerializerSym)
@@ -281,7 +258,6 @@ struct KotlinxSerializationPlugin: CompilerPlugin {
                 interner: interner
             )
 
-            // Synthesize override val descriptor: SerialDescriptor + getter
             let descName = interner.intern("descriptor")
             let descPropSym = symbols.define(
                 kind: .property,
@@ -309,7 +285,6 @@ struct KotlinxSerializationPlugin: CompilerPlugin {
                 for: descGetterSym
             )
 
-            // Synthesize override fun serialize(encoder: Encoder, value: T): Unit
             let serializeName = interner.intern("serialize")
             let serializeFQ = genSerializerFQName + [serializeName]
             let serializeSym = symbols.define(
@@ -355,7 +330,6 @@ struct KotlinxSerializationPlugin: CompilerPlugin {
                 for: serializeSym
             )
 
-            // Synthesize override fun deserialize(decoder: Decoder): T
             let deserializeName = interner.intern("deserialize")
             let deserializeFQ = genSerializerFQName + [deserializeName]
             let deserializeSym = symbols.define(
