@@ -33,27 +33,16 @@ public struct Diagnostic: Hashable, Sendable {
 }
 
 public final class DiagnosticEngine: @unchecked Sendable {
-    /// Maximum diagnostics retained per file bucket before overflow is
-    /// aggregated into a single truncation notice. Diagnostics without a
-    /// primary range share one bucket keyed by `FileID.invalid`.
     public static let defaultMaxDiagnosticsPerFile = 1_000
 
     private static let truncationNoticeCode = "KSWIFTK-PIPELINE-0005"
 
     private let lock = NSLock()
     private var _diagnostics: [Diagnostic] = []
-    /// Companion set to `_diagnostics` for O(1) duplicate detection in `emit`.
-    /// Holds exactly the same elements; the array preserves emission order.
     private var _emittedDiagnostics: Set<Diagnostic> = []
-    /// Key = diagnostic code, Value = set of source ranges where the code is suppressed.
-    /// `severity` is nil for names that suppress at any severity; some names
-    /// (DEPRECATION vs DEPRECATION_ERROR) only suppress one severity like kotlinc.
     private var suppressions: [String: [(range: SourceRange, severity: DiagnosticSeverity?)]] = [:]
     private let maxDiagnosticsPerFile: Int
-    /// Stored diagnostics per file bucket, excluding truncation notices.
     private var _diagnosticCountByFile: [FileID: Int] = [:]
-    /// The truncation notice appended for each bucket that hit the limit, kept
-    /// so it can be escalated to `.error` or rolled back by `truncate(to:)`.
     private var _truncationNoticeByFile: [FileID: Diagnostic] = [:]
 
     public var diagnostics: [Diagnostic] {
@@ -66,8 +55,6 @@ public final class DiagnosticEngine: @unchecked Sendable {
         self.maxDiagnosticsPerFile = max(1, maxDiagnosticsPerFile)
     }
 
-    /// Workers own speculative diagnostics and inherit only suppression policy.
-    /// The parent applies deduplication and per-file limits when joining deltas.
     func makeWorkerDiagnostics() -> DiagnosticEngine {
         lock.lock()
         defer { lock.unlock() }
@@ -76,10 +63,6 @@ public final class DiagnosticEngine: @unchecked Sendable {
         return worker
     }
 
-    /// Register a @Suppress annotation: suppress the given diagnostic code for any
-    /// diagnostic whose primary range overlaps or is contained within `range`.
-    /// When the suppression name is severity-constrained (DEPRECATION /
-    /// DEPRECATION_ERROR), only diagnostics of that severity are suppressed.
     public func addSuppression(code: String, range: SourceRange) {
         let expandedCodes = DiagnosticRegistry.suppressionCodes(for: code)
         guard !expandedCodes.isEmpty else {
@@ -107,8 +90,6 @@ public final class DiagnosticEngine: @unchecked Sendable {
         return _diagnostics.count
     }
 
-    /// For speculative paths that re-infer an expression and keep the original
-    /// diagnostic when the retry fails.
     public func rollback(to checkpoint: Int) {
         truncate(to: checkpoint)
     }
@@ -293,8 +274,6 @@ public final class DiagnosticEngine: @unchecked Sendable {
         return removed
     }
 
-    /// Sort the diagnostics array in-place by source location for deterministic
-    /// ordering after parallel phases where lock-acquisition order is arbitrary.
     public func sortBySourceLocation() {
         lock.lock()
         defer { lock.unlock() }
@@ -360,16 +339,11 @@ public final class DiagnosticEngine: @unchecked Sendable {
         return rendered
     }
 
-    /// `Diagnostic` stores bare ranges without per-range messages, so the label
-    /// is derived from the diagnostic code.
     private func secondaryRangeLabel(for code: String) -> String {
         switch code {
         case "KSWIFTK-SEMA-0003":
             "candidate declared here"
         case "KSWIFTK-TYPE-0001",
-             // The position-specific mismatch codes (KUU-3953) reuse the
-             // constraint solver's expected-type secondary range, so they
-             // share its label.
              "KSWIFTK-SEMA-0467", "KSWIFTK-SEMA-0468", "KSWIFTK-SEMA-0469",
              "KSWIFTK-SEMA-0470", "KSWIFTK-SEMA-0473":
             "expected type declared here"
@@ -404,7 +378,6 @@ public final class DiagnosticEngine: @unchecked Sendable {
         let prefix = String(decoding: contents[lineStart ..< prefixEnd], as: UTF8.self)
         let caretIndentation = prefix.unicodeScalars.reduce(into: "") { result, scalar in
             if scalar.value == 0x09 {
-                // Preserve tabs so the caret follows the source tab stops.
                 result.append("\t")
             } else {
                 result.append(contentsOf: String(repeating: " ", count: scalar.utf16.count))
@@ -551,7 +524,6 @@ public final class DiagnosticEngine: @unchecked Sendable {
             filePath = sourceManager.path(of: range.start.file)
             let startLC = sourceManager.lineColumn(of: range.start)
             let endLC = sourceManager.lineColumn(of: range.end)
-            // LSP uses 0-based line/character.
             startLine = startLC.line - 1
             startChar = startLC.column - 1
             endLine = endLC.line - 1
