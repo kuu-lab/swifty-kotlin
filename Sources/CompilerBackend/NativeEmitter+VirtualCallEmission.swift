@@ -1,8 +1,5 @@
 import CompilerCore
 
-/// Declaring nominal (class/object/enum/annotation/interface) of a vtable
-/// member symbol, used to recover the slot's layout owner at virtual-call
-/// sites.
 private func virtualCallNominalOwner(for member: SymbolID, symbols: SymbolTable) -> SymbolID? {
     let property = symbols.propertySymbol(forAccessor: member)
         ?? symbols.accessorOwnerProperty(for: member)
@@ -149,10 +146,6 @@ extension NativeEmitter.FunctionEmissionContext {
             }
             return nil
         }()
-        // The `Throwable.message` vtable slot uses the raw String?
-        // handle ABI: runtime-allocated exceptions answer it with a
-        // runtime bridge, and Kotlin getters are registered through a
-        // raw-return bridge (`appendObjectVtablePropertyAccessorRegistrations`).
         let isThrowableMessageVirtualGetter: Bool = {
             guard case let .vtable(slot) = dispatch,
                   calleeName == "get",
@@ -170,10 +163,6 @@ extension NativeEmitter.FunctionEmissionContext {
             {
                 return true
             }
-            // Imported inline bodies retain the accessor symbol even
-            // when a catch variable's temporary has no receiver type.
-            // Recover this particular slot from its declaration rather
-            // than treating an unrelated String getter as raw-return.
             guard let symbol,
                   let property = symbols.propertySymbol(forAccessor: symbol)
                       ?? symbols.accessorOwnerProperty(for: symbol),
@@ -215,8 +204,6 @@ extension NativeEmitter.FunctionEmissionContext {
             {
                 return slotHasAnyToString(in: receiverClass.classSymbol)
             }
-            // Erased receivers (type parameters) have no classType: the
-            // resolved callee itself identifies the Any.toString slot.
             if let symbol,
                symbol != .invalid,
                let member = symbols.symbol(symbol),
@@ -298,9 +285,6 @@ extension NativeEmitter.FunctionEmissionContext {
         let effectiveSymbol = normalizedSymbol ?? fallbackInternal?.symbol
         let effectiveABISymbol = vtableABISymbol ?? effectiveSymbol
         let isDynamicITableCall: Bool = if case .itableDynamic = dispatch { true } else { false }
-        // Dynamic itable calls invoke the resolved slot, not the source stub.
-        // Abstract member-extension accessor stubs can omit the extension
-        // receiver, so their LLVM type is not a valid indirect-call contract.
         let effectiveInternalFunction: NativeEmitter.LLVMFunction? = {
             guard !isDynamicITableCall, let effectiveABISymbol else {
                 return nil
@@ -334,10 +318,6 @@ extension NativeEmitter.FunctionEmissionContext {
             }
             let linkName = symbols.externalLinkName(for: effectiveABISymbol)
             let isExternalKotlinFunction = linkName?.hasPrefix("kk_fn_") == true
-            // Both same-module interface itable slots and abstract vtable slots
-            // have `isInternalCall == false` while concrete implementations use
-            // the flat String aggregate ABI; resolve synthetic property accessors
-            // back to their owning property so String getter/setter ABI matches.
             let isSameModuleInterfaceMethod: Bool = {
                 let targetSymbol = symbols.propertySymbol(forAccessor: effectiveABISymbol)
                     ?? symbols.accessorOwnerProperty(for: effectiveABISymbol)
@@ -367,8 +347,6 @@ extension NativeEmitter.FunctionEmissionContext {
             }
             let receivers = sourceReceiverTypes(for: effectiveABISymbol, signature: signature)
             let valueParameters = signature.parameterTypes.enumerated().map { index, parameter in
-                // Metadata records a vararg's element type, but its ABI
-                // passes one erased array handle, including for String.
                 signature.valueParameterIsVararg.indices.contains(index)
                     && signature.valueParameterIsVararg[index]
                     ? typeSystem.anyType : parameter
@@ -385,11 +363,6 @@ extension NativeEmitter.FunctionEmissionContext {
             }
             return (parameters: parameters, returnType: signature.returnType)
         }()
-        // An interface declaration imported from a library is not in the
-        // consumer's internal function table, but its itable entries point
-        // at generated Kotlin functions, which always carry the hidden
-        // thrown channel. Keep the indirect function type consistent with
-        // that source-backed ABI (KSP-712).
         let shouldAppendThrownChannel = usesThrownChannel
             || isThrowableMessageVirtualGetter
             || isAnyToStringRawABISlot
@@ -469,15 +442,12 @@ extension NativeEmitter.FunctionEmissionContext {
                 ?? false
 
         let calleeFunction: NativeEmitter.LLVMFunction? = if isThrowableMessageVirtualGetter {
-            // Only carries the indirect-call type `(Int, Int*) -> Int`.
             declareExternalFunction(
                 named: "__kk_throwable_message__vslot",
                 argumentCount: 1,
                 appendThrownChannel: true
             )
         } else if isAnyToStringRawABISlot {
-            // The runtime fallback entry uses `(Int, Int*) -> Int`; Kotlin
-            // overrides are selected above with their flat source ABI.
             declareExternalFunction(
                 named: "__kk_any_toString__vslot",
                 argumentCount: argumentValues.count,
@@ -602,11 +572,6 @@ extension NativeEmitter.FunctionEmissionContext {
         } else if isInternalCall,
                   let calleeKIRFunction
         {
-            // Interface dispatch through a KIR-declared function may see a
-            // String aggregate at the call site while the erased interface
-            // parameter is a raw pointer (or vice-versa). Convert across the
-            // boundary so the looked-up function pointer receives/returns the
-            // ABI expected by its KIR signature.
             virtualCallArguments = zip(argumentValues, argumentTypes).enumerated().map { index, pair in
                 let (argumentValue, argumentType) = pair
                 let paramType = index < calleeKIRFunction.params.count
@@ -620,9 +585,6 @@ extension NativeEmitter.FunctionEmissionContext {
                 )
             }
         } else if let sourceCallSignature = virtualSourceCallSignature ?? sourceExternalCallSignature {
-            // Imported interface members use their declared source ABI.
-            // In particular, a null argument must become a String?
-            // aggregate before calling a generated Kotlin method.
             virtualCallArguments = zip(argumentValues, sourceCallSignature.parameters).enumerated().map { index, pair in
                 let (argumentValue, parameterType) = pair
                 let argumentType = argumentTypes.indices.contains(index) ? argumentTypes[index] : nil
@@ -790,9 +752,6 @@ extension NativeEmitter.FunctionEmissionContext {
             name: "lookup_raw_\(instructionIndex)"
         ) else { return }
 
-        // Runtime list boxes have no generated List itable. Only the
-        // concrete Kotlin search defaults may fill that missing slot;
-        // a source implementation's override still wins when present.
         if let effectiveSymbol,
            let symbols,
            let member = symbols.symbol(effectiveSymbol),
@@ -823,9 +782,6 @@ extension NativeEmitter.FunctionEmissionContext {
             fptrRaw = searchPointer
         }
 
-        // Native dispatcher tags have no Kotlin itable. Use the exact
-        // source default selected by this compilation's symbol/layout;
-        // Kotlin objects must retain their dynamically resolved override.
         if let effectiveSymbol,
            let symbols,
            let member = symbols.symbol(effectiveSymbol),
@@ -856,10 +812,6 @@ extension NativeEmitter.FunctionEmissionContext {
             fptrRaw = method
         }
 
-        // RuntimeMapBox and RuntimeSetBox values have no mutable
-        // collection itable. Preserve overrides on Kotlin collection
-        // implementations, but use the source-backed default when a
-        // native collection box has no entry.
         if let effectiveSymbol,
            let symbols,
            let member = symbols.symbol(effectiveSymbol),
@@ -893,9 +845,6 @@ extension NativeEmitter.FunctionEmissionContext {
             }
         }
 
-        // Runtime list boxes have no generated List itable. Preserve
-        // overrides on Kotlin list implementations, but use the
-        // source-backed default when a native list box has no entry.
         if let effectiveSymbol,
            let symbols,
            let member = symbols.symbol(effectiveSymbol),
@@ -928,9 +877,6 @@ extension NativeEmitter.FunctionEmissionContext {
             }
         }
 
-        // Guard against null vtable/itable lookup: if fptrRaw == 0
-        // call kk_dispatch_error runtime trap instead of falling back
-        // to direct dispatch (GEN-002).
         guard let isNonNull = bindings.buildICmpNotEqual(
             builder,
             lhs: fptrRaw,
@@ -993,8 +939,6 @@ extension NativeEmitter.FunctionEmissionContext {
            let result,
            let vCallValue
         {
-            // The raw slot returned an `Int` string handle; a
-            // String-typed result needs the flat aggregate.
             mergedValue = isStringAggregateExpr(result)
                 ? stringAggregateBridge.bridgeRuntimeRawToStringAggregate(
                     vCallValue,
@@ -1027,11 +971,6 @@ extension NativeEmitter.FunctionEmissionContext {
                   let vCallValue,
                   stringAggregateBridge.isStringAggregateType(resultExprType) != bindings.isAggregateStructValue(vCallValue)
         {
-            // The emitted callee ABI and the result's expected
-            // representation can disagree on string-aggregate-ness for
-            // itable or source-backed virtual calls — e.g. a flat
-            // aggregate getter result consumed as the raw i64 handle by
-            // a generic caller. Normalize by the value's actual shape.
             if stringAggregateBridge.isStringAggregateType(resultExprType) {
                 mergedValue = stringAggregateBridge.bridgeRuntimeRawToStringAggregate(
                     vCallValue,
@@ -1145,18 +1084,6 @@ extension NativeEmitter.FunctionEmissionContext {
         6 | ((nominalTypeID & ((Int64(1) << 55) - 1)) << 9)
     }
 
-    /// KUU-3786: the stable nominal type ID the receiver must be checkcast
-    /// against before a vtable dispatch, or nil when no check is needed.
-    ///
-    /// A call `x.m()` where `x` is typed as a non-reified type parameter
-    /// (or its definitely-non-null `T & Any` shape) erases the receiver to
-    /// the parameter's first upper bound. When that erasure does not
-    /// already cover the member's declaring nominal, kotlinc inserts
-    /// `checkcast` so a value smuggled past an unchecked `as` cast fails
-    /// with ClassCastException rather than indexing a foreign vtable.
-    /// When the erasure *is* a subtype of the declaring nominal the value
-    /// is statically guaranteed — JVM emits no checkcast either — so the
-    /// check is skipped.
     private func erasedVirtualDispatchBoundaryTypeID(
         memberSymbol: SymbolID?,
         receiverExpr: KIRExprID
@@ -1168,7 +1095,6 @@ extension NativeEmitter.FunctionEmissionContext {
         else {
             return nil
         }
-        // Recover the type parameter inside a `T & Any` intersection.
         var parameterType = receiverType
         if case let .intersection(parts) = typeSystem.kind(of: receiverType),
            parts.count == 2,
@@ -1185,9 +1111,6 @@ extension NativeEmitter.FunctionEmissionContext {
         else {
             return nil
         }
-        // The erased runtime classifier of a type parameter is its first
-        // upper bound, resolved transitively through dependent parameters —
-        // mirrors `kirCheckableCastErasure`.
         var visited: Set<SymbolID> = []
         var erasure = parameterType
         while case let .typeParam(parameter) = typeSystem.kind(of: erasure) {
@@ -1216,13 +1139,6 @@ extension NativeEmitter.FunctionEmissionContext {
         return WasmRuntimeHelpers.stableNominalTypeID(fqName)
     }
 
-    /// Route an exception raised while resolving a virtual dispatch — the
-    /// erased-boundary checkcast above, or the dynamic-itable miss probe —
-    /// through the same channel the virtual call itself uses: the callee's
-    /// outThrown slot when the call carries a thrown channel (the merge
-    /// then forwards it through `handleThrownSlot`), the enclosing try's
-    /// `thrownResult` slot when it does not, or this function's own
-    /// outThrown/return edge when neither applies.
     private func emitVirtualDispatchThrownEdge(
         _ thrownValue: LLVMCAPIBindings.LLVMValueRef,
         thrownSlotPointer: LLVMCAPIBindings.LLVMValueRef?,
@@ -1253,10 +1169,6 @@ extension NativeEmitter.FunctionEmissionContext {
         _ = bindings.buildRet(builder, value: zeroReturnValue)
     }
 
-    /// Resolve the real default implementation function for a source-backed
-    /// interface or base-class member when falling back past a missing
-    /// runtime-box vtable/itable entry. Never fall back to the virtual call's
-    /// unnamed `__v` indirect-call type carrier.
     private func sourceDefaultImplementationFunction(
         for effectiveSymbol: SymbolID,
         fallbackExternalName: String,
