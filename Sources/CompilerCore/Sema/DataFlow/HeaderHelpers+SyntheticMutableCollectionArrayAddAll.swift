@@ -38,8 +38,6 @@ extension DataFlowSemaPhase {
         guard let ownerSymbol = symbols.lookup(fqName: ownerFQName) else {
             return
         }
-        // KUU-2673: the owner is usually an imported shell; reading its type
-        // parameters decodes it, so defer the whole registration instead.
         if symbols.deferUntilAfterImportedShellMaterializes(ownerSymbol, work: { [self] in
             registerMutableCollectionArrayAddAllMember(
                 ownerName: ownerName,
