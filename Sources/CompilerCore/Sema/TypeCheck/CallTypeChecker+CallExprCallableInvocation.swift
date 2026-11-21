@@ -42,8 +42,6 @@ extension CallTypeChecker {
                 interner: interner
             ).filter { sema.symbols.symbol($0)?.flags.contains(.operatorFunction) == true }
             if invokeCandidates.isEmpty {
-                // `select { clause { } }` — the clause type carries no own
-                // `invoke`; the enclosing builder's member extension does.
                 invokeCandidates = collectDispatchReceiverMemberExtensionCandidates(
                     named: invokeName,
                     extensionReceiverType: sema.types.makeNonNullable(local.type),
@@ -51,9 +49,6 @@ extension CallTypeChecker {
                 ).filter { sema.symbols.symbol($0)?.flags.contains(.operatorFunction) == true }
             }
             if !invokeCandidates.isEmpty {
-                // Context-bearing `invoke` overloads need the shared callable
-                // resolver to filter candidates against the active context
-                // receivers before overload ranking.
                 if invokeCandidates.contains(where: { candidate in
                     sema.symbols.functionSignature(for: candidate)?.contextParameterTypes.isEmpty == false
                 }) {
@@ -123,10 +118,6 @@ extension CallTypeChecker {
             let localSymbolKind = ctx.cachedSymbol(local.symbol)?.kind
             switch localSymbolKind {
             case .function, .class, .interface, .enumClass, .annotationClass:
-                // A local nominal declaration binds the classifier symbol,
-                // not a callable value — `C()` stays on the constructor
-                // candidate path so an inaccessible `<init>` still reports
-                // as such instead of materializing `C.invoke()` (KUU-3875).
                 break
             default:
                 callableTarget = .localValue(local.symbol)
@@ -165,8 +156,6 @@ extension CallTypeChecker {
                 )
             } ?? false
             if preferImplicitProperty, let property = implicitProperty {
-                // A bare `handler()` read through a nullable implicit
-                // receiver is an unsafe member access (KUU-4501).
                 if sema.types.nullability(of: property.receiver.type) == .nullable {
                     ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0026",
@@ -405,8 +394,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// Collects the same implicit `invoke` candidates used both to type a
-    /// call-chain lambda and to bind the completed callable-value call.
     func implicitInvokeOperatorCandidates(
         for calleeType: TypeID,
         ctx: TypeInferenceContext,
@@ -434,8 +421,6 @@ extension CallTypeChecker {
             contextInapplicableCandidates = invokeCandidates
             invokeCandidates = []
         }
-        // A clause value may rely on an enclosing builder's member extension.
-        // It outranks top-level `invoke` extensions in scope.
         if invokeCandidates.isEmpty {
             invokeCandidates = collectDispatchReceiverMemberExtensionCandidates(
                 named: invokeName,
@@ -479,11 +464,6 @@ extension CallTypeChecker {
         return invokeCandidates.isEmpty ? contextInapplicableCandidates : invokeCandidates
     }
 
-    /// The caller only uses the result after ordinary call candidates and
-    /// scoped values have had their existing resolution priority. The
-    /// `receiver` element is the implicit-receiver tower entry the property
-    /// was found on, so callers binding the property directly can mark the
-    /// same receiver KIR lowering materializes for the `inferExpr` path.
     func implicitReceiverFunctionProperty(
         named name: InternedString,
         ctx: TypeInferenceContext
@@ -503,9 +483,6 @@ extension CallTypeChecker {
             else {
                 continue
             }
-            // Private members do not participate in implicit-receiver
-            // resolution from outside their declaring scope; the tower keeps
-            // walking outward instead (KUU-4335).
             guard let propertySymbol = sema.symbols.symbol(property.symbol),
                   ctx.visibilityChecker.isAccessible(
                       propertySymbol,
@@ -552,8 +529,6 @@ extension CallTypeChecker {
               function.nullability == .nonNull,
               function.contextReceivers.isEmpty
         else {
-            // A callable object property goes through `invoke` overloads;
-            // keep the existing scope-first behavior for those.
             return false
         }
         func hasImplicitReceiverValue() -> Bool {
@@ -590,11 +565,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Index into `implicitReceiverMemberLookupEntries()` of the innermost
-    /// implicit-receiver callable property that can consume this call, or nil.
-    /// Extension-recovery paths consult it so a member `invoke` on a nearer
-    /// tower level is not hidden by an inapplicable or lower-priority
-    /// extension's diagnostic (KUU-4347).
     func applicableImplicitReceiverCallablePropertyEntryIndex(
         named calleeName: InternedString,
         argCount: Int,
@@ -620,13 +590,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Kotlin resolves `name(...)` against a single candidate set that also
-    /// includes the implicit `invoke` of every callable value named `name` in
-    /// scope — a function-typed property such as `var resume: () -> Unit`, or
-    /// an object type carrying an `invoke` operator. When no function
-    /// candidate is viable the call can still bind through that value, so the
-    /// overload resolver defers to the callable-value path instead of
-    /// reporting "no viable overload".
     func callableValueCalleeInScope(
         named calleeName: InternedString,
         ctx: TypeInferenceContext,
@@ -638,9 +601,6 @@ extension CallTypeChecker {
             if case .functionType = sema.types.kind(of: nonNull) {
                 return true
             }
-            // A type parameter bounded by a function type (`c: F` where
-            // `F : (T) -> R`) is invocable through the bound the same way a
-            // smart-cast intersection is (KUU-4087).
             if sema.types.uniqueStructuralFunctionType(for: nonNull) != nil {
                 return true
             }
