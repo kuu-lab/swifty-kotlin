@@ -36,32 +36,27 @@ extension JVMClasspathIndex {
         var bounds: [String] = []
         var references: Set<String> = []
         for name in info.classTypeParameterNames {
-            for bound in info.javaClassTypeParameterBounds[name] ?? [] where bound.first == "L" {
-                let binary = String(bound.dropFirst().prefix { $0 != "<" && $0 != ";" })
-                let carrier: JVMValueType = .reference(binary, nullable: false)
-                guard exposeSuspendType(carrier) else { continue }
-                // A simple bound has the same erasure and source type.
-                // Parameterized bounds need a projection such as Enum<*>.
-                var source = kotlinType(carrier)
-                guard !source.contains("<") else { continue }
-                // A Java bound is a boxed reference. Mapping e.g.
-                // java/lang/Integer to non-null kotlin.Int would erase T to
-                // primitive `I` while the method descriptor keeps
-                // `Ljava/lang/Integer;` — render the bound nullable so the
-                // erasure stays boxed.
-                if ["kotlin.Int","kotlin.Long","kotlin.Short","kotlin.Byte",
-                    "kotlin.Char","kotlin.Boolean","kotlin.Float","kotlin.Double",
-                    // A leading `Ljava/lang/Object;` bound is Java's default —
-                    // Kotlin's `Any?`, not the non-null `Any`; otherwise
-                    // `Box<String?>` would violate the synthesized bound.
-                    "kotlin.Any"].contains(source) {
-                    source += "?"
-                }
-                bounds.append("`\(name)`: " + source)
+            for (binary, source) in renderableJavaClassBounds(name, in: info) {
+                bounds.append("`\(name)`: " + source + "?")
                 references.insert(binary)
             }
         }
         return (bounds, references)
+    }
+
+    func javaClassTypeParameterErasure(_ name: String, in info: JVMClassInfo) -> String {
+        renderableJavaClassBounds(name, in: info).first.map { "L" + $0.binary + ";" } ?? "Ljava/lang/Object;"
+    }
+
+    private func renderableJavaClassBounds(_ name: String, in info: JVMClassInfo) -> [(binary: String, source: String)] {
+        (info.javaClassTypeParameterBounds[name] ?? []).compactMap { bound -> (binary: String, source: String)? in
+            guard bound.first == "L" else { return nil }
+            let binary = String(bound.dropFirst().prefix { $0 != "<" && $0 != ";" })
+            let carrier: JVMValueType = .reference(binary, nullable: false)
+            guard exposeSuspendType(carrier) else { return nil }
+            let source = kotlinType(carrier)
+            return source.contains("<") ? nil : (binary, source)
+        }
     }
 
     /// Recover Java source types for simple parameterized signatures. The
@@ -75,6 +70,7 @@ extension JVMClasspathIndex {
         var remaining = signature[...]
         var methodTypeParameters: [String] = []
         var methodBounds: [(name: String, type: String)] = []
+        var methodErasures: [String: String] = [:]
         var hasGenericType = false
         var referencedClasses: Set<String> = []
 
@@ -84,15 +80,14 @@ extension JVMClasspathIndex {
             if first == "T" {
                 guard let end = remaining.firstIndex(of: ";") else { return nil }
                 let name = String(remaining[..<end])
-                // Only variables erasing to Object may become the stub's
-                // bound-less type parameter: a bounded variable (e.g.
-                // `T extends Number`) erases to its bound, and substituting
-                // the unbounded parameter would break parameter binding.
-                // Nested type arguments carry no descriptor, so they are
-                // unaffected by erasure.
-                guard canUseGenericMembers, (methodTypeParameters.contains(name)
-                    || owner.classTypeParameterNames.contains(name) && !method.isStatic),
-                      carrier == nil || carrier?.descriptor == "Ljava/lang/Object;" else { return nil }
+                let isMethodVariable = methodTypeParameters.contains(name)
+                guard canUseGenericMembers, isMethodVariable
+                    || owner.classTypeParameterNames.contains(name) && !method.isStatic else { return nil }
+                if let carrier {
+                    let erasure = isMethodVariable ? methodErasures[name] ?? "Ljava/lang/Object;"
+                        : javaClassTypeParameterErasure(name, in: owner)
+                    guard carrier.descriptor == erasure else { return nil }
+                }
                 remaining = remaining[remaining.index(after: end)...]
                 hasGenericType = true
                 return "`\(name)`"
@@ -194,19 +189,29 @@ extension JVMClasspathIndex {
                       methodTypeParameters.count < 16 else { return nil }
                 methodTypeParameters.append(name)
                 remaining = remaining[remaining.index(after: colon)...]
+                func appendBound() -> Bool {
+                    let bound = remaining
+                    guard let type = parseType() else { return false }
+                    methodBounds.append((name, type))
+                    if methodErasures[name] == nil {
+                        let binary = String(bound.dropFirst().prefix { $0 != "<" && $0 != ";" })
+                        let boxed: Set<String> = ["java/lang/Boolean", "java/lang/Byte", "java/lang/Character", "java/lang/Short",
+                                                  "java/lang/Integer", "java/lang/Long", "java/lang/Float", "java/lang/Double"]
+                        methodErasures[name] = bound.first == "L" && !boxed.contains(binary) ? "L" + binary + ";" : ""
+                    }
+                    return true
+                }
                 if remaining.first != ":" {
                     let objectBound = "Ljava/lang/Object;"
                     if remaining.hasPrefix(objectBound) {
                         remaining = remaining.dropFirst(objectBound.count)
                     } else {
-                        guard let type = parseType() else { return nil }
-                        methodBounds.append((name, type))
+                        guard appendBound() else { return nil }
                     }
                 }
                 while remaining.first == ":" {
                     remaining.removeFirst()
-                    guard let type = parseType() else { return nil }
-                    methodBounds.append((name, type))
+                    guard appendBound() else { return nil }
                 }
             }
             guard remaining.first == ">", !methodTypeParameters.isEmpty else { return nil }

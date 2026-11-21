@@ -249,8 +249,8 @@ extension JVMProgramBuilder {
             if isThrowsAnnotation(name) { continue }
             if [KnownCompilerAnnotation.repeatable.qualifiedName, KnownCompilerAnnotation.jvmRepeatable.qualifiedName].contains(name), classes[symbol]?.isAnnotation != true { throw JVMFrontendError(message: "JVM repeatable can only annotate annotation classes.") }
             if KnownCompilerAnnotation.jvmOverloads.matches(name) {
-                guard sema.symbols.symbol(symbol)?.kind == .function else {
-                    throw JVMFrontendError(message: "JVM @JvmOverloads currently supports functions only.")
+                guard let kind = sema.symbols.symbol(symbol)?.kind, kind == .function || kind == .constructor else {
+                    throw JVMFrontendError(message: "JVM @JvmOverloads currently supports functions and constructors only.")
                 }
                 continue
             }

@@ -922,6 +922,14 @@ public final class SymbolTable {
         deferredFunctionSignatureLoader = loader
     }
 
+    func loadDeferredFunctionSignature(for symbol: SymbolID) {
+        lock.lock()
+        defer { lock.unlock() }
+        if deferredFunctionSignatures.remove(symbol) != nil {
+            deferredFunctionSignatureLoader?(symbol)
+        }
+    }
+
     func ensureLazyImportedMetadataLoaded(for symbol: SymbolID, resolvingFunctionSignature: Bool = false) {
         lock.lock()
         defer { lock.unlock() }

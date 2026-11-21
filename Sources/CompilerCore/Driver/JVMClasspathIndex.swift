@@ -720,6 +720,8 @@ final class JVMClasspathIndex {
         }
         if method.isReifiedGlanceAction || method.isReifiedWorkBuilder || JVMAndroidXContextService.isEntry(method) { return false }
         if Self.isReifiedHiltViewModel(owner: method.owner, name: method.name, descriptor: method.descriptor) { return false }
+        if method.isSynthetic, method.isStatic, method.owner == JVMMetro.facade,
+           JVMMetro(rawValue: method.name) != nil { return false }
         let exposedName = memberSourceName(for: method)
         // Exclude generated static forwarders. The companion's instance method
         // can still implement a user-declared factory interface.
@@ -2382,7 +2384,7 @@ final class JVMClasspathIndex {
                     && propertyShape($0)?.name == field.name && overridesParent($0, in: info)
             }
             source += (overrides ? "override " : "") + (field.isFinal ? "val" : "var")
-                + " `\(field.name)`: \(kotlinType(type)) get() = null!!" + setter + "\n"
+                + " `\(field.name)`: \(javaInstanceFieldSourceType(field, in: info, erased: type)) get() = null!!" + setter + "\n"
         }
         // Concrete classes must implement every abstract property the
         // transitive interfaces declare; classfiles occasionally omit the
@@ -3151,7 +3153,12 @@ final class JVMClasspathIndex {
         let erasedResult = kotlinType(method.sourceResult) + (suspend != nil && method.sourceResult.isNullable ? "?" : "")
         let result = ownerResult ?? genericResult ?? suspend?.sourceResult
             ?? javaResult ?? forced ?? classVariableResult ?? erasedResult
-        let generic = method.genericResultParameter.map { parameter -> String in
+        let javaGeneric = javaTypes.flatMap { types in
+            types.typeParameters.isEmpty ? nil
+                : "<" + types.typeParameters.map { "`\($0)`" }.joined(separator: ", ") + "> "
+        }
+        let javaBounds = javaGeneric == nil ? [] : javaTypes?.bounds.map { "`\($0.name)`: \($0.type)" } ?? []
+        let generic = javaGeneric ?? method.genericResultParameter.map { parameter -> String in
             let resultType = kotlinType(method.result)
             let bound = resultType == "kotlin.Any" ? "kotlin.Any?" : resultType
             return "<`\(parameter.name)`: \(bound)> "
@@ -3165,9 +3172,10 @@ final class JVMClasspathIndex {
         let suspendBounds = suspendTypeParameters.flatMap { parameter in
             parameter.bounds.map { "`\(parameter.name)`: " + $0 }
         }
-        let suspendWhereClause = suspendBounds.isEmpty ? "" : " where " + suspendBounds.joined(separator: ", ")
+        let allBounds = javaGeneric == nil ? suspendBounds : javaBounds
+        let whereClause = allBounds.isEmpty ? "" : " where " + allBounds.joined(separator: ", ")
         let modifier = suspend == nil ? "" : "suspend "
-        return modifier + "fun " + (generic.isEmpty ? suspendGeneric : generic) + "\(receiver)`\(method.sourceName)`(" + parameters(method, droppingReceiver: asExtension, javaTypes: javaTypes?.parameters, classTypeVariables: classTypeVariables) + "): " + result + suspendWhereClause
+        return modifier + "fun " + (generic.isEmpty ? suspendGeneric : generic) + "\(receiver)`\(method.sourceName)`(" + parameters(method, droppingReceiver: asExtension, javaTypes: javaTypes?.parameters, classTypeVariables: classTypeVariables) + "): " + result + whereClause
     }
 
     private func kotlinFunctionDeclaration(_ function: JVMKotlinFunction, asFacadeMember: Bool, acceptsDefaults: Bool) -> String {
@@ -3602,11 +3610,14 @@ final class JVMClasspathIndex {
         // Keep the authored Kotlin types on the declaration of this JVM
         // stdlib base so imported methods can satisfy Kotlin List members.
         if ctx.sourceManager.path(of: site.start.file) != "<kswiftk-jvm>/abstractList.kt" {
-            let returnType = method.isConstructor ? signature.returnType : platform(signature.returnType)
+            let returnType = method.isConstructor ? signature.returnType : platform(signature.returnType, includingArrayElements: info.isKotlinFileFacade == nil)
             sema.symbols.setFunctionSignature(FunctionSignature(
                 receiverType: signature.receiverType.map { platform($0) },
                 contextReceiverTypes: signature.contextReceiverTypes, contextParameterSymbols: signature.contextParameterSymbols,
-                contextParameterTypes: signature.contextParameterTypes, parameterTypes: signature.parameterTypes.map { platform($0) },
+                contextParameterTypes: signature.contextParameterTypes, parameterTypes: signature.parameterTypes.map { type in
+                    method.kotlinFunction != nil && sema.types.nullability(of: type) == .nullable
+                        ? type : platform(type, includingArrayElements: info.isKotlinFileFacade == nil)
+                },
                 returnType: returnType, isSuspend: signature.isSuspend, canThrow: false,
                 valueParameterSymbols: signature.valueParameterSymbols,
                 valueParameterUnsafeVarianceTypeParameterSymbols: signature.valueParameterUnsafeVarianceTypeParameterSymbols,
