@@ -44,8 +44,6 @@ enum RuntimeTypeCategory {
         }
     }
 
-    /// The Kotlin simple name for this category, or `nil` for unknown/nominal
-    /// (nominal names require symbol resolution).
     var simpleName: String? {
         switch self {
         case .any:      "Any"
@@ -64,8 +62,6 @@ enum RuntimeTypeCategory {
         case .float:    PrimitiveType.float.kotlinName
         case .char:     PrimitiveType.char.kotlinName
         case .unit:     "Unit"
-        // Function names come from the token payload at runtime, so the
-        // compiler never has to supply a name hint for them.
         case .unknown, .nominal, .function:  nil
         }
     }
@@ -149,8 +145,6 @@ enum RuntimeTypeCheckToken {
         case .primitive(.byte, _):      category = .byte
         case .primitive(.short, _):      category = .short
         case .primitive(.boolean, _):   category = .boolean
-        // REFL-002: Classify additional primitive types so ::class tokens
-        // carry distinct base values instead of falling through to .unknown.
         case .primitive(.long, _):      category = .long
         case .primitive(.double, _):    category = .double
         case .primitive(.float, _):     category = .float
@@ -158,10 +152,6 @@ enum RuntimeTypeCheckToken {
         case .unit, .nullableUnit, .platformUnit:      category = .unit
         case .nothing:                  category = nullable ? .null : .unknown
         case let .functionType(functionType):
-            // KUU-1084: `() -> Unit`, `Int.(String) -> Long`, suspend and
-            // context-receiver variants all normalize to `kotlin.FunctionN`
-            // (or SuspendFunctionN) classifiers, where N counts every
-            // context receiver, extension receiver and value parameter.
             let receiverCount = functionType.receiver == nil ? 0 : 1
             category = .function(
                 arity: functionType.contextReceivers.count
@@ -170,21 +160,12 @@ enum RuntimeTypeCheckToken {
                 isSuspend: functionType.isSuspend
             )
         case let .classType(classType):
-            // Value classes (boxed or not) are checked by nominal identity,
-            // not by their underlying representation: kk_tag_value_class_box
-            // (see emitBoxCallWithValueClassTag) tags a value class's boxed
-            // primitive with its own stable nominal type ID at every
-            // reference-type boundary, so `is`/`as`/`KClass.isInstance`
-            // against the value class name can match that tag directly —
-            // the same way a plain nominal class/interface check does.
             if let shape = sema.types.nominalFunctionInterfaceShape(of: classType.classSymbol) {
                 category = .function(arity: shape.arity, isSuspend: shape.isSuspend)
             } else {
                 category = .nominal(classType.classSymbol)
             }
         case .kClassType:
-            // Concrete KClass<T> and nominal KClass<*> targets share the
-            // erased reflection interface identity, not T's type token.
             if let symbol = sema.types.kClassInterfaceSymbol {
                 category = .nominal(symbol)
             } else {
@@ -351,8 +332,6 @@ enum RuntimeTypeCheckToken {
                 return "java.lang.Void"
             }
             return nil
-        // Function types render their FunctionN classifier from the token
-        // payload at runtime; no source-level hint is needed.
         default:
             return nil
         }
@@ -385,14 +364,6 @@ enum RuntimeTypeCheckToken {
     }
 }
 
-/// The runtime erasure an unchecked/erased boundary can verify against:
-/// a type parameter's first upper bound, resolved transitively when bounds
-/// reference other type parameters, or the type itself when it already
-/// carries a runtime classifier. Kotlin/JVM checkcasts `as T` against
-/// exactly this erasure — `R : C, I1, I2` checks `C` and leaves the rest
-/// unchecked. Returns nil when there is no bound or the bound encodes no
-/// runtime classifier (`.any`/`.unknown`), where only the null contract
-/// is observable.
 func kirCheckableCastErasure(of type: TypeID, sema: SemaModule) -> TypeID? {
     var visited: Set<SymbolID> = []
     var current = type
@@ -402,7 +373,6 @@ func kirCheckableCastErasure(of type: TypeID, sema: SemaModule) -> TypeID? {
         else {
             return nil
         }
-        // A nullable type parameter remains nullable when erased to its bound.
         current = parameter.nullability == .nullable ? sema.types.makeNullable(bound) : bound
     }
     switch RuntimeTypeCheckToken.classify(type: current, sema: sema).category {
@@ -413,8 +383,6 @@ func kirCheckableCastErasure(of type: TypeID, sema: SemaModule) -> TypeID? {
     }
 }
 
-/// The type parameter inside a definitely-non-null `T & Any` intersection,
-/// or nil for every other shape.
 func kirDefinitelyNotNullTypeParameter(of type: TypeID, sema: SemaModule) -> TypeID? {
     guard case let .intersection(parts) = sema.types.kind(of: type),
           parts.count == 2,
@@ -429,10 +397,6 @@ func kirDefinitelyNotNullTypeParameter(of type: TypeID, sema: SemaModule) -> Typ
     return typeParameter
 }
 
-/// Whether a declared member type still travels through the erased ABI: a
-/// non-reified type parameter, or its definitely-non-null `T & Any` shape.
-/// Reified parameters and concrete classifiers keep their real
-/// representation and never need an erased-boundary checkcast.
 func kirIsNonReifiedErasedABIType(_ type: TypeID, sema: SemaModule) -> Bool {
     if let typeParameterType = kirDefinitelyNotNullTypeParameter(of: type, sema: sema) {
         return kirIsNonReifiedErasedABIType(typeParameterType, sema: sema)
@@ -479,8 +443,6 @@ func kirErasedBoundaryCheckable(_ type: TypeID, sema: SemaModule) -> Bool {
     }
 }
 
-/// Whether a declared function result crosses the ABI as an erased generic
-/// value. A definitely-non-null `T & Any` return still erases to T.
 func kirIsNonReifiedErasedReturnType(_ type: TypeID, sema: SemaModule) -> Bool {
     let typeParameter: TypeID = if case let .intersection(parts) = sema.types.kind(of: type),
                                    parts.count == 2,
@@ -577,8 +539,6 @@ func kirErasedGenericCallClaimCheck(
     else {
         return nil
     }
-    // A platform value must retain its flexible representation until the
-    // later null assertion, even when the destination is a non-null primitive.
     let isPlatformResult = expressionBound.map { sema.types.nullability(of: $0) == .platformType } ?? false
     let bound = isPlatformResult ? (expressionBound ?? target) : target
     // Calls coerced to Unit evaluate for side effects and discard their
@@ -595,9 +555,6 @@ func kirErasedGenericCallClaimCheck(
     guard let checkType = kirCheckableCastErasure(of: target, sema: sema),
           kirErasedBoundaryCheckable(checkType, sema: sema)
     else {
-        // An erased consumer (such as Any?) needs the raw object, without a
-        // cast to the narrower source-level type argument. Preserve that ABI
-        // representation even though no checkcast is emitted.
         return consumer == nil ? nil : (bound, nil)
     }
     // A JVM `checkcast` never rejects null: it verifies only the erased
@@ -610,8 +567,6 @@ func kirErasedGenericCallClaimCheck(
     return (bound, sema.types.makeNullable(checkType))
 }
 
-/// True when a generic call or property getter's substituted result can be
-/// checked before the erased ABI result is converted to its native representation.
 func kirShouldCheckErasedGenericCallResult(
     exprID: ExprID,
     boundType: TypeID?,
