@@ -1,19 +1,7 @@
 import Foundation
 
-/// ID-independent references used by declaration-level Sema snapshots
-/// (KUU-3019, step 1 of "serialize and restore per-declaration Sema results").
-///
-/// `SymbolID`, `TypeID` and `ExprID` are encounter-order integers, so a stored
-/// snapshot can never refer to them directly. A snapshot instead stores
-/// names (`SnapshotSymbol`), structure (`SnapshotType`) and body-relative positions, and
-/// the codec resolves those back against whichever compilation is loading it.
 public indirect enum SnapshotSymbol: Codable, Hashable, Sendable {
-    /// A symbol reachable by name from any compilation. `key` is the canonical
-    /// key shared with `KIRFunctionFingerprint`; `fqName` is kept separately so
-    /// the loader can narrow candidates with `SymbolTable.lookupAll`.
     case global(key: String, fqName: [String])
-    /// A symbol declared inside the snapshotted declaration, numbered by
-    /// definition order among that declaration's local symbols.
     case local(Int)
     /// A lambda parameter. These have no symbol-table entry: the type checker
     /// derives their ID from the lambda's `ExprID` (`-1_000_000 - expr * 256 -
@@ -59,7 +47,6 @@ public struct SnapshotCallBinding: Codable, Hashable, Sendable {
     /// Sorted by `from`; JSON dictionaries with integer keys are neither
     /// ordered nor portable.
     public let parameterMapping: [SnapshotIndexPair]
-    /// Sorted by `from`; these source arguments supply context parameters.
     public let contextParameterArgumentMapping: [SnapshotIndexPair]
     public let defaultArgumentOwner: SnapshotSymbol?
     public let dispatchReceiverSymbol: SnapshotSymbol?
@@ -135,7 +122,6 @@ struct SnapshotExprMapping {
 }
 
 final class SemaSnapshotCodec {
-    /// First ID of the synthetic lambda-parameter family (see `SnapshotSymbol.lambdaParameter`).
     private static let lambdaParameterBase: Int64 = -1_000_000
     private static let lambdaSlotStride: Int64 = 256
 
@@ -148,8 +134,6 @@ final class SemaSnapshotCodec {
     private let localsByOrdinal: [Int: SymbolID]
     private var typeRefCache: [TypeID: SnapshotType?] = [:]
 
-    /// - Parameter localSymbols: symbols declared inside the snapshotted
-    ///   declaration, in a deterministic (definition) order.
     init(
         interner: StringInterner, symbols: SymbolTable, types: TypeSystem, localSymbols: [SymbolID],
         exprMapping: SnapshotExprMapping = .none
@@ -168,8 +152,6 @@ final class SemaSnapshotCodec {
         localOrdinals = ordinals
         localsByOrdinal = byOrdinal
     }
-
-    // MARK: - Symbols
 
     func encode(symbol id: SymbolID) -> SnapshotSymbol? {
         if let ordinal = localOrdinals[id] { return .local(ordinal) }
@@ -214,8 +196,6 @@ final class SemaSnapshotCodec {
                 .first { canonicalizer.symbolKey($0) == key }
         }
     }
-
-    // MARK: - Types
 
     func encode(type id: TypeID) -> SnapshotType? {
         if let cached = typeRefCache[id] { return cached }
@@ -268,7 +248,6 @@ final class SemaSnapshotCodec {
             else { return nil }
             return .classType(symbol, args: args, enclosingArgs: enclosing, classType.nullability)
         case let .typeParam(typeParam):
-            // Captured projections carry per-inference identity; not restorable.
             guard typeParam.capture == nil, let symbol = encode(symbol: typeParam.symbol) else { return nil }
             return .typeParam(symbol, typeParam.nullability)
         case let .functionType(functionType):
@@ -369,8 +348,6 @@ final class SemaSnapshotCodec {
             return decode(type: argument).map { .kClassType(KClassType(argument: $0, nullability: nullability)) }
         }
     }
-
-    // MARK: - Call bindings
 
     func encode(callBinding binding: CallBinding) -> SnapshotCallBinding? {
         guard let callee = encode(symbol: binding.chosenCallee),
