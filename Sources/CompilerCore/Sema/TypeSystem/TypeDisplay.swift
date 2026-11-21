@@ -1,8 +1,5 @@
 
 public extension TypeSystem {
-    /// Unlike the internal `renderType` debug renderer (which prints class and
-    /// type-parameter symbols as `Class#<id>` / `T#<id>`), this resolves those
-    /// symbols to their source-level names via the symbol table and interner.
     func displayName(of type: TypeID, symbols: SymbolTable, interner: StringInterner) -> String {
         switch kind(of: type) {
         case .error:
