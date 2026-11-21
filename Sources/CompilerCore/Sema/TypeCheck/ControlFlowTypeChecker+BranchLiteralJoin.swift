@@ -18,9 +18,6 @@ extension ControlFlowTypeChecker {
         return expectedType
     }
 
-    /// Adapts callable references to the function type selected for a `when`
-    /// join. This is needed when the common return type is wider than a branch's
-    /// declared return type, because the branch value must use the joined ABI.
     func adaptCallableReferenceBranches(
         expressions: [ExprID],
         branchTypes: [TypeID],
@@ -85,8 +82,6 @@ extension ControlFlowTypeChecker {
         }
     }
 
-    /// Resolve unsuffixed integer branch results against Long peers before LUB.
-    /// Ordinary Int expressions retain their type; Kotlin has no Int-to-Long widening.
     func contextualizeLongBranchLiterals(
         expressions: [ExprID],
         types: [TypeID],
@@ -117,7 +112,6 @@ extension ControlFlowTypeChecker {
         return contextualized
     }
 
-    /// Earlier block statements and branch conditions are never contextualized.
     private func integerBranchLiteralNodes(_ id: ExprID, ctx: TypeInferenceContext) -> [ExprID]? {
         switch ctx.ast.arena.expr(id) {
         case .intLiteral:
