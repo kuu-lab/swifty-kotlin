@@ -49,7 +49,6 @@ extension CallLowerer {
         }
     }
 
-    /// Runtime callees whose ABI carries a thrown channel (outThrown) slot.
     private static let thrownChannelCalleeNames: Set<String> = [
         "kk_runtime_result_get_or_else",
         "kk_runtime_result_get_or_throw",
@@ -153,25 +152,18 @@ extension CallLowerer {
         "__kk_throwable_initCause",
     ]
 
-    /// Thrown-channel callees whose results must NOT be rethrown: they surface
-    /// failure through their return value rather than the exception channel.
     private static let nonRethrowingThrownChannelCalleeNames: Set<String> = [
         "kk_runtime_result_recover_catching",
         "kk_runtime_result_run_catching",
         "__kk_string_builder_new_capacity_checked",
     ]
 
-    // Function values may throw from their target even though Kotlin's
-    // FunctionN.invoke declaration has no checked-throws annotation.
     private func isThrowingRuntimeCallee(_ name: String) -> Bool {
         name == "kk_function_invoke" || name.hasPrefix("kk_function_invoke_")
             || name == "kk_suspend_function_invoke" || name.hasPrefix("kk_suspend_function_invoke_")
             || Self.thrownChannelCalleeNames.contains(name)
     }
 
-    /// Returns true if the callee is a runtime function that requires a thrown
-    /// channel (outThrown) parameter in its ABI. This ensures the codegen
-    /// appends the extra `intptr_t * _Nullable` slot.
     func needsThrownChannel(calleeName: InternedString, interner: StringInterner) -> Bool {
         isThrowingRuntimeCallee(interner.resolve(calleeName))
     }
@@ -185,9 +177,6 @@ extension CallLowerer {
         }
     }
 
-    // Function-value invocation forwards exceptions from the runtime
-    // callback through its outThrown slot, so unhandled exceptions must
-    // escape the current Kotlin function just like other throwing calls.
     func shouldRethrowThrownChannelResult(calleeName: InternedString, interner: StringInterner) -> Bool {
         let name = interner.resolve(calleeName)
         return isThrowingRuntimeCallee(name)
