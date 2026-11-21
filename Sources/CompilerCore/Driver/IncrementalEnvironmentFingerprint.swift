@@ -6,17 +6,7 @@ import Darwin
 import Glibc
 #endif
 
-/// Fingerprints inputs that can change the emitted artifact without touching
-/// source files or CLI flags: the compiler binary itself, environment
-/// variables that steer tool resolution and codegen, libraries visible
-/// through the search paths, and resolved `-l` link inputs. The result is
-/// folded into the incremental build-configuration hash, so a toolchain or
-/// library change becomes a cache miss instead of restoring output built
-/// against stale inputs.
 enum IncrementalEnvironmentFingerprint {
-    /// Environment variables consulted while locating the toolchain or the
-    /// LLVM support library. `KSWIFTK_`- and `SWIFT_`-prefixed variables are
-    /// included automatically on top of this list.
     private static let fixedEnvironmentKeys = [
         "DEVELOPER_DIR",
         "TOOLCHAINS",
@@ -33,12 +23,8 @@ enum IncrementalEnvironmentFingerprint {
         "JAVA_HOME",
     ]
 
-    /// Tools resolved through PATH by backend phases or the linker driver.
     private static let resolvedToolNames = ["swift", "swiftc", "clang", "dsymutil"]
 
-    /// Binary/environment/tool-identity pieces that cannot change within one
-    /// process lifetime, memoized so repeated compiles (test suites) do not
-    /// re-walk PATH and re-stat the toolchain on every build.
     nonisolated(unsafe) private static var cachedStaticFingerprint:
         (environment: [String: String], parts: [String])?
 
@@ -48,14 +34,12 @@ enum IncrementalEnvironmentFingerprint {
     ) -> [String] {
         var parts = staticFingerprint(environment: environment)
 
-        // Imported .kklib libraries feed both Sema metadata and link inputs.
         for searchPath in options.effectiveLibrarySearchPaths {
             for kklib in kklibEntries(in: searchPath) {
                 parts.append("kklib=\(kklib)|\(kklibFingerprint(kklib) ?? "unreadable")")
             }
         }
 
-        // Resolved files for each -l library requested on the command line.
         for name in options.linkLibraries.sorted() {
             for file in resolvedLibraryFiles(name: name, libraryPaths: options.libraryPaths) {
                 parts.append("lib:\(name)=\(file)|\(signature(of: file) ?? "missing")")
@@ -96,8 +80,6 @@ enum IncrementalEnvironmentFingerprint {
         return parts
     }
 
-    /// Signature of the running compiler executable's real path, so different
-    /// builds of the same version never share a cache entry.
     private static func executableSignature() -> String? {
 #if canImport(Darwin)
         var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
@@ -113,8 +95,6 @@ enum IncrementalEnvironmentFingerprint {
 #endif
     }
 
-    /// Stat-based signature of a single file: real path, size, mtime, inode
-    /// and permissions — the same identity the linker-plan cache uses.
     static func signature(of path: String) -> String? {
         let resolved = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
         // `attributesOfItem` pays several xattr syscalls per file; kklib
@@ -148,8 +128,6 @@ enum IncrementalEnvironmentFingerprint {
         ].joined(separator: "\u{0}")
     }
 
-    /// `.kklib` library directories directly under a search path — the same
-    /// set `discoverLibraryObjects` links against.
     private static func kklibEntries(in searchPath: String) -> [String] {
         let path = URL(fileURLWithPath: searchPath).standardizedFileURL.path
         var isDirectory = ObjCBool(false)
@@ -191,7 +169,6 @@ enum IncrementalEnvironmentFingerprint {
         } else {
             parts.append("manifest=missing")
         }
-        // Fallback layout used when the manifest does not list objects.
         let objectsDir = root.appendingPathComponent("objects").path
         if let entries = try? FileManager.default.contentsOfDirectory(atPath: objectsDir) {
             for entry in entries.filter({ $0.hasSuffix(".o") }).sorted() {
@@ -201,8 +178,6 @@ enum IncrementalEnvironmentFingerprint {
         return parts.joined(separator: "\u{1}")
     }
 
-    /// Files the linker would resolve for `-l<name>`: `lib<name>.so`,
-    /// `lib<name>.a`, plus the Darwin variants, in each `-L` directory.
     private static func resolvedLibraryFiles(name: String, libraryPaths: [String]) -> [String] {
         let candidates = [
             "lib\(name).so", "lib\(name).a", "lib\(name).dylib", "lib\(name).tbd",
