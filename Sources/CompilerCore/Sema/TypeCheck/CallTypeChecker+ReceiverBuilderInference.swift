@@ -13,10 +13,6 @@ final class BuilderInferenceSession {
 }
 
 extension CallTypeChecker {
-    /// Return receiver constraints when an unresolved builder receiver could
-    /// become applicable after the builder variables are solved. This is a
-    /// speculative check: callers only append the returned constraints after
-    /// overload selection has produced a unique candidate.
     func deferredBuilderReceiverConstraints(
         callSiteReceiver: TypeID,
         declaredReceiver: TypeID,
@@ -81,15 +77,6 @@ extension CallTypeChecker {
         return constraints
     }
 
-    /// A member extension's declared extension receiver can mention the
-    /// builder's variables through the *dispatch* receiver's type arguments —
-    /// inside `binding { parse().bind() }`, `bind`'s declared `R<V, E>`
-    /// receiver becomes `R<V, E_binding>` once `Scope<E_binding>` supplies
-    /// the owner arguments, so the call-site receiver `R<Int, String>` pins
-    /// `E` to `String` (KUU-4079). Returns nil when no session is active, the
-    /// owner substitution leaves the receiver rigid, or the joined solve
-    /// fails; callers only append the result once a unique candidate is
-    /// selected, matching `deferredBuilderReceiverConstraints` discipline.
     func deferredMemberExtensionReceiverConstraints(
         callSiteReceiver: TypeID,
         declaredReceiver: TypeID,
@@ -174,10 +161,6 @@ extension CallTypeChecker {
         return constraints
     }
 
-    /// A constraint operand holding a type parameter the builder session does
-    /// not own. Such parameters originate on the candidate's declared side
-    /// (session variables only ever come from the call-site receiver), so the
-    /// constraint cannot feed real evidence into the builder's solve.
     private func constraintMentionsForeignTypeParam(
         _ constraint: VariableConstraint,
         session: BuilderInferenceSession,
@@ -245,8 +228,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Check extension receiver applicability without committing speculative
-    /// constraints from competing overloads.
     func extensionReceiverMatchesDuringBuilderInference(
         callSiteReceiver: TypeID,
         declaredReceiver: TypeID,
@@ -265,9 +246,6 @@ extension CallTypeChecker {
         ) != nil
     }
 
-    /// Apply the builder session's current solution when resolving a nested
-    /// receiver call/property. The final callback pass still performs ordinary
-    /// resolution using the fully substituted receiver.
     func resolvedBuilderInferenceType(_ type: TypeID, ctx: TypeInferenceContext) -> TypeID {
         guard let session = ctx.builderInference,
               !session.isFinalized,
@@ -325,11 +303,6 @@ extension CallTypeChecker {
         else { return nil }
         let candidates = candidateOverride ?? ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
         if candidateOverride == nil {
-            // Kotlin merges explicit top-level imports with same-package
-            // declarations into one overload set, but scope lookup stops at
-            // the package scope. Defer to normal resolution when an import
-            // contributes a same-name function the scope candidates cannot
-            // see, so the import tier can win ties (KUU-4216).
             let importCandidates = explicitImportTopLevelFunctions(named: calleeName, ctx: ctx)
             guard importCandidates.allSatisfy({ candidates.contains($0) }) else { return nil }
         }
@@ -351,9 +324,6 @@ extension CallTypeChecker {
               !signature.typeParameterSymbols.isEmpty,
               explicitTypeArgs.isEmpty || explicitTypeArgs.count == signature.typeParameterSymbols.count
         else { return nil }
-        // An unqualified extension call borrows the innermost implicit
-        // receiver that satisfies its declared receiver before the builder
-        // session starts (KUU-4317).
         var implicitReceiverEntry: (type: TypeID, symbol: SymbolID?)?
         let resolvedReceiverType: TypeID?
         if let receiverType {
@@ -366,12 +336,6 @@ extension CallTypeChecker {
         } else {
             resolvedReceiverType = nil
         }
-        // Kotlin resolves members before extensions at each implicit-receiver
-        // level: a same-named member on the bound receiver — or on any nearer
-        // tower entry — shadows the scope extension, so ordinary member
-        // resolution must see the call instead of this builder session
-        // (KUU-12951: `Pipeline<*, TContext>.intercept` delegating to the
-        // member `Pipeline.intercept` with an untyped lambda argument).
         if resolvedReceiverType != nil {
             for entry in ctx.implicitReceiverMemberLookupEntries() {
                 let shadowingMembers = driver.helpers.collectMemberFunctionCandidates(
@@ -413,8 +377,6 @@ extension CallTypeChecker {
                   case let .functionType(function) = sema.types.kind(of: signature.parameterTypes[parameter]),
                   function.returnType == sema.types.unitType || function.receiver != nil
             else { return false }
-            // Ordinary callback parameters carry postponed variables too:
-            // `(Continuation<T>) -> Unit` can infer T from uses in the body.
             return ((function.receiver.map { [$0] } ?? []) + function.params).contains { input in
                 resolveClassType(input, sema: sema) != nil
                     && session.mentionsVariable(input, types: sema.types)
@@ -535,10 +497,6 @@ extension CallTypeChecker {
             signature: signature, substitution: solution.substitution,
             typeVarBySymbol: variables, range: range, typeSystem: sema.types
         ) {
-            // Collection builders can still infer element/key/value types from
-            // mutations in the dedicated path when this callback session has
-            // no evidence. Preserve successful inference from other arguments
-            // or an expected type before falling back.
             if hasGenericCollectionReceiverLambda(signature: signature, sema: sema, interner: ctx.interner) {
                 return nil
             }
@@ -623,10 +581,6 @@ extension CallTypeChecker {
             let sourceParameterType = contextualCallArgumentType(
                 args[index], parameterIndex: parameter, in: signature, ctx: ctx
             ) ?? signature.parameterTypes[parameter]
-            // A member's leading type parameters belong to its owner. Lift
-            // the actual receiver to that owner before collecting constraints
-            // (for example ProducerScope<T> -> SendChannel<T>). An unrelated
-            // explicit receiver must not borrow the builder's implicit T.
             let parameterType: TypeID
             if let receiverType, sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil {
                 parameterType = applyReceiverClassTypeArgs(
@@ -658,8 +612,6 @@ extension CallTypeChecker {
             constraints: session.constraints, typeSystem: sema.types
         )
         guard solution.isSuccess else { return argTypes }
-        // Use the provisional solution for this inner call. The enclosing
-        // callback is checked again after all of its constraints are solved.
         return argTypes.map {
             sema.types.substituteTypeParameters(
                 in: $0, substitution: solution.substitution,
@@ -668,9 +620,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Preserve the actual owner's type arguments when a lone implicit member
-    /// falls back after constraint solving. They cannot be widened from values
-    /// passed to a receiver whose builder type has already been fixed.
     func bindClassOnlyImplicitReceiverMemberFallback(
         _ id: ExprID, chosen: SymbolID, calleeName: InternedString,
         args: [CallArgument], argTypes: [TypeID], range: SourceRange,
@@ -717,10 +666,6 @@ extension CallTypeChecker {
         return result
     }
 
-    /// A class-only member reads the builder's receiver arguments directly.
-    /// Its owner parameters are not new inference variables for this call.
-    /// This lets a read such as Slot<T>.get() contribute T to an enclosing
-    /// monomorphic constructor before the builder's T has been solved.
     func inferPostponedImplicitReceiverMemberCall(
         _ id: ExprID, calleeName: InternedString?, args: [CallArgument],
         range: SourceRange, ctx: TypeInferenceContext, locals: inout LocalBindings,
@@ -741,9 +686,6 @@ extension CallTypeChecker {
             let candidates = ctx.filterByVisibility(rawCandidates).visible.filter {
                 !ctx.isCandidateBlockedByDslMarker($0)
             }
-            // A declaration on a nearer receiver shadows outer receivers even
-            // when it needs the ordinary overload path. Do not borrow an
-            // enclosing builder receiver's type arguments in that case.
             guard candidates.count == 1, let chosen = candidates.first,
                   sema.symbols.memberExtensionOwnerSymbol(for: chosen) == nil,
                   let signature = sema.symbols.functionSignature(for: chosen),
@@ -817,10 +759,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// Top-level non-extension functions reachable through the file's explicit
-    /// (non-wildcard) imports under `name`, including import aliases. Ordinary
-    /// scope lookup stops at the package scope, so these candidates are
-    /// invisible until the merged-overload path restores them.
     private func explicitImportTopLevelFunctions(
         named name: InternedString,
         ctx: TypeInferenceContext
