@@ -10,7 +10,6 @@ import kotlin.text.__charTitlecaseCode
 import kotlin.text.__charUnicodeCategory
 import kotlin.text.__charUppercaseCode
 
-/** Java-compatible Unicode operations for UTF-16 chars and Unicode code points. */
 public class Character(private val value: Char) {
     override fun toString(): String = value.toString()
 
@@ -24,7 +23,6 @@ public class Character(private val value: Char) {
     override fun hashCode(): Int = value.code
 
     public companion object {
-        // JDK scalar limits (KUU-3987).
         public const val MIN_VALUE: Char = '\u0000'
         public const val MAX_VALUE: Char = '\uFFFF'
         public const val MIN_HIGH_SURROGATE: Char = '\uD800'
