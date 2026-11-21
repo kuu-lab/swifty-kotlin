@@ -1,7 +1,4 @@
 extension CallTypeChecker {
-    /// Keep member precedence, but do not contextualize lambda bodies against
-    /// a member tier already ruled out by argument types, arity, or labels.
-    /// The displaced visible scope tier must get its own argument preparation.
     func preferScopeCandidatesForInapplicableImplicitMembers(
         args: [CallArgument],
         callRange: SourceRange,
@@ -23,9 +20,6 @@ extension CallTypeChecker {
         guard candidates.allSatisfy({ members.contains($0) }) else { return }
         var fallbackCandidates = scopeCandidates.filter { !members.contains($0) }
         if fallbackCandidates.isEmpty {
-            // Extension bodies can carry their receiver's member scope in
-            // the lexical chain. Ordinary lookup then stops at the member
-            // itself, before candidate collection can save the outer tier.
             let outerCandidates = ctx.scope.lookup(calleeName, matching: { candidate in
                 guard !members.contains(candidate),
                       let symbol = ctx.cachedSymbol(candidate)
@@ -41,9 +35,6 @@ extension CallTypeChecker {
         var probeLocals = locals
         var nonLambdaArgumentTypes: [Int: TypeID] = [:]
         for (index, argument) in args.enumerated() {
-            // Only use types independent of a candidate's expected type. Calls,
-            // conditionals and blocks may contain lambdas or numeric literals
-            // that require that context; do not infer their bodies speculatively.
             switch ctx.ast.arena.expr(argument.expr) {
             case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral,
                  .floatLiteral, .doubleLiteral, .charLiteral, .nullLiteral,
