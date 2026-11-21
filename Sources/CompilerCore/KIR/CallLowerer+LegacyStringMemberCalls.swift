@@ -22,9 +22,6 @@ extension CallLowerer {
                 ))
                 return result
             }
-            // KSP-724: `CharSequence.length` is resolved through the bundled
-            // `kotlin.CharSequence` interface property, so the `kk_char_sequence_length`
-            // name-string fallback is no longer needed here.
         }
         return nil
     }
