@@ -1,7 +1,4 @@
 extension DataFlowSemaPhase {
-    /// Java's unannotated T result permits both nullable and non-null Kotlin
-    /// consumers and overrides. Metadata erases platform nullability, so restore
-    /// this narrow interop contract after importing a source-backed declaration.
     func javaThreadLocalReturnType(
         _ type: TypeID,
         fqName: [InternedString],
