@@ -1,12 +1,4 @@
 
-/// The common root opt-in markers (`ExperimentalUnsignedTypes`,
-/// `ExperimentalMultiplatform`, `ExperimentalSubclassOptIn`) and the
-/// `context parameters`/`uuid`/`io.encoding`/`reflect` experimental markers
-/// (`ExperimentalContextParameters`, `ExperimentalUuidApi`,
-/// `ExperimentalEncodingApi`, `ExperimentalAssociatedObjects`) are now declared
-/// as bundled Kotlin source under `Sources/CompilerCore/Stdlib/kotlin/` (KSP-666, KSP-733).
-///
-/// See: https://kotlinlang.org/api/latest/jvm/stdlib/
 extension DataFlowSemaPhase {
     func registerSyntheticExperimentalMarkerStubs(
         symbols: SymbolTable,
@@ -29,8 +21,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // The bundled Kotlin declaration owns the annotation and its constructor.
-        // Keep the residual stub only for --no-stdlib compilation.
         let kotlinExperimentalPkg = ensurePackage(
             path: ["kotlin", "experimental"],
             symbols: symbols,
@@ -50,9 +40,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Registers a single experimental opt-in marker annotation class and attaches
-    /// `@RequiresOptIn(level = RequiresOptIn.Level.<severity>)` to it so that the
-    /// opt-in checker can emit the correct diagnostic severity.
     private func registerSyntheticExperimentalMarker(
         named name: String,
         packageFQName: [InternedString],
@@ -159,8 +146,6 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(packageSymbol, for: classSymbol)
         }
 
-        // KUU-2673: annotations + constructor dedup below read the class's
-        // decoded metadata; defer until its imported shell materializes.
         if symbols.deferUntilAfterImportedShellMaterializes(classSymbol, work: { [self] in
             registerSyntheticExpectRefinementAnnotation(
                 packageFQName: packageFQName,
