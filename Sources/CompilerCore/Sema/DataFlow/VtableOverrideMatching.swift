@@ -27,9 +27,6 @@ struct VtableOverrideCandidate {
     let slot: Int
 }
 
-/// Reuse the unique inherited slot with matching method bounds and argument
-/// shape after class specialization and binder alpha-alignment. Signatures
-/// without method binders retain the legacy class-parameter wildcard fallback.
 func resolveOverriddenVtableSlot(
     method: SemanticSymbol,
     parameterTypes: [TypeID],
@@ -80,8 +77,6 @@ func isOverrideVtableParameterMatch(
     return true
 }
 
-/// Mirrors `LayoutSynthesis.synthesizeLayoutForNominal`'s local candidate map:
-/// built once from genuine inheritance, one entry per distinct slot per key.
 func vtableInheritedCandidatesByKey(
     inheritedVtableSlots: [SymbolID: Int],
     symbols: SymbolTable
