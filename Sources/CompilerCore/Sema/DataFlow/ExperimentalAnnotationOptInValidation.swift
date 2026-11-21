@@ -25,7 +25,6 @@ extension DataFlowSemaPhase {
         guard !annotationMetadata.contains(where: {
             KnownCompilerAnnotation.requiresOptIn.matches($0.annotationFQName)
         }) else {
-            // Applying the marker itself declares an experimental API; it does not require opt-in.
             return
         }
 
