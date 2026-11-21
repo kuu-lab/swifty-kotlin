@@ -2,7 +2,6 @@ package java.time
 
 import java.util.Calendar
 
-/** A time without a date or time-zone in the ISO-8601 calendar system. */
 public class LocalTime private constructor(
     public val hour: Int,
     public val minute: Int,
