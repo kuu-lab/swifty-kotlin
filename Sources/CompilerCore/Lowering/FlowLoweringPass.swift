@@ -64,11 +64,6 @@ final class FlowLoweringPass: LoweringPass {
         let intType = ctx.sema?.types.intType
         let boxingCalleeTable = BoxingCalleeTable(interner: interner)
 
-        // KSP-674: `flowOf`/`emptyFlow`/`Iterable.asFlow` now resolve to bundled
-        // Kotlin source returning `Flow<T>` rather than the removed
-        // `kk_flow_of`/`kk_flow_empty`/`kk_flow_as_flow` bridges. Their call
-        // results carry a real `Flow<T>` Sema type; track them so downstream
-        // `.map`/`.filter`/`.collect`/... still lower to the runtime Flow ABI.
         let flowClassSymbol = ctx.sema?.symbols.lookup(fqName: [
             interner.intern("kotlinx"), interner.intern("coroutines"),
             interner.intern("flow"), interner.intern("Flow"),
@@ -120,7 +115,6 @@ final class FlowLoweringPass: LoweringPass {
                             flowBuilderFunctionNames.insert(lambdaName)
                         }
                     }
-                    // Keep convention-based fallback for synthetic lambda names.
                     let fallbackLambdaName = interner.intern("kk_lambda_\(lambdaArg.rawValue)")
                     flowBuilderFunctionNames.insert(fallbackLambdaName)
                 default:
@@ -206,9 +200,6 @@ final class FlowLoweringPass: LoweringPass {
                        let flowExpr = activeFlowExpr,
                        flowExprIDs.contains(flowExpr.rawValue)
                     {
-                        // Placeholder: CoroutineLoweringPass rewrites collectorFunctionID
-                        // to the actual suspend-lowered function ID for non-suspend
-                        // collector references.
                         let collectorFunctionID = appendIntConstant(0)
                         loweredBody.append(.call(
                             callee: kkFlowCollectName,
@@ -263,8 +254,6 @@ final class FlowLoweringPass: LoweringPass {
                             flowHandleExpr = arguments[0]
                             valueExpr = arguments[1]
                         } else if arguments.count == 1 {
-                            // Flow builder `emit(x)` has no explicit receiver.
-                            // Runtime resolves handle from active collection context.
                             flowHandleExpr = appendIntConstant(0)
                             valueExpr = arguments[0]
                         } else {
@@ -335,9 +324,6 @@ final class FlowLoweringPass: LoweringPass {
                        arguments.count == 2,
                        flowExprIDs.contains(arguments[0].rawValue)
                     {
-                        // Placeholder: CoroutineLoweringPass rewrites collectorFunctionID
-                        // to the actual suspend-lowered function ID for non-suspend
-                        // collector references.
                         let collectorFunctionID = appendIntConstant(0)
                         loweredBody.append(.call(
                             callee: kkFlowCollectName,
@@ -441,8 +427,6 @@ final class FlowLoweringPass: LoweringPass {
                         let flowHandleExpr: KIRExprID
                         let valueExpr: KIRExprID
                         if arguments.count == 1 {
-                            // Flow builder `emit(x)` has no explicit receiver.
-                            // Runtime resolves handle from active collection context.
                             flowHandleExpr = appendIntConstant(0)
                             valueExpr = arguments[0]
                         } else {
@@ -506,9 +490,6 @@ final class FlowLoweringPass: LoweringPass {
                        arguments.count == 1,
                        flowExprIDs.contains(receiver.rawValue)
                     {
-                        // Placeholder: CoroutineLoweringPass rewrites collectorFunctionID
-                        // to the actual suspend-lowered function ID for non-suspend
-                        // collector references.
                         let collectorFunctionID = appendIntConstant(0)
                         loweredBody.append(.call(
                             callee: kkFlowCollectName,
