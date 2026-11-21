@@ -47,8 +47,6 @@ extension TypeSystem {
         }
     }
 
-    /// Captures are local to a call. Export readable bounds and use-site
-    /// projections instead of leaking the extension's declaration-local T.
     func approximatingCapturedTypes(in type: TypeID) -> TypeID {
         switch kind(of: type) {
         case let .typeParam(parameter):
@@ -73,8 +71,6 @@ extension TypeSystem {
                     return .out(withNullability(parameter.nullability, for: capture.upper))
                 }
                 let approximation = approximatingCapturedTypes(in: inner)
-                // A nested existential must not become a concrete invariant
-                // argument merely because its own readable bound was widened.
                 if approximation == inner { return arg }
                 return variance == .in ? .in(capturedLowerApproximation(of: inner)) : .out(approximation)
             }
@@ -94,7 +90,6 @@ extension TypeSystem {
             guard let symbol = kClassInterfaceSymbol else { return type }
             return make(.classType(ClassType(classSymbol: symbol, args: [.out(argument)], nullability: klass.nullability)))
         case let .functionType(function):
-            // Preserve contravariant inputs through the captured lower bound.
             return make(.functionType(FunctionType(
                 contextReceivers: function.contextReceivers.map(capturedLowerApproximation),
                 receiver: function.receiver.map(capturedLowerApproximation),
