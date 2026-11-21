@@ -1,27 +1,6 @@
 extension CollectionLiteralLoweringSupport {
-    /// Facts on different axes answer different questions about the same value,
-    /// so a value can carry facts on both, and "unknown" is meaningful per axis
-    /// rather than only for a value carrying no facts at all.
     enum ClassificationAxis: Sendable, CaseIterable {
-        /// What kind of collection the value is, as far as its declared type
-        /// says.
-        ///
-        /// RF-LOWER-STATE-009 split this axis from provenance: ``Classification/sequenceType``
-        /// records only that the static type is `Sequence`, with no claim about
-        /// which runtime representation backs the value — that lives on
-        /// ``runtimeRepresentation`` as ``Classification/sequence`` /
-        /// ``Classification/sequenceSourceObject``.
         case staticType
-        /// Which runtime representation holds the value.
-        ///
-        /// Most of these are recorded only when lowering materialises the
-        /// runtime handle itself. ``Classification/sequence`` and
-        /// ``Classification/sequenceSourceObject`` are the exception
-        /// (RF-LOWER-STATE-009): the pre-scan records them from confirmable
-        /// evidence about a value that already exists — a known runtime
-        /// factory/bridge, a source declaration confirmed to construct a fresh
-        /// object, or a copy from a value already classified — never guessed
-        /// from the static type alone.
         case runtimeRepresentation
     }
 
@@ -32,20 +11,7 @@ extension CollectionLiteralLoweringSupport {
         case set
         case map
         case array
-        /// Confirmed `RuntimeSequenceBox`: a known runtime factory/bridge
-        /// produced this value, or the value was propagated from one that
-        /// did. Despite the name this is a runtime-representation fact, not
-        /// a static-type one — see ``sequenceType`` for "the static type is
-        /// `Sequence`" and ``sequenceSourceObject`` for the other confirmed
-        /// representation (RF-LOWER-STATE-009).
         case sequence
-        /// Confirmed source-backed `Sequence` object (RF-LOWER-STATE-009): a
-        /// bundled declaration whose body is confirmed, by reading it, to
-        /// construct a fresh `object : Sequence<T>` rather than bridge to a
-        /// runtime factory — or a value propagated from one that is.
-        /// Mutually exclusive with ``sequence``; see
-        /// ``CollectionRewriteState/resolveSequenceProvenanceConflicts(at:)``
-        /// for what happens when a reused expression slot receives both.
         case sequenceSourceObject
         case range
         case charRange
@@ -57,13 +23,6 @@ extension CollectionLiteralLoweringSupport {
         case mapIterator
         case iteratorBuilder
         case ulongRangeIterator
-        /// The static type is (or resolves to) `kotlin.sequences.Sequence`,
-        /// with no claim about which runtime representation backs the value.
-        /// Revives the static classification `trackedStaticTypeKind` stopped
-        /// performing under KSP-441〜447; kept apart from ``sequence`` /
-        /// ``sequenceSourceObject`` because a Sequence-typed value's runtime
-        /// representation is not decidable from its static type alone
-        /// (RF-LOWER-STATE-009).
         case sequenceType
 
         var axis: ClassificationAxis {
@@ -90,27 +49,13 @@ extension CollectionLiteralLoweringSupport {
         }
     }
 
-    /// The static `Sequence` type is intentionally not represented by either
-    /// `runtimeBox` or `sourceObject`: both representations satisfy that
-    /// interface, and the type alone cannot select the bridge safely.  The
-    /// `notSequence` case lets callers distinguish a known non-Sequence
-    /// receiver (for example, a List `map`) from a Sequence value whose origin
-    /// is simply unavailable.  Unknown values must stay on the original
-    /// iterator path rather than being guessed to be source-backed.
     enum SequenceRuntimeRepresentation: Equatable, Sendable {
         case runtimeBox
         case sourceObject
         case notSequence
-        /// Sequence-typed or otherwise insufficiently classified; no runtime
-        /// representation may be selected from the available facts.
         case unknown
     }
 
-    /// Every classification known about a single expression.
-    ///
-    /// A value routinely carries more than one: a `ULongRange` is both ``range``
-    /// and ``ulongRange``, and collapsing those into a single kind loses the
-    /// facts `step` / `reversed` need.
     struct ClassificationFacts: OptionSet, Sendable {
         var rawValue: UInt32
 
@@ -147,9 +92,6 @@ extension CollectionLiteralLoweringSupport {
             intersection(.mask(for: axis))
         }
 
-        /// A value can be unknown on one axis while classified on the other, so
-        /// callers must ask about the axis they care about instead of reading an
-        /// empty fact set as the only form of unknown.
         func isUnknown(on axis: ClassificationAxis) -> Bool {
             facts(on: axis).isEmpty
         }
@@ -159,15 +101,6 @@ extension CollectionLiteralLoweringSupport {
         }
     }
 
-    /// Facts are physically grouped per classification rather than per
-    /// expression. The indexed store keeps membership checks O(1) without
-    /// rebuilding a fact set for every expression, while the named accessors
-    /// below preserve the old callers as mutable views over this one store.
-    ///
-    /// The virtual-call leaves now receive this state as a whole, so no caller
-    /// needs simultaneous `inout` access to several named sets. That makes the
-    /// views safe: there is one source of truth and copy propagation only has
-    /// to iterate the classification enum.
     struct CollectionRewriteState {
         private var memberships = Array(
             repeating: Set<Int32>(),
@@ -276,8 +209,6 @@ extension CollectionLiteralLoweringSupport {
             _modify { yield &memberships[Classification.ulongRangeIterator.rawValue] }
         }
 
-        /// Assigning replaces the expression's facts wholesale, so a fact the
-        /// new value does not carry is cleared rather than left behind.
         subscript(exprID: KIRExprID) -> ClassificationFacts {
             get {
                 var facts = ClassificationFacts()
@@ -311,9 +242,6 @@ extension CollectionLiteralLoweringSupport {
             memberships[classification.rawValue].remove(exprID.rawValue)
         }
 
-        /// Mutable locals reuse their expression ID. A copy replaces their value,
-        /// so facts about the previous value must not survive it — including when
-        /// `from` carries no facts at all.
         mutating func copyFacts(from: KIRExprID, to: KIRExprID) {
             for classification in Classification.allCases {
                 if memberships[classification.rawValue].contains(from.rawValue) {
@@ -344,9 +272,6 @@ extension CollectionLiteralLoweringSupport {
             tagResult(.map, result, temporary: temporary)
         }
 
-        /// Record the classification implied by a tracked static type, so
-        /// callers that resolve a `CollectionLiteralTrackedStaticTypeKind` do
-        /// not each name a set.
         mutating func tag(_ expr: KIRExprID, as kind: CollectionLiteralTrackedStaticTypeKind) {
             insert(Classification(kind), expr)
         }
@@ -355,16 +280,6 @@ extension CollectionLiteralLoweringSupport {
             copyFacts(from: from, to: to)
         }
 
-        /// Add what a copy proves while the pre-scan is still seeding this
-        /// state, keeping facts the destination already carries from an
-        /// earlier seed such as its static type.
-        ///
-        /// The pre-scan walks one function body forward from an empty state,
-        /// so a destination already classified here was classified by a
-        /// previous seed rather than by the value this copy overwrites.
-        /// ``propagateCopy(from:to:)`` applies the replacement when the rewrite
-        /// reaches the same copy, which keeps the classification visible to the
-        /// instructions that precede it.
         mutating func seedCopy(from: KIRExprID, to: KIRExprID) {
             self[to] = self[to].union(self[from])
         }
@@ -388,11 +303,6 @@ extension CollectionLiteralLoweringSupport {
             remove(.sequenceSourceObject, expr)
         }
 
-        /// Provenance facts are authoritative when they are exclusive. A
-        /// contradictory runtime union is conservative: it becomes unknown
-        /// instead of selecting either side. A static `Sequence` fact carries
-        /// no provenance and therefore also remains unknown. Other static or
-        /// runtime classifications prove that the value is not a Sequence.
         func sequenceRuntimeRepresentation(
             of expr: KIRExprID
         ) -> SequenceRuntimeRepresentation {
