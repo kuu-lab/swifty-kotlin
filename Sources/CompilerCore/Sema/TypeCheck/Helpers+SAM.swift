@@ -1,8 +1,3 @@
-/// A single abstract-member requirement a `fun interface` still owes, seen
-/// from the interface itself. Members sharing a name, kind and substituted
-/// signature form one requirement — an inherited abstract override and the
-/// base declaration it re-abstracts count once, as does the same signature
-/// arriving through a diamond (KUU-4360).
 private struct SamRequirementKey: Hashable {
     let name: InternedString
     let kind: SymbolKind
@@ -28,10 +23,6 @@ extension TypeCheckHelpers {
         return sema.symbols.functionSignature(for: method)
     }
 
-    /// The single abstract function a `fun interface` effectively requires,
-    /// counting abstract functions inherited from super-interfaces (unless the
-    /// interface overrides or implements them). Returns `nil` unless exactly one
-    /// such function exists. Abstract properties make the interface non-SAM.
     func effectiveSamAbstractMethod(
         for interfaceSymbol: SymbolID,
         symbols: SymbolTable,
@@ -49,8 +40,6 @@ extension TypeCheckHelpers {
             } else if let key = samRequirementKey(
                 for: childID, interface: interfaceSymbol, symbols: symbols, types: types
             ) {
-                // A concrete own member leaves no remaining abstract
-                // requirement for the same signature (KUU-4360).
                 coveredKeys.insert(key)
             }
         }
@@ -153,8 +142,6 @@ extension TypeCheckHelpers {
         )
     }
 
-    /// Receiver-bearing SAMs expose their extension receiver in the function view
-    /// used to type-check both lambda literals and callable references.
     func samCallableReferenceFunctionType(
         for expectedType: TypeID,
         sema: SemaModule
