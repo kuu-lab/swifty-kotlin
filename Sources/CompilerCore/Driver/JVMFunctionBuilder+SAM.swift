@@ -1,5 +1,3 @@
-/// Unwinds only the current value evaluation after a source return/throw.
-/// The enclosing expression then propagates its already-emitted terminator.
 struct JVMTerminatedExpression: Error {}
 
 extension JVMFunctionBuilder {
@@ -23,15 +21,11 @@ extension JVMFunctionBuilder {
         }
         if !terminated, let logicalType = program.sema.bindings.exprType(for: id),
            case .nothing(.nonNull) = program.sema.types.kind(of: logicalType) {
-            // A Nothing-valued call has no normal source edge, even when its
-            // Void descriptor or an inline join appears to return a value.
             let unreachable = try constructJDK("kotlin/KotlinNothingValueException", parameters: [], arguments: [])
             instructions.append(.throwValue(unreachable)); terminated = true
             return nil
         }
         if result == nil, !discarded, !terminated, (try? program.expressionType(id)) == .unit {
-            // A void-producing Unit expression still has a value when its
-            // surrounding expression expects an object, such as a lambda result.
             program.functionArities.insert(0)
             let unit: JVMValueType = .reference("kotlin/Unit", nullable: false)
             let boxed = try value(unit)
@@ -63,8 +57,6 @@ extension JVMFunctionBuilder {
         let nullableResult = type.isNullable && function.type.isNullable ? try value(type) : nil
         let nullCase = label(), end = label()
         if nullableResult != nil {
-            // A null function converts to a null nullable SAM, without
-            // constructing an adapter or asserting that the function exists.
             let null = try constant(.null, .reference("java/lang/Object", nullable: true)), present = try value(.boolean)
             instructions.append(.referenceCompare(.notEqual, function, null, present))
             instructions.append(.jumpIfFalse(present, nullCase))
@@ -100,8 +92,6 @@ extension JVMProgramBuilder {
         func value(_ type: JVMValueType) -> JVMValue { let v = JVMValue(slot: slot, type: type); slot += type.width; locals.append(v); return v }
         let function = value(callableType)
         var code: [JVMInstruction] = [.getField(field, selfValue, function)], args: [JVMValue] = []
-        // A non-suspending function value completes synchronously and ignores
-        // the SAM's continuation. Its erased return already follows Result ABI.
         for parameter in parameters.prefix(arity) { let boxed = value(object); code.append(.copy(parameter, boxed)); args.append(boxed) }
         let raw = value(object)
         let invoke = JVMForeignMethod(owner: callableType.referenceName!, name: "invoke", descriptor: "(" + Array(repeating: object.descriptor, count: args.count).joined() + ")" + object.descriptor, parameters: Array(repeating: object, count: args.count), result: object, isStatic: false, isInterface: true, isAbstract: true)
