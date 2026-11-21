@@ -34,7 +34,6 @@ extension DataFlowSemaPhase {
         let companionDeclID: DeclID?
         switch decl {
         case let .classDecl(classDecl):
-            // Aliases and forward signatures need variance before full headers.
             types.setNominalTypeParameterVariances(classDecl.typeParams.map(\.variance), for: ownerSymbol)
             nestedDecls = classDecl.nestedClasses + classDecl.nestedObjects
             companionDeclID = classDecl.companionObject
@@ -198,7 +197,6 @@ extension DataFlowSemaPhase {
                 memberFlags.insert(.abstractType)
             }
 
-            // STDLIB-CLASS-010: Abstract functions cannot have a body
             if funDecl.modifiers.contains(.abstract) && funDecl.body != .unit {
                 diagnostics.error(
                     "KSWIFTK-SEMA-ABSTRACT",
@@ -287,8 +285,6 @@ extension DataFlowSemaPhase {
                 imports: sourceImports
             )
 
-            // Merge class type parameters with function's own type parameters.
-            // Function params shadow class params if names collide.
             var mergedLocalTypeParameters = classLocalTypeParameters
             for (key, value) in typeParamResult.localTypeParameters {
                 mergedLocalTypeParameters[key] = value
@@ -389,8 +385,6 @@ extension DataFlowSemaPhase {
                 callableReturnType = returnType
             }
 
-            // Include class type parameter symbols so the overload resolver can
-            // infer them from the receiver type arguments.
             let allTypeParameterSymbols = classTypeParameterSymbols + typeParamResult.typeParameterSymbols
             let classUpperBounds: [[TypeID]] = classTypeParameterSymbols.map {
                 symbols.typeParameterUpperBounds(for: $0)
@@ -398,8 +392,6 @@ extension DataFlowSemaPhase {
             let memberUpperBounds: [[TypeID]] = classUpperBounds + typeParamResult.typeParameterSymbols.map {
                 symbols.typeParameterUpperBounds(for: $0)
             }
-            // Offset reified indices by the number of prepended class type params
-            // so they still point at the correct function-own type parameters.
             let classTPCount = classTypeParameterSymbols.count
             let offsetReifiedIndices: Set<Int> = classTPCount == 0
                 ? typeParamResult.reifiedIndices
@@ -516,7 +508,6 @@ extension DataFlowSemaPhase {
                 ownerCanDeclareAbstractMembers = false
             }
 
-            // STDLIB-CLASS-010: Abstract properties cannot have initializers
             if propertyDecl.modifiers.contains(.abstract),
                let initializer = propertyDecl.initializer,
                ownerCanDeclareAbstractMembers
@@ -528,7 +519,6 @@ extension DataFlowSemaPhase {
                 )
             }
 
-            // STDLIB-CLASS-010: Abstract properties cannot have explicit backing fields
             if propertyDecl.modifiers.contains(.abstract),
                propertyDecl.explicitBackingField != nil,
                ownerCanDeclareAbstractMembers
@@ -540,7 +530,6 @@ extension DataFlowSemaPhase {
                 )
             }
 
-            // STDLIB-CLASS-010: Abstract properties cannot have delegate expressions
             if propertyDecl.modifiers.contains(.abstract),
                let delegate = propertyDecl.delegateExpression,
                ownerCanDeclareAbstractMembers
@@ -566,8 +555,6 @@ extension DataFlowSemaPhase {
                 let hasCustomAccessor = propertyDecl.getter != nil || propertyDecl.setter != nil
                 let hasInitializer = propertyDecl.initializer != nil
                 let hasDelegate = propertyDecl.delegateExpression != nil
-                // An explicitly abstract member reports the abstract-content
-                // errors instead, which already cover the forbidden state.
                 if hasInitializer, !propertyDecl.modifiers.contains(.abstract) {
                     diagnostics.error(
                         "KSWIFTK-SEMA-0303",
@@ -624,7 +611,6 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(ownerSymbol, for: memberSymbol)
             scope.insert(memberSymbol)
 
-            // STDLIB-CLASS-010: Abstract properties cannot have getter/setter bodies
             if propertyDecl.modifiers.contains(.abstract), ownerCanDeclareAbstractMembers {
                 if let getter = propertyDecl.getter, getter.body != .unit {
                     diagnostics.error(
@@ -681,7 +667,6 @@ extension DataFlowSemaPhase {
                constructor.valueParameterIsVararg[index], constructor.parameterTypes.indices.contains(index),
                let array = primitiveVarargArrayType(elementType: constructor.parameterTypes[index],
                                                    symbols: symbols, types: types, interner: interner) {
-                // Resolve aliases and shadowed primitive names before choosing the array class.
                 resolvedType = array
             }
             symbols.setPropertyType(resolvedType, for: memberSymbol)
@@ -720,11 +705,6 @@ extension DataFlowSemaPhase {
                 fallbackType: types.anyType
             )
 
-            // Kotlin permits extension properties inside a companion object,
-            // such as `val Int.seconds` in `Duration.Companion`. Keep these
-            // declarations in the owner scope, but model their receiver and
-            // synthetic accessors exactly like top-level extension properties
-            // so imports and member-style reads use the normal resolver path.
             if let receiverType = resolveTypeRef(
                 propertyDecl.receiverType,
                 ast: ast,
@@ -875,15 +855,6 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
 
-            // Materialize a backing field symbol for properties with custom accessors
-            // (Kotlin `field` identifier in getter/setter bodies) or explicit
-            // backing field declarations (Kotlin 2.0 `field = expr`).
-            // Simple properties with only an initializer don't need a separate
-            // backing field — the property symbol IS the storage.
-            // Getter-only computed properties (`val x: Int get() = expr`) do
-            // not need storage unless the getter reads Kotlin's special
-            // `field` identifier.
-            // STDLIB-CLASS-010: Abstract properties cannot have backing fields.
             // Interfaces never need a backing field either — properties in an
             // interface have no instance state of their own (KIR lowering
             // suppresses storage emission for them; keep the symbol table
@@ -916,8 +887,6 @@ extension DataFlowSemaPhase {
                     flags: propertyDecl.isVar ? [.mutable] : []
                 )
                 symbols.setParentSymbol(ownerSymbol, for: backingFieldSymbol)
-                // When an explicit backing field declares its own type, use that
-                // type for the backing field symbol instead of the property type.
                 let backingFieldType: TypeID
                 if let explicitField = propertyDecl.explicitBackingField,
                    let explicitType = explicitField.type
@@ -943,10 +912,6 @@ extension DataFlowSemaPhase {
                 symbols.setBackingFieldSymbol(backingFieldSymbol, for: memberSymbol)
             }
 
-            // Create a delegate storage symbol for properties with `by` delegation.
-            // This symbol tracks the delegate instance so that KIR lowering can
-            // synthesise getValue/setValue accessor calls.
-            // STDLIB-CLASS-010: Abstract properties cannot have delegate expressions
             if propertyDecl.delegateExpression != nil && !propertyDecl.modifiers.contains(.abstract) {
                 let extensionSuffix = propertyDecl.receiverType == nil ? "" : "_extension_\(memberSymbol.rawValue)"
                 let delegateStorageName = interner.intern(
@@ -1775,10 +1740,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Returns a synthetic member function placeholder with the same fully-qualified
-    /// name and parent, so bundled source declarations can claim pre-registered
-    /// methods instead of creating a duplicate symbol.
-    ///
     /// Reuse is restricted to bundled stdlib sources to avoid accidentally
     /// overwriting user-declared symbols. The placeholder's value-parameter count
     /// and visibility must also match the source declaration so the bundled
@@ -1812,8 +1773,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Returns a synthetic property placeholder with the same fully-qualified name
-    /// and parent, so bundled source declarations can claim runtime-backed properties.
     private func reusableSyntheticMemberPropertySymbol(
         fqName: [InternedString],
         ownerSymbol: SymbolID,
