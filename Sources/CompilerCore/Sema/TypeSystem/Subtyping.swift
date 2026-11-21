@@ -7,8 +7,6 @@ extension TypeSystem {
             return true
         }
 
-        // A captured parameter is readable through its upper bound and accepts
-        // only values below its lower bound. It is never equal to either bound.
         if case let .typeParam(left) = lhs, case let .typeParam(right) = rhs,
            let capture = left.capture,
            let rightCapture = right.capture,
@@ -78,7 +76,6 @@ extension TypeSystem {
             return true
         }
         if case .any(.platformType) = rhs {
-            // Any! accepts all types (platform type has unknown nullability)
             return true
         }
         if case .any(.nonNull) = rhs {
@@ -104,8 +101,6 @@ extension TypeSystem {
             }
         }
 
-        // Treat Kotlin String as a subtype of kotlin.CharSequence so that
-        // the synthetic CharSequence overloads can reuse the String runtime ABI.
         if case let .stringStruct(lhsNullability) = lhs,
            case let .classType(rhsClass) = rhs,
            let charSequenceSym = charSequenceInterfaceSymbol,
@@ -114,9 +109,6 @@ extension TypeSystem {
             return nullabilitySubtype(lhsNullability, rhsClass.nullability)
         }
 
-        // On the JVM, boxed Kotlin primitives and String implement
-        // java.io.Serializable even though their canonical Sema types are
-        // unboxed value representations rather than nominal classes.
         if case let .classType(rhsClass) = rhs,
            let serializableSymbol = serializableInterfaceSymbol,
            rhsClass.classSymbol == serializableSymbol
@@ -136,10 +128,6 @@ extension TypeSystem {
             }
         }
 
-        // STDLIB-030-BUG-01: A type parameter T is a subtype of its upper bounds.
-        // This allows `T : AutoCloseable` (which stores `Closeable` as its bound after
-        // typealias expansion) to satisfy `T <: Closeable` in the constraint solver and
-        // member-lookup paths.
         if case let .typeParam(typeParam) = lhs {
             let upperBounds = declaredUpperBounds(for: typeParam.symbol)
             if !upperBounds.isEmpty {
@@ -160,16 +148,8 @@ extension TypeSystem {
                     return true
                 }
             }
-            // We do not return false here, as it might be a subtype through normal inheritance
-            // if Annotation was explicitly added to supertypes.
         }
 
-        // primitive / String <: Comparable<Self>, and both satisfy
-        // Comparable<*>: all Kotlin primitive types (Int, Long, Double, Float,
-        // Char, Boolean, etc.) implement Comparable<Self>, and String is an
-        // aggregate value in the compiler but remains a source-level
-        // kotlin.String implementing Comparable<String>. A star projection
-        // erases the type argument, so every Comparable<Self> type satisfies it.
         if case let .classType(rightClass) = rhs,
            let comparableSym = comparableInterfaceSymbol,
            rightClass.classSymbol == comparableSym,
@@ -180,8 +160,6 @@ extension TypeSystem {
                 guard nullabilitySubtype(leftNullability, rightClass.nullability) else { break }
                 switch rightClass.args[0] {
                 case let .in(argType), let .invariant(argType):
-                    // Nullable values still implement Comparable of non-null Self.
-                    // Outer nullability was checked above; retain argument nullability.
                     return argType == makeNonNullable(subtype)
                 case .star:
                     return true
@@ -224,8 +202,6 @@ extension TypeSystem {
             guard nullabilitySubtype(leftClass.nullability, rightClass.nullability) else {
                 return false
             }
-            // Matching expect/actual declarations have distinct symbols, but
-            // their class types represent the same nominal Kotlin type.
             let isLinkedExpectActualPair = areLinkedExpectActualClassSymbols(
                 leftClass.classSymbol,
                 rightClass.classSymbol
@@ -255,8 +231,6 @@ extension TypeSystem {
             if leftArguments.count != rightArguments.count {
                 return false
             }
-            // Star and in-projected KClass types still read through the Any
-            // upper bound, including synthetic declarations without bound metadata.
             if leftClass.classSymbol == kClassInterfaceSymbol,
                leftClass.args.count == 1,
                {
@@ -296,9 +270,6 @@ extension TypeSystem {
                         in: bounds.isEmpty ? nullableAnyType : make(.intersection(bounds)),
                         substitution: substitution, typeVarBySymbol: variables
                     )
-                    // Recursive stars and in-projected dependencies need a
-                    // captured type; an in projection supplies only a lower
-                    // bound. Keep the conservative path for these cases.
                     if declarationVariances.indices.contains(index), declarationVariances[index] == .in
                         || OverloadResolver().containsTypeVariable(upperBound, typeVarBySymbol: unresolvedStars, typeSystem: self)
                     {
@@ -328,10 +299,6 @@ extension TypeSystem {
             if rightFunction.isCallableReference && !leftFunction.isCallableReference {
                 return false
             }
-            // Kotlin treats context receivers and a receiver as leading
-            // function parameters: `context(C) (A) -> B` is the same
-            // `(C, A) -> B` shape at the type level (KUU-3175 — a callable
-            // reference must adapt across the two spellings).
             let leftParams = leftFunction.contextReceivers
                 + (leftFunction.receiver.map { [$0] } ?? []) + leftFunction.params
             let rightParams = rightFunction.contextReceivers
@@ -348,9 +315,6 @@ extension TypeSystem {
             for (leftParam, rightParam) in zip(leftParams, rightParams) where !isSubtype(rightParam, leftParam) {
                 return false
             }
-            // Lambda bodies and direct callable references apply Unit coercion
-            // while being checked against their expected type. A function value
-            // with another return type is not itself a subtype of a Unit function.
             return isSubtype(leftFunction.returnType, rightFunction.returnType)
 
         case let (.functionType(leftFunction), .classType(rightClass)):
@@ -372,14 +336,8 @@ extension TypeSystem {
                 ), isSubtype(makeNonNullable(make(.classType(rightClass))), reflectiveType),
                    functionTypeSubtypeOfFunctionN(leftFunction, inheritedFunction)
                 {
-                    // KFunctionN interfaces expose both the reflective KFunction
-                    // contract and their matching FunctionN invocation shape.
                     return true
                 }
-                // KSuspendFunctionN mirrors that pairing for suspend callable
-                // references (KUU-3841): the declared SuspendFunctionN
-                // supertype carries the matching invocation shape while the
-                // KFunction<R> supertype keeps the reference reflective.
                 if leftFunction.isSuspend,
                    let inheritedSuspendFunction = inheritedFunctionInterfaceClassType(
                        of: rightClass,
@@ -391,7 +349,6 @@ extension TypeSystem {
                     return true
                 }
             }
-            // Only callable references implement the reflective KFunction interface.
             guard rightClass.classSymbol == functionInterfaceSymbol
                 || (leftFunction.isCallableReference
                     && (rightClass.classSymbol == kFunctionInterfaceSymbol
@@ -402,7 +359,6 @@ extension TypeSystem {
             guard nullabilitySubtype(leftFunction.nullability, rightClass.nullability) else {
                 return false
             }
-            // KFunction<R> has one type arg (the return type).
             if rightClass.args.isEmpty { return true }
             guard rightClass.args.count == 1 else { return false }
             let returnArg = rightClass.args[0]
@@ -417,15 +373,9 @@ extension TypeSystem {
             guard nullabilitySubtype(leftClass.nullability, rightFunction.nullability) else {
                 return false
             }
-            // KUU-1084: `FunctionN<P1..PN, R>` IS `(P1..PN) -> R` in Kotlin —
-            // the nominal form is a subtype of the equivalent function type.
             if functionInterfaceArity(of: leftClass.classSymbol, isSuspend: rightFunction.isSuspend) != nil {
                 return functionNSubtypeOfFunctionType(leftClass, rightFunction)
             }
-            // KUU-1195: a nominal type that reaches a function interface
-            // through inheritance (e.g. KProperty0/1/2 or a fun interface
-            // extending a function type) is also a subtype of that function
-            // type when the suspend modifier and arity match.
             if let liftedFunctionInterface = inheritedFunctionInterfaceClassType(
                 of: leftClass,
                 arity: rightFunction.contextReceivers.count
@@ -488,7 +438,6 @@ extension TypeSystem {
         case let (.any(leftNullability), .any(rightNullability)):
             return nullabilitySubtype(leftNullability, rightNullability)
 
-        // Kotlin declares KClass<T : Any> with an invariant type parameter.
         case let (.kClassType(leftKClass), .kClassType(rightKClass)):
             guard nullabilitySubtype(leftKClass.nullability, rightKClass.nullability) else {
                 return false
@@ -587,27 +536,17 @@ extension TypeSystem {
             guard case .typeParam = kind(of: candidate) else { return false }
             return filtered.allSatisfy { isSubtype($0, candidate) }
         }) {
-            // Preserve a declared common supertype such as `R` when a
-            // self-type extension combines it with a bounded receiver `C`, or
-            // when `T & Any` is joined with the original type parameter `T`.
             commonTypeParameter
         } else if let kClassLub = lubKClassTypes(filtered) {
             kClassLub
         } else {
-            // Separate the nullability dimension from the underlying type:
-            // compute the LUB over the non-null projections and re-apply
-            // nullability when any input was nullable. This keeps
-            // `lub(T, T?) == T?` instead of widening all the way to `Any?`.
             lubReapplyingNullability(filtered, retainingCommonIntersection: retainingCommonIntersection)
         }
         if hasNullableNothing {
             let nullable = makeNullable(result)
-            // makeNullable returns the same ID for two reasons:
-            // (a) the type is already nullable (e.g. Int?) — keep it as-is
-            // (b) makeNullable is a genuine no-op (e.g. an intersection) — fall back to Any?
             if nullable == result {
                 if isSubtype(nullableNothingType, result) {
-                    return result // already nullable, Nothing? <: result
+                    return result
                 }
                 return nullableAnyType
             }
@@ -616,13 +555,6 @@ extension TypeSystem {
         return result
     }
 
-    /// Generic inference retains incomparable common nominal bounds as an
-    /// intersection, declared shared type-parameter upper bounds, and the
-    /// platform-neutral `Comparable<*>` bound for mixed comparable primitives.
-    /// Ordinary expression LUBs keep their existing nominal approximation.
-    /// `integerLiterals` carries the integer-literal provenance the constraint
-    /// recorder preserved per lower-bound TypeID, so an all-integer join can
-    /// distinguish literal-adoptable bounds from declared ones (KUU-4160).
     func inferenceLubRetainingSharedSupertypes(
         _ types: [TypeID],
         integerLiterals: [TypeID: IntegerLiteralProvenance] = [:]
@@ -708,9 +640,6 @@ extension TypeSystem {
         return make(.intersection([fallback, comparable]))
     }
 
-    /// A platform builtin — a Kotlin primitive or `String` — whose implicit
-    /// `Comparable`/`Serializable` supertypes let kotlinc infer a
-    /// multi-conjunct intersection from a heterogeneous join.
     private func isPlatformBuiltinJoinInput(_ type: TypeID) -> Bool {
         switch kind(of: makeNonNullable(type)) {
         case .primitive, .stringStruct:
@@ -720,16 +649,6 @@ extension TypeSystem {
         }
     }
 
-    /// An integer-family primitive. Pure integer joins are exempted from the
-    /// intersection marker: unsuffixed integer literals adopt the widest
-    /// member (`1` fits `Long` inside `arrayOf(1, 2L)`) and kotlinc's
-    /// common-supertype computation also unifies any mix that involves an
-    /// unsigned type (`UByte` + `Int`, `Int` + `ULong`), because the unsigned
-    /// types share only the single `Comparable<*>` bound. This type system
-    /// erases integer literal types to concrete primitives before constraint
-    /// solving, so `integerLiterals` carries the provenance needed to tell
-    /// literal-driven joins apart from the declared signed mixes kotlinc
-    /// rejects (`Int` + `Long`, `Byte` + `Short`, `Short` + `Int`).
     private func isIntegerFamilyJoinInput(_ type: TypeID) -> Bool {
         guard case let .primitive(primitive, _) = kind(of: makeNonNullable(type)) else {
             return false
@@ -801,7 +720,6 @@ extension TypeSystem {
             return nil
         }
 
-        // No declared input: only literal-driven joins reach here.
         var hasSignedLiteral = false
         var hasUnsignedLiteral = false
         for (_, provenance) in literalInputs {
@@ -819,8 +737,6 @@ extension TypeSystem {
         return nil
     }
 
-    /// The integer types an unsuffixed literal may adopt under the JVM's
-    /// integer-literal-type rules, narrowed by its value range.
     private func integerLiteralPossiblePrimitives(
         _ provenance: IntegerLiteralProvenance
     ) -> [PrimitiveType] {
@@ -859,8 +775,6 @@ extension TypeSystem {
         }
     }
 
-    /// The `Number & Comparable<*>` intersection kotlinc infers for a join of
-    /// distinct declared signed integer types (KT-72035).
     private func integerJoinIntersection(for filtered: [TypeID]) -> TypeID? {
         let resultNullability: Nullability = filtered.contains {
             nullability(of: $0) == .nullable
@@ -890,8 +804,6 @@ extension TypeSystem {
         var pending = types
         var visitedParameters: Set<SymbolID> = []
         while let input = pending.popLast() {
-            // `T & Any` (the non-null narrowing of `T`) contributes `T`'s
-            // bounds to the shared-bound walk.
             guard let parameter = typeParamPart(of: input) else { continue }
             if let capture = parameter.capture {
                 if !candidates.contains(capture.upper) {
@@ -914,8 +826,6 @@ extension TypeSystem {
 
         let commonBounds = candidates.filter { candidate in
             types.allSatisfy { input in
-                // `T & Any` only satisfies a candidate through `T`'s bounds —
-                // its `Any` conjunct is a non-null marker, not a real bound.
                 let subtypeCheck = if case .intersection = kind(of: input) {
                     isNonNullLubSubtype(input, candidate, visitedParameters: [])
                 } else {
@@ -934,8 +844,6 @@ extension TypeSystem {
         }
         guard !commonBounds.isEmpty else { return nil }
 
-        // Keep only the most specific shared bounds. An intersection retains
-        // every independent common constraint while remaining a valid LUB.
         var mostSpecific: [TypeID] = []
         for candidate in commonBounds {
             if mostSpecific.contains(where: { isSubtype($0, candidate) }) {
@@ -959,8 +867,6 @@ extension TypeSystem {
         }
         let hasNullableNothing = types.contains { kind(of: $0) == .nothing(.nullable) }
         if types.contains(where: { if case .nothing = kind(of: $0) { return true }; return false }) {
-            // Only return Nothing? if it is a valid lower bound (subtype of all inputs).
-            // glb([Nothing?, Int]) → Nothing (non-null), since Nothing? is NOT <: Int.
             if hasNullableNothing, types.allSatisfy({ isSubtype(nullableNothingType, $0) }) {
                 return nullableNothingType
             }
@@ -1148,18 +1054,12 @@ extension TypeSystem {
             base = anyType
         }
         guard anyNullable else { return base }
-        // The common bound being itself a null-capable type parameter (e.g.
-        // `K, V : R` with unbounded `R`) already covers null — keep it as-is.
         if !anyMarkedNullable, isNullableCapableTypeParameter(base, visitedParameters: []) {
             return base
         }
         return makeNullable(base)
     }
 
-    /// True when a `.typeParam` may hold `null`: a parameter written without
-    /// `?` is still nullable-capable unless an upper bound is definitely
-    /// non-null, since its implicit upper bound is `Any?`. `T : Any` (or any
-    /// non-null bound, transitively) makes the parameter non-null again.
     private func isNullableCapableTypeParameter(
         _ type: TypeID,
         visitedParameters: Set<SymbolID>
@@ -1171,8 +1071,6 @@ extension TypeSystem {
             bounds = [capture.upper]
         } else {
             guard !visitedParameters.contains(parameter.symbol) else {
-                // A cyclic bound bottoms out: the implicit upper bound is
-                // `Any?`, so assume the parameter can hold null.
                 return true
             }
             bounds = declaredUpperBounds(for: parameter.symbol)
@@ -1188,12 +1086,6 @@ extension TypeSystem {
         }
     }
 
-    /// Whether a value of `type` may hold `null` for unsafe-invocation
-    /// checks: a nullable marker outright, or a type parameter whose bounds
-    /// leave it nullable-capable — `c: F` where `F : ((T) -> R)?` cannot be
-    /// invoked as `c(t)`/`c.invoke(t)` without `?.`/`!!` (KUU-4138). `!!`,
-    /// safe calls, and smart casts present the callee already stripped or
-    /// proven through flow facts, so this only sees the declared shape.
     func canHoldNull(_ type: TypeID) -> Bool {
         if case .typeParam = kind(of: type) {
             return isNullableCapableTypeParameter(type, visitedParameters: [])
@@ -1201,9 +1093,6 @@ extension TypeSystem {
         return nullability(of: type) == .nullable
     }
 
-    /// The type parameter carried by `type`, looking through the `T & Any`
-    /// intersection produced by definitely-non-null narrowing (`?:`,
-    /// `x != null`). The parameter's declared bounds still drive the join.
     private func typeParamPart(of type: TypeID) -> TypeParamType? {
         switch kind(of: type) {
         case let .typeParam(parameter):
@@ -1220,30 +1109,6 @@ extension TypeSystem {
         }
     }
 
-    /// Finds a supertype of every element of `types` that is more specific
-    /// than `Any`, without a full generic-hierarchy walk (the special-cased
-    /// `isSubtype` rules for primitives don't expose a generic "supertypes
-    /// of" query). Covers three shapes seen in practice:
-    ///
-    /// - One input is already a common supertype of the rest, e.g.
-    ///   `lub(Int, Number) == Number`, even when `Number` only appears as
-    ///   the *upper* bound context and never lands in this lower-bound pool
-    ///   by itself (unlike the narrower, `.typeParam`-only check in `lub()`,
-    ///   this accepts a dominating candidate of any kind).
-    /// - All inputs are numeric primitives (`Int`, `Long`, `Float`,
-    ///   `Double`, `Byte`, `Short`), whose only common ancestor besides
-    ///   `Any` is `kotlin.Number` — e.g. `lub(Int, Long) == Number`, matching
-    ///   kotlinc (`pick(1, 2L)` assigned to a `Number`-typed val).
-    /// - All inputs are user/library class types whose nominal supertype
-    ///   graphs share a class or interface other than `Any`, e.g.
-    ///   `lub(X, Y) == I` for `class X : I` / `class Y : I`
-    ///   (see `nearestCommonNominalSupertype`).
-    /// - A type-parameter input declares a bound shared by every input, e.g.
-    ///   `lub(T, Int) == Number` for `T : Number?` after taking the non-null
-    ///   projections used by Elvis.
-    ///
-    /// Returns `nil` when none of the shapes apply, leaving the caller to fall
-    /// back to `Any`.
     private func nearestCommonSupertype(
         _ types: [TypeID],
         retainingCommonIntersection: Bool = false
@@ -1271,8 +1136,6 @@ extension TypeSystem {
         return nearestCommonNominalSupertype(types, retainingCommonIntersection: retainingCommonIntersection)
     }
 
-    /// `nearestCommonSupertype` only receives non-null projections, so each
-    /// bound is narrowed to its non-null view.
     private func nearestCommonTypeParameterUpperBound(_ types: [TypeID]) -> TypeID? {
         guard types.count > 1 else { return nil }
 
@@ -1280,7 +1143,6 @@ extension TypeSystem {
         var pending = types
         var visitedParameters: Set<SymbolID> = []
         while let input = pending.popLast() {
-            // `T & Any` contributes `T`'s bounds: it is `T`'s non-null view.
             guard let parameter = typeParamPart(of: input) else {
                 continue
             }
@@ -1328,8 +1190,6 @@ extension TypeSystem {
         return make(.intersection(mostSpecific))
     }
 
-    /// Checks a non-null LUB projection through declared type-parameter bounds
-    /// without changing ordinary subtype rules for nullable receivers.
     private func isNonNullLubSubtype(
         _ subtype: TypeID,
         _ supertype: TypeID,
@@ -1349,10 +1209,6 @@ extension TypeSystem {
                 : rest.isEmpty ? nothingType
                 : make(.intersection(rest))
         }
-        // `A & B <: X` holds when any conjunct does. Parameter conjuncts go
-        // through this function — not `isSubtype` — so their declared bounds
-        // are walked with the visited set that keeps cyclic bounds
-        // (`T : U, U : T`) terminating.
         if case let .intersection(parts) = kind(of: effectiveSubtype) {
             return parts.contains {
                 isNonNullLubSubtype($0, supertype, visitedParameters: visitedParameters)
@@ -1383,8 +1239,6 @@ extension TypeSystem {
         }
     }
 
-    /// Function inputs are contravariant, so their common type is a greatest
-    /// lower bound; function results are covariant and use LUB.
     private func commonFunctionSupertype(
         _ types: [TypeID],
         retainingCommonIntersection: Bool
@@ -1421,9 +1275,6 @@ extension TypeSystem {
         )
         let common = make(.functionType(FunctionType(
             contextReceivers: contextReceivers,
-            // A function receiver is its leading invocation parameter. Use a
-            // regular function shape so mixed receiver and parameter forms
-            // share the same callable supertype and invocation lowering.
             receiver: nil,
             params: commonParams,
             returnType: returnType,
@@ -1445,21 +1296,6 @@ extension TypeSystem {
         return make(.intersection(uniqueTypes))
     }
 
-    /// Finds the most specific nominal supertype (other than `Any`) shared by
-    /// every non-null class type in `types`.
-    ///
-    /// Candidates are the ancestors of the first input, visited breadth-first
-    /// over `directNominalSupertypes` (an explicit worklist with a visited set,
-    /// so a cyclic or attacker-shaped `.kklib` supertype graph cannot recurse
-    /// or loop -- see KUU-809). Each candidate is instantiated with the type
-    /// arguments the first input lifts to (`liftedNominalSupertypeArgs`) and is
-    /// kept only if *every* input is a subtype of that instantiation, which
-    /// rejects generic mismatches such as `Comparable<X>` vs `Comparable<Y>`.
-    ///
-    /// Kotlin infers an intersection type when several incomparable candidates
-    /// remain (e.g. two classes implementing both `I` and `J`). Ordinary
-    /// expression LUBs continue to approximate with one candidate; generic
-    /// inference retains all candidates through `inferenceLubRetainingSharedSupertypes`.
     private func nearestCommonNominalSupertype(
         _ types: [TypeID],
         retainingCommonIntersection: Bool = false
@@ -1475,10 +1311,6 @@ extension TypeSystem {
         return mostSpecific.first(where: { !isInterface($0) }) ?? mostSpecific.first
     }
 
-    /// Returns every incomparable most-specific nominal supertype shared by
-    /// the inputs. `nil` means the inputs are outside this nominal class walk;
-    /// an empty array means the inputs are nominal but have no shared ancestor
-    /// other than `Any`.
     private func nearestCommonNominalSupertypes(_ types: [TypeID]) -> [TypeID]? {
         guard types.count > 1 else { return nil }
         var classTypes: [ClassType] = []
@@ -1525,8 +1357,6 @@ extension TypeSystem {
         return mostSpecific
     }
 
-    /// Returns `nil` for non-class inputs, incompatible args, or ambiguity —
-    /// the caller then uses the nearest-common-ancestor approximation.
     private func commonNominalSupertype(_ types: [TypeID]) -> TypeID? {
         var ancestorSets: [Set<SymbolID>] = []
         for input in types {
@@ -1558,8 +1388,6 @@ extension TypeSystem {
                     continue
                 }
                 argumentLists.append(lifted)
-                // A later branch may provide the common instantiation:
-                // Result<R> accepts both Success<R> and Failure : Result<Nothing>.
                 let candidate = make(.classType(self.classType(
                     for: ancestor, arguments: lifted, nullability: .nonNull
                 )))
@@ -1568,8 +1396,6 @@ extension TypeSystem {
                     hasExistingCandidate = true
                 }
             }
-            // Retain existing instantiations (including Nothing-based branches)
-            // before synthesizing a wider covariant argument.
             if !hasExistingCandidate, argumentLists.count == types.count,
                let combined = combinedCovariantNominalSupertype(
                    ancestor, argumentLists: argumentLists, inputs: types
@@ -1592,9 +1418,6 @@ extension TypeSystem {
         else { return nil }
 
         let inputSet = Set(inputs)
-        // Recursive supertypes may repeat the same inputs or grow their type
-        // arguments at each step. Bound the additional recursion from argument
-        // synthesis; at the limit, use the existing sound Any approximation.
         guard activeNominalLUBInputs.count < Self.maxNominalLUBDepth,
               activeNominalLUBInputs.insert(inputSet).inserted
         else { return nil }
@@ -1614,9 +1437,6 @@ extension TypeSystem {
             var upperBounds: [TypeID] = []
             for argument in arguments {
                 if isArray {
-                    // Kotlin's invariant Array still has an out-projected LUB:
-                    // reading through Array<out X> is safe and keeps Array's
-                    // indexed and iterable members available.
                     switch argument {
                     case let .invariant(bound), let .out(bound):
                         upperBounds.append(bound)
@@ -1624,9 +1444,6 @@ extension TypeSystem {
                         return nil
                     }
                 } else {
-                    // Invariant and `out` arguments both contribute their
-                    // bound to the covariant join: `KS<Any?>` joined with
-                    // `KS<out Any>` on an invariant `KS<T>` is `KS<out Any?>`.
                     let declarationVariance = variances.indices.contains(index)
                         ? variances[index]
                         : .invariant
@@ -1676,16 +1493,6 @@ extension TypeSystem {
         return nil
     }
 
-    /// The unique structural function type carried by `type`: the type itself
-    /// when it is a function type, or the single `.functionType` conjunct of a
-    /// smart-cast intersection such as `(Boolean) -> Any & KFunction<*>`
-    /// (KUU-3652). A type parameter exposes the function types of its upper
-    /// bounds — `c(t)` on `c: F` with `F : (T) -> R` invokes the bound's
-    /// signature, so a single function-typed bound counts as the unique
-    /// conjunct (KUU-4087). Nested intersection conjuncts are flattened; a
-    /// nullable conjunct reads as non-null because the intersection itself
-    /// proves the value non-null. Returns nil when no conjunct — or more than
-    /// one distinct conjunct — is a function type.
     func uniqueStructuralFunctionType(for type: TypeID) -> FunctionType? {
         var visitedTypeParameters: Set<SymbolID> = []
         return uniqueStructuralFunctionType(for: type, visitedTypeParameters: &visitedTypeParameters)
@@ -1763,11 +1570,6 @@ extension TypeSystem {
         {
             return nominalFunctionType(for: classType, arity: arity, isSuspend: isSuspend)
         }
-        // KFunctionN declares both KFunction<R> and FunctionN<P..., R> as
-        // direct supertypes; KSuspendFunctionN declares KFunction<R> and
-        // SuspendFunctionN<P..., R> instead (KUU-3841). Keep the callable view
-        // for those reflective types without walking unrelated nominal type
-        // hierarchies on every lookup.
         let directSupertypes = directNominalSupertypes(for: classType.classSymbol)
         guard let kFunctionInterfaceSymbol,
               directSupertypes.contains(kFunctionInterfaceSymbol)
@@ -1822,9 +1624,6 @@ extension TypeSystem {
         )
     }
 
-    /// The supertype walk mirrors `isNominalSubtypeSymbol`: an explicit
-    /// worklist with a visited set so a cyclic `.kklib` supertype graph cannot
-    /// loop.
     func inheritedFunctionInterfaceClassType(
         of classType: ClassType,
         arity: Int,
@@ -1877,8 +1676,6 @@ extension TypeSystem {
             case let .invariant(type), let .in(type):
                 guard isSubtype(type, param) else { return false }
             case let .out(type):
-                // `out` projection on an `in` position bounds the impl's
-                // parameter above: accept only `Qi <: Ai`.
                 guard isSubtype(param, type) else { return false }
             }
         }
@@ -1888,8 +1685,6 @@ extension TypeSystem {
         case let .invariant(type), let .out(type):
             return isSubtype(function.returnType, type)
         case let .in(type):
-            // `in` projection on the `out` position requires the impl's
-            // return type to be a supertype of the bound.
             return isSubtype(type, function.returnType)
         }
     }
@@ -1963,8 +1758,6 @@ extension TypeSystem {
         }
         guard !arguments.isEmpty else { return nil }
         let resultNullability: Nullability = hasNullable ? .nullable : .nonNull
-        // Preserve an existing common supertype, including an in-projected
-        // lower bound, before approximating unrelated captures by their upper bounds.
         if let existing = filtered.first(where: { candidate in
             filtered.allSatisfy { isSubtype($0, candidate) }
         }) {
