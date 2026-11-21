@@ -1,7 +1,5 @@
 import Foundation
 
-/// Split out from `CallTypeChecker+MemberCallInference.swift` to isolate merge
-/// conflicts between parallel stdlib PRs.
 extension CallTypeChecker {
 
     func isSyntheticCharSequenceReceiverType(_ type: TypeID, sema: SemaModule) -> Bool {
@@ -41,8 +39,6 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        // Imported declarations also carry .synthetic, but their real
-        // overloads must remain available for Locale arguments.
         guard let symbol = sema.symbols.symbol(symbolID),
               !sema.symbols.isSourceBackedSymbol(symbolID),
               symbol.fqName == [
@@ -156,10 +152,6 @@ extension CallTypeChecker {
         return finalType
     }
 
-    /// Bind the CharSequence.subSequence(IntRange) source overload when the
-    /// nominal two-argument member has already won member lookup. Inline range
-    /// expressions carry their scalar element type, so use the same source-level
-    /// range classification as regular candidate preparation before resolving.
     func tryBindSyntheticStringRangeSubSequenceFallback(
         _ id: ExprID,
         calleeName: InternedString,
@@ -213,9 +205,6 @@ extension CallTypeChecker {
         for candidate in scopedCandidates where !normalCandidates.contains(candidate) {
             normalCandidates.append(candidate)
         }
-        // Kotlin gives an applicable concrete member precedence over all
-        // extensions. Keep that ordering when the source-backed range
-        // declaration is recovered after ordinary member lookup.
         var memberOwnerFQNames = Set<[InternedString]>()
         if let receiverNominal = driver.helpers.nominalSymbol(
             of: nonNullReceiver,
@@ -286,11 +275,6 @@ extension CallTypeChecker {
         )
     }
 
-    /// Bind the CharSequence substring overloads and recover their bundled
-    /// source declarations when ordinary member lookup has no candidate. The
-    /// range argument is refined from its source-level receiver classification
-    /// so inline range literals keep their IntRange overload instead of being
-    /// mistaken for a scalar index.
     func tryBindSyntheticStringSubstringFallback(
         _ id: ExprID,
         calleeName: InternedString,
@@ -336,9 +320,6 @@ extension CallTypeChecker {
         }
         guard validShape else { return nil }
 
-        // If member lookup found a concrete receiver member or a visible user
-        // extension, resolve those candidates first. The bundled source is a
-        // recovery path and must not bypass normal Kotlin precedence.
         let nonNullReceiver = ctx.sema.types.makeNonNullable(receiverType)
         let scopedCandidates = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible.filter { candidate in
             guard let symbol = ctx.cachedSymbol(candidate),
@@ -358,11 +339,6 @@ extension CallTypeChecker {
         for candidate in scopedCandidates where !normalCandidates.contains(candidate) {
             normalCandidates.append(candidate)
         }
-        // Kotlin gives an applicable concrete member precedence over all
-        // extensions, even when both declarations use the same receiver type.
-        // Source symbols encode a member under its owning nominal FQName, while
-        // an extension keeps its package or file FQName. Reconstruct the owner
-        // hierarchy so this distinction survives bundled-source lookup.
         var memberOwnerFQNames = Set<[InternedString]>()
         if let receiverNominal = driver.helpers.nominalSymbol(
             of: nonNullReceiver,
@@ -596,8 +572,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Returns `anyType` for non-list types to avoid mis-inferring element types
-    /// from unrelated generic types (e.g., Pair<K,V>).
     func extractListElementType(
         _ type: TypeID,
         sema: SemaModule,
@@ -737,14 +711,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// The contextual type a `toCollection`-style destination argument should
-    /// see: `C : MutableCollection<in T>` bounds the destination parameter, so
-    /// a nested generic call (`ArrayDeque()`, `mutableListOf()`, ...) that has
-    /// no argument of its own to fix its type variable must infer it from the
-    /// bound — `MutableCollection<in elementType>` — the same role the
-    /// enclosing `C` constraint plays in kotlinc (KUU-4100). A concrete
-    /// MutableCollection-subtype expected type (e.g. `val d: ArrayDeque<Int>`)
-    /// pins the destination more tightly and wins over the bound.
     func mutableCollectionDestinationExpectedType(
         argumentExpr: ExprID,
         elementType: TypeID,
@@ -806,11 +772,6 @@ extension CallTypeChecker {
         )))
     }
 
-    // STDLIB-153: Double (KSP-833) and Float (KSP-847) constants are now source-backed
-    // (see Stdlib/kotlin/Double/Companion/Companion.kt and
-    // Stdlib/kotlin/Float/Companion/Companion.kt), so this fallback is
-    // reserved for compiler-primitive numeric types that have not yet been
-    // migrated to source-backed Companion extensions.
     func numericCompanionConstant(
         typeName: String,
         memberName: String) -> (TypeID, KIRExprKind)? {
@@ -819,11 +780,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Returns true if `receiverType` conforms to AutoCloseable,
-    /// so that `.use {}` is only treated as a scope function on closeable receivers.
-    /// Note: `kotlin.io.Closeable` now extends `kotlin.AutoCloseable` (see the
-    /// source-backed closeable cache and Stdlib/kotlin/AutoCloseable.kt),
-    /// so checking AutoCloseable covers both Closeable and AutoCloseable receivers.
     func isCloseableReceiver(_ receiverType: TypeID, sema: SemaModule) -> Bool {
         guard let autoCloseableType = sema.types.closeableTypeID else {
             return false
@@ -832,10 +788,6 @@ extension CallTypeChecker {
         if sema.types.isSubtype(nonNullReceiver, autoCloseableType) {
             return true
         }
-        // STDLIB-030-BUG-01: When the receiver is a type parameter (e.g. `T` in
-        // `fun <T : AutoCloseable> useIt(t: T)`), the general isSubtype now traverses
-        // upper bounds (see Subtyping.swift). As an explicit fallback, also check directly:
-        // if any registered upper bound of T is a subtype of AutoCloseable, accept it.
         if case let .typeParam(typeParam) = sema.types.kind(of: nonNullReceiver) {
             let upperBounds = sema.symbols.typeParameterUpperBounds(for: typeParam.symbol)
             for bound in upperBounds {
@@ -863,12 +815,6 @@ extension CallTypeChecker {
         return closeableSymbols.contains(where: { directSupertypes.contains($0) })
     }
 
-    /// Resolves the bundled stdlib `use` overload applicable to a closeable
-    /// `receiverType` for the `.use {}` scope interception. `kotlin.io.use`
-    /// (`T : Closeable?`) is the more specific overload for `Closeable`
-    /// receivers; `kotlin.use` (`T : AutoCloseable?`) covers the rest.
-    /// The bound symbol is validation metadata only — lowering expands the
-    /// intrinsic try/finally scope itself (KUU-3915).
     func resolveUseScopeCallee(
         receiverType: TypeID,
         sema: SemaModule,
@@ -1053,9 +999,6 @@ extension CallTypeChecker {
             }
             let expectedComparatorType = sema.types.make(.classType(ClassType(
                 classSymbol: comparatorSymbol,
-                // Comparator is declaration-site contravariant, so its
-                // invariant instantiation already accepts Comparator<in T>
-                // arguments without double-applying the `in` projection.
                 args: [.invariant(comparatorElementType)],
                 nullability: .nonNull
             )))
