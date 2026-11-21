@@ -59,8 +59,6 @@ extension CallLowerer {
             )
             let previousLocalValue = driver.ctx.localValue(for: lambdaParamSymbol)
             driver.ctx.setLocalValue(indexExpr, for: lambdaParamSymbol)
-            // `return@repeat` / `return@lbl` inside the inlined body only leaves the
-            // current iteration; register the iteration end as its jump target.
             driver.ctx.pushLoopControl(
                 continueLabel: continueLabel,
                 breakLabel: exitLabel,
@@ -122,10 +120,6 @@ extension CallLowerer {
         return unitExpr
     }
 
-    /// KSP-604: `repeat` is declared in bundled Kotlin (`Stdlib/kotlin/Standard.kt`),
-    /// so the call is identified by the resolved callee symbol instead of a name or a
-    /// synthetic-stub marker. A user-defined `repeat` resolves elsewhere and is lowered
-    /// as a normal call.
     private func isBundledRepeatCall(
         _ exprID: ExprID,
         sema: SemaModule,
