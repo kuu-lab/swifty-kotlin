@@ -11,9 +11,6 @@ public class ClosedChannelException : java.io.IOException()
 public class NonReadableChannelException : IllegalStateException()
 public class NonWritableChannelException : IllegalStateException()
 
-/** Positional, mapped and locking APIs are not represented by this source model.
- * It supplies the original NioTest producers without substituting Buffer for
- * their FileChannel. */
 public class FileChannel private constructor(
     private var descriptor: Int,
     private val readable: Boolean,
@@ -63,7 +60,7 @@ public class FileChannel private constructor(
                     StandardOpenOption.SYNC -> 128
                     StandardOpenOption.DSYNC -> 256
                     LinkOption.NOFOLLOW_LINKS -> 512
-                    StandardOpenOption.SPARSE -> 0 // a permitted creation hint
+                    StandardOpenOption.SPARSE -> 0
                     else -> throw UnsupportedOperationException("Unsupported open option")
                 }
             }
