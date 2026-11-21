@@ -1,10 +1,6 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
-    /// Bundled-stdlib extension properties, ordinary member properties and
-    /// scope extension properties are all resolved before function candidate
-    /// collection.
-    /// Returns nil when no zero-arg property path applies.
     func tryInferRegularMemberCallPropertyAccess(
         _ request: MemberCallInferenceRequest,
         isClassNameReceiver: Bool,
@@ -15,7 +11,6 @@ extension CallTypeChecker {
         locals: LocalBindings
     ) -> TypeID? {
         let extensionPropertyReceiverType = callableReferenceFunctionType ?? memberLookupType
-        // Only the declaring instance can use a private backing field's narrowed type.
         let allowsBackingFieldRefinement: Bool = {
             guard let enclosingClass = request.ctx.enclosingClassSymbol,
                   case .thisRef = request.ast.arena.expr(request.receiverID),
@@ -85,10 +80,6 @@ extension CallTypeChecker {
                )
                : memberProperty
         {
-            // An expression-bodied function inferred ahead of source order
-            // can still see a member property's header `Any?` placeholder
-            // through an explicit receiver (`this.data`). Resolve it on
-            // demand like the implicit-receiver path does (KUU-3944).
             var propResult = boundPropResult
             if driver.pendingPropertyTypes.contains(propResult.symbol) {
                 driver.resolveInferredPropertyType(for: propResult.symbol)
@@ -181,11 +172,6 @@ extension CallTypeChecker {
             request.sema.bindings.bindExprType(request.id, type: finalType)
             return finalType
         }
-        // Bundled property-style facades (the synthetic Char stubs and the
-        // lastIndex/indices/javaClass/java source facades) model upstream
-        // properties as zero-argument extension functions. Under property
-        // syntax they occupy the property namespace, so a nearer-scope user
-        // function of the same name must not shadow them (KUU-4389).
         if !isClassNameReceiver,
            !isSuperCall,
            request.args.isEmpty,
@@ -238,8 +224,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// Sits between candidate collection and overload filtering.
-    /// Returns nil when no special case binds.
     func tryInferRegularMemberCallSpecialCases(
         _ request: MemberCallInferenceRequest,
         receiverType: TypeID,
@@ -256,20 +240,8 @@ extension CallTypeChecker {
         let isChannelReceiver = receiverClassifier.isChannelReceiverType(lookupReceiverType)
         if !isClassNameReceiver, isChannelReceiver {
             let memberName = request.interner.resolve(request.calleeName)
-            // KSP-678: send is resolved through the bundled SendChannel member
-            // so its element type, variance, and suspend contract use ordinary
-            // candidate resolution. close / isClosedForReceive /
-            // isClosedForSend also resolve through bundled Kotlin source;
-            // only receive needs a direct result-type binding here.
             switch (memberName, request.args.count) {
-            // KUU-1453: `ch.receive` without parentheses is property-access
-            // syntax on a function — fall through so the invocation-syntax
-            // check rejects it like any other bound function.
             case ("receive", 0) where request.ast.arena.isExplicitCall(request.id) && request.explicitTypeArgs.isEmpty:
-                // This direct-call shortcut has no suspend FunctionSignature
-                // binding for the post-inference context validator to inspect.
-                // Only the kotlinx.coroutines Channel surface owns this rule;
-                // same-named user classes continue through ordinary resolution.
                 guard receiverClassifier.isKotlinxCoroutinesChannelType(lookupReceiverType) else {
                     break
                 }
@@ -280,8 +252,6 @@ extension CallTypeChecker {
                     case let .invariant(type), let .out(type):
                         resultType = type
                     case .in, .star:
-                        // A contravariant or star projection exposes only the
-                        // Channel element parameter's nullable Any upper bound.
                         resultType = request.sema.types.nullableAnyType
                     }
                 } else {
@@ -295,9 +265,6 @@ extension CallTypeChecker {
             }
         }
 
-        // Prefer the concrete kotlin.text String.compareTo overloads over the
-        // generic Comparable<T>.compareTo member, which otherwise leaves
-        // String.compareTo(String) ambiguous after both surfaces are available.
         if !isClassNameReceiver,
            request.calleeName == request.knownNames.compareTo,
            request.args.count == 1 || request.args.count == 2
@@ -335,8 +302,6 @@ extension CallTypeChecker {
             }
         }
 
-        // KSP-1403: CharSequence.substring overloads must keep normal member
-        // and user-extension precedence before the source fallback is used.
         if let boundType = tryBindSyntheticStringSubstringFallback(
             request.id,
             calleeName: request.calleeName,
@@ -353,10 +318,6 @@ extension CallTypeChecker {
             return boundType
         }
 
-        // KSP-1402: the nominal CharSequence.subSequence(Int, Int) candidate
-        // shadows the source-backed IntRange extension during member lookup.
-        // Resolve the range overload before the nominal candidate resolver sees
-        // the scalar representation of an inline range literal.
         if let boundType = tryBindSyntheticStringRangeSubSequenceFallback(
             request.id,
             calleeName: request.calleeName,
@@ -407,8 +368,6 @@ extension CallTypeChecker {
             }
         }
 
-        // A lexical extension function value outranks package extensions,
-        // while actual receiver members retain their usual priority.
         let hasReceiverMember = driver.helpers.collectMemberFunctionCandidates(
             named: request.calleeName, receiverType: memberLookupType, sema: request.sema, interner: request.interner
         ).contains {
@@ -423,8 +382,6 @@ extension CallTypeChecker {
                 local.symbol, request: request, argumentTypes: argTypes, receiverType: memberLookupType
             )
         }()
-        // `a.f { }` carries a trailing lambda without `()`, so a non-empty
-        // argument list counts as a call the same way `isExplicitCall` does.
         if !isSuperCall, !request.args.isEmpty || request.ast.arena.isExplicitCall(request.id),
            !hasReceiverMember,
            localExtensionMatchesCallShape,
