@@ -1,8 +1,3 @@
-// WasmModule.swift — minimal WebAssembly binary encoder used by the wasm
-// backend. Only what the KIR lowering needs: i64/i32 value types, function
-// imports, one funcref table, one memory, mutable globals, exports, active
-// element/data segments, and a name custom section for debuggability.
-
 import Foundation
 
 enum WasmValType: UInt8 {
@@ -53,7 +48,6 @@ enum WasmOpcode {
     static let i64Store: UInt8 = 0x37
     static let memorySize: UInt8 = 0x3F
     static let memoryGrow: UInt8 = 0x40
-    /// Bulk-memory `memory.copy` subopcode emitted under `truncSatPrefix`.
     static let memoryCopySubopcode: UInt64 = 10
     static let i32Const: UInt8 = 0x41
     static let i64Const: UInt8 = 0x42
@@ -91,7 +85,6 @@ enum WasmOpcode {
     static let i32WrapI64: UInt8 = 0xA7
     static let i64ExtendI32S: UInt8 = 0xAC
     static let i64ExtendI32U: UInt8 = 0xAD
-    // f32 comparisons / arithmetic.
     static let f32Eq: UInt8 = 0x5B
     static let f32Ne: UInt8 = 0x5C
     static let f32Lt: UInt8 = 0x5D
@@ -105,7 +98,6 @@ enum WasmOpcode {
     static let f32Mul: UInt8 = 0x94
     static let f32Div: UInt8 = 0x95
     static let f32Copysign: UInt8 = 0x98
-    // f64 comparisons / arithmetic.
     static let f64Eq: UInt8 = 0x61
     static let f64Ne: UInt8 = 0x62
     static let f64Lt: UInt8 = 0x63
@@ -119,7 +111,6 @@ enum WasmOpcode {
     static let f64Mul: UInt8 = 0xA2
     static let f64Div: UInt8 = 0xA3
     static let f64Copysign: UInt8 = 0xA6
-    // Numeric conversions.
     static let f32ConvertI32S: UInt8 = 0xB2
     static let f32ConvertI64S: UInt8 = 0xB4
     static let f32ConvertI64U: UInt8 = 0xB5
@@ -132,8 +123,6 @@ enum WasmOpcode {
     static let i64ReinterpretF64: UInt8 = 0xBD
     static let f32ReinterpretI32: UInt8 = 0xBE
     static let f64ReinterpretI64: UInt8 = 0xBF
-    /// trunc_sat family uses the 0xFC prefix + subopcode encoding; emit via
-    /// `WasmCode.truncSat(_:)`.
     static let truncSatPrefix: UInt8 = 0xFC
     static let i32TruncSatF32S: UInt64 = 0x00
     static let i32TruncSatF64S: UInt64 = 0x02
@@ -142,9 +131,6 @@ enum WasmOpcode {
     static let blockVoid: UInt8 = 0x40
 }
 
-/// Byte-sink for a single wasm function body. Each helper appends one
-/// instruction; structured constructs are opened/closed explicitly so the
-/// emitter can interleave them with flat KIR positions.
 struct WasmCode {
     var bytes: [UInt8] = []
 
@@ -180,7 +166,6 @@ struct WasmCode {
     mutating func globalGet(_ index: Int) { op(WasmOpcode.globalGet); u(UInt64(index)) }
     mutating func globalSet(_ index: Int) { op(WasmOpcode.globalSet); u(UInt64(index)) }
     mutating func i64Const(_ value: Int64) { op(WasmOpcode.i64Const); s(value) }
-    /// trunc_sat family: 0xFC prefix followed by an unsigned subopcode.
     mutating func truncSat(_ subopcode: UInt64) { op(WasmOpcode.truncSatPrefix); u(subopcode) }
     mutating func i32Const(_ value: Int32) { op(WasmOpcode.i32Const); s(Int64(value)) }
     mutating func call(_ index: Int) { op(WasmOpcode.call); u(UInt64(index)) }
@@ -207,7 +192,6 @@ struct WasmCode {
     mutating func openBlock() { op(WasmOpcode.block); op(WasmOpcode.blockVoid) }
     mutating func openBlock(result: WasmValType) { op(WasmOpcode.block); op(result.rawValue) }
     mutating func openLoop() { op(WasmOpcode.loop); op(WasmOpcode.blockVoid) }
-    /// Convert an i64 on the stack to the i32 truthiness `if`/`br_if` require.
     mutating func i64Truthy() {
         i64Const(0)
         op(WasmOpcode.i64Ne)
@@ -234,8 +218,6 @@ private func wasmEncodeName(_ string: String) -> [UInt8] {
     return out
 }
 
-/// Accumulates module sections; `encode()` serializes the full binary once all
-/// declarations and bodies are known.
 final class WasmModule {
     private var types: [WasmFuncType] = []
     private var typeIndexByType: [WasmFuncType: Int] = [:]
@@ -286,8 +268,6 @@ final class WasmModule {
         return index
     }
 
-    /// Patches a previously-declared global's initializer. Used for the heap
-    /// base, which is only known once every data segment has been placed.
     func setGlobalInitialValue(index: Int, value: Int64) {
         globals[index].initValue = value
     }
@@ -296,8 +276,6 @@ final class WasmModule {
         exports.append((name, kind, index))
     }
 
-    /// Registers `functionIndex` in the funcref element segment and returns its
-    /// table slot. Function-reference values in KIR become these slot indices.
     func tableSlot(forFunction functionIndex: Int) -> Int {
         if let existing = tableSlotByFunction[functionIndex] { return existing }
         let slot = tableFunctions.count
@@ -335,7 +313,6 @@ final class WasmModule {
             out.append(contentsOf: payload)
         }
 
-        // Type section (1)
         var typeSection: [UInt8] = []
         writeULEB(UInt64(types.count), to: &typeSection)
         for type in types {
@@ -347,7 +324,6 @@ final class WasmModule {
         }
         writeSection(1, payload: typeSection)
 
-        // Import section (2)
         if !imports.isEmpty {
             var importSection: [UInt8] = []
             writeULEB(UInt64(imports.count), to: &importSection)
@@ -360,7 +336,6 @@ final class WasmModule {
             writeSection(2, payload: importSection)
         }
 
-        // Function section (3)
         var functionSection: [UInt8] = []
         writeULEB(UInt64(functionEntries.count), to: &functionSection)
         for entry in functionEntries {
@@ -368,7 +343,6 @@ final class WasmModule {
         }
         writeSection(3, payload: functionSection)
 
-        // Table section (4): one funcref table sized to the element segment.
         var tableSection: [UInt8] = []
         writeULEB(1, to: &tableSection)
         tableSection.append(WasmValType.funcref.rawValue)
@@ -376,14 +350,12 @@ final class WasmModule {
         writeULEB(UInt64(max(tableFunctions.count, 1)), to: &tableSection)
         writeSection(4, payload: tableSection)
 
-        // Memory section (5)
         var memorySection: [UInt8] = []
         writeULEB(1, to: &memorySection)
         memorySection.append(0x00)
         writeULEB(UInt64(memoryMinPages), to: &memorySection)
         writeSection(5, payload: memorySection)
 
-        // Global section (6)
         if !globals.isEmpty {
             var globalSection: [UInt8] = []
             writeULEB(UInt64(globals.count), to: &globalSection)
@@ -399,7 +371,6 @@ final class WasmModule {
             writeSection(6, payload: globalSection)
         }
 
-        // Export section (7)
         var exportSection: [UInt8] = []
         writeULEB(UInt64(exports.count + (exportMemoryName == nil ? 0 : 1)), to: &exportSection)
         for entry in exports {
@@ -414,7 +385,6 @@ final class WasmModule {
         }
         writeSection(7, payload: exportSection)
 
-        // Element section (9): active funcref table at offset 0.
         if !tableFunctions.isEmpty {
             var elementSection: [UInt8] = []
             writeULEB(1, to: &elementSection)
@@ -429,7 +399,6 @@ final class WasmModule {
             writeSection(9, payload: elementSection)
         }
 
-        // Code section (10)
         var codeSection: [UInt8] = []
         writeULEB(UInt64(functionEntries.count), to: &codeSection)
         for index in functionEntries.indices {
@@ -439,7 +408,6 @@ final class WasmModule {
         }
         writeSection(10, payload: codeSection)
 
-        // Data section (11)
         if !dataSegments.isEmpty {
             var dataSection: [UInt8] = []
             writeULEB(UInt64(dataSegments.count), to: &dataSection)
@@ -456,7 +424,6 @@ final class WasmModule {
             writeSection(11, payload: dataSection)
         }
 
-        // Name custom section for debugger readability.
         var nameSubsection: [UInt8] = []
         writeULEB(UInt64(functionCount), to: &nameSubsection)
         for index in 0..<functionCount {
