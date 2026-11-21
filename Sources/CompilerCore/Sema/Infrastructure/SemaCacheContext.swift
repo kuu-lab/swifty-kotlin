@@ -1,27 +1,4 @@
-/// Caching layer for sema hot paths.
-///
-/// When the `-Xfrontend sema-cache` flag is active, ``TypeCheckSemaPhase``
-/// creates a non-nil ``SemaCacheContext`` and threads it through the type-checking
-/// pipeline.  This context currently provides:
-///
-/// 1. **Scope lookup cache** – avoids repeated walks up the scope chain for the
-///    same name in the same scope object.  All results of ``Scope.lookup(_:)``
-///    are cached until the enclosing scope is invalidated.
-/// 2. **Symbol lookup cache** – avoids repeated bounds-checked array accesses
-///    for ``SymbolTable.symbol(_:)`` with the same ``SymbolID``.  Both successful
-///    lookups and known misses (invalid / out-of-bounds IDs) are cached.
-/// 3. **Overload-resolution cache** – memoizes successful overload-resolution
-///    results so that identical resolution requests do not need to be recomputed.
-///    Only successful resolutions are cached; failing calls are never recorded.
-///
-/// When caching is disabled (the default), all call-sites receive `nil` and fall
-/// back to the original uncached paths.
 final class SemaCacheContext {
-    /// Keyed by the identity of the ``Scope`` object (via ``ObjectIdentifier``)
-    /// and the interned name being looked up.
-    ///
-    /// The scope objects themselves are retained in ``scopeRetainer`` to prevent
-    /// `ObjectIdentifier` reuse after deallocation.
     private var scopeCache: [ObjectIdentifier: [InternedString: [SymbolID]]] = [:]
 
     /// Retains scope objects whose identities are used as cache keys, preventing
@@ -49,10 +26,8 @@ final class SemaCacheContext {
         scopeRetainer.removeAll(keepingCapacity: true)
     }
 
-    /// Caches ``SymbolTable.symbol(_:)`` results to avoid repeated bounds checks.
     private var symbolCache: [SymbolID: SemanticSymbol] = [:]
 
-    /// Set of IDs that have been queried but returned `nil` (invalid / out-of-bounds).
     private var symbolMissCache: Set<SymbolID> = []
 
     func symbol(_ id: SymbolID, in table: SymbolTable) -> SemanticSymbol? {
@@ -117,11 +92,6 @@ final class SemaCacheContext {
         callResolutionCache[key] = result
     }
 
-    /// Builds a ``CallResolutionKey`` from the parameters of ``OverloadResolver.resolveCall``.
-    ///
-    /// The ``symbols`` table is used to snapshot each candidate's current
-    /// ``FunctionSignature`` so the key becomes invalid when a signature is
-    /// mutated during type checking.
     static func makeCallResolutionKey(
         candidates: [SymbolID],
         call: CallExpr,
