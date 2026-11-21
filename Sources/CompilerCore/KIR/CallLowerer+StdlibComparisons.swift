@@ -243,9 +243,6 @@ extension CallLowerer {
 
         enum ComparisonStrategy {
             case primitive
-            /// Float/Double: dispatches to kk_min_float/kk_max_float/kk_min_double/
-            /// kk_max_double instead of a plain `<`/`>` so NaN propagation and
-            /// signed-zero ordering match Kotlin's minOf/maxOf (see lowerTwoArgComparison).
             case floatingPoint(runtimeCallee: InternedString)
             case genericComparable
             case comparator(comparatorArgIndex: Int)
@@ -394,9 +391,6 @@ extension CallLowerer {
         return symbol.name == KnownCompilerNames(interner: interner).comparator
     }
 
-    /// Captures generic `maxOf`/`minOf` overloads whose upper bounds were lost
-    /// during metadata round-trip but are still known to be `Comparable<T>` by
-    /// the stdlib contract.
     private func isUniformTypeParameterOverload(
         _ signature: FunctionSignature,
         sema: SemaModule
@@ -421,8 +415,6 @@ extension CallLowerer {
         }
     }
 
-    /// Used by the vararg `minOf` / `maxOf` lowering to fold the arguments
-    /// inline without widening Byte or Short.
     private func isPrimitiveComparisonType(
         _ type: TypeID,
         sema: SemaModule
@@ -444,10 +436,6 @@ extension CallLowerer {
         }
     }
 
-    /// Returns the NaN/signed-zero-aware runtime helper for a Float/Double
-    /// `minOf`/`maxOf` element type, or nil for other primitive types (Int,
-    /// Long, unsigned types) which have no NaN/signed-zero distinction and
-    /// can keep using a plain `<`/`>` comparison.
     private func floatingPointMinMaxRuntimeCallee(
         for type: TypeID,
         sema: SemaModule,
@@ -463,10 +451,6 @@ extension CallLowerer {
         }
     }
 
-    /// When `floatingPointRuntimeCallee` is set (Float/Double overloads), the
-    /// comparison instead dispatches to a `kk_min_float`/`kk_max_float`/
-    /// `kk_min_double`/`kk_max_double` runtime call, which implements NaN
-    /// propagation and signed-zero ordering that a plain `<`/`>` cannot.
     private func lowerTwoArgComparison(
         args: [CallArgument],
         comparisonOp: KIRBinaryOp,
@@ -534,10 +518,6 @@ extension CallLowerer {
         return result
     }
 
-    /// Lowers maxOf(a, b, c) / minOf(a, b, c) as: val tmp = maxOf(a, b); maxOf(tmp, c)
-    /// When `floatingPointRuntimeCallee` is set (Float/Double overloads), both
-    /// steps dispatch to the runtime min/max helper instead of a plain `<`/`>`
-    /// comparison; see `lowerTwoArgComparison` for why.
     private func lowerThreeArgComparison(
         args: [CallArgument],
         comparisonOp: KIRBinaryOp,
