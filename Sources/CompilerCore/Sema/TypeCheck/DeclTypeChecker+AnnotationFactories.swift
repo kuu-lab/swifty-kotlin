@@ -8,8 +8,6 @@ extension DeclTypeChecker {
         typeCheckAnnotationFactories(annotations, symbol: symbol, ctx: ctx)
     }
 
-    /// Resolve construction in the declaration's lexical context, after headers.
-    /// The producer owns the body, including private types and default values.
     func typeCheckAnnotationFactories(
         _ annotations: [AnnotationNode], symbol: SymbolID, ctx: TypeInferenceContext
     ) {
@@ -28,7 +26,6 @@ extension DeclTypeChecker {
                   let first = tokens.first, let last = tokens.last
             else { continue }
 
-            // Header-only compiler annotations do not have a callable constructor.
             let annotationFQName = sema.symbols.symbol(annotationSymbol)?.fqName ?? []
             let annotationFQNameText = annotationFQName.map(ctx.interner.resolve).joined(separator: ".")
             let constructors = sema.symbols.lookupAll(fqName: annotationFQName + [ctx.interner.intern("<init>")])
@@ -59,10 +56,6 @@ extension DeclTypeChecker {
                 tokens.append(Token(kind: .symbol(.lParen), range: last.range))
                 tokens.append(Token(kind: .symbol(.rParen), range: last.range))
             }
-            // A fully qualified classifier is already resolved by the header
-            // pass. Replay it through a local alias so package components are
-            // not reinterpreted as ordinary expressions. Keep the source name
-            // in that alias for diagnostics, and leave simple names unchanged.
             let constructionScope: Scope
             if annotation.name.contains(".") {
                 let alias = ctx.interner.intern(annotation.name)
@@ -172,7 +165,6 @@ extension DeclTypeChecker {
     }
 
     func validatePendingAnnotationConstants() {
-        // Forward const initializer bindings are available only after all bodies.
         for (expression, ctx, isDefault) in pendingAnnotationConstants {
             guard !isAnnotationConstant(expression, ctx: ctx, depth: 0) else { continue }
             ctx.sema.diagnostics.error(
