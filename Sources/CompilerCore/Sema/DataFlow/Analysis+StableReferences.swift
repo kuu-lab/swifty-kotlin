@@ -101,8 +101,6 @@ extension DataFlowAnalyzer {
         return (DataFlowReference(root: local.symbol), local.type, isStable && !mutatedInClosure)
     }
 
-    /// `.local` symbols are append-only during sema, so the set is cached by
-    /// symbol count instead of being rebuilt (O(all symbols)) per proof.
     private func localFlowSymbols(sema: SemaModule) -> Set<SymbolID> {
         let all = sema.symbols.allSymbols()
         if let cached = localFlowSymbolCache, cached.symbolCount == all.count {
@@ -113,11 +111,6 @@ extension DataFlowAnalyzer {
         return symbols
     }
 
-    /// Flow-fact roots must denote stable *values*: synthetic receiver
-    /// parameters and lambda receivers are per-instance `this` values, and
-    /// singleton `object`/local/parameter symbols are stable bindings. A
-    /// classifier symbol (class/interface) would conflate different
-    /// instances, so it is not a valid root.
     private func isStableReceiverValueSymbol(_ symbol: SymbolID, sema: SemaModule) -> Bool {
         if symbol.rawValue < 0 { return true }
         switch sema.symbols.symbol(symbol)?.kind {
