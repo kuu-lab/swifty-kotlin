@@ -13,8 +13,6 @@ struct CollectionLiteralLookupRegistry {
 final class CollectionLiteralConstructionLoweringPass: CollectionLiteralLoweringSupport {
     static let name = "CollectionLiteralConstructionLowering"
 
-    /// Shared with `CollectionVirtualCallRewriteLoweringPass` so direct and
-    /// virtual dispatch apply the same source-backed preservation rule.
     let sourceBackedPreservation: SourceBackedCallPreservationPolicy
 
     init(sourceBackedPreservation: SourceBackedCallPreservationPolicy) {
@@ -26,7 +24,6 @@ final class CollectionLiteralConstructionLoweringPass: CollectionLiteralLowering
 final class CollectionVirtualCallRewriteLoweringPass: CollectionLiteralLoweringSupport {
     static let name = "CollectionVirtualCallRewrite"
 
-    /// See `CollectionLiteralConstructionLoweringPass.sourceBackedPreservation`.
     let sourceBackedPreservation: SourceBackedCallPreservationPolicy
 
     init(sourceBackedPreservation: SourceBackedCallPreservationPolicy) {
