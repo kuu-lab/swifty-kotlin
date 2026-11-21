@@ -19,8 +19,6 @@ final class CollectionLiteralLookupTables {
     // name-only match would erase that distinction. Their results are
     // classified per resolved overload in +PreScan.swift instead (KUU-3850).
     let sequenceRuntimeBridgeReturningNames: Set<InternedString>
-    /// Interned name/package tables for `trackedStaticTypeKind` — built once
-    /// here rather than per classified expression (LOWERING-001).
     let staticTypeClassification: StaticTypeClassificationNames
     private let collectionHOFRuntimeNames: [CollectionHOFRuntimeKey: InternedString]
 
@@ -40,10 +38,6 @@ final class CollectionLiteralLookupTables {
             interner.intern("splitToSequence"),
             arrayLookup.kkListAsSequenceName,
             arrayLookup.kkArrayAsSequenceName,
-            // Private `__kk_sequence_*` bridges and `kk_sequence_*` factories
-            // always produce a RuntimeSequenceBox — matching them by callee
-            // name is sound because they are not overload-sensitive like the
-            // public declarations above.
             sequenceLookup.kkSequenceBuilderBuildName,
             interner.intern("__kk_sequence_builder_build_coro"),
             interner.intern("__kk_empty_sequence"),
@@ -52,8 +46,6 @@ final class CollectionLiteralLookupTables {
             interner.intern("__kk_sequence_generate"),
             interner.intern("__kk_sequence_generate_noarg"),
             sequenceLookup.kkSequenceConstrainOnceName,
-            // KUU-3850: the lazy window/step bridges also return a box when
-            // they arrive pre-emitted (e.g. via a stub externalLinkName).
             sequenceLookup.kkSequenceTakeName,
             sequenceLookup.kkSequenceDropName,
             sequenceLookup.kkSequenceTakeWhileName,
