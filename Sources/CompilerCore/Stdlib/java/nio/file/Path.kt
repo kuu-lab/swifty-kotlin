@@ -6,7 +6,6 @@ import java.io.File
 import java.lang.System
 import java.net.URI
 
-/** Native path producer for Java-facing interoperability; no classfile facade. */
 public class Path internal constructor(internal val text: String) : Comparable<Path>, Iterable<Path> {
     public val isAbsolute: Boolean
         get() = text.startsWith("/")
@@ -175,8 +174,6 @@ public object Paths {
             }
         }
 
-        // POSIX paths collapse repeated separators and discard trailing ones;
-        // dot and parent segments remain lexical until the filesystem resolves them.
         var normalized = ""
         var separator = false
         for (character in joined) {
