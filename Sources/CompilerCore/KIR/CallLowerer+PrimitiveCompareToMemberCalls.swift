@@ -1,20 +1,4 @@
 
-/// Lowering for an explicit `.compareTo(other)` member call on a primitive
-/// `Comparable` receiver (Int/Long/UInt/ULong/Boolean/Float/Double, plus the
-/// signed Byte/Short and unsigned UByte/UShort that share the Int ABI).
-///
-/// The desugared comparison operators (`<`, `>`, …) already compute the
-/// comparison directly via machine compare in `lowerBinaryExpr`, but the
-/// *explicit* member call has no runtime mapping: its `compareTo` symbol comes
-/// from the built-in `Comparable<T>` member and carries no `externalLinkName`,
-/// so the generic resolution in `loweredMemberCalleeName` falls back to the raw
-/// symbol name `compareTo` and codegen emits an undefined external `_compareTo`
-/// reference that fails to link. Here we intercept the call before that generic
-/// path and route it to `kk_primitive_compareTo`, mirroring how
-/// `String.compareTo` maps to `__kk_string_compareTo_member`.
-///
-/// Char is intentionally excluded: it already resolves through its own
-/// `kk_char_compareTo` synthetic stub, which also returns the sign (-1/0/1).
 extension CallLowerer {
     func tryLowerPrimitiveCompareTo(
         _ exprID: ExprID,
