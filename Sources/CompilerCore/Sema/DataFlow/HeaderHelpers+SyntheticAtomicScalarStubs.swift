@@ -1,10 +1,4 @@
 
-/// Scalar atomic value boxes (`AtomicInt`/`AtomicLong`/`AtomicBoolean`,
-/// `java.util.concurrent.atomic.AtomicInteger`, and `AtomicReference<T>`),
-/// extracted from the Atomic residual registration surface. `AtomicInteger`
-/// shares the `__kk_atomic_int_*` bridge prefix with `AtomicInt` (see
-/// `Stdlib/kotlin/concurrent/AtomicMigration.kt`) and is a live, tested
-/// direct-construction surface — not a target-out cleanup pocket.
 extension DataFlowSemaPhase {
     func registerAtomicScalarFamily(
         packageFQName: [InternedString],
