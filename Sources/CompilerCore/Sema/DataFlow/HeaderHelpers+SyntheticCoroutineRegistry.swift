@@ -1,7 +1,3 @@
-// Consolidated residual coroutine Sema registry (RF-STUB-005).
-// Keeps coroutine package, ABI, and helper registration in one file so similarly
-// named residual files do not drift apart.
-
 extension DataFlowSemaPhase {
     func registerSyntheticCoroutineStubs(
         symbols: SymbolTable,
@@ -42,12 +38,6 @@ extension DataFlowSemaPhase {
 }
 
 
-/// Shared mutable state for `registerSyntheticCoroutineStubs`: the Sema
-/// inputs plus the symbol/type handles each extracted registration block
-/// hands to later blocks. The extracted methods in the sibling
-/// `HeaderHelpers+SyntheticCoroutine*.swift` files read inputs through
-/// `let` shadows and write produced handles back here, preserving the
-/// original sequential evaluation order exactly.
 struct SyntheticCoroutineRegistryContext {
     let symbols: SymbolTable
     let types: TypeSystem
