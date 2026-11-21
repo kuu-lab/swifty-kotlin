@@ -88,9 +88,6 @@ extension KotlinParser {
                 }
             case .symbol(.comma):
                 if depth == 1 {
-                    // A comma separates projections, so an opening comma
-                    // (`<,`) or a doubled comma (`<T,,>`) is not a valid
-                    // type-parameter list.
                     if !sawProjection || projectionExpected { return false }
                     projectionExpected = true
                 }
