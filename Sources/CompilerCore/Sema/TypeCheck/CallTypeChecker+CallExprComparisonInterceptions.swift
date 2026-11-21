@@ -1,9 +1,6 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
-    /// Use a constructor's comparator parameter to type a nested compareBy
-    /// selector even when unrelated constructor overloads have other parameter
-    /// types. The normal shared-argument path requires every overload to agree.
     func prepareCompareByExpectedTypeOverrides(
         args: [CallArgument],
         callRange: SourceRange,
@@ -104,7 +101,6 @@ extension CallTypeChecker {
            args.count == 2 || args.count == 3,
            !args.contains(where: { isLambdaOrCallableRefArg($0.expr, ast: ast) })
         {
-            // Infer the first argument without an expected type to determine the overload.
             let firstArgType = driver.inferExpr(
                 args[0].expr,
                 ctx: ctx,
@@ -153,10 +149,6 @@ extension CallTypeChecker {
                 ) {
                     let expectedType = resolvedParamType
 
-                    // An unsuffixed literal first argument may adopt a wider
-                    // parameter type selected by a sibling argument (e.g. `1`
-                    // in `maxOf(1, 2L)` binds as Long); re-infer it against the
-                    // resolved type so the constraint and KIR see Long.
                     let firstArgumentType = firstArgType == expectedType
                         ? firstArgType
                         : driver.inferExpr(
@@ -202,9 +194,6 @@ extension CallTypeChecker {
                         }
                         return signature.parameterTypes == paramTypes
                     }
-                    // Prefer the fixed-arity overload over a vararg one declaring the same
-                    // parameter types (e.g. minOf(Int, Int) vs minOf(Int, vararg Int)), matching
-                    // Kotlin's preference for non-vararg signatures during overload resolution.
                     let chosen = matchingCandidates.first(where: { candidate in
                         guard let signature = sema.symbols.functionSignature(for: candidate) else {
                             return false
@@ -240,16 +229,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// Resolves the primitive parameter type for the minOf/maxOf fast path.
-    ///
-    /// An unsuffixed integer literal keeps Kotlin's integer-literal type
-    /// through overload resolution, so when the first argument is such a
-    /// literal a concrete sibling argument selects the wider primitive
-    /// overload instead of the literal's default Int (`maxOf(1, 2L)` resolves
-    /// to `maxOf(Long, Long)`); when every argument is a literal, a value
-    /// outside Int range selects Long the same way (`maxOf(1, 5000000000)`).
-    /// Returns nil when the arguments cannot share one supported primitive
-    /// type, leaving the call to general overload resolution.
     private func primitiveMinMaxParameterType(
         args: [CallArgument],
         firstArgType: TypeID,
@@ -288,9 +267,6 @@ extension CallTypeChecker {
             }
             return value < Int64(Int32.min) || value > Int64(Int32.max)
         }) {
-            // Every argument is an unsuffixed literal and one cannot be an
-            // Int, so the call resolves to the Long overload like Kotlin's
-            // integer-literal typing (`maxOf(1, 5000000000)`).
             parameterType = ctx.sema.types.longType
         } else {
             parameterType = firstArgType
@@ -303,9 +279,6 @@ extension CallTypeChecker {
         return parameterType
     }
 
-    /// Whether every unsuffixed integer literal argument's value fits the
-    /// primitive parameter type, mirroring the literal adoption Kotlin
-    /// applies during overload resolution.
     private func signedIntegerLiteralArgumentsFit(
         args: [CallArgument],
         parameterType: TypeID,
@@ -912,9 +885,6 @@ extension CallTypeChecker {
                     return sema.types.intType
                 }
             }
-            // The one-selector overload has three source arguments (including
-            // a trailing lambda). Infer T from both compared values before
-            // contextualizing its selector, just as the multi-selector path does.
             if args.count >= 3 {
                 let elementCandidates = [firstType, secondType].filter { $0 != sema.types.errorType }.map {
                     sema.types.makeNonNullable($0)
@@ -934,14 +904,11 @@ extension CallTypeChecker {
                     _ = driver.inferExpr(args[index].expr, ctx: ctx, locals: &locals, expectedType: selectorExpectedType)
                 }
 
-                // 3 selectors resolve to the fixed-arity overload; 4+ to the vararg one.
                 let usesVararg = args.count > 5
                 if let chosen = candidates.first(where: { candidate in
                     guard let sig = sema.symbols.functionSignature(for: candidate),
                           sema.symbols.isSourceBackedSymbol(candidate)
                     else { return false }
-                    // The comparator overload has the same arity as the two
-                    // selector one, so match on its second type parameter (`K`).
                     return usesVararg
                         ? sig.valueParameterIsVararg == [false, false, true]
                         : (sig.parameterTypes.count == args.count
