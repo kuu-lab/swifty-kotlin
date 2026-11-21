@@ -1,18 +1,5 @@
 import Foundation
 
-/// The emitted metadata enables `KClass` instances to query type information
-/// (simpleName, qualifiedName, supertypes, member counts, flags) at runtime
-/// without requiring the compile-time `.kklib` metadata files.
-///
-/// ## Binary Format
-///
-/// The serialized metadata blob is emitted as a single `[N x i8]` constant
-/// global. Earlier revisions emitted one `kk_reflection_metadata_w{N}` i64
-/// global per word, which scaled linearly in LLVM symbol emission and object
-/// symbol-table size (tens of thousands of symbols for hello.kt); nothing in
-/// the runtime reads those symbols by name, so the blob now travels as one
-/// array global instead.
-///
 /// Globals emitted:
 /// - `<symbolPrefix>_?kk_reflection_metadata_size` (i64): total byte count of the serialized blob
 /// - `<symbolPrefix>_?kk_reflection_metadata_words` (i64): number of i64 words
@@ -39,23 +26,17 @@ import Foundation
 ///   For each entry:
 ///     [4 bytes] length in bytes (little-endian u32)
 ///     [N bytes] UTF-8 string data (NOT null-terminated)
-/// ```
 import CompilerCore
 
 struct RuntimeReflectionMetadataEmitter {
-    /// Magic bytes: "KKRM"
     static let magic: UInt32 = 0x4D52_4B4B
 
-    /// Format version
     static let version: UInt32 = 1
 
-    /// Sentinel for "no value" in u32 fields.
     static let sentinel: UInt32 = 0xFFFF_FFFF
 
-    /// Size of a single record in bytes.
     static let recordSize = 24
 
-    /// Maps SymbolKind to a stable ordinal for binary encoding.
     static func kindOrdinal(_ kind: SymbolKind) -> UInt8 {
         switch kind {
         case .package: return 0
@@ -90,7 +71,6 @@ struct RuntimeReflectionMetadataEmitter {
     static func serialize(_ records: [MetadataRecord]) -> Data {
         var stringTable = StringTable()
 
-        // Pre-register all strings so indices are stable.
         struct RecordIndices {
             let fqNameIndex: UInt32
             let simpleNameIndex: UInt32
@@ -110,7 +90,7 @@ struct RuntimeReflectionMetadataEmitter {
             return RecordIndices(fqNameIndex: fqIdx, simpleNameIndex: simpleIdx, superFqNameIndex: superIdx)
         }
 
-        let headerSize = 16 // magic + version + record_count + string_table_offset
+        let headerSize = 16
         let recordsSize = records.count * recordSize
         let stringTableOffset = UInt32(headerSize + recordsSize)
 
