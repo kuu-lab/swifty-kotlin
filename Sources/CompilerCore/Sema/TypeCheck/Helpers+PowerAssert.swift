@@ -1,7 +1,4 @@
 extension CallTypeChecker {
-    /// Detects calls to functions configured for the `power-assert` plugin
-    /// (e.g. `kotlin.assert(cond)`) and records AST capture points plus the
-    /// matching 2-argument message overload for KIR lowering.
     func maybeRecordPowerAssertCall(
         callExprID: ExprID,
         chosenCallee: SymbolID,
@@ -29,15 +26,12 @@ extension CallTypeChecker {
             return
         }
 
-        // Only rewrite single-argument calls without an explicit lazyMessage
         guard args.count == 1 else { return }
 
-        // Only rewrite user source calls (skip bundled stdlib source internals)
         if let origin = driver.sourceManager?.origin(of: callRange.start.file), origin != .user {
             return
         }
 
-        // Look up the companion overload accepting `(arg0, lazyMessage: () -> Any/String)`
         guard let messageOverload = findPowerAssertMessageOverload(
             for: chosenCallee,
             fqNameParts: calleeSym.fqName,
@@ -48,7 +42,6 @@ extension CallTypeChecker {
         let baseOffset: Int
         if let sourceManager = driver.sourceManager {
             let sliced = String(sourceManager.slice(callRange))
-            // Keep single-line representation cleanly aligned for diagram rendering
             callText = sliced.components(separatedBy: .newlines).first ?? sliced
             baseOffset = callRange.start.offset
         } else {
@@ -107,7 +100,6 @@ extension CallTypeChecker {
               let range = driver.ast.arena.exprRange(exprID)
         else { return }
 
-        // Only capture expressions whose start lies on the single-line call text
         let startCol = range.start.offset - baseOffset
         guard startCol >= 0, startCol < callText.count else { return }
 
@@ -151,8 +143,6 @@ extension CallTypeChecker {
             }
 
         default:
-            // Literals and complex control-flow constructs are skipped (literals are self-evident;
-            // control flow branches may not dominate failure formatting).
             break
         }
     }
