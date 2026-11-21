@@ -1,8 +1,5 @@
 
 extension ExprTypeChecker {
-    /// Visible `<init>` symbols of a concrete class, or `nil` for an abstract
-    /// class or one without constructors. Constructors live under the class's
-    /// own FQ name with the reserved `<init>` short name (HeaderHelpers.swift).
     private func visibleConstructorCandidates(
         of classSymbol: SemanticSymbol,
         ctx: TypeInferenceContext
@@ -45,12 +42,6 @@ extension ExprTypeChecker {
         ))
     }
 
-    /// A callable reference keeps its own function type, but an expected
-    /// function type can demand a different return ABI: `(P) -> Int` used as
-    /// `(P) -> Comparable<*>?` must box the primitive result for the erased
-    /// reference return (mirrors `functionValueBoxedReturnType` on the KIR
-    /// side). Returns true when the reference's value-type result needs
-    /// boxing for the expected return type.
     private func callableReferenceReturnRequiresBoxing(
         resultType: TypeID,
         expectedFunctionType: TypeID,
@@ -85,9 +76,6 @@ extension ExprTypeChecker {
             && sema.symbols.symbol(classType.classSymbol)?.kind == .enumClass)
     }
 
-    /// Enum `valueOf` is exposed through the enum class name even though its
-    /// synthetic declaration is owned by the companion object. Kotlin binds
-    /// that singleton receiver implicitly for `EnumType::valueOf`.
     private func enumCompanionValueOfCallableReference(
         named member: InternedString,
         receiverType: TypeID,
@@ -121,9 +109,6 @@ extension ExprTypeChecker {
         return (companionType, candidates)
     }
 
-    /// `Type::member` can fall back to the class's companion scope when no
-    /// member is declared on the class itself. The companion is a singleton,
-    /// so this reference captures it instead of adding the class as an input.
     private func companionMemberCallableReference(
         named member: InternedString,
         receiverType: TypeID,
@@ -170,14 +155,6 @@ extension ExprTypeChecker {
         return (companionType, candidates)
     }
 
-    /// A top-level extension on a companion object becomes a bare `::name`
-    /// target only through an explicit `import Owner.Companion.name` (or a
-    /// named companion's `import Owner.Factory.name`): kotlinc binds the
-    /// singleton companion as the receiver, so `::failure` has type
-    /// `(Throwable) -> Result<T>` rather than the unbound
-    /// `Result.Companion.(Throwable) -> Result<T>` form (KUU-4364). Wildcard
-    /// and class-elided imports do not qualify — kotlinc rejects both.
-    /// Returns the companion object symbol to bind as the dispatch receiver.
     private func importedCompanionExtensionReceiverSymbol(
         for candidate: SymbolID,
         member: InternedString,
@@ -219,16 +196,6 @@ extension ExprTypeChecker {
         } ? companionSymbol : nil
     }
 
-    /// In value position a bare class name denotes its companion object, so
-    /// `A::member` also carries a bound interpretation on the `A.Companion`
-    /// singleton — the same candidate space `A.Companion::member` resolves.
-    /// Which members that singleton can actually receive is decided by the
-    /// per-candidate receiver checks: members and extensions declared on
-    /// `A.Companion` always accept it, while members and extensions declared
-    /// on `A` need the companion itself to inherit `A`
-    /// (`companion object : A()`, JetBrains
-    /// companionObjectReceiverInheritsFromOuter.kt). Returns the companion's
-    /// receiver type, or `nil` when the class has no companion at all.
     private func classNameCompanionCallableReferenceReceiverType(
         for unboundClassType: TypeID,
         ctx: TypeInferenceContext
@@ -334,8 +301,6 @@ extension ExprTypeChecker {
             return result
         }
 
-        // Keep this callable-reference-only; regular member and
-        // unary-expression resolution retain their existing paths.
         if let receiver,
            ast.arena.callableRefReceiverTypeRef(for: id) == nil,
            let receiverName = primitiveCallableRefReceiverName(
@@ -388,16 +353,11 @@ extension ExprTypeChecker {
            let symbol = sema.symbols.symbol(local.symbol),
            (symbol.kind == .class || symbol.kind == .interface || symbol.kind == .enumClass)
         {
-            // A local class name also enters LocalBindings so member calls can
-            // resolve. Recognize its classifier symbol; local value receivers
-            // continue to be treated as bound callable-reference receivers.
             unboundClassType = local.type
         } else if let receiver,
            case let .nameRef(receiverName, _) = ast.arena.expr(receiver),
            locals[receiverName] == nil
         {
-            // A local with this name is a bound receiver, so only unresolved
-            // names can introduce an unbound type reference.
             let allCandidateIDs = ctx.cachedScopeLookup(receiverName)
             for candidateID in allCandidateIDs {
                 guard let sym = ctx.cachedSymbol(candidateID),
@@ -426,8 +386,6 @@ extension ExprTypeChecker {
 
             if unboundClassType == nil {
                 if let primitive = driver.builtinTypeNamesCache.primitiveType(for: receiverName) {
-                    // Builtin primitive classes may not be present in the lexical scope,
-                    // but their callable references still use the primitive receiver path.
                     unboundClassType = sema.types.make(.primitive(primitive, .nonNull))
                 } else if let builtin = driver.builtinTypeNamesCache.resolveBuiltinType(receiverName, types: sema.types) {
                     unboundClassType = builtin
@@ -452,18 +410,12 @@ extension ExprTypeChecker {
             // it is still a value receiver and must be captured for a bound
             // callable reference such as `this@Outer::greet`.
             if case .thisRef = ast.arena.expr(receiver) {
-                // Keep the inferred receiver type without classifying `this` as a type reference.
             } else if let symbolID = sema.bindings.identifierSymbols[receiver],
                let symbol = sema.symbols.symbol(symbolID),
                symbol.kind == .class || symbol.kind == .interface || symbol.kind == .enumClass,
                case .classType = sema.types.kind(of: inferredReceiverType)
             {
                 unboundClassType = inferredReceiverType
-                // A `kotlin.Int` qualifier path binds to the primitive's
-                // nominal anchor class, while member lookup on primitives is
-                // keyed on the dedicated `.primitive` TypeID like the bare
-                // `Int` nameRef path above -- normalize so
-                // `kotlin.Int::compareTo` resolves like `Int::compareTo`.
                 if symbol.fqName == [interner.intern("kotlin"), symbol.name],
                    let primitive = driver.builtinTypeNamesCache.primitiveType(for: symbol.name)
                 {
@@ -475,9 +427,6 @@ extension ExprTypeChecker {
             receiverType = nil
         }
 
-        // For unbound type references, use the resolved class type for
-        // member lookup instead of the expression-inferred type (which
-        // may degrade to Any for classes without companion objects).
         let effectiveReceiverType = unboundClassType ?? receiverType
 
         // BUG-164: callable references must also support SAM-conversion to a
@@ -533,9 +482,6 @@ extension ExprTypeChecker {
                 else {
                     continue
                 }
-                // An outer class receiver has no local receiver parameter in
-                // this context; its class symbol lets lowering follow the
-                // inner-class `$outer` chain to capture the instance.
                 receivers[index].symbol = symbol
             }
             var hiddenDslMarkers = Set<String>()
@@ -551,22 +497,12 @@ extension ExprTypeChecker {
                     sema: sema,
                     interner: interner
                 ).filter { candidate in
-                    // Top-level extension aliases are indexed under their
-                    // receiver's member scope, so they must remain candidates
-                    // for an implicitly-bound `::name`. Member extensions
-                    // still require both receivers and are not callable-reference
-                    // targets.
                     !driver.helpers.declaresExtensionReceiver(
                         candidate,
                         sema: sema,
                         interner: interner
                     ) || sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil
                 }
-                // A bare `::ext` inside a receiver scope is a *bound* reference
-                // (`with("s") { ::ext }` means `this::ext`), so package-level
-                // extensions whose declared receiver accepts the implicit
-                // receiver are bound `() -> R` candidates as well — kotlinc
-                // resolves `with("42") { ::toInt }` to `() -> Int`.
                 let implicitExtensionCandidates = ctx.cachedScopeLookup(member).filter { symbolID in
                     let owner = sema.symbols.parentSymbol(for: symbolID).flatMap { ctx.cachedSymbol($0) }
                     guard let symbol = ctx.cachedSymbol(symbolID),
@@ -587,8 +523,6 @@ extension ExprTypeChecker {
                         sema: sema
                     )
                 }
-                // Members of the implicit receiver outrank same-named package
-                // extensions, mirroring member-call resolution in Kotlin.
                 let visibleMembers = ctx.filterByVisibility(members).0
                 if !visibleMembers.isEmpty {
                     implicitBoundReceiver = implicitReceiver
@@ -622,13 +556,6 @@ extension ExprTypeChecker {
                     implicitPropertyType = memberProperty?.type
                     return []
                 }
-                // Enum entry members are owned by the entry's field symbol
-                // `X.B`, not by the enum class `X` itself, so receiver-type
-                // member lookup above never reaches them — even though they
-                // are members of the entry's implicit `this`. Reach them
-                // through the lexical entry scope (it only exposes that
-                // entry's own members while inside its body) when the enum
-                // owner matches the implicit receiver's nominal type.
                 if let (_, implicitReceiverSymbol) = resolveClassTypeSymbol(
                     nonNullImplicitReceiver, sema: sema
                 ) {
@@ -732,10 +659,6 @@ extension ExprTypeChecker {
         var propertyReferenceCandidate: (symbol: SymbolID, ownerType: TypeID?, isUnbound: Bool, type: TypeID)?
         if let effectiveReceiverType {
             let nonNullReceiver = sema.types.makeNonNullable(effectiveReceiverType)
-            // `Any` is represented by a builtin TypeID, while its compiler-provided
-            // `toString` member is hosted by a synthetic nominal `kotlin.Any` symbol.
-            // Bridge that representation gap so `value::toString` resolves through
-            // the same member target as other bound references.
             let memberLookupReceiver: TypeID
             if effectiveReceiverType == sema.types.anyType,
                member == interner.intern("toString"),
@@ -757,10 +680,6 @@ extension ExprTypeChecker {
                     ? sema.types.suspendFunctionNInterfaceSymbols
                     : sema.types.functionNInterfaceSymbols
                 if let interfaceSymbol = interfaceSymbols[arity] {
-                    // Function types are not nominal lookup roots. Map their
-                    // callable shape to the compiler-known FunctionN interface
-                    // so `value::invoke` resolves the same synthetic member as
-                    // an ordinary `value.invoke()` call.
                     memberLookupReceiver = sema.types.make(.classType(ClassType(
                         classSymbol: interfaceSymbol,
                         args: inputTypes.map(TypeArg.in) + [.out(functionType.returnType)],
@@ -779,10 +698,6 @@ extension ExprTypeChecker {
                 includeUnattachedPackageExtensions: true,
                 interner: interner
             ).filter { candidate in
-                // Member-extensions are never valid callable-reference
-                // targets — `C::ext`, `c::ext`, and `this::ext` are all
-                // rejected by kotlinc — while package-level extensions on
-                // the receiver stay legal (`String::toInt`, `s::toInt`).
                 !driver.helpers.declaresExtensionReceiver(
                     candidate,
                     sema: sema,
@@ -810,15 +725,6 @@ extension ExprTypeChecker {
                 receiverType: nonNullReceiver,
                 sema: sema
             ) ?? {
-                // `this::member` inside an enum entry body: the entry's own
-                // members are owned by the entry's field symbol `X.B`, not by
-                // the enum class `X`, so `lookupMemberProperty` never reaches
-                // them even though `this` statically is the entry instance.
-                // Reach them through the lexical entry scope — it only
-                // exposes that entry's own members while inside its body.
-                // Restricted to a `this` receiver: another enum-typed value
-                // is not statically the same entry, so `x::entryMember` stays
-                // unresolved the way kotlinc reports it.
                 guard let receiver,
                       case .thisRef = ast.arena.expr(receiver),
                       let (_, receiverSymbol) = resolveClassTypeSymbol(
@@ -872,11 +778,6 @@ extension ExprTypeChecker {
                 }
                 return property
             }()
-            // A same-named non-extension function in a nearer scope must
-            // not hide a legal receiver extension. Filter for applicable
-            // extensions during scope lookup so only matching candidates
-            // participate in shadowing. Keep member candidates above as
-            // the higher-priority tier.
             func isApplicableExtensionReferenceCandidate(_ symbolID: SymbolID) -> Bool {
                 guard let symbol = ctx.cachedSymbol(symbolID),
                       symbol.kind == .function,
@@ -905,11 +806,6 @@ extension ExprTypeChecker {
                     signature: signature
                 )
             }
-            // The receiver fallback admits any bare type-parameter receiver
-            // (`fun <R : CharSequence> R.zap()`). Since #11436 an unbound
-            // reference with several candidates is ambiguous instead of
-            // taking the first one, so drop candidates whose own receiver
-            // type parameter cannot be bound to this receiver.
             func receiverSatisfiesOwnTypeParameterBounds(
                 declaredReceiver: TypeID,
                 signature: FunctionSignature
@@ -934,8 +830,6 @@ extension ExprTypeChecker {
                         if !sema.types.isSubtype(nonNullReceiver, nonNullBound) { return false }
                         continue
                     }
-                    // Bounds like `ClosedRange<T>` still need solving, so
-                    // only compare the nominal class of the receiver.
                     if case let .classType(boundClass) = sema.types.kind(of: nonNullBound),
                        case let .classType(receiverClass) = sema.types.kind(of: nonNullReceiver),
                        !sema.types.isNominalSubtypeSymbol(receiverClass.classSymbol, of: boundClass.classSymbol)
@@ -945,11 +839,6 @@ extension ExprTypeChecker {
                 }
                 return true
             }
-            // Local functions can be present in value-position locals even
-            // when this callable-reference scope lookup cannot see them.
-            // Match direct explicit-receiver calls: applicable local
-            // extensions form the nearest candidate tier and shadow
-            // package extensions with the same name.
             func applicableExtensionReferenceCandidates() -> [SymbolID] {
                 let localExtensionCandidates = ctx.scope.lookup(member, matching: { symbolID in
                     ctx.cachedSymbol(symbolID)?.flags.contains(.localFunction) == true
@@ -1029,9 +918,6 @@ extension ExprTypeChecker {
                 if !fittingExtensions.isEmpty {
                     candidates = fittingExtensions
                 } else {
-                    // A class-name companion reference is bound to the
-                    // singleton receiver and therefore has no leading class
-                    // input.
                     candidates = companionCallableReference.candidates
                     companionCallableReferenceReceiverType = companionCallableReference.receiverType
                     if let property = companionMemberProperty {
@@ -1044,17 +930,9 @@ extension ExprTypeChecker {
                     }
                 }
             } else {
-                // Property references use the same inheritance-aware lookup as
-                // ordinary member reads (for example MutableList<Int>::size).
                 if let property = memberProperty,
                    sema.symbols.extensionPropertyReceiverType(for: property.symbol) == nil
                 {
-                    // KUU-3683: `A::prop` where `A`'s companion inherits `A`
-                    // also carries a bound `KProperty0` interpretation on the
-                    // companion singleton. Prefer it only when the unbound
-                    // `KProperty1<A, V>` shape cannot satisfy the expected
-                    // type (for example `call(A::instanceProp)` for a
-                    // `() -> Boolean` parameter).
                     if let unboundClassType,
                        let expectedType,
                        let companionType = classNameCompanionCallableReferenceReceiverType(
@@ -1095,10 +973,6 @@ extension ExprTypeChecker {
                             )
                         }
                     }
-                    // `lookupMemberProperty` has already substituted the
-                    // receiver's arguments into the property type. Keep that
-                    // specialized value type even for a bound reference, whose
-                    // `ownerType` remains nil to preserve KProperty0 arity.
                     return bindPropertyCallableRef(
                         id,
                         propertySymbol: property.symbol,
@@ -1112,8 +986,6 @@ extension ExprTypeChecker {
                         resolvedPropertyType: property.type
                     )
                 }
-                // A property declared on a companion belongs to the singleton,
-                // so `Type::property` keeps the zero-receiver KProperty0 shape.
                 if let property = companionMemberProperty {
                     return bindPropertyCallableRef(
                         id,
@@ -1252,11 +1124,6 @@ extension ExprTypeChecker {
                             )
                             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
                         }
-                        // KUU-3683: `A::extProp` where `A`'s companion
-                        // inherits `A` also has a bound `KProperty0`
-                        // interpretation on that singleton. Prefer it only
-                        // when the unbound `KProperty1<A, V>` shape cannot
-                        // satisfy the expected type.
                         if let unboundClassType,
                            let expectedType,
                            let companionType = classNameCompanionCallableReferenceReceiverType(
@@ -1343,15 +1210,6 @@ extension ExprTypeChecker {
                         }
                         return resultType
                     }
-                    // KUU-3683: an extension property declared on
-                    // `A.Companion` (for example
-                    // `val A.Companion.companionExtProp`) is only reachable
-                    // through the bound interpretation of `A::prop` — its
-                    // declared receiver never accepts `A` itself, so the
-                    // unbound lookup above cannot see it. Collect it against
-                    // the companion type instead; the reference is bound
-                    // `KProperty0` unconditionally (there is no unbound
-                    // shape for it to compete with).
                     if let unboundClassType,
                        let companionType = classNameCompanionCallableReferenceReceiverType(
                            for: unboundClassType, ctx: ctx
@@ -1393,9 +1251,6 @@ extension ExprTypeChecker {
                                 sema: sema,
                                 interner: interner
                             ) ?? boundValueType
-                            // Bound is the only interpretation this
-                            // candidate has, so it resolves unconditionally;
-                            // an expected type still has to accept it.
                             if let expectedType,
                                !sema.types.isSubtype(boundShape, expectedType)
                             {
@@ -1427,16 +1282,7 @@ extension ExprTypeChecker {
                     }
 
                 }
-                // Members and companion members above keep their higher
-                // priority tiers; this receiver-extension lookup is the
-                // last fallback before constructor references.
                 candidates = applicableExtensionReferenceCandidates()
-                // `Outer::Nested` where `Nested` is a nested (non-inner) class
-                // is a constructor reference `(Args...) -> Outer.Nested`. It
-                // has no receiver parameter, so it is folded into the bound
-                // side like the bare `::Foo` form. `inner` classes are left
-                // out: their reference takes the outer instance as a
-                // leading parameter, which this path does not model.
                 if candidates.isEmpty,
                    unboundClassType != nil,
                    let (_, owner) = resolveClassTypeSymbol(nonNullReceiver, sema: sema)
@@ -1488,17 +1334,10 @@ extension ExprTypeChecker {
                 }
             }
         } else {
-            // `valueScopeLookup` keeps `cachedScopeLookup`'s first-non-empty-scope
-            // semantics while ranking an explicit import above same-package
-            // declarations, matching Kotlin's value-namespace priority
-            // (KUU-4192).
             let propertyCandidates = ctx.valueScopeLookup(member) { _ in true }.matches.filter { symbolID in
                 guard let symbol = ctx.cachedSymbol(symbolID) else {
                     return false
                 }
-                // A bare `::name` cannot reference an extension property —
-                // kotlinc reports `unresolved reference`; only `Type::prop`
-                // and `obj::prop` reach extension properties.
                 return symbol.kind == .property
                     && sema.symbols.extensionPropertyReceiverType(for: symbolID) == nil
             }
@@ -1591,12 +1430,6 @@ extension ExprTypeChecker {
                     guard let symbol = ctx.cachedSymbol(symbolID) else {
                         return false
                     }
-                    // A bare `::name` cannot reference an extension function —
-                    // kotlinc reports `unresolved reference`; only `Type::ext`,
-                    // `obj::ext`, the implicit-receiver bound form (handled
-                    // via `implicitMemberCandidates`), and a companion
-                    // extension reached through `import Owner.Companion.name`
-                    // (bound to the companion singleton, KUU-4364) qualify.
                     return symbol.kind == .constructor
                         || (symbol.kind == .function
                             && (!driver.helpers.declaresExtensionReceiver(
@@ -1620,8 +1453,6 @@ extension ExprTypeChecker {
             {
                 candidates = [local.symbol]
             }
-            // A bare inner-class constructor reference inside an enclosing
-            // instance captures that receiver, just like `outer::Inner`.
             if candidates.isEmpty {
                 var implicitReceivers = ctx.implicitReceiverMemberLookupEntries()
                 if let type = ctx.implicitReceiverType,
@@ -1656,15 +1487,6 @@ extension ExprTypeChecker {
                     break
                 }
             }
-            // REFL-CTOR: a bare `::Foo` where `Foo` names a class/enum class
-            // is a constructor reference `(Args...) -> Foo`. Constructors are
-            // stored under the class's own FQ name with the reserved `<init>`
-            // short name (HeaderHelpers.swift), not under `Foo` itself, so the
-            // `.function || .constructor` scope lookup above never finds them
-            // -- mirrors the KSP-CAP-006 class+ctor lookup CallTypeChecker.swift
-            // uses for a direct call `Foo(...)`.
-            // Fun interfaces take a separate synthetic SAM-factory path because
-            // they have no declared constructor symbol.
             if candidates.isEmpty {
                 let classCandidates = ctx.cachedScopeLookup(member).filter { symbolID in
                     guard let symbol = ctx.cachedSymbol(symbolID) else { return false }
@@ -1685,10 +1507,6 @@ extension ExprTypeChecker {
                     }
                 }
             }
-            // A bare `::Alias` resolves to the expanded classifier's
-            // constructors — the same constructor reference `::Class`
-            // produces (KUU-3840). Inner-class expansions keep their
-            // implicit-receiver paths below.
             if candidates.isEmpty {
                 for aliasID in ctx.cachedScopeLookup(member) {
                     guard let aliasSymbol = ctx.cachedSymbol(aliasID),
@@ -1730,8 +1548,6 @@ extension ExprTypeChecker {
             }
         }
 
-        // A bare `::Alias` inside an enclosing class is bound to that class's
-        // instance when the alias names one of its inner classes.
         if candidates.isEmpty, receiver == nil {
             var implicitReceivers = ctx.implicitReceiverStack
             if let type = ctx.implicitReceiverType,
@@ -1760,10 +1576,6 @@ extension ExprTypeChecker {
             }
         }
 
-        // Within a class or extension body, `::member` uses the active
-        // implicit receiver before a same-named package function. Lexical
-        // scope lookup does not walk inherited member scopes. A local
-        // function still shadows the receiver's member.
         if !implicitMemberCandidates.isEmpty {
             candidates = implicitMemberCandidates
             isImplicitlyBoundMember = true
@@ -1777,10 +1589,6 @@ extension ExprTypeChecker {
             }
         }
 
-        // A nested class constructor (`Outer::Nested`) is stored under
-        // `Outer.Nested.<init>`, just as bare `::Nested` is under
-        // `Nested.<init>`. Ordinary member lookup by the short name misses it.
-        // Only a type receiver may introduce this fallback.
         if candidates.isEmpty,
            let unboundClassType,
            let (_, owner) = resolveClassTypeSymbol(unboundClassType, sema: sema)
@@ -1842,10 +1650,6 @@ extension ExprTypeChecker {
             }
         }
 
-        // A function imported through an object is implicitly bound to that
-        // singleton, just like an unqualified call to the imported member.
-        // Keep this candidate-specific import behavior out of implicit-receiver
-        // lookup, which already selected its own receiver above.
         var importedObjectCallableReferenceReceiver: (symbol: SymbolID, type: TypeID)?
         if receiver == nil, !isImplicitlyBoundMember, !candidates.isEmpty {
             var importedObjectReceivers = driver.callChecker.importedObjectDispatchReceiverOwners(
@@ -1853,10 +1657,6 @@ extension ExprTypeChecker {
                 candidates: candidates,
                 ctx: ctx
             )
-            // Companion extensions imported via `Owner.Companion.name` bind
-            // the companion singleton the same way object-member imports do;
-            // their package-level parent keeps them out of the dispatch-owner
-            // lookup above (KUU-4364).
             for candidate in candidates where importedObjectReceivers[candidate] == nil {
                 if let companion = importedCompanionExtensionReceiverSymbol(
                     for: candidate,
@@ -1882,13 +1682,6 @@ extension ExprTypeChecker {
             }
         }
 
-        // For unbound type references (Type::member), the receiver is not
-        // bound — it becomes a parameter of the function type. For bound
-        // references (obj::member), the receiver is captured. Ordinary
-        // constructor references have no receiver parameter; inner
-        // constructors use their enclosing instance as that parameter.
-        // `var`: the companion-inherits-owner retry below can still turn an
-        // unresolved unbound reference into a bound `A.Companion` one.
         var isBoundReceiver = (receiver != nil
             && (unboundClassType == nil || companionCallableReferenceReceiverType != nil))
             || (isConstructorReference && unboundInnerConstructorReceiverType == nil)
@@ -1898,10 +1691,6 @@ extension ExprTypeChecker {
         if let unboundInnerConstructorReceiverType {
             unboundCallableReceiverType = unboundInnerConstructorReceiverType
         } else if !isBoundReceiver, !isConstructorReference {
-            // Keep the explicit type arguments from `Owner<Args>::member`.
-            // The owner type is the function value's first parameter, and its
-            // type arguments also specialize the member's remaining parameters
-            // and return type.
             unboundCallableReceiverType = unboundClassType
         } else {
             unboundCallableReceiverType = nil
@@ -1975,11 +1764,6 @@ extension ExprTypeChecker {
             }
         }
 
-        // `Type::toString` as a `(Type) -> String` value: the zero-argument
-        // `toString()` has no member symbol (only the `toString(radix)`
-        // overload is declared), so every candidate is an arity mismatch.
-        // kotlinc picks the overload matching the expected function type;
-        // synthesize the missing one.
         if let unboundClassType,
            member == knownNames.toString,
            let expectedFunctionType,
@@ -2019,7 +1803,6 @@ extension ExprTypeChecker {
             return resultType
         }
 
-        // Concrete value and type receivers specialize the owner's type parameters.
         var boundReceiverType: TypeID? = if isImplicitlyBoundMember {
             implicitBoundReceiver?.type
         } else if let importedObjectCallableReferenceReceiver {
@@ -2138,9 +1921,6 @@ extension ExprTypeChecker {
             )
         }
 
-        // An inapplicable member must not hide an extension callable reference
-        // with a compatible expected function type (for example Int::toString
-        // as (Int, Int) -> String). Preserve member priority when one matches.
         if chosen == nil,
            hasExplicitMemberCandidates,
            !isConstructorReference,
@@ -2207,19 +1987,6 @@ extension ExprTypeChecker {
             }
         }
 
-        // KUU-3683: `A::member` also resolves as a bound reference on the
-        // `A.Companion` singleton — in value position `A` denotes that
-        // object, so the bound candidate space is the one
-        // `A.Companion::member` already resolves: the companion's own
-        // members, members of `A` reachable only when the companion itself
-        // inherits `A` (`companion object : A()`, JetBrains
-        // companionObjectReceiverInheritsFromOuter.kt), and package
-        // extensions whose declared receiver accepts the companion type.
-        // The unbound interpretation keeps priority: this retry only runs
-        // when nothing above matched the expected function type, so
-        // `A::instance` stays `(A) -> Boolean` for an `(A) -> Boolean`
-        // context and becomes `() -> Boolean` only when the unbound shape
-        // cannot apply.
         if chosen == nil,
            receiver != nil,
            !isBoundReceiver,
@@ -2233,12 +2000,6 @@ extension ExprTypeChecker {
                 for: unboundClassType,
                 ctx: ctx
             )
-            // `companion fun A.member` extensions also join the bound
-            // interpretation, with the class name itself bound as the
-            // receiver — the same interpretation the `candidates.isEmpty`
-            // fallback above applies when no instance member shadows the
-            // name. They are the only bound candidates when the class has
-            // no companion scope at all.
             let boundCompanionExtensions = companionExtensionCallableReferenceCandidates(
                 named: member,
                 receiverType: sema.types.makeNonNullable(unboundClassType),
@@ -2294,10 +2055,6 @@ extension ExprTypeChecker {
                     }
                     return ctx.scope.lookup(member, matching: isApplicableExtension)
                 } ?? []
-                // The class-name value itself is the bound receiver for
-                // `companion fun A.member` extensions, while the companion
-                // object is the bound receiver for the members/extensions in
-                // its scope — keep the two receiver spaces distinct.
                 func boundCandidateReceiverType(for candidate: SymbolID) -> TypeID {
                     boundCompanionExtensions.contains(candidate)
                         ? sema.types.makeNonNullable(unboundClassType)
@@ -2322,8 +2079,6 @@ extension ExprTypeChecker {
                         sema: sema
                     ) != nil
                 }
-                // Members outrank same-named extensions for the bound
-                // interpretation, mirroring Kotlin's member-call resolution.
                 let boundChosen = boundMembers.filter(boundMatch)
                     + boundExtensions.filter(boundMatch)
                     + boundCompanionExtensions.filter(boundMatch)
@@ -2374,8 +2129,6 @@ extension ExprTypeChecker {
                 else {
                     return fallback
                 }
-                // Arguments retain their source shape for call adaptation;
-                // directly typed references materialize the suspend adapter.
                 return ctx.isCallableReferenceArgument ? inferredType : convertedType
             }
             // An expected type that still mentions type parameters belongs to a
@@ -2482,9 +2235,6 @@ extension ExprTypeChecker {
                               sema: sema
                           )
                 {
-                    // An inner constructor's own class parameters still need
-                    // the contextual return type when its enclosing generic
-                    // type is being inferred.
                     inferredType = specialization.functionType
                     contextualSpecialization = specialization
                     resultType = inferredType
@@ -2556,13 +2306,6 @@ extension ExprTypeChecker {
                                   sema: sema
                               )
                     {
-                        // An expected type that only mentions rigid lexical
-                        // type parameters can still specialize the reference:
-                        // `fun <T> f(): (T) -> Box<T> = ::mk` binds mk's E to
-                        // the caller's T (KUU-4204). Expected types mentioning
-                        // the enclosing call's own inference parameters keep
-                        // the reference's concrete type so the call solver
-                        // can bind them instead.
                         inferredType = specialization.functionType
                         contextualSpecialization = specialization
                     }
@@ -2614,24 +2357,10 @@ extension ExprTypeChecker {
                         )
                     }
                 }
-                // KUU-4408: without a contextual function type the callee's
-                // type parameters must be inferable from the receiver —
-                // kotlinc rejects `val r = ::gen` with "cannot infer type for
-                // type parameter 'T'" instead of binding `(T) -> T` and
-                // failing later at the call site. A successful contextual
-                // binding above already solved every type parameter, and a
-                // failed one already reported an error.
                 if contextualSpecialization == nil && signature.reifiedTypeParameterIndices.isEmpty {
                     let declaredReceiver = signature.receiverType
                     let receiverSuppliesParameters = boundReceiverType != nil && declaredReceiver != nil
                     for (index, typeParameter) in signature.typeParameterSymbols.enumerated() {
-                        // Constructor references have no receiver that could
-                        // supply class type arguments, so any type parameter
-                        // still present in the built function type is
-                        // uninferrable. For other references only the callee's
-                        // own type parameters need receiver evidence — class
-                        // type parameters are bound through the receiver's
-                        // class type arguments.
                         let requiresReceiverEvidence = !isConstructorReference
                             && index >= signature.classTypeParameterCount
                         let solvedByReceiver = requiresReceiverEvidence && receiverSuppliesParameters
@@ -2654,14 +2383,6 @@ extension ExprTypeChecker {
                 }
                 resultType = inferredType
             }
-            // BUG-164: A callable reference passed to a fun-interface parameter
-            // must be SAM-converted and bound to the interface type, not left as a
-            // bare function type.  `lowerCallableRefExpr` checks `isSamConversion`
-            // and emits the wrapper object that makes interface dispatch work.
-            // Only perform the conversion when the resolved result is the concrete
-            // interface type; if the expected type still contains type parameters,
-            // leave the reference as a function value so generic inference can
-            // substitute a concrete instantiation later.
             if let expectedSamInterfaceType,
                resultType == expectedSamInterfaceType
             {
@@ -2674,11 +2395,6 @@ extension ExprTypeChecker {
                 return function.isSuspend != signature.isSuspend
                     || (function.returnType == sema.types.unitType && signature.returnType != sema.types.unitType)
             }()
-            // KUU-1209: an expected function type can demand a boxed return
-            // ABI that the reference's own type does not provide
-            // (`(P) -> Int` used as `(P) -> Comparable<*>?`). Record the
-            // expected type so KIR materializes the value with the expected
-            // signature instead of the reference's narrower one.
             if let expectedFunctionType,
                expectedSamInterfaceType == nil,
                callableReferenceReturnRequiresBoxing(
@@ -2719,8 +2435,6 @@ extension ExprTypeChecker {
             }
             sema.bindings.bindIdentifier(id, symbol: chosen)
             sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
-            // REFL-003: Tag the callable reference as KFunction so KIR
-            // lowering can emit type identity metadata.
             sema.bindings.bindCallableRefKind(id, kind: .functionRef)
             if isImplicitlyBoundMember {
                 sema.bindings.markImplicitReceiverMember(
@@ -2759,11 +2473,6 @@ extension ExprTypeChecker {
         }
 
         if candidates.isEmpty {
-            // Inherited `private` members never enter the candidate set
-            // (they are not inherited), but a qualified reference still
-            // resolves the name — report it as inaccessible rather than
-            // unresolved, matching kotlinc (KUU-3762). A type-name receiver
-            // (`Type::member`) also reaches the companion's member scope.
             var privateMemberProbeTypes = effectiveReceiverType.map {
                 [sema.types.makeNonNullable($0)]
             } ?? []
@@ -2777,8 +2486,6 @@ extension ExprTypeChecker {
             {
                 privateMemberProbeTypes.append(companionType)
             }
-            // An unqualified reference also reaches the implicit receiver
-            // tower's private members (KUU-3766).
             if let privateMember = driver.helpers.inaccessiblePrivateQualifiedMember(
                 named: member,
                 probeReceiverTypes: privateMemberProbeTypes,
@@ -2835,8 +2542,6 @@ extension ExprTypeChecker {
     ) -> [SymbolID] {
         let sema = ctx.sema
         var candidates = ctx.cachedScopeLookup(name)
-        // Name-indexed companion extension decls replace a per-call scan of
-        // every file's `topLevelDecls` (same order, built once per module).
         for symbol in driver.companionExtensionFunctionDeclsByName[name] ?? []
         where !candidates.contains(symbol) {
             candidates.append(symbol)
@@ -2879,16 +2584,6 @@ extension ExprTypeChecker {
         return false
     }
 
-    /// Simple name a primitive-operator callable reference sees as its
-    /// receiver: `Int` for the bare `Int::plus` form and `Int` again for the
-    /// package-qualified `kotlin.Int::plus` form, which parses as a
-    /// `memberCall` qualifier chain rather than a `nameRef` (KUU-4137).
-    /// Returns `nil` for every other receiver shape so callers fall through
-    /// to ordinary member lookup -- a local or implicit-receiver member
-    /// named `kotlin`, a non-package `kotlin` visible in lexical scope, or a
-    /// deeper qualifier path keeps its bound/member meaning (`foo.Int::plus`
-    /// still resolves that class's own members, not the intrinsic
-    /// operators).
     private func primitiveCallableRefReceiverName(
         _ receiver: ExprID,
         ctx: TypeInferenceContext,
@@ -2898,10 +2593,6 @@ extension ExprTypeChecker {
         let interner = ctx.interner
         if case let .nameRef(name, _) = ast.arena.expr(receiver) {
             guard locals[name] == nil else { return nil }
-            // A user classifier that shares the primitive's short name
-            // (foo.Int referenced as bare `Int`) keeps its own members;
-            // only the kotlin builtin anchor itself may reach the
-            // intrinsic operators (KUU-4163).
             for candidateID in ctx.cachedScopeLookup(name) {
                 guard let sym = ctx.cachedSymbol(candidateID),
                       sym.kind == .class || sym.kind == .interface || sym.kind == .enumClass
@@ -2924,7 +2615,6 @@ extension ExprTypeChecker {
         else {
             return nil
         }
-        // A member `kotlin` of the implicit receiver shadows the package.
         if let implicitReceiver = ctx.implicitReceiverType,
            driver.helpers.lookupMemberProperty(
                named: packageName,
@@ -2933,10 +2623,6 @@ extension ExprTypeChecker {
            ) != nil {
             return nil
         }
-        // `kotlin` must denote the package and `kotlin.<name>` the
-        // primitive's nominal anchor class, so a same-named `kotlin` value
-        // or a classifier path that resolves elsewhere can never reach the
-        // intrinsic operators.
         guard sema.symbols.lookupAll(fqName: [packageName]).contains(where: {
                   sema.symbols.symbol($0)?.kind == .package
               }),
@@ -2950,29 +2636,6 @@ extension ExprTypeChecker {
         return name
     }
 
-    /// REFL-PRIMOP: `Int::plus` / `Int::times` (and the other primitive
-    /// numeric types where an expected function type selects the
-    /// homogeneous `(T, T) -> T` overload -- Byte/Short/Char are excluded
-    /// because their real stdlib `plus`/`times` overloads promote the result to `Int`, unlike
-    /// Int/Long/UInt/ULong/Float/Double's own-type result) have no real
-    /// `plus`/`times` member symbol to resolve: arithmetic on primitives is
-    /// a table-driven type-inference special case
-    /// (`tryInferRegularMemberCallPrimitiveSpecials`), not a function
-    /// declaration. Synthesizes the reference's function type directly and
-    /// records the raw binary operator on `sema.bindings` for KIR lowering
-    /// (`LambdaLowerer.lowerPrimitiveOperatorCallableRef`) to build a
-    /// wrapper around, since there is no symbol for it to call either.
-    ///
-    /// `Boolean::and` / `::or` / `::xor` (KUU-4092) share the same mechanism:
-    /// upstream declares them as `infix fun` members of kotlin.Boolean, but
-    /// `true and false` calls resolve through the Boolean intrinsic fast
-    /// path, so no member symbol exists for the reference to bind to either.
-    /// Unlike the numeric operator families the signature is unique --
-    /// `(Boolean, Boolean) -> Boolean` -- so no expected type is required.
-    ///
-    /// Returns `nil` when `receiverName`/`member` don't name a supported
-    /// primitive-operator pair, so the caller falls through to ordinary
-    /// candidate resolution.
     private func inferPrimitiveOperatorCallableRefExpr(
         _ id: ExprID,
         receiverName: InternedString,
@@ -3047,9 +2710,6 @@ extension ExprTypeChecker {
         return resultType
     }
 
-    /// REFL-PRIMOP: `Boolean::not` has no real member symbol because ordinary
-    /// Boolean negation is a compiler intrinsic. Synthesize its unique
-    /// callable-reference type and record the unary operator for KIR lowering.
     private func inferPrimitiveUnaryOperatorCallableRefExpr(
         _ id: ExprID,
         receiverName: InternedString,
@@ -3126,12 +2786,6 @@ extension ExprTypeChecker {
         return (functionType.returnType, specialization)
     }
 
-    /// Binds an unbound `Type::property` (or, when `ownerType` is `nil`, a
-    /// bound `instance::property`) callable reference to `propertySymbol` and
-    /// returns its result type. Shared by the FQ-based owner-member lookup
-    /// and the package-level extension-property fallback in
-    /// `inferCallableRefExpr`, which differ only in how they find
-    /// `propertySymbol`.
     private func bindPropertyCallableRef(
         _ id: ExprID,
         propertySymbol: SymbolID,
@@ -3189,10 +2843,6 @@ extension ExprTypeChecker {
         if isUnbound {
             sema.bindings.markUnboundCallableRef(id)
         } else {
-            // See the function-reference commit above: re-inference can
-            // switch a `Type::property` reference to a bound shape (for
-            // example a `companion val C.prop` extension), so any earlier
-            // unbound mark must not survive the bound commit.
             sema.bindings.unmarkUnboundCallableRef(id)
         }
         markPropertyReferenceSamConversionIfNeeded(
@@ -3205,22 +2855,6 @@ extension ExprTypeChecker {
         return resultType
     }
 
-    /// Builds the concrete `KProperty0<V>` / `KMutableProperty0<V>` /
-    /// `KProperty1<Owner, V>` / `KMutableProperty1<Owner, V>` type for a plain
-    /// property callable reference (`Type::property`, `instance::property`, or
-    /// bare `::property`), so a reference used without an expected type (e.g.
-    /// `val ref = C::v`, or as an argument whose parameter type is itself
-    /// inferred, like `listOf(C::v)`) still gets a real KProperty-conforming
-    /// type instead of degrading to the property's own value type.
-    ///
-    /// `ownerType` is `nil` for a bound (`instance::property`) or top-level
-    /// (bare `::property`) reference (arity 0: `KProperty0`/`KMutableProperty0`),
-    /// and the receiver's class type for an unbound (`Type::property`)
-    /// reference (arity 1: `KProperty1`/`KMutableProperty1`).
-    ///
-    /// Returns `nil` when the interface symbol isn't registered (e.g.
-    /// `kotlin.reflect` wasn't injected), in which case callers should keep
-    /// their previous fallback behavior.
     private func kPropertyReferenceType(
         ownerType: TypeID?,
         valueType: TypeID,
@@ -3306,21 +2940,6 @@ extension ExprTypeChecker {
         )
     }
 
-    /// A property reference is also a valid function value — Kotlin allows
-    /// `list.map(Person::name)` or `val f: (Person) -> String = Person::name`
-    /// — so an `expectedType` that is a function type (or SAM-convertible
-    /// interface) is always trusted as-is, exactly like before this fix and
-    /// exactly like the sibling function-reference branch above.
-    ///
-    /// Otherwise, `expectedType` is only trusted when it is itself one of the
-    /// four concrete KProperty shapes (`KProperty0`/`KMutableProperty0`/
-    /// `KProperty1`/`KMutableProperty1`) — the same set
-    /// `propertyReferenceShape` in `LambdaLowerer+PropertyReferenceLowering.swift`
-    /// recognizes to build the real KIR wrapper object. A broader or unrelated
-    /// expected type (`Any`, `KProperty<*>`, `KCallable<*>`, ...) would
-    /// silently defeat that wrapper and fall back to a non-conforming legacy
-    /// value, so `inferredType` (the correct concrete shape this reference
-    /// actually has) is used instead in that case.
     private func resolvedPropertyReferenceResultType(
         expectedType: TypeID?,
         inferredType: TypeID,
@@ -3361,12 +2980,6 @@ extension ExprTypeChecker {
             return expectedType
         }
         if let samFunctionType = driver.helpers.samCallableReferenceFunctionType(for: expectedType, sema: sema) {
-            // Same check against the SAM signature for a fun-interface
-            // expected type (`useSam(C::v)`): adopt the interface type only
-            // when the reference's function view matches the SAM. A SAM
-            // signature with context receivers additionally accepts the
-            // flattened positional view (`context(C) () -> V` matches
-            // `KProperty1<C, V>`'s `(C) -> V` function view — KUU-3170).
             let samFunctionTypeID = sema.types.make(.functionType(samFunctionType))
             if !sema.types.typeContainsAnyTypeParam(expectedType),
                isConcreteKPropertyReferenceShape(inferredType, sema: sema, interner: interner),
@@ -3386,9 +2999,6 @@ extension ExprTypeChecker {
         guard isConcreteKPropertyReferenceShape(inferredType, sema: sema, interner: interner) else {
             return expectedType
         }
-        // Keep the reference's actual shape when a concrete KPropertyN
-        // expectation has the wrong arity or type arguments. The enclosing
-        // expression's subtype check then emits the mismatch diagnostic.
         if sema.types.typeContainsAnyTypeParam(expectedType)
             || !sema.types.isSubtype(inferredType, expectedType)
         {
