@@ -626,9 +626,6 @@ extension CoroutineLoweringPass {
             }
         }
 
-        // A suspend function that never calls a suspend entry point still owns
-        // a machine on JVM; only callees that actually forward a suspension
-        // are transparent.
         var sawSuspendCall = false
         for (index, instruction) in originalBody.enumerated() {
             guard let callInfo = extractCallInfo(instruction),
@@ -648,8 +645,6 @@ extension CoroutineLoweringPass {
             if let result = callInfo.result {
                 derived.insert(result)
             }
-            // Exprs produced by `kk_coroutine_suspended` — the suspend-call
-            // protocol compares the call result against this token.
             var suspendedTokens: Set<KIRExprID> = []
             var stack = instructionSuccessors(
                 at: index,
@@ -680,15 +675,10 @@ extension CoroutineLoweringPass {
                     }
                     let calleeName = interner.resolve(nextCallInfo.callee)
                     if calleeName == "kk_coroutine_suspended" {
-                        // Suspend-call protocol: fetch the suspended marker
-                        // the result is compared against below.
                         if let token = nextCallInfo.result {
                             suspendedTokens.insert(token)
                         }
                     } else {
-                        // Only result-representation conversions may follow
-                        // the call — anything else (arithmetic, I/O, a second
-                        // suspension) owns a resumption point on JVM.
                         guard isTailResultConversionCallee(calleeName),
                               nextCallInfo.arguments.contains(where: { derived.contains($0) }),
                               let nextResult = nextCallInfo.result
@@ -715,9 +705,6 @@ extension CoroutineLoweringPass {
                         labelToInstructionIndex: labelToInstructionIndex
                     ))
                 case let .jumpIfEqual(lhs, rhs, _):
-                    // Suspend-call protocol: `result == COROUTINE_SUSPENDED`.
-                    // Comparing the resumed value against anything else means
-                    // the function branches on it after resumption.
                     if suspendedTokens.contains(lhs) || suspendedTokens.contains(rhs) {
                         stack.append(contentsOf: instructionSuccessors(
                             at: next,
@@ -729,8 +716,6 @@ extension CoroutineLoweringPass {
                         isTailCall = false
                     }
                 case let .jumpIfNotNull(value, _):
-                    // Suspend-call protocol: thrown-exception check. Any
-                    // other null check inspects the resumed value.
                     if value == callInfo.thrownResult {
                         stack.append(contentsOf: instructionSuccessors(
                             at: next,
@@ -754,9 +739,6 @@ extension CoroutineLoweringPass {
                 case let .returnValue(value):
                     isTailCall = derived.contains(value)
                 case let .returnIfEqual(lhs, rhs):
-                    // `return 0 when lhs == rhs`: only the suspend-propagation
-                    // check (`result == COROUTINE_SUSPENDED`) may end the
-                    // frame here — forwarding the suspension is tail-safe.
                     if suspendedTokens.contains(lhs) || suspendedTokens.contains(rhs) {
                         stack.append(contentsOf: instructionSuccessors(
                             at: next,
@@ -780,13 +762,6 @@ extension CoroutineLoweringPass {
         return sawSuspendCall
     }
 
-    /// KUU-3719: runtime callees that only adapt a suspend result's
-    /// *representation* between a tail suspend call and the `return` —
-    /// casts, box/unbox and integer-width narrowing — matching the
-    /// conversions JVM folds into a tail suspend call's resume path. Any
-    /// other `kk_` callee (arithmetic like `kk_op_add`, printing, object
-    /// allocation) is real post-resumption work and keeps the function's
-    /// own machine.
     private func isTailResultConversionCallee(_ name: String) -> Bool {
         name.hasPrefix("kk_op_cast")
             || name.hasPrefix("kk_unbox")
