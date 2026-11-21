@@ -1,7 +1,4 @@
 extension CallTypeChecker {
-    /// Kotlin checks explicit top-level imports before same-package functions.
-    /// Keep the import tier when it has an applicable candidate so a more
-    /// specific same-package overload cannot outrank it during final selection.
     func preferApplicableExplicitTopLevelImportTier(
         candidates: [SymbolID],
         args: [CallArgument],
@@ -71,11 +68,6 @@ extension CallTypeChecker {
             return candidates
         }
 
-        // A lambda or callable reference can only satisfy a function-shaped
-        // parameter, but its provisional argument type cannot prove that
-        // during the probe. Keep only imported candidates whose mapped
-        // parameters can accept the functional arguments; overload
-        // resolution still performs the authoritative check afterwards.
         let hasFunctionalLiteralArgs = args.contains {
             ctx.ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true
         }
@@ -118,9 +110,6 @@ extension CallTypeChecker {
         return probedImportedCandidates
     }
 
-    /// Whether every lambda or callable-reference argument maps to a
-    /// parameter that can accept a function value: a function type, an
-    /// unresolved type parameter, or a SAM-convertible interface.
     private func functionalLiteralArgumentsFitParameters(
         _ candidate: SymbolID,
         args: [CallArgument],
