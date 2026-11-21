@@ -1,12 +1,6 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
-    /// Whether a companion member declared inside `containingClass` reached
-    /// the current file through an explicit import — `import Foo.answer`,
-    /// `import Foo.Companion.answer`, `import Foo.Companion.*`, or an alias
-    /// of either. The companion name may be elided in the import path, so
-    /// both spellings are matched against the candidate's fully qualified
-    /// name.
     private func isExplicitlyImportedCompanionMember(
         candidateFQName: [InternedString],
         candidateName: InternedString,
@@ -19,8 +13,6 @@ extension CallTypeChecker {
         let elidedCompanionPath = containingFQName + [candidateName]
         return file.imports.contains { importDecl in
             if importDecl.isWildcard {
-                // `import Foo.Companion.*` brings companion members into
-                // scope under their own names.
                 return importDecl.path + [candidateName] == candidateFQName
             }
             return importDecl.path == candidateFQName
@@ -155,8 +147,6 @@ extension CallTypeChecker {
         }
 
         if !resolvedCandidates.isEmpty {
-            // Coroutine builders erase their result type. Resolve arguments first,
-            // then recover the actual block result instead of constraining Any.
             let isCoroutineBuilderCandidate: (SymbolID) -> Bool = { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate) else { return false }
                 let externalLinkName = sema.symbols.externalLinkName(for: candidate)
@@ -218,10 +208,6 @@ extension CallTypeChecker {
                 var ancestor = ctx.enclosingClassSymbol
                 var seenAncestors: Set<SymbolID> = []
                 while let current = ancestor, seenAncestors.insert(current).inserted {
-                    // Companion members behave like inherited statics: a
-                    // subclass receives them through its superclass's
-                    // companion even though the owner is not a lexical
-                    // ancestor (KUU-4471).
                     if sema.types.isNominalSubtypeSymbol(current, of: containingClass) {
                         return receiverType
                     }
@@ -370,15 +356,12 @@ extension CallTypeChecker {
                 resolved = retried
                 resolvedImplicitReceiverType = callImplicitReceiverType
             }
-            // An unresolved member argument already has the root diagnostic.
             if resolved.diagnostic?.code == "KSWIFTK-SEMA-0003",
                containsUnresolvedMemberDiagnostic(in: args.map(\.expr), ast: ast, sema: sema)
             {
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
             }
-            // An applicable member keeps precedence even when the surrounding
-            // result expectation fails, or its own overload set is ambiguous.
             if let diagnostic = resolved.diagnostic,
                !knownApplicableImplicitMembers.isEmpty,
                resolvedCandidates.allSatisfy({ knownApplicableImplicitMembers.contains($0) })
@@ -456,10 +439,6 @@ extension CallTypeChecker {
                         return resultType
                     }
                 }
-                // An applicable implicit-receiver callable property sits on
-                // the same call tower the extension recoveries below probe;
-                // a member `invoke` on a nearer-or-equal level must not lose
-                // to an extension's diagnostic (KUU-4347).
                 let callablePropertyEntryIndex = calleeName.flatMap { name in
                     applicableImplicitReceiverCallablePropertyEntryIndex(
                         named: name,
@@ -592,9 +571,6 @@ extension CallTypeChecker {
                     let diagnosticsCheckpoint = sema.diagnostics.checkpoint()
                     var probeContext = ctx
                     if case .callableRef = ast.arena.expr(args[index].expr) {
-                        // Keep the reference-shaped function type when the
-                        // deferred argument is a callable reference, the same
-                        // way `prepareCallArguments` infers it.
                         probeContext.isCallableReferenceArgument = true
                     }
                     // The engine dedups identical diagnostics, so an error
@@ -627,10 +603,6 @@ extension CallTypeChecker {
                     }
                 }
             }
-            // A lambda literal whose overloads disagree on the receiver-function
-            // shape is checked first without any expected type, so `this` stays
-            // unresolved inside its body. Re-check it against the chosen
-            // candidate's parameter type so receiver members resolve (KUU-4456).
             if resolved.diagnostic == nil,
                let chosen = resolved.chosenCallee,
                let chosenSignature = sema.symbols.functionSignature(for: chosen)
@@ -680,8 +652,6 @@ extension CallTypeChecker {
                     }
                 }
             }
-            // An applicable member keeps precedence even when the surrounding
-            // result expectation fails, or its own overload set is ambiguous.
             if let diagnostic = resolved.diagnostic,
                !knownApplicableImplicitMembers.isEmpty,
                resolvedCandidates.allSatisfy({ knownApplicableImplicitMembers.contains($0) })
@@ -691,12 +661,6 @@ extension CallTypeChecker {
                 return sema.types.errorType
             }
             if let diagnostic = resolved.diagnostic {
-                // A callable value sharing the callee's name — a
-                // function-typed property like `var resume: () -> Unit`, or
-                // an invoke-bearing object in scope — is part of the same
-                // Kotlin candidate set. With no viable function candidate the
-                // call can still bind through that value's implicit `invoke`,
-                // so defer to the callable-value path rather than diagnosing.
                 if let calleeName,
                    diagnostic.severity == .error,
                    callableValueCalleeInScope(named: calleeName, ctx: ctx, locals: locals)
@@ -727,9 +691,6 @@ extension CallTypeChecker {
                 {
                     return recovered
                 }
-                // When the receiver's nullability is the only blocker — the
-                // same candidate set resolves once it is non-null — kotlinc
-                // reports an unsafe call rather than a constraint failure.
                 if let implicitReceiver = resolvedImplicitReceiverType ?? callImplicitReceiverType,
                    sema.types.nullability(of: implicitReceiver) == .nullable
                 {
@@ -764,9 +725,6 @@ extension CallTypeChecker {
                 return sema.types.errorType
             }
             guard let chosen = resolved.chosenCallee else {
-                // Inherited `private` members are not candidates (they are not
-                // inherited) but still report as inaccessible, not unresolved
-                // (KUU-3766).
                 if let calleeName,
                    let privateMember = driver.helpers.inaccessiblePrivateImplicitReceiverMember(
                        named: calleeName, ctx: ctx
@@ -870,8 +828,6 @@ extension CallTypeChecker {
                 contextParameterReceiverSymbols: contextParameterReceiverSymbols
             )
             if sema.wellKnownSymbols.isContractIntrinsic(for: chosen) {
-                // The contract DSL is compiler-only, but only after ordinary
-                // overload resolution selects kotlin.contracts.contract.
                 sema.bindings.markStdlibSpecialCallExpr(id, kind: .contract)
             }
             if let extensionReceiverSymbol = memberExtensionReceiverMarks[chosen] {
@@ -888,9 +844,6 @@ extension CallTypeChecker {
                           )
                           return sema.types.isSubtype(sema.types.makeNonNullable($0.type), sema.types.makeNonNullable(substituted))
                       }), let symbol = receiver.symbol {
-                // Scope lookup can resolve a member extension without passing
-                // through the receiver-tower fallback. Preserve its extension
-                // receiver identity separately from the lexical dispatch owner.
                 sema.bindings.markImplicitExtensionReceiver(id, symbol: symbol)
             }
             if sema.bindings.implicitReceiverOuterReceiver(for: id) == nil,
@@ -907,9 +860,6 @@ extension CallTypeChecker {
                }),
                let receiverSymbol = outerEntry.symbol
             {
-                // Scope lookup records a member extension's extension receiver
-                // above, but KIR also needs the lexical owner for its dispatch
-                // receiver slot when an inner receiver lambda shadows `this`.
                 sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: receiverSymbol)
             }
             if let calleeName, let receiverType = callImplicitReceiverType,
@@ -943,17 +893,11 @@ extension CallTypeChecker {
             {
                 sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: receiverSymbol)
             }
-            // Scope lookup can resolve an outer member or package extension
-            // before the receiver tower fallback runs. Preserve the selected
-            // receiver for capture analysis, including builtin receivers
-            // such as String that have no nominal dispatch owner.
             if sema.symbols.memberExtensionOwnerSymbol(for: chosen) == nil,
                sema.bindings.implicitReceiverOuterReceiver(for: id) == nil,
                sema.symbols.functionSignature(for: chosen)?.receiverType != nil,
                let resolvedImplicitReceiverType,
                let outerReceiver = ctx.implicitReceiverMemberLookupEntries().first(where: { receiver in
-                   // Use the resolver's actual receiver, not the declaration's
-                   // generic receiver before type argument substitution.
                    receiver.type == resolvedImplicitReceiverType
                }),
                let receiverSymbol = outerReceiver.symbol
@@ -1015,9 +959,6 @@ extension CallTypeChecker {
                     "__kk_op_ulong_rangeUntil",
                 ].contains(externalLinkName)
             } else if let symbol = sema.symbols.symbol(chosen) {
-                // Source-backed range constructors have no external link. Keep
-                // the range markers in sync so later member lookup and lowering
-                // can recognize the returned UIntRange/UIntProgression value.
                 ["rangeTo", "until", "rangeUntil", "downTo", "step", "fromClosedRange"].contains(
                     interner.resolve(symbol.name)
                 ) && driver.helpers.isRangeLikeType(adjustedReturnType, sema: sema, interner: interner)
@@ -1110,10 +1051,6 @@ extension CallTypeChecker {
         )
     }
 
-    /// Same nearest-receiver resolution as `contextParameterReceiverSymbols(for:)`
-    /// but driven by an explicit context-parameter type list — used by
-    /// callable-value invocations (`f()` on a `context(A, B) () -> T`), where
-    /// the "signature" is the function type itself rather than a callee symbol.
     func contextParameterReceiverSymbols(
         contextParameterTypes: [TypeID],
         typeParameterSymbols: [SymbolID],
@@ -1124,14 +1061,6 @@ extension CallTypeChecker {
             return []
         }
 
-        // Kotlin resolves the *nearest* receiver for an implicit context
-        // argument: receivers a lambda introduces inside the enclosing
-        // function body — its implicit `this` (`with("local") { ... }`) and
-        // the context receivers a `context(...) { ... }` block supplies —
-        // shadow the enclosing function's context parameters, which in turn
-        // shadow receivers from scopes enclosing the declaration.
-        // `enclosingLambdaExprIDs` resets when a named/local function body
-        // begins, so per-lambda probing stays inside the caller's own body.
         let deeperReceiverSymbols = Set(ctx.enclosingLambdaExprIDs.map {
             SyntheticSymbolScheme.lambdaReceiverSymbol(for: $0)
         })
@@ -1173,13 +1102,6 @@ extension CallTypeChecker {
                     targetType
                 )
             }
-            // Innermost enclosing lambda first: its implicit receiver, then
-            // the context receivers that lambda itself supplies (the
-            // `context(A("c")) { }` in `with(A("d")) { context(A("c")) { } }`
-            // is nearer than the outer `with` receiver). Context receivers
-            // carry no scope symbol — nil defers to `contextArgumentValue`,
-            // which resolves the innermost value on the context-receiver
-            // stack.
             for lambdaExprID in ctx.enclosingLambdaExprIDs.reversed() {
                 let receiverSymbol = SyntheticSymbolScheme.lambdaReceiverSymbol(for: lambdaExprID)
                 if let receiver = ctx.implicitReceiverStack.last(where: {
@@ -1199,12 +1121,6 @@ extension CallTypeChecker {
             if let enclosing = enclosingContextParameters.first(where: matches) {
                 return enclosing.symbol
             }
-            // An anonymous `context(...) { ... }` lambda's context receiver has
-            // no scope symbol, but its value sits on the lowering
-            // context-receiver stack — nearer than any outer implicit receiver
-            // such as `this`. Yielding nil lets `contextArgumentValue` resolve
-            // the innermost receiver of this type from that stack instead of
-            // binding a farther outer receiver here.
             if contextReceiverTypes.contains(where: { contextType in
                 ctx.sema.types.isSubtype(contextType, targetType)
             }) {
