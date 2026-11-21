@@ -2,20 +2,13 @@ package java.net
 
 import kotlin.internal.KsSymbolName
 
-/** Native source-backed compatibility type for JVM-shaped `java.net.InetAddress`
- * signatures. Name resolution delegates to the platform resolver (`getaddrinfo`)
- * through the runtime, so results match the system resolver including
- * `/etc/hosts` overrides. Addresses are carried in their JVM textual form
- * (dotted-quad IPv4, uncompressed eight-group IPv6). */
 public open class InetAddress internal constructor(
     private val host: String,
     private val numericAddress: String
 ) {
-    /** The host name this address was created with, or the empty string. */
     public val hostName: String
         get() = host
 
-    /** The raw IP address in textual (numeric) form. */
     public val hostAddress: String
         get() = numericAddress
 
@@ -23,33 +16,25 @@ public open class InetAddress internal constructor(
 
     public fun getAddress(): ByteArray = inetAddressToBytes(numericAddress)
 
-    /** `true` when this is the IPv4 wildcard `0.0.0.0` or the IPv6 `::` wildcard. */
     public val isAnyLocalAddress: Boolean
         get() = numericAddress == "0.0.0.0" || numericAddress == "0:0:0:0:0:0:0:0"
 
-    /** `true` for IPv4 `127/8` or IPv6 `::1`. */
     public val isLoopbackAddress: Boolean
         get() = numericAddress.startsWith("127.") || numericAddress == "0:0:0:0:0:0:0:1"
 
-    /** `true` for IPv4 `169.254/16` or IPv6 `fe80::/10`. */
     public val isLinkLocalAddress: Boolean
         get() = numericAddress.startsWith("169.254.") || inetAddressV6GroupRange(numericAddress, 0xfe80, 0xfebf)
 
-    /** `true` for IPv4 site-local `10/8`, `172.16/12`, `192.168/16`
-     * or IPv6 `fec0::/10` site-local. */
     public val isSiteLocalAddress: Boolean
         get() = numericAddress.startsWith("10.") ||
             numericAddress.startsWith("192.168.") ||
             inetAddressV4SecondOctetIn(numericAddress, 172, 16, 31) ||
             inetAddressV6GroupRange(numericAddress, 0xfec0, 0xfeff)
 
-    /** `true` for IPv4 `224/4` multicast or IPv6 `ff00::/8` multicast. */
     public val isMulticastAddress: Boolean
         get() = inetAddressV4FirstOctetIn(numericAddress, 224, 239) ||
             inetAddressV6GroupRange(numericAddress, 0xff00, 0xffff)
 
-    /** `true` when the numeric form has no `:` — i.e. it is a dotted-quad
-     * IPv4 literal. (JDK-compat helper name kept for source compatibility.) */
     public val isIPv4Address: Boolean
         get() = !numericAddress.contains(':')
 
@@ -61,15 +46,10 @@ public open class InetAddress internal constructor(
     override fun toString(): String = "$host/$numericAddress"
 
     public companion object {
-        /** Resolves `host` through the platform resolver. `null`/empty resolves
-         * to the loopback address, matching the JDK. Throws
-         * [UnknownHostException] when resolution fails. */
         public fun getByName(host: String?): InetAddress {
             if (host == null || host.isEmpty()) return getLoopbackAddress()
             val addresses = netResolveAddresses(host)
             val first = addresses[0]
-            // The JDK reports a reverse-resolved name for literal inputs and the
-            // given name otherwise; fall back to the literal when PTR lookup fails.
             val name = if (inetAddressIsNumericLiteral(host)) {
                 netReverseLookup(first) ?: host
             } else {
@@ -95,8 +75,6 @@ public open class InetAddress internal constructor(
         public fun getByAddress(host: String?, addr: ByteArray): InetAddress =
             InetAddress(host ?: "", inetAddressFormat(addr))
 
-        /** The host name of the local machine resolved to an address, matching
-         * the JDK `getLocalHost` behavior. */
         public fun getLocalHost(): InetAddress {
             val name = netLocalHostName()
             val addresses = try {
@@ -166,8 +144,6 @@ private fun inetAddressFormat(addr: ByteArray): String {
         return (0..3).joinToString(".") { (addr[it].toInt() and 0xff).toString() }
     }
     if (addr.size == 16) {
-        // The JDK models `::ffff:a.b.c.d` as an Inet4Address and prints the
-        // dotted-quad form.
         val mapped = (0 until 10).all { addr[it].toInt() == 0 } &&
             addr[10].toInt() == -1 && addr[11].toInt() == -1
         if (mapped) {
@@ -181,12 +157,9 @@ private fun inetAddressFormat(addr: ByteArray): String {
     throw IllegalArgumentException("Invalid address length: ${addr.size}")
 }
 
-/** Space-separated numeric addresses for `host` in resolver order, or throws
- * `java.net.UnknownHostException` via the thrown slot. */
 @KsSymbolName("__kk_net_resolve")
 private external fun netResolveRaw(host: String): String
 
-/** PTR-record lookup; returns an empty string when the record is absent. */
 @KsSymbolName("__kk_net_reverse_lookup")
 private external fun netReverseLookupRaw(address: String): String
 
@@ -195,7 +168,6 @@ private external fun netLocalHostName(): String
 
 private fun netResolveAddresses(host: String): List<String> {
     val raw = netResolveRaw(host)
-    // The JDK prefers IPv4 results unless java.net.preferIPv6Addresses is set.
     return raw.split(' ').filter { it.isNotEmpty() }
         .sortedBy { if (it.contains('.')) 0 else 1 }
 }
