@@ -1,15 +1,8 @@
 extension DataEnumSealedSynthesisPass {
-    /// Common declarations can bind qualified entry reads to expect fields.
-    /// Redirect them to the actual slots that the enum initializer populates.
     func rewriteExpectEnumEntryReferences(module: KIRModule, sema: SemaModule) {
         var actualEntries: [SymbolID: SymbolID] = [:]
-        // Only symbols the module actually references can be rewritten, so
-        // probe those instead of scanning every field in the symbol table.
         for entryID in referencedEntrySymbols(in: module) {
             guard let entry = sema.symbols.symbol(entryID), entry.kind == .field else { continue }
-            // `parentSymbolIfKnown` answers imported field shells from their
-            // registered owner edge; expect/actual pairs are always source
-            // declarations, so a pending import can only be skipped safely.
             guard let parent = sema.symbols.parentSymbolIfKnown(for: entry.id),
                   let owner = sema.symbols.symbol(parent),
                   owner.kind == .enumClass,
@@ -62,8 +55,6 @@ extension DataEnumSealedSynthesisPass {
         }
     }
 
-    /// Symbols the module reads, writes or names through `symbolRef`
-    /// expressions / constants. Enum entry rewrites only ever touch these.
     func referencedEntrySymbols(in module: KIRModule) -> Set<SymbolID> {
         var referenced = Set<SymbolID>()
         for expression in module.arena.expressions {
@@ -112,8 +103,6 @@ extension DataEnumSealedSynthesisPass {
         }
         let intType = sema.types.make(.primitive(.int, .nonNull))
 
-        // Keep the public Kotlin signature as Array<Enum> in Sema and metadata;
-        // the runtime array storage remains erased in the generated body.
         let enumType = sema.types.make(.classType(ClassType(
             classSymbol: owner.id,
             args: [],
@@ -133,7 +122,6 @@ extension DataEnumSealedSynthesisPass {
         let signature = FunctionSignature(parameterTypes: [], returnType: returnType, isSuspend: false)
 
         var body = KIRLoweringEmitContext()
-        // `E.values()` triggers the enum's `<clinit>` (entries + companion).
         emitEnumLazyInitGuard(
             enumSymbol: owner.id,
             entryFieldSymbols: entries.map(\.id),
@@ -179,9 +167,6 @@ extension DataEnumSealedSynthesisPass {
             return parent == owner.id || sema.symbols.actualSymbol(for: parent) == owner.id
         }
         if let existingSymbol = existingValues, !existingFunctionSymbols.contains(existingSymbol) {
-            // Header collection registers one stub per FQName. When expect is
-            // first, keep its bound SymbolID but give the actual enum ownership
-            // of the runtime body and the Array<ActualEnum> signature.
             sema.symbols.setParentSymbol(owner.id, for: existingSymbol)
             appendSyntheticFunctionWithSymbol(
                 functionSymbol: existingSymbol,
@@ -218,8 +203,6 @@ extension DataEnumSealedSynthesisPass {
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let getterName = interner.intern("entries$get")
 
-        // Preserve EnumEntries<Enum> for the public getter signature. Only the
-        // generated runtime call itself uses erased collection storage.
         let enumType = sema.types.make(.classType(ClassType(
             classSymbol: enumSymbol.id,
             args: [],
@@ -243,7 +226,6 @@ extension DataEnumSealedSynthesisPass {
         let signature = FunctionSignature(parameterTypes: [], returnType: returnType, isSuspend: false)
 
         var body = KIRLoweringEmitContext()
-        // `E.entries` triggers the enum's `<clinit>` (entries + companion).
         emitEnumLazyInitGuard(
             enumSymbol: enumSymbol.id,
             entryFieldSymbols: entries.map(\.id),
@@ -261,8 +243,6 @@ extension DataEnumSealedSynthesisPass {
             sema: sema,
             interner: interner
         )
-        // Cache the per-enum list so `Color.entries` and `enumEntries<Color>()`
-        // have the same stable identity, matching Kotlin's EnumEntries contract.
         let listExpr = module.arena.appendTemporary(type: returnType
         )
         body.append(.call(
@@ -448,8 +428,6 @@ extension DataEnumSealedSynthesisPass {
         )
     }
 
-    /// Enum values are raw ordinals in KIR, so a generated switch preserves the
-    /// existing representation while selecting the entry-specific implementation.
     func appendSyntheticEnumEntryDispatchesIfNeeded(
         owner: SemanticSymbol,
         entries: [SemanticSymbol],
@@ -741,8 +719,6 @@ extension DataEnumSealedSynthesisPass {
         }
     }
 
-    /// When owner is the companion, uses the stub's symbol so Color.valueOf
-    /// resolves to the same KIR function.
     func appendSyntheticEnumValueOfIfNeeded(
         name: InternedString,
         owner: SemanticSymbol,
@@ -775,8 +751,6 @@ extension DataEnumSealedSynthesisPass {
         var body = KIRLoweringEmitContext()
         body.append(.constValue(result: paramRef, value: .symbolRef(parameterSymbol)))
 
-        // `E.valueOf(name)`/`enumValueOf<E>(name)` trigger the enum's
-        // `<clinit>` before any name comparison or failure path runs.
         if case let .classType(enumClassType) = sema.types.kind(of: enumType) {
             emitEnumLazyInitGuard(
                 enumSymbol: enumClassType.classSymbol,
@@ -818,7 +792,6 @@ extension DataEnumSealedSynthesisPass {
 
             body.append(.jumpIfEqual(lhs: cmpResult, rhs: falseExpr, target: nextLabel))
 
-            // Enum values are represented as ordinals.
             let ordinalExpr = module.arena.appendExpr(
                 .intLiteral(Int64(ordinal)),
                 type: enumType
@@ -829,7 +802,6 @@ extension DataEnumSealedSynthesisPass {
             body.append(.label(nextLabel))
         }
 
-        // Kotlin throws: IllegalArgumentException: No enum constant ClassName.value
         let prefixInterned = interner.intern("\(enumName).")
         let prefixExpr = module.arena.appendExpr(
             .stringLiteral(prefixInterned),
@@ -919,9 +891,6 @@ extension DataEnumSealedSynthesisPass {
         }
     }
 
-    /// Ensures KIRGlobal declarations exist so that codegen allocates LLVM global
-    /// variables for the entries. These globals model ordinal storage, so the
-    /// slot declarations and writes must stay typed as `Int`.
     func appendSyntheticEnumStaticInitIfNeeded(
         owner: SemanticSymbol,
         entries: [SemanticSymbol],
@@ -938,10 +907,6 @@ extension DataEnumSealedSynthesisPass {
             return global.symbol
         })
 
-        // Ensure a KIRGlobal exists for every entry field. BuildKIR emits these
-        // for `enumEntryDecl` nodes, but when the enum class comes from a
-        // nominalType-only module (e.g. library metadata) the globals may be
-        // absent. Adding them here is idempotent thanks to the guard.
         for entry in entries {
             // swiftlint:disable:next for_where
             if !existingGlobalSymbols.contains(entry.id) {
@@ -971,8 +936,6 @@ extension DataEnumSealedSynthesisPass {
             body.append(.copy(from: ordinalExpr, to: entryRef))
         }
 
-        // Retain a token-indexed descriptor for enumValues<T>() calls that
-        // execute in non-inline lambdas after their factory has returned.
         let enumType = sema.types.make(.classType(ClassType(
             classSymbol: owner.id,
             args: [],
@@ -1022,8 +985,6 @@ extension DataEnumSealedSynthesisPass {
             canThrow: false
         ))
 
-        // Register supertype edges so boxed enum values can answer `is`/`as`
-        // against kotlin.Enum and implemented interfaces (e.g. Comparable).
         let kotlinPkg = [interner.intern("kotlin")]
         var extraEnumSupers: [SymbolID] = []
         if let enumBaseSymbol = sema.symbols.lookup(fqName: kotlinPkg + [interner.intern("Enum")]) {
