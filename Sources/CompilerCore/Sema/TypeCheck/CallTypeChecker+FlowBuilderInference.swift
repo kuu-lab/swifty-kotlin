@@ -1,9 +1,5 @@
 final class FlowBuilderInferenceSession {
     let expectedElementType: TypeID?
-    /// The implicit `this` symbol in scope at the `flow { }` call site.
-    /// Receivers introduced inside the builder lambda (e.g. `with(x) { }`)
-    /// replace `this` with their own symbol, so a bare `emit` bound to an
-    /// enclosing receiver keeps the same symbol as the boundary.
     let outerThisSymbol: SymbolID?
     var emittedTypes: [TypeID] = []
 
