@@ -95,9 +95,6 @@ struct MemberDispatchKey: Equatable, Hashable, CustomStringConvertible {
 }
 
 enum MemberRuntimeDispatch {
-    /// The nominal-name half of `rangeReceiverKind`, usable when only the
-    /// static receiver *type* is known (e.g. virtual-dispatch resolution in
-    /// KIR, where no source ExprID survives).
     static func rangeReceiverKind(
         for receiverType: TypeID,
         sema: SemaModule,
@@ -314,9 +311,6 @@ enum MemberRuntimeDispatch {
     static func rangeRuntimeLinkName(for key: MemberDispatchKey) -> String? {
         let kind = key.receiverKind
 
-        // KSP-457: range random APIs are bundled Kotlin source wrappers. Their
-        // private __kk_* calls are lowered from the source bodies, not from the
-        // legacy member-dispatch table.
         if key.memberName == "random" || key.memberName == "randomOrNull" {
             return nil
         }
@@ -326,22 +320,12 @@ enum MemberRuntimeDispatch {
             // KSP-1524: ULong membership is source-backed. The signed runtime
             // bridge cannot compare values whose high bit is set.
             if kind.isULongRangeLike { return nil }
-            // KSP-1523: UIntRange used to special-case its own bridge here,
-            // but this is never reached for UInt — `contains`/`isEmpty` are
-            // intercepted earlier by `closedRangeInterfaceRuntimeName` in
-            // CallLowerer+MemberCallDefaultsAndResolution.swift, which
-            // already sends UInt through `__kk_range_contains` (confirmed by
-            // marker probe).
             return "__kk_range_contains"
         case "isEmpty", "count", "mapIndexed", "mapNotNull", "filter", "filterIndexed", "filterNot", "reduce", "reduceIndexed", "fold", "foldIndexed", "find", "findLast", "any", "all", "none", "chunked", "windowed", "reversed":
             return rangeRuntimeName(kind: kind, member: key.memberName)
         case "endExclusive":
             return "__kk_range_endExclusive"
         case "sum":
-            // KSP-1523: UInt's `sum()` is a bundled, source-backed Kotlin
-            // declaration (RangeHOF.kt); `chosenCallee`'s isSourceBackedSymbol
-            // check short-circuits before this is ever consulted for UInt
-            // (confirmed by marker probe on both receiver shapes).
             return kind.isULongRangeLike ? nil : "__kk_range_sum"
         case "toList":
             return rangeRuntimeName(
@@ -377,8 +361,6 @@ enum MemberRuntimeDispatch {
             if key.arity > 0 {
                 return rangeRuntimeName(kind: kind, member: "last_predicate")
             }
-            // See the "first" case above: same source-backed-aware lookup,
-            // same reason.
             return rangeRuntimeName(kind: kind, member: "last", longMember: "last")
         case "end":
             return rangeRuntimeName(kind: kind, member: "last", longMember: "last")
@@ -485,8 +467,6 @@ enum MemberRuntimeDispatch {
         rangeFirstLastLinkName(kind: kind, wantLast: wantLast, orThrow: false)
     }
 
-    /// `Progression.first()` / `last()` (0-arg functions). Distinct from the
-    /// `first`/`last` properties, which keep the non-throwing getters.
     static func rangeFirstLastOrThrowLinkName(kind: MemberDispatchReceiverKind, wantLast: Bool) -> String {
         rangeFirstLastLinkName(kind: kind, wantLast: wantLast, orThrow: true)
     }
@@ -566,9 +546,6 @@ enum MemberRuntimeDispatch {
             return "__kk_uint_range_\(member)"
         }
 
-        // KSP-453: IntRange/IntProgression HOFs are now implemented in bundled
-        // Kotlin source (RangeHOF.kt) and must not be routed to the legacy
-        // __kk_range_* runtime entry points.
         if kind == .intRange || kind == .intProgression {
             let sourceBacked: Set<String> = [
                 "toList", "forEach", "map", "mapIndexed", "mapNotNull",
@@ -594,7 +571,6 @@ enum MemberRuntimeDispatch {
         }
 
         let migratedRangeMembers: Set<String> = ["first", "last", "count", "isEmpty", "reversed"]
-        // ULong- and UInt-like kinds always returned above.
         if migratedRangeMembers.contains(member) {
             return "__kk_range_\(member)"
         }
