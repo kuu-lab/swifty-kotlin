@@ -1,5 +1,3 @@
-/// Numbered Kotlin function classifiers encode their parameters and return
-/// type as type arguments, rather than as an ordinary nominal class.
 package struct KlibFunctionTypeShape {
     package let arity: Int
     package let isSuspend: Bool
