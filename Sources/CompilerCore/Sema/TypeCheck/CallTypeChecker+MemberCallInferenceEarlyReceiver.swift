@@ -1,11 +1,6 @@
 // swiftlint:disable function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
-    /// Infers a `flatMap*` transform argument, seeding its expected return
-    /// type from the call's expected result when possible:
-    /// `listOf<T>() + list.flatMap { .. }` fixes the transform's `R` to `T`,
-    /// so the lambda body sees `Iterable<T>`/`Sequence<T>` instead of `Any`
-    /// and a nested generic call can infer its own type arguments (KUU-4464).
     func inferFlatMapTransformArgument(
         _ argumentExpr: ExprID,
         parameterTypes: [TypeID],
@@ -70,9 +65,6 @@ extension CallTypeChecker {
                 return
             }
             if returnType == sema.types.anyType {
-                // The `Any` fallback is the historical unconditional
-                // inference: keep its diagnostics and bindings so genuine
-                // lambda errors still surface.
                 locals = attemptLocals
                 return
             }
@@ -80,16 +72,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Infers a `firstNotNullOf`/`firstNotNullOfOrNull` transform argument,
-    /// seeding the lambda's expected return type from the call's expected
-    /// result when it carries information:
-    /// `fun <T> f(): T? = list.firstNotNullOfOrNull { generic(it) }` fixes the
-    /// transform's `R` to `T`, so the lambda body sees `T?` instead of the
-    /// `Any?` placeholder and a nested return-only generic call can infer its
-    /// own type argument. Unlike `map`, kotlinc accepts this shape because the
-    /// `R : Any` bound plus the nullable result lets it solve `R` jointly, so
-    /// seeding is required for parity. When the seed does not type-check the
-    /// inference rolls back to the historical `Any`/`Any?` placeholder.
     func inferFirstNotNullTransformArgument(
         _ argumentExpr: ExprID,
         parameterTypes: [TypeID],
@@ -148,9 +130,6 @@ extension CallTypeChecker {
                 return
             }
             if returnType == fallbackReturnType {
-                // The placeholder fallback is the historical unconditional
-                // inference: keep its diagnostics and bindings so genuine
-                // lambda errors still surface.
                 locals = attemptLocals
                 return
             }
@@ -163,14 +142,6 @@ extension CallTypeChecker {
         receiverType: TypeID,
         locals: inout LocalBindings
     ) -> TypeID? {
-        // KUU-4063: `flatMap`/`flatMapIndexed` select between two bundled
-        // overloads that differ only in the transform's return type
-        // (`(T) -> Sequence<R>` vs `(T) -> Iterable<R>`). The selection must
-        // happen here for Sequence receivers (the collection fast path later
-        // only binds the first declaration, so a range/Iterable transform
-        // crashed at runtime) and for List receivers (regular overload
-        // resolution commits to the `List.flatMap*` specialization and never
-        // retries the `Iterable.flatMap*` variants).
         let flatMapMemberName = request.interner.resolve(request.calleeName)
         if (flatMapMemberName == "flatMap" || flatMapMemberName == "flatMapIndexed"),
            request.args.count == 1,
@@ -270,21 +241,6 @@ extension CallTypeChecker {
             request.sema.bindings.bindExprType(request.id, type: finalType)
             return finalType
         }
-        // KUU-4063: non-Sequence receivers hit two overload holes:
-        //  - a statically `Collection<T>`-typed receiver left `flatMap`'s
-        //    callee unbound for every transform shape (the fast path only
-        //    binds exact Iterable/List receivers), so the call lowered to a
-        //    bare `_flatMap` symbol and failed at link time;
-        //  - `flatMapIndexed` is excluded from the collection fast path for
-        //    List receivers, and regular overload resolution commits to the
-        //    `List.flatMapIndexed` specialization without retrying the
-        //    `Iterable.flatMapIndexed*` variants when the transform returns
-        //    a Sequence or a non-List Iterable (KSWIFTK-TYPE-0001).
-        // Bind the bundled `Iterable.flatMap*` overload whose transform
-        // return kind matches the lambda body here, mirroring the Sequence
-        // receiver selection above. `flatMapIndexed` on Collection/Set/
-        // Iterable-static receivers already resolves through regular
-        // overload resolution, so only the List receiver shape is claimed.
         if (flatMapMemberName == "flatMap" || flatMapMemberName == "flatMapIndexed"),
            request.args.count == 1,
            !isSequenceLikeType(receiverType, sema: request.sema, interner: request.interner)
@@ -338,10 +294,6 @@ extension CallTypeChecker {
                     ast: request.ast,
                     sema: request.sema
                 )
-                // A concrete `List` receiver keeps the `List.flatMap*`
-                // specialization for List-returning transforms; other
-                // receivers claim any flattenable transform since nothing
-                // else binds their call.
                 let transformIsFlattenable = flatMapTransformIsFlattenable(
                     lambdaArgExpr: request.args[0].expr,
                     returnType: lambdaBodyType,
@@ -399,10 +351,6 @@ extension CallTypeChecker {
                     request.sema.bindings.bindExprType(request.id, type: finalType)
                     return finalType
                 }
-                // The call stays on the regular resolution/fast-path route:
-                // undo the speculative native-HOF lambda marking so the
-                // lambda is materialized as a boxed callable, matching the
-                // callee the later stages will bind.
                 if let lambdaExpr = request.ast.arena.expr(request.args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     request.sema.bindings.unmarkCollectionHOFLambdaExpr(request.args[0].expr)
                 }
@@ -439,9 +387,6 @@ extension CallTypeChecker {
                memberName: request.calleeName,
                sema: request.sema
            ),
-           // An explicit `()` on a nested `object` is a function invocation,
-           // not a value read — fall through so `invoke` can dispatch
-           // (KUU-3662).
            !(request.ast.arena.isExplicitCall(request.id)
                && request.sema.symbols.symbol(staticMember.symbol)?.kind == .object)
         {
@@ -467,8 +412,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// Returns `nil` when the bundled source declaration is unavailable, letting the
-    /// caller fall back to the synthetic runtime-backed member.
     private func sourceBackedSequenceFlatMapOverload(
         named memberName: String,
         lambdaBodyType: TypeID,
@@ -504,10 +447,6 @@ extension CallTypeChecker {
         }) ?? candidates.first
     }
 
-    /// Bundled `Iterable.flatMap*` overload whose transform return kind
-    /// matches the lambda body. Only `kotlin.collections.Iterable` receivers
-    /// qualify — concrete `List<T>`-receiver specializations keep their own
-    /// dispatch path for List-returning transforms.
     private func sourceBackedIterableFlatMapOverload(
         named memberName: String,
         lambdaBodyType: TypeID,
@@ -549,10 +488,6 @@ extension CallTypeChecker {
         }) ?? candidates.first
     }
 
-    /// True when the flatMap/flatMapIndexed transform result is a flattenable
-    /// shape the bundled overloads iterate over: an Iterable, a Sequence, or
-    /// a range/progression (whose nominal types opt out of the Iterable
-    /// subtype check for owner-dispatch reasons).
     private func flatMapTransformIsFlattenable(
         lambdaArgExpr: ExprID,
         returnType: TypeID,
@@ -574,9 +509,6 @@ extension CallTypeChecker {
         return receiverClassifier(sema: sema, interner: interner).isIterableLikeType(returnType)
     }
 
-    /// Element type the flatMap result flattens to. Range expressions expose
-    /// their element through `nominalRangeElementType` or the range-expr
-    /// bindings rather than a collection type argument.
     private func flatMapTransformElementType(
         lambdaArgExpr: ExprID,
         returnType: TypeID,
