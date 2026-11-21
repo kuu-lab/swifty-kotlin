@@ -1,8 +1,3 @@
-/// Extracted from `registerSyntheticCoroutineStubs`
-/// (HeaderHelpers+SyntheticCoroutineRegistry.swift). The extracted
-/// methods thread the shared registry state through `context` so the
-/// call order and side effects are unchanged.
-
 extension DataFlowSemaPhase {
     func registerCoroutineTestStubs(context: inout SyntheticCoroutineRegistryContext) {
         let symbols = context.symbols
@@ -32,11 +27,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // `TestCoroutineScheduler` is an opaque handle to a per-scope virtual
-        // clock (`RuntimeTestScheduler`). Its `currentTime` and the
-        // advance*/runCurrent controls are declared as extensions in
-        // Stdlib/kotlinx/coroutines/test/*.kt bridging to the
-        // `kk_test_scheduler_*` entry points.
         let testSchedulerSymbol = ensureClassSymbol(
             named: "TestCoroutineScheduler",
             in: testPkg,
@@ -90,10 +80,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // Degraded backgroundScope: __kk_identity returns the same scope
-        // handle, aliasing the test scope itself (still a real
-        // RuntimeCoroutineScope) until scopes grow a separately cancellable
-        // child list.
         registerSyntheticObjectProperty(
             ownerSymbol: testScopeSymbol,
             ownerType: testScopeType,
@@ -129,35 +115,13 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(mutexType, for: mutexSymbol)
 
-        // Mutex() factory is migrated to Kotlin source
-        // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) delegating to the
-        // demoted __kk_mutex_create bridge.
-
         let mutexMembers = coroutineMemberRows(of: mutexSymbol, type: mutexType, symbols: symbols, interner: interner)
         mutexMembers.fn("lock", "kk_mutex_lock", ret: types.unitType, isSuspend: true)
 
-        // KUU-1356: upstream `suspend fun lock(owner: Any? = null)` —
-        // the owner-token overload bridges to __kk_mutex_lock_owner, which
-        // records the token and rejects same-owner re-acquisition.
         mutexMembers.fn("lock", "__kk_mutex_lock_owner", [(name: "owner", type: types.nullableAnyType)], ret: types.unitType, isSuspend: true)
         mutexMembers.fn("unlock", "kk_mutex_unlock", ret: types.unitType)
 
-        // KUU-1356: upstream `fun unlock(owner: Any? = null)` — the owner
-        // overload validates the token by identity and throws
-        // IllegalStateException on mismatch.
         mutexMembers.fn("unlock", "__kk_mutex_unlock_owner", [(name: "owner", type: types.nullableAnyType)], ret: types.unitType)
-
-        // Mutex.tryLock is migrated to Kotlin source
-        // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) delegating to the
-        // demoted __kk_mutex_tryLock bridge.
-
-        // Mutex.isLocked is migrated to Kotlin source
-        // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) delegating to the
-        // demoted __kk_mutex_isLocked bridge.
-
-        // Mutex.withLock is migrated to Kotlin source
-        // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) as a suspend
-        // extension that composes lock()/unlock(); no synthetic stub remains.
 
         let semaphoreSymbol = ensureInterfaceSymbol(
             named: "Semaphore",
@@ -172,24 +136,9 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(semaphoreType, for: semaphoreSymbol)
 
-        // Semaphore(permits) factory is migrated to Kotlin source
-        // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) delegating to the
-        // demoted __kk_semaphore_create bridge.
-
         let semaphoreMembers = coroutineMemberRows(of: semaphoreSymbol, type: semaphoreType, symbols: symbols, interner: interner)
         semaphoreMembers.fn("acquire", "kk_semaphore_acquire", ret: types.unitType, isSuspend: true)
         semaphoreMembers.fn("release", "kk_semaphore_release", ret: types.unitType)
 
-        // Semaphore.tryAcquire is migrated to Kotlin source
-        // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) delegating to the
-        // demoted __kk_semaphore_tryAcquire bridge.
-
-        // Semaphore.availablePermits is migrated to Kotlin source
-        // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) delegating to the
-        // demoted __kk_semaphore_availablePermits bridge.
-
-        // Semaphore.withPermit is migrated to Kotlin source
-        // (Stdlib/kotlinx/coroutines/sync/Sync.kt, KSP-677) as a suspend
-        // extension that composes acquire()/release(); no synthetic stub remains.
     }
 }
