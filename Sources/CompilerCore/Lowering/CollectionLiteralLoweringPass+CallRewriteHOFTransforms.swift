@@ -156,7 +156,6 @@ extension CollectionLiteralLoweringSupport {
         return true
     }
 
-    // 1-param lambda HOFs with [receiver, lambda, closureRaw?]
     if callee == lookup.groupByName
         || callee == lookup.associateByName || callee == lookup.associateWithName || callee == lookup.associateName
     {
