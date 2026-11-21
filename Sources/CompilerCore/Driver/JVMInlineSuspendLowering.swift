@@ -1,5 +1,4 @@
 extension JVMProgramBuilder {
-    /// Unlowered bytecode consumed by Kotlin's coroutine-aware bytecode inliner.
     func inlineSuspendBody(_ source: JVMFunction, exported: Bool) -> JVMFunction {
         var body = source
         let params = Array(source.locals.prefix(source.parameterCount))
@@ -29,7 +28,6 @@ extension JVMProgramBuilder {
 }
 
 extension JVMProgramBuilder {
-    /// Null-safe conversions used by the coroutine inliner's boxed resume path.
     func nullableInlineSuspendAdapters(_ representation: JVMSuspendValueResult) -> [JVMFunction] {
         let name = representation.boxed.referenceName!, owner = representation.adapterOwner ?? representation.boxed.referenceName!, object: JVMValueType = .reference("java/lang/Object", nullable: true)
         let input = JVMValue(slot: 0, type: object), check = JVMValue(slot: 1, type: .boolean), null = JVMValue(slot: 2, type: representation.boxed)
