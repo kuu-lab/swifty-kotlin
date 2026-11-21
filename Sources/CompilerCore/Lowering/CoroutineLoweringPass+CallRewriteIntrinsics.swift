@@ -12,23 +12,11 @@ extension CoroutineLoweringPass {
         return .call(callee: rewrite.runtimeYieldCallee, arguments: call.arguments, result: call.result, canThrow: false)
     }
 
-    /// `CoroutineStart.isLazy` is registered as a synthetic member property
-    /// with the `kk_coroutine_start_is_lazy` external link name. The enum
-    /// entries are symbolic markers with no distinct runtime value, so the
-    /// read folds here to a Boolean constant from the entry the receiver
-    /// refers to (the same compile-time resolution the launch/async
-    /// start-mode rewrite uses). A receiver that is not a compile-time-known
-    /// `CoroutineStart` entry folds to `false`, mirroring the launcher's
-    /// fallback-to-DEFAULT convention. `kk_coroutine_start_is_lazy` itself is
-    /// never emitted, so it needs no runtime entry point.
     func rewriteCoroutineStartIsLazyCall(
         call: CallRewriteInput,
         symbolByExprRaw: [Int32: SymbolID],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
-        // Source-mode reads lower straight to the external link name; calls
-        // imported from a kklib record are emitted through the `isLazy`
-        // property/getter symbol carrying that same link name.
         let isCoroutineStartIsLazyRead: Bool = {
             if call.callee == rewrite.ctx.interner.intern("kk_coroutine_start_is_lazy") {
                 return true
@@ -109,8 +97,6 @@ extension CoroutineLoweringPass {
         ),
         let loweredTarget = rewrite.loweredBySymbol[referencedSymbol]
         else {
-            // A source-backed public builder receives an already boxed suspend
-            // callable. Keep its entry metadata and adapt the marker's C ABI.
             guard call.callee == rewrite.createCoroutineUninterceptedNoReceiverCallee
                     || call.callee == rewrite.createCoroutineUninterceptedWithReceiverCallee else {
                 return nil
@@ -172,10 +158,6 @@ extension CoroutineLoweringPass {
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
         var call = call
-        // See the normalization note in rewriteCreateCoroutineUninterceptedCall:
-        // kklib-serialized marker calls carry an extra context slot after the
-        // function argument. The context half is the suspend function value's
-        // closure environment; keep it for the resolved-path launcher setup.
         var contextArgument: KIRExprID? = nil
         if (call.callee == rewrite.startCoroutineUninterceptedOrReturnWithReceiverCallee
                 && call.arguments.count == 4)
@@ -209,10 +191,6 @@ extension CoroutineLoweringPass {
         ),
         let loweredTarget = rewrite.loweredBySymbol[referencedSymbol]
         else {
-            // A dynamic suspend callable has no compiler-known entry point, so
-            // it must use the boxed-function runtime bridge. Public inline
-            // wrappers can leave the source intrinsic name here, while KLIB
-            // bodies retain the explicit link-only marker name.
             let dynamicCallee: InternedString
             let dynamicArguments: [KIRExprID]
             let preserveSymbol: SymbolID?
@@ -429,9 +407,6 @@ extension CoroutineLoweringPass {
             // `[receiver, cap0..capN]`.
             return [receiverArgument] + captures
         }
-        // Capture-first suspend callables forward each capture in the leading
-        // slots; a hasClosureParam value folds them into a single environment
-        // slot — the marker pair's context argument.
         let leadingSlotCount = (rewrite.module.arena.function(for: referencedSymbol)?.params.count ?? 0) - 1
         if captures.count == leadingSlotCount {
             return captures + [receiverArgument]
