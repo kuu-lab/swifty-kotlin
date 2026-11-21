@@ -89,8 +89,6 @@ extension CallTypeChecker {
         let interner = ctx.interner
 
 
-        // `context(with, block)` makes the first argument available as a context
-        // receiver for the block type, but does not make it an implicit receiver.
         let contextHelperName = interner.intern("context")
         if let calleeName, args.count >= 2, args.count <= 23,
            calleeName == contextHelperName,
@@ -133,12 +131,6 @@ extension CallTypeChecker {
                     return nil
                 } ?? sema.types.anyType
             }
-            // Refine the call result type using the lambda body's concrete type,
-            // but ONLY when no expected type was provided (i.e. expected was
-            // anyType, the placeholder for "unconstrained"). Needed when the
-            // `context(...) { ... }` call itself isn't in a target-typed
-            // position, e.g. as an operand of `+`:
-            //   context("one") { contextOf<String>() } + context(...) { ... }
             let refinedReturnType: TypeID = {
                 guard returnType == sema.types.anyType else { return returnType }
                 guard let lambdaExpr = ast.arena.expr(blockArg.expr),
