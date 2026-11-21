@@ -22,8 +22,6 @@ extension BuildASTPhase.ExpressionParser {
         var nestedClassDeclIDs: [DeclID] = []
         var nestedObjectDeclIDs: [DeclID] = []
         var initBlocks: [FunctionBody] = []
-        // Property initializers and `init {}` blocks run interleaved in
-        // declaration order, exactly like a named class body.
         var classBodyInitOrder: [ClassBodyInitMember] = []
         for (start, end) in statementRanges {
             let group = bodyTokens[start ..< end]
@@ -160,9 +158,6 @@ extension BuildASTPhase.ExpressionParser {
         return false
     }
 
-    /// Returns the range of a leading `companion` modifier on an object
-    /// literal member (`companion object`, `private companion object`), or
-    /// `nil` when the member does not start a companion object.
     private func objectLiteralCompanionModifierRange(
         in memberTokens: ArraySlice<Token>
     ) -> SourceRange? {
@@ -191,9 +186,6 @@ extension BuildASTPhase.ExpressionParser {
         return nil
     }
 
-    /// The group is re-parsed wrapped in a synthetic `object` body so the regular class-body init-block builder
-    /// (`declarationInitBlocks`) produces the `FunctionBody`, rather than
-    /// hand-rolling block-statement parsing here.
     private func parseObjectLiteralInitBlock(from tokens: ArraySlice<Token>) -> FunctionBody? {
         let sanitized = strippingMemberSeparatorSemicolons(tokens)
         guard sanitized.count >= 2,
@@ -278,24 +270,17 @@ extension BuildASTPhase.ExpressionParser {
             pendingPrefixStart = nil
         }
         if let pendingPrefixStart, let last = merged.last {
-            // A trailing unattached clause keeps its own (unparseable) group —
-            // same outcome as without this merge.
             contextMerged.append((pendingPrefixStart, last.1))
         }
         return contextMerged
     }
 
-    /// True when the group consists solely of declaration-prefix material
-    /// (annotations, declaration modifier keywords, and `context(...)` clauses)
-    /// and contains at least one `context(...)` clause — i.e. a fragment that
-    /// can only attach to a following member declaration.
     private func objectLiteralRangeIsDanglingContextClause(_ tokens: ArraySlice<Token>) -> Bool {
         var index = tokens.startIndex
         var sawContextClause = false
         while index < tokens.endIndex {
             let kind = tokens[index].kind
             if kind == .symbol(.at) {
-                // Annotation: `@Name`, `@A.B`, `@Name(args)` — skip its span.
                 var scan = tokens.index(after: index)
                 while scan < tokens.endIndex,
                       tokens[scan].kind.isLabelName || tokens[scan].kind == .symbol(.dot)
@@ -598,9 +583,6 @@ extension BuildASTPhase.ExpressionParser {
         from tokens: ArraySlice<Token>,
         endIndex: Int
     ) -> (name: InternedString, isMutable: Bool, typeAnnotation: TypeRefID?, initializer: ExprID?, endIndex: Int)? {
-        // Member prefixes of an object literal may legally carry visibility
-        // modifiers (`private var index = 0`), so the local-variable modifier
-        // check must not fire on this shared parsing path.
         guard !tokens.isEmpty,
               let localDeclExprID = parseLocalDeclFromSlice(
                   tokens, suppressesLocalModifierDiagnostics: true, requiresCompleteInitializer: true
@@ -917,8 +899,6 @@ extension BuildASTPhase.ExpressionParser {
         var depth = BuildASTPhase.BracketDepth()
         for (index, token) in tokens.enumerated() {
             if token.kind == .symbol(.assign), depth.isBracketBraceParenTopLevel {
-                // After `=`, `by` belongs to the initializer (for example,
-                // `object : Iface by impl {}`), not to the member property.
                 return nil
             }
             if case .softKeyword(.by) = token.kind,
@@ -960,8 +940,6 @@ extension BuildASTPhase.ExpressionParser {
                index + 1 < tokens.count,
                tokens[index + 1].kind == .symbol(.lParen)
             {
-                // A pending operand or navigation keeps get/set in the expression,
-                // including calls with trailing lambdas that resemble accessor bodies.
                 if index > 0 {
                     let previous = tokens[index - 1].kind
                     if BuildASTPhase.isStatementContinuationAtLineEnd(previous)
@@ -980,7 +958,6 @@ extension BuildASTPhase.ExpressionParser {
                             break
                         }
                     } else if allowIncompleteHeader {
-                        // The following statement group may supply a block body.
                         return index
                     }
                 }
