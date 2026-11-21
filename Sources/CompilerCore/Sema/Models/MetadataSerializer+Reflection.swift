@@ -1,8 +1,6 @@
 import Foundation
 
 extension MetadataEncoder {
-    /// Only fields serialized by RuntimeReflectionMetadataEmitter belong here.
-    /// Library artifacts continue to use the complete buildRecord path.
     func buildRuntimeReflectionRecord(
         for symbol: SemanticSymbol,
         symbols: SymbolTable,
@@ -16,9 +14,6 @@ extension MetadataEncoder {
         } : []
         let isCallable = symbol.kind == .function || symbol.kind == .constructor
         let indexedShape = isCallable ? symbols.importedMemberIndexShape(for: symbol.id) : nil
-        // Prefer a signature already updated by semantic analysis. Otherwise
-        // the index and shell flags contain the entire callable projection;
-        // legacy/eager imports continue through the existing signature path.
         let signature: FunctionSignature?
         if !isCallable {
             signature = nil
