@@ -1,6 +1,3 @@
-/// Component metadata is allocation data, separate from erased Array nominal
-/// identity. Declaration parameters use JVM erasure; allocation sites preserve
-/// reified tokens and recursively describe nested reference arrays.
 func runtimeArrayComponentTypeExpr<Instructions: RangeReplaceableCollection>(
     for type: TypeID,
     useReifiedToken: Bool = true,
@@ -19,9 +16,6 @@ func runtimeArrayComponentTypeExpr<Instructions: RangeReplaceableCollection>(
     )
 }
 
-/// Imported metadata can contain cyclic bounds or arbitrarily deep Array
-/// shapes even when source checking would reject them. Keep one active path
-/// through erasure and nested components; unknown metadata never becomes Any.
 private func boundedRuntimeArrayComponentTypeExpr<Instructions: RangeReplaceableCollection>(
     for type: TypeID,
     useReifiedToken: Bool,
@@ -60,10 +54,6 @@ private func boundedRuntimeArrayComponentTypeExpr<Instructions: RangeReplaceable
                 instructions.append(.constValue(result: fallback, value: .symbolRef(symbol)))
                 capturedKType = fallback
             }
-            // The hidden slot now carries the substituted type's KType box
-            // (KUU-4022); derive the allocation descriptor from it. For a
-            // non-Array substitution this is the classifier's nominal token;
-            // `T = Array<U>` still yields the nested element descriptor.
             let descriptor = arena.appendTemporary(type: sema.types.intType)
             instructions.append(.call(
                 callee: interner.intern("__kk_ktype_component_descriptor"),
@@ -84,7 +74,6 @@ private func boundedRuntimeArrayComponentTypeExpr<Instructions: RangeReplaceable
             arena: arena, interner: interner, instructions: &instructions,
             activeTypes: &activeTypes, activeParameters: &activeParameters
         )
-        // A cyclic or bounded-out child makes its entire parent unknown.
         guard arena.expr(nested) != .intLiteral(0) else { return nested }
     } else {
         nested = integer(0)
