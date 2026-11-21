@@ -1,6 +1,3 @@
-/// The runtime classifier required by an override whose parameter narrows an
-/// erased dispatch slot. Generic arguments remain erased: `T : Foo` checks Foo,
-/// not the concrete type argument used when constructing the receiver.
 func kirErasedDispatchArgumentCastTarget(
     implementationType: TypeID,
     dispatchType: TypeID,
@@ -14,8 +11,6 @@ func kirErasedDispatchArgumentCastTarget(
     }
 
     func erasedUpperBound(_ type: TypeID) -> TypeID {
-        // A definitely-non-null `T & Any` parameter erases exactly like T:
-        // unwrap the intersection so its bound drives the classifier check.
         var current = kirDefinitelyNotNullTypeParameter(of: type, sema: sema) ?? type
         var visited: Set<SymbolID> = []
         while case let .typeParam(parameter) = sema.types.kind(of: current) {
@@ -35,7 +30,6 @@ func kirErasedDispatchArgumentCastTarget(
     case .classType, .stringStruct, .functionType, .kClassType:
         targetIsPrimitive = false
     case .nothing:
-        // Nothing's null token rejects every non-null erased argument.
         targetIsPrimitive = false
     case .primitive:
         // KUU-3172: the unboxing bridge alone is not enough for primitive
@@ -65,9 +59,6 @@ func kirErasedDispatchArgumentCastTarget(
     return nullableTarget
 }
 
-/// Whether a dispatch argument may be null after substituting its declared
-/// type parameters. An unconstrained type parameter has the Kotlin default
-/// upper bound `Any?` and therefore accepts null.
 func kirErasedDispatchImplementationAcceptsNull(
     _ implementationType: TypeID,
     sema: SemaModule
@@ -88,21 +79,12 @@ func kirErasedDispatchImplementationAcceptsNull(
     return sema.types.nullability(of: current) == .nullable
 }
 
-/// The value a JVM type-safe barrier returns when an erased collection
-/// argument fails its `instanceof` check. Kotlin emits these defaults for the
-/// special-builtins collection members whose erased `Object` signature would
-/// otherwise invoke an implementation declared against a narrower parameter.
 enum KIRSpecialBuiltinBarrierDefault {
     case booleanFalse
     case indexNegativeOne
     case nullValue
 }
 
-/// Default value attached to a collection interface member that JVM treats as
-/// a special builtin, or nil when the member has no type-safe barrier.
-/// Mirrors the barrier list in the Kotlin compiler's
-/// `TypeSafeBarrierDescription` coverage: only the single-argument erased
-/// members below carry a default-valued barrier.
 func kirSpecialBuiltinBarrierDefault(
     for interfaceMethod: SymbolID,
     sema: SemaModule,
@@ -136,14 +118,6 @@ func kirSpecialBuiltinBarrierDefault(
     }
 }
 
-/// The runtime type an erased collection bridge argument must satisfy before
-/// it may reach the implementation parameter, or nil when the parameter
-/// admits every value the erased slot can carry. The target is the parameter's
-/// own erased type kept non-nullable: `Nothing` stays `Nothing` so its token
-/// never matches (JVM's `instanceof Void` never passes), and a parameter
-/// erased to a nullable bound such as `Any?` admits null, matching the JVM
-/// behaviour of invoking the implementation directly (Kotlin's own
-/// `AbstractMap.containsKey` accepts null keys exactly this way).
 func kirErasedDispatchBarrierCheckType(
     implementationParamType: TypeID,
     sema: SemaModule
