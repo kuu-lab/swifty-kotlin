@@ -894,11 +894,14 @@ struct JVMClassReader {
                 guard let getter = methods.first(where: {
                     !$0.isProtected && $0.name == property.getterName && $0.descriptor == property.getterDescriptor && $0.result != .unit
                 }) else { continue }
+                // Kotlin metadata keeps @get:JvmSynthetic properties callable from Kotlin.
+                let isJvmSyntheticPropertyGetter = property.isSourceVisible && getter.isSynthetic
                 if isKotlinObject && getter.isStatic && getter.parameters.isEmpty {
                     // Kotlin objects may expose a property's accessor only as @JvmStatic.
                     info.kotlinStaticProperties[property.name] = (getter, property.isNullable)
                 } else if let sourceType = property.sourceType,
                           (name.hasSuffix("$Companion") || getter.name.contains("-")
+                              || isJvmSyntheticPropertyGetter
                               || isKotlinObject && property.isSourceVisible && !property.isVar
                               || hasReadOnlyMapSupertype && !property.isVar && ["keys", "values", "entries"].contains(property.name)
                               || flags & 0x0200 != 0 && getter.isAbstract && !property.isVar && property.isSourceVisible
