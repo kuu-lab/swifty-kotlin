@@ -144,12 +144,8 @@ extension CollectionLiteralConstructionLoweringPass {
         let receiverID = arguments[0]
         if callee == lookup.reversedName, state.rangeExprIDs.contains(receiverID.rawValue) {
             if state.ulongRangeExprIDs.contains(receiverID.rawValue) {
-                // ULongRange.reversed() is bundled Kotlin source.
                 return false
             }
-            // KSP-1523: UIntRange never reaches this branch — its
-            // constructing callee is never added to state.rangeExprIDs
-            // during PreScan, so the old isUIntRange arm was unreachable.
             let transformResult = module.arena.appendTemporary(type: nil
             )
             let reversedName = lookup.kkRangeReversedName
@@ -201,12 +197,10 @@ extension CollectionLiteralConstructionLoweringPass {
         }
         if state.rangeExprIDs.contains(receiverID.rawValue) {
             if state.ulongRangeExprIDs.contains(receiverID.rawValue) {
-                // ULongRange.toList() is bundled Kotlin source.
                 return false
             }
             let toListResult = module.arena.appendTemporary(type: nil
             )
-            // KSP-1523/1524: unsigned range toList() is bundled Kotlin source.
             let rangeToListCallee: InternedString
             if state.charRangeExprIDs.contains(receiverID.rawValue) {
                 rangeToListCallee = lookup.kkCharRangeToListName
