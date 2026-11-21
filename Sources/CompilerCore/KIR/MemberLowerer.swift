@@ -42,10 +42,6 @@ final class MemberLowerer {
         return initializers
     }
 
-    /// Synthesize nested-object initializers before lowering
-    /// enclosing member bodies. Those bodies may read a nested object's
-    /// properties or call its members, which need its lazy-init guard to
-    /// already be registered.
     private func synthesizeNestedObjectInitializers(
         _ declIDs: [DeclID],
         shared: KIRLoweringSharedContext
@@ -83,8 +79,6 @@ final class MemberLowerer {
                 continue
             }
 
-            // Every named object needs a singleton handle and lazy initializer,
-            // including objects with only the implicit Any supertype.
             let objectType = shared.sema.types.make(.classType(ClassType(
                 classSymbol: objectSymbol, args: [], nullability: .nonNull
             )))
@@ -116,8 +110,6 @@ final class MemberLowerer {
         var directMembers: [KIRDeclID] = []
         var allDecls: [KIRDeclID] = []
 
-        // Enclosing function bodies can access nested objects and companions.
-        // Register their lazy initializers before lowering those accesses.
         let shared = KIRLoweringSharedContext(
             ast: ast, sema: sema, arena: arena, interner: interner,
             propertyConstantInitializers: propertyConstantInitializers
@@ -147,11 +139,6 @@ final class MemberLowerer {
             }
             let propType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
 
-            // Getter-only computed properties (`val x: T get() = expr`) have no
-            // storage — skip emitting a KIRGlobal so no backing field is generated
-            // in codegen.  The getter accessor function alone is sufficient.
-            // Exception: properties with explicit backing fields always have storage.
-            //
             // Delegate properties (`val x: T by expr`) also have no backing storage
             // for the property symbol itself — all access is routed through the
             // delegate storage symbol (e.g. `$delegate_x`) which gets its own
@@ -159,12 +146,6 @@ final class MemberLowerer {
             // with type `propType` (e.g. `stringStruct`) would cause the code
             // generator to write a wide stringStruct aggregate into an i64-sized
             // slot, corrupting adjacent globals (including the delegate storage).
-            //
-            // Interface properties never have per-instance storage of their own —
-            // any state lives in the implementing class, which gets its own
-            // KIRGlobal/backing field when it declares (or overrides) the property.
-            // Skip storage emission here so a plain interface property (with no
-            // accessor body) doesn't leak a bogus module-level global.
             let hasExplicitBackingField = propertyDecl.explicitBackingField != nil
             let isAbstractProperty = sema.symbols.symbol(symbol)?.flags.contains(.abstractType) == true
             let isGetterOnlyComputed = propertyDecl.getter != nil
@@ -220,14 +201,6 @@ final class MemberLowerer {
                 )
             }
 
-            // BUG-141: give properties that participate in interface itable
-            // dispatch a getter accessor function. A plain interface property
-            // (no custom getter, no delegate) gets a stub whose signature the
-            // dispatch site targets; a concrete `override` stored property gets
-            // a field-reading getter that is registered into the itable so an
-            // interface-typed receiver can dispatch to it. Custom-getter and
-            // delegated properties already emit their own accessor above.
-            //
             // BUG-227: the same field-reading getter is also exactly what a
             // *class* vtable slot needs behind it, so every property that
             // ever needs virtual dispatch — not just `override` members, but
@@ -274,23 +247,12 @@ final class MemberLowerer {
                     )
                 }
             }
-            // BUG-227: symmetric default setter accessor for a `var` in the
-            // same situation — a write through a base-typed reference must
-            // dispatch to the actual runtime type's setter the same way a
-            // read dispatches to the getter above.
             if !hasCustomSetterBody, !hasDelegate,
                propFlags?.contains(.mutable) == true,
                let ownerSymbol = sema.symbols.parentSymbol(for: symbol)
             {
                 let isExternalLinked = sema.symbols.externalLinkName(for: symbol).map { !$0.isEmpty } ?? false
                 if isInterfaceContext, !isExternalLinked {
-                    // An abstract interface `var`'s setter had no registered
-                    // symbol at all (unlike its getter, which
-                    // `synthesizeInterfacePropertyGetterStub` above already
-                    // covers) — anything that referenced it by symbol, such
-                    // as a `by`-delegation forwarder falling back to the
-                    // interface's own declaration for a class that has no
-                    // concrete override, linked against an undefined name.
                     synthesizeInterfacePropertySetterStub(
                         propertySymbol: symbol,
                         ownerSymbol: ownerSymbol,
@@ -311,11 +273,6 @@ final class MemberLowerer {
                 }
             }
 
-            // Delegated properties in interfaces are rejected in Sema
-            // (KSWIFTK-SEMA-0304); isInterfaceContext guards this as defense in
-            // depth so an interface property never gets delegate storage or
-            // synthesized accessors, matching the storage/backing-field
-            // suppression above.
             if !isInterfaceContext, propertyDecl.delegateExpression != nil {
                 let delegateStorageSymbol: SymbolID
                 if let existingStorage = sema.symbols.delegateStorageSymbol(for: symbol) {
@@ -427,9 +384,6 @@ final class MemberLowerer {
                 allDecls.append(contentsOf: nestedAllDecls)
                 allDecls.append(contentsOf: forwardingDecls)
 
-                // Lower constructors for nested classes (inner and static).
-                // Without this, nested class constructors would not be emitted
-                // into KIR and codegen would produce undefined symbol references.
                 let ctorFQName = (sema.symbols.symbol(symbol)?.fqName ?? []) + [interner.intern("<init>")]
                 let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName)
                 for ctorSymbol in ctorSymbols {
@@ -443,10 +397,6 @@ final class MemberLowerer {
                     allDecls.append(contentsOf: ctorDecls)
                 }
             case let .interfaceDecl(nestedInterface):
-                // Interface properties have no backing storage of their own, but
-                // properties with a default accessor body (e.g. `val x get() = ...`)
-                // still need that body lowered so non-overriding implementers can
-                // dispatch to it. isInterfaceContext suppresses storage emission.
                 var nestedInterfaceAllObjects = nestedInterface.nestedObjects
                 if let companionDeclID = nestedInterface.companionObject {
                     nestedInterfaceAllObjects.append(companionDeclID)
@@ -514,8 +464,6 @@ final class MemberLowerer {
         return (directMembers, allDecls)
     }
 
-    /// Members declared in enum entry bodies use the ordinal-backed enum value
-    /// as their receiver and are emitted as module declarations.
     func lowerEnumEntryBodyMembers(
         classDecl: ClassDecl,
         shared: KIRLoweringSharedContext,
@@ -572,8 +520,6 @@ final class MemberLowerer {
         if function.modifiers.contains(.external), function.body == .unit {
             return
         }
-        // BUG (found via KSP-CAP-001): member functions are usually lowered
-        // between top-level declarations, where resetting scope with no
         // restore is harmless -- there is no enclosing function lowering in
         // progress. But an object literal's member functions are lowered
         // *from inside* whichever function's expression lowering constructs
@@ -594,12 +540,6 @@ final class MemberLowerer {
         var params: [KIRParameter] = []
         if let signature {
             if let receiverType = signature.receiverType {
-                // Member extensions (`fun T.m(...)` declared inside a class or
-                // interface) carry two receivers: the dispatch receiver
-                // (`this@Owner`, the enclosing instance) followed by the
-                // extension receiver (bare `this`). Emit the dispatch receiver
-                // as an implicit leading parameter so calls lower to
-                // [dispatch, extension, args] like JVM member extensions.
                 if function.receiverType != nil,
                    let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                    let ownerInfo = sema.symbols.symbol(ownerSymbol),
@@ -681,8 +621,6 @@ final class MemberLowerer {
         let returnType = signature?.returnType ?? sema.types.unitType
         var body: [KIRInstruction] = [.beginBlock]
         bindFunctionParameterLocals(params: params, body: &body, arena: arena)
-        // KSP-CAP-001: no-op for ordinary class members -- only object
-        // literals ever populate `objectLiteralCaptureSymbols`.
         driver.objectLiteralLowerer.restoreObjectLiteralCaptures(
             forMemberFunction: symbol,
             sema: sema,
@@ -777,8 +715,6 @@ final class MemberLowerer {
         )
     }
 
-    /// Getter signature: `(<receiver>) -> PropertyType`
-    /// Setter signature: `(<receiver>, value: PropertyType) -> Unit`
     func lowerAccessorBody(
         accessorBody: FunctionBody,
         propertySymbol: SymbolID,
