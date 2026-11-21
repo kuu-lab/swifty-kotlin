@@ -3419,6 +3419,7 @@ final class JVMClasspathIndex {
             owner = sema.symbols.parentSymbol(for: candidate)
         }
         guard let info = info ?? sourceClass else { return }
+        if !ctx.options.stdlibOnly, info.name == "kotlin/Result" { return }
         let isExtension = topLevel?.receiverType != nil || symbol.flags.contains(.memberExtension)
         if isExtension { extensionSymbols.insert(symbol.id) }
         if let method = facadeMethodsByRange[site] {
