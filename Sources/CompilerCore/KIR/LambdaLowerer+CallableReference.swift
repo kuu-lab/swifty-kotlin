@@ -118,10 +118,6 @@ extension LambdaLowerer {
                 )
                 switch sema.types.kind(of: sema.types.makeNonNullable(parameterType)) {
                 case .any, .typeParam:
-                    // A contextual function type may pass a primitive (such as
-                    // Char from CharArray.fold) to an erased target parameter
-                    // (such as String.plus(Any?)). Keep its boxed type identity
-                    // across the generated callable-reference adapter.
                     valueArguments[argumentIndex] = boxValueForAnySlot(
                         valueArguments[argumentIndex],
                         sourceType: sourceType,
@@ -224,9 +220,6 @@ extension LambdaLowerer {
         {
             resultToReturn = callResult
         } else {
-            // The target may return a primitive or value class while the
-            // joined function type erases that result to Any. Call it with its
-            // declared ABI type, then box the value for the function result.
             resultToReturn = boxValueForAnySlot(
                 callResult,
                 sourceType: declaredReturnType,
@@ -259,9 +252,6 @@ extension LambdaLowerer {
         return (callableSymbol, callableName)
     }
 
-    /// A thunk with the lambda calling convention `(captures..., params...) -> R`
-    /// is generated so the shared SAM wrapper synthesis can delegate to the
-    /// referenced callable.
     private func lowerCallableRefSamWrapperValue(
         _ exprID: ExprID,
         targetSymbol: SymbolID,
@@ -450,13 +440,6 @@ extension LambdaLowerer {
         return samValue
     }
 
-    /// JVM `fun interface` SAM wrappers built from callable references also
-    /// implement `kotlin.jvm.internal.FunctionAdapter`: their synthesized
-    /// equals/hashCode delegate to the stored function reference, and equals
-    /// additionally requires `other instanceof <that interface>` (KUU-2940).
-    /// Record the referenced target and bound captures on the wrapper so the
-    /// erased `==`/`!=` and `hashCode()` runtime paths compare the delegate
-    /// rather than wrapper object identity.
     private func emitSamAdapterIdentity(
         callableExpr: KIRExprID,
         exprID: ExprID,
@@ -470,9 +453,6 @@ extension LambdaLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
-        // Mirror emitCallableRefTypeTag's identity target: a function ref
-        // keys on the referenced symbol itself (not the per-site SAM thunk
-        // or adapted-reference adapter), a property ref on its getter.
         let targetSymbol: SymbolID? = switch sema.bindings.callableRefKind(for: exprID) {
         case .functionRef:
             identityTargetSymbol
@@ -588,8 +568,6 @@ extension LambdaLowerer {
             return callable
         }
 
-        // REFL-PRIMOP: `Boolean::not` has no backing member symbol or receiver
-        // value, so synthesize its intrinsic unary wrapper before symbol lookup.
         if let unaryOp = sema.bindings.primitiveUnaryOperatorCallableRef(for: exprID) {
             return lowerPrimitiveUnaryOperatorCallableRef(
                 exprID,
@@ -603,12 +581,6 @@ extension LambdaLowerer {
             )
         }
 
-        // REFL-PRIMOP: `Int::plus`/`Int::times` (see Sema's
-        // `bindPrimitiveOperatorCallableRef`) have no backing symbol and no
-        // real receiver *value* (the receiver names a primitive type, not an
-        // instance) -- skip straight past `resolveCallableRefTargetSymbol`
-        // and the receiver-lowering/capture logic below, neither of which
-        // applies here.
         if let primitiveOp = sema.bindings.primitiveOperatorCallableRef(for: exprID) {
             return lowerPrimitiveOperatorCallableRef(
                 exprID,
@@ -622,8 +594,6 @@ extension LambdaLowerer {
             )
         }
 
-        // `Int::toString` as `(Int) -> String` (see
-        // `bindAnyToStringCallableRef`) has no target symbol either.
         if sema.bindings.isAnyToStringCallableRef(exprID) {
             return lowerAnyToStringCallableRef(
                 exprID,
@@ -665,8 +635,6 @@ extension LambdaLowerer {
         }()
         let callableReferenceBinding: CallBinding?
         if needsPrimitiveToStringAdapter, let targetSymbol {
-            // The Any member bridge expects an object-like receiver. Route raw
-            // primitive receivers through the same typed path as a direct call.
             callableReferenceBinding = CallBinding(
                 chosenCallee: existingBinding?.chosenCallee ?? targetSymbol,
                 substitutedTypeArguments: existingBinding?.substitutedTypeArguments ?? [],
@@ -703,9 +671,6 @@ extension LambdaLowerer {
             }
             let mapping = existingBinding.parameterMapping
             guard mapping.count == signature.parameterTypes.count else { return true }
-            // Scalar-vararg packing maps multiple bound inputs onto one
-            // signature parameter, so an injective mapping means the bound
-            // shape is unchanged.
             return Set(mapping.values).count != mapping.count
         }()
         let requiresCallableReferenceAdapter = callableReferenceBinding?.isCallableReferenceAdapter == true
@@ -777,8 +742,6 @@ extension LambdaLowerer {
             if let functionType = extensionPropertyFunctionType,
                driver.ctx.callableValueInfo(for: loweredReceiver) != nil
             {
-                // Extension property references capture their receiver as a value.
-                // Materialize callable references to match the receiver's function ABI.
                 capturedReceiver = driver.callLowerer.materializeFunctionValueArgument(
                     loweredArgID: loweredReceiver,
                     argExprID: receiverExpr,
@@ -791,8 +754,6 @@ extension LambdaLowerer {
             } else {
                 capturedReceiver = loweredReceiver
             }
-            // For unbound type references (Type::member), the receiver is
-            // not captured — it becomes a parameter of the function type.
             if !isUnbound, !isSingletonOwnedPropertyRef {
                 captureArguments.append(capturedReceiver)
             }
@@ -809,8 +770,6 @@ extension LambdaLowerer {
                       instructions: &instructions
                   )
         {
-            // A bare `::Inner` has no syntax receiver, but its constructor
-            // reference is still bound to the lexically enclosing instance.
             captureArguments.append(outerReceiver)
         } else if !isUnbound,
                   !isSingletonOwnedPropertyRef,
@@ -878,9 +837,6 @@ extension LambdaLowerer {
                       instructions: &instructions
                   )
         {
-            // The selected implicit receiver can be an enclosing instance
-            // reached through one or more inner-class `$outer` fields. Capture
-            // that instance, rather than the currently active inner `this`.
             captureArguments.append(capturedReceiver)
         } else if sema.bindings.implicitReceiverMemberNames[exprID] != nil,
                   let targetSymbol,
@@ -892,9 +848,6 @@ extension LambdaLowerer {
                       sema.types.makeNonNullable(declaredReceiver)
                   )
         {
-            // A bare `::member` in an extension function is a bound method
-            // reference: its wrapper forwards the captured extension receiver
-            // before the explicit arguments.
             captureArguments.append(implicitReceiver)
         } else if !isUnbound,
                   let dispatchReceiverSymbol = callableReferenceBinding?.dispatchReceiverSymbol,
@@ -996,8 +949,6 @@ extension LambdaLowerer {
         // generated property-reference accessor instead.
         var callTargetSymbol = targetSymbol
         var callTargetName: InternedString?
-        // A reference to an interface / open / abstract member function must
-        // dispatch virtually; the declaring symbol alone is only a stub.
         if !requiresCallableReferenceAdapter,
            sema.bindings.callableRefKind(for: exprID) == .functionRef,
            let targetSymbol,
@@ -1129,8 +1080,6 @@ extension LambdaLowerer {
             }
             return true
         }()
-        // Keep the referenced function's Kotlin ABI and adapt it through a
-        // callable thunk that can use the runtime's flat String callback ABI.
         let needsTopLevelStringReturnWrapper: Bool = {
             guard driver.ctx.topLevelPropertyCallableReferenceInitializerExprID == exprID,
                   sema.bindings.callableRefKind(for: exprID) == .functionRef,
@@ -1143,9 +1092,6 @@ extension LambdaLowerer {
             }
             return true
         }()
-        // Imported inline bodies and local auto-inline HOFs may have no native
-        // entry point. A reference must point at an emitted thunk whose call
-        // can be expanded by InlineLowering, including forward declarations.
         let needsInlineWrapper: Bool = {
             guard let callTargetSymbol else { return false }
             let targetFlags = sema.symbols.symbol(callTargetSymbol)?.flags
@@ -1160,8 +1106,6 @@ extension LambdaLowerer {
                       sema.symbols.externalLinkName(for: callTargetSymbol) == nil,
                       let signature = sema.symbols.functionSignature(for: callTargetSymbol)
             {
-                // Varargs are arrays/lists in the emitted signature, rather
-                // than a single function parameter even for function elements.
                 let parameterTypes = signature.receiverType.map { [$0] } ?? []
                 let valueTypes = signature.parameterTypes.enumerated().compactMap { index, type in
                     index < signature.valueParameterIsVararg.count && signature.valueParameterIsVararg[index] ? nil : type
@@ -1227,10 +1171,6 @@ extension LambdaLowerer {
             let valueParamTypes = functionType?.params ?? []
             let returnType = functionType?.returnType ?? sema.types.anyType
 
-            // Only collection-HOF usage (`list.map(::Foo)`) needs the
-            // closureRaw ABI slot; a plain callable value (`val ctor = ::Foo`)
-            // is called directly through its own symbol, exactly like the
-            // no-capture fallback wrapper below.
             let closureParam = needsHOFWrapper ? KIRParameter(
                 symbol: syntheticLambdaClosureParamSymbol(lambdaExprID: exprID),
                 type: sema.types.intType
@@ -1399,8 +1339,6 @@ extension LambdaLowerer {
                   needsHOFWrapper || needsInlineWrapper || needsTopLevelStringReturnWrapper
                     || needsFunctionValueStringReturnWrapper
         {
-            // HOF callbacks use a closure parameter. Ordinary inline references
-            // keep the Kotlin signature and pass each bound capture directly.
             callableSymbol = driver.ctx.syntheticLambdaSymbol(for: exprID)
             callableName = needsTopLevelStringReturnWrapper
                 ? interner.intern("kk_top_level_string_callable_ref_\(exprID.rawValue)")
@@ -1469,9 +1407,6 @@ extension LambdaLowerer {
                 ) : paramExpr
                 valueRefExprs.append(normalizedParamExpr)
             }
-            // Reorder the invocation-order value refs
-            // (context receivers first) into callee order
-            // (receiver first, then context receivers, then value params).
             let hasExplicitReceiver = functionType?.receiver != nil
             var callArgExprs: [KIRExprID] = captureRefExprs
             if hasExplicitReceiver {
@@ -1587,8 +1522,6 @@ extension LambdaLowerer {
             case .unit, .nothing(.nonNull):
                 body.append(.returnUnit)
             case .nothing(.nullable), .nothing(.platformType):
-                // `Nothing?`/`Nothing!` are inhabited — their only legal
-                // stub value is `null` (KUU-4158).
                 let nullValue = arena.appendExpr(.null, type: fallbackReturnType)
                 body.append(.constValue(result: nullValue, value: .null))
                 body.append(.returnValue(nullValue))
@@ -1705,12 +1638,6 @@ extension LambdaLowerer {
             return callableValue
         }
 
-        // REFL-003: Emit KFunction / KProperty type identity tag.
-        // The tagging call wraps the callable value with reflection
-        // metadata (name, arity, KFunction vs KProperty).  We register
-        // the tagged expression with the same callable-value metadata so
-        // that downstream callable-value-call lowering resolves the
-        // correct target symbol and capture arguments.
         if let refKind = sema.bindings.callableRefKind(for: exprID) {
             let callableFunctionType: FunctionType? = if case let .functionType(functionType) = sema.types.kind(of: callableType) {
                 functionType
@@ -1768,14 +1695,8 @@ extension LambdaLowerer {
             if let functionType = callableFunctionType {
                 let receiverCount = isUnbound && signature?.receiverType != nil ? 1 : 0
                 let inputs = (functionType.receiver.map { [$0] } ?? []) + functionType.params
-                // An unbound receiver can be represented as either `receiver`
-                // or the first ordinary parameter of the function type.
                 let parameters = Array(inputs.prefix(receiverCount)) + functionType.contextReceivers
                     + Array(inputs.dropFirst(receiverCount))
-                // The public KParameter.type slots mirror `parameters`
-                // positionally but carry the declared signature types through
-                // the erased receiver member scope. Any slot the signature
-                // cannot supply falls back to the use-site type.
                 let boundContextCount = max(
                     (signature?.contextParameterTypes.count ?? 0) - functionType.contextReceivers.count, 0
                 )
@@ -1837,9 +1758,6 @@ extension LambdaLowerer {
         return callableValue
     }
 
-    /// Builds the wrapper for `Type::toString` used as a `(Type) -> String`
-    /// function value: its body stringifies the single parameter exactly like
-    /// a literal `x.toString()` (`emitAnyToStringWithNullGuard`).
     private func lowerAnyToStringCallableRef(
         _ exprID: ExprID,
         memberName: InternedString,
@@ -1939,16 +1857,6 @@ extension LambdaLowerer {
         return callableExpr
     }
 
-    /// REFL-PRIMOP: builds the wrapper function and REFL-003 tag for a
-    /// primitive-operator callable reference (`Int::plus`). Its body is the
-    /// raw `KIRBinaryOp` arithmetic instruction directly -- the same one a
-    /// literal `a + b` eventually lowers to for these two operators
-    /// (`CallLowerer+Operators.swift`'s `lowerBinaryExpr` reaches its own
-    /// bare `.binary(op:, lhs:, rhs:, result:)` fallback for `.add`/
-    /// `.multiply` on every primitive numeric type, with no runtime-callee,
-    /// unsigned, or overload detour in between) -- so there is no callee
-    /// symbol to resolve and no receiver value to lower or capture, unlike
-    /// every other shape `lowerCallableRefExpr` handles.
     private func lowerPrimitiveOperatorCallableRef(
         _ exprID: ExprID,
         op: BinaryOp,
@@ -2172,8 +2080,6 @@ extension LambdaLowerer {
         return callableExpr
     }
 
-    /// Keep the referenced target and captures on a function adapter without
-    /// exposing KCallable reflection metadata (KUU-3361).
     func emitCallableRefAdapterIdentity(
         callableExpr: KIRExprID,
         targetSymbol: SymbolID,
@@ -2261,9 +2167,6 @@ extension LambdaLowerer {
         ))
     }
 
-    /// The caller must use the returned expression (and register it for
-    /// callable-value resolution) so that the tagged value propagates through
-    /// the program.
     func emitCallableRefTypeTag(
         callableExpr: KIRExprID,
         callableType: TypeID,
@@ -2284,7 +2187,6 @@ extension LambdaLowerer {
                 + (functionType.receiver == nil ? 0 : 1) + functionType.params.count)
             isSuspendFlag = functionType.isSuspend ? 1 : 0
         } else {
-            // Property references have arity 0 (no value params, just a getter).
             arity = 0
             isSuspendFlag = 0
         }
@@ -2301,12 +2203,6 @@ extension LambdaLowerer {
         )
         instructions.append(.constValue(result: nameExpr, value: .stringLiteral(metadataName)))
 
-        // KCallable.returnType is represented by the same compact type-name
-        // handle used by KClass reflection metadata. KUU-3864: function
-        // references reflect the declared signature return type substituted
-        // through the erased receiver class's member scope (the caller's
-        // `reflectedReturnType`), not the use-site `Type::member` function
-        // type.
         let fallbackReturnType: TypeID = if case let .functionType(functionType) = sema.types.kind(of: callableType) {
             functionType.returnType
         } else {
@@ -2423,11 +2319,6 @@ extension LambdaLowerer {
         return taggedExpr
     }
 
-    /// Erased class through which a function reference is taken: the receiver
-    /// type of the unbound `Type::member` function type, or the bound
-    /// receiver's static type for `expr::member`. Only the nominal symbol
-    /// matters — the written type arguments are dropped, matching the JVM's
-    /// raw `KClass` owner (KUU-3864, mirrors the KUU-3813 property path).
     private func functionReferenceReceiverClassSymbol(
         isUnbound: Bool,
         hasSignatureReceiver: Bool,
@@ -2439,8 +2330,6 @@ extension LambdaLowerer {
     ) -> SymbolID? {
         let receiverType: TypeID? = {
             if isUnbound {
-                // A top-level reference's first function-type parameter is an
-                // ordinary value parameter, not a receiver.
                 guard hasSignatureReceiver else { return nil }
                 return functionType.receiver ?? functionType.params.first
             }
@@ -2454,12 +2343,6 @@ extension LambdaLowerer {
         return receiver.classSymbol
     }
 
-    /// The `receiverClass` instantiation of the declaring class's type
-    /// parameters — the member-scope substitution a `Type::member` reference
-    /// applies to the member's declared signature. Falls back to nil whenever
-    /// no substitution applies (non-class owner, non-generic declaring class,
-    /// or unreachable supertype), in which case the declared types are
-    /// reflected unchanged.
     private func functionReferenceMemberScope(
         targetSymbol: SymbolID?,
         receiverClassSymbol: SymbolID?,
@@ -2502,10 +2385,6 @@ extension LambdaLowerer {
         return (substitution, typeVarBySymbol)
     }
 
-    /// INSTANCE parameter type of the reflected member: the erased receiver
-    /// class parameterized by its own type parameters (e.g. `A` for
-    /// `A::foo`, `H<T>` for `H<A>::foo`). Extension receivers keep their
-    /// declared receiver type.
     private func functionReferenceReceiverParameterType(
         targetSymbol: SymbolID?,
         receiverClassSymbol: SymbolID?,
