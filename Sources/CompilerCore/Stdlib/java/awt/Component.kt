@@ -15,7 +15,6 @@ import java.awt.event.WindowListener
 import java.awt.image.BufferedImage
 import kotlin.internal.KsSymbolName
 
-/** `java.awt.AWTEvent` — root of all AWT events. */
 public open class AWTEvent(source: Any, public val id: Int) : java.util.EventObject(source) {
     public fun getID(): Int = id
 
@@ -36,14 +35,11 @@ public open class AWTEvent(source: Any, public val id: Int) : java.util.EventObj
     }
 }
 
-/** `java.awt.HeadlessException` — thrown when a display-dependent operation
- * runs without a display. */
 public open class HeadlessException : UnsupportedOperationException {
     public constructor() : super()
     public constructor(message: String?) : super(message)
 }
 
-/** `java.awt.GraphicsEnvironment`. */
 public open class GraphicsEnvironment {
     public fun isHeadless(): Boolean = isHeadlessEnvironment()
     public fun isHeadlessInstance(): Boolean = isHeadlessEnvironment()
@@ -58,18 +54,14 @@ public open class GraphicsEnvironment {
 
 private fun isHeadlessEnvironment(): Boolean = awtIsHeadless() != 0
 
-/** `java.awt.PointerInfo` — snapshot of the pointer position. */
 public class PointerInfo internal constructor(private val locationPoint: Point) {
     public val location: Point get() = locationPoint
 }
 
-/** `java.awt.MouseInfo` — global pointer information. */
 public object MouseInfo {
 
     public fun getNumberOfButtons(): Int = 3
 
-    /** Snapshot of the current pointer position. Throws [HeadlessException]
-     * on a headless platform like the JDK. */
     public fun getPointerInfo(): PointerInfo {
         val packed = awtPointerLocation()
         val x = (packed ushr 32).toInt()
@@ -78,10 +70,6 @@ public object MouseInfo {
     }
 }
 
-/** `java.awt.Component` — the root of the widget hierarchy. The component
- * tree, geometry, visibility, and event dispatch are fully functional; on a
- * headless platform `Frame`/`Window` construction throws [HeadlessException]
- * like the JDK. */
 public abstract class Component {
     public var x = 0
     public var y = 0
@@ -178,8 +166,6 @@ public abstract class Component {
 
     public open fun getKeyListeners(): Array<KeyListener> = keyListeners.toTypedArray()
 
-    /** Dispatches an event to this component's listeners, exactly like the
-     * JDK's `dispatchEvent` → `processEvent` chain. */
     public open fun dispatchEvent(e: AWTEvent) {
         processEvent(e)
     }
@@ -204,8 +190,6 @@ public abstract class Component {
         }
     }
 
-    /** Hook for painting; `paint` calls [paintComponent]-style hooks on
-     * subclasses. The default implementation draws nothing. */
     public open fun paint(g: Graphics) = Unit
     public open fun update(g: Graphics) = paint(g)
     public open fun repaint() = Unit
@@ -235,7 +219,6 @@ public abstract class Component {
         "Component[component${hashCode() and 0xffff},$x,$y,${width}x$height]"
 }
 
-/** `java.awt.Container` — a component that holds children. */
 public open class Container : Component() {
     private val children = mutableListOf<Component>()
 
@@ -281,7 +264,6 @@ public open class Container : Component() {
         "Container[container,$x,$y,${width}x$height]"
 }
 
-/** `java.awt.Window` — a top-level window. */
 public open class Window : Container() {
     private var windowListeners = mutableListOf<WindowListener>()
     private var packed = false
@@ -336,7 +318,6 @@ public open class Window : Container() {
     public open fun isFocused(): Boolean = false
 }
 
-/** `java.awt.Frame` — a top-level window with a title. */
 public open class Frame : Window {
     public var title: String
     public var resizable = true
