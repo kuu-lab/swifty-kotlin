@@ -144,15 +144,6 @@ extension BuildASTPhase {
         return groups
     }
 
-    /// Shared by all three statement-splitting loops in this file and in
-    /// `BuildASTPhase+ExpressionParserBlocks.swift`; each loop differs only in
-    /// how it iterates (per CST-statement-group, per-token-with-newline, or
-    /// per-token-with-explicit-depth-tracking) and in how it gates *when* to
-    /// consult this predicate — the merge decision itself lives here once.
-    ///
-    /// The unclosed-delimiter check only ever fires for the CST-group caller:
-    /// the two flat-token callers already gate on bracket-depth zero before
-    /// calling this, which makes `previousTail` provably balanced there.
     static func isContinuationBoundary<Prev: BidirectionalCollection, Next: Collection>(
         previousTail: Prev,
         nextHead: Next
@@ -221,17 +212,6 @@ extension BuildASTPhase {
         return false
     }
 
-    /// A group ending in an annotation use-site is incomplete: the annotation
-    /// attaches to the following expression or declaration, which may start on
-    /// the next line (`else @Suppress("UNCHECKED_CAST")` then a newline before
-    /// `walk(...)`). Returns true when every top-level token at the tail is an
-    /// annotation — `@name`, `@name(args)`, or a chain — so the newline does
-    /// not become a statement split.
-    ///
-    /// `x = @A foo` is not flagged: `foo` already is the operand, so the group
-    /// is complete. Label shapes are excluded by the token before `@`:
-    /// `return@loop` / `break@x` / `this@Outer` are complete expressions and
-    /// `name@` is a label definition, not an annotation.
     private static func endsWithUnattachedAnnotation<C: BidirectionalCollection>(
         _ tokens: C
     ) -> Bool where C.Element == Token {
@@ -265,19 +245,12 @@ extension BuildASTPhase {
         return annotationChainStart != nil
     }
 
-    /// `@` is a label position, not an annotation, when the token before it is
-    /// a keyword that takes a label reference (`return@`, `break@`,
-    /// `continue@`, `this@`, `super@`) or a bare label name (`loop@`). A name
-    /// before `@` that is itself the tail of an annotation (`@A.b` or the
-    /// `A` in `@field:A`) instead opens a chained annotation.
     private static func isLabelPosition<C: BidirectionalCollection>(
         before index: C.Index, in tokens: C
     ) -> Bool where C.Element == Token {
         guard index > tokens.startIndex else { return false }
         var scan = tokens.index(before: index)
 
-        // `@A(x)` before a chained annotation: the closer belongs to the
-        // previous annotation's argument list — peel the balanced group.
         while true {
             let close = tokens[scan].kind
             let open: TokenKind
@@ -313,9 +286,6 @@ extension BuildASTPhase {
              .keyword(.this), .keyword(.super):
             return true
         case let kind where kind.isLabelName || kind == .symbol(.dot):
-            // Skip the possibly qualified name backward. Landing on `@` makes
-            // it an annotation name, not a label; landing on `:` makes it the
-            // name of a use-site-targeted annotation (`@field:A`).
             while tokens[scan].kind.isLabelName || tokens[scan].kind == .symbol(.dot) {
                 if scan == tokens.startIndex { return true }
                 scan = tokens.index(before: scan)
@@ -334,9 +304,6 @@ extension BuildASTPhase {
         }
     }
 
-    /// The index just past the annotation beginning at `at` — `@` plus an
-    /// optional use-site target (`name:`), a possibly qualified name, and an
-    /// optional `(...)` argument list — or nil when `@` starts none.
     private static func annotationSpanEnd<C: BidirectionalCollection>(
         from at: C.Index, in tokens: C
     ) -> C.Index? where C.Element == Token {
@@ -382,7 +349,6 @@ extension BuildASTPhase {
         return nil
     }
 
-    /// A newline before `while` keeps it attached to a preceding do-loop body.
     private static func isDoWhileExpressionPrefix<C: BidirectionalCollection>(
         _ tokens: C
     ) -> Bool where C.Element == Token {
@@ -447,21 +413,6 @@ extension BuildASTPhase {
         return depth.paren > 0 || depth.bracket > 0 || depth.brace > 0 || depth.template > 0
     }
 
-    /// Whether a `{` that starts the next statement line continues the
-    /// previous group. Kotlin only attaches such a block when the previous
-    /// tokens still expect a body — a declaration or literal header
-    /// (`fun f(): Int`, `object : I`, `class C`) or a keyword whose grammar
-    /// production is a braced body (`try`, `do`, subject-less `when`,
-    /// `init`, `suspend` for a suspending lambda literal) — or when they
-    /// end in an explicit call suffix (`name(…)` or
-    /// `name<…>`), as in `run()` + `{ }`. (`else`/`catch`/`finally` tails and
-    /// `x is T`-style operator tails merge earlier in
-    /// `isContinuationBoundary`, so they never reach this check.)
-    ///
-    /// A bare name or value (`Unit`, `x`, `a[i]`, `(x)`, `x!!`, `return`) is
-    /// a complete expression: the block starts a new statement instead of
-    /// becoming a call argument, so `val tmp = Unit` followed by `{ }` never
-    /// resolves as `Unit { }` (KUU-3144).
     static func canAcceptTrailingLambda<C: BidirectionalCollection>(on tokens: C) -> Bool where C.Element == Token {
         if isLocalPropertyDeclarationEndingWithName(tokens) {
             return false
@@ -485,12 +436,6 @@ extension BuildASTPhase {
         }
     }
 
-    /// Whether the group is a header whose `{ }` body has not opened yet: a
-    /// local `fun`/`class`/`object`/`interface` declaration or an
-    /// `object : T` / `fun () : T` literal with its body on the next line.
-    /// The keyword must sit at the group's top level — a `fun`/`object`
-    /// inside a call's parentheses is part of a nested expression, not a
-    /// header awaiting its body.
     private static func hasPendingBracedBodyHeader<C: Collection>(_ tokens: C) -> Bool where C.Element == Token {
         var depth = BracketDepth()
         var awaitsBody = false
@@ -500,8 +445,6 @@ extension BuildASTPhase {
                 case .keyword(.fun), .keyword(.object), .keyword(.class), .keyword(.interface):
                     awaitsBody = true
                 case .symbol(.lBrace):
-                    // A body block already opened at this level, so the
-                    // header is complete and a later `{` is a new statement.
                     awaitsBody = false
                 default:
                     break
@@ -512,11 +455,6 @@ extension BuildASTPhase {
         return awaitsBody
     }
 
-    /// Whether the group's last `)` closes a call's value-argument list: the
-    /// matching `(` directly follows a callee (`name(`, `f<T>(`, `a[i](`,
-    /// `f()(`, `{ }(`). A parenthesized expression (`(x)`, `= (x)`) and a
-    /// control-flow condition (`if (x)`) have no callee before their `(`, so
-    /// a `{` on the next line cannot be a trailing lambda there.
     private static func endsWithCallArgumentList<C: BidirectionalCollection>(_ tokens: C) -> Bool where C.Element == Token {
         var depth = 0
         var index = tokens.index(before: tokens.endIndex)
@@ -545,10 +483,6 @@ extension BuildASTPhase {
         }
     }
 
-    /// Whether the group ends in a type-argument list applied to a callee
-    /// (`name<T>`): the `<` matching the trailing `>` directly follows a
-    /// name. A comparison `x < y >` has no such receiver-free shape, so its
-    /// `>` does not accept a trailing lambda on the next line.
     private static func endsWithNameTypeArguments<C: BidirectionalCollection>(_ tokens: C) -> Bool where C.Element == Token {
         var depth = 0
         var index = tokens.index(before: tokens.endIndex)
@@ -576,9 +510,6 @@ extension BuildASTPhase {
         }
     }
 
-    /// A local property declaration ending in a name is complete before a
-    /// lambda on the following line. A call-shaped initializer ending in `)`
-    /// can still take a trailing lambda across the newline.
     private static func isLocalPropertyDeclarationEndingWithName<C: BidirectionalCollection>(
         _ tokens: C
     ) -> Bool where C.Element == Token {
@@ -609,9 +540,6 @@ extension BuildASTPhase {
         }
     }
 
-    /// Shared by the CST-driven top-level path (blockExpressions) and the
-    /// token-driven local-function-body path (parseBraceBody in
-    /// BuildASTPhase+LocalFunParsing.swift) so both dispatch identically.
     func parseStatementGroup(
         raw: [Token],
         filtered: [Token],
@@ -734,9 +662,6 @@ extension BuildASTPhase {
         }
     }
 
-    /// A closing `>` can be either a binary comparison operator or the end of
-    /// a generic type argument list. At a line ending it completes the latter,
-    /// so it must not merge the following statement into the current group.
     static func isStatementContinuationAtLineEnd(_ kind: TokenKind) -> Bool {
         switch kind {
         case .symbol(.greaterThan):
@@ -774,8 +699,6 @@ extension BuildASTPhase {
 
     func resolveToken(_ tokenID: TokenID, in arena: SyntaxArena) -> Token? {
         guard let token = arena.token(tokenID) else { return nil }
-        // Honor a recovered closing parenthesis so malformed annotation
-        // arguments cannot hide a following declaration during AST scans.
         if case .missing(expected: .symbol(.rParen)) = token.kind {
             return Token(kind: .symbol(.rParen), range: token.range)
         }
@@ -832,8 +755,6 @@ extension BuildASTPhase {
         annotationsFromTokens(collectTokens(from: nodeID, in: arena), interner: interner)
     }
 
-    /// Used when annotations may be in sibling
-    /// tokens preceding the declaration node in the CST.
     func annotationsFromTokens(_ tokens: [Token], interner: StringInterner) -> [AnnotationNode] {
         var annotations: [AnnotationNode] = []
         var index = 0
@@ -850,9 +771,6 @@ extension BuildASTPhase {
         return annotations
     }
 
-    /// Local fun/val declaration dispatch needs the stripped view to see the
-    /// head keyword; assignment and expression statements keep the head so
-    /// leading annotations still attach to the parsed expression.
     static func skipLeadingLocalAnnotations(_ tokens: [Token], interner: StringInterner) -> [Token] {
         var index = 0
         while index < tokens.count, tokens[index].kind == .symbol(.at) {
@@ -866,7 +784,6 @@ extension BuildASTPhase {
         return index == 0 ? tokens : Array(tokens[index...])
     }
 
-    /// Whether the statement head, after labels and local modifiers, is `val`/`var`.
     static func startsLocalPropertyDeclaration(_ tokens: [Token]) -> Bool {
         let tokens = skipLeadingLocalDeclarationLabels(tokens)
         var index = 0
@@ -880,8 +797,6 @@ extension BuildASTPhase {
         return tokens[index].kind == .keyword(.val) || tokens[index].kind == .keyword(.var)
     }
 
-    /// Local declaration dispatch consumes leading labels as part of the statement.
-    /// Strip them only on the declaration path so expression labels remain intact.
     static func skipLeadingLocalDeclarationLabels(_ tokens: [Token]) -> [Token] {
         var index = 0
         while index + 1 < tokens.count,
