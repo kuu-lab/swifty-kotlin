@@ -3610,11 +3610,14 @@ final class JVMClasspathIndex {
         // Keep the authored Kotlin types on the declaration of this JVM
         // stdlib base so imported methods can satisfy Kotlin List members.
         if ctx.sourceManager.path(of: site.start.file) != "<kswiftk-jvm>/abstractList.kt" {
-            let returnType = method.isConstructor ? signature.returnType : platform(signature.returnType)
+            let returnType = method.isConstructor ? signature.returnType : platform(signature.returnType, includingArrayElements: info.isKotlinFileFacade == nil)
             sema.symbols.setFunctionSignature(FunctionSignature(
                 receiverType: signature.receiverType.map { platform($0) },
                 contextReceiverTypes: signature.contextReceiverTypes, contextParameterSymbols: signature.contextParameterSymbols,
-                contextParameterTypes: signature.contextParameterTypes, parameterTypes: signature.parameterTypes.map { platform($0) },
+                contextParameterTypes: signature.contextParameterTypes, parameterTypes: signature.parameterTypes.map { type in
+                    method.kotlinFunction != nil && sema.types.nullability(of: type) == .nullable
+                        ? type : platform(type, includingArrayElements: info.isKotlinFileFacade == nil)
+                },
                 returnType: returnType, isSuspend: signature.isSuspend, canThrow: false,
                 valueParameterSymbols: signature.valueParameterSymbols,
                 valueParameterUnsafeVarianceTypeParameterSymbols: signature.valueParameterUnsafeVarianceTypeParameterSymbols,
