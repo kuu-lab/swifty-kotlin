@@ -41,14 +41,6 @@ extension CollectionLiteralConstructionLoweringPass {
             return false
         }
 
-        // KSP-1519: `sequence { ... }`/`iterator { ... }` are now source-backed
-        // (Stdlib/kotlin/sequences/SequenceBuilder.kt, @KsSymbolName-bridged to
-        // __kk_sequence_builder_build / __kk_iterator_builder_build), so the
-        // normal external-call codegen path already emits calls to those names
-        // directly — the two guards above pick them up for state tracking.
-        // The raw-source-name rewrites that used to synthesize these calls for
-        // the Swift-side synthetic stub were removed here.
-
         if callee == lookup.yieldName,
            arguments.count == 2,
            isSequenceScopeBuilderMethod(symbol, named: lookup.yieldName, ctx: ctx)
