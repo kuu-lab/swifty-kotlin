@@ -16,9 +16,6 @@ final class IntegerNarrowingPass: LoweringPass {
     static let requiredStage: KIRStage = .propertyLowered
     static let producedStage: KIRStage = .integerNarrowed
 
-    /// `Long` variants (`kk_op_lmod`, `kk_op_lfloor_div`, …) are intentionally
-    /// excluded because their result type is `Long` and they are already
-    /// correct in 64 bits.
     private static let narrowingCalleeNames: Set<String> = [
         "kk_op_add", "kk_op_sub", "kk_op_mul", "kk_op_div",
         "kk_op_mod", "kk_op_floor_div", "kk_op_floor_mod",
@@ -26,8 +23,6 @@ final class IntegerNarrowingPass: LoweringPass {
         "kk_op_inv", "kk_op_uminus",
     ]
 
-    /// `Int` results use 32-bit variants (mask 5 bits + narrow); `Long` results
-    /// use 64-bit variants (mask 6 bits) so that distances >= 64 are well defined.
     private static let intShiftRenameNames: [String: String] = [
         "kk_op_shl": "kk_op_ishl",
         "kk_op_shr": "kk_op_ishr",
@@ -40,7 +35,6 @@ final class IntegerNarrowingPass: LoweringPass {
         "kk_op_ushr": "kk_op_lushr",
     ]
 
-    /// `UInt`/`ULong` only declare `shl`/`shr`, and their `shr` is logical.
     private static let uintShiftRenameNames: [String: String] = [
         "kk_op_shl": "kk_op_ishl",
         "kk_op_shr": "kk_op_iushr",
@@ -148,8 +142,6 @@ final class IntegerNarrowingPass: LoweringPass {
                     appendCall(callee: renamed, result: result)
                     continue
                 }
-                // The 32-bit variants sign-extend their result; masking the low
-                // 32 bits afterwards yields the zero-extended `UInt` slot value.
                 if resultKind == .uint, let result, let renamed = uintShiftRenameIDs[callee] {
                     appendWrappedCall(opCallee: renamed, wrapCallee: unarrowCallee, result: result, fallbackType: types.uintType)
                     continue
