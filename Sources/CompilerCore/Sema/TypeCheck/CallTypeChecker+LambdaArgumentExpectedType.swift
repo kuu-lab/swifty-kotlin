@@ -5,10 +5,6 @@ extension CallTypeChecker {
         let functionType: FunctionType
     }
 
-    /// For non-constructor member functions the explicit args begin at
-    /// `signature.classTypeParameterCount`, so that they skip the leading class
-    /// type parameters (which are inferred from the receiver) and map only to the function's
-    /// own type parameters.
     func applyExplicitTypeArgs(
         to parameterType: TypeID,
         signature: FunctionSignature,
@@ -91,16 +87,6 @@ extension CallTypeChecker {
         return parameterType
     }
 
-    /// Substitutes the class type parameters used in `signature.receiverType`
-    /// with the concrete generic arguments of the call-site `receiverType`. This
-    /// lets trailing-lambda expected types be computed with the receiver's
-    /// generic substitutions already applied, so `it` in `xs.map { it * 10 }`
-    /// is seen as `Int` rather than `T`.
-    ///
-    /// For member functions whose declared receiver type is not available in the
-    /// signature, the leading `classTypeParameterCount` type parameters are taken
-    /// to be the class type parameters and are substituted from the call-site
-    /// receiver's concrete class arguments.
     func applyReceiverClassTypeArgs(
         to parameterType: TypeID,
         signature: FunctionSignature,
@@ -191,8 +177,6 @@ extension CallTypeChecker {
             case let .invariant(type), let .out(type), let .in(type):
                 concreteType = type
             case .star:
-                // Match the upper bound used by receiver constraints. An
-                // unbounded star includes null; explicit bounds stay intact.
                 let bounds = sema.symbols.typeParameterUpperBounds(for: declaredTypeParam.symbol)
                 concreteType = bounds.isEmpty ? sema.types.nullableAnyType : sema.types.glb(bounds)
             }
@@ -223,15 +207,6 @@ extension CallTypeChecker {
         )
     }
 
-    /// Substitutes an extension function's own type parameters that the
-    /// call-site receiver determines through the declared receiver type,
-    /// e.g. `T` in `fun <T> CancellableContinuation<T>.resume(value: T)`
-    /// when the receiver is `CancellableContinuation<ChannelResult<E>>`.
-    /// Only invariant and contravariant receiver-argument positions qualify:
-    /// a covariant position leaves the variable a lower bound that the other
-    /// arguments may widen (`Array<out T>` accepts `Array<IntArray>` with any
-    /// `T :> IntArray`), so it must stay open just like the class type
-    /// parameters `applyReceiverClassTypeArgs` leaves untouched.
     func applyReceiverBoundFunctionTypeArgs(
         to parameterType: TypeID,
         signature: FunctionSignature,
@@ -325,9 +300,6 @@ extension CallTypeChecker {
         )
     }
 
-    /// Keeping the bound's own arguments preserves enclosing type-parameter
-    /// identity while allowing callback expectations to substitute the
-    /// candidate's receiver type parameters.
     private func receiverClassTypeFromUpperBounds(
         _ receiverType: TypeID,
         matching receiverOwner: SymbolID,
@@ -360,10 +332,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// For extension functions like `fun <T> T.apply(block: T.() -> Unit)`,
-    /// the lambda's expected type `T.() -> Unit` must become `ConcreteType.() -> Unit`
-    /// before the lambda body is type-checked so that unqualified member access on
-    /// the implicit receiver resolves correctly.
     func applyFunctionReceiverTypeArgs(
         to parameterType: TypeID,
         signature: FunctionSignature,
@@ -380,17 +348,13 @@ extension CallTypeChecker {
         guard case let .typeParam(receiverTypeParam) = sema.types.kind(of: nonNullDeclaredReceiver) else {
             return parameterType
         }
-        // Class type parameters at the start of the list are handled by applyReceiverClassTypeArgs.
         if let index = signature.typeParameterSymbols.firstIndex(of: receiverTypeParam.symbol),
            index < signature.classTypeParameterCount {
             return parameterType
         }
-        // `T` captures the full receiver type; only `T?` strips nullability
-        // before substituting T (e.g. `nullable.also { it }` versus `T?.ext`).
         let substitutionReceiverType = declaredReceiver == nonNullDeclaredReceiver
             ? receiverType
             : sema.types.makeNonNullable(receiverType)
-        // Avoid circular substitution when the concrete receiver still references the same type parameter.
         guard !sema.types.typeContainsTypeParam(substitutionReceiverType, symbol: receiverTypeParam.symbol) else {
             return parameterType
         }
@@ -406,13 +370,6 @@ extension CallTypeChecker {
         )
     }
 
-    /// Substitutes `parameterType`'s type parameters using bindings inferred
-    /// from the call's non-lambda arguments, which are already type-checked by
-    /// the time a lambda argument's expected type is computed. Without this,
-    /// a generic higher-order function's lambda parameter keeps the raw,
-    /// unsubstituted type parameter as its static type (e.g. `T` instead of
-    /// `Int`), which then fails operator/member resolution inside the lambda
-    /// body even though the type is fully determined by the other arguments.
     private func applyInferredArgumentTypeArgs(
         to parameterType: TypeID,
         signature: FunctionSignature,
@@ -492,21 +449,11 @@ extension CallTypeChecker {
                 )
             }
         }
-        // `fun <S, T : S> Iterable<T>.op(f: (S, T) -> S)`: S is only determined
-        // through the receiver's T. Kotlin fixes the variables a lambda's input
-        // types mention before analysing it, but leaves output-only variables
-        // (e.g. `R` in `C.ifEmpty(() -> R) where C : R`) open, so the receiver-
-        // derived bindings are applied to the lambda's inputs only.
         if fixesReceiverBoundInputs,
            let receiverType,
            receiverInfersTypeParameters,
            case let .functionType(functionType) = sema.types.kind(of: result)
         {
-            // Receiver constraints can determine callback inputs through a
-            // generic bound such as C: Iterable<T>, even when no parameter
-            // is directly bounded by another type parameter. The probe keeps
-            // only variables with lower-bound evidence, so output-only
-            // variables remain open for the authoritative call inference.
             let receiverSubstitution = resolver.probeArgumentTypeSubstitution(
                 signature: signature,
                 typeVarBySymbol: typeVarBySymbol,
@@ -538,8 +485,6 @@ extension CallTypeChecker {
         return result
     }
 
-    /// Keep unresolved output parameters intact so final call inference can
-    /// learn them from the selected reference's actual return type.
     private func contextualCallableParameterType(
         _ parameterType: TypeID,
         signature: FunctionSignature,
@@ -586,8 +531,6 @@ extension CallTypeChecker {
         )
     }
 
-    /// Flexible constants are left for final call resolution when their parameter
-    /// shares a type variable constrained by the lambda annotation.
     private func contextualInferenceInputsForLambda(
         at lambdaArgumentIndex: Int,
         args: [CallArgument],
@@ -661,9 +604,6 @@ extension CallTypeChecker {
         return (argumentTypes, lambdaAnnotationsByParameter, nonLambdaArgumentTypes)
     }
 
-    /// Lambda literals, callable references and anonymous functions get their
-    /// type from this call's own inference, so they must not pin down a
-    /// return-only type variable for a sibling lambda's expected type.
     private func isLambdaShapedArgument(_ expr: ExprID, ctx: TypeInferenceContext) -> Bool {
         switch ctx.ast.arena.expr(expr) {
         case .lambdaLiteral, .callableRef:
@@ -703,8 +643,6 @@ extension CallTypeChecker {
         )
     }
 
-    /// Annotated lambda parameters or explicit type arguments already determine
-    /// the bounded variables themselves, so they must not be fixed from the receiver.
     private func fixesReceiverBoundLambdaInputs(
         at index: Int,
         args: [CallArgument],
@@ -739,8 +677,6 @@ extension CallTypeChecker {
             else {
                 continue
             }
-            // The inference probe uses declaration parameter indices, while
-            // known types are indexed by call arguments (possibly reordered).
             let parameterMapping = parameterMappingForCallArguments(args, in: signature, callRange: callRange, ctx: ctx)
             var knownParameterTypes: [Int: TypeID] = [:]
             for (argumentIndex, type) in inferredNonLambdaArgTypes {
@@ -777,8 +713,6 @@ extension CallTypeChecker {
     static let inputOnlyExternalLinkNames: Set<String> = [
     ]
 
-    /// Uses final overload resolution's mapping for both parenthesized arguments
-    /// and a trailing lambda, including named arguments and omitted varargs.
     func lambdaParameterTypeForArgument(
         at index: Int,
         args: [CallArgument],
@@ -816,9 +750,6 @@ extension CallTypeChecker {
         let effectiveReceiverType = receiverType ?? ctx.implicitReceiverType
         let lambdaInputAnnotations = explicitLambdaInputAnnotations(at: index, args: args, ctx: ctx)
 
-        // When all candidates share the same input-only HOF shape, pick the
-        // first candidate and treat the lambda as input-only so that its return type is
-        // not used for constraint solving — matches what the single-candidate path does.
         if !candidates.isEmpty,
            candidates.allSatisfy({
                Self.inputOnlyExternalLinkNames.contains(sema.symbols.externalLinkName(for: $0) ?? "")
@@ -897,9 +828,6 @@ extension CallTypeChecker {
             return (nil, false, false, false)
         }
 
-        // An explicitly typed lambda parameter can rule out an overload before
-        // its body is checked. The candidate's input type must be a subtype of
-        // the declared lambda parameter type so it is safe for every call site.
         let annotationCompatibleCandidates = parameterCandidates.filter { candidate in
             guard let lambdaInputAnnotations,
                   lambdaInputAnnotations.count == candidate.functionType.params.count
@@ -925,12 +853,6 @@ extension CallTypeChecker {
             from: contextualCandidates,
             types: sema.types
         ) else {
-            // Candidates whose parameter type still mentions a type parameter
-            // (e.g. `Sequence<T>.onEach` seen through a `String` receiver) can
-            // never pin down a usable shape at this call site. When the
-            // fully-concrete subset agrees on one shape, use it -- the
-            // remaining candidates are infeasible or will unify to the same
-            // shape once final resolution binds their type parameters.
             let concreteCandidates = contextualCandidates.filter {
                 !typeMentionsTypeParameter($0.originalType, sema: sema)
             }
@@ -940,18 +862,6 @@ extension CallTypeChecker {
             {
                 return (firstConcrete.originalType, false, false, false)
             }
-            // The candidates disagree on this lambda's parameter shape, so no single
-            // expected type can be pushed down. When every surviving candidate still
-            // expects exactly one, genuinely concrete parameter type, a bare lambda
-            // here would need an implicit `it` whose type cannot be determined
-            // before an overload is chosen (DEBT-SEMA-004) -- e.g. `(Int) -> String`
-            // vs. `(String) -> Int`. Candidates whose parameter type still mentions a
-            // type parameter are excluded: two independently-registered overloads
-            // (e.g. a source declaration and a synthetic vararg sibling) can each
-            // mint their own distinct type-parameter symbol for what is conceptually
-            // the same generic slot, so raw TypeID inequality there reflects how the
-            // signatures happened to be built rather than a real shape conflict --
-            // unlike concrete types, where inequality always means a real conflict.
             let isImplicitSingleParameterAmbiguous = contextualCandidates.allSatisfy { candidate in
                 guard candidate.functionType.params.count == 1,
                       let onlyParam = candidate.functionType.params.first
@@ -965,9 +875,6 @@ extension CallTypeChecker {
         return (sharedType, true, false, false)
     }
 
-    /// Used to keep implicit-`it` ambiguity detection scoped to genuinely concrete,
-    /// conflicting parameter types rather than misreading distinct type-parameter
-    /// symbols that happen to represent the same generic slot as a real conflict.
     func typeMentionsTypeParameter(_ type: TypeID, sema: SemaModule) -> Bool {
         switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
         case .typeParam:
@@ -1017,10 +924,6 @@ extension CallTypeChecker {
             else {
                 return nil
             }
-            // Substitute the same way the single-candidate path does, so a
-            // generic receiver's arguments reach the lambda's expected type
-            // (`Iterable<T>.f(transform: (T) -> R)` called on `List<Int>` must
-            // expose `it: Int`, not the bare declaration type parameter `T`).
             let fixesReceiverBoundInputs = fixesReceiverBoundLambdaInputs(
                 at: index, args: args, explicitTypeArgs: explicitTypeArgs, ctx: ctx
             )
