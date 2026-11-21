@@ -109,7 +109,6 @@ public final class StringInterner: @unchecked Sendable {
         return InternedString(rawValue: id)
     }
 
-    /// Interns the components of a qualified name under one lock acquisition.
     func internQualifiedName(_ string: String) -> [InternedString] {
         lock.lock()
         defer { lock.unlock() }
