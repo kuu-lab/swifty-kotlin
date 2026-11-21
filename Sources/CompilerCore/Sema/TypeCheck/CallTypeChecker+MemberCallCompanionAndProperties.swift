@@ -1,13 +1,5 @@
 
 extension CallTypeChecker {
-    /// KUU-3237: Kotlin does not resolve nested classifiers through a
-    /// typealias qualifier (`A2.Inner`, `A2.Companion` are unresolved
-    /// references), while companion members and enum entries remain
-    /// reachable through the alias. Import aliases (`import C as A`)
-    /// resolve to the class symbol directly and keep classifier access.
-    /// The bound identifier is not enough: `expandTypeAliasValueTarget`
-    /// rebinds the name to the target nominal when it has a companion,
-    /// so the scope candidates for the written name decide.
     func receiverQualifierIsTypeAlias(
         receiverID: ExprID,
         ctx: TypeInferenceContext
@@ -318,9 +310,6 @@ extension CallTypeChecker {
                     && (importDecl.alias ?? symbol.name) == calleeName
             }
         }
-        // Canonical and legacy atomic aliases expand to the same runtime class,
-        // so a source-backed extension property must be selected by the package
-        // imported at the call site rather than by nominal type alone.
         if let preferredSourcePackage {
             let sourceCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
@@ -347,8 +336,6 @@ extension CallTypeChecker {
             getterCandidates = getterCandidates.filter(implicitMemberExtensionGetters.contains)
             propertyForGetter = propertyForGetter.filter { implicitMemberExtensionGetters.contains($0.key) }
         }
-        // Short-name fallback, restricted to known JVM property names to avoid
-        // accidentally resolving unrelated experimental APIs.
         if getterCandidates.isEmpty,
            KnownCompilerNames(interner: ctx.interner).knownJvmPropertyNames.contains(calleeName)
         {
@@ -356,10 +343,6 @@ extension CallTypeChecker {
                 collectGetterCandidate(from: candidate, requireSynthetic: true)
             }
         }
-        // Imported library extension properties are intentionally omitted from
-        // file scopes and are resolved through member lookup instead. Recover
-        // their synthetic accessors by short name when scope lookup found none;
-        // the receiver check keeps this fallback type-directed.
         if getterCandidates.isEmpty {
             for candidate in sema.symbols.lookupByShortName(calleeName)
                 where !isUnavailableKotlinMathProperty(candidate)
@@ -368,9 +351,6 @@ extension CallTypeChecker {
                 collectGetterCandidate(from: candidate, requireSynthetic: true)
             }
         }
-        // Bundled stdlib source extension properties are not necessarily in the
-        // consumer file scope. Recover their accessors by short name as well;
-        // the receiver check above keeps this fallback type-directed.
         if getterCandidates.isEmpty {
             for candidate in sema.symbols.lookupByShortName(calleeName)
                 where sema.symbols.isSourceBackedSymbol(candidate)
@@ -522,10 +502,6 @@ extension CallTypeChecker {
             sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
         }
         let deprecationCheckTarget: SymbolID
-        // Compound assignment (`bindCall == false`) reads the selected property
-        // directly, so its l-value needs the parent-property identifier binding.
-        // Plain reads keep the accessor-owner-only behaviour so lowering still
-        // dispatches through the getter call binding.
         let ownerProperty = sema.symbols.accessorOwnerProperty(for: chosen)
             ?? (bindCall ? nil : propertyForGetter[chosen] ?? sema.symbols.parentSymbol(for: chosen))
         if bindExpression, let ownerProperty, sema.symbols.symbol(ownerProperty)?.kind == .property {
@@ -558,9 +534,6 @@ extension CallTypeChecker {
         guard let signature = sema.symbols.functionSignature(for: chosen) else {
             return sema.types.anyType
         }
-        // Source getters may retain an erased header return type. Callable
-        // property invocation needs the declared property function type, with
-        // the same inferred type arguments as its selected getter.
         var returnType = propertyForGetter[chosen].flatMap { sema.symbols.propertyType(for: $0) } ?? signature.returnType
         if let property = propertyForGetter[chosen],
            let owner = sema.symbols.parentSymbol(for: property),
@@ -586,23 +559,6 @@ extension CallTypeChecker {
         )
     }
 
-    /// Setter counterpart of `resolveExtensionPropertyGetter`: an extension
-    /// `var` written through an explicit receiver (`a.value = x`) is not found
-    /// by `lookupMemberProperty` — its symbol lives at package scope — so
-    /// `memberAssign` never bound it and KIR fell back to a call named after
-    /// the property, which failed to link. Resolves the property through the
-    /// same candidate sources the getter uses and binds it (plus the setter
-    /// accessor as the call target) so lowering can route the write through
-    /// the registered setter accessor.
-    ///
-    /// `requireCompanionExtension` restricts candidates to `companion`-marked
-    /// top-level extension properties — used when the call-site receiver is
-    /// the owner nominal itself (`A.compExtVar = v` routes through A's
-    /// companion scope, where only companion extensions apply; a plain
-    /// `var A.x` must not bind). `emitUnresolvedDiagnostics` suppresses the
-    /// empty-candidate diagnostics (and the speculative RHS inference they
-    /// trigger) so a caller can probe several receiver types in order and let
-    /// only the final, general attempt report failure.
     func resolveExtensionPropertySetter(
         id: ExprID,
         calleeName: InternedString,
@@ -698,9 +654,6 @@ extension CallTypeChecker {
         for candidate in ctx.cachedScopeLookup(calleeName) {
             collectSetterCandidate(from: candidate, requireSynthetic: false)
         }
-        // Bundled stdlib source extension properties are not necessarily in the
-        // consumer file scope; recover them by short name, mirroring the
-        // getter-side fallbacks (imported/synthetic props last).
         if setterCandidates.isEmpty {
             for candidate in sema.symbols.lookupByShortName(calleeName)
                 where sema.symbols.isSourceBackedSymbol(candidate)
@@ -738,10 +691,6 @@ extension CallTypeChecker {
             return nil
         }
         guard !setterCandidates.isEmpty else {
-            // A speculative probe (a class-name receiver tries several
-            // companion-scope receiver types in order) must not infer the RHS
-            // or report unresolved yet — the caller's final, general attempt
-            // owns that diagnostic.
             guard emitUnresolvedDiagnostics else {
                 return nil
             }
@@ -759,11 +708,6 @@ extension CallTypeChecker {
                 probeReceiverTypes: [sema.types.makeNonNullable(receiverType)],
                 ctx: ctx
             ) {
-                // Inherited `private` members never enter the write lookup
-                // (they are not inherited), but a qualified assignment still
-                // resolves the name — report it as inaccessible rather than
-                // unresolved, matching kotlinc (KUU-3762). A class-name
-                // receiver was already retyped to its companion object type.
                 driver.helpers.emitVisibilityError(
                     for: privateMember,
                     name: ctx.interner.resolve(calleeName),
@@ -791,8 +735,6 @@ extension CallTypeChecker {
                 ctx: ctx
             ).type
         } else if isInferableNestedCallExpr(value, ast: ctx.ast) {
-            // Extension properties are selected by receiver specificity. Do not
-            // let a less-specific receiver hide the selected setter's context.
             let contextualCandidates = setterCandidates.filter { candidate in
                 guard let property = propertyForSetter[candidate] else { return true }
                 return !setterCandidates.contains { other in
