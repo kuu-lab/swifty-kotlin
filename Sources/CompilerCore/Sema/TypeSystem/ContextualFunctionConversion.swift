@@ -1,8 +1,4 @@
 extension TypeSystem {
-    /// Finds a function-type view through intersections, type-parameter bounds,
-    /// or a nominal FunctionN supertype when that view can satisfy `target`.
-    /// SAM conversion uses this when the value's static type is not itself a
-    /// function type.
     func functionTypeWitness(from source: TypeID, compatibleWith target: TypeID) -> TypeID? {
         var visitedParameters: Set<SymbolID> = []
 
@@ -61,8 +57,6 @@ extension TypeSystem {
         return find(source)
     }
 
-    /// Reclassifies leading parameters of an ordinary function as context
-    /// parameters when an expected context function type supplies that shape.
     func contextualFunctionConversionType(from source: TypeID, to target: TypeID) -> TypeID? {
         guard case let .functionType(sourceFunction) = kind(of: source),
               sourceFunction.contextReceivers.isEmpty,
@@ -121,8 +115,6 @@ extension TypeSystem {
         )))
     }
 
-    /// Applies call-site function adaptations while keeping them separate from
-    /// ordinary function subtyping.
     func functionArgumentConversionType(from source: TypeID, to target: TypeID) -> TypeID? {
         let suspendConverted = suspendConversionType(from: source, to: target) ?? source
         if let contextualConverted = contextualFunctionConversionType(from: suspendConverted, to: target) {
