@@ -1,7 +1,4 @@
 
-/// Synthesizes receiver-compatible wrapper overloads for trailing default
-/// parameters so Java-style callers can bind to concrete entrypoints without
-/// using Kotlin default-argument calling conventions.
 final class JvmOverloadsLoweringPass: LoweringPass {
     static let name = "JvmOverloadsLowering"
     static let requiredStage: KIRStage = .propertyLowered
