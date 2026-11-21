@@ -57,11 +57,6 @@ final class ObjectLiteralLowerer {
         return objectValue
     }
 
-    /// A local `object` materializes its singleton right at the declaration
-    /// site (exactly like an object literal) and binds it to the declared
-    /// name's symbol; a local `class` only emits its nominal/member/`<init>`
-    /// declarations — instances come from later `Local(...)` call exprs,
-    /// which take the normal constructor-call path in `CallLowerer`.
     func lowerLocalNominalDeclExpr(
         _ exprID: ExprID,
         declID: DeclID,
@@ -98,13 +93,9 @@ final class ObjectLiteralLowerer {
                 instructions: &instructions
             )
             driver.ctx.restoreScope(nominalScopeSnapshot)
-            // `Local` references lower as locals — bind the symbol to the
-            // materialized singleton value.
             driver.ctx.setLocalValue(objectValue, for: ownerSymbol)
 
         case let .classDecl(classDecl):
-            // Same scope protection as the object path: member and
-            // constructor body emissions below reset the scope.
             let nominalScopeSnapshot = driver.ctx.saveScope()
             defer { driver.ctx.restoreScope(nominalScopeSnapshot) }
             guard ensureObjectLiteralNominalDecl(
@@ -220,11 +211,6 @@ final class ObjectLiteralLowerer {
                 interner: interner,
                 propertyConstantInitializers: propertyConstantInitializers
             )
-            // BUG-141: object-literal member properties are not lowered through
-            // MemberLowerer above (memberProperties: []), so synthesize a getter
-            // accessor for each property that overrides an interface property.
-            // appendObjectItableMethodRegistrations registers these getters into
-            // the interface itable so an interface-typed receiver can read them.
             lowerObjectLiteralPropertyAccessors(
                 objectDecl.memberProperties,
                 ownerFQName: sema.symbols.symbol(objectSymbol)?.fqName ?? [objectDecl.name],
@@ -433,10 +419,6 @@ final class ObjectLiteralLowerer {
         driver.ctx.setImplicitReceiver(symbol: objectSymbol, exprID: objectValue)
         defer { driver.ctx.restoreScope(initializerScopeSnapshot) }
 
-        // Property initializers and `init {}` blocks run interleaved in
-        // declaration order. An object decl without a recorded order (no
-        // `init` blocks were ever collected for it) keeps running its
-        // properties in member order.
         let initOrder = objectDecl.classBodyInitOrder.isEmpty
             ? objectDecl.memberProperties.indices.map { ClassBodyInitMember.property($0) }
             : objectDecl.classBodyInitOrder
@@ -473,11 +455,6 @@ final class ObjectLiteralLowerer {
                 continue
             }
             if propertyDecl.delegateExpression != nil {
-                // BUG-267: run the same delegate-expression initialization a
-                // named class performs in its constructor, storing the
-                // delegate instance into the object's `$delegate_<name>`
-                // field. The object literal is the active implicit receiver
-                // here, so `emitFieldStore` lands at the layout offset.
                 _ = objectLiteralDelegateStorageSymbol(
                     for: propertySymbol,
                     propertyDecl: propertyDecl,
@@ -599,7 +576,6 @@ final class ObjectLiteralLowerer {
         if sema.symbols.symbol(superCtorSymbol)?.flags.contains(.synthetic) == true,
            sema.symbols.parentSymbol(for: superCtorSymbol) == sema.types.anyClassSymbol
         {
-            // Any's compiler-provided constructor has no body to delegate to.
             return
         }
 
@@ -645,15 +621,6 @@ final class ObjectLiteralLowerer {
         instructions = body.instructions
     }
 
-    /// KSP-CAP-001: member functions are lowered as independent top-level KIR
-    /// functions (`MemberLowerer.lowerSingleMemberFunction` resets `driver.ctx`'s
-    /// scope per function, the same way `LambdaLowerer` does per lambda), so
-    /// a captured symbol's KIR value from the enclosing function is not
-    /// visible here on its own, so the capture must be read back from the
-    /// instance field it was stored into at construction time (see the capture
-    /// loop in `lowerStoredObjectLiteralExpr` above), then re-registered with
-    /// `driver.ctx` so ordinary `nameRef` lowering finds it exactly as if it
-    /// were a plain local.
     func restoreObjectLiteralCaptures(
         forMemberFunction functionSymbol: SymbolID,
         sema: SemaModule,
@@ -665,7 +632,6 @@ final class ObjectLiteralLowerer {
             return
         }
         let capturedSymbols = sema.bindings.objectLiteralCaptureSymbols(for: ownerSymbol)
-        // Member extensions keep their extension receiver active, but captures live on the object instance.
         guard !capturedSymbols.isEmpty,
               let receiverExprID = driver.ctx.localValue(for: ownerSymbol)
                   ?? driver.ctx.activeImplicitReceiverExprID(),
@@ -748,14 +714,6 @@ final class ObjectLiteralLowerer {
         }
     }
 
-    /// The nearest enclosing class's companion object when it is a nominal
-    /// subtype of `ownerSymbol` — i.e. when an implicit-companion-scope
-    /// member resolves to a member declared on the companion's supertype.
-    /// Walks the enclosing nominal chain so an outer class's companion is
-    /// found for nested declarations, innermost companion first (KUU-3153).
-    /// Each enclosing class's own companion wins over its superclasses'
-    /// companions, mirroring the scope chain built in
-    /// `DeclTypeChecker+ClassAndObjectChecking.companionMemberScope`.
     func inheritedCompanionMemberReceiver(
         forMemberOwner ownerSymbol: SymbolID,
         sema: SemaModule
@@ -770,9 +728,6 @@ final class ObjectLiteralLowerer {
             {
                 return companion
             }
-            // A class also inherits the unqualified companion shorthand of
-            // its class supertypes; the nearest superclass's companion is
-            // innermost among them (BFS order, same as the scope chain).
             var classQueue = sema.symbols.directSupertypes(for: enclosing).filter {
                 sema.symbols.symbol($0)?.kind == .class
             }
@@ -814,16 +769,11 @@ final class ObjectLiteralLowerer {
             return receiver
         }
 
-        // Once an object literal starts initializing its own properties, the
-        // active receiver value is the object, even though the enclosing
-        // function signature may still have an extension receiver type.
         let activeReceiverType = driver.ctx.activeImplicitReceiver().flatMap { receiver in
             driver.ctx.localDeclaredType(for: receiver.symbol) ?? arena.exprType(receiver.exprID)
         } ?? driver.ctx.currentFunctionSymbol.flatMap {
             sema.symbols.functionSignature(for: $0)?.receiverType
         }
-        // An extension property's bare reference uses the extension receiver;
-        // the enclosing instance is a separate leading accessor argument.
         if let extensionType = sema.symbols.extensionPropertyReceiverType(for: symbol),
            let activeReceiver = driver.ctx.activeImplicitReceiverExprID(),
            let receiverType = activeReceiverType,
@@ -961,7 +911,6 @@ final class ObjectLiteralLowerer {
         let simpleNameExpr = arena.appendExpr(.stringLiteral(simpleNameInterned), type: intType)
         instructions.append(.constValue(result: simpleNameExpr, value: .stringLiteral(simpleNameInterned)))
 
-        // Supertype display names ('|'-joined, KUU-1357).
         let supertypeNameExpr: KIRExprID
         if let joined = kclassSupertypeDisplayNamesJoined(
             for: objectSymbol, sema: sema, interner: interner
@@ -987,7 +936,6 @@ final class ObjectLiteralLowerer {
         if symbol.kind == .object { flags |= 1 << 4 }
         if symbol.kind == .enumClass { flags |= 1 << 5 }
         if symbol.kind == .annotationClass { flags |= 1 << 6 }
-        // Reflection reports Kotlin modality, not the internal inheritance flags.
         let isSealed = symbol.flags.contains(.sealedType)
         let isAbstract = !isSealed && (symbol.kind == .interface || symbol.kind == .annotationClass || symbol.flags.contains(.abstractType))
         if isAbstract { flags |= 1 << 7 }
@@ -1010,8 +958,6 @@ final class ObjectLiteralLowerer {
             || ownerKind.map({ [.function, .property, .local].contains($0) }) == true {
             flags |= 1 << 13
         }
-        // KUU-3828: anonymous object literals have no name on the JVM;
-        // reflection reports null simpleName despite the synthetic fqName.
         if symbol.flags.contains(.synthetic),
            sema.symbols.isObjectLiteralSynthetic(objectSymbol) {
             flags |= 1 << 14
@@ -1080,9 +1026,6 @@ final class ObjectLiteralLowerer {
             instructions: &instructions
         )
 
-        // KUU-1448: keep the transitive nominal-supertype closure registered
-        // as well — `KType.classifier`-synthesized handles for an ancestor
-        // resolve their own `supertypes` through the same registry.
         var visitedClassSymbols: Set<SymbolID> = [objectSymbol]
         driver.callLowerer.emitTransitiveSupertypeKClassMetadataRegistrations(
             for: objectSymbol,
@@ -1161,13 +1104,6 @@ final class ObjectLiteralLowerer {
         }
     }
 
-    /// BUG-141: emit accessor functions for object-literal member properties
-    /// that override an interface property, so they can be dispatched through
-    /// the interface itable.
-    ///
-    /// KSP-CAP-018: also emits the `set` accessor for a property that declares
-    /// one. The assignment path already lowered `obj.prop = v` to `call set`,
-    /// so a custom setter used to fail at link time with an undefined `_set`.
     private func lowerObjectLiteralPropertyAccessors(
         _ memberProperties: [DeclID],
         ownerFQName: [InternedString],
@@ -1190,13 +1126,6 @@ final class ObjectLiteralLowerer {
                 continue
             }
             let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
-            // BUG-267: delegated properties get their accessors synthesized
-            // through the same getValue/setValue convention as named-class
-            // members (`MemberLowerer.lowerDelegateAccessor`). Both read
-            // paths — explicit `o.x` and implicit reads inside member
-            // functions — lower to `call get`/`call set` on this accessor;
-            // the delegate instance lives in the object's `$delegate_<name>`
-            // field (stored in `lowerStoredObjectLiteralExpr`).
             if propertyDecl.delegateExpression != nil {
                 let delegateStorageSymbol = objectLiteralDelegateStorageSymbol(
                     for: propertySymbol,
@@ -1232,9 +1161,6 @@ final class ObjectLiteralLowerer {
                 }
                 continue
             }
-            // Every non-delegated property gets a getter accessor, including
-            // non-virtual properties used directly by object-literal reads.
-            // Dispatch registration wires up the class/interface overrides.
             if let getter = propertyDecl.getter, getter.body != .unit {
                 driver.memberLowerer.lowerAccessorBody(
                     accessorBody: getter.body,
@@ -1274,11 +1200,6 @@ final class ObjectLiteralLowerer {
                     allDecls: &allDecls
                 )
             } else if propertyDecl.isVar {
-                // Setter counterpart of the stored getter accessor above: a
-                // plain `var` (no custom setter body) still needs a real
-                // setter accessor function registered so a write through an
-                // interface-typed receiver can dispatch to this object
-                // literal's own storage, the same way its getter already does.
                 driver.memberLowerer.synthesizeStoredPropertySetterAccessor(
                     propertySymbol: propertySymbol,
                     ownerSymbol: objectSymbol,
@@ -1294,11 +1215,6 @@ final class ObjectLiteralLowerer {
         }
     }
 
-    /// BUG-267: resolves the `$delegate_<name>` storage symbol Sema registers
-    /// for an object-literal delegated property (`ensureObjectLiteralSymbol`).
-    /// The fallback define mirrors `MemberLowerer`'s define-on-demand path for
-    /// named classes so lowering stays total if the Sema invariant is ever
-    /// bypassed (e.g. a synthetic AST built without the full inference pass).
     private func objectLiteralDelegateStorageSymbol(
         for propertySymbol: SymbolID,
         propertyDecl: PropertyDecl,
