@@ -44,11 +44,6 @@ extension DataFlowSemaPhase {
         let reifiedTypeParameterIndices: Set<Int>
         let typeSignature: String?
         let typeParameterUpperBoundsSignatures: [[String]]
-        /// The callable's type parameters in declaration order, encoded as
-        /// `T<rawID>` tokens (including any leading owner type parameters of
-        /// member callables). Present on artifacts emitted by compilers that
-        /// serialize `callTParams`; empty for older artifacts, where the
-        /// structural scan plus the phantom-count fallback apply instead.
         let callableTypeParameterSignatures: [String]
         let inputOnlyTypeParameterIndices: Set<Int>
         let defaultStubExternalLinkName: String?
@@ -87,14 +82,9 @@ extension DataFlowSemaPhase {
         let propertyGetterAbiReturnTypeSignature: String?
         let isMutable: Bool
         let nominalTypeParametersSignature: String?
-        /// Generic self-signature of the nominal owner, when this record is a
-        /// member. It lets imported member types replace metadata placeholders
-        /// with the owner's actual type-parameter symbols.
         let ownerNominalTypeParametersSignature: String?
         let nominalSupertypeSignatures: [String]
         let constValueLiteral: String?
-        /// Declaration-order type parameters of a nominal type, encoded as
-        /// `<typeSignature>:<variance>` pairs (e.g. `T5023:i`).
         let nominalTypeParameters: String?
 
         init(
@@ -268,8 +258,6 @@ extension DataFlowSemaPhase {
             self.isMaterialized = materializeBody == nil
         }
 
-        /// Whether this binding came from a v2 index and its `.kir` inline
-        /// body should stay unparsed until lowering demands it.
         var defersInlineBodyImport: Bool {
             materializeBody != nil
         }
