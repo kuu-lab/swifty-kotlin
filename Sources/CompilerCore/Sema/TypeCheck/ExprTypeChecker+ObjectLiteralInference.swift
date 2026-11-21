@@ -26,8 +26,6 @@ extension ExprTypeChecker {
                 sema.bindings.bindExprType(id, type: resolved)
                 return resolved
             }
-            // No superTypes and no declID → malformed object literal;
-            // upstream parser already emitted an error.
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
@@ -44,16 +42,6 @@ extension ExprTypeChecker {
         return objectType
     }
 
-    /// `fqNamePrefix` namespaces a *named local* `object` (`{ object L {} }`,
-    /// KUU-555): such a declaration is visible only inside its block but must
-    /// still carry an FQ name that cannot collide with a same-named
-    /// file-scope symbol — the caller passes a per-expression prefix like
-    /// `__localdecl_<exprID>`. Object literals pass `[]` and keep their
-    /// synthetic name as the FQ name's only component.
-    /// `symbolKind` is `.class` for object literals (matching the anonymous-
-    /// class treatment) and `.object` for a named local `object` — like a
-    /// file-scope `object` declaration, its name in expression position
-    /// denotes the singleton instance, not a class-name receiver.
     func ensureObjectLiteralSymbol(
         declID: DeclID,
         objectDecl: ObjectDecl,
@@ -75,11 +63,6 @@ extension ExprTypeChecker {
             return existing
         }
 
-        // KSP-CAP-001: snapshot the enclosing scope's local bindings before
-        // this object literal (or its member type-checking below) adds
-        // anything of its own, so member function bodies can be seeded with
-        // exactly what was visible at the point the object literal appears —
-        // mirroring how lambda bodies capture outer locals.
         let outerLocalsSnapshot = locals
         let outerSymbols = Set(outerLocalsSnapshot.values.map(\.symbol))
 
@@ -141,11 +124,6 @@ extension ExprTypeChecker {
         let mutableOuterReceiverPropertySymbols = Set(outerReceiverPropertySymbols.filter {
             sema.symbols.symbol($0)?.flags.contains(.mutable) == true
         })
-        // Outer receiver `this` symbols (see `outerReceiverTypes`) are also
-        // reachable here: the enclosing object literal captured them, so a
-        // nested literal can capture them again through the same chain even
-        // though the enclosing member's `this` binding shadows them in
-        // `outerLocalsSnapshot`.
         var captureOuterSymbols = outerSymbols
             .union(outerReceiverPropertySymbols)
             .union(ctx.outerReceiverTypes.compactMap(\.symbol))
@@ -153,16 +131,9 @@ extension ExprTypeChecker {
             .union(driver.helpers.lexicalTypeParameterSymbols(in: ctx).filter {
                 sema.symbols.symbol($0)?.flags.contains(.reifiedTypeParameter) == true
             })
-        // An unqualified call to an enclosing class member still needs that
-        // receiver after the object literal's own receiver becomes active.
-        // Capture the enclosing receiver symbol as a value just like a local.
         if let enclosingClassSymbol = ctx.enclosingClassSymbol {
             captureOuterSymbols.insert(enclosingClassSymbol)
         }
-        // BUG-inner-outer: same reasoning as `outerClassChain` above -- an
-        // unqualified call or `this@Label` naming an ancestor class two or
-        // more `$outer` hops out needs that ancestor's own symbol in the
-        // capture set too, or `CaptureAnalyzer` never records it.
         captureOuterSymbols.formUnion(outerClassChain)
 
         let objectSymbol = predeclareObjectLiteralSymbol(
@@ -190,8 +161,6 @@ extension ExprTypeChecker {
             lexicalScope = scope.parent
         }
         let enclosingClassScopes = Array(lexicalEnclosingFQNames.reversed())
-        // The implicit receivers an anonymous object may capture, including
-        // an extension receiver of the enclosing function.
         var lexicalReceiverSymbols = Set(ctx.outerReceiverTypes.compactMap(\.symbol))
         lexicalReceiverSymbols.formUnion(ctx.implicitReceiverStack.map(\.symbol))
         if let implicitReceiverType = ctx.implicitReceiverType,
@@ -217,8 +186,6 @@ extension ExprTypeChecker {
             )
         }
 
-        // Delegate expressions run in the enclosing scope, before the anonymous
-        // object's receiver and members become available.
         for entry in objectDecl.superTypeEntries {
             guard let delegateExpr = entry.delegateExpression else { continue }
             let interfaceType = driver.helpers.resolveTypeRef(
@@ -379,26 +346,8 @@ extension ExprTypeChecker {
         {
             objectScope.insert(symbol)
         }
-        // An unqualified member call (or `this@Outer`) inside the object
-        // literal's member bodies can target the enclosing receiver — the
-        // innermost `outerReceiverTypes` entry. Its runtime value is the
-        // enclosing function's `this`, which the capture machinery stores
-        // into the object literal's fields like any other outer local.
-        // Attaching that symbol to the entry is what lets call resolution
-        // and capture analysis find it; entries without a symbol stay
-        // type-only (`this@Label` typing) as before.
         var objectOuterReceiverTypes = ctx.outerReceiverTypes
         let thisBinding = outerLocalsSnapshot[ctx.interner.intern("this")]
-        // A function-local nominal captures the enclosing function's receiver
-        // *value*. The enclosing class's outer-receiver entry normally carries
-        // the class symbol — a `this@Class` label placeholder — which cannot
-        // root the smart-cast flow reference, because those are keyed by the
-        // receiver value symbol (`receiverParameterSymbol(for:)`). Resolve that
-        // entry to the receiver value that will actually be captured so stable
-        // property smart casts on the captured `this` survive into the object
-        // literal's member bodies (KUU-4606). Member extensions have two
-        // receivers: the class entry is the dispatch receiver (`this@Owner`),
-        // not the extension receiver that `locals["this"]` names.
         if let enclosingClassSymbol = ctx.enclosingClassSymbol {
             let memberExtensionDispatchSymbol = ctx.enclosingFunctionSymbol.flatMap { functionSymbol -> SymbolID? in
                 guard sema.symbols.memberExtensionOwnerSymbol(for: functionSymbol) == enclosingClassSymbol else {
@@ -440,9 +389,6 @@ extension ExprTypeChecker {
             }
         }
         if let thisBinding {
-            // The stack may name the same receiver under several labels (the
-            // class itself and each enclosing member function), so fill every
-            // entry whose type is the enclosing `this` type.
             for index in objectOuterReceiverTypes.indices
                 where objectOuterReceiverTypes[index].type == thisBinding.type
                 && objectOuterReceiverTypes[index].symbol == nil
@@ -450,13 +396,6 @@ extension ExprTypeChecker {
                 objectOuterReceiverTypes[index].symbol = thisBinding.symbol
             }
         }
-        // BUG-inner-outer: `this@Label` entries for ancestor classes beyond
-        // the immediate enclosing one have no plain local to bind to above
-        // (there is no flat `this` for them -- only `$outer.$outer...`), so
-        // bind them to the ancestor class's own symbol instead: the same key
-        // `outerClassChain`/`captureOuterSymbols` use, which
-        // `captureValueExpr`'s class-symbol branch knows how to materialize
-        // via `resolveOuterChainValue`.
         for index in objectOuterReceiverTypes.indices where objectOuterReceiverTypes[index].symbol == nil {
             guard let (_, classSymbol) = resolveClassTypeSymbol(objectOuterReceiverTypes[index].type, sema: sema),
                   outerClassChain.contains(classSymbol.id)
@@ -465,10 +404,6 @@ extension ExprTypeChecker {
             }
             objectOuterReceiverTypes[index].symbol = classSymbol.id
         }
-        // A nested inner class resolves members through the enclosing object
-        // literal's receiver tower. Keep the owner symbol on this entry so
-        // capture analysis and constructor lowering can materialize that
-        // receiver for the inner class's `$outer` field.
         objectOuterReceiverTypes.append((label: objectDecl.name, type: objectType, symbol: objectSymbol))
         let objectCtx = ctx.withoutSuspensionContext().copying(
             scope: objectScope,
@@ -509,9 +444,6 @@ extension ExprTypeChecker {
             initialLocals: outerLocalsSnapshot
         )
 
-        // Nested inner-class bodies can read properties from this receiver.
-        // Resolve independent inferred property types first so those reads do
-        // not see the placeholder types used until the normal member pass.
         driver.declChecker.precheckIndependentObjectLiteralMemberProperties(
             objectDecl.memberProperties,
             ctx: objectCtx,
@@ -537,9 +469,6 @@ extension ExprTypeChecker {
             )
         }
 
-        // Object-literal declarations are excluded from the eager declaration
-        // passes, so nested nominals need their layouts synthesized here after
-        // their member headers and bodies have been checked.
         var pendingNestedNominalDecls = objectDecl.nestedClasses + objectDecl.nestedObjects
         var nestedNominalSymbols: [SymbolID] = []
         while let nestedDeclID = pendingNestedNominalDecls.popLast() {
@@ -582,9 +511,6 @@ extension ExprTypeChecker {
             accessorBaseLocals: outerLocalsSnapshot,
             ctx: ctx
         )
-        // `init {}` blocks are lowered inline in the enclosing function,
-        // like property initializers, so they see the outer locals directly
-        // and need no capture fields.
         driver.declChecker.typeCheckInitBlocks(
             objectDecl.initBlocks,
             ctx: objectCtx,
@@ -624,11 +550,6 @@ extension ExprTypeChecker {
             ))
         }
 
-        // Nested nominals inside the literal (JVM permits `inner class` in
-        // an object expression) lower to separate KIR functions — a member
-        // body or initializer there that references the enclosing receiver
-        // reaches it through this literal's capture fields (`$outer` hop),
-        // so it must be part of the literal's capture set.
         for nestedDeclID in objectDecl.nestedClasses + objectDecl.nestedObjects {
             let nestedCaptures = driver.captureAnalyzer.collectCapturedOuterSymbols(
                 inDecl: nestedDeclID,
@@ -639,12 +560,6 @@ extension ExprTypeChecker {
             )
             capturedSymbols.formUnion(nestedCaptures)
 
-            // A nested inner class resolves an enclosing property through its
-            // `$outer` link. Capturing only an immutable property copies its
-            // value into this literal, but does not give that lookup a receiver
-            // of the property's owner type. Preserve the owner instance too so
-            // `resolveOuterChainValue` can continue through the literal after
-            // reaching it from the nested inner class.
             for capturedProperty in nestedCaptures
                 where outerReceiverPropertySymbols.contains(capturedProperty)
             {
@@ -708,12 +623,6 @@ extension ExprTypeChecker {
                 ownerSymbol: receiverOwnerSymbol
             )
         }
-        // KUU-2959: the object's layout inherits a local superclass's capture
-        // fields verbatim; inherited member functions and the super
-        // constructor's own capture-restore pass read them through `this`, so
-        // the construction site must materialize the same symbols the
-        // superclass captured (mirrors the local-class path in
-        // `typeCheckLocalClassDecl`).
         for superSymbol in directSuperSymbols where sema.symbols.symbol(superSymbol)?.kind == .class {
             capturedSymbols.formUnion(sema.bindings.objectLiteralCaptureSymbols(for: superSymbol))
         }
@@ -735,9 +644,6 @@ extension ExprTypeChecker {
             capturedSymbols: capturedSymbols,
             directSuperSymbols: directSuperSymbols,
             declRange: objectDecl.range,
-            // `.object`-kind symbols here are named local objects (KUU-555);
-            // anonymous object literals keep `.class` and read as
-            // "Object expression".
             subjectDescription: sema.symbols.symbol(objectSymbol)?.kind == .object
                 ? "Object '\(interner.resolve(objectDecl.name))'"
                 : "Object expression",
@@ -748,9 +654,6 @@ extension ExprTypeChecker {
 
 
 
-    /// Keyed by `ownerFQName` so local declarations get unique FQ names.
-    /// Marks every symbol `markObjectLiteralPropertySymbol` so member
-    /// reads lower as direct field offsets.
     func registerLocalNominalMemberProperties(
         _ memberProperties: [DeclID],
         ownerFQName: [InternedString],
@@ -763,11 +666,6 @@ extension ExprTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         var propertySymbolsByDecl: [DeclID: SymbolID] = [:]
-        // KUU-4152: body-nested writes to an `override` property's implicit
-        // setter are type-checked before the deferred override validation
-        // can publish the inherited setter visibility, so the effective
-        // visibility must be resolved as the member symbol is registered.
-        // The reverse map is only built when such a property exists.
         var declBySymbolCache: [SymbolID: DeclID]?
         for propertyDeclID in memberProperties {
             guard let decl = ast.arena.decl(propertyDeclID),
@@ -775,7 +673,6 @@ extension ExprTypeChecker {
             else {
                 continue
             }
-            // Data synthesis selects source properties from the constructor header.
             var propertyFlags: SymbolFlags = markAsSynthetic ? [.synthetic] : []
             if propertyDecl.modifiers.contains(.override) { propertyFlags.insert(.overrideMember) }
             if propertyDecl.modifiers.contains(.open) { propertyFlags.insert(.openType) }
@@ -784,8 +681,6 @@ extension ExprTypeChecker {
             if propertyDecl.isVar {
                 propertyFlags.insert(.mutable)
             }
-            // Read wrapping (`kk_lateinit_get_or_throw`) and `::p.isInitialized`
-            // both key off this flag, exactly as for named-class members.
             if propertyDecl.modifiers.contains(.lateinit) {
                 propertyFlags.insert(.lateinitProperty)
             }
@@ -798,9 +693,6 @@ extension ExprTypeChecker {
                     name: propertyDecl.name,
                     fqName: ownerFQName + [propertyDecl.name],
                     declSite: propertyDecl.range,
-                    // Keep the declared visibility (e.g. `private val`) so a
-                    // member of a local class or object literal stays scoped to
-                    // its body, matching the member-function path (KUU-3880).
                     visibility: Visibility(modifiers: propertyDecl.modifiers),
                     flags: propertyFlags
                 )
@@ -857,8 +749,6 @@ extension ExprTypeChecker {
                constructor.valueParameterIsVararg[index], constructor.parameterTypes.indices.contains(index),
                let array = primitiveVarargArrayType(elementType: constructor.parameterTypes[index],
                                                    sema: sema, interner: interner) {
-                // Match named-class headers using the resolved element type,
-                // including aliases, nullable elements, and shadowed primitive names.
                 declaredType = array
             }
             // Re-entry after inference must not replace a concrete inferred type
@@ -872,14 +762,7 @@ extension ExprTypeChecker {
             if let setterVisibility = propertyDecl.setter?.visibility {
                 sema.symbols.setPropertySetterVisibility(setterVisibility, for: propertySymbol)
             } else if propertyDecl.isVar, propertyDecl.modifiers.contains(.override) {
-                // KUU-4152: the implicit setter's effective visibility is the
-                // property's own modifier, otherwise the overridden setter's.
                 if declBySymbolCache == nil {
-                    // `declSymbols` can hold two decls bound to one
-                    // deduplicated symbol when `SymbolTable.define` reuses
-                    // an existing symbol for a colliding FQName; the reverse
-                    // map only needs a representative decl, so keep the
-                    // first like every other declBySymbol consumer.
                     declBySymbolCache = Dictionary(
                         sema.bindings.declSymbols.map { ($0.value, $0.key) },
                         uniquingKeysWith: { first, _ in first }
@@ -895,22 +778,12 @@ extension ExprTypeChecker {
                     sema.symbols.setPropertySetterVisibility(effective, for: propertySymbol)
                 }
             }
-            // KUU-4159: the property itself likewise inherits the overridden
-            // member's effective visibility when it spells no visibility
-            // modifier, and same-body use sites are checked before the
-            // deferred override validation can publish it — resolve it as
-            // the symbol is registered.
             if propertyDecl.modifiers.contains(.override),
                propertyDecl.modifiers.isDisjoint(
                    with: [.private, .protected, .internal, .public]
                )
             {
                 if declBySymbolCache == nil {
-                    // `declSymbols` can hold two decls bound to one
-                    // deduplicated symbol when `SymbolTable.define` reuses
-                    // an existing symbol for a colliding FQName; the reverse
-                    // map only needs a representative decl, so keep the
-                    // first like every other declBySymbol consumer.
                     declBySymbolCache = Dictionary(
                         sema.bindings.declSymbols.map { ($0.value, $0.key) },
                         uniquingKeysWith: { first, _ in first }
@@ -986,10 +859,6 @@ extension ExprTypeChecker {
                 sema.symbols.setBackingFieldSymbol(backingFieldSymbol, for: propertySymbol)
             }
 
-            // BUG-267: mirror `MemberHeaderCollection`'s delegate-storage
-            // rule — a `by`-delegated property stores the delegate instance
-            // in its own `$delegate_<name>` field; the property symbol itself
-            // gets no storage slot.
             if propertyDecl.delegateExpression != nil {
                 let extensionSuffix = propertyDecl.receiverType == nil ? "" : "_extension_\(propertySymbol.rawValue)"
                 let delegateStorageName = interner.intern(
@@ -1012,11 +881,6 @@ extension ExprTypeChecker {
         return propertySymbolsByDecl
     }
 
-    /// `initializerLocals` is the binding set initializer/delegate expressions
-    /// infer against (the enclosing scope for object literals, ctor-param +
-    /// captured locals for a local class whose initializers run inside
-    /// `<init>`); accessors, lowered as standalone KIR functions, get
-    /// `accessorBaseLocals`.
     func typeCheckLocalNominalMemberProperties(
         _ memberProperties: [DeclID],
         propertySymbolsByDecl: [DeclID: SymbolID],
@@ -1073,15 +937,6 @@ extension ExprTypeChecker {
                 inferredType = type
             }
 
-            // KSP-CAP-018: type-check the property's custom accessor bodies in
-            // the object literal's own member scope. This loop used to visit
-            // only the initializer, so identifiers inside a getter/setter body
-            // never got an `identifierSymbols` binding and KIR lowering had
-            // nothing to resolve them against — it fell back to emitting
-            // `.unit`, exactly the failure mode the `typeCheckDelegate` note in
-            // `DeclTypeChecker` describes for delegate bodies. Ordering mirrors
-            // the named path in `DeclTypeChecker.typeCheckPropertyDecl`: the
-            // getter can supply the property's type, the setter needs it final.
             var accessorCtx = driver.declChecker.propertyTypeParameterContext(
                 propertyDecl, symbol: propertySymbol, ctx: memberCtx, diagnostics: ctx.sema.diagnostics
             )
@@ -1104,12 +959,6 @@ extension ExprTypeChecker {
                 )
             }
 
-            // BUG-267: type-check `by` delegate expressions through the same
-            // convention path named classes use (`DeclTypeChecker.typeCheck
-            // PropertyDecl`). This binds the delegate expression's identifiers,
-            // resolves and records the delegate's getValue/setValue (and
-            // provideDelegate) operator symbols for KIR lowering, and can
-            // infer the property type from getValue's return type.
             if let delegateExpr = propertyDecl.delegateExpression {
                 inferredType = driver.declChecker.typeCheckDelegate(
                     delegateExpr,
@@ -1162,22 +1011,11 @@ extension ExprTypeChecker {
                 )
             }
 
-            // This source-order pass just finalized the property's type;
-            // drop the demand-inference markers so later reads see the final
-            // type instead of scheduling another on-demand check.
             driver.pendingPropertyTypes.remove(propertySymbol)
             driver.deferredInferredProperties.remove(propertySymbol)
         }
     }
 
-    /// Unions the captured-outer-symbol sets of a local nominal's accessor
-    /// bodies (always lowered as standalone KIR functions) and any caller-
-    /// supplied roots: `extraBodies` covers `init {}` blocks and
-    /// `extraExprRoots` covers superclass constructor arguments.
-    /// `includePropertyInitializers` also collects ordinary property
-    /// initializers and delegated-property expressions; all of these lower
-    /// inside `<init>` for a local class, unlike an object literal where they
-    /// run inline in the enclosing function.
     func collectLocalNominalCaptureSymbols(
         memberProperties: [DeclID],
         includePropertyInitializers: Bool,
@@ -1247,10 +1085,6 @@ extension ExprTypeChecker {
         return capturedSymbols
     }
 
-    /// Records the captured-symbol list on the owner nominal (read by
-    /// `ObjectLiteralLowerer` at materialization time) and binds each
-    /// captured local's type so member functions lowered as independent KIR
-    /// functions can read the field back.
     func bindLocalNominalCaptures(
         _ capturedSymbols: Set<SymbolID>,
         ownerSymbol: SymbolID,
@@ -1291,15 +1125,6 @@ extension ExprTypeChecker {
         )
     }
 
-    /// Assigns the field/vtable/itable layout for a nominal synthesized
-    /// during body inference (object literal, named local `class`/`object`).
-    /// Such nominals are only known once the enclosing function body is
-    /// type-checked, well after `synthesizeNominalLayouts` assigned slots for
-    /// every named nominal (see `runValidationPasses` vs. `runBodyAnalysis`
-    /// in Phase.swift), so the layout is built here: inherited slots from the
-    /// class-kind supertype, then storage for member properties (keyed by
-    /// backing/delegate storage symbol), captured locals, override vtable
-    /// slots, and transitive-interface itable slots.
     func synthesizeLocalNominalLayout(
         ownerSymbol: SymbolID,
         memberFunctionDecls: [DeclID],
@@ -1321,10 +1146,6 @@ extension ExprTypeChecker {
             }
             return symbol.kind != .interface
         }
-        // Local nominals collect their supertype edges during body inference,
-        // where a paired class may still resolve to its common expect symbol.
-        // Preserve that semantic edge, but inherit the storage and dispatch
-        // layout from the linked actual declaration when one is available.
         let layoutSuperClass = superClass.flatMap { superClassID in
             guard let expectSymbol = sema.symbols.symbol(superClassID),
                   expectSymbol.flags.contains(.expectDeclaration),
@@ -1360,13 +1181,6 @@ extension ExprTypeChecker {
             guard let propertySymbol = propertySymbolsByDecl[propertyDeclID] else {
                 continue
             }
-            // KSP-CAP-018: key the slot by the backing field when the property
-            // has one, mirroring `LayoutSynthesis.synthesizeLayoutForNominal`
-            // and every `backingFieldSymbol(for:) ?? propertySymbol` lookup on
-            // the lowering side. BUG-267: a delegated property's slot is keyed
-            // by its `$delegate_<name>` storage symbol instead — the property
-            // symbol itself holds no storage (same as `LayoutSynthesis` does
-            // for named-class delegated members).
             let storageSymbol = sema.symbols.delegateStorageSymbol(for: propertySymbol)
                 ?? sema.symbols.backingFieldSymbol(for: propertySymbol)
                 ?? propertySymbol
@@ -1383,11 +1197,6 @@ extension ExprTypeChecker {
             fieldOffsets[fieldSymbol] = nextFieldOffset
             nextFieldOffset += 1
         }
-        // KSP-CAP-001: give each captured outer local/parameter its own
-        // instance field so member functions (lowered as independent KIR
-        // functions, unlike inlined property initializers) can read the
-        // captured value back through `this` regardless of which method
-        // originally referenced it.
         for capturedSymbol in capturedSymbols.sorted(by: { $0.rawValue < $1.rawValue }) {
             guard fieldOffsets[capturedSymbol] == nil else {
                 continue
@@ -1437,9 +1246,6 @@ extension ExprTypeChecker {
             nextVtableSlot += 1
         }
 
-        // KUU-1251: inherited methods read properties through the base class's
-        // vtable slots. Local/anonymous overrides must replace those getter
-        // and setter implementations, just as header-time named layouts do.
         if let owner = sema.symbols.symbol(ownerSymbol) {
             DataFlowSemaPhase.assignPropertyAccessorVtableSlots(
                 for: owner,
@@ -1459,20 +1265,11 @@ extension ExprTypeChecker {
             nextItableSlot += 1
         }
 
-        // KSP-CAP-018: these nominals are always concrete, so they must
-        // implement every inherited abstract member — `object : Animal() {}`
-        // over `abstract fun speak()` is an error in Kotlin. The named-nominal
-        // check (`Inheritance.validateAbstractOverrides`) ran during header
-        // validation, before this symbol existed.
         var overriddenMembers: Set<MemberRequirementKey> = []
         for functionDeclID in memberFunctionDecls {
             guard let decl = ast.arena.decl(functionDeclID),
                   case let .funDecl(functionDecl) = decl
             else { continue }
-            // Member extensions and regular members are distinct override
-            // families — a regular `toString()` cannot implement an abstract
-            // `Any?.toString()` requirement (KUU-3656). Function and property
-            // requirements are likewise separate namespaces (KUU-4106).
             overriddenMembers.insert(MemberRequirementKey(
                 name: functionDecl.name,
                 isMemberExtension: functionDecl.receiverType != nil,
@@ -1524,8 +1321,6 @@ extension ExprTypeChecker {
         )
     }
 
-    /// `memberFQNamePrefix` is the owning nominal's FQ name — members get
-    /// `<prefix> + [memberName]`, parameters `<prefix> + [memberName, paramName]`.
     func collectObjectLiteralMemberFunctions(
         _ memberFunctions: [DeclID],
         memberFQNamePrefix: [InternedString],
@@ -1540,11 +1335,6 @@ extension ExprTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         var result: [DeclID: SymbolID] = [:]
-        // KUU-4159: body-nested use sites of an `override` member are
-        // type-checked before the deferred override validation can publish
-        // the inherited member visibility, so the effective visibility must
-        // be resolved as the member symbol is registered. The reverse map is
-        // only built when such a member exists.
         var declBySymbolCache: [SymbolID: DeclID]?
 
         for functionDeclID in memberFunctions {
@@ -1643,12 +1433,6 @@ extension ExprTypeChecker {
                 parameterSymbols.append(paramSymbol)
             }
 
-            // KUU-3175: `context(...)` clauses on object-literal member
-            // functions must reach the FunctionSignature exactly like named
-            // members do — the signature's contextParameterSymbols/Types feed
-            // both body type checking (named `context(i: C)` params bind to
-            // locals) and KIR parameter emission (leading context params
-            // after the receiver), which the itable dispatch ABI relies on.
             let contextReceiverTypes = functionDecl.contextReceivers.compactMap { contextReceiver in
                 driver.helpers.resolveTypeRef(
                     contextReceiver.type,
@@ -1714,9 +1498,6 @@ extension ExprTypeChecker {
                 case .unit, .block:
                     returnType = sema.types.unitType
                 case .expr:
-                    // A re-check reuses the member symbol, so keep the return
-                    // type an earlier inference already published instead of
-                    // resetting the signature to the `Any` placeholder.
                     if let existingSymbol = sema.bindings.declSymbols[functionDeclID],
                        let preservedReturnType = sema.symbols.functionSignatureIfKnown(for: existingSymbol)?.returnType,
                        preservedReturnType != sema.types.anyType
@@ -1803,28 +1584,17 @@ extension ExprTypeChecker {
                 ),
                 for: memberSymbol
             )
-            // Resolve the exact overridden signature before inheriting infix;
-            // another overload with the same name and arity may lack it.
             if DataFlowSemaPhase().nearestOverriddenFunctionCandidates(
                 of: memberSymbol, symbols: sema.symbols, types: sema.types
             ).contains(where: { sema.symbols.symbol($0)?.flags.contains(.infixFunction) == true }) {
                 sema.symbols.insertFlags(.infixFunction, for: memberSymbol)
             }
-            // KUU-4159: an `override` member that spells no visibility
-            // modifier inherits the overridden member's effective
-            // visibility. The signature is published above so overload
-            // matching can find the overridden function by parameter types.
             if functionDecl.modifiers.contains(.override),
                functionDecl.modifiers.isDisjoint(
                    with: [.private, .protected, .internal, .public]
                )
             {
                 if declBySymbolCache == nil {
-                    // `declSymbols` can hold two decls bound to one
-                    // deduplicated symbol when `SymbolTable.define` reuses
-                    // an existing symbol for a colliding FQName; the reverse
-                    // map only needs a representative decl, so keep the
-                    // first like every other declBySymbol consumer.
                     declBySymbolCache = Dictionary(
                         sema.bindings.declSymbols.map { ($0.value, $0.key) },
                         uniquingKeysWith: { first, _ in first }
@@ -1909,11 +1679,6 @@ extension ExprTypeChecker {
         return false
     }
 
-    /// KUU-3867: a member with an inferred signature position (`fun get() = stored`,
-    /// an untyped value parameter) may still resolve to a captured type
-    /// parameter once its body is refined. Such members keep the full class
-    /// type-parameter prefix so the refined types bind through the object's
-    /// own type arguments exactly as they did before the prefix filtering.
     private func objectLiteralMemberHasInferredSignatureType(_ functionDecl: FunDecl) -> Bool {
         if functionDecl.returnType == nil, case .expr = functionDecl.body {
             return true
@@ -1921,11 +1686,6 @@ extension ExprTypeChecker {
         return functionDecl.valueParams.contains { $0.type == nil }
     }
 
-    /// KUU-3867: names the member's declared signature surface spells —
-    /// own type-parameter bounds, receiver, context receivers, value
-    /// parameters, and return type. Only these positions let an explicit
-    /// type-argument call (or the signature's own bound/reified metadata)
-    /// observe a captured type parameter.
     private func objectLiteralMemberSpelledTypeNames(
         _ functionDecl: FunDecl,
         ast: ASTModule
