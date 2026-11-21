@@ -14,9 +14,6 @@ struct KIRVerificationFailure: Equatable {
     let message: String
 }
 
-/// The checks are deliberately flow-insensitive: a register read counts as
-/// defined when any instruction in the same function defines it, and jump
-/// targets only need a matching label somewhere in the same body.
 struct KIRVerifier {
     static var isEnabled: Bool {
         if let override = ProcessInfo.processInfo.environment["KSWIFTK_KIR_VERIFY"] {
@@ -202,9 +199,6 @@ struct KIRVerifier {
         }
     }
 
-    /// A read is legal when some instruction in the same function defines the
-    /// expression, or when the expression is not a `.temporary` slot that must
-    /// be materialized (literals, symbol refs, null, unit, ...).
     private static func checkRead(
         _ exprID: KIRExprID,
         index: Int,
@@ -245,17 +239,8 @@ struct KIRVerifier {
             if let linkName = symbols?.externalLinkName(for: symbol), !linkName.isEmpty {
                 return true
             }
-            // Synthetic accessor/`$default`-stub symbols are never registered
-            // in the table, but codegen resolves them structurally (internal
-            // functions, itable, or `resolveUnnamedInternalFunction` by name).
             if SyntheticSymbolScheme.isSyntheticCallTarget(symbol) { return true }
             if let symbols {
-                // Any symbol the table knows is resolvable at codegen:
-                // functions/constructors via module or external names, and
-                // callable values (value parameters, locals, properties)
-                // via local-slot invokes — e.g. `action(...)` on a
-                // function-typed parameter lowered without a
-                // callableValueCallBinding keeps the parameter symbol.
                 if let kind = symbols.symbol(symbol)?.kind {
                     switch kind {
                     case .function, .constructor, .valueParameter, .local,
@@ -266,22 +251,14 @@ struct KIRVerifier {
                     }
                 }
             } else {
-                // Without a symbol table a bound symbol cannot be
-                // disambiguated; treat it as resolvable.
                 return true
             }
         }
         let calleeName = interner.resolve(callee)
         if runtimeCalleeNames.contains(calleeName) { return true }
-        // `kk_fn_*` names are compiler-generated module link names; they
-        // resolve at final link time against the emitted object symbols.
         if calleeName.hasPrefix(RuntimeABISpec.compilerGeneratedLinkNamePrefix) {
             return true
         }
-        // Symbol-less calls still resolve in codegen by name (external
-        // declarations are emitted under the callee name). Accept any declared
-        // function/constructor symbol with that short name — e.g. bundled
-        // stdlib `external fun __kk_*` primitives invoked without a symbol.
         if symbol == nil,
            let symbols,
            symbols.lookupByShortName(callee).contains(where: {
@@ -291,9 +268,6 @@ struct KIRVerifier {
         {
             return true
         }
-        // `<name>$default` calls target the synthesized default-argument stub
-        // whose symbol is derived (not registered in the table). The stub
-        // exists iff the base declaration does, so check the base name.
         if symbol == nil,
            calleeName.hasSuffix("$default"),
            let symbols,
