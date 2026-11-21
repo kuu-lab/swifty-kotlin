@@ -1,7 +1,4 @@
 extension CallTypeChecker {
-    /// Explicit-receiver calls partition by lexical/import tier before comparing
-    /// functions with property + invoke. A package property therefore precedes
-    /// an implicitly imported function, while a same-tier function wins.
     func callableInvocationScopePriority(_ candidate: SymbolID, named name: InternedString, ctx: TypeInferenceContext) -> Int {
         let sema = ctx.sema
         guard let symbol = sema.symbols.symbol(candidate) else { return 0 }
@@ -23,8 +20,6 @@ extension CallTypeChecker {
         return 5
     }
 
-    /// Check the call shape without inferring a lambda against the losing tier.
-    /// Body errors must still be reported against the winning property type.
     func callablePropertyAcceptsArgumentShape(
         _ property: SymbolID,
         request: MemberCallInferenceRequest,
@@ -147,9 +142,6 @@ extension CallTypeChecker {
         return ctx.sema.types.isSubtype(placeholder, type)
     }
 
-    /// Check known reference signatures without binding the reference against
-    /// a tier that may lose. The normal contextual inference still reports
-    /// errors and binds the target once the winning callable is selected.
     func callableReferenceAcceptsArgumentType(
         _ expression: ExprID, parameter: TypeID, ctx: TypeInferenceContext, locals: LocalBindings
     ) -> Bool {
@@ -193,16 +185,6 @@ extension CallTypeChecker {
         }
         candidates = ctx.filterByVisibility(candidates).visible
         if candidates.isEmpty { return true }
-        // A class-name receiver also denotes the companion scope as a bound
-        // receiver (`inferCallableRefExpr` retries `A::member` on the
-        // companion type when the unbound interpretation cannot satisfy the
-        // expected function type): companion-block/object members, package
-        // extensions whose receiver accepts that companion type, and
-        // top-level `companion fun A.member` extensions are all valid bound
-        // targets. Collect them so the shape check below accepts e.g.
-        // `C::baz` for a `(String) -> String` parameter even when an
-        // instance `baz(Int)` shadows the companion member in the member
-        // candidate list above.
         var boundCompanionCandidates: [(symbol: SymbolID, boundReceiverType: TypeID)] = []
         if let classNameReceiverSymbol, let classReceiverType = receiverType {
             let nonNullClassReceiver = sema.types.makeNonNullable(classReceiverType)
