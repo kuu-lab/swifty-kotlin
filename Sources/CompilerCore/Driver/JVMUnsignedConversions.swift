@@ -1,9 +1,6 @@
 import Foundation
 
 extension JVMProgramBuilder {
-    /// Nullable unsigned arrays are raw primitive arrays in typed code, but
-    /// nullable Kotlin value-class boxes in erased calls and coroutine transport.
-    /// Expand conversions after coroutine lowering so every entry path preserves null.
     func lowerUnsignedConversions(_ input: JVMProgram) throws -> JVMProgram {
         var output = input
         func transform(_ source: JVMFunction) throws -> JVMFunction {
