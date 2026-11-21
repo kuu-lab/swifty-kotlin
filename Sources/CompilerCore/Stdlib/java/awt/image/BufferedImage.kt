@@ -3,7 +3,6 @@ package java.awt.image
 import java.awt.Color
 import java.awt.Image
 
-/** `java.awt.image.ImageObserver` callback interface. */
 public interface ImageObserver {
 
     public companion object {
@@ -18,9 +17,6 @@ public interface ImageObserver {
     }
 }
 
-/** `java.awt.image.BufferedImage`: an ARGB integer raster. All pixel
- * operations are real — reads and writes update the raster exactly like the
- * JDK's `TYPE_INT_ARGB`/`TYPE_INT_RGB` images. */
 public open class BufferedImage : java.awt.Image() {
     public val imageType: Int
     private val raster: IntArray
@@ -76,8 +72,6 @@ public open class BufferedImage : java.awt.Image() {
     }
 
 
-    /** ARGB pixel at `(x, y)`, or the alpha-composited value. */
-
 
 
 
@@ -91,7 +85,6 @@ public open class BufferedImage : java.awt.Image() {
         return sub
     }
 
-    /** Returns a [java.awt.Graphics] drawing onto this raster. */
     public fun createGraphics(): java.awt.Graphics {
         val g = java.awt.RasterGraphics(this)
         graphics = g
