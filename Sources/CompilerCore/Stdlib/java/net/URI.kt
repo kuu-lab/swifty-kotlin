@@ -2,7 +2,6 @@
 
 package java.net
 
-/** Native source-backed compatibility type for JVM-shaped URI signatures. */
 public class URI(private val spec: String) : Comparable<URI> {
     public constructor(
         scheme: String?,
