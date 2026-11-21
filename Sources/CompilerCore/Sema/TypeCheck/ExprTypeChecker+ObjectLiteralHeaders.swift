@@ -1,6 +1,4 @@
 extension ExprTypeChecker {
-    /// Publish an anonymous object's identity and declared supertypes without
-    /// checking constructor arguments, delegates, or member bodies early.
     func predeclareObjectLiteralSymbol(
         declID: DeclID,
         objectDecl: ObjectDecl,
@@ -45,9 +43,6 @@ extension ExprTypeChecker {
             lexicalScope = scope.parent
         }
         sema.bindings.deferAnnotationTargets(declID, lexicalEnclosingFQNames: lexicalEnclosingFQNames)
-        // A literal declared inside a class shares its lexical private scope.
-        // Keep that nesting in the symbol graph so its members can read the
-        // enclosing class's private constructor properties.
         if let enclosingClassSymbol = ctx.enclosingClassSymbol {
             sema.symbols.setParentSymbol(enclosingClassSymbol, for: objectSymbol)
         }
@@ -70,10 +65,6 @@ extension ExprTypeChecker {
                     ? objectDecl.superTypeEntries[index].range ?? objectDecl.range
                     : objectDecl.range
             )
-            // A function-type delegation specifier (`object : suspend () -> T`)
-            // resolves to a structural `.functionType`; lift it to the nominal
-            // SuspendFunctionN / FunctionN interface the named-declaration path
-            // records (KUU-3838).
             let resolvedNominal = driver.helpers.nominalFunctionInterfaceSupertype(
                 for: resolved,
                 owner: objectSymbol,
@@ -85,7 +76,6 @@ extension ExprTypeChecker {
             {
                 if index < objectDecl.superTypeEntries.count {
                     let entry = objectDecl.superTypeEntries[index]
-                    // Interfaces have no constructor to invoke (KUU-4132).
                     if entry.hasConstructorCallSyntax,
                        !declIsBundledStdlib,
                        sema.symbols.symbol(classType.classSymbol)?.kind == .interface
@@ -109,11 +99,6 @@ extension ExprTypeChecker {
                     }
                 }
                 directSuperSymbols.append(classType.classSymbol)
-                // Keep the qualifier's arguments as well: `Outer<Int>.I`
-                // stores `Int` in `enclosingTypeArgs`, and the inner
-                // constructor needs it to bind `V` during super-delegation
-                // resolution (KUU-3859). `classType(for:)` splits the flat
-                // list back into enclosing + own arguments.
                 directSuperTypeArgs[classType.classSymbol] = sema.types
                     .allTypeArguments(for: classType)
             }
