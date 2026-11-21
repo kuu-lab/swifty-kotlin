@@ -305,6 +305,19 @@ extension CallTypeChecker {
                     interner: request.interner
                 ) {
                     request.ctx.sema.diagnostics.emit(projectionDiagnostic)
+                } else if (diagnostic.code == "KSWIFTK-SEMA-0480" || diagnostic.code == "KSWIFTK-SEMA-0024")
+                    && definitelyNullReceiverHasDeclaredMember(
+                        request,
+                        argumentTypes: preparedArgs.argTypes,
+                        lookupReceiverType: lookupReceiverType,
+                        locals: locals
+                    )
+                {
+                    request.ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0002",
+                        "No viable overload found for call.",
+                        range: request.range
+                    )
                 } else if nullableReceiverProbeResolves {
                     if lookupReceiverType == request.sema.types.nullableNothingType {
                         request.ctx.sema.diagnostics.error(
@@ -347,6 +360,80 @@ extension CallTypeChecker {
         }
 
         return nil
+    }
+
+    /// Flow typing can collapse a definitely-null local to `Nothing?`, which
+    /// has no user-declared members. When that happens, member lookup falls
+    /// through to unrelated synthetic stubs or reports an unresolved member
+    /// even though the receiver's declared type has the callee. Probe the
+    /// declared non-null type so the diagnostic stays about overload/null
+    /// resolution instead of a missing argument or member.
+    func definitelyNullReceiverHasDeclaredMember(
+        _ request: MemberCallInferenceRequest,
+        argumentTypes: [TypeID],
+        lookupReceiverType: TypeID,
+        locals: LocalBindings
+    ) -> Bool {
+        let sema = request.sema
+        guard !request.safeCall,
+              lookupReceiverType == sema.types.nullableNothingType,
+              let declaredType = definitelyNullReceiverDeclaredType(request, locals: locals)
+        else {
+            return false
+        }
+        let declaredMemberLookupType = sema.types.makeNonNullable(declaredType)
+        let declaredCandidates = driver.helpers.collectMemberFunctionCandidates(
+            named: request.calleeName,
+            receiverType: declaredMemberLookupType,
+            sema: sema,
+            interner: request.interner
+        )
+        guard !declaredCandidates.isEmpty else {
+            return false
+        }
+        let probeArgs = zip(request.args, argumentTypes).map { argument, type in
+            let literal = integerArgumentValues(argument.expr, ctx: request.ctx)
+            return CallArg.source(
+                argument, type: type, callRange: request.range, ast: request.ctx.ast,
+                signedIntegerLiteral: literal.signed,
+                unsignedIntegerLiteral: literal.unsigned
+            )
+        }
+        let probe = request.ctx.resolver.resolveCall(
+            candidates: declaredCandidates,
+            call: CallExpr(
+                range: request.range,
+                calleeName: request.calleeName,
+                args: probeArgs,
+                explicitTypeArgs: request.explicitTypeArgs,
+                dispatchReceiverTypes: request.ctx.implicitReceiverMemberLookupEntries().map(\.type)
+            ),
+            expectedType: nil,
+            implicitReceiverType: declaredMemberLookupType,
+            ctx: sema
+        )
+        if probe.chosenCallee != nil {
+            return true
+        }
+        return probe.diagnostic?.code == "KSWIFTK-SEMA-0003"
+    }
+
+    private func definitelyNullReceiverDeclaredType(
+        _ request: MemberCallInferenceRequest,
+        locals: LocalBindings
+    ) -> TypeID? {
+        let sema = request.sema
+        if let symbol = sema.bindings.identifierSymbol(for: request.receiverID),
+           let declaredType = sema.symbols.propertyType(for: symbol)
+        {
+            return declaredType
+        }
+        guard case let .nameRef(name, _) = request.ctx.ast.arena.expr(request.receiverID),
+              let local = locals[name]
+        else {
+            return nil
+        }
+        return sema.symbols.propertyType(for: local.symbol)
     }
 
     /// An unavailable bundled extension must not change resolution, but it can
@@ -555,6 +642,19 @@ extension CallTypeChecker {
                 request, memberLookupType: memberLookupType, argTypes: argTypes,
                 isClassNameReceiver: isClassNameReceiver, locals: &locals
             ) { return propertyType }
+            if definitelyNullReceiverHasDeclaredMember(
+                request,
+                argumentTypes: argTypes,
+                lookupReceiverType: lookupReceiverType,
+                locals: locals
+            ) {
+                request.ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0002",
+                    "No viable overload found for call.",
+                    range: request.range
+                )
+                return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
+            }
             request.ctx.sema.diagnostics.error("KSWIFTK-SEMA-0024", "Unresolved member function '\(request.interner.resolve(request.calleeName))'.", range: request.range)
             return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
         }

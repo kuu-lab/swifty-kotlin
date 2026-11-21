@@ -1209,6 +1209,19 @@ extension CallTypeChecker {
             return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
         }
 
+        if definitelyNullReceiverHasDeclaredMember(
+            request,
+            argumentTypes: argTypes,
+            lookupReceiverType: lookupReceiverType,
+            locals: locals
+        ) {
+            request.ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0002",
+                "No viable overload found for call.",
+                range: request.range
+            )
+            return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
+        }
         request.ctx.sema.diagnostics.error("KSWIFTK-SEMA-0024", "Unresolved member function '\(request.calleeStr)'.", range: request.range)
         return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
     }
