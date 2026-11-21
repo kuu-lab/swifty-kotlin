@@ -1,7 +1,4 @@
 extension CallLowerer {
-    /// Emits the implicit `inc()`/`dec()` invocation behind `++`/`--`.
-    ///
-    /// The synthesized call carries no explicit arguments, so every declared
     /// parameter is omitted and must be supplied through the callee's
     /// `<name>$default` stub -- the same convention an explicit `a.inc()`
     /// call already uses. Leading slots follow the direct-call ABI:
@@ -9,7 +6,6 @@ extension CallLowerer {
     /// then the `++` target itself and its context arguments (see
     /// `CallSupportLowerer.generateDefaultStubFunction`). The stub performs
     /// its own virtual dispatch on the receiver, so it is always invoked
-    /// with a direct `.call`.
     func emitIncrementDecrementOperatorCall(
         callBinding: CallBinding,
         operatorName: String,
@@ -38,11 +34,6 @@ extension CallLowerer {
         )
         var leadingReceivers: [KIRExprID] = []
         if sema.symbols.symbol(callee)?.flags.contains(.localFunction) == true {
-            // A local function is materialized as a function object that
-            // already carries the lifted capture environment. Reuse those
-            // capture values exactly like a direct call does (see
-            // `CallLowerer+CallExpr`), falling back to Sema's declaration-time
-            // capture list for contexts without callable-value metadata.
             if let callableInfo = driver.ctx.localValue(for: callee)
                 .flatMap({ driver.ctx.callableValueInfo(for: $0) }),
                !callableInfo.captureArguments.isEmpty
@@ -64,9 +55,6 @@ extension CallLowerer {
                 }
             }
         }
-        // Member extensions (`fun T.inc()` declared inside a nominal type)
-        // carry the dispatch receiver (`this@Owner`) ahead of the extension
-        // receiver; virtual dispatch targets it, not the extension receiver.
         let dispatchReceiver = memberExtensionDispatchReceiver(
             for: callee,
             callExprID: callExprID,
@@ -91,7 +79,6 @@ extension CallLowerer {
                 sema: sema,
                 arena: arena
             )
-            // The operator receiver precedes context values in the source-call ABI.
             finalArguments.insert(contentsOf: contextArguments, at: min(1, finalArguments.count))
         }
         appendReifiedTypeTokens(
@@ -104,10 +91,6 @@ extension CallLowerer {
             arguments: &finalArguments
         )
         finalArguments.insert(contentsOf: leadingReceivers, at: 0)
-        // KUU-655: an override that inherits its defaults never has its own
-        // stub; resolve to the base declaration's stub instead (see
-        // `defaultStubOwnerSymbol`). Operators have no `super.` syntax, so no
-        // mask "super call" bit applies here.
         let stubOwner = driver.callSupportLowerer.defaultStubOwnerSymbol(
             for: callee, sema: sema, callBinding: callBinding
         )
@@ -158,9 +141,6 @@ extension CallLowerer {
         ) {
             return
         }
-        // An open/abstract member operator dispatches on the receiver's
-        // runtime type, exactly like `lhs.inc()`; the extension receiver is
-        // an ordinary leading argument for member extensions.
         if let virtualInstruction = tryEmitVirtualDispatch(
             chosenCallee: callee,
             calleeName: loweredCalleeName,
