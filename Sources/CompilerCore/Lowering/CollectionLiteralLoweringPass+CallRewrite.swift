@@ -1,8 +1,4 @@
 extension CollectionLiteralConstructionLoweringPass {
-    /// Keep resolved source declarations on the original call path unless the
-    /// receiver is a confirmed runtime Sequence box. Runtime-specific
-    /// collection intrinsics are emitted under their `kk_*` callee before this
-    /// gate and therefore do not need an API-name exception here.
     private func shouldPreserveSourceBackedCall(
         symbol: SymbolID?,
         arguments: [KIRExprID],
@@ -37,9 +33,6 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout KIRLoweringEmitContext
     ) {
-        // kk_sequence_requireNoNulls is emitted directly by CallLowerer when the
-        // bundled source declaration is absent. Track its result as a runtime
-        // Sequence handle so downstream take/drop rewrites still fire.
         if callee == lookup.kkSequenceRequireNoNullsName, let result {
             state.sequenceExprIDs.insert(result.rawValue)
         }
