@@ -1,11 +1,5 @@
 
 extension DataFlowSemaPhase {
-    /// A user-declared top-level `fun X(...)` whose value-parameter signature
-    /// matches a constructor of a user-declared class `X` in the same package
-    /// is a redeclaration (kotlinc: conflicting declarations). Factory-style
-    /// functions with a different signature (e.g. `fun Random(seed: Long)`)
-    /// stay legal. Called from both the class-constructor and the function
-    /// header paths; only the later of the two sees both signatures.
     func checkAndReportClassConstructorFunctionConflict(
         classFQName: [InternedString],
         range: SourceRange?,
@@ -25,7 +19,6 @@ extension DataFlowSemaPhase {
             }
         }
         func isUserSource(_ id: SymbolID) -> Bool {
-            // Constructors carry no source file ID of their own; use their owner's.
             guard let fileID = symbols.sourceFileID(for: id)
                 ?? symbols.parentSymbol(for: id).flatMap({ symbols.sourceFileID(for: $0) })
             else { return false }
@@ -36,9 +29,6 @@ extension DataFlowSemaPhase {
                   !symbol.flags.contains(.synthetic), isUserSource(id), !isLowPriority(id),
                   let signature = symbols.functionSignature(for: id)
             else { return nil }
-            // A constructor's receiver is the class it constructs; a
-            // conflicting top-level function is receiverless, so the receiver
-            // must be stripped before signature comparison.
             return FunctionSignature(
                 contextReceiverTypes: signature.contextReceiverTypes,
                 contextParameterSymbols: signature.contextParameterSymbols,
