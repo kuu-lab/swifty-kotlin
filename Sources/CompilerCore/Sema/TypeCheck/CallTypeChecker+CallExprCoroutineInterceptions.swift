@@ -44,9 +44,6 @@ extension CallTypeChecker {
            let lastArgumentExprID = args.last?.expr,
            isLambdaLiteralArg(lastArgumentExprID, ast: ast)
         {
-            // KSP-1573: prefer the bundled `CoroutineScope.produce` extension
-            // when it is visible; it composes channel + kk_coroutine_scope_launch
-            // in real Kotlin source, and its block is a boxed suspend lambda.
             if let boundProduceResult = tryBindSourceBackedProduceCall(
                 id,
                 calleeName: calleeName,
@@ -74,11 +71,6 @@ extension CallTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
-        // Function *values* (named `suspend ProducerScope<E>.() -> Unit`
-        // bindings, callable references, members) fall through to generic
-        // overload resolution: the send-scan element inference is only needed
-        // for literals, and a declared value already pins E for the solver.
-        // The same holds for `actor`, which is generic-only here.
         if let calleeName,
            calleeName == knownNames.produce,
            bundledProduceIsVisible(calleeName, ctx: ctx),
@@ -87,8 +79,6 @@ extension CallTypeChecker {
            let argumentExprID = args.first?.expr,
            isValidBuilderLambdaArgument(argumentExprID, ast: ast)
         {
-            // Leave arity-compatible nearer callables to ordinary resolution.
-            // Type-incompatible candidates require separate handling (KUU-3720).
             if ctx.cachedScopeLookup(calleeName).contains(where: { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate),
                       symbol.kind == .function,
@@ -242,8 +232,6 @@ extension CallTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
-        // Keep this path separate from generic overload resolution so the
-        // lambda parameter can be inferred from the coroutine result type.
         if let calleeName,
            calleeName == knownNames.suspendCoroutine,
            args.count == 1
@@ -332,9 +320,6 @@ extension CallTypeChecker {
 
         let lambdaExpectedType: TypeID
         if params.isEmpty {
-            // The zero-parameter literal stays on the bundled arity-0 call
-            // path unless an expected suspend function type supplies a
-            // receiver or the single implicit `it` parameter.
             guard let expectedSuspendFunctionType,
                   expectedSuspendFunctionType.params.count == 1
                       || expectedSuspendFunctionType.receiver != nil,
@@ -349,10 +334,6 @@ extension CallTypeChecker {
         {
             lambdaExpectedType = expectedType
         } else {
-            // Declared annotations pin the parameter types; the synthesized
-            // `Any?` return is a placeholder so the body's inferred type
-            // flows through (matching the erased-placeholder rule in
-            // `inferLambdaLiteralExpr`).
             guard let typeRefs = ast.arena.lambdaParamTypeRefs(for: lambdaExprID),
                   typeRefs.count == params.count
             else {
