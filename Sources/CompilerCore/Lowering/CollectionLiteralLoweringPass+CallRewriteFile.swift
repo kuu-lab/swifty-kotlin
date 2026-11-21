@@ -1,12 +1,6 @@
 
 extension CollectionLiteralConstructionLoweringPass {
 
-    /// CLEANUP-STUB-107 removed the parallel `java.io.File` handling this
-    /// function used to perform (File(path) construction, File member
-    /// dispatch): File's own Sema facade no longer exists, so those branches
-    /// were unreachable. CLEANUP-STUB-115 removed the `kotlin.io.path.Path`
-    /// branches the same way. What remains here is the Reader/BufferedReader
-    /// family, which CLEANUP-STUB-107 kept.
     func rewriteFileCall(
         symbol: SymbolID?,
         callee: InternedString,
