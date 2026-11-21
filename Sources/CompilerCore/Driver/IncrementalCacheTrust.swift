@@ -25,7 +25,6 @@ enum IncrementalCacheTrust {
     enum LocationTrust {
         case trusted
         case missing
-        /// Directory failed validation; its contents are ignored entirely.
         case untrusted(String)
     }
 
@@ -47,9 +46,6 @@ enum IncrementalCacheTrust {
     }
 
 
-    /// Read-only validation used before loading state. A missing cache
-    /// directory yields `.missing`; anything unsafe yields `.untrusted` with a
-    /// reason suitable for logging.
     static func validateLocation(cachePath: String, managedAncestorBase: String?) -> LocationTrust {
         let fm = FileManager.default
         guard fm.fileExists(atPath: cachePath) else {
@@ -69,10 +65,6 @@ enum IncrementalCacheTrust {
         return .trusted
     }
 
-    /// Ensures the cache location is a private directory, creating missing
-    /// components and tightening permissions on components owned by the
-    /// current user. Returns false when the location cannot be made safe —
-    /// the caller must not write into it.
     static func ensureSecureLocation(cachePath: String, managedAncestorBase: String?) -> Bool {
         let fm = FileManager.default
         if let base = managedAncestorBase.map(normalize) {
@@ -95,8 +87,6 @@ enum IncrementalCacheTrust {
         return secureDirectory(at: normalize(cachePath))
     }
 
-    /// With no base — an explicitly configured cache path — only the leaf is
-    /// checked; the MAC still authenticates the contents.
     private static func strictComponents(cachePath: String, managedAncestorBase: String?) -> [String] {
         let leaf = normalize(cachePath)
         guard let base = managedAncestorBase.map(normalize) else {
@@ -111,8 +101,6 @@ enum IncrementalCacheTrust {
             }
             let parent = parentPath(of: cursor)
             if parent == cursor {
-                // Climbed past the base — the path is not under the managed
-                // root, so only the leaf can be asserted.
                 return [leaf]
             }
             cursor = parent
@@ -135,8 +123,6 @@ enum IncrementalCacheTrust {
         return nil
     }
 
-    /// Shared ancestor directory (e.g. the platform caches directory): owned
-    /// by the current user, not a symlink, and not writable by group/other.
     private static func sharedDirectoryViolation(at path: String) -> String? {
         guard let info = lstatInfo(path) else {
             return "'\(path)' is missing"
@@ -175,8 +161,6 @@ enum IncrementalCacheTrust {
     }
 
 
-    /// Returns nil when the index is absent, malformed, or fails its keyed MAC —
-    /// the cache is then ignored.
     static func readIntegrityIndex(cachePath: String) -> [String: String]? {
         guard let key = integrityKey(createIfMissing: false) else {
             return nil
@@ -193,10 +177,6 @@ enum IncrementalCacheTrust {
         return Dictionary(uniqueKeysWithValues: index.entries.map { ($0.path, $0.sha256) })
     }
 
-    /// Recomputes the integrity index over every regular file in the cache
-    /// directory and writes it atomically. Returns the authenticated digest
-    /// map on success, nil when the key cannot be established or the write
-    /// fails — the cache must then not be trusted.
     @discardableResult
     static func writeIntegrityIndex(cachePath: String) -> [String: String]? {
         guard let key = integrityKey(createIfMissing: true) else {
@@ -215,8 +195,6 @@ enum IncrementalCacheTrust {
                 guard let info = lstatInfo(fullPath) else {
                     continue
                 }
-                // Only regular files are indexed; directories and links are
-                // skipped, which also keeps them out of any restored output.
                 guard info.isRegular else {
                     continue
                 }
@@ -263,10 +241,6 @@ enum IncrementalCacheTrust {
         return data
     }
 
-    /// Re-verifies an output artifact against the authenticated index at
-    /// restore time so bytes swapped in after `loadPreviousState` are caught.
-    /// A directory artifact must match the index exactly: every file on disk
-    /// is authenticated and nothing may be added or removed.
     static func verifyArtifact(
         cachePath: String,
         artifact: CachedOutputArtifact,
@@ -311,9 +285,6 @@ enum IncrementalCacheTrust {
     }
 
 
-    /// The per-user key used to authenticate cache contents. It lives in the
-    /// user's private cache root — outside any workspace — and is only ever
-    /// readable by the current user.
     static func integrityKey(createIfMissing: Bool) -> Data? {
         guard let keyPath = integrityKeyFilePath() else {
             return nil
@@ -322,8 +293,6 @@ enum IncrementalCacheTrust {
             guard info.isRegular, !info.isSymlink, info.uid == geteuid() else {
                 return nil
             }
-            // Tighten a key created before permission enforcement rather than
-            // leaving the cache unusable.
             _ = chmod(keyPath, keyFileMode)
             guard let secured = lstatInfo(keyPath), secured.mode & 0o077 == 0,
                   let data = try? Data(contentsOf: URL(fileURLWithPath: keyPath)),
