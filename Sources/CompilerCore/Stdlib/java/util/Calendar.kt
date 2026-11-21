@@ -2,7 +2,6 @@ package java.util
 
 import kotlin.internal.KsSymbolName
 
-/** A Gregorian calendar backed by the runtime's platform date implementation. */
 public open class Calendar internal constructor(private val rawHandle: Long) {
     internal constructor(timeZone: TimeZone) : this(calendarCreate(timeZone.rawHandle))
 
@@ -24,21 +23,18 @@ public open class Calendar internal constructor(private val rawHandle: Long) {
         calendarSetField(rawHandle, field, value)
     }
 
-    /** JDK `set(year, month, date)`: sets YEAR, MONTH and DAY_OF_MONTH. */
     public fun set(year: Int, month: Int, dayOfMonth: Int) {
         set(YEAR, year)
         set(MONTH, month)
         set(DATE, dayOfMonth)
     }
 
-    /** JDK `set(year, month, date, hourOfDay, minute)`. */
     public fun set(year: Int, month: Int, dayOfMonth: Int, hourOfDay: Int, minute: Int) {
         set(year, month, dayOfMonth)
         set(HOUR_OF_DAY, hourOfDay)
         set(MINUTE, minute)
     }
 
-    /** JDK `set(year, month, date, hourOfDay, minute, second)`. */
     public fun set(
         year: Int,
         month: Int,
@@ -55,7 +51,6 @@ public open class Calendar internal constructor(private val rawHandle: Long) {
         calendarAddField(rawHandle, field, amount)
     }
 
-    /** JDK `setWeekDate(year, weekOfYear, dayOfWeek)`; resolves atomically. */
     public fun setWeekDate(year: Int, weekOfYear: Int, dayOfWeek: Int) {
         if (dayOfWeek < SUNDAY || dayOfWeek > SATURDAY) {
             throw IllegalArgumentException("invalid dayOfWeek: $dayOfWeek")
@@ -63,34 +58,22 @@ public open class Calendar internal constructor(private val rawHandle: Long) {
         calendarSetWeekDate(rawHandle, year, weekOfYear, dayOfWeek)
     }
 
-    /** JDK `isWeekDateSupported`: this calendar supports week-date fields. */
     public fun isWeekDateSupported(): Boolean = true
 
-    /** JDK `getWeekYear`: the week-based year of the current date. */
     public fun getWeekYear(): Int = calendarGetWeekYear(rawHandle)
 
-    /** JDK `getWeeksInWeekYear`: weeks in the current week year (52 or 53). */
     public fun getWeeksInWeekYear(): Int = getActualMaximum(WEEK_OF_YEAR)
 
-    /** JDK `getMinimum`: structural minimum for the field (Gregorian bounds). */
     public fun getMinimum(field: Int): Int = calendarGetFieldMinimum(rawHandle, field)
 
-    /** JDK `getMaximum`: structural maximum for the field (Gregorian bounds). */
     public fun getMaximum(field: Int): Int = calendarGetFieldMaximum(rawHandle, field)
 
-    /** JDK `getGreatestMinimum`: highest possible minimum for the field. */
     public fun getGreatestMinimum(field: Int): Int = calendarGetFieldGreatestMinimum(rawHandle, field)
 
-    /** JDK `getLeastMaximum`: lowest possible maximum for the field. */
     public fun getLeastMaximum(field: Int): Int = calendarGetFieldLeastMaximum(rawHandle, field)
 
-    /** JDK `getActualMinimum`: minimum for the field at the current time value. */
     public fun getActualMinimum(field: Int): Int = calendarGetFieldActualMinimum(rawHandle, field)
 
-    /**
-     * JDK `getActualMaximum`: maximum for the field at the current time
-     * value (e.g. days in the current month, leap-aware).
-     */
     public fun getActualMaximum(field: Int): Int = calendarGetFieldActualMaximum(rawHandle, field)
 
     public fun getTimeZone(): TimeZone = TimeZone(calendarGetTimeZone(rawHandle))
@@ -107,7 +90,6 @@ public open class Calendar internal constructor(private val rawHandle: Long) {
         get() = getTime()
         set(value) = setTime(value)
 
-    /** JVM synthetic property view of `getTimeZone()`/`setTimeZone(TimeZone)`. */
     public var timeZone: TimeZone
         get() = getTimeZone()
         set(value) = setTimeZone(value)
