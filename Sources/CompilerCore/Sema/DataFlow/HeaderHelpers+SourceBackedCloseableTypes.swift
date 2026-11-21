@@ -1,7 +1,3 @@
-/// The common declarations are collected from bundled Kotlin source or loaded
-/// from a precompiled stdlib artifact. The JVM `java.io.Closeable` and
-/// `java.lang.AutoCloseable` compatibility anchors remain synthetic for Java IO
-/// types while inheriting the source-backed Kotlin contracts.
 extension DataFlowSemaPhase {
     func initializeSourceBackedCloseableTypes(
         symbols: SymbolTable,
@@ -80,11 +76,6 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes(javaSupertypes, for: javaIOCloseableSymbol)
         types.setNominalDirectSupertypes(javaSupertypes, for: javaIOCloseableSymbol)
 
-        // java.io stream stubs are registered before bundled headers. They
-        // initially use the Java anchor, then add the source-backed common
-        // symbol while retaining the Java nominal edges. `PrintWriter` was
-        // removed by CLEANUP-STUB-107 (it was reachable only via the
-        // now-deleted `File.printWriter()` factory).
         let syntheticJavaIOCloseableTypes = [
             "Reader", "BufferedReader", "Writer", "BufferedWriter",
             "InputStream", "OutputStream",
