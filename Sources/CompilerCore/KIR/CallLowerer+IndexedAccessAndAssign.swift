@@ -1,9 +1,6 @@
 
 extension CallLowerer {
 
-    /// Mirrors Sema's safe-chain indexed read: `a?.b[i]` and chained reads like
-    /// `a?.b[i][j]` lower as guarded accesses so a null receiver skips both the
-    /// index expressions and `get`.
     private func isSafeChainIndexedReceiver(_ receiverExpr: ExprID, ast: ASTModule, sema: SemaModule) -> Bool {
         guard !ast.arena.isParenthesized(receiverExpr) else { return false }
         switch ast.arena.expr(receiverExpr) {
@@ -212,7 +209,6 @@ extension CallLowerer {
             )
             return result
         }
-        // Built-in array get only supports a single Int index
         assert(!indices.isEmpty, "indices must not be empty for indexed access")
         let indexID = driver.lowerExpr(
             indices[0],
@@ -259,8 +255,6 @@ extension CallLowerer {
             sema: sema,
             interner: interner
         ) == sema.types.ubyteType {
-            // ByteArray.asUByteArray() preserves signed storage, so normalize
-            // the raw byte to UByte at the typed read boundary.
             let rawResult = arena.appendTemporary(type: sema.types.intType)
             instructions.append(.call(callee: interner.intern("kk_array_get"), arguments: [receiverID, indexID], result: rawResult, canThrow: false))
             emitNonThrowingCall(
@@ -275,9 +269,6 @@ extension CallLowerer {
         return result
     }
 
-    /// A bare reference to a mutable local (`nameRef`) returns that local's
-    /// persistent storage register by identity rather than a value snapshot
-    /// (see the `.nameRef` case in `ExprLowerer+ControlFlowAndBlocks.swift`,
     /// via `localValue(for:)`). KIR instructions execute strictly in the
     /// order they are appended, so if a later-evaluated sibling operand
     /// (e.g. an indexed assignment's value expression, or the right operand
@@ -288,8 +279,6 @@ extension CallLowerer {
     /// point this operand was evaluated. Copying into a fresh temporary
     /// immediately after evaluation freezes the evaluate-once value that
     /// Kotlin's specified left-to-right evaluation order requires. Call this
-    /// on every operand of a multi-operand construct as soon as it is
-    /// lowered, before lowering the next sibling operand.
     func freezeEvaluationOrderOperand(
         _ id: KIRExprID,
         arena: KIRArena,
@@ -300,19 +289,12 @@ extension CallLowerer {
         return temp
     }
 
-    /// True when `exprID` is a bare reference to a mutable (`var`) local —
-    /// the only shape whose lowered `KIRExprID` aliases a register that a
-    /// later-evaluated sibling operand could still mutate in place (see
-    /// `freezeEvaluationOrderOperand`). Anything else — a `val`, a literal,
-    /// a lambda, a nested call, a property, a value parameter, ... — either
-    /// cannot be mutated by a sibling, or is already lowered into its own
     /// fresh value, so freezing it would only add a needless extra copy.
     /// That matters beyond cost: a call argument that is a trailing lambda
     /// passed to an `inline` stdlib function (e.g. `fold`/`reduce` on a
     /// range) is later consumed by the separate inline-lowering pass, which
     /// expects to find the closure construction directly feeding the call;
     /// splicing an unconditional copy in between broke that pattern match
-    /// and crashed under `-O2`.
     func needsEvaluationOrderFreeze(
         _ exprID: ExprID,
         ast: ASTModule,
@@ -327,25 +309,6 @@ extension CallLowerer {
         return symbolInfo.kind == .local && symbolInfo.flags.contains(.mutable)
     }
 
-    /// Conservatively true when `exprID` could possibly perform a write
-    /// (an assignment, an increment/decrement, or a call that might do
-    /// either indirectly) while it is evaluated. False only for an
-    /// expression built purely from literals, bare reads, and arithmetic/
-    /// comparison/logical operators over such expressions — a shape that
-    /// can never mutate anything, however deep it nests.
-    ///
-    /// This exists to avoid freezing a sibling operand needlessly: e.g. in
-    /// `result = result + 22`, the rhs `22` cannot mutate `result`, so
-    /// there is no aliasing hazard and freezing the lhs would only add a
-    /// dead `.copy` that some optimization levels don't fold away (this
-    /// was caught by `LLVMOptimizationPipelineTests`'s stack-slot-
-    /// elimination probe). `needsEvaluationOrderFreeze` should only cause
-    /// a freeze when *this* also returns true for the later-evaluated
-    /// sibling(s).
-    ///
-    /// Bounded by the same depth the expression parser itself enforces
-    /// (`ExpressionParser.maxRecursionDepth`), so hitting the bound
-    /// conservatively returns true rather than recursing unboundedly.
     func expressionMayMutateState(
         _ exprID: ExprID,
         ast: ASTModule,
@@ -453,9 +416,6 @@ extension CallLowerer {
         } else {
             false
         }
-        // Preserve the intrinsic for canonical Int-indexed Array.set (including
-        // casts to Array<Any?>). User overloads retain their resolved dispatch,
-        // even when the receiver itself uses the array runtime representation.
         if let callBinding = resolvedCallBinding, !chosenSetIsIntrinsic {
             let chosenSet = callBinding.chosenCallee
             let loweredArgs = loweredIndices + [valueID]
@@ -526,11 +486,6 @@ extension CallLowerer {
         return unit
     }
 
-    // NOTE: isSequenceLikeType is defined once in CallLowerer+MemberCalls.swift
-    // and shared across all CallLowerer extensions.
-
-    /// Array<T>'s backing store holds boxed elements for
-    /// primitive T (mirroring List<T>); the primitive-specialized array types
     /// (IntArray, CharArray, ...) share the same "kk_array_of"/"kk_array_get"/
     /// "kk_array_set" runtime entry points but store raw values and must never
     /// be boxed/unboxed.
