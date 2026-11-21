@@ -1,15 +1,4 @@
 
-/// Residual `WeakReference<T>` members are retained as a no-op fallback now
-/// that the constructor (KSP-1255) and members (KSP-1256) are source-backed
-/// in Weak.kt; the bundled-declaration check short-circuits registration.
-///
-/// `kotlin.native.runtime.GC` needs no stub here: it is fully source-backed
-/// (see GC.kt), including its own `@NativeRuntimeApi` annotation, so it is
-/// registered by ordinary header collection like any other bundled object.
-///
-/// `kotlin.native.runtime.Debugging` is fully source-backed (KSP-1260,
-/// `Stdlib/kotlin/native/runtime/Debugging.kt`) and registers no synthetic
-/// stub here.
 extension DataFlowSemaPhase {
     func registerSyntheticNativeRefRuntimeStubs(
         symbols: SymbolTable,
@@ -110,9 +99,6 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(pkgSymbol, for: classSymbol)
         }
 
-        // The `@ExperimentalNativeApi` marker is declared in bundled Kotlin
-        // source, so fall back to its fully-qualified name when the symbol
-        // is not yet registered at synthetic-stub time.
         attachExperimentalNativeApi(
             to: classSymbol,
             markerFQName: experimentalNativeApiSymbol.flatMap {
@@ -147,9 +133,6 @@ extension DataFlowSemaPhase {
             parentSymbol: classSymbol,
             typeParameterSymbolsByName: ["T": typeParamSymbol]
         )
-        // KSP-1255: the public constructor is now source-backed in Weak.kt
-        // (`@KsSymbolName("kk_weak_ref_create") constructor(referred: T)`);
-        // no synthetic constructor registration is needed here anymore.
         registerSyntheticFunctionStubs(
             SyntheticNativeRefRuntimeSurfaceSpec.weakReferenceMembers,
             context: weakReferenceContext,
@@ -170,10 +153,6 @@ extension DataFlowSemaPhase {
         let functionFQName = packageFQName + [functionName]
         let pkgSymbol = symbols.lookup(fqName: packageFQName)
 
-        // KSP-1254 supplies the exact generic source declaration. Keep the
-        // runtime bridge only for configurations that do not load bundled
-        // Kotlin source; do not leave an Any-based synthetic duplicate beside
-        // the source-backed function.
         guard !BundledSyntheticStubRegistration.bundledIndex.contains(
             ownerFQName: packageFQName,
             name: functionName,
@@ -199,9 +178,6 @@ extension DataFlowSemaPhase {
         }
         symbols.setExternalLinkName("kk_cleaner_create", for: functionSymbol)
 
-        // The `@ExperimentalNativeApi` marker is declared in bundled Kotlin
-        // source, so fall back to its fully-qualified name when the symbol
-        // is not yet registered at synthetic-stub time.
         attachExperimentalNativeApi(
             to: functionSymbol,
             markerFQName: experimentalNativeApiSymbol.flatMap {
@@ -210,8 +186,6 @@ extension DataFlowSemaPhase {
             symbols: symbols
         )
 
-        // Legacy fallback only. The bundled source declaration carries the
-        // exact generic T and Cleaner signature whenever it is available.
         let anyType = types.anyType
         let blockType = types.make(.functionType(FunctionType(
             params: [anyType],
@@ -349,7 +323,6 @@ extension DataFlowSemaPhase {
 
     }
 
-    /// Safe to call multiple times.
     private func ensureExperimentalNativeApiRequiresOptIn(
         markerSymbol: SymbolID?,
         symbols: SymbolTable
