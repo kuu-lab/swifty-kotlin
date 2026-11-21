@@ -11,8 +11,6 @@ extension JVMFunctionBuilder {
         for scope in scopes {
             for (name, local) in scope {
                 if let outer = visible[name], let symbol = outer.symbol, symbol != local.symbol {
-                    // Keep shadowed bindings addressable by semantic identity for
-                    // environments required by an indirectly called local function.
                     let hidden = context.interner.intern("\0jvmCapturedLocal:" + String(symbol.rawValue))
                     visible[hidden] = outer
                 }
