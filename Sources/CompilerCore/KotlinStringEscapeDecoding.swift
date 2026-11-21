@@ -38,9 +38,6 @@ internal func normalizeKotlinRawStringLineEndings(_ value: String) -> String {
     return String(result)
 }
 
-/// Decodes standard Kotlin string-literal escape sequences (`\n`, `\\`, `\"`,
-/// `\uXXXX` including surrogate pairs, etc.) so that text reconstructed from
-/// raw lexer tokens matches the value a user would see at runtime.
 internal func decodeKotlinStringEscapes(_ raw: String) -> String {
     var result = ""
     var index = raw.startIndex
@@ -137,9 +134,6 @@ internal enum KotlinStringLiteralRepresentation {
     case legacyAnnotationTokens
 }
 
-/// Raw strings retain embedded quotes and backslashes; regular literals are
-/// escape-decoded separately. Historical token text requires an explicit
-/// representation because quote counts alone cannot distinguish raw contents.
 internal func extractKotlinStringLiteralContent(
     _ value: String,
     representation: KotlinStringLiteralRepresentation = .canonical
@@ -161,8 +155,6 @@ internal func extractKotlinStringLiteralContent(
     return (String(remainder.dropFirst().dropLast()), false)
 }
 
-/// Compatibility decoder for pre-version-6 annotation token text. Synthetic
-/// metadata using ordinary delimiters is also accepted by the legacy format.
 private func extractLegacyAnnotationStringLiteralContent(_ value: String) -> (content: String, isRaw: Bool)? {
     var index = value.startIndex
     var dollarCount = 0
