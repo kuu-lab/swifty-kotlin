@@ -142,8 +142,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // Kotlin/Native accepts both Int and Long counts. Each overload owns
-        // its reified parameter so an Int variable preserves the element token.
         for lengthType in [types.longType, types.intType] {
             let allocArrayTName = interner.intern("T")
             let allocArrayFunctionFQName = cinteropPkg + [interner.intern("NativePlacement"), interner.intern("allocArray")]
@@ -223,7 +221,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // A throwing deferred block propagates out of clear().
         registerSyntheticNativeMemberFunction(
             named: "clear",
             ownerSymbol: autofreeScopeSymbol,
@@ -235,7 +232,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // Deferred blocks run LIFO on clear().
         let deferBlockType = types.make(.functionType(FunctionType(
             params: [],
             returnType: types.unitType,
