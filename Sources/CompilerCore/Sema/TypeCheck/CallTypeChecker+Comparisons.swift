@@ -15,9 +15,6 @@ extension CallTypeChecker {
             return nil
         }
         let expectedPrefix = [ctx.interner.intern("kotlin"), ctx.interner.intern("comparisons")]
-        // Only consider top-level (non-extension, non-member) functions; extension
-        // functions such as Sequence.maxOf share the same short name but are not
-        // callable without a receiver and should not block the primitive fast path.
         let topLevelCandidates = visibleCandidates.filter { symbolID in
             guard let signature = ctx.sema.symbols.functionSignature(for: symbolID) else { return false }
             return signature.receiverType == nil
