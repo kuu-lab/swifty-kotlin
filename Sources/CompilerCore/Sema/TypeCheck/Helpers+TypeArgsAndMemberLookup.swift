@@ -65,9 +65,6 @@ extension TypeCheckHelpers {
         }
     }
 
-    /// Apply nullability to a type, handling function types, primitives, and special types
-    /// that `TypeSystem.makeNullable` may not wrap correctly.
-    /// Mirrors `DataFlowSemaPhase.applyNullability`.
     func applyNullabilityForTypeCheck(_ typeID: TypeID, types: TypeSystem) -> TypeID {
         switch types.kind(of: typeID) {
         case let .primitive(p, _):
@@ -120,7 +117,6 @@ extension TypeCheckHelpers {
         guard !typeArgRefs.isEmpty else { return [] }
         return typeArgRefs.map { typeRefID in
             guard !isExplicitTypeInferencePlaceholder(typeRefID, ast: ast, interner: interner) else {
-                // Keep the argument's position while leaving its type variable to normal call inference.
                 return TypeID.invalid
             }
             return resolveTypeRef(typeRefID, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, inferenceContext: inferenceContext, usageRange: usageRange)
@@ -250,13 +246,9 @@ extension TypeCheckHelpers {
                     of: capture.upper, types: types, symbols: symbols, interner: interner, visited: &visited
                 )
             }
-            // Guard against cycles (e.g. T : U, U : T).
             guard visited.insert(typeParam.symbol).inserted else { return [] }
             let bounds = symbols.typeParameterUpperBounds(for: typeParam.symbol)
             if bounds.isEmpty {
-                // A type parameter always has `Any?` as its implicit upper
-                // bound, so its members remain callable when no bound was
-                // recorded (e.g. unbounded `T` declarations).
                 return types.anyClassSymbol.map { [$0] } ?? []
             }
             return bounds.flatMap {
@@ -361,11 +353,6 @@ extension TypeCheckHelpers {
             ownerQueue.append(contentsOf: sema.symbols.directSupertypes(for: owner).map { ($0, depth + 1) })
         }
 
-        // `toString`/`hashCode`/`equals` are callable on every Kotlin receiver
-        // (they are members of `Any?`). Receivers whose nominal roots cannot
-        // reach `kotlin.Any` through supertype edges — builtin-disguised types
-        // or synthetic primitive shells whose only edge is `Comparable` —
-        // still expose them, so keep `kotlin.Any` as the deepest owner.
         if let anyClassSymbol = sema.types.anyClassSymbol,
            !visitedOwners.contains(anyClassSymbol),
            allowedOwnerSymbols?.contains(anyClassSymbol) ?? true
@@ -432,8 +419,6 @@ extension TypeCheckHelpers {
             _ candidates: [(symbol: SymbolID, owner: SymbolID, depth: Int)],
             alignedMethodParameters: [SymbolID]
         ) -> [(symbol: SymbolID, owner: SymbolID, depth: Int)] {
-            // Type parameters expose members through the full upper-bound intersection,
-            // so use its parts just like for a narrowed intersection receiver.
             let intersectionParts: [TypeID]
             switch sema.types.kind(of: receiverType) {
             case let .intersection(parts):
@@ -489,8 +474,6 @@ extension TypeCheckHelpers {
                 return candidates
             }
 
-            // Intersection members with the same parameter signature are ordered by
-            // covariant return type, so a String-returning member beats an Any?-returning one.
             let lessSpecificSymbols = Set(returnTypes.compactMap { candidate -> SymbolID? in
                 let hasMoreSpecificReturn = returnTypes.contains { other in
                     other.symbol != candidate.symbol
@@ -607,9 +590,6 @@ extension TypeCheckHelpers {
 
         let receiverKind = sema.types.kind(of: receiverType)
         if case .primitive = receiverKind {
-            // Primitive receivers may also have a nominal compatibility symbol (for
-            // example the compiler-owned Comparable conformance). Probe the synthetic
-            // stdlib packages as well so extension overloads remain visible.
             let primitiveExtensionPackages: [[InternedString]] = [
                 [interner.intern("kotlin")],
                 [interner.intern("kotlin"), interner.intern("ranges")],
@@ -676,9 +656,6 @@ extension TypeCheckHelpers {
                 classBacked.isEmpty ? mostSpecificAtDepth : classBacked,
                 alignedMethodParameters: methodParametersByKey[key] ?? []
             )
-            // A superclass can implement an interface without a declaration in
-            // the leaf class. Keep its concrete candidate, but project the
-            // interface defaults into this receiver's use-site scope only.
             if allowedOwnerSymbols == nil,
                case .classType = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
                winners.count == 1, let implementation = classBacked.first,
@@ -719,7 +696,6 @@ extension TypeCheckHelpers {
         guard let receiverNominal = nominalSymbol(of: receiverType, types: sema.types) else {
             return []
         }
-        // Inner classes are inherited members, so walk the supertype chain too.
         var ownerQueue: [SymbolID] = [receiverNominal]
         var visited: Set<SymbolID> = []
         while !ownerQueue.isEmpty {
@@ -836,7 +812,6 @@ extension TypeCheckHelpers {
         return nil
     }
 
-    /// The inner class type stores only its own type arguments.
     func innerTypeAliasOuterTypeParameters(of aliasSymbol: SymbolID, sema: SemaModule) -> [SymbolID] {
         let parameters = sema.symbols.typeAliasTypeParameters(for: aliasSymbol)
         guard !parameters.isEmpty else { return [] }
@@ -855,12 +830,6 @@ extension TypeCheckHelpers {
         ), case let .classType(innerClass) = sema.types.kind(of: expanded) else {
             return []
         }
-        // Enclosing arguments lead the combined argument list. Alias
-        // parameters that appear there fill the outer class's parameters;
-        // the remainder belong to the inner class itself. The underlying
-        // type may store them flat in `args` when it was recorded before
-        // enclosing-parameter metadata was available, so classify by
-        // position rather than by which field holds them.
         let enclosingCount = sema.types.enclosingTypeParameterSymbols(for: innerClass.classSymbol).count
         let enclosingArguments = Array(sema.types.allTypeArguments(for: innerClass).prefix(enclosingCount))
         return parameters.filter { parameter in
@@ -902,12 +871,6 @@ extension TypeCheckHelpers {
         guard !nominalRoots.isEmpty else {
             return nil
         }
-        // Kotlin member scope: a `private` member is not inherited, so it is
-        // only reachable on the nominal that declares it. Skipping inherited
-        // private members lets implicit-receiver resolution continue outward
-        // to an enclosing `this` that legitimately owns them — e.g. a
-        // `private val` of the superclass read inside `object : Super()`
-        // binds the enclosing instance, not the object's own field (KUU-3212).
         let nominalRootSet = Set(nominalRoots)
         var ownerQueue: [SymbolID] = nominalRoots
         var visited: Set<SymbolID> = []
@@ -918,9 +881,6 @@ extension TypeCheckHelpers {
             let memberFQName = ownerSymbol.fqName + [calleeName]
             for candidate in sema.symbols.lookupAll(fqName: memberFQName) {
                 guard let sym = sema.symbols.symbol(candidate),
-                      // Expect and actual members share an FQName, so retain
-                      // only the declaration owned by the nominal currently
-                      // being searched.
                       sema.symbols.parentSymbol(for: candidate) == owner,
                       sym.kind == .property || sym.kind == .field,
                       // A `.static` member (the enum class's synthetic
@@ -932,13 +892,6 @@ extension TypeCheckHelpers {
                       // name, which BFS finds on a later supertype owner
                       // (KUU-3891).
                       !sym.flags.contains(.static),
-                      // A member extension shares the owner's member FQName
-                      // but is not part of the receiver's member scope:
-                      // `r.name` supplies only one receiver, while the
-                      // extension needs both the dispatch instance and a
-                      // matching extension receiver. Member extensions
-                      // resolve through the implicit-receiver machinery
-                      // instead (KUU-3746).
                       sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
                       sym.visibility != .private || nominalRootSet.contains(owner),
                       let propType = sema.symbols.propertyType(for: candidate)
@@ -963,14 +916,6 @@ extension TypeCheckHelpers {
         return nil
     }
 
-    /// A `private` nested classifier declared on a supertype is likewise not
-    /// inherited — it never enters the member scope's candidate set — but an
-    /// unqualified reference must still report it as inaccessible rather than
-    /// unresolved, matching kotlinc (KUU-3798). Probe the implicit receiver
-    /// tower's nominal hierarchies and every nominal enclosing the use site
-    /// for a same-named `private` classifier for the unresolved fallbacks.
-    /// Nested classifiers inherit through the superclass chain only
-    /// (KUU-3637), so interfaces end the walk.
     func inaccessiblePrivateNestedClassifier(
         named name: InternedString,
         ctx: TypeInferenceContext
@@ -1020,11 +965,6 @@ extension TypeCheckHelpers {
         return nil
     }
 
-    /// Member-scope lookup keeps `private` members out of the inherited
-    /// candidate set because they are not inherited, but a member access
-    /// must still report them as inaccessible rather than unresolved
-    /// (KUU-3751). Find a same-named `private` member anywhere in the
-    /// receiver's nominal hierarchy for the unresolved-member fallback.
     func privateMemberSymbolInHierarchy(
         named calleeName: InternedString,
         receiverType: TypeID,
@@ -1057,23 +997,11 @@ extension TypeCheckHelpers {
         return nil
     }
 
-    /// Inherited `private` members are not members of an implicit receiver
-    /// (they are not inherited), so an unqualified reference reports them as
-    /// unresolved where kotlinc reports an inaccessible member (KUU-3766).
-    /// Probe the implicit receiver tower — which includes companion objects —
-    /// for a same-named `private` member so the unresolved-function and
-    /// unresolved-reference fallbacks can emit the matching visibility
-    /// diagnostic instead.
     func inaccessiblePrivateImplicitReceiverMember(
         named name: InternedString,
         ctx: TypeInferenceContext
     ) -> SemanticSymbol? {
         var probeTypes = ctx.implicitReceiverMemberLookupEntries().map(\.type)
-        // A class's companion object contributes its inherited members to the
-        // unqualified scope, but is not itself a receiver-tower entry. Probe
-        // the companion of every receiver root and of each nominal enclosing
-        // the use site: a companion's member scope also reaches lexically
-        // nested classes.
         var companionOwners = ctx.implicitReceiverMemberLookupEntries().flatMap { entry in
             allNominalSymbols(of: entry.type, types: ctx.sema.types, symbols: ctx.sema.symbols)
         }
@@ -1107,10 +1035,6 @@ extension TypeCheckHelpers {
         return nil
     }
 
-    /// The companion scope receiver types a class-name `Owner.member` can
-    /// reach, in the read path's order: the hidden `$CompanionBlocks` object
-    /// first, then the source `companion object`. A class with both returns
-    /// both so a member fallback can probe each scope the read path visits.
     func companionScopeProbeTypes(
         for ownerNominalSymbol: SymbolID,
         ctx: TypeInferenceContext
@@ -1131,9 +1055,6 @@ extension TypeCheckHelpers {
         }
     }
 
-    /// The companion object type through which a class-name receiver's
-    /// `Owner.member` shorthand resolves its member scope — including the
-    /// platform-module `$CompanionBlocks` object and expect/actual pairing.
     func companionScopeType(
         for ownerNominalSymbol: SymbolID,
         ctx: TypeInferenceContext
@@ -1154,13 +1075,6 @@ extension TypeCheckHelpers {
             )))
     }
 
-    /// Inherited `private` members are filtered out of qualified member
-    /// lookup (they are not inherited), so `receiver.member` and the
-    /// `Owner.member` companion shorthand report them as unresolved where
-    /// kotlinc reports an inaccessible member (KUU-3762). Probe each
-    /// receiver surface for a same-named `private` member so the
-    /// unresolved-member fallbacks can emit the matching visibility
-    /// diagnostic instead.
     func inaccessiblePrivateQualifiedMember(
         named calleeName: InternedString,
         probeReceiverTypes: [TypeID],
@@ -1186,10 +1100,6 @@ extension TypeCheckHelpers {
         return nil
     }
 
-    /// A paired expect class keeps its semantic supertype edge, but members
-    /// declared only by the actual class still participate in platform-side
-    /// member lookup. Visit that implementation before the expect class's own
-    /// supertypes, matching the actual class's runtime member surface.
     private func memberPropertyLookupSupertypes(of owner: SymbolID, sema: SemaModule) -> [SymbolID] {
         var supertypes: [SymbolID] = []
         if let expectSymbol = sema.symbols.symbol(owner),
@@ -1204,8 +1114,6 @@ extension TypeCheckHelpers {
         return supertypes
     }
 
-    /// Resolve the effective setter for an inherited property intersection
-    /// without changing the symbol selected for ordinary reads.
     func lookupMemberPropertyForWrite(
         named calleeName: InternedString,
         receiverType: TypeID,
@@ -1218,8 +1126,6 @@ extension TypeCheckHelpers {
         }
 
         let nominalRoots = allNominalSymbols(of: receiverType, types: sema.types, symbols: sema.symbols)
-        // Same member-scope rule as `lookupMemberProperty`: inherited `private`
-        // members are not writable members of this receiver (KUU-3212).
         let nominalRootSet = Set(nominalRoots)
         var ownerQueue = nominalRoots
         var visited: Set<SymbolID> = []
@@ -1236,14 +1142,7 @@ extension TypeCheckHelpers {
                 guard let property = sema.symbols.symbol(candidate),
                       sema.symbols.parentSymbol(for: candidate) == owner,
                       property.kind == .property || property.kind == .field,
-                      // Same member-scope rule as `lookupMemberProperty`:
-                      // `.static` members are classifier-scope, never
-                      // writable through an instance receiver (KUU-3891).
                       !property.flags.contains(.static),
-                      // Same member-scope rule as `lookupMemberProperty`:
-                      // a member extension is not a writable member of the
-                      // receiver — its setter resolves through the implicit
-                      // receiver member-extension machinery (KUU-3746).
                       sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
                       property.visibility != .private || nominalRootSet.contains(owner),
                       let declaredType = sema.symbols.propertyType(for: candidate)
@@ -1264,10 +1163,6 @@ extension TypeCheckHelpers {
             ownerQueue.append(contentsOf: memberPropertyLookupSupertypes(of: owner, sema: sema))
         }
 
-        // A matched expect/actual property is one contract, not two unrelated
-        // inherited declarations. Keep the expect-side type for expect-class
-        // receivers: the actual class has distinct type-parameter symbols,
-        // which cannot be substituted from the expect receiver type.
         let pairedActualMembers = Set(candidates.compactMap { candidate -> SymbolID? in
             guard sema.symbols.symbol(candidate.symbol)?.flags.contains(.expectDeclaration) == true else {
                 return nil
@@ -1281,9 +1176,6 @@ extension TypeCheckHelpers {
             return !pairedActualMembers.contains(candidate.symbol)
         }
 
-        // A declaration on a subtype shadows the same member inherited from
-        // its ancestors. Keep declarations from unrelated branches so their
-        // property and setter contracts can be checked together.
         let effectiveCandidates = logicalCandidates.filter { candidate in
             !logicalCandidates.contains { other in
                 other.owner != candidate.owner
@@ -1299,9 +1191,6 @@ extension TypeCheckHelpers {
             )
         }
 
-        // A fake override can expose a setter only when its writable type is
-        // valid for every inherited read contract. Multiple var declarations
-        // must agree on that writable type; otherwise assignment is ambiguous.
         let hasCompatibleSetter = mutableCandidates.allSatisfy { candidate in
             sema.types.isSubtype(firstMutable.declaredType, candidate.declaredType)
                 && sema.types.isSubtype(candidate.declaredType, firstMutable.declaredType)
@@ -1319,15 +1208,6 @@ extension TypeCheckHelpers {
         )
     }
 
-    /// Probes a classifier's *static scope*: `.static` members only. Kotlin
-    /// keeps them out of the instance member scope (they are unreachable
-    /// through `instance.name`) but still exposes them to unqualified
-    /// references inside the class body, interleaved into the implicit
-    /// receiver tower after that classifier's own `this` receiver (KUU-3891).
-    /// Statics are not inherited, so only each nominal's own declarations are
-    /// probed; the lexical parent chain is walked because a nested
-    /// classifier's scope also surfaces its enclosing nominals' statics (for
-    /// example an enum entry's anonymous class body sees `Enum.entries`).
     private func lookupStaticPropertyFromClassifierScope(
         named name: InternedString,
         startingAt nominal: SymbolID,
@@ -1369,11 +1249,6 @@ extension TypeCheckHelpers {
         return nil
     }
 
-    /// Static-scope member of an enclosing classifier, for implicit-receiver
-    /// member lookup: fires only when `receiverType` is a classifier that
-    /// lexically encloses the use site, so an extension or `with` receiver
-    /// does not import the enclosing class's statics ahead of its own tower
-    /// position (KUU-3891).
     func lookupStaticPropertyInClassScope(
         named name: InternedString,
         receiverType: TypeID,
@@ -1396,10 +1271,6 @@ extension TypeCheckHelpers {
         return nil
     }
 
-    /// Static-scope member anywhere on the enclosing classifier chain — the
-    /// use-site-level counterpart of `lookupStaticPropertyInClassScope` for
-    /// paths that have already exhausted the implicit receiver tower
-    /// (KUU-3891).
     func lookupStaticPropertyInEnclosingClassScope(
         named name: InternedString,
         ctx: TypeInferenceContext
@@ -1412,9 +1283,6 @@ extension TypeCheckHelpers {
         )
     }
 
-    /// An immutable property with a synthesized getter keeps the declared
-    /// property type for its API while its explicit backing field can retain a
-    /// more specific initializer type for reads in the same compilation.
     func propertyReadType(
         for property: SymbolID,
         declaredType: TypeID? = nil,
@@ -1440,8 +1308,6 @@ extension TypeCheckHelpers {
         return backingFieldType
     }
 
-    /// The entry field owns the declaration, while the receiver still has the
-    /// containing enum's runtime type.
     func lookupEnumEntryMemberProperty(
         named calleeName: InternedString,
         entrySymbol: SymbolID,
@@ -1518,8 +1384,6 @@ extension TypeCheckHelpers {
             case let .invariant(inner), let .out(inner), let .in(inner):
                 substitution[typeVar] = inner
             case .star:
-                // Keep reads on the same declaration unified, but separate
-                // equal star-projected types from distinct receiver values.
                 substitution[typeVar] = sema.types.capturedTypeForStarProjection(
                     parameter: typeParamSymbol,
                     ownerTypeParameters: ownerTypeParamSymbols,
@@ -1543,16 +1407,11 @@ extension TypeCheckHelpers {
         )
     }
 
-    /// Walks a (possibly chained) type-parameter receiver such as `H : Holder<C>` to the
-    /// declared upper bound that is a nominal subtype of `ownerSymbol`, so owner type
-    /// arguments can be substituted into generic member property types.
     private func nominalReceiverThroughTypeParameterBounds(
         _ receiverType: TypeID,
         ownerSymbol: SymbolID,
         sema: SemaModule
     ) -> TypeID {
-        // A nominal already conforming to `ownerSymbol` resolves to itself; a
-        // type parameter walks its declared bounds to that nominal.
         func nominalSubtypeOfOwner(in start: TypeID) -> TypeID? {
             var current = sema.types.makeNonNullable(
                 sema.types.capturedReadableUpperBound(of: start)
@@ -1590,12 +1449,6 @@ extension TypeCheckHelpers {
         let nonNullReceiver = sema.types.makeNonNullable(
             sema.types.capturedReadableUpperBound(of: receiverType)
         )
-        // A smart cast keeps the declared type as one intersection conjunct and
-        // the concrete target as another (`Feature<T> & BooleanFeature`). A
-        // member declared on the generic conjunct substitutes owner type
-        // arguments through the concrete implementation
-        // (`BooleanFeature : Feature<Boolean>`) — the read is
-        // `Feature<Boolean>.default`, not `T` (KUU-3129).
         if case let .intersection(parts) = sema.types.kind(of: nonNullReceiver) {
             var conjuncts: [(type: TypeID, symbol: SymbolID)] = []
             for part in parts {
@@ -1606,8 +1459,6 @@ extension TypeCheckHelpers {
                 }
                 conjuncts.append((partReceiver, classType.classSymbol))
             }
-            // Prefer the most-derived conjunct (`BooleanFeature` over
-            // `Feature<T>`): it is a nominal subtype of every other conjunct.
             if let mostDerived = conjuncts.first(where: { conjunct in
                 conjuncts.allSatisfy { other in
                     other.symbol == conjunct.symbol
@@ -1616,9 +1467,6 @@ extension TypeCheckHelpers {
             }) {
                 return mostDerived.type
             }
-            // Without a single most-derived conjunct the smart-cast target is
-            // still appended after the declared type, so the last qualifying
-            // conjunct is the concrete implementation.
             if let lastConjunct = conjuncts.last {
                 return lastConjunct.type
             }
