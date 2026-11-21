@@ -6,14 +6,10 @@ public final class DependencyGraph: Codable {
 
     private var dependedSymbols: [String: Set<String>] = [:]
 
-    /// Package names are retained for source files so wildcard imports can be
-    /// invalidated without treating every package as a dependency.
     private var providedPackages: [String: String] = [:]
 
     private var wildcardImportedPackages: [String: Set<String>] = [:]
 
-    /// Declaration-granularity graph persisted next to the file-level one.
-    /// Optional so caches written before it existed still decode.
     public var declarationGraph: DeclarationDependencyGraph?
 
     public init() {}
@@ -61,14 +57,11 @@ public final class DependencyGraph: Codable {
         wildcardImportedPackages[filePath, default: []].insert(package)
     }
 
-    /// The result is deterministic (sorted).
     public func recompilationSet(changedFiles: Set<String>, allFiles: [String]) -> [String] {
         if changedFiles.isEmpty {
             return []
         }
 
-        // Reverse indexes, built once: each depended-on symbol or wildcard-imported
-        // package maps to the files in `allFiles` that reference it.
         var symbolDependents: [String: Set<String>] = [:]
         var packageDependents: [String: Set<String>] = [:]
         for filePath in allFiles {
@@ -96,8 +89,6 @@ public final class DependencyGraph: Codable {
             }
         }
 
-        // A wildcard import of the root ("") package matches any invalidated
-        // package, so those files are affected whenever something changed.
         for filePath in packageDependents[""] ?? [] where !affected.contains(filePath) {
             pendingFiles.append(filePath)
         }
@@ -145,8 +136,6 @@ public final class DependencyGraph: Codable {
     }
 
     public func serialize() throws -> Data {
-        // Compact: deps.json is machine-read cache state, and pretty-printing
-        // inflates both its size and the encode/decode time of every build.
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         return try encoder.encode(self)
