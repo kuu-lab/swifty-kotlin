@@ -45,8 +45,6 @@ struct ConstantCollector {
         switch decl {
         case let .propertyDecl(property):
             guard let symbol = sema.bindings.declSymbols[declID] else { return }
-            // Mutable (var) properties must never be constant-folded because
-            // their value can change at runtime via assignment.
             if property.isVar { return }
             if let constKind = sema.symbols.constValueExprKind(for: symbol) {
                 mapping[symbol] = constKind
@@ -72,9 +70,6 @@ struct ConstantCollector {
                 inlineGetters: inlineGetters,
                 interner: interner
             )
-            // An initializer is not the observed value when an explicit
-            // getter exists. Keep folding literal getter bodies, but do not
-            // substitute the backing initializer for a computed getter.
             let constant = if property.getter != nil {
                 getterConstant
             } else {
@@ -139,11 +134,6 @@ struct ConstantCollector {
         }
     }
 
-    /// Whether a property of this type stores the scalar value's raw bits —
-    /// a non-null primitive always does, and a nullable primitive does for
-    /// the primitives whose raw range cannot collide with the null sentinel.
-    /// Every other type (Any, class types, type parameters, String, ...)
-    /// stores a heap handle that a raw literal cannot represent.
     private func storesRawScalar(_ propertyType: TypeID?, sema: SemaModule) -> Bool {
         guard let propertyType,
               case let .primitive(primitive, nullability) = sema.types.kind(of: propertyType)
@@ -158,7 +148,6 @@ struct ConstantCollector {
         _ related: SemanticSymbol,
         symbols: SymbolTable
     ) -> Bool {
-        // Matching FQNs do not imply shared storage for file-private declarations.
         guard symbols.parentSymbol(for: property.id) == nil,
               let fileID = symbols.sourceFileID(for: property.id) ?? property.declSite?.start.file
         else { return false }
@@ -284,8 +273,6 @@ struct ConstantCollector {
                 interner: interner
             )
         case let .indexedAccess(receiver, indices, _):
-            // `s[i]` is the String.get operator; Sema gates it to the builtin
-            // kotlin.text.get through canFoldMemberCall just like `.get(i)`.
             guard let interner, canFoldMemberCall?(exprID) != false, indices.count == 1,
                   case let .stringLiteral(value) = literalConstantExpr(receiver, ast: ast, interner: interner),
                   case let .intLiteral(index) = literalConstantExpr(indices[0], ast: ast, interner: interner)
@@ -324,7 +311,6 @@ struct ConstantCollector {
         case let (.longLiteral(l), .intLiteral(r)):
             return comparison(op, l, r) ?? integerBinaryOp(op, l, r).map { .longLiteral($0) }
         case let (.charLiteral(l), .intLiteral(r)):
-            // Kotlin Char arithmetic wraps in the UTF-16 code-unit domain.
             switch op {
             case .add: return .charLiteral(UInt32(UInt16(truncatingIfNeeded: Int64(l) &+ r)))
             case .subtract: return .charLiteral(UInt32(UInt16(truncatingIfNeeded: Int64(l) &- r)))
@@ -448,9 +434,6 @@ struct ConstantCollector {
         return result.map { width == 32 ? Int64(Int32(truncatingIfNeeded: $0)) : $0 }
     }
 
-    /// `.code` is parsed as a property read elsewhere; it only reaches here
-    /// when written as a zero-arg call in some source shapes, so both are
-    /// covered by the same `calleeName` dispatch.
     private func literalConstantMemberCall(
         exprID: ExprID,
         receiver: ExprID,
@@ -608,8 +591,6 @@ struct ConstantCollector {
         case let (.charLiteral(left), .charLiteral(right)):
             compare(Int64(left), Int64(right))
         case let (.stringLiteral(left), .stringLiteral(right)):
-            // Kotlin String.compareTo is JVM String.compareTo: lexicographic
-            // on UTF-16 code units, returning the unit/length difference.
             compareUTF16Strings(interner.resolve(left), interner.resolve(right))
         case let (.intLiteral(left), .intLiteral(right)), let (.intLiteral(left), .longLiteral(right)),
              let (.longLiteral(left), .intLiteral(right)), let (.longLiteral(left), .longLiteral(right)):
@@ -818,15 +799,12 @@ struct ConstantCollector {
             return integerFloorMod(left, right, width: 32).map { .intLiteral($0) }
         case let (.longLiteral(left), .longLiteral(right)), let (.intLiteral(left), .longLiteral(right)):
             return integerFloorMod(left, right).map { .longLiteral($0) }
-        // `Long.mod(Int)` returns Int: the result is bounded by the Int divisor.
         case let (.longLiteral(left), .intLiteral(right)):
             return integerFloorMod(left, right).map { .intLiteral($0) }
         case let (.floatLiteral(left), .floatLiteral(right)):
             return floatingFloorMod(Float(left), Float(right)).map { .floatLiteral(Double($0)) }
         case let (.doubleLiteral(left), .doubleLiteral(right)):
             return floatingFloorMod(left, right).map { .doubleLiteral($0) }
-        // `Float.mod(Double)` / `Double.mod(Float)` widen to Double like the
-        // stdlib overloads do.
         case let (.floatLiteral(left), .doubleLiteral(right)):
             return floatingFloorMod(Double(Float(left)), right).map { .doubleLiteral($0) }
         case let (.doubleLiteral(left), .floatLiteral(right)):
@@ -858,8 +836,6 @@ struct ConstantCollector {
     /// An infinite divisor still takes the sign-correction branch: Kotlin's
     /// `(-1.0).mod(Double.POSITIVE_INFINITY)` is `Infinity`, not `-1.0`.
     private func floatingFloorMod<T: BinaryFloatingPoint>(_ lhs: T, _ rhs: T) -> T? {
-        // Kotlin: `if (r != 0.0 && r.sign != other.sign) r + other else r`.
-        // An infinite divisor still takes the adjustment: (-1.0).mod(+Inf) is +Inf.
         let remainder = lhs.truncatingRemainder(dividingBy: rhs)
         guard remainder != 0, !remainder.isNaN, (remainder < 0) != (rhs < 0) else {
             return remainder
@@ -909,8 +885,6 @@ struct ConstantCollector {
         }
     }
 
-    /// `Double.toInt()`/`toLong()`: truncate toward zero, NaN becomes 0, and
-    /// out-of-range values saturate (matches `__kk_double_to_int`).
     private func saturatedInteger(_ value: Double, minimum: Int64, maximum: Int64) -> Int64 {
         if value.isNaN { return 0 }
         if value >= Double(maximum) { return maximum }
@@ -926,8 +900,6 @@ struct ConstantCollector {
         }
     }
 
-    /// A string template with no interpolated parts (e.g. produced by macro
-    /// expansion of a plain string literal) folds to its literal text.
     private func literalConstantStringTemplate(_ parts: [StringTemplatePart]) -> KIRExprKind? {
         guard parts.count == 1, case let .literal(text) = parts[0] else {
             return nil
@@ -991,8 +963,6 @@ struct ConstantCollector {
         else {
             return nil
         }
-        // Mirrors tryFoldConstMemberProperty: a nullable receiver goes
-        // through the safe-call path, never the constant.
         if let receiverType = sema.bindings.exprTypes[receiver],
            receiverType != sema.types.makeNonNullable(receiverType)
         {
@@ -1062,8 +1032,6 @@ struct ConstantCollector {
             }
             return receiverText + argumentText
         case .stringTemplate(let parts, _)?:
-            // JVM folds a template whose interpolated expressions are all
-            // compile-time constants (`"a" + "${5}"` == "a5").
             var text = ""
             for part in parts {
                 switch part {
@@ -1083,12 +1051,6 @@ struct ConstantCollector {
         }
     }
 
-    /// Whether a `+` expression models Kotlin's built-in string
-    /// concatenation for constant-folding purposes: true only when Sema left
-    /// it unbound (the lenient built-in concat path) or bound it to the
-    /// stdlib `String.plus` member or the `kotlin.text.String?.plus` facade.
-    /// A user-declared operator that merely returns String keeps its resolved
-    /// call. Shared by `ConstantCollector` and `CallLowerer`.
     static func isBuiltinStringPlusCallee(
         _ exprID: ExprID,
         sema: SemaModule,
@@ -1105,9 +1067,6 @@ struct ConstantCollector {
             || symbol.fqName == [kotlinName, interner.intern("text"), plusName]
     }
 
-    /// Whether an operand of a String `+` concatenation sits in the String
-    /// receiver position kotlinc requires for constant folding: its bound
-    /// type is `String` (nullable receivers on `kotlin.text.plus` count).
     static func isTextConstantOperandType(_ exprID: ExprID, sema: SemaModule) -> Bool {
         guard let type = sema.bindings.exprType(for: exprID) else { return false }
         return sema.types.makeNonNullable(type) == sema.types.stringType
@@ -1171,10 +1130,6 @@ struct ConstantCollector {
         }
     }
 
-    /// Java `Double.toString`/`Float.toString`-compatible rendering for
-    /// compile-time folding. Mirrors `runtimeFormatFloatingPoint` in the
-    /// runtime: Kotlin emits scientific notation for magnitudes >= 1e7 or
-    /// < 1e-3, always with a decimal point in the mantissa.
     private func kotlinFloatingPointConcatText(_ value: Double) -> String {
         if value.isNaN { return "NaN" }
         if value == .infinity { return "Infinity" }
@@ -1211,8 +1166,6 @@ struct ConstantCollector {
         )
     }
 
-    /// Mirrors `runtimeJavaSmallSubnormalText`: JDK 19+ prints subnormals
-    /// below 1e-322 (Float: 1e-43) with the closest two-digit decimal.
     private func javaSmallSubnormalConcatText(units: Double, unitExponent: Int, isNegative: Bool) -> String {
         let tenths = (units * 10).rounded()
         let (digits, exponent) = tenths < 100
@@ -1318,7 +1271,6 @@ struct ConstantCollector {
 
     private func negatedConstant(_ inner: KIRExprKind) -> KIRExprKind? {
         switch inner {
-        // Kotlin integer negation wraps at the type's minimum value.
         case let .intLiteral(v): .intLiteral(Int64(Int32(truncatingIfNeeded: 0 &- v)))
         case let .longLiteral(v): .longLiteral(0 &- v)
         case let .floatLiteral(v): .floatLiteral(-v)
@@ -1335,10 +1287,6 @@ struct ConstantCollector {
         }
     }
 
-    /// Index of `val|var NAME ... get() = BODY` declarations in one source file.
-    /// The regex pass is deferred to the first lookup so files that never reach
-    /// the inline-getter fallback don't pay for the scan; the first match per
-    /// name wins, matching the previous per-name `firstMatch` behavior.
     private final class InlineGetterBodyIndex {
         private static let bodyRegex = try! NSRegularExpression(
             pattern: #"(?m)^\s*(?:val|var)\s+([\p{L}_][\p{L}\p{N}_]*)[^\n]*\n\s*get\s*\(\s*\)\s*=\s*([^\n;]+)"#
