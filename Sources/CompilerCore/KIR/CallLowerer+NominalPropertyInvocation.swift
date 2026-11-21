@@ -1,6 +1,4 @@
 extension CallLowerer {
-    /// Read the property once, before its value arguments, and dispatch invoke
-    /// on that value rather than on the expression used to read the property.
     func tryLowerNominalPropertyInvocation(
         _ exprID: ExprID, receiverExpr: ExprID, args: [CallArgument],
         precomputedReceiver: KIRExprID? = nil,
