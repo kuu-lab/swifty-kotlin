@@ -55,8 +55,6 @@ extension JVMFunctionBuilder {
             return try convert(value, to: resultType)
         }
 
-        // Kotlin preserves a zero remainder's sign and otherwise adjusts it
-        // when the divisor has a different sign, including infinite divisors.
         let remainder = try value(calculationType)
         instructions.append(.binary(.modulo, left, right, remainder))
         let zero = try constant(calculationType == .float ? .float(0) : .double(0), calculationType)
