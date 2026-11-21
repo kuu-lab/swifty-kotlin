@@ -3153,8 +3153,6 @@ final class JVMClasspathIndex {
         let erasedResult = kotlinType(method.sourceResult) + (suspend != nil && method.sourceResult.isNullable ? "?" : "")
         let result = ownerResult ?? genericResult ?? suspend?.sourceResult
             ?? javaResult ?? forced ?? classVariableResult ?? erasedResult
-        // Java generic signatures declare their own method type parameters;
-        // the recovered parameter and result types refer to them by name.
         let javaGeneric = javaTypes.flatMap { types in
             types.typeParameters.isEmpty ? nil
                 : "<" + types.typeParameters.map { "`\($0)`" }.joined(separator: ", ") + "> "

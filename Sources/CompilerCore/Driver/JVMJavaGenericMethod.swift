@@ -37,9 +37,6 @@ extension JVMClasspathIndex {
         var references: Set<String> = []
         for name in info.classTypeParameterNames {
             for (binary, source) in renderableJavaClassBounds(name, in: info) {
-                // Java bounds are platform types: `V extends View` accepts
-                // `Widget?`, and a boxed bound such as java/lang/Integer must
-                // keep `V` erased to `Ljava/lang/Integer;` rather than `I`.
                 bounds.append("`\(name)`: " + source + "?")
                 references.insert(binary)
             }
@@ -57,7 +54,6 @@ extension JVMClasspathIndex {
             let binary = String(bound.dropFirst().prefix { $0 != "<" && $0 != ";" })
             let carrier: JVMValueType = .reference(binary, nullable: false)
             guard exposeSuspendType(carrier) else { return nil }
-            // Parameterized bounds need a projection such as Enum<*>.
             let source = kotlinType(carrier)
             return source.contains("<") ? nil : (binary, source)
         }
@@ -84,9 +80,6 @@ extension JVMClasspathIndex {
             if first == "T" {
                 guard let end = remaining.firstIndex(of: ";") else { return nil }
                 let name = String(remaining[..<end])
-                // A variable may replace an erased carrier only when the stub
-                // declares it with the same erasure: its first rendered bound.
-                // Nested type arguments carry no descriptor.
                 let isMethodVariable = methodTypeParameters.contains(name)
                 guard canUseGenericMembers, isMethodVariable
                     || owner.classTypeParameterNames.contains(name) && !method.isStatic else { return nil }
