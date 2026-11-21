@@ -83,8 +83,6 @@ extension CallLowerer {
                 instructions.append(.call(
                     symbol: info.symbol,
                     callee: info.callee,
-                    // The block is a lambda with receiver, so it takes the copied
-                    // C variable as its explicit receiver parameter.
                     arguments: info.captureArguments + [receiverSymExpr],
                     result: result,
                     canThrow: false
@@ -139,9 +137,6 @@ extension CallLowerer {
             let rethrowLabel = driver.ctx.makeLoopLabel()
             let endLabel = driver.ctx.makeLoopLabel()
 
-            // Inline expansion must route a non-local return through close(),
-            // then resume it through any enclosing try/finally scopes
-            // (mirrors scopeUsePinned).
             let nonLocalReturnLabel = driver.ctx.makeLoopLabel()
             let nonLocalReturnValue = arena.appendTemporary(type: nil)
             let returningNonLocally = arena.appendTemporary(type: sema.types.booleanType)
@@ -150,9 +145,6 @@ extension CallLowerer {
             instructions.append(.copy(from: notReturning, to: returningNonLocally))
             instructions.append(.beginNonLocalReturnScope(value: nonLocalReturnValue, target: nonLocalReturnLabel))
 
-            // Collection-HOF-marked lambdas take a leading closureRaw argument:
-            // no captures -> 0, one capture -> the raw capture value, two or more
-            // -> a packed closure object built by makeBoxedCallableCaptureArguments.
             var closureRawArg: KIRExprID? = nil
             if info.hasClosureParam {
                 if info.captureArguments.isEmpty {
@@ -205,8 +197,6 @@ extension CallLowerer {
             instructions.append(.constValue(result: returningNonLocally, value: .boolLiteral(true)))
             instructions.append(.jump(finallyLabel))
 
-            // finally: call the source-backed closeFinally() helper. It preserves the
-            // block exception as primary and records a close exception as suppressed.
             instructions.append(.label(finallyLabel))
             let receiverTypeForDispatch = sema.bindings.exprTypes[receiverExpr]
             let shouldGuardNullableClose = receiverTypeForDispatch.map {
@@ -259,8 +249,6 @@ extension CallLowerer {
                     dispatch: closeDispatch
                 ))
             } else {
-                // If virtual dispatch is unavailable, resolve the concrete close()
-                // method so the fallback still targets the correct symbol.
                 var concreteCloseSymbol: SymbolID?
                 var concreteCloseName = closeName
                 if let recvTypeID = receiverTypeForDispatch,
@@ -303,8 +291,6 @@ extension CallLowerer {
                     canThrow: true
                 ))
             } else {
-                // Keep the legacy direct-close fallback for pre-source-backed stdlib
-                // artifacts that do not contain the closeFinally helper.
                 instructions.append(contentsOf: directCloseInstructions)
             }
             instructions.append(.label(closeAfterLabel))
@@ -326,10 +312,6 @@ extension CallLowerer {
             return result
 
         case .scopeUsePinned:
-            // Shaped like scopeUse's try-finally, but: (a) the call that produces
-            // the value handed to the lambda is pin() itself, not the receiver, and
-            // (b) cleanup is a concrete call to Pinned<T>.unpin(), not a virtual
-            // dispatch to close() — Pinned is a final synthetic class.
             let loweredLambdaID = driver.lowerExpr(
                 args[0].expr,
                 ast: ast, sema: sema, arena: arena, interner: interner,
@@ -340,9 +322,6 @@ extension CallLowerer {
                 return nil
             }
 
-            // A nested block may own the non-local return before inline
-            // expansion exposes it in this block. Every literal usePinned
-            // block must expand into its caller together with its cleanup.
             if case .lambdaLiteral = ast.arena.expr(args[0].expr) {
                 arena.transformFunctions { function in
                     guard function.symbol == info.symbol else { return function }
@@ -365,8 +344,6 @@ extension CallLowerer {
                 return nil
             }
 
-            // The lambda's inferred parameter type is the concrete Pinned<T>;
-            // fall back to pin()'s own (generic) return type if unavailable.
             let pinnedType: TypeID = sema.bindings.exprTypes[args[0].expr].flatMap { lambdaType in
                 if case let .functionType(fnType) = sema.types.kind(of: lambdaType) {
                     return fnType.params.first
@@ -419,8 +396,6 @@ extension CallLowerer {
             let rethrowLabel = driver.ctx.makeLoopLabel()
             let endLabel = driver.ctx.makeLoopLabel()
 
-            // Inline expansion must route a non-local return through unpin,
-            // then resume it through any enclosing try/finally scopes.
             let nonLocalReturnLabel = driver.ctx.makeLoopLabel()
             let nonLocalReturnValue = arena.appendTemporary(type: nil)
             let returningNonLocally = arena.appendTemporary(type: sema.types.booleanType)
@@ -429,8 +404,6 @@ extension CallLowerer {
             instructions.append(.copy(from: notReturning, to: returningNonLocally))
             instructions.append(.beginNonLocalReturnScope(value: nonLocalReturnValue, target: nonLocalReturnLabel))
 
-            // Collection-HOF-marked lambdas take a leading closureRaw argument
-            // (see scopeUse above).
             var closureRawArg: KIRExprID? = nil
             if info.hasClosureParam {
                 if info.captureArguments.isEmpty {
@@ -460,9 +433,6 @@ extension CallLowerer {
             }
             blockInstructions.append(.call(symbol: info.symbol, callee: info.callee, arguments: callArgs, result: result, canThrow: true))
 
-            // CODE-001: guard against an outer try/catch/use re-wrapping this
-            // already-routed call if `usePinned` is itself nested inside one
-            // (see the matching guard in the scopeUse case above).
             instructions.append(.beginFinallyGuard)
             driver.controlFlowLowerer.appendThrowAwareInstructions(
                 blockInstructions,
@@ -477,8 +447,6 @@ extension CallLowerer {
             instructions.append(.endFinallyGuard)
             instructions.append(.jump(finallyLabel))
 
-            // finally: unpin() the handle. Concrete call — Pinned is a final
-            // synthetic class, so no virtual dispatch is needed.
             instructions.append(.endNonLocalReturnScope)
             instructions.append(.label(nonLocalReturnLabel))
             instructions.append(.constValue(result: returningNonLocally, value: .boolLiteral(true)))
@@ -508,12 +476,10 @@ extension CallLowerer {
             return result
 
         case .scopeContext, .scopeMemScoped:
-            return nil // context/memScoped are handled in lowerCallExpr
+            return nil
         }
     }
 
-    /// A throwing deferred block propagates out of `kk_arena_clear` like a
-    /// Kotlin finally failure (superseding the captured block exception).
     func lowerMemScopedCallExpr(
         _ exprID: ExprID,
         args: [CallArgument],
@@ -575,8 +541,6 @@ extension CallLowerer {
 
         var blockInstructions: [KIRInstruction] = []
         if let info = driver.ctx.callableValueInfo(for: loweredLambdaID) {
-            // Collection-HOF-marked lambdas take a leading closureRaw argument
-            // (see scopeUse above).
             var closureRawArg: KIRExprID? = nil
             if info.hasClosureParam {
                 if info.captureArguments.isEmpty {
@@ -600,8 +564,6 @@ extension CallLowerer {
                 ?? info.captureArguments + [scopeResult]
             blockInstructions.append(.call(symbol: info.symbol, callee: info.callee, arguments: callArgs, result: result, canThrow: true))
         } else {
-            // Non-literal callable value (e.g. a declared `MemScope.() -> R`
-            // binding): invoke through the Function1 ABI.
             blockInstructions.append(.call(
                 callee: interner.intern("kk_function_invoke"),
                 arguments: [loweredLambdaID, scopeResult],
@@ -610,7 +572,6 @@ extension CallLowerer {
             ))
         }
 
-        // CODE-001: keep an outer try/catch/use from re-routing this call.
         instructions.append(.beginFinallyGuard)
         driver.controlFlowLowerer.appendThrowAwareInstructions(
             blockInstructions,
@@ -625,9 +586,6 @@ extension CallLowerer {
         instructions.append(.endFinallyGuard)
         instructions.append(.jump(finallyLabel))
 
-        // finally: clear the arena — runs deferred blocks LIFO then frees every
-        // tracked allocation. A deferred block that throws propagates out of
-        // kk_arena_clear, matching Kotlin finally semantics.
         instructions.append(.label(finallyLabel))
         let clearResult = arena.appendTemporary(type: sema.types.unitType)
         instructions.append(.call(callee: interner.intern("kk_arena_clear"), arguments: [scopeResult], result: clearResult, canThrow: true))
