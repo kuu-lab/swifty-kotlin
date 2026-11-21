@@ -1,8 +1,3 @@
-/// Owns all mutable inference state for one body worker. Construction happens
-/// at a module barrier; source data and parent file scopes stay frozen until
-/// join. The driver, delegates and their inferred/deferred ledgers never cross
-/// that boundary. A snapshot is not permission to infer another declaration:
-/// its dependency ledger still belongs to the authoritative module driver.
 final class SemaBodyWorker: @unchecked Sendable {
     let driver: TypeCheckDriver
 
@@ -11,8 +6,6 @@ final class SemaBodyWorker: @unchecked Sendable {
         let interner = parent.interner.makeSemaWorkerInterner()
         let types = parent.sema.types.makeSemaWorkerTypes()
         let symbols = parent.sema.symbols.makeSemaWorkerSymbols()
-        // Body workers share the parent's type-check attribution collector so
-        // parallel scope/resolve/constraint hot paths stay counted (KUU-3779).
         types.attribution = parent.sema.types.attribution
         symbols.attribution = parent.sema.symbols.attribution
         types.symbolTable = symbols
