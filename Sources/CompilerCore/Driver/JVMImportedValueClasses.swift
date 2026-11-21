@@ -1,6 +1,4 @@
 extension JVMClasspathIndex {
-    /// Read both generated adapters before treating a foreign class as a
-    /// Kotlin value class. Their descriptors identify its physical carrier.
     func importedValueCarrier(for type: JVMValueType) -> JVMValueType? {
         guard let name = type.referenceName, let info = classes[name], info.isKotlinFileFacade == false,
               let unbox = info.methods.first(where: { $0.name == "unbox-impl" && !$0.isStatic && $0.parameters.isEmpty }),
