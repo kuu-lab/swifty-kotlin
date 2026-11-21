@@ -1,17 +1,7 @@
-/// Captures the type arguments inferred for one inline expansion and applies
-/// them to the types carried by the copied KIR expressions.
-///
-/// The mapping is deliberately built from the inline function's declared
-/// parameter types and the call-site expression types. It does not invoke
-/// overload resolution or constraint solving; those responsibilities belong to
-/// Sema and have already completed before lowering starts.
 struct InlineTypeSubstitution {
     let substitution: [TypeVarID: TypeID]
     let typeVarBySymbol: [SymbolID: TypeVarID]
 
-    /// Builds a substitution for `inlineTarget` from the concrete arguments at
-    /// the call site. Imported inline functions use the same path because their
-    /// materialized KIR carries the same parameter and function signature data.
     static func build(
         inlineTarget: KIRFunction,
         arguments: [KIRExprID],
@@ -162,10 +152,6 @@ struct InlineTypeSubstitution {
     }
 }
 
-/// Builds the hidden-argument bindings used when an inline body refers to a
-/// reified type parameter. Keeping this lookup separate from type substitution
-/// makes the token-symbol convention explicit and keeps token flow independent
-/// from type inference.
 enum InlineReifiedTypeTokens {
     static func buildTypeParamTokenValues(
         inlineTarget: KIRFunction,
