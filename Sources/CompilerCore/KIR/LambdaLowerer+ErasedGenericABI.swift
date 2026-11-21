@@ -9,8 +9,6 @@
 // so printing the list yields `97` instead of `a`.
 
 extension LambdaLowerer {
-    /// Widens a lowered lambda's declared return type to `Any` when it returns
-    /// into an erased position, matching the value `boxErasedReturnValue` emits.
     func erasedLambdaReturnType(
         _ returnType: TypeID,
         returnsErasedGeneric: Bool,
@@ -22,8 +20,6 @@ extension LambdaLowerer {
             : returnType
     }
 
-    /// Boxes a concrete value flowing out of an erased return position.
-    ///
     /// The box is emitted here rather than left to `ABILoweringPass` because the
     /// lambda's own declared return type stays concrete in the substituted
     /// signature, so the ABI pass does not recognise the boundary.
@@ -38,8 +34,6 @@ extension LambdaLowerer {
     ) -> KIRExprID {
         let returnedValue: KIRExprID
         if returnType == sema.types.unitType {
-            // The body still runs for its side effects, but a Unit callback
-            // returns Unit even when its last expression produced a value.
             let unit = arena.appendExpr(.unit, type: sema.types.unitType)
             instructions.append(.constValue(result: unit, value: .unit))
             returnedValue = unit
@@ -153,10 +147,6 @@ extension KIRLoweringContext {
         return result
     }
 
-    /// The type the call site substitutes for the erased return type
-    /// parameter — `Int?` in `invokeBlock { uncheckedCast<Int?>() }` — or
-    /// the lambda's own inferred return type when the binding lacks a
-    /// positional argument for the parameter.
     private static func substitutedLambdaReturnType(
         for lambdaExprID: ExprID,
         declaredReturnParameter: TypeParamType,
