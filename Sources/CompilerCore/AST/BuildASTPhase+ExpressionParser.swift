@@ -5,10 +5,6 @@ extension BuildASTPhase {
         var paren: Int = 0
         var bracket: Int = 0
         var brace: Int = 0
-        /// Open `${ ... }` string-template groups. Kept out of both top-level
-        /// checks for the same reason as `angle`: boundary sites opt in with
-        /// `template == 0`, so a newline inside a template expression never
-        /// splits a statement.
         var template: Int = 0
 
         var isAtTopLevel: Bool {
@@ -57,25 +53,12 @@ extension BuildASTPhase {
         /// assignment — a legal form their fallback handles — disable it.
         var reportsTrailingAssignmentOperator = true
 
-        /// When-branch bodies are reparsed as expression slices that can still
-        /// be followed by the enclosing `when`'s `else ->`; that `else` is not
-        /// a stray if-else token.
         var allowsTrailingWhenBranchElse = false
 
-        // Bounded declaration prefixes must not accept recovered expressions
-        // whose operand or control-flow branch was cut off by the slice.
         private(set) var hasIncompleteExpression = false
 
-        /// An `else` left over after a completed if expression. A dangling
-        /// `else` binds to the nearest enclosing if that still lacks an else
-        /// branch, so an inner if parser records it and an outer if clears the
-        /// record when it consumes the token as its own else. `parse()`
-        /// diagnoses whatever remains unclaimed.
         var strayElseToken: Token?
 
-        /// Guards `parseExpression` / `parsePrefixUnary` / `parsePrimary` against
-        /// unbounded native stack growth on deeply nested untrusted source (a
-        /// stack-overflow DoS), mirroring Sema's `maxAliasExpansionDepth` cap.
         static let maxRecursionDepth = 64
 
         var recursionDepth = 0
@@ -89,8 +72,6 @@ extension BuildASTPhase {
             return incDecTempCounter
         }
 
-        /// Returns `false` (emitting a diagnostic once) once the maximum depth is
-        /// exceeded so callers abort gracefully instead of overflowing the stack.
         /// Callers must pair this with `defer { leaveRecursion() }`.
         func enterRecursion() -> Bool {
             recursionDepth += 1
@@ -203,9 +184,6 @@ extension BuildASTPhase {
             return parseInfixOperators(lhs: lhs, minPrecedence: minPrecedence)
         }
 
-        /// Call-argument lambdas re-enter here after their postfix suffixes so
-        /// that an argument that starts with `{` still parses as a full
-        /// expression (`foo({ 5 }() + { 6 }())`), matching `parseExpression`.
         func parseInfixOperators(lhs initialLHS: ExprID, minPrecedence: Int) -> ExprID {
             var lhs = initialLHS
             while true {
@@ -304,8 +282,6 @@ extension BuildASTPhase {
             return astArena.appendExpr(.binary(op: binOp, lhs: lhs, rhs: rhs, range: range))
         }
 
-        /// Kotlin grammar: infixFunctionCall = rangeExpression (simpleIdentifier rangeExpression)*
-        /// All infix functions share the same precedence level as range operators (.downTo / .step)
         private func tryParseInfixCall(lhs: ExprID, minPrecedence: Int) -> ExprID? {
             let infixPrecedence = precedence(of: .downTo)
             guard infixPrecedence >= minPrecedence,
@@ -573,12 +549,6 @@ extension BuildASTPhase {
             return parenDepth > 0 || bracketDepth > 0 || templateDepth > 0
         }
 
-        /// A `++`/`--` left over after an expression can never be legal Kotlin:
-        /// the postfix form is already consumed when its operand is assignable,
-        /// and the prefix form must precede an operand. `x++ ++x` or `f()--`
-        /// therefore always flag the token, regardless of whitespace — unlike
-        /// the infix-identifier case, which requires the token to directly abut
-        /// the expression end before it is diagnosed.
         private func isUnexpectedTokenAfterExpression(_ token: Token, expressionEnd: Int) -> Bool {
             switch token.kind {
             case .symbol(.plusPlus), .symbol(.minusMinus), .symbol(.question):
@@ -600,10 +570,6 @@ extension BuildASTPhase {
             }
         }
 
-        /// `=`/`+=`/... are statements, never part of an expression (kotlinc:
-        /// "Assignments are not expressions"). Any such token left unconsumed
-        /// after the expression means the slice was not a single expression —
-        /// e.g. the value of `x = y = 5` or the inside of `x = (x += 5)`.
         private func isAssignmentOperatorToken(_ token: Token) -> Bool {
             switch token.kind {
             case .symbol(.assign), .symbol(.plusAssign), .symbol(.minusAssign),
@@ -614,8 +580,6 @@ extension BuildASTPhase {
             }
         }
 
-        /// Infix callees use Kotlin `simpleIdentifier`, which also includes soft and modifier keywords.
-        /// Excludes identifiers already handled as known BinaryOp (downTo, step) by binaryOperator().
         private func isInfixIdentifierToken(_ token: Token) -> Bool {
             guard token.kind.isLabelName else { return false }
             if case let .identifier(name) = token.kind {
@@ -624,7 +588,6 @@ extension BuildASTPhase {
                     return false
                 }
             }
-            // Backticked `downTo` and `step` intentionally bypass special BinaryOp handling.
             return true
         }
 
