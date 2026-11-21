@@ -148,11 +148,6 @@ extension CallTypeChecker {
                 )))
             }
         }
-        // filterNotNull() on a List<T?> is bound directly to the bundled
-        // Kotlin-source declaration (see didBindListFilterNotNullSource),
-        // so it has no stdlibSurfaceSpecForCollectionFallback entry.
-        // Compute its List<T> result type explicitly instead of falling
-        // through to the generic `Any` default below.
         if memberName == knownNames.filterNotNull, isListReceiver, args.isEmpty {
             return makeSyntheticListType(
                 symbols: sema.symbols,
@@ -210,8 +205,6 @@ extension CallTypeChecker {
                   let lastExprNode = ctx.ast.arena.expr(lastExpr),
                   lastExprNode.isLambdaOrCallableRef
         {
-            // Defaulted windowed parameters may be omitted before the trailing
-            // transform, so the transform is always the final supplied argument.
             lastExpr
         } else {
             nil
@@ -418,8 +411,6 @@ extension CallTypeChecker {
         }
 
         if memberName == knownNames.plus || memberName == knownNames.minus {
-            // plus/minus return the same Map type as the receiver.
-            // receiverElementType for maps is Map.Entry<K,V>, so reconstruct Map<K,V>.
             if case let .classType(entryType) = sema.types.kind(of: receiverElementType),
                entryType.args.count >= 2
             {
@@ -514,7 +505,6 @@ extension CallTypeChecker {
             )
         }
 
-        // MutableList<E>.subList(...): MutableList<E> overrides List<E>.subList(...): List<E>.
         let subListOwnerFQName = isMutableReceiver
             ? knownNames.kotlinCollectionsMutableListFQName
             : knownNames.kotlinCollectionsListFQName
@@ -778,9 +768,6 @@ extension CallTypeChecker {
             )))
         }
 
-        // flatten(): for List<List<E>>, returns List<E>.
-        // Skip this for sequence receivers — the existing sequence HOF logic handles them,
-        // and mixed-type sequence flatten should fail gracefully (matching kotlinc).
         if memberName == knownNames.flatten,
            !isSequenceReceiver,
            let listSymbol = sema.symbols.lookupByShortName(knownNames.list).first
@@ -905,9 +892,6 @@ extension CallTypeChecker {
             )))
         }
 
-        // iterator(): returns MutableIterator<E> for Mutable{Collection,List,Set}
-        // receivers (real Kotlin's covariant MutableIterable override), Iterator<E>
-        // otherwise.
         if memberName == knownNames.iterator {
             if isMutableReceiver,
                let mutableIteratorSymbol = sema.symbols.lookup(fqName: knownNames.kotlinCollectionsMutableIteratorFQName)
@@ -984,9 +968,6 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext,
         sema: SemaModule
     ) -> TypeID {
-        // Prefer the lambda body's inferred type over the stored function type,
-        // because inferLambdaLiteralExpr binds the lambda to the *expected* type
-        // (e.g. (List<T>) -> Any) rather than the *inferred* return type.
         if let lambdaNode = ctx.ast.arena.expr(transformExpr),
            case let .lambdaLiteral(_, body: bodyExprID, _, _) = lambdaNode,
            let bodyType = sema.bindings.exprTypes[bodyExprID],
@@ -1194,10 +1175,6 @@ extension CallTypeChecker {
             return surfaceExpectation
         }
 
-        // Map.firstNotNullOf and Map.firstNotNullOfOrNull are source-backed
-        // members, so they intentionally have no runtime surface entry. Keep
-        // their transform contextualized as Map.Entry<K, V> while the fallback
-        // binds the source declaration.
         if isMapReceiver,
            argCount == 1,
            memberName == knownNames.firstNotNullOf
@@ -1346,9 +1323,6 @@ extension CallTypeChecker {
             }
         }
 
-        // joinToString(separator?, prefix?, postfix?, transform): transform receives the
-        // element and returns a CharSequence (modeled loosely as Any, like chunked/windowed
-        // above); it is always the trailing argument when the call site supplies one.
         if memberName == knownNames.joinToString, (1...4).contains(argCount) {
             let lastArgIsFunctionLike: Bool = if let lastExpr = args.last?.expr,
                                                  let lastExprNode = ctx.ast.arena.expr(lastExpr) {
@@ -1432,8 +1406,6 @@ extension CallTypeChecker {
             || memberName == knownNames.runningFold
             || memberName == knownNames.runningFoldIndexed, argCount == 2
         {
-            // scan/runningFold variants: (acc: R, element: T) -> R
-            // The accumulator type is unknown in the fallback path, so use Any.
             let params: [TypeID] = if memberName == knownNames.scanIndexed
                 || memberName == knownNames.runningFoldIndexed
             {
