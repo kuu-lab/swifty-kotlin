@@ -1,9 +1,4 @@
 extension CallTypeChecker {
-    /// Validates inferred type arguments for `reified` parameters. Returns
-    /// false when at least one argument cannot back a reified token: a
-    /// captured existential produced by a use-site projection such as
-    /// `KClass<*>` has no concrete class to reify, and a multi-bound
-    /// intersection cannot be reified either.
     func validateReifiedTypeArguments(
         for callee: SymbolID,
         substitutedTypeArguments: [TypeVarID: TypeID],
@@ -13,9 +8,6 @@ extension CallTypeChecker {
         guard let signature = sema.symbols.functionSignature(for: callee) else { return true }
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         var reifiedIndices = signature.reifiedTypeParameterIndices
-        // The native arrayOf intrinsic omits the JVM inline/reified modifier
-        // because it lowers directly to kk_array_of, but its Kotlin API still
-        // has the reified element-type inference restriction.
         if sema.symbols.symbol(callee)?.fqName == ["kotlin", "arrayOf"].map(driver.interner.intern) {
             reifiedIndices.insert(0)
         }
@@ -30,9 +22,6 @@ extension CallTypeChecker {
                 continue
             }
 
-            // A projection such as `KClass<*>` captures the receiver's argument
-            // as an existential. kotlinc rejects it as "cannot use
-            // 'CapturedType(*)' as reified type parameter."
             if sema.types.containsCapturedTypes(typeArgument) {
                 sema.diagnostics.error(
                     "KSWIFTK-SEMA-REIFIED",
@@ -47,9 +36,6 @@ extension CallTypeChecker {
                 continue
             }
 
-            // A definitely-non-null type parameter is represented as T & Any.
-            // It can be forwarded to a reified call without inferring a
-            // multi-bound intersection type.
             let nonAnyParts = parts.filter { $0 != sema.types.anyType }
             if parts.count == 2, nonAnyParts.count == 1,
                case let .typeParam(parameter) = sema.types.kind(of: nonAnyParts[0]),
@@ -73,9 +59,6 @@ extension CallTypeChecker {
         return !hasInvalidArgument
     }
 
-    /// Renders a captured existential the way kotlinc prints it in
-    /// "cannot use 'CapturedType(...)' as reified type parameter" — e.g.
-    /// `CapturedType(*)`, `CapturedType(out Number)`, or `CapturedType(in Int)`.
     private func reifiedCapturedArgumentName(of type: TypeID, sema: SemaModule) -> String {
         func render(_ part: TypeID) -> String {
             sema.types.displayName(of: part, symbols: sema.symbols, interner: driver.interner)
@@ -88,9 +71,6 @@ extension CallTypeChecker {
         if capture.lower != sema.types.nothingType {
             return "CapturedType(in \(render(capture.lower)))"
         }
-        // `out X` and `*` both capture as a read-only existential with a
-        // Nothing lower bound. The star shape is the one whose readable bound
-        // is the captured parameter's own declared bound.
         let declaredBounds = sema.types.declaredUpperBounds(for: parameter.symbol)
         let declaredBound = declaredBounds.isEmpty
             ? sema.types.nullableAnyType
