@@ -1,12 +1,5 @@
 
 struct CaptureAnalyzer {
-    /// Same traversal as `collectCapturedOuterSymbols(in:...)`, but rooted at a
-    /// function body (used for object-literal member functions, which have a
-    /// `FunctionBody` rather than a single root `ExprID`). Each top-level
-    /// statement is visited independently and the resulting capture sets are
-    /// unioned, which is equivalent to visiting the whole body in one pass
-    /// since the visitor carries no cross-statement state besides the
-    /// accumulated capture set itself.
     func collectCapturedOuterSymbols(
         inBody body: FunctionBody,
         ast: ASTModule,
@@ -52,10 +45,6 @@ struct CaptureAnalyzer {
         }
     }
 
-    /// Same visitor rooted at a nominal declaration rather than an
-    /// expression — for nominals nested inside an object literal, whose
-    /// member bodies run as separate KIR functions and must contribute
-    /// their outer references to the literal's capture set.
     func collectCapturedOuterSymbols(
         inDecl declID: DeclID,
         ast: ASTModule,
@@ -255,9 +244,6 @@ struct CaptureAnalyzer {
                 captured.formUnion(callBinding?.contextParameterReceiverSymbols.compactMap { $0 }.filter {
                     outerSymbols.contains($0)
                 } ?? [])
-                // A `f()` invoke on a `context(A, B) () -> T` value resolves
-                // its implicit context arguments from receiver tower entries —
-                // keep them alive across this lambda boundary (KUU-3897).
                 captured.formUnion(sema.bindings.callableValueCalls[currentExprID]?.contextReceiverSymbols.compactMap { $0 }.filter {
                     outerSymbols.contains($0)
                 } ?? [])
@@ -270,18 +256,10 @@ struct CaptureAnalyzer {
                    sema.symbols.symbol(calleeSymbol)?.flags.contains(.localFunction) == true
                 {
                     isLocalFunctionCall = true
-                    // Lifted local functions receive their free variables as
-                    // leading call arguments. Preserve those dependencies in
-                    // the enclosing nominal so constructor lambdas can
-                    // forward the environment after the function is lifted.
                     captured.formUnion(sema.bindings.localFunctionCaptureSymbols(for: calleeSymbol).filter {
                         outerSymbols.contains($0)
                     })
                 }
-                // Local class/object constructor calls materialize the
-                // nominal's captured fields in the caller. Forward those
-                // dependencies when the construction happens in another
-                // local nominal or deferred callable body.
                 if let constructor = sema.bindings.callBinding(for: currentExprID)?.chosenCallee,
                    sema.symbols.symbol(constructor)?.kind == .constructor,
                    let owner = sema.symbols.parentSymbol(for: constructor)
@@ -290,25 +268,16 @@ struct CaptureAnalyzer {
                         outerSymbols.contains($0)
                     })
                 }
-                // A call that resolved on an outer implicit receiver needs the
-                // enclosing `this` captured so the receiver value reaches the
-                // member body's lowering.
                 if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: currentExprID),
                    outerSymbols.contains(receiverSymbol)
                 {
                     captured.insert(receiverSymbol)
                 }
-                // Same for a member-extension call's extension receiver when
-                // Sema picked it from an enclosing tower entry.
                 if let receiverSymbol = sema.bindings.implicitExtensionReceiver(for: currentExprID),
                    outerSymbols.contains(receiverSymbol)
                 {
                     captured.insert(receiverSymbol)
                 }
-                // A bare member call inside an object literal resolves to the
-                // enclosing class's member symbol. Preserve that class's
-                // implicit receiver as a capture so lowering can still pass
-                // the original `this` after the literal becomes active.
                 if let target = sema.bindings.callBinding(for: currentExprID)?.chosenCallee,
                    let owner = sema.symbols.parentSymbol(for: target),
                    outerSymbols.contains(owner)
@@ -420,9 +389,6 @@ struct CaptureAnalyzer {
                 captured.formUnion(sema.bindings.callableValueCalls[currentExprID]?.contextReceiverSymbols.compactMap { $0 }.filter {
                     outerSymbols.contains($0)
                 } ?? [])
-                // Same lexical function-typed callee as `.memberCall` above:
-                // `recv?.fn(args)` binds fn's symbol on the call expr so this
-                // pass can keep it as a capture.
                 if sema.bindings.callableValueCalls[currentExprID]?.extensionCallableExpr != nil {
                     recordCapture(for: currentExprID)
                 }
@@ -477,10 +443,6 @@ struct CaptureAnalyzer {
             case let .localFunDecl(_, _, valueParams, _, body, _, _, _, _):
                 if !skipNestedClosures {
                     visitBody(body)
-                    // Parameter default expressions evaluate in the lifted
-                    // function's scope at call time, so their free variables
-                    // are captures of the nested function that enclosing
-                    // bodies must supply (KUU-3182).
                     for valueParam in valueParams {
                         if let defaultValue = valueParam.defaultValue {
                             visit(defaultValue)
@@ -516,8 +478,6 @@ struct CaptureAnalyzer {
                 visit(body)
 
             case .thisRef:
-                // Qualified extension-receiver references such as
-                // `this@describe` are bound to the receiver parameter symbol.
                 recordCapture(for: currentExprID)
 
             case .nullLiteral, .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral,
@@ -532,26 +492,11 @@ struct CaptureAnalyzer {
                 else {
                     break
                 }
-                // Forward the literal's own registered capture set, the same
-                // pull `visitLocalNominalDecl` performs for named local
-                // nominals. Member bodies lowered as standalone KIR
-                // functions (member functions, custom accessors, and
-                // `by`-delegate bodies such as `lazy { ... }`) already
-                // recorded the outer references they need there, so an outer
-                // local referenced only inside them still reaches this
-                // literal's construction site (KUU-3193).
                 if let owner = sema.bindings.declSymbol(for: declID) {
                     captured.formUnion(sema.bindings.objectLiteralCaptureSymbols(for: owner).filter {
                         outerSymbols.contains($0)
                     })
                 }
-                // KSP-CAP-018: the superclass constructor call's arguments
-                // (`object : Base(x) { ... }`) are lowered in the enclosing
-                // function's context (ObjectLiteralLowerer.
-                // emitObjectLiteralSuperConstructorCall), same as a member
-                // property initializer below — an outer local referenced only
-                // here must still be recorded as captured when the object
-                // literal itself sits inside a lambda.
                 for arg in objectDecl.superTypeConstructorArgs {
                     visit(arg.expr)
                 }
@@ -575,11 +520,6 @@ struct CaptureAnalyzer {
                     if let initializer = property.initializer {
                         visit(initializer)
                     }
-                    // A `by` delegate expression (`IntBox(x)`, `lazy { ... }`)
-                    // evaluates inline at the construction site like an
-                    // initializer; accessor and delegate bodies run as
-                    // standalone KIR functions and are also covered by the
-                    // forwarded capture set above.
                     if let delegateExpression = property.delegateExpression {
                         visit(delegateExpression)
                     }
@@ -589,16 +529,9 @@ struct CaptureAnalyzer {
                         }
                     }
                 }
-                // `init {}` blocks lower inline at the construction site
-                // alongside the initializers, so their outer references need
-                // the same enclosing-scope visibility.
                 for initBlock in objectDecl.initBlocks {
                     visitBody(initBlock)
                 }
-                // Nested nominals (e.g. `inner class` inside an object
-                // expression, which Kotlin/JVM permits) run as their own
-                // KIR functions — references to enclosing receivers there
-                // are reached through `$outer`/this literal's capture fields.
                 for nestedDeclID in objectDecl.nestedClasses + objectDecl.nestedObjects {
                     visitLocalNominalDecl(nestedDeclID)
                 }
@@ -612,9 +545,6 @@ struct CaptureAnalyzer {
         return capturesWithBackingFieldOwners(captured, sema: sema)
     }
 
-    /// A backing-field reference captures its owning instance, not a copy of
-    /// the field value. Top-level backing fields are global storage and need
-    /// no closure capture at all.
     private func capturesWithBackingFieldOwners(
         _ capturedSymbols: Set<SymbolID>,
         sema: SemaModule
