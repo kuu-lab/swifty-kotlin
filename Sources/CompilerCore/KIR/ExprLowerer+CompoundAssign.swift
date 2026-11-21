@@ -67,7 +67,6 @@ extension ExprLowerer {
                 if op == .plusAssign,
                    driver.callLowerer.isCoroutineContextReceiverType(resultType, sema: sema, interner: interner)
                 {
-                    // Emit before try lowering, just like the context + path.
                     instructions.append(.call(
                         callee: interner.intern("__kk_context_plus_dispatch"),
                         arguments: [lhs, rhs],
@@ -77,8 +76,6 @@ extension ExprLowerer {
                 } else {
                     instructions.append(.binary(op: kirOp, lhs: lhs, rhs: rhs, result: resultID))
                 }
-                // `b++` / `s--` / `ub++` on Byte, Short, UByte, UShort compute in a
-                // 64-bit slot; wrap back to the operand's width (Kotlin `inc`/`dec`).
                 if let wrapped = SmallIntegerWrap.append(
                     resultID, type: resultType, sema: sema, arena: arena, interner: interner,
                     instructions: &instructions
@@ -163,8 +160,6 @@ extension ExprLowerer {
                 result: KIRExprID
             ) {
                 var finalArguments = arguments
-                // Member extensions (`fun T.m(...)` declared inside a nominal)
-                // take the dispatch receiver ahead of the extension receiver.
                 let dispatchReceiver = driver.callLowerer.memberExtensionDispatchReceiver(
                     for: callBinding.chosenCallee,
                     callExprID: exprID,
@@ -251,9 +246,6 @@ extension ExprLowerer {
 
             if ast.arena.isIncrementDecrement(exprID) {
                 let callResult = arena.appendTemporary(type: resultType)
-                // `++`/`--` invoke `inc()`/`dec()` with no explicit arguments,
-                // so defaulted parameters must ride the `<name>$default` stub
-                // just like an explicit `a.inc()` call.
                 driver.callLowerer.emitIncrementDecrementOperatorCall(
                     callBinding: callBinding,
                     operatorName: op == .plusAssign ? "inc" : "dec",
@@ -375,10 +367,6 @@ extension ExprLowerer {
                     sema: sema,
                     interner: interner
                 ))
-                // Reads always dispatch a fresh getValue (see
-                // readLocalDelegateValue) rather than caching, so a
-                // vetoable-style delegate rejecting this write is
-                // observed correctly with no extra bookkeeping here.
             } else if !driver.callLowerer.memberPropertyUsesAccessor(symbol, ast: ast, sema: sema),
                       !driver.callLowerer.memberPropertyUsesSetterAccessor(symbol, ast: ast, sema: sema),
                       let getterCallee = driver.callLowerer.enumPropertyGetterPlaceholder(
@@ -450,9 +438,6 @@ extension ExprLowerer {
                           instructions: &instructions
                       )
             {
-                // Run a custom/delegated setter even when the getter uses
-                // ordinary field storage. Keep the read and write halves
-                // independent, as for explicit-receiver compound writes.
                 let propType = sema.symbols.propertyType(for: symbol) ?? sema.types.anyType
                 let receiverExprID = read.receiver
                 let loadedValue = read.value
@@ -669,11 +654,6 @@ extension ExprLowerer {
                           instructions: &instructions
                       )
             {
-                // Delegate to the explicit-receiver compound-assign lowering
-                // with the implicit receiver, which resolves each half
-                // independently: itable/vtable accessor dispatch when the
-                // property is interface-owned, abstract, or overridable, and
-                // the field-offset read-modify-write otherwise.
                 return driver.callLowerer.lowerMemberCompoundAssignExpr(
                     exprID,
                     op: op,
@@ -887,9 +867,6 @@ extension ExprLowerer {
                 }
             } else {
                 if sema.symbols.symbol(symbol)?.kind == .object {
-                    // A bare object receiver is lowered directly from its
-                    // singleton symbol here, so preserve the lazy-init guard
-                    // that ordinary name-reference lowering would emit.
                     driver.emitObjectLazyInitGuardIfNeeded(
                         objectSymbol: symbol,
                         arena: arena,
@@ -899,8 +876,6 @@ extension ExprLowerer {
                     )
                 }
                 if let storageID = driver.ctx.localValue(for: symbol) {
-                    // Compute lhs op rhs and update storage in place so the value
-                    // persists across loop iterations.
                     let symbolType = driver.ctx.localDeclaredType(for: symbol)
                         ?? driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
                     let cachedIncrementValue: KIRExprID? = if ast.arena.isIncrementDecrement(exprID),
@@ -935,11 +910,6 @@ extension ExprLowerer {
                             interner: interner, instructions: &instructions
                         )
                     }
-                    // Erased local storage retains its declared type (for
-                    // example `Any`), while sema records the flow-refined LHS
-                    // type for this assignment. Unbox smartcasted primitives
-                    // before computing the result, then box on the copy back
-                    // to the declared storage slot.
                     let operationValue = driver.callLowerer.materializeSmartcastedPrimitiveValue(
                         checkedValue,
                         boundType: sema.bindings.compoundAssignReceiverType(for: exprID),
