@@ -1,13 +1,9 @@
 package java.net
 
-/** Abstract base for protocol-agnostic socket addresses. */
 public abstract class SocketAddress {
     public constructor()
 }
 
-/** An IP socket address (hostname or [InetAddress] plus port). Resolution is
- * eager, matching the JDK: constructing with a hostname resolves it now;
- * [createUnresolved] keeps an unresolved endpoint. */
 public open class InetSocketAddress : SocketAddress {
     public var address: InetAddress?
     private var hostname: String?
@@ -48,10 +44,8 @@ public open class InetSocketAddress : SocketAddress {
         this.hostname = hostname
     }
 
-    /** The resolved [InetAddress] or `null` when unresolved. */
     public fun getAddress(): InetAddress? = address
 
-    /** The hostname, or the address' hostname when constructed with a literal. */
     public val hostName: String
         get() {
             val addrHost = address?.hostName
@@ -59,13 +53,11 @@ public open class InetSocketAddress : SocketAddress {
         }
 
 
-    /** The hostname if one was supplied, otherwise the literal address string. */
     public val hostString: String
         get() = hostname ?: address?.hostAddress ?: ""
 
 
 
-    /** `true` when this endpoint was created via [createUnresolved]. */
     public val isUnresolved: Boolean
         get() = address == null
 
