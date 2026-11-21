@@ -28,9 +28,6 @@ public final class BuildKIRPhase: CompilerPhase {
     }
 }
 
-/// Holds the non-`Sendable` lowering inputs and exposes a `@Sendable` callable
-/// surface so the large-stack thread can run `lowerModule` without capturing
-/// non-`Sendable` values through `withoutActuallyEscaping` closures.
 private final class LoweringWork: @unchecked Sendable {
     let ctx: CompilationContext
     let ast: ASTModule
