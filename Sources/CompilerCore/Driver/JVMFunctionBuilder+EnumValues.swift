@@ -15,9 +15,6 @@ extension JVMFunctionBuilder {
             return JVMIntrinsicResult(value: try jdkCall(owner, "values", [], resultType, resolved: resultType))
         }
 
-        // A generic inline body is emitted once with its reified parameter erased.
-        // Let the normal inline path expand the intrinsic stub's unsupported body;
-        // specialized call sites are expanded above.
         return nil
     }
 }
