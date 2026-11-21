@@ -1,7 +1,4 @@
 extension CallLowerer {
-    /// Abstract Enum receivers carry tagged boxes, without a stored-field layout
-    /// or a statically known per-enum name helper. Match the bound property so
-    /// unrelated properties and extension properties named `name` stay untouched.
     func tryLowerEnumBasePropertyRead(
         propertySymbol: SymbolID?,
         receiver: KIRExprID,
