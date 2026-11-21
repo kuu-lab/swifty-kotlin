@@ -35,9 +35,6 @@ extension DataFlowSemaPhase {
                         )
                     }
                 }
-                // KUU-1407: with no primary constructor, `this(...)`
-                // delegations can only target other secondary constructors,
-                // so an all-`this` graph necessarily contains a cycle.
                 if !classDecl.hasPrimaryConstructorSyntax,
                    !classDecl.secondaryConstructors.isEmpty,
                    classDecl.secondaryConstructors.allSatisfy({ $0.delegationCall?.kind == .this })
