@@ -40,20 +40,13 @@ public class SynchronousQueue<E>(fair: Boolean = false) : BlockingQueue<E> {
     private val takeWaiters = ArrayList<TakeWaiter<E>>()
 
     private class PutWaiter<E>(val handle: ParkingHandle, val value: E) {
-        // Set under the guard by the consumer that took this element; the
-        // producer then knows its offer/put succeeded.
         var done = false
     }
 
     private class TakeWaiter<E>(val handle: ParkingHandle) {
-        // `received` is written before `done` under the guard; a done waiter
-        // always carries a non-null element because null offers are rejected.
-        // (Named `received`, not `element`, to stay clear of Queue.element().)
         var done = false
         var received: E? = null
     }
-
-    // ---- Queue / Collection surface: the queue is always logically empty ----
 
     override fun offer(element: E): Boolean {
         if (element == null) throw NullPointerException()
@@ -83,7 +76,6 @@ public class SynchronousQueue<E>(fair: Boolean = false) : BlockingQueue<E> {
 
     override fun element(): E = throw NoSuchElementException()
 
-    /** JVM `Queue.remove`: like [poll] but throws on an empty queue. */
     override fun remove(): E {
         val head = poll()
         return head ?: throw NoSuchElementException()
@@ -152,13 +144,6 @@ public class SynchronousQueue<E>(fair: Boolean = false) : BlockingQueue<E> {
 
     override fun toString(): String = "[]"
 
-    // ---- blocking internals ----
-
-    /**
-     * Producer side of the rendezvous. Returns true once [element] has been
-     * handed to a consumer — either immediately or after parking. With
-     * `blocking = false` a non-positive [nanos] degrades to a single attempt.
-     */
     private fun offerNanos(element: E, nanos: Long, blocking: Boolean): Boolean {
         val handle = ParkingSupport.currentThreadHandle()
         val waiter = PutWaiter(handle, element)
@@ -172,8 +157,6 @@ public class SynchronousQueue<E>(fair: Boolean = false) : BlockingQueue<E> {
             try {
                 if (registered) {
                     if (waiter.done) {
-                        // A consumer already took the element and removed us
-                        // from putWaiters under this same guard.
                         handedOff = true
                         release = emptyList()
                     } else if (!blocking && nanos <= 0L) {
@@ -206,11 +189,6 @@ public class SynchronousQueue<E>(fair: Boolean = false) : BlockingQueue<E> {
             if (giveUp) return false
             val left = jucNanosLeft(deadline)
             if (left <= 0L) {
-                // Deadline expired. Every iteration that reaches this point
-                // has already registered the waiter (the unregistered branches
-                // all return), so only the done/deregister decision remains.
-                // A consumer that matched us first sets `done` under the same
-                // guard, which wins over the timeout.
                 var lastChance = false
                 guard.lock()
                 try {
@@ -228,10 +206,6 @@ public class SynchronousQueue<E>(fair: Boolean = false) : BlockingQueue<E> {
         }
     }
 
-    /**
-     * Consumer side of the rendezvous. Returns the handed-off element, or
-     * null/timeout per [blocking] and [nanos].
-     */
     private fun pollNanos(nanos: Long, blocking: Boolean): E? {
         val handle = ParkingSupport.currentThreadHandle()
         val waiter = TakeWaiter<E>(handle)
@@ -246,8 +220,6 @@ public class SynchronousQueue<E>(fair: Boolean = false) : BlockingQueue<E> {
             try {
                 if (registered) {
                     if (waiter.done) {
-                        // A producer already delivered and removed us from
-                        // takeWaiters under this same guard.
                         element = waiter.received
                         taken = true
                     } else if (!blocking && nanos <= 0L) {
@@ -275,9 +247,6 @@ public class SynchronousQueue<E>(fair: Boolean = false) : BlockingQueue<E> {
             if (giveUp) return null
             val left = jucNanosLeft(deadline)
             if (left <= 0L) {
-                // Same expiry path as offerNanos: the waiter is always
-                // registered here, and a producer that matched us first wins
-                // over the timeout via `done`.
                 var lastElement: E? = null
                 var lastTaken = false
                 guard.lock()
