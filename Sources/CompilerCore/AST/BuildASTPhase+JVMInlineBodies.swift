@@ -1,5 +1,3 @@
-/// The CST already uses the compilation's string IDs, so the block can be
-/// parsed straight into the merged AST when Sema binds a call to it.
 struct JVMInlineBodySyntax {
     let arena: SyntaxArena
     let block: NodeID
@@ -21,8 +19,6 @@ extension BuildASTPhase {
               }).first
         else { return nil }
 
-        // Keep contracts and single-statement blocks available to the header
-        // passes. Local nominals and super uses need the normal AST prepasses.
         let statements = collectBlockStatementGroups(from: block, in: cst)
         guard statements.count > 1,
               statements.allSatisfy({ group in
