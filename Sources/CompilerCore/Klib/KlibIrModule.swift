@@ -78,7 +78,6 @@ package struct KlibIrModule {
         return try KlibIrDecoding.file(ProtoFields(files.element(fileIndex)))
     }
 
-    /// Top-level declarations of `fileIndex`, in `declaration_id` order.
     package func declarations(fileIndex: Int) throws -> [KlibIrDeclaration] {
         try file(fileIndex).declarationIds.map { try declaration($0, fileIndex: fileIndex) }
     }
@@ -88,16 +87,11 @@ package struct KlibIrModule {
         return try KlibIrDecoding.declaration(ProtoFields(declarations.element(fileIndex: fileIndex, declarationId: declarationId)))
     }
 
-    /// `bodies` element — an `IrStatement` message (typically wrapping
-    /// `IrBlockBody` for function bodies).
     package func body(_ bodyIndex: Int32, fileIndex: Int) throws -> KlibIrStatement {
         guard let bodies else { throw KlibFormatError.corruptChunk("no bodies table") }
         return try KlibIrDecoding.statement(ProtoFields(bodies.element(row: fileIndex, column: Int(bodyIndex))))
     }
 
-    /// `bodies` element decoded as a bare `IrExpression` — the payload stored
-    /// for `IrField.initializer`, `IrEnumEntry.initializer` and
-    /// `IrValueParameter.defaultValue` (`deserializeExpressionBody`).
     package func expressionBody(_ bodyIndex: Int32, fileIndex: Int) throws -> KlibIrExpression {
         guard let bodies else { throw KlibFormatError.corruptChunk("no bodies table") }
         return try KlibIrDecoding.expression(ProtoFields(bodies.element(row: fileIndex, column: Int(bodyIndex))))
@@ -155,7 +149,6 @@ package struct KlibIrModule {
         return try KlibIrDecoding.fileEntry(ProtoFields(fileEntries.element(row: fileIndex, column: Int(entryIndex))))
     }
 
-    /// Signature debug-info string (`debugInfo.knd`), if present.
     package func signatureDebugInfo(_ index: Int32, fileIndex: Int) throws -> String? {
         guard let signatureDebugInfos, index >= 0,
               index < (try signatureDebugInfos.columnCount(row: fileIndex))
