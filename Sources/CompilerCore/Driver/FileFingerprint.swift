@@ -8,15 +8,11 @@ import Crypto
 import CSHA256
 #endif
 
-/// The content hash is the comparison key; mtime is retained as diagnostic
-/// metadata and for future cache optimizations.
 public struct FileFingerprint: Equatable, Codable {
     public let path: String
 
     public let contentHash: String
 
-    /// Last-modified time as nanoseconds since the Unix epoch.
-    /// Stored as `Int64` to avoid floating-point round-trip issues through JSON.
     public let mtimeNanos: Int64
 
     public init(path: String, contentHash: String, mtimeNanos: Int64) {
@@ -103,11 +99,6 @@ public struct FileFingerprint: Equatable, Codable {
         (value >> amount) | (value << (32 - amount))
     }
 
-    /// Minimal SHA-256 implementation (no external dependency). Hashes the
-    /// buffer in place — only the final padded block(s) are staged — so
-    /// artifact-sized inputs are not copied byte-by-byte first. The message
-    /// schedule lives in an unboxed buffer and block processing is inlined to
-    /// keep the per-round hot loop free of array bounds checks.
     private static func sha256(input: UnsafeRawBufferPointer) -> [UInt8] {
         var h0: UInt32 = 0x6A09_E667
         var h1: UInt32 = 0xBB67_AE85
