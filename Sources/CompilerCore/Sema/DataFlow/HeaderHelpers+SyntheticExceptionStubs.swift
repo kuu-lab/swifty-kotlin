@@ -6,16 +6,7 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         kotlinPkg: [InternedString]
     ) {
-        // KSP-656 moves the Kotlin common exception hierarchy to bundled source.
-        // Keep only the platform-specific and coroutine-specific residual types
-        // here; source-backed classes must not be recreated as synthetic symbols.
-        // kotlin.text.CharacterCodingException is source-backed by
-        // Stdlib/kotlin/text/CharacterCodingException.kt.
         let nullableStringType = types.makeNullable(types.stringType)
-
-        // NegativeArraySizeException is a JVM/platform-specific residual;
-        // ArrayIndexOutOfBoundsException is now source-backed by
-        // Stdlib/kotlin/ArrayIndexOutOfBoundsException.kt.
 
         let runtimeExceptionSymbol = ensureClassSymbol(
             named: "RuntimeException",
@@ -57,8 +48,6 @@ extension DataFlowSemaPhase {
 
     }
 
-    // Used only by residual platform/coroutine exception stubs. KSP-656's
-    // common exception constructors are declared directly in bundled Kotlin source.
     func registerSyntheticPlatformExceptionConstructors(
         ownerSymbol: SymbolID,
         ownerType: TypeID,
