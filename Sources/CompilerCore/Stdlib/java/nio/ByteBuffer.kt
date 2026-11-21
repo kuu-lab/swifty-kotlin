@@ -2,8 +2,6 @@ package java.nio
 
 import kotlin.fromBits
 
-/** Views share storage; position, limit and mark belong to each view.
- * This is not a JVM classfile. */
 public class ByteBuffer private constructor(
     private val bytes: ByteArray,
     private val start: Int,
