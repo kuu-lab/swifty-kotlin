@@ -203,8 +203,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         return true
     }
 
-    /// Uses the regular overload resolver so default arguments and named labels
-    /// are handled correctly.
     @discardableResult
     func bindBundledListBinarySearchSource() -> Bool {
         let calleeStr = interner.resolve(calleeName)
@@ -254,10 +252,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         allowCollectionReceiver: Bool = false,
         allowConcreteForEachReceiver: Bool = false,
         receiverElementType: TypeID? = nil) -> Bool {
-        // KSP-978: Generic Iterable group-family calls use the bundled
-        // source declarations. Concrete List receivers keep the List path
-        // unless an exact specialized Iterable overload opts in below, and
-        // the inline forEach family also routes concrete List/Set receivers.
         guard !isSequenceReceiver,
               ((allowCollectionReceiver && isCollectionReceiver)
                 || (allowNominalIterableReceiver
@@ -347,11 +341,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 case .star: sema.types.anyType
                 }
                 if !typeMatches(receiverElementType, matchingReceiverElementType) {
-                    // Source signatures retain their receiver type parameter
-                    // in this fast path. The call-site type argument is the
-                    // authoritative substitution for the exact Iterable
-                    // owner when the structural TypeID substitution above
-                    // cannot rewrite that receiver slot.
                     guard typeArguments.first == matchingReceiverElementType,
                           case .typeParam = sema.types.kind(of: receiverElementType)
                     else {
@@ -391,9 +380,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         return true
     }
 
-    /// The bundled `Iterable` `*With`/`sortedWith` overloads only take
-    /// Comparator parameters, so a function-typed argument must not bind to
-    /// them.
     func isComparatorTypedArgument(_ argExprID: ExprID) -> Bool {
         let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
         guard let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName),
@@ -405,11 +391,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         return sema.types.isNominalSubtypeSymbol(argClassType.classSymbol, of: comparatorSymbol)
     }
 
-    /// The caller tries the concrete `List<Int>.sum()` fast path first for
-    /// List-like receivers (BUG-256: that path only has an `Int` overload in
-    /// ListCollectionOps.kt, so every other element type falls through to
-    /// this function); call order, not a guard here, keeps the List fast
-    /// path from being overridden when it already bound.
     func bindBundledIterableSumSource() -> TypeID? {
         guard !isSequenceReceiver,
               !isRangeReceiver,
@@ -459,18 +440,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         return signature.returnType
     }
 
-    /// Select and bind one of the source-backed generic `<T> Iterable<T>.sumOf`
-    /// overloads by the already-known selector return type, substituting
-    /// each candidate's own `T` for `collectionElementType` first --
-    /// `signature.receiverType`/`parameterTypes` carry the *unsubstituted*
-    /// type parameter, so comparing them against a concrete element type
-    /// directly (as this used to do) always fails. Shared by
-    /// `bindBundledIterableSumOfSource` (first attempt, before the lambda
-    /// has been inferred) and the `List<T>.sumOf` fallback (BUG-256
-    /// sibling: `ListAggregateHOF.kt` only has Int/Long/Double concrete
-    /// overloads; the caller already inferred the lambda once against
-    /// that set, so inferring it again here would double-register the
-    /// same HOF lambda expr).
     func bindIterableSumOfSourceForSelectorType(
         collectionElementType: TypeID,
         selectorReturnType: TypeID) -> TypeID? {
@@ -491,10 +460,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                   let signature = sema.symbols.functionSignature(for: candidate),
                   signature.parameterTypes.count == 1,
                   let signatureReceiver = signature.receiverType,
-                  // This helper is specifically for the generic
-                  // Iterable<T>.sumOf overloads. A List<T> receiver is
-                  // Iterable-like too, but its indexed List.sumOf body
-                  // is not valid for Set/Collection receivers.
                   let (_, receiverSymbol) = resolveClassTypeSymbol(signatureReceiver, sema: sema),
                   receiverSymbol.fqName == iterableFQName,
                   !signature.typeParameterSymbols.isEmpty
@@ -584,11 +549,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         returnsSequence: Bool,
         destinationType: TypeID? = nil,
         allowConcreteListReceiver: Bool = false) -> Bool {
-        // KUU-4060: concrete List receivers are normally kept on the bundled
-        // List flatMap specialization, but a transform returning a non-List
-        // Iterable or a Sequence must resolve to the JVM `Iterable.flatMap*`
-        // overloads (the `returnsSequence` switch below picks the right one).
-        // The caller passes `allowConcreteListReceiver` only for that shape.
         guard !isSequenceReceiver,
               isIterableReceiver
                 || (allowConcreteListReceiver && receiverClassification.isListReceiver),
@@ -652,11 +612,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         return true
     }
 
-    /// KUU-4060: The bundled `List.flatMap*` overloads accept
-    /// `(T) -> Iterable<R>` transforms, so a transform that yields a non-List
-    /// Iterable, a range/progression, or a Sequence resolves to the JVM
-    /// `Iterable.flatMap*` declarations instead of the List specialization.
-    /// List-returning transforms stay on the List overloads.
     func transformReturnsNonListFlattenable(
         _ returnType: TypeID,
         lambdaArgExpr: ExprID
@@ -672,8 +627,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         {
             return true
         }
-        // A range literal keeps its scalar element type as the bound expr
-        // type; range-ness lives in the expr-level marker instead.
         if case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(lambdaArgExpr),
            sema.bindings.isRangeExpr(bodyExpr)
         {
@@ -682,10 +635,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         return false
     }
 
-    /// Element type contributed to the flattened result by a `flatMap*`
-    /// transform. Covers List/Set/Collection/Iterable/Sequence returns via
-    /// `extractIterableOrSequenceElementType` plus nominal ranges and range
-    /// literals, whose bound expr type is the scalar element type.
     func flatMapTransformElementType(
         lambdaArgExpr: ExprID,
         returnType: TypeID
@@ -722,9 +671,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         guard calleeName == knownNames.asSequence else {
             return false
         }
-        // KSP-1003: Map.asSequence() has its own source-backed overload.
-        // Do not let the generic Iterable fallback treat Map as a
-        // collection expression; Map is not an Iterable in Kotlin.
         if isMapReceiver, bindBundledMapSourceFunction(locals: &locals) {
             return true
         }
@@ -744,11 +690,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     return false
                 }
                 let signatureIsSequence = receiverClassifier.isSequenceLikeType(signatureReceiver)
-                // Sequence<T> is marked as a collection expression while
-                // its static type is being inferred. Do not let that
-                // heuristic select Iterable<T>.asSequence(): Kotlin's
-                // Sequence<T>.asSequence() overload is the identity
-                // conversion and must win for a Sequence receiver.
                 if isSequenceReceiver {
                     return signatureIsSequence
                 }
@@ -927,9 +868,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         let extraParamSymbols = Array(signature.typeParameterSymbols.dropFirst(typeArguments.count))
         if !extraParamSymbols.isEmpty {
             var inferredExtras: [TypeID?] = Array(repeating: nil, count: extraParamSymbols.count)
-            // Destination-type parameters such as `C`/`M` appear directly in
-            // the first value parameter, so infer them from the actual
-            // destination before inferring transform-result parameters.
             if isMapReceiver {
                 for (argIndex, parameterType) in signature.parameterTypes.enumerated() {
                     guard argIndex < args.count,
@@ -1007,11 +945,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         }
     }
 
-    // KSP-957: onEach/onEachIndexed use the Kotlin self-type form
-    // `<T, C : Iterable<T>> C` and `<K, V, M : Map<out K, V>> M`.
-    // The generic receiver type parameter is not handled by the regular
-    // collection-owner resolver, so bind the source declaration after the
-    // lambda has been contextualized.
     @discardableResult
     func bindBundledGenericOnEachSourceFunction(typeArguments: [TypeID]) -> Bool {
         guard !isSequenceReceiver,
@@ -1090,10 +1023,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     /// (`iterator`) but the target name mangled avoids widening that
     /// pool while still binding the correct implementation here.
     func bindBundledMapIteratorSourceFunction() -> TypeID? {
-        // MutableMap.iterator() has a more specific source-backed overload
-        // whose mutable entry type and runtime bridge must win. Let the
-        // regular member resolver select that overload instead of binding
-        // the read-only Map iterator first.
         guard isMapReceiver,
               !isSequenceReceiver,
               !receiverClassifier.isMutableMapType(receiverType),
@@ -1171,9 +1100,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     func sequenceSourceReceiverElementMatches(
         _ signature: FunctionSignature,
         actualElementType: TypeID) -> Bool {
-        // Generic Sequence<T> extensions accept every element type. A
-        // monomorphic extension, however, must only be selected when
-        // its concrete receiver element matches the actual receiver.
         guard signature.typeParameterSymbols.isEmpty,
               let signatureReceiver = signature.receiverType
         else {
@@ -1234,9 +1160,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     }
 
 
-    /// The Sequence counterpart of `bindBundledIterableSumSource`,
-    /// which cannot be reused here because it only scans the
-    /// kotlin.collections Iterable-family declarations.
     func bindBundledSequenceSumSource(locals _: inout LocalBindings) -> TypeID? {
         guard isSequenceReceiver, args.isEmpty else {
             return nil
@@ -1275,15 +1198,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     }
 
 
-    /// KSP-1359: select and bind the bundled generic
-    /// `<T> Sequence<T>.sumOf(selector)` overload whose selector return
-    /// type equals `selectorReturnType`, substituting each candidate's
-    /// `T` for the concrete element type first (its signature stores
-    /// the unsubstituted type parameter). The Sequence counterpart of
-    /// `bindIterableSumOfSourceForSelectorType`: without a
-    /// selector-type-aware match, the first arity-compatible overload
-    /// would capture every selector type (upstream exposes exactly the
-    /// Int/Long/Double/UInt/ULong family).
     func bindSequenceSumOfSourceForSelectorType(
         selectorReturnType: TypeID) -> TypeID? {
         let sourcePackages: [[InternedString]] = [
@@ -1343,16 +1257,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     }
 
 
-    // KSP-441: Source-backed Sequence transforms (map/filter/etc.) live in
-    // kotlin.sequences as top-level extensions. Prefer them over the synthetic
-    // runtime stubs so the object-expression pipeline runs.
-    // `allowIterableReceiver` lets a plain `Iterable<T>`-typed receiver
-    // (e.g. `val x: Iterable<Int> = setOf(...)`) fall back to the
-    // bundled `Sequence<T>` source implementation for aggregate HOFs
-    // that have no direct Iterable source declaration. The Sequence
-    // source bodies are plain `for (element in this)` iteration, so
-    // they are valid for a Set/other Iterable receiver as for a real
-    // Sequence.
     func bindBundledSequenceSourceIfAvailable(
         resultType: TypeID,
         otherElementType: TypeID? = nil,
@@ -1400,14 +1304,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     )
             }
 
-            // `Sequence<Sequence<T>>.flatten()` and
-            // `Sequence<Iterable<T>>.flatten()` are both generic
-            // source declarations. Prefer the candidate whose inner
-            // receiver owner matches the actual element type. Calls
-            // whose element type satisfies neither (or both)
-            // constraints were already rejected in `case "flatten"`
-            // (KUU-461), so the first-candidate fallback is only a
-            // safety net here.
             var bestCandidate: SymbolID?
             var bestScore = Int.min
             for candidate in candidates {
