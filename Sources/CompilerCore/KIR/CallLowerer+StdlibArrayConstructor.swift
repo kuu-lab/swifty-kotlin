@@ -91,8 +91,6 @@ extension CallLowerer {
 
         let sizeIndex = args.firstIndex { $0.label == interner.intern("size") } ?? 0
         let initializerIndex = args.firstIndex { $0.label == interner.intern("init") } ?? 1
-        // Evaluate supplied expressions once in their written order. A literal
-        // lambda has no construction side effects and its body is inlined below.
         var evaluated: [Int: KIRExprID] = [:]
         for (index, argument) in args.enumerated() {
             if index == initializerIndex, case .lambdaLiteral = ast.arena.expr(argument.expr) { continue }
@@ -100,8 +98,6 @@ extension CallLowerer {
         }
         guard let sizeExpr = evaluated[sizeIndex] else { return nil }
 
-        // kk_array_new_checked throws NegativeArraySizeException for negative
-        // sizes instead of silently clamping to an empty array.
         var arrayExpr = arena.appendTemporary(type: anyType)
         instructions.append(.call(callee: arrayNewCallee, arguments: [sizeExpr], result: arrayExpr, canThrow: true))
         if let arrayTypeID {
@@ -121,10 +117,6 @@ extension CallLowerer {
             arena: arena, interner: interner, instructions: &instructions
         )
 
-        // Size-only primitive array constructor (e.g. ByteArray(8)): kk_array_new_checked
-        // already zero-fills every slot (RuntimeValue(raw: 0)), which matches
-        // Kotlin's per-type zero value (0, 0.0, false, NUL char) for every
-        // primitive array element type, so there is no init lambda to run.
         guard args.count == 2 else {
             return arrayExpr
         }
