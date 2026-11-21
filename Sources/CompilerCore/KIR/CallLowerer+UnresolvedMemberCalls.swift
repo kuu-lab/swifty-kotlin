@@ -1,9 +1,6 @@
 // swiftlint:disable file_length
 
 extension CallLowerer {
-    /// ULongRange and ULongProgression instances are runtime range boxes, not
-    /// Kotlin objects with vtables. Keep source-backed Any overrides and
-    /// iterator calls on their runtime-aware ABI paths.
     func runtimeBackedULongProgressionMemberCallee(
         memberName: InternedString,
         receiverType: TypeID,
@@ -30,9 +27,6 @@ extension CallLowerer {
         }
     }
 
-    /// Returns true only for the source-backed HashSet declaration. Other set
-    /// types may provide their own source implementation and must retain the
-    /// resolved symbol for ABI return-type handling.
     func isSourceBackedHashSetType(
         _ receiverType: TypeID,
         sema: SemaModule,
@@ -103,10 +97,6 @@ extension CallLowerer {
         return nil
     }
 
-    /// Runtime-backed set boxes cannot provide an itable implementation for
-    /// source-backed MutableSet defaults. Preserve the overload-specific
-    /// residual bridge selected by Sema, while routing migrated Collection
-    /// members to their hidden set ABI entry points.
     private func mutableSetBulkMutationCallee(
         memberName: InternedString,
         chosenCallee: SymbolID?,
@@ -233,9 +223,6 @@ extension CallLowerer {
         }
     }
 
-    /// `plusAssign`/`minusAssign` on a runtime-backed MutableList resolve to
-    /// either the element or the Collection overload; select the matching
-    /// residual bridge from the bound signature's first parameter type.
     private func mutableListBulkMutationCallee(
         memberName: InternedString,
         chosenCallee: SymbolID?,
@@ -267,9 +254,6 @@ extension CallLowerer {
         }
     }
 
-    /// Emits a runtime ABI mutation for built-in collection boxes when a
-    /// compound operator resolves to a source-backed MutableList/MutableSet
-    /// member. These boxes have no Kotlin itable for the default operator body.
     @discardableResult
     func emitRuntimeBackedCollectionMemberCallIfNeeded(
         memberName: InternedString,
@@ -341,14 +325,6 @@ extension CallLowerer {
         return true
     }
 
-    /// True when the receiver's static type is `kotlin.collections.MutableList`
-    /// — the interface spelling used by runtime list boxes (`mutableListOf`,
-    /// `subList` views). `AbstractMutableList` is deliberately excluded: its
-    /// receivers use registered vtable dispatch, including runtime-backed
-    /// `ArrayDeque` objects and user-defined subclasses. Runtime list boxes
-    /// carry no Kotlin vtable/itable, so these
-    /// members must lower to the `__kk_mutable_list_*` ABI entry points rather
-    /// than dispatch dynamically (KSP-1503).
     private func isMutableListRuntimeFamilyType(
         _ receiverType: TypeID,
         sema: SemaModule,
@@ -362,11 +338,6 @@ extension CallLowerer {
             || symbol.fqName == knownNames.kotlinCollectionsMutableListFQName
     }
 
-    /// True only when the bound callee is a member declared on
-    /// `kotlin.collections.MutableList` — i.e. one of the members migrated to
-    /// `MutableList.kt`. Top-level extensions with the same name
-    /// (`removeAll(predicate)`, `retainAll(predicate)`, HOF sort variants)
-    /// live at package fqName and must keep their own lowering path.
     private func isMutableListRuntimeFamilyMember(
         _ chosenCallee: SymbolID?,
         memberName: InternedString,
@@ -394,10 +365,6 @@ extension CallLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> InternedString? {
-        // HOF arity is the number of source-level arguments (excluding the receiver).
-        // When the caller already prepended the receiver into argumentCount, the source
-        // count must be supplied separately so StdlibSurfaceSpec arity entries (which
-        // count lambda args only) are matched correctly.
         let hofArity = sourceArgumentCount ?? argumentCount
         let knownNames = KnownCompilerNames(interner: interner)
         let memberNameString = interner.resolve(memberName)
@@ -435,8 +402,6 @@ extension CallLowerer {
         ) {
             switch collectionKind {
             case .set, .collection, .iterable:
-                // List sorting is source-backed, but Iterable/Collection/Set
-                // receivers still use the collection-compatible runtime ABI.
                 switch memberName {
                 case knownNames.sortedBy:
                     return interner.intern("kk_list_sortedBy")
@@ -474,9 +439,6 @@ extension CallLowerer {
         {
             return interner.intern("__kk_string_struct_get_length")
         }
-        // KSP-724: `CharSequence.length` is resolved through the bundled
-        // `kotlin.CharSequence` interface, so the `kk_char_sequence_length`
-        // fallback is no longer needed.
         if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
             switch memberName {
             case knownNames.compareTo:
@@ -515,7 +477,6 @@ extension CallLowerer {
             let plusAssignName = interner.intern("plusAssign")
             let minusAssignName = interner.intern("minusAssign")
             switch memberName {
-            // KSP-426: MutableList sorting HOFs are bundled Kotlin source.
             case knownNames.add where argumentCount == 1:
                 return interner.intern("__kk_mutable_list_add")
             case knownNames.add where argumentCount == 2:
@@ -571,8 +532,6 @@ extension CallLowerer {
             }
         }
 
-        // Set receivers keep only the element-storage bridge; everything else is
-        // declared in the bundled Kotlin stdlib (Stdlib/kotlin/collections/SetHOF.kt).
         if isSetLikeType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
             case knownNames.toTypedArray:
@@ -755,9 +714,6 @@ extension CallLowerer {
 
     // swiftlint:enable cyclomatic_complexity
 
-    /// BUG-196: user classes that extend a runtime-backed collection class
-    /// (e.g. `LinkedHashSet`) are not themselves named `Set`/`List`, so look at
-    /// the receiver symbol and its supertypes when classifying collection kind.
     private func collectionKindWithSupertypes(
         of symbol: SemanticSymbol,
         sema: SemaModule,
@@ -870,8 +826,6 @@ extension CallLowerer {
             return nil
         }
 
-        // The reduce family also lowers to the sequence runtime for a bare
-        // Iterable receiver, which collectionKindWithSupertypes does not classify.
         func isIterableReduceReceiver() -> Bool {
             switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .list?, .set?, .collection?:
