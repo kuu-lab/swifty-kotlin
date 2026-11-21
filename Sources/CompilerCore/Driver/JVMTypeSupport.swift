@@ -57,8 +57,6 @@ extension JVMClasspathIndex {
 extension JVMProgramBuilder {
     func varargComponentType(_ id: TypeID) throws -> JVMValueType {
         let component = try parameterType(id)
-        // Generic varargs use Array<T>, even when a final primitive bound
-        // gives individual T values a primitive descriptor.
         if case .typeParam = sema.types.kind(of: id) { return JVMClasspathIndex.boxed(component) }
         return component
     }
@@ -262,7 +260,6 @@ extension JVMProgramBuilder {
                 + (firstBoundIsInterface ? "::" : ":")
                 + (boundSignatures.first ?? "Ljava/lang/Object;")
                 + boundSignatures.dropFirst().map { ":" + $0 }.joined()
-            // Kotlin compiler markers guide compilation and stay off JVM type parameters.
             let parameterAnnotations = try annotations(for: symbol, target: nil).filter {
                 !$0.descriptor.hasPrefix("Lkotlin/internal/")
             }
@@ -301,8 +298,6 @@ extension JVMProgramBuilder {
             } else if let effect = sema.symbols.contractNonNullEffect(for: symbol), effect.appliesOnAnyReturn,
                       let index = signature.valueParameterSymbols.firstIndex(of: effect.parameterSymbol),
                       signature.parameterTypes.indices.contains(index), signature.parameterTypes[index] == sema.types.booleanType {
-                // Source-backed preconditions share this Boolean condition rail
-                // with Sema's post-call smart-cast analysis.
                 f.normalReturnConditionParameter = index
             }
         }
@@ -346,9 +341,6 @@ extension JVMProgramBuilder {
                 (parameter.isVararg ? "[" : "") + signature
             }
             f.genericSignature = typeParameters + "(" + receiverSignature + varargSignatures.joined() + ")" + returnSignature
-            // ACC_VARARGS is valid only when the final parameter in the emitted
-            // signature is the vararg array. Emission rechecks this after
-            // lowerings that append physical parameters.
             let hasTerminalVararg = declaration.valueParams.last?.isVararg == true
                 && f.reference.parameters.last?.descriptor.hasPrefix("[") == true
             if hasTerminalVararg {
