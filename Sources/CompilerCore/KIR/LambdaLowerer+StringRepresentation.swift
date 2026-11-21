@@ -59,11 +59,6 @@ extension LambdaLowerer {
             return "fun \(interner.resolve(name))()"
         }
         let signature = targetSymbol.flatMap { sema.symbols.functionSignature(for: $0) }
-        // kotlin-reflect renders a constructor reference with the `<init>`
-        // name backtick-escaped and no receiver prefix for an ordinary
-        // class (`fun `<init>`(kotlin.Int): B`), while an `inner class`
-        // constructor keeps its outer-class dispatch receiver
-        // (`fun Outer.`<init>`(): Outer.Inner`) (KUU-3810).
         let isConstructor = targetSymbol.flatMap { sema.symbols.symbol($0)?.kind } == .constructor
         let innerConstructorOuterClass = targetSymbol
             .flatMap { sema.symbols.parentSymbol(for: $0) }
@@ -100,13 +95,6 @@ extension LambdaLowerer {
         return "\(prefix)\(receiverText)\(renderedName)(\(params)): \(result)"
     }
 
-    /// KUU-3947 — JVM kotlin-reflect renders a property reference and the
-    /// `property` object handed to a non-local delegate's accessors as
-    /// `val pkg.Owner.name: kotlin.T` (or `var …`). The owner prefix is the
-    /// declaring class's qualified name; a top-level extension property shows
-    /// its receiver (`val kotlin.String.x: kotlin.Int`), and a member
-    /// extension shows `pkg.Owner.(kotlin.String.)name`. Bound references
-    /// render identically to unbound ones (no capture appears in the text).
     func propertyReferenceDescription(
         memberName: InternedString,
         propertySymbol: SymbolID?,
