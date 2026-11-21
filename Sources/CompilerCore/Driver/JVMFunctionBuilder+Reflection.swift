@@ -91,8 +91,6 @@ extension JVMFunctionBuilder {
                 return try adaptedReference(id, symbol: symbol, receiver: receiver, unbound: unbound)
             }
         }
-        // Source-backed inline declarations also retain an ordinary runtime
-        // entry for references, independently of call-site body expansion.
         let sourceBacked = program.inlineDeclarations[symbol] != nil ? program.textLibraryMethods[symbol] : nil
         let method = program.methods[symbol] ?? context.jvmImports?.method(for: symbol) ?? sourceBacked?.method
         let ref = program.references[symbol]
@@ -229,8 +227,6 @@ extension JVMFunctionBuilder {
             return JVMIntrinsicResult(value: try jdkCall(ownerName, name, [.reference("java/lang/Class", nullable: false)], .reference("java/lang/annotation/Annotation", nullable: true), receiver: requireValue(receiverID), arguments: [requireValue(args[0].expr)], resolved: program.expressionType(id)))
         }
         if isClass, name == "java", args.isEmpty {
-            // A class reference already has a JVM Class token. Only a
-            // standalone KClass value needs the Kotlin reflection wrapper.
             if case let .callableRef(receiver, member, _) = arena.expr(receiverID),
                context.interner.resolve(member) == "class" {
                 return JVMIntrinsicResult(value: try javaClassForClassReference(receiverID, receiver: receiver))
