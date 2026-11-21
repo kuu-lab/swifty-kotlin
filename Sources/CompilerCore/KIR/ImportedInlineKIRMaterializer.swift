@@ -1,6 +1,3 @@
-/// Inline KIR artifacts intentionally do not serialize expression kinds or
-/// types.  The importer therefore shifts their IDs out of the consumer arena,
-/// which keeps accidental ID aliasing from changing semantics.
 enum ImportedInlineKIRMaterializer {
     private static let callbackInvokeNames: Set<String> = Set([
         "kk_function_invoke",
@@ -36,9 +33,6 @@ enum ImportedInlineKIRMaterializer {
         }
     }
 
-    /// Recovers the concrete non-null primitive invoke-result types callback
-    /// invokes need so the erased boxed result can be unboxed where a
-    /// primitive slot consumes it.
     static func materializeOne(
         _ function: KIRFunction,
         arena: KIRArena,
@@ -144,10 +138,6 @@ enum ImportedInlineKIRMaterializer {
                           case let .functionType(functionType) = types.kind(of: paramType),
                           case .primitive(_, .nonNull) = types.kind(of: functionType.returnType)
                 {
-                    // A direct call to a function-typed parameter (the callee is
-                    // the parameter symbol itself, not a kk_function_invoke
-                    // adapter). Its result obeys the same boxed ABI, so recover
-                    // the declared primitive return type the same way.
                     expressionTypes[result] = functionType.returnType
                     resultTypes[result] = functionType.returnType
                 }
