@@ -31,8 +31,6 @@ import kotlin.random.Random as KotlinRandom
 //    draws avoid a per-call ThreadLocal lookup that the singleton+fields
 //    design would need.
 
-// Same private bridge Random.kt uses for kotlin.random.Random.Default; the
-// external name is the runtime symbol itself, so no @KsSymbolName is needed.
 private external fun __kk_random_seed_entropy(): Long
 
 public class ThreadLocalRandom private constructor(delegate: KotlinRandom) :
