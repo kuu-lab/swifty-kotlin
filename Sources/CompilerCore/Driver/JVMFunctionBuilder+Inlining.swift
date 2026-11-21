@@ -17,7 +17,6 @@ extension JVMFunctionBuilder {
         let stack: [SymbolID: Int]
     }
     func inlineArgument(_ name: InternedString) -> InlineLambda? {
-        // A block-local function value can shadow an inline parameter.
         guard !scopes.contains(where: { $0[name] != nil }) else { return nil }
         return inlineArguments[name]
     }
@@ -131,8 +130,6 @@ extension JVMFunctionBuilder {
         }
         let type = try expectedResult ?? program.expressionType(id)
         let physicalResult = program.references[binding.chosenCallee]?.result ?? method?.result
-        // Safe calls lift Unit to Unit?, but inline Unit bodies have no result.
-        // The safe-call join materializes Unit only on the non-null edge.
         let result = type == .unit || physicalResult == .unit ? nil : try value(type), end = label()
         inlineReturns = [InlineReturn(lambda: nil, result: result, end: end, finalizerDepth: finalizers.count)]
         switch declaration.body {
@@ -142,7 +139,6 @@ extension JVMFunctionBuilder {
         case let .block(body, _): for statement in body where !terminated { _ = try expression(statement, discarded: true) }
         case .unit: throw fail("Inline function requires a body.", id)
         }
-        // A non-local return may have no edge back into this expression.
         mark(end)
         return JVMIntrinsicResult(value: result)
     }
