@@ -12,7 +12,6 @@ extension LambdaLowerer {
         let functionTypePayload = arity | (functionType.isSuspend ? 0x100 : 0)
         let payloadExpr = arena.appendExpr(.intLiteral(functionTypePayload), type: sema.types.intType)
         instructions.append(.constValue(result: payloadExpr, value: .intLiteral(functionTypePayload)))
-        // Preserve the raw symbol and capture ABI for inline/HOF/coroutine lowering.
         instructions.append(.call(
             callee: interner.intern("kk_function_value_tag_arity"),
             arguments: [callableExpr, payloadExpr],
@@ -34,7 +33,6 @@ extension LambdaLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         if let exprID, functionType.receiver != nil, !functionType.isSuspend {
-            // Generic receiver callbacks already use the callee's erased return ABI.
             guard lambdaReturnType == functionType.returnType else { return nil }
             let callable = arena.appendExpr(.symbolRef(lambdaSymbol), type: sema.types.make(.functionType(functionType)))
             instructions.append(.constValue(result: callable, value: .symbolRef(lambdaSymbol)))
@@ -55,9 +53,6 @@ extension LambdaLowerer {
                 instructions: &instructions
             )
         }
-        // Suspend values count the receiver as the first invocation argument.
-        // Context receivers are leading runtime invocation inputs for a
-        // context-function value, before its extension receiver and parameters.
         let invocationTypes = functionType.contextReceivers
             + (functionType.receiver.map { [$0] } ?? [])
             + functionType.params
@@ -107,9 +102,6 @@ extension LambdaLowerer {
         let closureExpr = arena.appendExpr(.symbolRef(closureParam.symbol), type: closureParam.type)
         body.append(.constValue(result: closureExpr, value: .symbolRef(closureParam.symbol)))
 
-        // The thrown slot and the adapter's single rethrow exit are created
-        // up front so erased-argument checkcasts can share them with the
-        // inner lambda call.
         let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType)
         let continueLabel = driver.ctx.makeLoopLabel()
         let rethrowLabel = driver.ctx.makeLoopLabel()
