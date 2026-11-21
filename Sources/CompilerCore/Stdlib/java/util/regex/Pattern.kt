@@ -10,11 +10,6 @@ public class Pattern internal constructor(
     private val patternText: String,
     private val matchFlags: Int
 ) {
-    /**
-     * Number of capturing groups this pattern declares, matching the JDK's
-     * `Pattern.capturingGroupCount`. A LITERAL pattern is all quoted text and
-     * captures nothing.
-     */
     internal val groupCount: Int = if (RegexOption.LITERAL in regex.options) {
         0
     } else {
@@ -41,7 +36,6 @@ public class Pattern internal constructor(
             val start = match.range.first
             val end = match.range.last + 1
 
-            // A zero-width match at the start does not produce a leading empty part.
             if (start == 0 && end == 0) continue
 
             parts.add(source.substring(lastEnd, start))
@@ -62,13 +56,6 @@ public class Pattern internal constructor(
 
     override fun toString(): String = patternText
 
-    /**
-     * Counts capturing groups by scanning the pattern text. `(` opens a
-     * capturing group unless it starts a `(?…` form; among those, only the
-     * named-capture `(?<name>` counts (`(?<=` / `(?<!` are lookbehind).
-     * Escaped spans (`\x`, `\Q…\E`), character classes, and `#` comments in
-     * COMMENTS mode contribute no groups.
-     */
     private fun countCapturingGroups(pattern: String, comments: Boolean): Int {
         var count = 0
         var index = 0
