@@ -1,9 +1,6 @@
 import Foundation
 
 extension TypeCheckDriver {
-    /// Checks the source-only `@file:JsFileName` argument after const values
-    /// have been evaluated. Its JavaScript output naming effect is handled by
-    /// the Kotlin/JS per-file backend, which this compiler does not provide.
     func validateJsFileNameAnnotationArguments(in files: [ASTFile]) {
         for file in files {
             for annotation in file.annotations {
