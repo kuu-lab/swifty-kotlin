@@ -2,12 +2,8 @@
 protocol LoweringPass: KIRPass {
     static var requiredStage: KIRStage { get }
 
-    /// Stage established after this pass completes, whether it ran or was
-    /// skipped because its feature gate returned false.
     static var producedStage: KIRStage { get }
 
-    /// Returns `false` when the module contains no instructions that this
-    /// pass would rewrite, allowing the driver to skip `run` entirely.
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool
 }
 
@@ -17,10 +13,6 @@ extension LoweringPass {
     }
 }
 
-/// Marker protocol for lowering passes whose `transformFunctions` closure
-/// is safe for concurrent per-function execution.  The closure must not
-/// mutate cross-function state — only `arena.appendExpr` (which is locked
-/// when parallel mode is active) and per-function-local variables.
 public final class LoweringPhase: CompilerPhase {
     public static let name = "Lowerings"
 
@@ -79,15 +71,8 @@ public final class LoweringPhase: CompilerPhase {
             interner: ctx.interner,
             sema: ctx.sema
         )
-        // ARCH-029: indexed imports keep some `.kir` bodies unregistered
-        // until a call site is seen. Register those demanded descriptors
-        // first; the inline pass then materializes each body on expansion
-        // via `ImportedInlineFunctionStore`.
         ctx.sema?.resolveDemandedImportedInlineBodies?(module)
         module.scanFeatures()
-        // Compiler-plugin passes run before the standard pipeline so the
-        // KIR they synthesize flows through every built-in desugaring and
-        // ABI pass. Each pass still self-gates via `shouldRun`.
         let pluginPasses = CompilerPluginRegistry.plugins(for: ctx.options).flatMap(\.loweringPasses)
         // Parallel lowering is disabled: appendExpr assigns IDs under lock
         // in non-deterministic order, breaking KIR determinism tests.
