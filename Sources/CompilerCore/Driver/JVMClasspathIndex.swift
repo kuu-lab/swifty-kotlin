@@ -720,6 +720,8 @@ final class JVMClasspathIndex {
         }
         if method.isReifiedGlanceAction || method.isReifiedWorkBuilder || JVMAndroidXContextService.isEntry(method) { return false }
         if Self.isReifiedHiltViewModel(owner: method.owner, name: method.name, descriptor: method.descriptor) { return false }
+        if method.isSynthetic, method.isStatic, method.owner == JVMMetro.facade,
+           JVMMetro(rawValue: method.name) != nil { return false }
         let exposedName = memberSourceName(for: method)
         // Exclude generated static forwarders. The companion's instance method
         // can still implement a user-declared factory interface.
