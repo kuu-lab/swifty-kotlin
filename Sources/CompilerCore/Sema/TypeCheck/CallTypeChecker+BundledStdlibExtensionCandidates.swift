@@ -3,9 +3,6 @@ import Foundation
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
-    /// Kotlin/Native Worker receiver APIs are members represented by bundled
-    /// package extensions. Recover them before contextualizing call arguments;
-    /// KIR lowering already maps every name below to its runtime ABI entry.
     func collectWorkerMemberCandidates(
         named name: InternedString,
         receiverType: TypeID,
@@ -26,7 +23,6 @@ extension CallTypeChecker {
                   let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
                   sema.symbols.parentSymbol(for: candidate) == owner
             else { return false }
-            // A user extension with the same package/name is not the stdlib API.
             if let file = symbol.declSite?.start.file,
                driver.sourceManager?.origin(of: file) != .bundledStdlib {
                 return false
@@ -37,10 +33,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Whether `receiverType`'s nominal owner is one of the atomic stdlib classes
-    /// whose bundled `*At`/alias source is the live implementation. Gates the
-    /// importless bundled-extension member fallback so it never surfaces the
-    /// dead-mirror bundled sources of other stdlib families.
     func isAtomicMigrationReceiver(
         _ receiverType: TypeID,
         sema: SemaModule,
@@ -121,13 +113,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Bundled stdlib extensions (e.g. the atomic-array
-    /// `loadAt`/`storeAt` migration source) are conceptually members and should be
-    /// callable without an explicit import, but ordinary scope lookup only exposes
-    /// them when imported. This is used as a final member-call resolution fallback,
-    /// so it only affects calls that would otherwise be unresolved. Membership is
-    /// gated by `sema.bundledIndex` so user-declared extensions are never surfaced
-    /// here without import.
     func collectBundledStdlibExtensionCandidates(
         named calleeName: InternedString,
         receiverType: TypeID,
@@ -154,9 +139,6 @@ extension CallTypeChecker {
             else {
                 return false
             }
-            // Source-backed bundled stdlib extensions are not synthetic; imported
-            // stdlib artifact symbols are synthetic + importedLibrary and should
-            // still be considered here so shared-path code can resolve them.
             if symbol.flags.contains(.synthetic), !symbol.flags.contains(.importedLibrary) {
                 return false
             }
@@ -181,10 +163,6 @@ extension CallTypeChecker {
             else {
                 return false
             }
-            // Typealias receivers expand to their runtime nominal owner when a
-            // symbol key is built. The AST index still retains the declaration's
-            // package for source-backed aliases, so accept either representation
-            // here and let the source-file provenance filter choose between them.
             let declaredOwnerKey = BundledMemberKey(
                 ownerFQName: Array(symbol.fqName.dropLast()),
                 name: symbol.name,
@@ -228,8 +206,6 @@ extension CallTypeChecker {
         return preferredCandidates.isEmpty ? candidates : preferredCandidates
     }
 
-    /// Canonical atomics aliases and their legacy shells share a
-    /// runtime class, so the receiver type alone cannot carry this provenance.
     func preferredBundledStdlibPackage(
         sourceFile: ASTFile,
         candidates: [SymbolID],
