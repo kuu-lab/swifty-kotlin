@@ -1,5 +1,4 @@
 // swiftlint:disable file_length
-// KSP-697: nominal collection shells are source-backed; this file retains residual registration.
 
 extension DataFlowSemaPhase {
     func registerSyntheticCollectionStubs(
@@ -44,9 +43,6 @@ extension DataFlowSemaPhase {
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg
         )
-
-        // STDLIB-021: Iterable mutable conversion members are registered later
-        // once MutableList / MutableSet symbols exist — see calls below.
 
         let collectionInterfaceSymbol = registerSyntheticCollectionStub(
             symbols: symbols, types: types, interner: interner,
@@ -103,10 +99,6 @@ extension DataFlowSemaPhase {
             mutableIterableInterfaceSymbol: mutableIterableInterfaceSymbol
         )
 
-        // KSP-704: Set and MutableSet are bundled Kotlin declarations. Their
-        // real nominal headers are predeclared before this residual registry
-        // runs, so the remaining collection bridge registrations can reference
-        // them without recreating the source-backed shell.
         registerSyntheticMapEntryResiduals(
             symbols: symbols,
             types: types,
@@ -121,22 +113,7 @@ extension DataFlowSemaPhase {
             kotlinCollectionsPkg: kotlinCollectionsPkg,
             bundledIndex: bundledIndex
         )
-        // KSP-625: ArrayDeque is provided by bundled Kotlin source
-        // (Stdlib/kotlin/collections/ArrayDeque.kt), so no synthetic stub is
-        // registered for it here.
 
-        // KSP-699: the collection factory functions (listOf / setOf / mapOf and
-        // their mutable, arrayList, hashSet and hashMap variants) are declared by
-        // Stdlib/kotlin/collections/CollectionFactories.kt, hash.kt and linked.kt,
-        // so no bootstrap stub is registered for them here. Their call sites still
-        // take the shared factory lowering path (CallLowerer+CollectionFactoryCalls
-        // / CollectionLiteralLoweringPass) for element boxing and runtime tags.
-
-        // KSP-1517: `Array<T>`/primitive array class shells are predeclared
-        // from bundled Kotlin source (`ArrayIntrinsics.kt`) via
-        // the Array row of `BundledPredeclareRow.early` before this pass runs; no
-        // registration is needed here anymore
-        // (`HeaderHelpers+SyntheticArrayStubs.swift` deleted).
         registerMutableCollectionArrayAddAllMembers(
             symbols: symbols,
             types: types,
