@@ -6,10 +6,6 @@ extension CallTypeChecker {
         receiverType: TypeID,
         locals: inout LocalBindings
     ) -> TypeID? {
-        // Range forEach/map need lambda inference with expectedType so the
-        // implicit `it` parameter gets bound correctly.
-        // Must run before argument pre-inference below to avoid resolving
-        // lambdas without the expected function type.
         if request.sema.bindings.isRangeExpr(request.receiverID),
            !request.args.isEmpty
         {
@@ -34,10 +30,6 @@ extension CallTypeChecker {
            request.args.count == 1,
            isSyntheticStringLikeType(stringHOFReceiverType, sema: request.sema)
         {
-            // `CharSequence.toCollection` bounds its destination with
-            // `C : MutableCollection<in Char>` — offer it as the expected
-            // type so a nested `ArrayDeque()`/factory infers Char instead of
-            // failing or collapsing to Nothing (KUU-4100).
             let destinationExpectedType = mutableCollectionDestinationExpectedType(
                 argumentExpr: request.args[0].expr,
                 elementType: request.sema.types.make(.primitive(.char, .nonNull)),
@@ -175,8 +167,6 @@ extension CallTypeChecker {
                     nil
                 }
                 if stringHOFCalleeStr == "zipWithNext" {
-                    // Re-run inference with the transform overload so the result type
-                    // comes from the lambda body rather than the placeholder `Any`.
                     if let lambdaExpr = request.ast.arena.expr(request.args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         request.sema.bindings.markCollectionHOFLambdaExpr(request.args[0].expr)
                     }
@@ -240,11 +230,6 @@ extension CallTypeChecker {
                     explicitTypeArgs: request.explicitTypeArgs,
                     safeCall: request.safeCall
                 ) {
-                    // The placeholder lambda type above can leave the generic
-                    // result as Any? even when the body has a concrete type.
-                    // Reapply the body type when no explicit or expected type
-                    // constrains the call, so a following collection operator
-                    // sees the correct List element type.
                     if request.explicitTypeArgs.isEmpty,
                        request.expectedType == nil,
                        boundType != request.sema.types.errorType,
@@ -295,9 +280,6 @@ extension CallTypeChecker {
                         nullability: .nonNull
                     )))
                 }()
-                // KUU-2331: the synthetic String-HOF fallback can miss the
-                // source-backed CharSequence.map candidate. Keep its list
-                // result type so chained collection calls bind normally.
                 let resultType: TypeID = switch stringHOFCalleeStr {
                 case "indexOfFirst", "indexOfLast": request.sema.types.intType
                 case "takeWhile", "dropWhile",
@@ -323,9 +305,6 @@ extension CallTypeChecker {
             }
         }
 
-        // thenBy/thenByDescending/thenDescending/thenComparator need the
-        // Comparator<T> receiver type so the lambda gets the correct
-        // contextual function signature before the general resolution path runs.
         if request.args.count == 2,
            ["thenBy", "thenByDescending"].contains(request.interner.resolve(request.calleeName)),
            let comparatorElementType = resolvedComparatorElementType(
