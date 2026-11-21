@@ -1,22 +1,3 @@
-/// KUU-2813: reachability-limited body analysis for top-level functions.
-///
-/// Reachability has to be known *before* type checking, when call targets are
-/// not resolved yet. This analysis is therefore purely lexical and
-/// over-approximating: a function counts as referenced when its simple name
-/// occurs as an identifier token anywhere in a reachable declaration's source
-/// text (comments and string literals included). Every overload, extension and
-/// generic instantiation sharing that name stays reachable, so overload
-/// resolution can never pick a declaration whose body was skipped.
-///
-/// Roots are everything the compiler or a runtime may enter without a textual
-/// call: `main`, every non-function top-level declaration (classes, objects,
-/// properties and type aliases carry initializers, members and implicit
-/// conventions), `operator` functions (convention calls), annotated functions
-/// (`@JvmStatic`, `@JsExport`, ... and reflection hooks), `external` / `expect`
-/// / `actual` functions, and the last segment of every import (aliases).
-///
-/// Only top-level functions in user files are ever skipped; bundled stdlib
-/// files and script files are never touched.
 enum TopLevelFunctionReachability {
     static func unreachableFunctionDecls(
         ast: ASTModule,
@@ -69,7 +50,6 @@ enum TopLevelFunctionReachability {
                 }
             }
         }
-        // Without an entry point (library-like input) nothing is provably dead.
         guard hasMain else { return [] }
 
         while let name = worklist.popLast() {
@@ -78,13 +58,9 @@ enum TopLevelFunctionReachability {
                 enqueue(text: sourceManager.slice(candidate.range))
             }
         }
-        // Whatever is left in `candidatesByName` was never referenced.
         return Set(candidatesByName.values.flatMap { $0.map(\.declID) })
     }
 
-    /// Calls `body` for each maximal identifier-like run (letters, digits, `_`
-    /// and any non-ASCII byte). Backticks and every other character separate
-    /// runs, which only over-approximates the referenced name set.
     private static func forEachIdentifier(in text: Substring, _ body: (String) -> Void) {
         var current: [UInt8] = []
         func flush() {
