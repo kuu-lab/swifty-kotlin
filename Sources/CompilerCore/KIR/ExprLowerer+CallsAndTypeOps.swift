@@ -25,18 +25,10 @@ extension ExprLowerer {
         guard foldsToNullCheck else {
             return targetType
         }
-        // Compatible function values may be raw pointers or boxed closures;
-        // their signature is known statically, so only nullability remains
-        // for either shape.
         return sema.types.nullability(of: targetType) == .nullable
             ? sema.types.nullableAnyType : sema.types.anyType
     }
 
-    /// Whether subject and target share the same erased runtime classifier —
-    /// the nominal symbol, builtin base, or FunctionN shape `kk_op_is` would
-    /// test — so a subject already inside the target statically leaves only
-    /// nullability to verify. `.unknown`/`typeParam` subjects keep the real
-    /// check: without a runtime classifier there is nothing to prove.
     private func isSameErasedClassifier(subject: TypeID, target: TypeID, sema: SemaModule) -> Bool {
         switch (RuntimeTypeCheckToken.classify(type: subject, sema: sema).category,
                 RuntimeTypeCheckToken.classify(type: target, sema: sema).category) {
@@ -72,8 +64,6 @@ extension ExprLowerer {
         }
         let upperBounds = sema.symbols.typeParameterUpperBounds(for: sourceParam.symbol)
         if upperBounds.isEmpty {
-            // An unconstrained T is the intentional erasure boundary used by
-            // compareValuesUnchecked and Array/List binary search.
             return true
         }
         return upperBounds.contains { bound in
@@ -178,9 +168,6 @@ extension ExprLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let intType = sema.types.make(.primitive(.int, .nonNull))
-        // When the target type is a reified type parameter, emit a symbolRef
-        // to the synthetic token parameter so that inline expansion can
-        // substitute the concrete type token at the call site.
         if case let .typeParam(typeParam) = sema.types.kind(of: targetType),
            let symbolInfo = sema.symbols.symbol(typeParam.symbol),
            symbolInfo.flags.contains(.reifiedTypeParameter),
@@ -197,8 +184,6 @@ extension ExprLowerer {
         return tokenExpr
     }
 
-    /// The hidden token carries the call-site T, while an explicit T? adds
-    /// nullability at the use site even when that call-site type is non-null.
     private func lowerReifiedTypeCheckTokenExpr(
         tokenSymbol: SymbolID,
         nullable: Bool,
@@ -238,9 +223,6 @@ extension ExprLowerer {
                 return SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParameterSymbol)
             }
         }
-        // A lambda body can refer to a reified type parameter captured from an
-        // enclosing inline function. The lambda has no function signature for
-        // that outer parameter, so recover the token from its capture context.
         return sema.symbols.allSymbols()
             .filter { symbol in
                 symbol.kind == .typeParameter
