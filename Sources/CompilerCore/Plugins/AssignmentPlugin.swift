@@ -1,9 +1,3 @@
-/// kotlinc `kotlin-assignment` equivalent.
-/// Types or properties annotated with a configured annotation allow `val` or
-/// type-mismatched assignments `lhs = rhs` to be rewritten into `lhs.assign(rhs)`.
-///
-/// Configuration (repeatable):
-///   -P plugin:org.jetbrains.kotlin.assignment:annotation=<fqName>
 struct AssignmentPlugin: CompilerPlugin {
     let id = "org.jetbrains.kotlin.assignment"
 
