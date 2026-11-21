@@ -6,8 +6,6 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext
     ) -> TypeID {
         let sema = ctx.sema
-        // Preserve the scalar binding for range lowering, but use the nominal
-        // type for argument constraints, including generic upper bounds.
         guard sema.bindings.isRangeExpr(expr) || sema.bindings.isFloatingPointRangeExpr(expr),
               case .primitive = sema.types.kind(of: sema.types.makeNonNullable(inferredType)),
               let rangeType = floatingPointRangeArgumentType(
@@ -45,8 +43,6 @@ extension CallTypeChecker {
             }
             return (value, nil)
         default:
-            // `1 shl 31` / `2 * 3 + 1` are Int constant expressions that kotlinc
-            // accepts wherever a wider integer type is expected, like a literal.
             if let value = integerConstantExpressionValue(exprID, ast: ast) {
                 return (value, nil)
             }
@@ -54,8 +50,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Preserve integer values from explicitly annotated `const val` reads so
-    /// overload resolution can apply `@ImplicitIntegerCoercion` per parameter.
     func integerArgumentValues(
         _ exprID: ExprID,
         ctx: TypeInferenceContext
@@ -89,10 +83,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Folds an Int constant expression built only from unsuffixed integer
-    /// literals (arithmetic operators, `-`/`+`, and the `shl`/`shr`/`ushr`/`and`/
-    /// `or`/`xor` infix calls) using Int (32-bit wrapping) semantics. Plain
-    /// literals are excluded: they are handled by the literal path itself.
     func integerConstantExpressionValue(_ exprID: ExprID, ast: ASTModule) -> Int64? {
         switch ast.arena.expr(exprID) {
         case .binary, .memberCall, .unaryExpr:
@@ -204,27 +194,18 @@ extension CallTypeChecker {
                 in: signature,
                 sema: sema
             ) else {
-                // A candidate with the wrong arity or argument label cannot
-                // accept this call and must not block the applicable candidates.
                 continue
             }
             let nonNullParameterType = sema.types.makeNonNullable(parameterType)
             guard case let .primitive(primitive, _) = sema.types.kind(of: nonNullParameterType)
             else {
-                // A parameter of non-numeric type can never accept an integer
-                // literal -- it does not veto narrowing to a numeric overload
-                // (e.g. `onTimeout(30)` with `Long` and `Duration` overloads).
                 continue
             }
-            // A plain `Int` candidate absorbs the literal as an exact match
-            // and must not be pre-empted by narrowing.
             if primitive == .int {
                 return nil
             }
             guard primitive == .long || primitive == .byte || primitive == .short
             else {
-                // Float/Double/unsigned/other primitives cannot take an
-                // unsuffixed integer literal (KUU-3890).
                 continue
             }
             if let result, result != nonNullParameterType {
@@ -254,10 +235,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// Builds the same source-argument to parameter mapping that final overload
-    /// resolution uses. The older index-only helpers cannot distinguish a
-    /// positional vararg element from a later defaulted parameter once the
-    /// argument list crosses the vararg slot.
     func parameterMappingForCallArguments(
         _ args: [CallArgument],
         in signature: FunctionSignature,
@@ -298,9 +275,6 @@ extension CallTypeChecker {
         )
     }
 
-    /// A spread argument and a named vararg argument carry the complete array
-    /// at the call site; their contextual type is therefore the vararg array,
-    /// not its element.
     func contextualCallArgumentType(
         _ argument: CallArgument,
         parameterIndex: Int,
@@ -334,8 +308,6 @@ extension CallTypeChecker {
         )))
     }
 
-    /// Lets context-sensitive expressions such as `if` inherit an unambiguous
-    /// expected type without choosing between overloads early.
     func uniformContextualParameterType(
         for argument: CallArgument,
         at index: Int,
@@ -361,9 +333,6 @@ extension CallTypeChecker {
             else {
                 return nil
             }
-            // A class type parameter in the parameter type (e.g. `Result<T>`
-            // on `Continuation<in T>.resumeWith`) is resolved by the call-site
-            // receiver's type arguments before it can serve as an expected type.
             let parameterType = applyReceiverClassTypeArgs(
                 to: declaredParameterType,
                 signature: signature,
@@ -387,9 +356,6 @@ extension CallTypeChecker {
         return commonType
     }
 
-    /// Unlike unsuffixed integer literals, Kotlin allows a constant UInt
-    /// literal to narrow to UByte/UShort or widen to ULong when the expected
-    /// parameter type requires it.
     func uniformUnsignedLiteralParameterType(
         at index: Int,
         argumentLabel: InternedString?,
