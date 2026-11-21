@@ -95,7 +95,7 @@ struct ClosureMutationSmartCastTests {
         """)
         try runSema(ctx)
         #expect(ctx.diagnostics.diagnostics.contains {
-            $0.code == "KSWIFTK-SEMA-0002" || $0.code == "KSWIFTK-SEMA-0022"
+            $0.code == "KSWIFTK-SEMA-0002" || $0.code == "KSWIFTK-SEMA-0022" || $0.code == "KSWIFTK-SEMA-0026"
         }, "Expected a nullable receiver diagnostic, got: \(ctx.diagnostics.diagnostics.map(\.code))")
     }
 

@@ -1,5 +1,11 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
+enum DefinitelyNullReceiverMemberProbe {
+    case none
+    case unsafeCall
+    case inaccessiblePrivate(SymbolID)
+}
+
 extension CallTypeChecker {
     /// `resolved` is updated in place when a nested-argument retry clears the
     /// diagnostic.
@@ -296,6 +302,17 @@ extension CallTypeChecker {
                     )
                     return probe.chosenCallee != nil
                 }()
+                let definitelyNullReceiverProbe: DefinitelyNullReceiverMemberProbe = {
+                    guard diagnostic.code == "KSWIFTK-SEMA-0480" || diagnostic.code == "KSWIFTK-SEMA-0024" else {
+                        return .none
+                    }
+                    return probeDefinitelyNullReceiverDeclaredMember(
+                        request,
+                        argumentTypes: preparedArgs.argTypes,
+                        lookupReceiverType: lookupReceiverType,
+                        locals: locals
+                    )
+                }()
                 if let projectionDiagnostic = makeProjectionViolationDiagnostic(
                     candidates: candidates,
                     receiverType: lookupReceiverType,
@@ -305,19 +322,22 @@ extension CallTypeChecker {
                     interner: request.interner
                 ) {
                     request.ctx.sema.diagnostics.emit(projectionDiagnostic)
-                } else if (diagnostic.code == "KSWIFTK-SEMA-0480" || diagnostic.code == "KSWIFTK-SEMA-0024")
-                    && definitelyNullReceiverHasDeclaredMember(
-                        request,
-                        argumentTypes: preparedArgs.argTypes,
-                        lookupReceiverType: lookupReceiverType,
-                        locals: locals
-                    )
-                {
+                } else if case .unsafeCall = definitelyNullReceiverProbe {
                     request.ctx.sema.diagnostics.error(
-                        "KSWIFTK-SEMA-0002",
-                        "No viable overload found for call.",
+                        "KSWIFTK-SEMA-0026",
+                        "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
                         range: request.range
                     )
+                } else if case .inaccessiblePrivate(let symbolID) = definitelyNullReceiverProbe,
+                          let symbol = request.sema.symbols.symbol(symbolID)
+                {
+                    driver.helpers.emitVisibilityError(
+                        for: symbol,
+                        name: request.calleeStr,
+                        range: request.range,
+                        diagnostics: request.ctx.sema.diagnostics
+                    )
+                    return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
                 } else if nullableReceiverProbeResolves {
                     if lookupReceiverType == request.sema.types.nullableNothingType {
                         request.ctx.sema.diagnostics.error(
@@ -368,18 +388,18 @@ extension CallTypeChecker {
     /// even though the receiver's declared type has the callee. Probe the
     /// declared non-null type so the diagnostic stays about overload/null
     /// resolution instead of a missing argument or member.
-    func definitelyNullReceiverHasDeclaredMember(
+    func probeDefinitelyNullReceiverDeclaredMember(
         _ request: MemberCallInferenceRequest,
         argumentTypes: [TypeID],
         lookupReceiverType: TypeID,
         locals: LocalBindings
-    ) -> Bool {
+    ) -> DefinitelyNullReceiverMemberProbe {
         let sema = request.sema
         guard !request.safeCall,
               lookupReceiverType == sema.types.nullableNothingType,
               let declaredType = definitelyNullReceiverDeclaredType(request, locals: locals)
         else {
-            return false
+            return .none
         }
         let declaredMemberLookupType = sema.types.makeNonNullable(declaredType)
         let declaredCandidates = driver.helpers.collectMemberFunctionCandidates(
@@ -389,7 +409,32 @@ extension CallTypeChecker {
             interner: request.interner
         )
         guard !declaredCandidates.isEmpty else {
-            return false
+            return .none
+        }
+        let accessibleCandidates = declaredCandidates.filter { candidate in
+            guard let symbol = sema.symbols.symbol(candidate) else {
+                return false
+            }
+            return request.ctx.visibilityChecker.isAccessible(
+                symbol,
+                fromFile: request.ctx.currentFileID,
+                enclosingClass: request.ctx.enclosingClassSymbol
+            )
+        }
+        guard !accessibleCandidates.isEmpty else {
+            if let inaccessiblePrivate = declaredCandidates.first(where: { candidate in
+                guard let symbol = sema.symbols.symbol(candidate), symbol.visibility == .private else {
+                    return false
+                }
+                return !request.ctx.visibilityChecker.isAccessible(
+                    symbol,
+                    fromFile: request.ctx.currentFileID,
+                    enclosingClass: request.ctx.enclosingClassSymbol
+                )
+            }) {
+                return .inaccessiblePrivate(inaccessiblePrivate)
+            }
+            return .none
         }
         let probeArgs = zip(request.args, argumentTypes).map { argument, type in
             let literal = integerArgumentValues(argument.expr, ctx: request.ctx)
@@ -400,7 +445,7 @@ extension CallTypeChecker {
             )
         }
         let probe = request.ctx.resolver.resolveCall(
-            candidates: declaredCandidates,
+            candidates: accessibleCandidates,
             call: CallExpr(
                 range: request.range,
                 calleeName: request.calleeName,
@@ -413,9 +458,9 @@ extension CallTypeChecker {
             ctx: sema
         )
         if probe.chosenCallee != nil {
-            return true
+            return .unsafeCall
         }
-        return probe.diagnostic?.code == "KSWIFTK-SEMA-0003"
+        return probe.diagnostic?.code == "KSWIFTK-SEMA-0003" ? .unsafeCall : .none
     }
 
     private func definitelyNullReceiverDeclaredType(
@@ -642,18 +687,31 @@ extension CallTypeChecker {
                 request, memberLookupType: memberLookupType, argTypes: argTypes,
                 isClassNameReceiver: isClassNameReceiver, locals: &locals
             ) { return propertyType }
-            if definitelyNullReceiverHasDeclaredMember(
+            switch probeDefinitelyNullReceiverDeclaredMember(
                 request,
                 argumentTypes: argTypes,
                 lookupReceiverType: lookupReceiverType,
                 locals: locals
             ) {
+            case .unsafeCall:
                 request.ctx.sema.diagnostics.error(
-                    "KSWIFTK-SEMA-0002",
-                    "No viable overload found for call.",
+                    "KSWIFTK-SEMA-0026",
+                    "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
                     range: request.range
                 )
                 return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
+            case .inaccessiblePrivate(let symbolID):
+                if let symbol = request.sema.symbols.symbol(symbolID) {
+                    driver.helpers.emitVisibilityError(
+                        for: symbol,
+                        name: request.calleeStr,
+                        range: request.range,
+                        diagnostics: request.ctx.sema.diagnostics
+                    )
+                    return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
+                }
+            case .none:
+                break
             }
             request.ctx.sema.diagnostics.error("KSWIFTK-SEMA-0024", "Unresolved member function '\(request.interner.resolve(request.calleeName))'.", range: request.range)
             return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
