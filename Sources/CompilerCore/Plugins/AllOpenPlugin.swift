@@ -1,12 +1,3 @@
-/// kotlinc `kotlin-allopen` equivalent. Classes annotated with a configured
-/// annotation become `open`, and their directly declared members become
-/// overridable, before inheritance/override validation runs.
-///
-/// Configuration (repeatable):
-///   -P plugin:org.jetbrains.kotlin.allopen:annotation=<fqName>
-///
-/// The plugin only transforms source declarations in the current module;
-/// imported symbols keep their recorded modality.
 struct AllOpenPlugin: CompilerPlugin {
     let id = "org.jetbrains.kotlin.allopen"
 
@@ -47,9 +38,6 @@ struct AllOpenPlugin: CompilerPlugin {
         }
     }
 
-    /// Kinds a member can take `open` on. Objects, enums, interfaces,
-    /// annotation classes, constructors and non-callable members cannot be
-    /// opened; nested plain classes can.
     private func isOpenableMemberKind(_ kind: SymbolKind) -> Bool {
         switch kind {
         case .function, .property, .class:
