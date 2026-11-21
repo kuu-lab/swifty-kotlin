@@ -20,7 +20,6 @@ package enum CompilerFileSystem {
         return isCanonicalPathContained(canonicalCandidate, in: canonicalRoot, allowRoot: allowRoot)
     }
 
-    /// Checks containment for URLs that callers have already resolved and standardized.
     package static func isCanonicalPathContained(
         _ candidate: URL,
         in root: URL,
