@@ -1,6 +1,4 @@
 extension DataFlowSemaPhase {
-    /// Register a v3 shell without constructing a full MetadataRecord or
-    /// parsing any signature/layout/annotation from the declaration body.
     func makeImportedLibraryIndexRecord(
         _ record: CompactMetadataIndexRecord,
         path: String,
