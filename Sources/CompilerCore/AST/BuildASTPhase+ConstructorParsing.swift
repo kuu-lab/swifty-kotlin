@@ -7,9 +7,6 @@ extension BuildASTPhase {
         }
     }
 
-    /// Init blocks paired with the range of their `init` keyword — the
-    /// anchor kotlinc uses for 'members are prohibited in annotation
-    /// classes'. The `FunctionBody` range itself covers only `{...}`.
     func declarationInitBlocks(
         from nodeID: NodeID,
         in arena: SyntaxArena,
@@ -73,9 +70,6 @@ extension BuildASTPhase {
     ) -> [ConstructorDecl] {
         var result: [ConstructorDecl] = []
         for bodyBlockID in blockChildren(of: nodeID, in: arena) {
-            // Annotations may appear as a preceding sibling statement node
-            // before the constructorDecl node in the body block CST.
-            // Accumulate tokens from sibling children so annotations are captured.
             var precedingTokens: [Token] = []
             for bodyChild in arena.children(of: bodyBlockID) {
                 guard case let .node(ctorNodeID) = bodyChild,
@@ -87,9 +81,6 @@ extension BuildASTPhase {
                             precedingTokens.append(tok)
                         }
                     case let .node(siblingID) where arena.node(siblingID).kind == .statement:
-                        // Collect tokens from sibling statement nodes (e.g. an
-                        // annotation run that never got embedded in the
-                        // following constructorDecl node).
                         precedingTokens.append(contentsOf: collectTokens(from: siblingID, in: arena))
                     case .node:
                         // Any other resolved sibling declaration (a property,
