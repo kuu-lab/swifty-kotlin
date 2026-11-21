@@ -33,13 +33,8 @@ extension CoroutineLoweringPass {
         let createCoroutineCallee: InternedString
         let createCoroutineUninterceptedCallee: InternedString
         let startCoroutineUninterceptedOrReturnCallee: InternedString
-        /// Link-time marker callees left behind when the source-backed
-        /// receiver-less intrinsics (SuspendFunction0.kt) are inlined.
         let createCoroutineUninterceptedNoReceiverCallee: InternedString
         let startCoroutineUninterceptedOrReturnNoReceiverCallee: InternedString
-        /// Marker callees left behind when the source-backed receiver-bearing
-        /// intrinsics (SuspendFunction1.kt) are inlined; rewritten like the
-        /// receiver-less synthetic forms.
         let createCoroutineUninterceptedWithReceiverCallee: InternedString
         let startCoroutineUninterceptedOrReturnWithReceiverCallee: InternedString
         let runtimeCreateCoroutineUninterceptedCallee: InternedString
@@ -62,9 +57,6 @@ extension CoroutineLoweringPass {
         let loweredBySymbol: [SymbolID: LoweredSuspendFunction]
         let originalByLoweredName: [InternedString: (original: SymbolID, lowered: LoweredSuspendFunction)]
         let continuationTypeByLoweredSymbol: [SymbolID: TypeID]
-        /// KUU-3719: lowered suspend callees whose every suspending call is in
-        /// tail position — on JVM they own no ContinuationImpl, so their
-        /// direct-call children share the caller's interception.
         let interceptionTransparentSymbols: Set<SymbolID>
         let suspendFunctionArityBySymbol: [SymbolID: Int]
         let loweredByUniqueNameArity: [SuspendCallLookupKey: LoweredSuspendFunction]
@@ -196,12 +188,6 @@ extension CoroutineLoweringPass {
             interner: rewrite.ctx.interner,
             callableRefTagFunctionCallee: rewrite.ctx.interner.intern("kk_callable_ref_tag_kfunction")
         )
-        // A callable value which is materialized by LambdaLowerer is normally
-        // recorded in callableValueInfoByExprID.  Closure conversion can
-        // leave only the `kk_function_create_N` instruction in the body,
-        // however, so recover that ABI information from the producer as well.
-        // Flow builders need the original adapter symbol and its packed
-        // closure object to rebuild the launcher continuation below.
         var functionValueInfoByExprRaw: [Int32: KIRCallableValueInfo] = [:]
         for instruction in function.body {
             if case let .copy(from, to) = instruction,
@@ -252,10 +238,6 @@ extension CoroutineLoweringPass {
         let callerContinuationSymbol = rewrite.continuationTypeByLoweredSymbol[function.symbol] != nil
             ? function.params.last?.symbol
             : nil
-        // KUU-3802: index `kk_object_register_itable_method` registrations that
-        // bind a `SuspendFunctionN` interface slot to a suspend `invoke`
-        // implementation owning a launcher thunk, so the default path below can
-        // mirror each with the reserved-slot entry registration.
         let suspendEntryRegistrations = suspendObjectEntryRegistrations(
             in: function,
             symbolByExprRaw: symbolByExprRaw,
@@ -290,10 +272,6 @@ extension CoroutineLoweringPass {
                 continue
             }
 
-            // Inline expansion can leave an ordinary lambda body containing
-            // await even after its suspend caller has consumed the expansion.
-            // Keep that emitted body's runtime ABI valid using the blocking
-            // fallback, just as for suspend function-value invocations.
             let awaitNeedsContinuation = callee == rewrite.ctx.interner.intern("kk_kxmini_async_await")
                 && arguments.count == 1
             if callerContinuationSymbol == nil,
