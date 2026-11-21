@@ -1,5 +1,4 @@
 extension DataFlowSemaPhase {
-    /// Infix notation remains available through overrides that omit the keyword.
     func inheritInfixModifierForOverrides(symbols: SymbolTable, types: TypeSystem) {
         var changed = true
         while changed {
