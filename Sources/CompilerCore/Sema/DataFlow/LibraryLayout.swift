@@ -2,8 +2,6 @@ import Foundation
 
 let maximumImportedNominalLayoutValue = 1_000_000
 
-/// KLIB signatures can retain source type-parameter IDs while imported symbols
-/// use rebased IDs. Compare their type-parameter relationships instead.
 func canonicalizeMangledTypeParameterIDs(_ signature: String) -> String {
     let bytes = Array(signature.utf8)
     var canonicalIndices: [String: Int] = [:]
@@ -498,8 +496,6 @@ extension DataFlowSemaPhase {
 
         let candidates = functionSymbols
             .filter { symbol in
-                // Reject impossible overloads from routing shape before a
-                // semantic query decodes their signature and nominal owner.
                 if let shape = symbols.importedMemberIndexShape(for: symbol.id),
                    shape.arity != arity || symbol.flags.contains(.suspendFunction) != isSuspend
                 {
@@ -543,7 +539,6 @@ extension DataFlowSemaPhase {
             }) {
                 return exact.id
             }
-            // Fall back to legacy arity-only resolution for metadata that lacks a signature.
         }
 
         return candidates.first?.id ?? indexedCandidates.first?.id
