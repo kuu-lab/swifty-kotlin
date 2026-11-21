@@ -34,8 +34,6 @@ extension InlineLoweringPass {
             module: module,
             ctx: ctx
         )
-        // Keep expression cloning independent from the type-substitution
-        // mapping by passing only the operation it needs.
         func substituteType(_ type: TypeID?) -> TypeID? {
             inlineTypeSubstitution?.applying(to: type, in: ctx) ?? type
         }
@@ -111,11 +109,6 @@ extension InlineLoweringPass {
         // original, so they are left alone.
         let mergeSlotExprs = calleeFacts.mergeSlotExprs
 
-        // Give this expansion its own label IDs, so the same function inlined
-        // twice does not define one label twice. The caller relocates them
-        // again on the way in (see `InlineLabelAllocator`). `bodyLabelIDs`
-        // preserves per-occurrence order, so scratch allocation happens in the
-        // same sequence as rescanning the body would.
         var labelRemap: [Int32: Int32] = [:]
         for id in calleeFacts.bodyLabelIDs {
             labelRemap[id] = labels.allocateScratchLabel()
@@ -173,8 +166,6 @@ extension InlineLoweringPass {
                     lowered.append(.jump(inlineExitLabel))
                 } else {
                     returnedExpr = nil
-                    // Preserve in lowered instructions so inlineTransform can
-                    // convert it to an exit-label jump in the NLR path.
                     lowered.append(.returnUnit)
                 }
 
@@ -187,15 +178,10 @@ extension InlineLoweringPass {
                     returnedExpr = dest
                 } else {
                     returnedExpr = resolved
-                    // Preserve in lowered instructions so inlineTransform can
-                    // convert it to an exit-label jump in the NLR path.
                     lowered.append(.returnValue(resolved))
                 }
 
             case let .nonLocalReturn(value, target):
-                // Non-local return from a lambda inside this inline function.
-                // Preserve it so the caller's inlineTransform can convert it
-                // to a real return from the enclosing function.
                 hasNonLocalReturn = true
                 if let value {
                     lowered.append(.nonLocalReturn(InlineExprAliasing.resolveAlias(of: value, aliases: localExprMap), target: target))
@@ -328,10 +314,6 @@ extension InlineLoweringPass {
                     }
                 }
 
-                // A previously inlined function may return a direct lambda symbol.
-                // If that symbol still carries capture arguments in the callee's
-                // local alias map, inline its body here as well so returned
-                // function values preserve their captures.
                 let resolvedArgs = args.map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
                 if functionInvokeCallees.contains(callee),
                    let callableExpr = resolvedArgs.first,
@@ -467,11 +449,6 @@ extension InlineLoweringPass {
                        {
                            return substituted
                        }
-                       // Some in-process test pipelines do not preserve the
-                       // expression type on the copy that crosses the nullable
-                       // branch. `generateSequence` has one type parameter, so
-                       // its inline substitution is still an unambiguous source
-                       // of the concrete seed type in that representation.
                        guard let substituted = inlineTypeSubstitution?.soleSubstitutedType
                        else {
                            return nil
@@ -507,8 +484,6 @@ extension InlineLoweringPass {
                     )
                     : nil
                 if let erasedInvokeReturnType, let loweredResult {
-                    // Imported inline KIR intentionally omits expression types. Restore
-                    // the lambda result type before unboxing the erased invoke result.
                     module.arena.setExprType(erasedInvokeReturnType, for: loweredResult)
                 }
                 if erasedInvoke {
@@ -630,11 +605,6 @@ extension InlineLoweringPass {
                    )
                 {
                     if module.arena.exprType(resolvedTo) == nil {
-                        // The copy target is a freshly-cloned imported expression
-                        // whose type was not serialized. Promote it to the inferred
-                        // inline return type so the accumulator variable stays a
-                        // single expression instead of being split into an initial
-                        // value and a separately-typed replacement.
                         module.arena.setExprType(fromType, for: resolvedTo)
                     } else {
                         let replacement = module.arena.appendExpr(
