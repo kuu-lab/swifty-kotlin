@@ -1,6 +1,4 @@
 extension TypeSystem {
-    /// Returns the ordinary callable signature represented by a regular function
-    /// value or by a nominal class that implements a regular FunctionN interface.
     func suspendConversionSourceFunctionType(from source: TypeID, to target: TypeID) -> TypeID? {
         guard case let .functionType(targetFunction) = kind(of: target),
               targetFunction.isSuspend
@@ -42,7 +40,6 @@ extension TypeSystem {
         return make(.functionType(sourceFunction))
     }
 
-    /// Suspend conversion is a contextual adaptation, not a subtype relation.
     func suspendConversionType(from source: TypeID, to target: TypeID) -> TypeID? {
         guard let sourceFunctionType = suspendConversionSourceFunctionType(from: source, to: target),
               case let .functionType(sourceFunction) = kind(of: sourceFunctionType),
