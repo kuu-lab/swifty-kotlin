@@ -1,17 +1,5 @@
 
 extension CallLowerer {
-    // KSP-496: the kotlin.reflect.full collection accessors (memberProperties/
-    // declaredMemberProperties/functions/memberFunctions/declaredMemberFunctions/
-    // companionObject/isEnum/isInterface/isObject) and cast/safeCast remain
-    // ordinary Kotlin extension declarations
-    // (Sources/CompilerCore/Stdlib/kotlin/reflect/) resolved through the normal
-    // member-call path below this block.
-    //
-    // objectInstance/sealedSubclasses/constructors/simpleName/qualifiedName/
-    // isInstance/the class-kind flags/members/nestedClasses/typeParameters/
-    // supertypes/visibility are source-declared KClass/KDeclarationContainer
-    // members whose native boxes use the runtime registry instead of source
-    // itables. The remaining names stay here:
     // - findAssociatedObject takes a reified type argument,
     //   which this compiler only supports via a small special-cased
     //   allowlist (like typeOf<T>()).
@@ -41,9 +29,6 @@ extension CallLowerer {
         let interner = shared.interner
         let propertyConstantInitializers = shared.propertyConstantInitializers
 
-        // KUU-4431: `Array<*>.isArrayOf<T>()` resolves to the bundled
-        // signature carrier; the check itself is the allocation component's
-        // assignability to the reified T — the same rule `as? Array<T>` uses.
         if let binding = sema.bindings.callBindings[exprID],
            let calleeSymbol = sema.symbols.symbol(binding.chosenCallee),
            calleeSymbol.fqName == KnownCompilerNames(interner: interner).kotlinIsArrayOfFQName
@@ -419,7 +404,6 @@ extension CallLowerer {
                     shared: shared,
                     emit: &instructions
                 )
-                // RuntimeFlowTag.transform = 11
                 let transformTag: Int64 = 11
                 let tagExpr = arena.appendExpr(.intLiteral(transformTag), type: sema.types.intType)
                 instructions.append(.constValue(result: tagExpr, value: .intLiteral(transformTag)))
@@ -452,8 +436,6 @@ extension CallLowerer {
             }
         }
 
-        // `CoroutineContext.cancel()` is a context-wide cancellation entrypoint
-        // and must lower directly to the dedicated runtime ABI.
         if callee == "cancel",
            let receiverType = sema.bindings.exprTypes[receiverExpr],
            isCoroutineContextReceiverType(receiverType, sema: sema, interner: interner)
@@ -486,8 +468,6 @@ extension CallLowerer {
             return result
         }
 
-        // The native annotation lookup is keyed by the resolved public
-        // declaration, so aliases work and user extensions keep their bodies.
         if let chosen = sema.bindings.callBindings[exprID]?.chosenCallee,
            sema.symbols.symbol(chosen)?.fqName == ["kotlin", "reflect", "full", "findAnnotation"].map(interner.intern),
            let receiverType = sema.bindings.exprTypes[receiverExpr],
@@ -501,12 +481,6 @@ extension CallLowerer {
             )
         }
 
-        // KSP-496: simpleName/qualifiedName/isInstance/cast/safeCast/the
-        // boolean flags now resolve as ordinary Kotlin extension declarations
-        // (Sources/CompilerCore/Stdlib/kotlin/reflect/) through the normal
-        // member-call path below this block. Only
-        // findAssociatedObject remains name-dispatched here — see
-        // CallLowerer.kclassMembers for why.
         if case let .callableRef(_, refMember, _) = ast.arena.expr(receiverExpr),
            refMember == KnownCompilerNames(interner: interner).className,
            !sema.bindings.boundClassRefExprs.contains(receiverExpr),
@@ -563,10 +537,6 @@ extension CallLowerer {
             return scopeResult
         }
 
-        // Unlike the receiver-lambda sugar just below, `receiverExpr` here IS
-        // the callable value itself, not a separate dispatch receiver.
-        // A smart-cast intersection (`f as KFunction<*>`) exposes the same
-        // `invoke` sugar through its unique structural conjunct (KUU-3652).
         if interner.resolve(calleeName) == "invoke",
            sema.bindings.callableValueCalls[exprID] != nil,
            sema.types.uniqueStructuralFunctionType(
@@ -590,17 +560,10 @@ extension CallLowerer {
             }
         }
 
-        // Receiver-lambda invocation: `receiver.localVar()` where localVar has
-        // a function-with-receiver type.
-        // Some frontends may also encode the receiver as the first parameter of a regular
-        // function type (`(StringBuilder) -> Unit`), so we mirror the type-checker
-        // fallback here when needed.
         if let callableBinding = sema.bindings.callableValueCalls[exprID],
            case let .functionType(fnType) = sema.types.kind(of: callableBinding.functionType),
            case let .localValue(localSym) = callableBinding.target,
            let receiverExprType = sema.bindings.exprType(for: receiverExpr) {
-            // The property symbol is not a local value, so the local-value arm
-            // below cannot resolve it.
             if sema.symbols.symbol(localSym)?.kind == .property,
                let invokeCallee = runtimeCallableInvokeCallee(
                    callableValueCallBinding: callableBinding,
@@ -637,9 +600,6 @@ extension CallLowerer {
                        callableBinding.receiverArgumentOffset == 0,
                        sema.symbols.extensionPropertyReceiverType(for: localSym) == nil
                     {
-                        // The call-site receiver is the lambda's dispatch receiver,
-                        // passed right after the function value (mirroring the
-                        // local-value arm below).
                         invokeArgs.insert(loweredReceiverID, at: 0)
                     }
                     let boundType = sema.bindings.exprTypes[exprID] ?? fnType.returnType
@@ -727,8 +687,6 @@ extension CallLowerer {
             }
         }
 
-        // Sema binds a CallableValueCallBinding with `target == nil`, so the
-        // lowered receiver expression itself is the function object to invoke.
         if let callableBinding = sema.bindings.callableValueCalls[exprID],
            callableBinding.target == nil,
            case .functionType = sema.types.kind(of: callableBinding.functionType),
@@ -769,9 +727,6 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions.instructions
         ) { return typeQualifiedConstructorResult }
-        // A fully-qualified SAM constructor is parsed as a package-qualified
-        // member call. Like an unqualified SAM constructor, it lowers to the
-        // converted lambda itself and has no ordinary call binding.
         if args.count == 1,
            sema.bindings.isSamConversion(args[0].expr),
            sema.bindings.callBinding(for: exprID) == nil
