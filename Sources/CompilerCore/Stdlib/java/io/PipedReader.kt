@@ -8,11 +8,6 @@ import kotlinx.atomicfu.locks.ParkingHandle
 import kotlinx.atomicfu.locks.ParkingSupport
 import kotlinx.atomicfu.locks.SynchronizedObject
 
-// Shared blocking pipe state for PipedReader/PipedWriter. The JDK keeps the
-// circular char buffer on the reader side and guards it with the reader's
-// monitor plus wait/notify; here the channel carries the buffer, a
-// SynchronizedObject guard, and per-side parker wait lists using the same
-// jucPark/jucUnparkAll plumbing as CountDownLatch.
 internal class PipedChannel(val capacity: Int) {
     val guard = SynchronizedObject()
     val readWaiters = ArrayList<ParkingHandle>()
