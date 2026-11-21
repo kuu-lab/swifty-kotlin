@@ -15,8 +15,6 @@ extension CallLowerer {
         guard args.isEmpty,
               calleeName == KnownCompilerNames(interner: interner).isInitialized,
               case let .callableRef(boundReceiver, _, _) = ast.arena.expr(receiverExpr),
-              // An unbound `C::p` reference's "receiver" is the class name, not
-              // an instance — SEMA rejects it, but never lower it as one here.
               !sema.bindings.isUnboundCallableRef(receiverExpr),
               let propertySymbol = sema.bindings.identifierSymbol(for: receiverExpr),
               let propertyInfo = sema.symbols.symbol(propertySymbol),
@@ -32,8 +30,6 @@ extension CallLowerer {
            parentInfo.kind != .package,
            parentInfo.kind != .object
         {
-            // `c::name` carries its receiver explicitly; a bare `::name`
-            // inside the declaring class reads the implicit `this`.
             let instanceExpr: KIRExprID
             if let boundReceiver {
                 instanceExpr = driver.lowerExpr(
