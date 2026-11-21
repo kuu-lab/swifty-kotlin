@@ -36,7 +36,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // Clock.Companion is a public namespace object in the Kotlin API.
         _ = ensureSyntheticCompanionSymbol(
             ownerSymbol: clockSymbol,
             symbols: symbols,
