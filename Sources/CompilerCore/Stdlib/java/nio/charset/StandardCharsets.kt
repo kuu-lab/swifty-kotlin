@@ -2,7 +2,6 @@ package java.nio.charset
 
 import kotlin.text.Charsets
 
-/** Standard charset constants from `java.nio.charset.StandardCharsets`. */
 public class StandardCharsets private constructor() {
     public companion object {
         public val ISO_8859_1: Charset = Charsets.ISO_8859_1
