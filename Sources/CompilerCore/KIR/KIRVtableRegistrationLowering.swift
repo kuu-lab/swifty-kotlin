@@ -1,25 +1,12 @@
 import RuntimeABI
 
-/// Memoizes the per-nominal dispatch-registration queries KIR lowering runs at
-/// every object construction site. Each result below is a pure function of the
-/// nominal symbol and `sema`, which is immutable during lowering, so entries
-/// computed once are identical for every site constructing the same nominal.
-/// Shared between `KIRLoweringContext` (driver passes) and `KIRContext`
-/// (driver-less passes such as collection-factory rewriting).
 final class KIRNominalDispatchCache {
     private var vtableImplementationsByNominal: [SymbolID: [(slot: Int, dispatchMethod: SymbolID, implementation: SymbolID)]] = [:]
     private var vtableAccessorImplementationsByNominal: [SymbolID: [(slot: Int, dispatchAccessor: SymbolID, implementation: SymbolID)]] = [:]
     private var transitiveInterfaceSupertypesByNominal: [SymbolID: [SymbolID]] = [:]
-    /// Nominal → interface method → implementation the nominal must expose:
-    /// the `kirFindOverrideMethod` result, or the method itself when no
-    /// override exists (both call sites apply that same fallback).
     private var itableImplementationsByNominal: [SymbolID: [SymbolID: SymbolID]] = [:]
-    /// Interface → property-getter slot table, computed once per interface
-    /// instead of once per property read or object registration site.
     private var interfacePropertyGetterSlotsByInterface: [SymbolID: [KIRInterfacePropertyGetterSlot]] = [:]
     private var interfacePropertyGetterSlotByPropertyByInterface: [SymbolID: [SymbolID: Int]] = [:]
-    /// Interface → property-setter slot table, derived from the cached getter
-    /// table so eligibility, ordering, and the setter base stay in sync.
     private var interfacePropertySetterSlotsByInterface: [SymbolID: [KIRInterfacePropertySetterSlot]] = [:]
     private var interfacePropertySetterSlotByPropertyByInterface: [SymbolID: [SymbolID: Int]] = [:]
 
@@ -59,8 +46,6 @@ final class KIRNominalDispatchCache {
         return computed
     }
 
-    /// Effective itable implementation for `interfaceMethod` on `nominalSymbol`:
-    /// the located override, or `interfaceMethod` itself when none is found.
     func itableImplementation(
         for interfaceMethod: SymbolID,
         in nominalSymbol: SymbolID,
@@ -98,8 +83,6 @@ final class KIRNominalDispatchCache {
         return computed
     }
 
-    /// Itable slot of `interfaceProperty`'s getter on `interfaceSymbol`, or nil
-    /// when the property does not participate in itable dispatch.
     func interfacePropertyGetterSlot(
         for interfaceProperty: SymbolID,
         in interfaceSymbol: SymbolID,
@@ -137,8 +120,6 @@ final class KIRNominalDispatchCache {
         return computed
     }
 
-    /// Itable slot of `interfaceProperty`'s setter on `interfaceSymbol`, or
-    /// nil when the property does not participate in interface dispatch.
     func interfacePropertySetterSlot(
         for interfaceProperty: SymbolID,
         in interfaceSymbol: SymbolID,
@@ -226,9 +207,6 @@ func kirVtableImplementations(
         }
 }
 
-/// KSP-928: `layout.vtableSlots` may contain real `.property` symbols (open
-/// stored properties emit getters). The function pointer registered for such
-/// a slot is the property's getter accessor; function symbols pass through.
 private func kirVtableSlotImplementationSymbol(for symbol: SymbolID, sema: SemaModule) -> SymbolID {
     guard sema.symbols.symbol(symbol)?.kind == .property else {
         return symbol
@@ -342,9 +320,6 @@ func appendObjectVtableMethodRegistrations<C: RangeReplaceableCollection>(
     )
 }
 
-/// Mirror of `appendObjectAnyEqualsOverrideRegistration` for `Any.hashCode`:
-/// hashed collections only see an erased handle, so the most-specific user
-/// `hashCode` override is kept alongside each object.
 private func appendObjectAnyHashCodeOverrideRegistration<C: RangeReplaceableCollection>(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
@@ -389,10 +364,6 @@ private func appendObjectAnyHashCodeOverrideRegistration<C: RangeReplaceableColl
     ))
 }
 
-/// KSP-967: Generic equality in source-backed functions is lowered through
-/// `kk_structural_eq`, where the concrete receiver type is unavailable. Keep
-/// the most-specific real `Any.equals` override alongside each object so that
-/// erased equality can still honor user-defined semantics.
 private func appendObjectAnyEqualsOverrideRegistration<C: RangeReplaceableCollection>(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
@@ -437,16 +408,6 @@ private func appendObjectAnyEqualsOverrideRegistration<C: RangeReplaceableCollec
     ))
 }
 
-/// KUU-3865: companion to `appendObjectAnyEqualsOverrideRegistration` /
-/// `appendObjectAnyHashCodeOverrideRegistration` for synthesized SAM-wrapper
-/// classes. A `fun interface` may declare an abstract `Any` member as its
-/// single abstract method (`override fun equals(other: Any?): Boolean`,
-/// `override fun hashCode(): Int`); the synthesized wrapper method is then
-/// the object's `Any` override, but it never carries `.overrideMember`, so
-/// the helpers above skip it. Its source ABI already matches the runtime
-/// tables' convention — every emitted function carries the trailing outThrown
-/// channel — so unlike `toString` no raw bridge is needed. Member-extension
-/// SAMs are not `Any` overrides and never match the signature probe.
 func appendSamWrapperAnyEqualsHashCodeOverrideRegistrations<C: RangeReplaceableCollection>(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
@@ -565,7 +526,6 @@ func anyToStringBridgeSymbolForImplementation(
     var receiverForCall: KIRExprID
     if case let .classType(receiverClass) = rawReceiverKind,
        sema.symbols.symbol(receiverClass.classSymbol)?.kind == .enumClass {
-        // Enum overrides consume ordinals; erased dispatch supplies a tagged box.
         let ordinal = arena.appendTemporary(type: receiverType)
         body.append(.call(
             callee: ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner),
@@ -689,8 +649,6 @@ func anyToStringBridgeSymbolForImplementation(
     return bridgeSymbol
 }
 
-/// Registers the generated raw-string bridge used when a class or object
-/// instance is stringified after its static type has been erased to `Any`.
 func appendObjectAnyToStringRegistration<C: RangeReplaceableCollection>(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
@@ -730,7 +688,6 @@ func appendObjectAnyToStringRegistration<C: RangeReplaceableCollection>(
     ))
 }
 
-/// Registers the raw-string bridge for a value class independently of an
 /// object allocation. ValueClassUnboxingPass removes the heap allocation and
 /// therefore cannot retain the ordinary per-object registration above, while
 /// an Any-erased value class still needs its nominal toString implementation.
@@ -775,7 +732,6 @@ func appendValueClassAnyToStringRegistration<C: RangeReplaceableCollection>(
     ))
 }
 
-/// BUG-227: analog of `kirVtableImplementations` for property accessors.
 /// Property-accessor keys in `layout.vtableSlots` are synthetic IDs (an
 /// arithmetic transform of the underlying property's own symbol — see
 /// `SyntheticSymbolScheme` — not real, symbol-table-registered entries), so
@@ -783,10 +739,6 @@ func appendValueClassAnyToStringRegistration<C: RangeReplaceableCollection>(
 /// `sema.symbols.symbol(methodSymbol)?.kind == .function` filter or its
 /// `parentSymbol`-based ownership/distance lookup directly: both would treat
 /// every property-accessor slot as "no owner found" and silently drop it.
-/// This walks the same slot set, decoding each accessor entry back to its
-/// original property to answer the identical question: for this concrete
-/// class, which override in the chain is the closest (most specific)
-/// implementation of the accessor occupying this slot?
 func kirVtablePropertyAccessorImplementations(
     for nominalSymbol: SymbolID,
     sema: SemaModule
@@ -973,9 +925,6 @@ func appendObjectVtablePropertyAccessorRegistrations<C: RangeReplaceableCollecti
     }
 }
 
-/// Raw-returning bridge for a `Throwable.message` getter: calls the Kotlin
-/// getter (flat `String?` aggregate) and returns the raw handle, relying on the
-/// backend's String bridging at `returnValue`.
 private func throwableMessageGetterBridgeSymbol(
     getter: SymbolID,
     nominalSymbol: SymbolID,
@@ -1045,8 +994,6 @@ private func throwableMessageGetterBridgeSymbol(
 }
 
 public extension SymbolTable {
-    /// Vtable slot of the `kotlin.Throwable.message` getter in `nominalSymbol`'s
-    /// layout, or nil when the nominal does not inherit from Throwable. Shared
     /// by KIR vtable registration and the backend's virtual-call ABI choice,
     /// which must agree that this slot uses the raw String? handle ABI.
     func throwableMessageGetterSlot(for nominalSymbol: SymbolID, interner: StringInterner) -> Int? {
@@ -1070,11 +1017,6 @@ public extension SymbolTable {
     }
 }
 
-/// Returns a bridge symbol for `implementation` when its ABI does not match
-/// the vtable or itable dispatch signature. The bridge adapts erased generic
-/// values, String aggregate/raw-pointer representation, and member-extension
-/// receiver lists, then forwards to the implementation after checking narrowed
-/// erased reference arguments.
 func itableBridgeSymbolForMethod(
     interfaceMethod: SymbolID,
     implementation: SymbolID,
@@ -1320,8 +1262,6 @@ func itableBridgeSymbolForMethod(
     if needsErasedValueReturnBoxing || needsErasedValueReturnUnboxing {
         needsBridge = true
     }
-    // Erased `T` and `Any` slots carry primitive arguments as boxes, while a
-    // specialized implementation expects the raw primitive word.
     func needsErasedValueParamUnboxing(implType: TypeID, ifaceType: TypeID) -> Bool {
         guard isErasedValueSlot(ifaceType),
               case .primitive(_, .nonNull) = sema.types.kind(of: implType)
@@ -1469,8 +1409,6 @@ func itableBridgeSymbolForMethod(
             body.append(.returnIfEqual(lhs: typeMatches, rhs: falseValue))
             continue
         }
-        // Keep the erased representation until the implementation call performs
-        // its ABI conversion (notably raw String handles to flat aggregates).
         let checked = arena.appendTemporary(type: interfaceParamTypes[index])
         let thrown = arena.appendTemporary(type: sema.types.nullableAnyType)
         body.append(.call(
@@ -1513,8 +1451,6 @@ func itableBridgeSymbolForMethod(
         guard needsErasedValueParamBoxing(implType: implType, ifaceType: interfaceParamTypes[index]) else {
             continue
         }
-        // An inherited generic implementation receives the boxed form even
-        // when its concrete interface slot supplies a raw primitive.
         forwardedArgExprs[index] = boxValueForAnySlot(
             forwardedArgExprs[index],
             sourceType: interfaceParamTypes[index],
@@ -1661,20 +1597,11 @@ private func kirCollectionContainsBridgeMethod(
     return collectionContainsOwners.contains(fqName)
 }
 
-/// Registers a nominal type's vtable implementations on an object produced by
-/// a runtime collection factory (for example `LinkedHashSet()` lowered to
 /// `__kk_set_of`). Factory-returned boxes never pass through `kk_object_new`,
 /// so the constructor-site registrations in `appendObjectVtableMethodRegistrations`
 /// never ran for them; without this, an open member such as `LinkedHashSet.size`
 /// dispatches through a vtable slot the box never had registered and the runtime
 /// lookup traps.
-///
-/// Unlike `appendObjectVtableMethodRegistrations` this variant also runs in
-/// driver-less lowering passes (it only needs `KIRContext`-level services).
-/// Implementations whose ABI differs from the slot's source signature — for
-/// example an `external` runtime callee answering `String` as a raw handle —
-/// still register through `itableBridgeSymbolForMethod` so callers never read
-/// a mismatched representation (KUU-3245).
 func appendFactoryObjectVtableMethodRegistrations<C: RangeReplaceableCollection>(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
@@ -1715,11 +1642,6 @@ func appendFactoryObjectVtableMethodRegistrations<C: RangeReplaceableCollection>
     }
 }
 
-/// Registers every direct supertype edge in the ancestor graph of `childSymbol`.
-/// Constructor sites used to emit only `child → direct parent`, so a never-
-/// instantiated intermediate interface (`Ranked : Comparable<Ranked>`) never
-/// contributed `Ranked → Comparable`. Erased `kk_compare_any` then could not
-/// prove the operands were Comparable and fell back to pointer comparison.
 func appendNominalSupertypeEdgeRegistrations<C: RangeReplaceableCollection>(
     childSymbol: SymbolID,
     extraDirectSupertypes: [SymbolID] = [],
@@ -1901,8 +1823,6 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
         interfaceFilter: interfaceFilter,
         instructions: &instructions
     )
-    // Register interface property setters into the itable so a write through
-    // an interface-typed receiver can dispatch to them.
     appendObjectItablePropertySetterRegistrations(
         objectValue: objectValue,
         nominalSymbol: nominalSymbol,
@@ -1915,11 +1835,6 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
     )
 }
 
-/// BUG-200/KSP-1070: legacy or precompiled library metadata may omit the
-/// covariant `MutableIterable.iterator(): MutableIterator<T>` entry from the
-/// `MutableIterable` vtable layout. Source-backed layouts include the member
-/// when available; add that exact method at slot zero for residual layouts so
-/// interface dispatch remains compatible across both paths.
 func kirItableMethodEntries(
     for interfaceSymbol: SymbolID,
     interfaceLayout: NominalLayout,
@@ -1956,11 +1871,6 @@ func kirItableMethodEntries(
         .map { (methodSymbol: $0.key, methodSlot: $0.value) }
 }
 
-/// Interfaces reachable from `nominalSymbol` through the whole supertype
-/// closure, including those implemented by base classes rather than by the
-/// nominal itself. The itable layout assigns slots for exactly this set
-/// (`LayoutSynthesis.collectInterfaceSupertypes`), so instances must register
-/// every one of them to be dispatchable through an interface static type.
 func kirTransitiveInterfaceSupertypes(
     of nominalSymbol: SymbolID,
     sema: SemaModule
@@ -1982,10 +1892,6 @@ func kirTransitiveInterfaceSupertypes(
     return interfaces.sorted { $0.rawValue < $1.rawValue }
 }
 
-/// Resolves the implementation an instance of `nominalSymbol` must expose for
-/// `interfaceMethod`. The override may live on the nominal itself or on any of
-/// its base classes (`class IntBox : AbstractBox<Int>()` inheriting
-/// `AbstractBox.get`), so the class chain is walked most-derived first.
 func kirFindOverrideMethod(
     for interfaceMethod: SymbolID,
     in nominalSymbol: SymbolID,
@@ -2081,16 +1987,12 @@ private func kirFindMatchingMethod(
         {
             continue
         }
-        // Interface fallback must use a body-bearing source declaration;
-        // synthetic residual declarations are not executable defaults.
         if requireSourceBacked,
            (!sema.symbols.isSourceBackedSymbol(candidate) || candidateSym.flags.contains(.abstractType))
         {
             continue
         }
         let candidateSignature = sema.symbols.functionSignature(for: candidate)
-        // A generic method cannot implement a non-generic overload even when
-        // its erased parameter is a wildcard. Receiver binders are separate.
         if let interfaceSignature, let candidateSignature,
            interfaceSignature.typeParameterSymbols.count - interfaceSignature.classTypeParameterCount
                != candidateSignature.typeParameterSymbols.count - candidateSignature.classTypeParameterCount
@@ -2108,14 +2010,12 @@ private func kirFindMatchingMethod(
         {
             return candidate
         }
-        // A known, incompatible overload must not replace an inherited default.
         if interfaceParameterTypes != nil, candidateParameterTypes != nil {
             continue
         }
         if firstCandidate == nil {
             firstCandidate = candidate
         }
-        // BUG-166: retain arity/name fallback only for untracked signatures.
         if arityMatch == nil,
            let interfaceParamCount,
            candidateParameterTypes?.count == interfaceParamCount
@@ -2170,8 +2070,6 @@ func kirMethodSignatureMatches(
     let specializedTarget = target.parameterTypes.map {
         specializeMethodOwnerType($0, owner: targetOwner, instanceOwner: instanceOwner, types: types)
     }
-    // Method binders are declaration identity, not wildcards. Retain the
-    // legacy class-parameter fallback for signatures without method binders.
     if source.typeParameterSymbols.count > source.classTypeParameterCount {
         return methodIdentityParameterTypesMatch(candidateParameterTypes: specializedTarget,
                                                  interfaceParameterTypes: alignedSource, types: types)
@@ -2180,14 +2078,6 @@ func kirMethodSignatureMatches(
                                          interfaceParameterTypes: alignedSource, types: types)
 }
 
-/// A class implementing an interface can declare several overloads sharing
-/// the interface method's name (StringBuilder has multiple `append`
-/// overloads for one `Appendable.append` per arity) — `lookupAll(fqName:)`
-/// returns all of them, so `kirFindOverrideMethod` must pick the one whose
-/// signature actually matches `interfaceMethod`, not just the first
-/// same-named function on the class. Type parameters are treated as
-/// wildcards on either side since a generic interface method's parameter
-/// type may not be reified the same way on the implementing side.
 func kirOverrideParameterTypesMatch(
     candidateParameterTypes: [TypeID],
     interfaceParameterTypes: [TypeID],
