@@ -28,6 +28,12 @@ extension JVMBackendTests {
         fun hidden(): Int = 1
 
         fun visible(): Int = 2
+
+        class DeprecatedProperties {
+            @Deprecated("hidden", level = DeprecationLevel.HIDDEN)
+            val hidden: Int = 1
+            val visible: Int = 2
+        }
         """.write(to: root.appendingPathComponent("HiddenLibrary.kt"), atomically: true, encoding: .utf8)
         _ = try jvmTool("kotlinc", ["HiddenLibrary.kt", "-d", "hidden-library.jar"], root: root)
         return root.appendingPathComponent("hidden-library.jar")
@@ -228,6 +234,12 @@ extension JVMBackendTests {
             let facade = String(decoding: ctx.sourceManager.contents(of: facadeID), as: UTF8.self)
             #expect(facade.contains("`visible`"))
             #expect(!facade.contains("`hidden`"))
+
+            let classPath = "<kswiftk-jvm-import>/fixture/DeprecatedProperties.kt"
+            let classID = try #require(ctx.sourceManager.fileID(forPath: classPath))
+            let classSource = String(decoding: ctx.sourceManager.contents(of: classID), as: UTF8.self)
+            #expect(classSource.contains("`visible`"))
+            #expect(!classSource.contains("`hidden`"))
         }
     }
 
