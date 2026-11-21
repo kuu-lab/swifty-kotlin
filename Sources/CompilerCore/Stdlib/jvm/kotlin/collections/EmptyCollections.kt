@@ -4,8 +4,6 @@ import kotlin.jvm.internal.markers.KMappedMarker
 
 private fun readOnlyCollection(): Unit = throw UnsupportedOperationException("Operation is not supported for read-only collection")
 
-// Preserve Kotlin's mapped marker while inheriting the complete JDK collection
-// ABI, including both toArray overloads and list iteration helpers.
 internal object RepositoryEmptyList: java.util.AbstractList<Any?>(), KMappedMarker, java.io.Serializable, java.util.RandomAccess {
     override val size: Int get() = 0
     fun size(): Int = 0
