@@ -5,7 +5,6 @@ import kotlin.collections.AbstractMutableMap
 import kotlin.collections.MutableMap
 import kotlin.collections.MutableSet
 
-/** A map whose keys are restricted to one enum type and iterated by ordinal. */
 public class EnumMap<K : Enum<K>, V> private constructor() : AbstractMutableMap<K, V>() {
     private var keyType: Class<K>? = null
 
