@@ -5,10 +5,6 @@ extension CallTypeChecker {
         case deferred
     }
 
-    /// A member name alone does not stop Kotlin's implicit-receiver tower.
-    /// Reject only arity mismatches or closed signatures with already-typed
-    /// scalar inputs. Open inference and postponed arguments stay on the normal
-    /// call path; expected return types never make a member inapplicable here.
     func scopeCallCandidatesAfterInapplicableMembers(
         named name: InternedString,
         args: [CallArgument],
@@ -37,12 +33,6 @@ extension CallTypeChecker {
         var members = initialMembers
         var receiver = activeReceiver
         if members.isEmpty {
-            // An anonymous object's lexical scope can stop at an enclosing
-            // class member, and a package extension on the implicit receiver
-            // (e.g. `serializer(it)` inside `Holder.serializer()`) can stop at
-            // the same tier. Probe those callables against their captured
-            // receiver before allowing them to hide the next lexical/import
-            // tier.
             guard !original.isEmpty,
                   original.allSatisfy({
                       isRegularNominalScopeMember($0, ctx: ctx) || isScopeExtensionCandidate($0, ctx: ctx)
@@ -92,7 +82,6 @@ extension CallTypeChecker {
                   })
             else { return (next, excluded, []) }
             let visibleNext = ctx.filterByVisibility(next.filter { !ctx.isCandidateBlockedByDslMarker($0) }).visible
-            // Preserve the normal inaccessible-declaration diagnostic.
             guard !visibleNext.isEmpty else { return (next, excluded, []) }
             members = visibleNext
             receiver = nextReceiver.type
@@ -140,8 +129,6 @@ extension CallTypeChecker {
                  .boolLiteral, .nullLiteral:
                 return true
             case let .nameRef(name, _):
-                // Do not infer an unknown property/getter, or bind an open
-                // local input, merely to probe the receiver tower.
                 guard let knownType = locals[name]?.type ?? sema.bindings.exprType(for: argument.expr)
                 else { return false }
                 return isClosedMemberInputType(knownType, sema: sema)
@@ -175,18 +162,12 @@ extension CallTypeChecker {
             hasUnresolvableImplicitLambdaParameter: prepared.hasUnresolvableImplicitLambdaParameter, ctx: ctx
         )
         if resolved.chosenCallee != nil || resolved.diagnostic?.code == "KSWIFTK-SEMA-0003" { return .applicable }
-        // A candidate that only fails on an argument type is just as
-        // inapplicable as an unresolvable one — the tower continues.
         let diagnosticCode = resolved.diagnostic?.code
         return diagnosticCode == "KSWIFTK-SEMA-0002" || diagnosticCode == "KSWIFTK-SEMA-0473"
             || diagnosticCode == "KSWIFTK-SEMA-0480"
             ? .inapplicable : .deferred
     }
 
-    /// Local to the speculative tower probe. The general lambda-inference
-    /// predicate has a different purpose and does not cover every type shape.
-    /// Unknown/error types, star projections and recursion limits defer to
-    /// normal call inference rather than excluding a member prematurely.
     private func isClosedMemberInputType(_ type: TypeID, sema: SemaModule) -> Bool {
         var activeTypes: Set<TypeID> = []
         func isClosed(_ current: TypeID, depth: Int) -> Bool {
