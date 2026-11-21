@@ -1,4 +1,3 @@
-/// Specializes enumValues after nested inline calls have propagated type tokens.
 final class ReifiedEnumValuesLoweringPass: LoweringPass {
     static let name = "ReifiedEnumValuesLowering"
     static let requiredStage: KIRStage = .propertyLowered
@@ -47,8 +46,6 @@ final class ReifiedEnumValuesLoweringPass: LoweringPass {
                 } else if case let .call(nil, callee, arguments, result?, _, _, _, _) = instruction,
                           let capture = arguments.first,
                           parameterCaptures.contains(capture) {
-                    // Reified captures hold (class token, array component token).
-                    // HOF closures may first load that Pair from a packed environment.
                     if callee == captureLoad, arguments.count == 2 {
                         parameterCaptures.insert(result)
                     } else if callee == pairFirst, arguments.count == 1 {
