@@ -1,6 +1,4 @@
 
-/// Array-shaped atomic surfaces (`AtomicIntArray`/`AtomicLongArray`/
-/// `AtomicArray<T>`), extracted from the Atomic residual registration surface.
 extension DataFlowSemaPhase {
     func registerAtomicArrayFamily(
         packageFQName: [InternedString],
@@ -285,11 +283,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Registers `kotlin.concurrent.atomics.AtomicArray<T>` backed by
-    /// `kk_atomic_ref_array_*` ABI functions.  CAS uses identity semantics.
-    /// KUU-3059: `className`/`constructorLinkName`/`includeIndexOperators`
-    /// parameterize the same surface for
-    /// `java.util.concurrent.atomic.AtomicReferenceArray<T>`.
     func registerAtomicRefArrayStub(
         packageFQName: [InternedString],
         className: String = "AtomicArray",
