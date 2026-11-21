@@ -3576,9 +3576,11 @@ final class JVMClasspathIndex {
                 }
                 return
             }
-            let callbackMembers = hasComposableLambdaFactory ? candidates.filter {
-                $0.sourceName == name && $0.matchesComposeCallbackMember(parameters: descriptorTypes, names: names)
-            } : []
+            let stubCallbacks = hasComposableLambdaFactory ? composableStubParameters(at: site, in: ctx) : []
+            let callbackMembers = stubCallbacks.isEmpty ? [] : candidates.filter {
+                $0.sourceName == name && $0.kotlinFunction?.composableParameters == stubCallbacks
+                    && $0.matchesComposeCallbackMember(parameters: descriptorTypes, names: names)
+            }
             if callbackMembers.count == 1, let method = callbackMembers.first {
                 methods[symbol.id] = method
                 importedComposableParameters[symbol.id] = method.kotlinFunction?.composableParameters ?? []
@@ -3792,6 +3794,34 @@ final class JVMClasspathIndex {
             return function
         }
         return nil
+    }
+    private func composableStubParameters(at site: SourceRange, in ctx: CompilationContext) -> Set<Int> {
+        guard let ast = ctx.ast, let file = ast.file(for: site.start.file) else { return [] }
+        func function(in declarations: [DeclID]) -> FunDecl? {
+            for declaration in declarations {
+                switch ast.arena.decl(declaration) {
+                case let .funDecl(function) where function.range == site:
+                    return function
+                case let .classDecl(owner):
+                    if let found = function(in: owner.memberFunctions + owner.nestedClasses + owner.nestedObjects) { return found }
+                case let .interfaceDecl(owner):
+                    if let found = function(in: owner.memberFunctions + owner.nestedClasses + owner.nestedObjects) { return found }
+                case let .objectDecl(owner):
+                    if let found = function(in: owner.memberFunctions + owner.nestedClasses + owner.nestedObjects) { return found }
+                default:
+                    continue
+                }
+            }
+            return nil
+        }
+        guard let stub = function(in: file.topLevelDecls) else { return [] }
+        return Set(stub.valueParams.indices.filter { index in
+            stub.valueParams[index].type.map { type in
+                ComposePlugin.typeRefHasAnnotation(type, arena: ast.arena) {
+                    ComposePlugin.isComposableAnnotation($0.name, allowShort: true)
+                }
+            } ?? false
+        })
     }
     static func type(_ id: TypeID, sema: SemaModule, ctx: CompilationContext) throws -> JVMValueType {
         switch sema.types.kind(of: id) {
