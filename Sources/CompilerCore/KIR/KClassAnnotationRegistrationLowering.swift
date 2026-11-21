@@ -1,5 +1,3 @@
-/// This shared helper keeps KClass annotation registration identical across
-/// metadata, class-reference, and object-literal lowering paths.
 func emitKClassAnnotationRegistration(
     objectSymbol: SymbolID,
     typeTokenExpr: KIRExprID,
