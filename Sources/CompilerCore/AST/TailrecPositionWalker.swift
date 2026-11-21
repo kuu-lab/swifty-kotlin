@@ -1,8 +1,3 @@
-/// Enumerates calls in result positions without crossing a new return scope or
-/// a try region. Other expression children are still searched for explicit returns.
-/// `onSelfCall` additionally reports every call reachable in a non-tail
-/// position — crossing lambdas, local declarations and object literals —
-/// with a flag marking calls inside try/catch/finally regions.
 enum TailrecPositionWalker {
     static func visit(
         _ id: ExprID,
@@ -55,9 +50,6 @@ enum TailrecPositionWalker {
         switch node {
         case let .returnExpr(value, label, _):
             if let value {
-                // Inside a nested scope or a try region, `return` does not
-                // deliver this function's result, so calls under it are
-                // not tail positions.
                 if !nestedScope && !inTryRegion,
                    label == nil || includeLabeledReturns
                 {
