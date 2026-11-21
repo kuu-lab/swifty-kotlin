@@ -4,14 +4,6 @@ extension ExprTypeChecker {
         ctx.sema.types.displayName(of: type, symbols: ctx.sema.symbols, interner: ctx.interner)
     }
 
-    /// Type parameters the expected type leaves unsubstituted carry no information,
-    /// so annotations always win there. Otherwise only widening is allowed (function
-    /// types are contravariant in their parameters).
-    ///
-    /// `expectedTypeIsSourceDeclared` tells the two kinds of `Any` apart: an
-    /// `Any` written in source constrains the annotation, while an `Any` the
-    /// compiler synthesized for a call whose type variable stayed unsolved
-    /// (`Grouping<K, E>`'s accumulator) carries no information.
     func lambdaAnnotationIsCompatible(
         annotated: TypeID,
         declared: TypeID,
@@ -156,12 +148,6 @@ extension ExprTypeChecker {
             samConversion = false
         }
 
-        // A lambda's declared parameter count must match the expected function
-        // type — the implicit `it` parameter exists only when the expected type
-        // takes exactly one parameter, so `{ }` against `(Int, Int) -> Unit`
-        // and `{ a, b -> }` against `(Int) -> Unit` are both errors. Hint-only
-        // expected types (the elvis RHS hint) and the synthetic `() -> Any`
-        // pushed to directly-invoked lambdas carry no arity contract.
         if !expectedTypeIsHintOnly,
            let expectedType,
            let expectedFunctionType,
@@ -189,22 +175,12 @@ extension ExprTypeChecker {
         var lambdaLocals = locals
         lambdaLocals.preservesShadowedBindings = true
         if ctx.callArgumentExprBeingInferred == id {
-            // A surrounding overload-resolution pass can re-infer this same
-            // argument after its call-site `callsInPlace` effect has already
-            // marked captured locals initialized. That effect is the lambda's
-            // exit state, so do not feed it back as the lambda's entry state.
             let initializedSymbols = Set(sema.bindings.contractCallsInPlaceInitializedSymbols(for: id))
             for (name, local) in lambdaLocals where local.isInitialized && initializedSymbols.contains(local.symbol) {
                 lambdaLocals[name] = (local.type, local.symbol, local.isMutable, false)
                 lambdaLocals.invalidateMembers(root: local.symbol)
             }
         }
-        // Outer receiver `this` symbols are reachable inside the lambda even
-        // though the enclosing member's `this` shadows them in `locals` — the
-        // enclosing context (e.g. an object literal) captured them, so the
-        // lambda can capture them through the same chain.
-        // Anonymous context parameters are not in `locals`, but call bindings
-        // still refer to their symbols and closures must capture those values.
         let enclosingContextSymbols = ctx.enclosingFunctionSymbol
             .flatMap { sema.symbols.functionSignature(for: $0)?.contextParameterSymbols } ?? []
         let outerSymbols = Set(
@@ -247,8 +223,6 @@ extension ExprTypeChecker {
             params
         }
 
-        // Parameter types the expected type actually declares, as opposed to the
-        // `Any` fallback below; only these can contradict an explicit annotation.
         let declaredParameterTypes: [TypeID]? = {
             if let expectedFunctionType, expectedFunctionType.params.count == effectiveParams.count {
                 return expectedFunctionType.params
@@ -296,10 +270,6 @@ extension ExprTypeChecker {
         } else {
             Array(repeating: sema.types.anyType, count: effectiveParams.count)
         }
-        // Explicit `{ a: Int -> ... }` annotations win over the expected type's
-        // parameter types, which may be unsubstituted type parameters when the
-        // expected type is a raw functional interface (BUG-046). An annotation
-        // that contradicts a concrete expected parameter type is an error.
         let annotatedParameterTypes = resolveLambdaParamAnnotations(id, ctx: ctx, paramCount: effectiveParams.count)
         let expectedTypeIsSourceDeclared = sema.bindings.hasSourceDeclaredExpectedType(id)
         let parameterTypes: [TypeID] = effectiveParams.indices.map { offset in
@@ -336,8 +306,6 @@ extension ExprTypeChecker {
         for (offset, param) in effectiveParams.enumerated() {
             let syntheticSymbol = SymbolID(rawValue: Int32(clamping: Int64(-1_000_000) - Int64(id.rawValue) * 256 - Int64(offset + loweredReceiverSlot)))
             let parameterType = parameterTypes[offset]
-            // Preserve the declaration type for checks that must ignore smart casts,
-            // just as for local function parameters.
             sema.symbols.setPropertyType(parameterType, for: syntheticSymbol)
             lambdaLocals[param] = (
                 type: parameterType,
@@ -347,9 +315,6 @@ extension ExprTypeChecker {
             )
         }
 
-        // A type variable bounded by final Unit can only resolve to Unit. Treat
-        // its lambda as Unit-returning so the body is coerced before inference
-        // chooses the body's natural type for that variable.
         let expectedReturnHasUnitUpperBound: Bool = {
             guard !expectedTypeIsHintOnly,
                   let expectedReturnType = expectedFunctionType?.returnType,
@@ -364,19 +329,12 @@ extension ExprTypeChecker {
             || expectedReturnHasUnitUpperBound
 
         var bodyCtx: TypeInferenceContext = if let label {
-            // `foo@{ ... }()` binds `foo` to the postfix expression rather
-            // than the lambda literal, so the label does not denote a function
-            // as a `return@foo` target (kotlinc rejects with "target label
-            // does not denote a function").
             ctx.withLambdaLabel(label, denotesFunction: !ast.arena.isNonFunctionLambdaLabel(id))
         } else {
             ctx
         }
         bodyCtx = bodyCtx.enteringLambdaBody(id)
         bodyCtx.isUnitCoercionContext = lambdaUsesUnitCoercion
-        // The lambda body runs on its own `lambdaLocals` scope, so local
-        // narrowing inside it cannot leak to the enclosing locals — the
-        // conditional-evaluation suppression does not apply within the body.
         bodyCtx.isConditionallyEvaluated = false
         if let receiverType = ctx.implicitReceiverType,
            let receiverSymbol = locals[ctx.interner.intern("this")]?.symbol,
@@ -388,10 +346,6 @@ extension ExprTypeChecker {
             ?? sema.bindings.coroutineScopeLambdaReceiverTypes[id]
         {
             bodyCtx = bodyCtx.with(implicitReceiverType: receiverType)
-            // The lambda's own receiver is its `this`: shadow the enclosing
-            // function's receiver in `locals` (which `inferThisRefExpr` reads
-            // first) and address it through a per-lambda symbol so that
-            // `this@callee` from a nested lambda can capture it.
             let receiverSymbol = SyntheticSymbolScheme.lambdaReceiverSymbol(for: id)
             bodyCtx.implicitReceiverStack.append((receiverType, receiverSymbol))
             lambdaLocals[ctx.interner.intern("this")] = (
@@ -489,12 +443,6 @@ extension ExprTypeChecker {
             expectedReturnType: expectedLambdaReturnType
         )
         bodyCtx.lambdaReturnScopes.append(returnScope)
-        // A bare `if` without `else` occupying the lambda body's tail is a
-        // statement in Kotlin: the lambda simply returns Unit and any mismatch
-        // is reported as a return-type mismatch on the lambda itself, not as
-        // INVALID_IF_AS_EXPRESSION. Statement context here only reaches that
-        // trailing `if` — block statements already infer as statements, and an
-        // else-less `if` forces its own branches into statement context anyway.
         let lambdaTailIsElselessIf: Bool = {
             let tailExpr: ExprID = if case let .blockExpr(_, trailingExpr, _) = ast.arena.expr(body),
                                       let trailingExpr {
@@ -505,12 +453,6 @@ extension ExprTypeChecker {
             guard case let .ifExpr(_, _, elseExpr, _) = ast.arena.expr(tailExpr) else { return false }
             return elseExpr == nil
         }()
-        // A non-exhaustive `when` at the end of a lambda is a statement in
-        // Kotlin — with or without a subject. It types as Unit, and kotlinc
-        // reports a return-type mismatch on the lambda rather than an
-        // exhaustiveness error (KUU-3903). Parentheses make it an expression,
-        // so leave that form on the normal expression path and let
-        // exhaustiveness checking reject it.
         let lambdaTailIsWhenWithoutElse: Bool = {
             let tailExpr: ExprID = if case let .blockExpr(_, trailingExpr, _) = ast.arena.expr(body),
                                       let trailingExpr {
@@ -564,9 +506,6 @@ extension ExprTypeChecker {
         driver.recordGenericCallConsumer(
             body, type: consumerReturnType == sema.types.unitType ? nil : consumerReturnType
         )
-        // A bare `ClassName` as the lambda's result denotes the companion
-        // object; keep the companion value type in the inferred return type
-        // (KUU-3232).
         let bodyResultType = driver.helpers.retypeClassNameAsCompanionValue(
             body, currentType: fallthroughType, ast: ast, sema: sema
         ) ?? fallthroughType
@@ -578,24 +517,14 @@ extension ExprTypeChecker {
         let inferredBodyType = sema.types.lub(
             [bodyResultType] + returnScope.returnValueTypes.sorted { $0.key.rawValue < $1.key.rawValue }.map(\.value)
         )
-        // Range expressions use a scalar Sema type plus a marker, while Kotlin
-        // lambdas expose their nominal range type to surrounding calls.
         let sourceLevelInferredBodyType = driver.callChecker.sourceLevelRangeArgumentType(
             body, inferredType: inferredBodyType, ctx: bodyCtx
         )
-        // Record which outer-scope locals this lambda body unconditionally
-        // initializes. `locals` itself is never mutated here -- the
-        // lambda isn't known to run at this point -- but a caller whose contract
-        // guarantees EXACTLY_ONCE/AT_LEAST_ONCE invocation (applyContractEffects)
-        // can later fold this back into its own definite-assignment state.
         var callsInPlaceInitializedSymbols: [SymbolID] = []
         let returnLocalStates = returnScope.returnLocalStates
         for (name, outerLocal) in locals where !outerLocal.isInitialized {
             if let lambdaLocal = lambdaLocals.binding(named: name, matching: outerLocal.symbol),
                lambdaLocal.isInitialized,
-               // A `return@label` completes the lambda without reaching its
-               // tail, so initialization must hold on every return path too
-               // (kotlinc rejects code that only assigns on the fall-through).
                returnLocalStates.allSatisfy({ state in
                    state.containsInitializedBinding(for: outerLocal.symbol)
                })
@@ -614,12 +543,7 @@ extension ExprTypeChecker {
         )
         sema.bindings.bindCaptureSymbols(id, symbols: captures)
 
-        // SAM conversion: bind the lambda to the interface type, but also
-        // store the underlying function type so KIR lowering can generate
-        // the correct callable.
         if samConversion, let expectedType, let expectedFunctionType {
-            // Unit-returning SAM lambdas discard the body's value, just like
-            // ordinary Unit-returning lambdas (e.g. a Boolean-valued CAS call).
             let expectedReturnIsTypeParam: Bool = {
                 guard case .typeParam = sema.types.kind(of: expectedFunctionType.returnType) else {
                     return false
@@ -699,11 +623,6 @@ extension ExprTypeChecker {
                     sema: sema
                 )
 
-            // Skip the local subtype constraint when the expected return is Unit
-            // (Kotlin allows any body type) or when it is a generic type variable.
-            // For Unit there is nothing to constrain. For a type variable the
-            // local solver cannot bind it; the concrete inferred function type
-            // returned below lets the call resolver infer it instead.
             let expectedReturnIsTypeParam: Bool = {
                 guard case .typeParam = sema.types.kind(of: expectedFunctionType.returnType) else {
                     return false
@@ -992,11 +911,6 @@ extension ExprTypeChecker {
         return allSame ? firstType : nil
     }
 
-    /// Replaces a candidate's own type parameter with the explicit type argument
-    /// written at the call site. Overloads of the same generic function declare
-    /// distinct type parameter symbols, so without this substitution the candidate
-    /// parameter types never agree and the implicit `it` type stays unresolved for
-    /// every argument of a call such as `compareBy<Row>({ it.a }, { it.b })`.
     private func substituteExplicitTypeArgument(
         _ type: TypeID,
         signature: FunctionSignature,
