@@ -1,6 +1,5 @@
 package java.nio
 
-/** A position-based view of a character array. */
 public class CharBuffer private constructor(
     private val chars: CharArray,
     private val start: Int,
