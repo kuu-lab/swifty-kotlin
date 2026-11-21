@@ -190,7 +190,8 @@ extension NativeEmitter {
         var globalVariables = declareGlobals(
             llvmModule: llvmModule,
             int64Type: int64Type,
-            emitDefinitions: true
+            emitDefinitions: true,
+            definitionsUsedOnlyByOtherObjects: true
         )
         ensureImportedGlobalReferences(
             module: module,
