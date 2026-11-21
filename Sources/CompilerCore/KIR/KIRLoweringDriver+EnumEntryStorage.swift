@@ -1,24 +1,8 @@
-/// Enum values stay ordinal-backed (a boxed ordinal at `Any` boundaries), so
-/// an entry has no heap object to hold its fields. Each enum class instead
-/// gets per-entry side storage: one global slot per (entry, stored property),
-/// filled exactly once by a guarded lazy initializer (`$enumEnsureInit$`)
-/// that mirrors JVM `<clinit>`: for every entry in declaration order it binds
-/// the constructor arguments (by label, with defaults that may refer to
-/// earlier parameters), stores the constructor properties, runs the class
-/// body's property initializers and `init` blocks, then the entry body's own
-/// property initializers. Property reads/writes go through the
-/// `$enumConstructorProperty$<name>` / `$enumPropertySetter$<name>` helpers,
-/// which switch on the ordinal and touch the matching slot.
-///
-/// Enums whose entries only pass literal arguments and have no `init`
-/// blocks, varargs or body/entry stored properties keep the storage-free fast path:
-/// the getter helper returns the literal for the receiver's ordinal.
 enum EnumPropertyHelperNames {
     static let getterPrefix = "$enumConstructorProperty$"
     static let setterPrefix = "$enumPropertySetter$"
     static let ensureInitName = "$enumEnsureInit$"
 
-    /// Caller-side placeholder callee (`<prefix><ownerID>$<property>`); the
     /// owner symbol rawValue is not stable across .kklib boundaries, so
     /// `EnumNameAccessLoweringPass` rewrites it to the ID-free helper.
     static func placeholder(
@@ -139,7 +123,6 @@ extension KIRLoweringDriver {
                   case let .propertyDecl(property) = decl,
                   !property.isSynthesizedPrimaryConstructorProperty,
                   isPlainStoredEnumProperty(property),
-                  // A `val` without initializer is assigned in an `init` block.
                   !property.modifiers.contains(.abstract),
                   let propertySymbol = sema.bindings.declSymbols[declID]
             else {
@@ -152,10 +135,6 @@ extension KIRLoweringDriver {
                 isMutable: property.isVar
             ))
         }
-        // Enum values are represented by ordinals, so delegated-property
-        // handles need per-entry side storage just like ordinary body fields.
-        // Key the initialization slot by the source property symbol because
-        // emitDelegatePropertyInitializer stores through that symbol.
         for declID in classDecl.memberProperties {
             guard let decl = ast.arena.decl(declID),
                   case let .propertyDecl(property) = decl,
@@ -173,12 +152,6 @@ extension KIRLoweringDriver {
                 isMutable: false
             ))
         }
-        // Class-delegation handles (`enum class E : I by expr`) are per-entry
-        // state too: an enum value is ordinal-backed and has no heap object to
-        // hold the delegate, so it gets the same per-entry global slot an
-        // ordinary stored property does. The delegate expression is evaluated
-        // once per entry in $enumEnsureInit$, and the synthesized forwarding
-        // members read the slot back through the ordinal-switch getter.
         for interfaceSymbol in sema.symbols.delegatedInterfaces(forClass: ownerSymbol) {
             guard let fieldSymbol = sema.symbols.classDelegationField(
                 forClass: ownerSymbol,
@@ -309,7 +282,6 @@ extension KIRLoweringDriver {
             && (property.setter?.body ?? .unit) == .unit
     }
 
-    /// Literals can be re-lowered on every read without observable effects.
     private func isPureLiteralExpr(_ exprID: ExprID, ast: ASTModule, interner: StringInterner) -> Bool {
         switch ast.arena.expr(exprID) {
         case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral,
@@ -337,8 +309,6 @@ extension KIRLoweringDriver {
             visibility: .public,
             flags: [.synthetic, .static]
         )
-        // The parent link is what lets metadata export treat this helper
-        // as an enum-class member (and lets consumers resolve it).
         sema.symbols.setParentSymbol(ownerInfo.id, for: symbol)
         return symbol
     }
@@ -561,9 +531,6 @@ extension KIRLoweringDriver {
             return symbol
         }
 
-        // classSlots[ordinal][name] holds class-level storage (constructor and
-        // body properties); entrySlots[ordinal][name] holds an entry-body
-        // override, which takes precedence on reads and writes.
         var classSlots: [[InternedString: SymbolID]] = []
         var entrySlots: [[InternedString: SymbolID]] = []
         let classLevelNames = Set(
@@ -654,9 +621,6 @@ extension KIRLoweringDriver {
                         body: &body
                     )
                 } else if let primaryConstructorSymbol {
-                    // Preserve lowering for enum declarations produced before
-                    // entry bindings were recorded, while keeping primary
-                    // constructor mapping consistent with Sema when present.
                     let providedArguments = entry.constructorArgs.map {
                         lowerExpr($0.expr, shared: shared, emit: &body)
                     }
@@ -689,8 +653,6 @@ extension KIRLoweringDriver {
                 }
                 ctx.enumEntryStorageSlots = [:]
 
-                // Entry body declarations run after the enum class constructor,
-                // in their source order, like an anonymous subclass initializer.
                 ctx.enumEntryStorageSlots = Dictionary(
                     uniqueKeysWithValues: entryBodyProperties[ordinal].compactMap { property in
                         entrySlots[ordinal][property.name].map { (property.symbol, $0) }
@@ -948,9 +910,6 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    /// Inserts guarded enum and companion initialization calls before each
-    /// enum entry reference, so entry side effects and companion `init` blocks
-    /// run in source access order.
     private func emitEnumEntryConstructorInitialization(
         constructorSymbol: SymbolID,
         arguments: [CallArgument],
@@ -1106,9 +1065,6 @@ extension KIRLoweringDriver {
                 body: &body
             )
         } else {
-            // Constructors without a `this(...)` call reach the superclass
-            // directly, so the class property initializers and init blocks run
-            // before their own body.
             emitClassDelegationInitializers(
                 ownerSymbol: ownerSymbol,
                 receiverID: ctx.activeImplicitReceiverExprID()!,
