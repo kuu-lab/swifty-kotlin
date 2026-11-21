@@ -1,5 +1,3 @@
-/// Small ABI-compatible function interfaces keep JVM output self-contained.
-/// Their binary names and erased invoke signatures match kotlin-stdlib.
 extension JVMProgramBuilder {
     func rawFunction(_ owner: String, name: String, parameters: [JVMValueType], result: JVMValueType, access: UInt16, locals: [JVMValue], instructions: [JVMInstruction], constructor: Bool = false) -> JVMFunction {
         var function = JVMFunction(reference: JVMFunctionReference(name: name, parameters: parameters, result: result), isPrivate: access & 2 != 0, locals: locals, parameterCount: parameters.count + (access & 8 == 0 ? 1 : 0), instructions: instructions, parameterNames: parameters.indices.map { "p\($0)" }, isInternal: false)
