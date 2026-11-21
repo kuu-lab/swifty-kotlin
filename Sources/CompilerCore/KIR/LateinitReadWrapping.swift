@@ -1,6 +1,3 @@
-/// Shared between `ExprLowerer` (for stored-property reads) and
-/// `CallLowerer` (for member-access reads). Both callers used the same
-/// implementation; this file is the single source of truth.
 func wrapLateinitReadIfNeeded(
     _ valueExpr: KIRExprID,
     symbol: SymbolID,
