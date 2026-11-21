@@ -99,7 +99,6 @@ final class CallSupportLowerer {
             case let .localNominalDecl(declID, _):
                 collectFunctionDefaults(declID, ast: ast, sema: sema, mapping: &mapping)
             case let .objectLiteral(_, declID, _):
-                // Object literal members are expression-owned declarations.
                 if let declID {
                     collectFunctionDefaults(declID, ast: ast, sema: sema, mapping: &mapping)
                 }
@@ -137,12 +136,6 @@ final class CallSupportLowerer {
                 collectFunctionDefaults(item, ast: ast, sema: sema, mapping: &mapping)
             }
         case let .interfaceDecl(interfaceDecl):
-            // KUU-655: an interface method's own default value expressions
-            // (e.g. `interface I { fun m(x: Int = 5): String }`) were never
-            // collected at all -- this case was missing entirely, so no
-            // `m$default` stub was ever generated and any call through it
-            // (directly, or via an override that omits the argument) failed
-            // at link time with an undefined `_m$default` symbol.
             for item in interfaceDecl.memberFunctions + interfaceDecl.nestedClasses + interfaceDecl.nestedObjects {
                 collectFunctionDefaults(item, ast: ast, sema: sema, mapping: &mapping)
             }
@@ -213,7 +206,6 @@ final class CallSupportLowerer {
         return owner
     }
 
-    /// The default ABI receives the same packed storage as the original body.
     private func runtimeReferenceVarargListType(
         at index: Int, functionSymbol: SymbolID, signature: FunctionSignature,
         sema: SemaModule, interner: StringInterner
@@ -227,7 +219,6 @@ final class CallSupportLowerer {
         return sema.types.make(.classType(ClassType(classSymbol: list, args: [.invariant(signature.parameterTypes[index])])))
     }
 
-    /// The semantic signature continues to record each vararg's element type.
     private func defaultParameterStorageType(
         at index: Int,
         functionSymbol: SymbolID,
@@ -252,9 +243,6 @@ final class CallSupportLowerer {
         )
     }
 
-    /// Sema checks a vararg declaration default as its source array type.
-    /// Source bodies and default stubs share packed array storage. Selecting
-    /// a stored default must preserve the original array identity.
     private func normalizedDeclaredVarargDefault(
         _ value: KIRExprID,
         at index: Int,
@@ -270,7 +258,6 @@ final class CallSupportLowerer {
         ) != nil {
             return emitArrayToList(value, arena: arena, interner: interner, anyType: sema.types.anyType, instructions: &instructions)
         }
-        // Source bodies and source $default stubs share packed Array storage.
         return value
     }
 
@@ -294,8 +281,6 @@ final class CallSupportLowerer {
         driver.ctx.resetScopeForFunction()
         driver.ctx.setCurrentFunctionSymbol(originalSymbol)
 
-        // A local function's lifted body takes its captured values as leading
-        // parameters; the stub mirrors them and forwards them to the original.
         var params: [KIRParameter] = captures.map(\.param)
         var captureArgExprs: [KIRExprID] = []
         var dispatchReceiverBinding: (symbol: SymbolID, exprID: KIRExprID)?
@@ -401,8 +386,6 @@ final class CallSupportLowerer {
             contextArgumentExprs.append(expression)
             contextReceiverValues.append(.init(type: contextType, exprID: expression))
         }
-        // Defaults can themselves capture reified parameters in a lambda.
-        // Bind both hidden slots before lowering those expressions.
         for tokenSymbol in reifiedTokenSymbols {
             let token = arena.appendExpr(.symbolRef(tokenSymbol), type: intType)
             body.append(.constValue(result: token, value: .symbolRef(tokenSymbol)))
@@ -439,8 +422,6 @@ final class CallSupportLowerer {
                 driver.ctx.setLocalValue(captureExpr, for: capture.capturedSymbol)
             }
             if capture.param.symbol == scopeSnapshot.currentImplicitReceiverSymbol {
-                // Default expressions are lowered in a fresh function scope;
-                // restore a captured outer `this` so implicit member reads use it.
                 driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: captureExpr)
             }
             captureArgExprs.append(captureExpr)
@@ -543,8 +524,6 @@ final class CallSupportLowerer {
         }
 
         let result = arena.appendTemporary(type: signature.returnType)
-        // The expect declaration owns the default expressions and therefore
-        // this stub, but its paired actual owns the implementation to call.
         let implementationSymbol = sema.symbols.actualSymbol(for: originalSymbol) ?? originalSymbol
         let implementationName = sema.symbols.symbol(implementationSymbol)?.name ?? originalName
         let directCallInstruction = KIRInstruction.call(
@@ -576,9 +555,6 @@ final class CallSupportLowerer {
                chosenCallee: implementationSymbol,
                calleeName: implementationName,
                receiverExpr: nil,
-               // Member extensions dispatch on the enclosing owner (the
-               // leading `callArgs` entry), not the extension receiver —
-               // the extension receiver is an ordinary leading argument.
                loweredReceiverID: dispatchReceiverBinding?.exprID ?? functionReceiverExpr,
                isSuperCall: false,
                // `tryEmitVirtualDispatch` strips the leading receiver from
@@ -795,8 +771,6 @@ final class CallSupportLowerer {
         }
         let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee)
         let isVararg = OverloadResolver.normalizeFlags(signature.valueParameterIsVararg, count: parameterCount)
-        // Named vararg arguments contain arrays and use the same packing path
-        // as explicit spread arguments. Ordinary named parameters remain scalar.
         var spreadFlags = OverloadResolver.normalizeFlags(spreadFlags, count: providedArguments.count)
         for (argIndex, paramIndex) in callBinding.parameterMapping
             where argumentLabels.indices.contains(argIndex)
@@ -951,9 +925,6 @@ final class CallSupportLowerer {
                     }
                     boxedArguments[argIndex] = materialized
                 }
-                // `kk_array_of` backs both generic arrayOf<T> and primitive array
-                // factories. Preserve erased-type boxing and skip boxing for concrete
-                // primitive storage.
                 boxNonSpreadVarargArguments(
                     argIndices,
                     in: &boxedArguments,
@@ -1111,8 +1082,6 @@ final class CallSupportLowerer {
                 }
                 continue
             }
-            // A declaration default takes precedence over the implicit empty
-            // array used for an omitted non-optional vararg.
             if isVararg[paramIndex], !hasDefaultValues[paramIndex] {
                 let primitiveArrayType = primitiveVarargArrayType(
                     elementType: signature.parameterTypes[paramIndex],
@@ -1136,8 +1105,6 @@ final class CallSupportLowerer {
                     ),
                     instructions: &instructions
                 )
-                // Empty primitive and local reference varargs keep their array
-                // representation. Other reference varargs use the List bridge.
                 let typedEmptyArray = appendRuntimeArrayComponentTag(
                     emptyArray, arrayType: arena.exprType(emptyArray), context: driver.ctx, sema: sema,
                     arena: arena, interner: interner, instructions: &instructions
@@ -1153,8 +1120,6 @@ final class CallSupportLowerer {
                     ))
                 continue
             }
-            // Use semantic hasDefaultValues flag (callee context) instead of
-            // looking up AST default expressions at the caller site.
             guard hasDefaultValues[paramIndex] else {
                 return NormalizedCallResult(arguments: providedArguments, defaultMask: 0)
             }
@@ -1227,7 +1192,6 @@ final class CallSupportLowerer {
         return NormalizedCallResult(arguments: normalized, defaultMaskWords: defaultMask.stubWords)
     }
 
-    /// Boxes non-spread primitive arguments when the vararg's declared element type is Any/reference/type-param — e.g. `printAll(vararg items: Any)` — but not for a concrete-primitive element type like `IntArray`'s `intArrayOf(vararg elements: Int)`, which needs raw storage.
     func boxNonSpreadVarargArguments(
         _ argIndices: [Int],
         in arguments: inout [KIRExprID],
@@ -1408,8 +1372,6 @@ final class CallSupportLowerer {
                 result: concatResult,
                 canThrow: false
             ))
-            // Convert the concatenated array to a list since vararg parameters
-            // are typed as List<T>.
             if listifyResult {
                 return emitArrayToList(
                     concatResult,
@@ -1454,8 +1416,6 @@ final class CallSupportLowerer {
                 canThrow: false
             ))
         }
-        // Convert the packed array to a list since vararg parameters are typed
-        // as List<T> and the callee uses kk_list_* operations.
         if listifyResult {
             return emitArrayToList(
                 arrayID,
