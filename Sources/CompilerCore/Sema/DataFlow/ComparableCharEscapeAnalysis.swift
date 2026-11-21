@@ -132,8 +132,6 @@ final class ComparableCharEscapeAnalyzer {
         return true
     }
 
-    /// Each direct child expression of `exprID`, with the depth delta and
-    /// whether the child sits in a discarded-value statement position.
     private func eachChildExpr(
         of exprID: ExprID,
         depth: Int,
@@ -247,8 +245,6 @@ final class ComparableCharEscapeAnalyzer {
             visit(body, depth, false)
             visit(condition, depth, false)
         case let .objectLiteral(_, declID, _):
-            // Superclass ctor args are evaluated where the literal sits
-            // (enclosing frame); the members' bodies are a nested frame.
             guard let declID, let decl = ast.arena.decl(declID),
                   case let .objectDecl(objectDecl) = decl
             else { break }
@@ -441,8 +437,6 @@ final class ComparableCharEscapeAnalyzer {
         }
     }
 
-    /// Mark `exprID` read in a position that survives unboxed when the read is
-    /// in the same frame that declared the candidate.
     private func nonEscapingOperand(_ exprID: ExprID, depth: Int) {
         if let symbol = candidateRead(exprID) {
             if depth > candidateDepth[symbol]! {
@@ -465,7 +459,6 @@ final class ComparableCharEscapeAnalyzer {
         guard let target = bindings.identifierSymbols[targetExprID],
               candidates.contains(target)
         else {
-            // Stored into a non-candidate slot → the read must materialize a box.
             escaped.insert(sourceSymbol)
             return
         }
@@ -478,8 +471,6 @@ final class ComparableCharEscapeAnalyzer {
         }
         switch expr {
         case .nameRef:
-            // A leaf read: the default position demands an object; a bare
-            // statement read is dead code and stays primitive either way.
             if let symbol = candidateRead(exprID), !statement || depth > candidateDepth[symbol]! {
                 escaped.insert(symbol)
             }
@@ -502,8 +493,6 @@ final class ComparableCharEscapeAnalyzer {
         case let .localAssign(_, value, _):
             let target = bindings.identifierSymbols[exprID]
             if let target, candidates.contains(target) {
-                // Write to a candidate: Char RHS keeps provenance, a copy of
-                // another candidate merges components, anything else boxes.
                 if let source = candidateRead(value) {
                     if depth > candidateDepth[source]! {
                         escaped.insert(source)
@@ -522,8 +511,6 @@ final class ComparableCharEscapeAnalyzer {
 
         case let .compoundAssign(_, _, value, _):
             if let symbol = bindings.identifierSymbols[exprID], candidates.contains(symbol) {
-                // `v op= x` needs Comparable member dispatch; neither side of
-                // the boxing boundary survives.
                 escaped.insert(symbol)
                 nonCharWritten.insert(symbol)
             }
@@ -553,8 +540,6 @@ final class ComparableCharEscapeAnalyzer {
                 nonEscapingOperand(lhs, depth: depth)
                 nonEscapingOperand(rhs, depth: depth)
             default:
-                // `===`/`!==` need real references; `?:`, arithmetic and
-                // logical operators all consume a produced value.
                 classifyExpr(lhs, depth: depth, statement: false)
                 classifyExpr(rhs, depth: depth, statement: false)
             }
