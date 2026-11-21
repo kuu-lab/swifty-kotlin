@@ -3132,7 +3132,8 @@ final class JVMClasspathIndex {
         _ method: JVMForeignMethod, asExtension: Bool = false, asFacadeMember: Bool = false,
         acceptsDefaults: Bool = false, usesKotlinMetadata: Bool = true, forcedResult: String? = nil
     ) -> String {
-        if usesKotlinMetadata, let owner = declaringClass(for: method), let function = kotlinFunction(method) {
+        if usesKotlinMetadata, method.kotlinFunction?.composableParameters.isEmpty != false,
+           let owner = declaringClass(for: method), let function = kotlinFunction(method) {
             return kotlinFunctionDeclaration(function, owner: owner)
         }
         if usesKotlinMetadata, let function = method.kotlinFunction {
@@ -3572,6 +3573,17 @@ final class JVMClasspathIndex {
                 methods[symbol.id] = method
                 if hasComposableLambdaFactory, let function = method.kotlinFunction {
                     importedComposableParameters[symbol.id] = function.composableParameters
+                }
+                return
+            }
+            let callbackMembers = hasComposableLambdaFactory ? candidates.filter {
+                $0.sourceName == name && $0.matchesComposeCallbackMember(parameters: descriptorTypes, names: names)
+            } : []
+            if callbackMembers.count == 1, let method = callbackMembers.first {
+                methods[symbol.id] = method
+                importedComposableParameters[symbol.id] = method.kotlinFunction?.composableParameters ?? []
+                if signature.valueParameterHasDefaultValues.contains(true) {
+                    importedDefaultMethods[symbol.id] = defaultArgumentMethod(for: method, in: classes[method.owner] ?? info)
                 }
                 return
             }
