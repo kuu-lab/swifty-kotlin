@@ -1,9 +1,4 @@
 extension ExprLowerer {
-    /// When the delegate factory exposes a `provideDelegate` operator,
-    /// the actual delegate is its return value — the same rule member/top-level
-    /// delegated properties follow in KIRLoweringDriver+ProvideDelegate.swift.
-    /// When no `provideDelegate` is present, returns `rawDelegateID`
-    /// unchanged (the delegate factory instance is itself the delegate).
     func lowerLocalProvideDelegateIfNeeded(
         symbol: SymbolID,
         rawDelegateID: KIRExprID,
@@ -86,9 +81,6 @@ extension ExprLowerer {
         return resultExprID
     }
 
-    /// Whether the expression is a plain read of a variable (`b` in `val a = b`).
-    /// Such initializers must be snapshotted into their own register instead of
-    /// aliasing the source variable's storage.
     func isBareVariableRead(_ exprID: ExprID, ast: ASTModule) -> Bool {
         if case .nameRef = ast.arena.expr(exprID) {
             return true
