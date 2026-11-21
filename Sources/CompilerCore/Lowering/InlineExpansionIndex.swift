@@ -1,30 +1,3 @@
-/// Which body a symbol maps to can change during scheduling; the
-/// classification (`origin`, `isBodyless`, membership in each table) is fixed
-/// after recursive auto-inline declarations regain their native bodies.
-///
-/// Imported bodies are deferred: the store hands the index a descriptor
-/// (resolved artifact path, signature, declared name) per symbol instead of a
-/// parsed body, and the index asks the store to read + parse + materialize a
-/// body only when `inlineTarget` first resolves a call to it. A descriptor
-/// that fails to materialize is dropped from the target set, the by-name
-/// candidates, `bodylessInlineSymbols`, and `origins` — the same absence a
-/// failed eager import produced.
-///
-/// Two tables cover the two lookup roles:
-///
-/// * `inlineFunctionsBySymbol` -- expansion targets: module `inline`
-///   declarations plus materialized imported inline bodies, keyed by callee
-///   symbol. Only this table can supply the body spliced at a `.call` site.
-///   Deferred descriptors fill it on first use.
-/// * `allFunctionsBySymbol` -- every module-declared function (regular
-///   functions, `inline` declarations, and lambda bodies), which is the table
-///   lambda resolution uses to map a `symbolRef` argument back to its body.
-///
-/// A symbol can appear in both tables (a module `inline` function), and in
-/// the rare collision case can map to *different* bodies in each (an imported
-/// inline body filling the target table where the module declares the same
-/// symbol non-inline), so the tables stay separate rather than merging into a
-/// single entry record.
 final class InlineExpansionIndex {
     enum Origin: Sendable {
         case module
@@ -33,23 +6,10 @@ final class InlineExpansionIndex {
 
     private(set) var inlineFunctionsBySymbol: [SymbolID: KIRFunction]
 
-    /// Never contains an imported body.
     private(set) var allFunctionsBySymbol: [SymbolID: KIRFunction]
 
-    /// Callees whose body never reaches an object file: module
-    /// `isInlineOnly` auto-inline functions plus every imported inline
-    /// symbol (the metadata does not carry `isInlineOnly`, and an artifact
-    /// omits auto-inline bodies). A call to one of these must be expanded
-    /// away rather than left for the linker. Deferred descriptors count too:
-    /// their body will be parsed on demand when a call resolves to them.
     private(set) var bodylessInlineSymbols: Set<SymbolID>
 
-    /// Pre-expansion bodies for every schedulable symbol -- the union of
-    /// both tables, with the module declaration winning on collision --
-    /// frozen when the body enters the index. Deferred descriptors join on
-    /// materialization, so a parsed imported body is scheduled by the
-    /// dependency worklist just like an eagerly imported one was. The
-    /// scheduler expands each original once against prepared callee snapshots.
     private(set) var originalBodies: [SymbolID: KIRFunction]
 
     private(set) var origins: [SymbolID: Origin]
@@ -60,9 +20,6 @@ final class InlineExpansionIndex {
 
     private var cachedInlineFunctionsByName: [InternedString: [SymbolID]]?
 
-    /// Materialized imported bodies fill only symbols no module `inline`
-    /// declaration owns; every imported symbol — materialized or still a
-    /// descriptor — is marked bodyless.
     init(module: KIRModule, importedInlineFunctions: ImportedInlineFunctionStore, reifiedEnumValuesCallee: InternedString? = nil) {
         var inlineFunctionsBySymbol: [SymbolID: KIRFunction] = [:]
         var allFunctionsBySymbol: [SymbolID: KIRFunction] = [:]
@@ -87,9 +44,6 @@ final class InlineExpansionIndex {
             origins[symbol] = .imported
         }
         var bodyless = Set(inlineFunctionsBySymbol.filter { $0.value.isInlineOnly }.keys)
-        // A template containing enumValues cannot execute before specialization.
-        // Include inline wrappers and default stubs transitively, so expansion
-        // budget failures diagnose instead of falling back to native templates.
         if let reifiedEnumValuesCallee {
             var templates = Set(inlineFunctionsBySymbol.values.filter { function in
                 function.body.contains {
@@ -141,11 +95,6 @@ final class InlineExpansionIndex {
         inlineFunctionsBySymbol[symbol] != nil || importedStore.descriptors[symbol] != nil
     }
 
-    /// Auto-inlining is optional for ordinary declarations. A bodyless call
-    /// cycle cannot be expanded, so retain native entry points for its
-    /// non-inline declarations before scheduling any snapshots. Explicit
-    /// inline templates, imported bodies and non-local-return lambdas keep
-    /// their mandatory-expansion contract.
     func retainRecursiveAutoInlineBodies(module: KIRModule, sema: SemaModule?) {
         guard let sema else { return }
         let declaredSymbols = Set(sema.bindings.declSymbols.values)
@@ -216,11 +165,6 @@ final class InlineExpansionIndex {
         return materializeImportedBody(for: symbol)
     }
 
-    /// Resolves a deferred descriptor: read + parse the artifact and rebind
-    /// it into the module arena, then fold it into the target table and the
-    /// schedulable originals so the worklist sees it exactly like an
-    /// eagerly imported body. On failure the symbol drops out of every set
-    /// the eager path would never have put it in.
     private func materializeImportedBody(for symbol: SymbolID) -> KIRFunction? {
         cachedInlineFunctionsByName = nil
         guard let function = importedStore.function(for: symbol, arena: arena) else {
@@ -236,11 +180,6 @@ final class InlineExpansionIndex {
         return function
     }
 
-    /// By-name view of the expansion targets, consulted only at
-    /// symbol-unknown call sites. Deferred descriptors contribute their
-    /// declared name without a parse. Candidates are sorted by symbol before
-    /// grouping so candidate order within each name never depends on
-    /// dictionary enumeration order.
     var inlineFunctionsByName: [InternedString: [SymbolID]] {
         if let cachedInlineFunctionsByName { return cachedInlineFunctionsByName }
         var groups: [InternedString: [SymbolID]] = [:]
@@ -256,12 +195,6 @@ final class InlineExpansionIndex {
         return groups
     }
 
-    /// The bodyless callees `symbol`'s current body still calls, as
-    /// resolved-symbol edges. Only `.call` instructions carrying a callee
-    /// symbol create edges: a symbol-known call binds to exactly that
-    /// symbol, while a symbol-unknown call resolves its own name fallback
-    /// at the call site and is not a dependency here. Self-calls are
-    /// ignored, matching the caller-side recursion guard.
     func bodylessCallees(of symbol: SymbolID) -> Set<SymbolID> {
         guard let body = (allFunctionsBySymbol[symbol] ?? inlineFunctionsBySymbol[symbol])?.body else {
             return []
@@ -290,9 +223,6 @@ final class InlineExpansionIndex {
             .map(\.key)
     }
 
-    /// The symbol raw value is a unique final tiebreaker, so the order is
-    /// total and the resulting schedule is the same regardless of
-    /// enumeration order.
     static func snapshotExpansionOrder(
         _ lhs: KIRFunction,
         _ rhs: KIRFunction,
@@ -359,15 +289,6 @@ final class InlineExpansionIndex {
         return bodylessInlineSymbols.contains(candidates[0])
     }
 
-    /// Bodyless symbols whose expansion can never terminate because a call
-    /// cycle of bodyless callees is reachable from them in the *current*
-    /// bodies -- self-loops and mutual recursion included. Unlike
-    /// `bodylessCallees`, self-calls count as edges here: a bodyless
-    /// self-call is a one-node cycle. A caller whose residue callee is in
-    /// this set cannot converge no matter how many rounds run; a callee
-    /// outside it simply outgrew the round bounds.
-    /// Native-body recovery also follows emitted inline wrappers: expanding
-    /// such a wrapper can expose a recursive call to an auto-inline caller.
     func recursiveBodylessCallees(includingEmittedInlineFunctions: Bool = false) -> Set<SymbolID> {
         let graphSymbols = includingEmittedInlineFunctions
             ? bodylessInlineSymbols.union(inlineFunctionsBySymbol.keys)
@@ -403,8 +324,6 @@ final class InlineExpansionIndex {
                 stack.append(contentsOf: edges[next] ?? [])
             }
         }
-        // Backward closure: a callee that can reach a cyclic one inherits
-        // the same non-termination even though it is not on the cycle.
         var reaching = cyclic
         var reverseEdges: [SymbolID: [SymbolID]] = [:]
         for (from, targets) in edges {
@@ -431,12 +350,6 @@ final class InlineExpansionIndex {
         calleeFactsCache[symbol] = nil
     }
 
-    /// Body-derived facts shared by every expansion of the same callee.
-    /// `expandInlineCall` used to rescan these per call site; with dozens of
-    /// sites per stdlib callee that repeated ~7 full body scans per site
-    /// (KUU-3777). Keyed by symbol because expansion targets always come from
-    /// `inlineFunctionsBySymbol`; `recordExpansion` and
-    /// `materializeImportedBody` invalidate the entry when the body changes.
     private var calleeFactsCache: [SymbolID: InlineCalleeFacts] = [:]
 
     func facts(for function: KIRFunction, sema: SemaModule?) -> InlineCalleeFacts {
@@ -449,31 +362,16 @@ final class InlineExpansionIndex {
     }
 }
 
-/// Everything `expandInlineCall` derived from the callee body alone,
-/// computed once per body instead of once per call site. The call-site
-/// pieces (arguments, scratch labels, erased-ABI boxing) stay per site.
 struct InlineCalleeFacts {
-    /// Parameter-bound storage slots written again after their binding
-    /// `constValue` — a tailrec rebind means the callable can change between
-    /// iterations and the invoke must stay dynamic (KUU-3222).
     var reboundParamSymbols: Set<SymbolID> = []
-    /// The body itself contains `nonLocalReturn` targeted at this function.
-    /// Combined at the call site with the pass-level `nonLocalReturnTargets`.
     var bodyOwnsNonLocalReturn = false
-    /// `returnUnit`/`returnValue`/`returnIfEqual` terminators in the body.
     var inlineReturnCount = 0
     var hasReturnIfEqual = false
     var hasValueReturn = false
-    /// Slots written from more than one place — branch merge points
-    /// (`&&`/`||`/`?:` arms filling a shared temporary).
     var mergeSlotExprs: Set<KIRExprID> = []
     var lambdaParamSymbols: Set<SymbolID> = []
     var lambdaParamByCalleeName: [InternedString: SymbolID] = [:]
-    /// `InlineErasedLambdaABI.usesErasedLambdaABI` for this body:
-    /// an imported-library function taking function-typed parameters.
     var usesErasedLambdaABI = false
-    /// Label IDs in body order (duplicates included) so each call site can
-    /// allocate scratch replacements in the original order without rescanning.
     var bodyLabelIDs: [Int32] = []
 
     init(function: KIRFunction, sema: SemaModule?) {
@@ -485,8 +383,6 @@ struct InlineCalleeFacts {
         var rebound: Set<SymbolID> = []
         var mergeWriteCounts: [KIRExprID: Int] = [:]
         for instruction in function.body {
-            // Tailrec rebind detection: writes to parameter-bound storage,
-            // where the binding `constValue` itself is not a write.
             let reboundWritten: [KIRExprID]
             switch instruction {
             case let .copy(_, to):
@@ -511,9 +407,6 @@ struct InlineCalleeFacts {
                 }
             }
 
-            // Merge-slot tracking uses the narrower write notion:
-            // the binding `constValue` counts here, while `thrownResult`
-            // and NLR-scope slots do not.
             let mergeWritten: KIRExprID? = switch instruction {
             case let .copy(_, to): to
             case let .call(_, _, _, result, _, _, _, _): result
@@ -560,9 +453,6 @@ struct InlineCalleeFacts {
                 }
             }
         }
-        // Mirror of `InlineErasedLambdaABI.usesErasedLambdaABI`: the check is
-        // "imported-library function with at least one function-typed
-        // parameter", and `lambdaParamSymbols` is exactly that param set.
         usesErasedLambdaABI = !lambdaParamSymbols.isEmpty
             && sema.symbols.symbol(function.symbol)?.flags.contains(.importedLibrary) == true
     }
