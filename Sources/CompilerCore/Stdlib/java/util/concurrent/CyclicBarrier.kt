@@ -8,11 +8,6 @@ import kotlinx.atomicfu.locks.ParkingSupport
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlin.concurrent.Volatile
 
-// KUU-3059: java.util.concurrent.CyclicBarrier. Each generation parks its
-// waiters on their per-thread atomicfu handles; the last arriver runs the
-// barrier action and then unparks everyone. Timeout/reset break the barrier
-// and unpark the generation with BrokenBarrierException.
-
 public class CyclicBarrier(
     public val parties: Int,
     private val barrierAction: Runnable?
@@ -127,8 +122,6 @@ public class CyclicBarrier(
                 jucPark(if (deadline < 0L) -1L else left)
             }
         } finally {
-            // A waiter that left early (timeout or a broken barrier) must not
-            // leak a stale handle into the next generation.
             guard.lock()
             try {
                 waiters.remove(handle)
