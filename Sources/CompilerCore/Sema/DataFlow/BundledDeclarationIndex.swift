@@ -101,9 +101,6 @@ package struct BundledDeclarationIndex: Sendable {
         return PrecomputedBundledMemberIndex.encode(keys: keys, interner: interner)
     }
 
-    /// Build from AST bundled sources before SymbolTable header collection.
-    /// AST scanning preserves the current phase order while supplying
-    /// `(owner, name, arity)` keys to synthetic stub registration.
     static func build(ast: ASTModule, sourceManager: SourceManager, interner: StringInterner) -> BundledDeclarationIndex {
         var keys = buildKeys(ast: ast, sourceManager: sourceManager, interner: interner)
         addListIterableAliases(to: &keys, interner: interner)
@@ -186,10 +183,6 @@ package struct BundledDeclarationIndex: Sendable {
             guard !Self.isSyntheticAnnotationClassObjectMethod(symbol, symbols: symbols, interner: interner) else {
                 continue
             }
-            // Header collection represents source-declared property accessors as
-            // synthetic function symbols. They are implementation details of the
-            // source property, not residual stdlib stubs that a KSP-002 guard
-            // should have skipped.
             guard !Self.isSyntheticPropertyAccessor(symbol, symbols: symbols) else {
                 continue
             }
@@ -204,16 +197,9 @@ package struct BundledDeclarationIndex: Sendable {
             guard !Self.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner) else {
                 continue
             }
-            // KSP-443: source-backed extensions with a runtime symbol name get a
-            // synthetic member alias for owner-based lookup. That alias is an
-            // intentional index entry, not a missed synthetic-stub skip.
             guard !Self.isSyntheticAliasForSourceBackedMember(symbol, symbols: symbols) else {
                 continue
             }
-            // Typealias-backed source properties can share the normalized
-            // runtime-owner key with a retained compatibility property while
-            // keeping their declared package FQName distinct. This is an
-            // intentional alias overlap, not a missed synthetic-stub skip.
             guard !Self.isSyntheticAliasForSourceBackedProperty(
                 symbol,
                 key: key,
@@ -223,10 +209,6 @@ package struct BundledDeclarationIndex: Sendable {
             ) else {
                 continue
             }
-            // Pair.copy is also a source-backed top-level extension. Since
-            // this index keys both declarations by receiver owner, name, and
-            // arity, the synthetic member copy otherwise looks like a missed
-            // stub skip even though the bundled extension is present.
             if Self.isSyntheticPairCopyOverlapWithSourceBackedExtension(
                 symbol,
                 key: key,
@@ -236,11 +218,6 @@ package struct BundledDeclarationIndex: Sendable {
             ) {
                 continue
             }
-            // KSP-1019: MutableCollection keeps its interface members for
-            // member-priority dispatch while the same names also have
-            // source-backed top-level extensions. The arity-only index cannot
-            // distinguish those two declarations, so this is an intentional
-            // overlap when the exact receiver owner has a source declaration.
             if Self.isSyntheticOverlapWithSourceBackedMutableCollectionExtension(
                 symbol,
                 key: key,
@@ -250,24 +227,12 @@ package struct BundledDeclarationIndex: Sendable {
             ) {
                 continue
             }
-            // joinTo/joinToString transform overloads intentionally share arity
-            // with the non-transform default. The bundled-index key only tracks
-            // arity, so suppress the warning when the synthetic stub carries a
-            // function-typed parameter (it is a transform overload, not the
-            // missed default overload).
             if Self.isSyntheticJoinToTransformOverload(symbol.id, key: key, symbols: symbols, types: types, interner: interner) {
                 continue
             }
-            // A Kotlin property and an extension function may share the same
-            // owner, name, and arity. Do not report the retained synthetic
-            // property when the bundled declaration is the source-backed
-            // function being migrated (for example IntProgression.first).
             if Self.hasSourceBackedFunctionOverlap(symbol, key: key, symbols: symbols, types: types, interner: interner) {
                 continue
             }
-            // KSP-1288: OpenEndRange keeps its generic residual `contains(T)`
-            // member while source-backed cross-type overloads share the same
-            // owner/name/arity key. This is an intentional arity-only overlap.
             if Self.isSyntheticOpenEndRangeGenericContainsRetainedOverlap(
                 symbol,
                 key: key,
@@ -277,12 +242,6 @@ package struct BundledDeclarationIndex: Sendable {
             ) {
                 continue
             }
-            // KUU-4028: `CPointer` keeps source-backed ByteVar/UByteVar
-            // `plus`/`get` overloads in `AppleBytePointers.kt` while the
-            // synthetic layer registers the same operators for every other
-            // pointee kind. Both sides key to (CPointer, name, arity), so the
-            // per-kind stubs look like missed KSP-002 skips even though the
-            // overlap is intentional.
             if Self.isSyntheticCInteropPointerOperatorOverlap(
                 symbol,
                 key: key,
@@ -314,9 +273,6 @@ package struct BundledDeclarationIndex: Sendable {
         }
     }
 
-    /// Annotation classes receive language-required Any overrides during header
-    /// collection. They are not optional synthetic stubs, so bundled metadata
-    /// for the same annotation class does not indicate that KSP-002 missed a skip.
     private static func isSyntheticAnnotationClassObjectMethod(
         _ symbol: SemanticSymbol,
         symbols: SymbolTable,
@@ -437,11 +393,6 @@ package struct BundledDeclarationIndex: Sendable {
         }
     }
 
-    /// KUU-4028: the synthetic per-kind `CPointer.plus`/`get`/`set` operators
-    /// intentionally coexist with the source-backed ByteVar/UByteVar overloads
-    /// declared in `kotlinx/cinterop/AppleBytePointers.kt`. Confirm both sides
-    /// are `CPointer`-receiver operators in `kotlinx.cinterop` before treating
-    /// the arity-only key collision as intentional.
     private static func isSyntheticCInteropPointerOperatorOverlap(
         _ symbol: SemanticSymbol,
         key: BundledMemberKey,
@@ -551,11 +502,6 @@ package struct BundledDeclarationIndex: Sendable {
         }
     }
 
-    /// Synthetic `joinTo` / `joinToString` transform overloads intentionally
-    /// share arity with the non-transform default, so the arity-only bundled
-    /// index would otherwise emit a false-positive KSWIFTK-SEMA-0102 warning
-    /// when the default is correctly suppressed and the transform overload is
-    /// retained.
     private static func isSyntheticJoinToTransformOverload(
         _ symbolID: SymbolID,
         key: BundledMemberKey,
@@ -627,8 +573,6 @@ package struct BundledDeclarationIndex: Sendable {
             return false
         }
         return symbols.lookupByShortName(key.name).contains { candidateID in
-            // Imported library members have no declSite but stand in for the
-            // bundled source declaration, so accept either source form.
             guard let candidate = symbols.symbol(candidateID),
                   candidate.kind == .function,
                   symbols.isSourceBackedSymbol(candidate.id),
@@ -706,28 +650,15 @@ package struct BundledDeclarationIndex: Sendable {
             return isRuntimeBackedSequenceSyntheticRetainedOverlap()
         }
         if ownerFQName == ["kotlin", "collections", "MutableSet"] {
-            // MutableSet.addAll(Collection) is now a source-backed default
-            // (KSP-704), while the retained Array overload
-            // are registered as hidden runtime bridges. The bundled index is
-            // arity-only, so these distinct overloads intentionally share one
-            // key and must not emit KSWIFTK-SEMA-0102.
             return interner.resolve(key.name) == "addAll" && key.arity == 1
         }
         if ownerFQName == ["kotlin", "comparisons"] {
             return isRuntimeBackedComparisonsSyntheticRetainedOverlap(key, interner: interner)
         }
         if ownerFQName == ["kotlin", "collections", "Map"] {
-            // Map.get has two intentional surfaces: the source-backed variance
-            // extension (MapLookupAndTransform.kt) and the interface member
-            // it delegates to. KSP-703 made the interface member itself
-            // source-backed too (@KsSymbolName on Map.kt) rather than
-            // synthetic, so this arm is likewise now vestigial-but-harmless:
-            // no synthetic `get` registration remains to overlap-warn about.
             return interner.resolve(key.name) == "get" && key.arity == 1
         }
         if ownerFQName == ["kotlinx", "cinterop", "CPointer"] {
-            // The source Byte overload returns a primitive value; the generic
-            // native extension still returns variable boxes for other pointees.
             return interner.resolve(key.name) == "get" && key.arity == 1
         }
         return false
@@ -737,15 +668,7 @@ package struct BundledDeclarationIndex: Sendable {
         _ key: BundledMemberKey,
         interner: StringInterner
     ) -> Bool {
-        // These List HOF/search/sort sources are bundled migration targets. Keep
-        // only the List members whose runtime bridges are still required.
         switch interner.resolve(key.name) {
-        // KSP-421/422 source-backed HOFs no longer need a retained runtime bridge.
-        // KSP-423/424 source-backed search/predicate/access HOFs (find, indexOf,
-        // contains, any, all, none, count, first, last, single) are source-bound.
-        // KSP-1511: shuffled/shuffled(Random) moved off the kk_list_shuffled(_random)
-        // runtime bridge onto ListSortingHOF.kt (which now special-cases
-        // Random.Default the same way MutableList.shuffle(random) already did).
         default:
             return false
         }
@@ -755,12 +678,6 @@ package struct BundledDeclarationIndex: Sendable {
         _ key: BundledMemberKey,
         interner: StringInterner
     ) -> Bool {
-        // List.filter / aggregate HOFs are bundled as Kotlin source, but those
-        // implementations are only valid for concrete List receivers. Keep the
-        // runtime bridge for nominal Iterable<T> receivers until they get their
-        // own Kotlin source. joinTo/joinToString/any/all/last/... moved to
-        // Stdlib/kotlin/collections/Iterables.kt in KSP-435; reduceRight*
-        // and the remaining Iterable HOFs moved in KSP-632.
         switch interner.resolve(key.name) {
         case "filter",
              "reduce", "reduceIndexed":
@@ -771,8 +688,6 @@ package struct BundledDeclarationIndex: Sendable {
     }
 
     private static func isRuntimeBackedSequenceSyntheticRetainedOverlap() -> Bool {
-        // KSP-441〜447: Sequence/Iterator パイプラインを Kotlin source 化するため、
-        // Sequence 上の合成スタブは source 実装に委譲する。合成外部リンクは残留しない。
         return false
     }
 
@@ -780,12 +695,6 @@ package struct BundledDeclarationIndex: Sendable {
         _ key: BundledMemberKey,
         interner: StringInterner
     ) -> Bool {
-        // KSP-461 fully migrated compareBy to bundled Comparators.kt: selector(1),
-        // comparator+selector(2), 2-selector(2), and 3-selector(3) all resolve to
-        // source with no runtime bridge left (kk_comparator_from_multi_selectors*
-        // are gone). The bundled index only tracks arity, so the two distinct
-        // arity-2 overloads collapse onto one key; mark 1/2/3 as intentional
-        // overload collisions rather than accidental duplicates.
         switch interner.resolve(key.name) {
         case "compareBy":
             return key.arity == 1 || key.arity == 2 || key.arity == 3
@@ -1486,10 +1395,6 @@ package struct BundledDeclarationIndex: Sendable {
         }
     }
 
-    /// Lets extension declarations in one package (e.g.
-    /// `kotlin.text.StringSplitJoin.kt` declaring `List<T>.joinToString`) be
-    /// keyed by the receiver's real owner package (`kotlin.collections`)
-    /// instead of the declaring package.
     private static func defaultImportMap(
         topLevelNominalNamesByPackage: [[InternedString]: Set<InternedString>],
         interner: StringInterner
@@ -1564,7 +1469,6 @@ package struct BundledDeclarationIndex: Sendable {
             }
         }
 
-        // Source-defined top-level nominal names take precedence over the seed.
         for pkg in defaultImportPackages {
             let sourceNames = (topLevelNominalNamesByPackage[pkg] ?? [])
                 .sorted { interner.resolve($0) < interner.resolve($1) }
@@ -1587,7 +1491,6 @@ package struct BundledDeclarationIndex: Sendable {
     }
 }
 
-/// Active bundled-index context while `registerSyntheticDelegateStubs` runs.
 enum BundledSyntheticStubRegistration {
     private static let bundledIndexKey = "KSwiftK.BundledSyntheticStubRegistration.bundledIndex"
     private static let typesKey = "KSwiftK.BundledSyntheticStubRegistration.types"
