@@ -259,9 +259,6 @@ extension KIRLoweringDriver {
         ]
         let name = interner.resolve(symbolInfo.name)
         if packageFQName == kotlinComparisonsPackage {
-            // Calls to these source-backed declarations are lowered by
-            // CallLowerer+StdlibComparisons rather than by emitting the
-            // declaration bodies into every consumer module.
             return name == "maxOf" || name == "minOf"
         }
 
@@ -270,9 +267,6 @@ extension KIRLoweringDriver {
             interner.intern("collections"),
         ]
         if packageFQName == kotlinCollectionsPackage {
-            // Remaining collection factory call sites are lowered by
-            // CallLowerer+CollectionFactoryCalls and CollectionLiteralLoweringPass
-            // directly to __kk_* runtime ABI, so their source bodies must not be emitted.
             switch name {
             case "emptyList", "listOf", "mutableListOf", "arrayListOf",
                  "emptySet", "setOf", "setOfNotNull", "mutableSetOf", "hashSetOf", "linkedSetOf",
@@ -283,10 +277,6 @@ extension KIRLoweringDriver {
             }
         }
 
-        // The String indent/format helpers are pure Kotlin; only the
-        // private __kk_string_* bridges are external and skipped by the
-        // external-function path. Public functions must be lowered so user
-        // calls dispatch through the source declarations.
         return false
     }
 }
