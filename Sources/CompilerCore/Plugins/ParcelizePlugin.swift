@@ -1,18 +1,3 @@
-/// kotlinc `kotlin-parcelize` equivalent. Classes annotated with `@Parcelize`
-/// (`kotlinx.parcelize.Parcelize` or `kotlin.android.parcel.Parcelize`) gain
-/// synthetic implementations of Android's `Parcelable` interface members:
-///   - `describeContents(): Int` (returning 0)
-///   - `writeToParcel(dest: Parcel, flags: Int): Unit`
-///
-/// Configuration:
-///   -P plugin:org.jetbrains.kotlin.parcelize:additionalAnnotation=<fqName>  (repeatable)
-///
-/// Validation rules matching kotlinc:
-///   - Target must be a regular class or data class. Annotating interfaces, objects,
-///     enums or annotation classes emits `KSWIFTK-SEMA-0485` ('@Parcelize' is only supported for classes).
-///   - Inner classes are not supported and emit `KSWIFTK-SEMA-0486` ('@Parcelize' is not supported for inner classes).
-///   - Class must implement `android.os.Parcelable` (directly or transitively); otherwise emits
-///     `KSWIFTK-SEMA-0484` ('@Parcelize' class must implement 'android.os.Parcelable').
 struct ParcelizePlugin: CompilerPlugin {
     let id = "org.jetbrains.kotlin.parcelize"
 
@@ -38,7 +23,6 @@ struct ParcelizePlugin: CompilerPlugin {
                   hasTriggerAnnotation(symbol.id, triggers: triggers, symbols: symbols)
             else { continue }
 
-            // 1. Kind check: must be a class
             if symbol.kind != .class {
                 context.diagnostics.error(
                     "KSWIFTK-SEMA-0485",
@@ -48,7 +32,6 @@ struct ParcelizePlugin: CompilerPlugin {
                 continue
             }
 
-            // 2. Inner class check
             if symbol.flags.contains(.innerClass) {
                 context.diagnostics.error(
                     "KSWIFTK-SEMA-0486",
@@ -58,7 +41,6 @@ struct ParcelizePlugin: CompilerPlugin {
                 continue
             }
 
-            // 3. Supertype check: must implement android.os.Parcelable
             if !implementsParcelable(symbol.id, symbols: symbols, interner: interner) {
                 context.diagnostics.error(
                     "KSWIFTK-SEMA-0484",
@@ -68,7 +50,6 @@ struct ParcelizePlugin: CompilerPlugin {
                 continue
             }
 
-            // 4. Synthesize Parcelable members
             generateParcelableMembers(
                 for: symbol,
                 context: context
@@ -140,7 +121,6 @@ struct ParcelizePlugin: CompilerPlugin {
             nullability: .nonNull
         )))
 
-        // 1. Synthesize describeContents(): Int (if not already declared)
         let describeContentsName = interner.intern("describeContents")
         var describeContentsSymbol: SymbolID? = nil
         let existingDescribeContents = symbols.lookupAll(
@@ -174,7 +154,6 @@ struct ParcelizePlugin: CompilerPlugin {
             describeContentsSymbol = descSym
         }
 
-        // 2. Synthesize writeToParcel(dest: Parcel, flags: Int): Unit (if not already declared)
         let writeToParcelName = interner.intern("writeToParcel")
         var writeToParcelSymbol: SymbolID? = nil
         let existingWriteToParcel = symbols.lookupAll(
@@ -233,7 +212,6 @@ struct ParcelizePlugin: CompilerPlugin {
             writeToParcelSymbol = writeSym
         }
 
-        // 3. Collect serializable properties (skipping @IgnoredOnParcel)
         let ignoredAnnotations: Set<String> = [
             "kotlinx.parcelize.IgnoredOnParcel",
             "kotlin.android.parcel.IgnoredOnParcel",
@@ -248,7 +226,6 @@ struct ParcelizePlugin: CompilerPlugin {
             return !anns.contains { ignoredAnnotations.contains($0.annotationFQName) }
         }
 
-        // 4. Synthesize CREATOR object (`createFromParcel(parcel: Parcel): T`, `newArray(size: Int): Array<T?>`)
         let (_, resolvedParcelSymbol) = resolveParcelTypeAndSymbol(symbols: symbols, types: types, interner: interner)
         let (parcelTypeForCreator, _) = resolveParcelTypeAndSymbol(symbols: symbols, types: types, interner: interner)
         let creatorName = interner.intern("CREATOR")
@@ -282,7 +259,6 @@ struct ParcelizePlugin: CompilerPlugin {
                 nullability: .nonNull
             )))
 
-            // createFromParcel(parcel: Parcel): T
             let createName = interner.intern("createFromParcel")
             let createFQ = creatorFQ + [createName]
             let createSym = symbols.define(
@@ -319,7 +295,6 @@ struct ParcelizePlugin: CompilerPlugin {
             )
             createFromParcelSymbol = createSym
 
-            // newArray(size: Int): Array<T?>
             let newArrayName = interner.intern("newArray")
             let newArrayFQ = creatorFQ + [newArrayName]
             let newArraySym = symbols.define(
