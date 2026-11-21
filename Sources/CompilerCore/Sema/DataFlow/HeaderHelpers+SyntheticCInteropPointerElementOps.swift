@@ -1,17 +1,4 @@
 extension DataFlowSemaPhase {
-    /// KUU-4028: upstream kotlinx.cinterop pointer element access that was
-    /// missing from the synthetic layer — `CPointer.getPointer(scope)`
-    /// (identity, upstream `CPointer` overrides `CValuesRef.getPointer` to
-    /// return `this`), `CPointer.rawValue`, the `Long` index `get`, and the
-    /// per-kind `plus`/`set` operators from upstream `Generated.kt` /
-    /// `Types.kt` (`CPointer<T : XVarOf<*>>?.plus`, `CPointer<XVarOf<T>>.set`,
-    /// `CPointer<CPointerVarOf<T>>.get/set/plus`).
-    ///
-    /// This backend models `IntVar`, `LongVar`, ... as concrete classes rather
-    /// than upstream's `XVarOf<T>` generics, so the receivers are the concrete
-    /// `CPointer<ConcreteVar>` shapes; `ByteVar`/`BooleanVar`-style aliases
-    /// resolve to their `*VarOf<Byte>` concrete nominals exactly like the
-    /// `toKString` registration does.
     func registerCInteropPointerElementOperators(
         cinteropPkg: [InternedString],
         cPointerSymbol: SymbolID,
@@ -32,9 +19,6 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        // `CPointer<T>.getPointer(scope): CPointer<T>` — upstream returns
-        // `this`; the scope argument is accepted for signature parity and
-        // ignored at runtime.
         if let nativePlacementSymbol = symbols.lookup(
             fqName: cinteropPkg + [interner.intern("NativePlacement")]
         ) {
@@ -58,8 +42,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // `CPointer<T>.rawValue: NativePtr` — the raw address as a NativePtr
-        // box (upstream `CPointer.rawValue`).
         registerAtomicReadOnlyProperty(
             ownerSymbol: cPointerSymbol,
             propertyName: "rawValue",
@@ -69,9 +51,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // `CPointer<T>.get(index: Long): T` — the Int-index `get` is
-        // registered in registerCInteropCPointerMembers; upstream declares
-        // both index widths.
         do {
             let longGetTypeParameterName = interner.intern("T")
             let longGetTypeParameterFQName = cinteropPkg
@@ -115,11 +94,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // Per-kind `plus`/`set` operators. `plus` advances by
-        // `index * sizeOf<pointee>()` — the runtime derives the element size
-        // from the pointer box's stored pointee type token, so a single
-        // `kk_cpointer_plus` entry point covers every kind. `set` writes the
-        // primitive value through a per-kind store bridge.
         var elementKinds: [(pointee: TypeID, value: TypeID, setLinkName: String)] = []
         func appendElementKind(
             className: String,
