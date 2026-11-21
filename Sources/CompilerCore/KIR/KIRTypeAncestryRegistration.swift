@@ -1,7 +1,3 @@
-/// Emits `kk_type_register_iface`/`kk_type_register_super` calls for the
-/// full transitive closure of `rootSymbol`'s supertypes, not just its direct
-/// ones.
-///
 /// BUG-224: a supertype reachable only through another, never-instantiated
 /// nominal (typically an interface, e.g. `Ranked` between `Bronze` and
 /// `Comparable` in `interface Ranked : Comparable<Ranked>`) never gets its
@@ -11,13 +7,6 @@
 /// over `state.typeParents` (`Sources/Runtime/RuntimeHelpers.swift`) walks
 /// one edge per node, so it needs an entry at every node along the chain,
 /// not just at `rootSymbol` itself.
-///
-/// Registration is idempotent (`runtimeRegisterTypeEdge` inserts into a
-/// `Set`), so redundantly re-registering an edge shared by multiple
-/// constructed types (or re-registering the same type's edges on every one
-/// of its constructions) is harmless — this matches the pre-existing
-/// per-construction-site registration model, just walked to full depth
-/// instead of one hop.
 func appendTypeAncestryRegistrations<Instructions: RangeReplaceableCollection>(
     rootSymbol: SymbolID,
     sema: SemaModule,
