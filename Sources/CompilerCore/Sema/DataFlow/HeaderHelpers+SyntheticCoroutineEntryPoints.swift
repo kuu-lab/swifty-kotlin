@@ -1,10 +1,4 @@
 extension DataFlowSemaPhase {
-    // STDLIB-CORO-BUG-04: this used to also register a `Job.cancel()`
-    // extension function under kotlin.coroutines.cancellation, duplicating
-    // the member declared in registerSyntheticCoroutineStubs (same receiver,
-    // arity, and external link name) and making `job.cancel()` ambiguous.
-    // Removed; kept as a no-op since the SyntheticStubRegistryEntry bucket
-    // table references this function by name.
     func registerSyntheticCoroutineCancellationStubs() {}
 
     func registerSyntheticCoroutineIntrinsicsStubs(
