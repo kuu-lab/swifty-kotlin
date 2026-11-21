@@ -82,9 +82,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Iterative post-order DFS producing the same deterministic order as a
-    /// recursive visit: a nominal is appended after all of its supertype
-    /// nominals, children explored in ascending raw-ID order.
     private func buildTopoOrder(
         nominalIDs: [SymbolID],
         symbols: SymbolTable,
@@ -133,8 +130,6 @@ extension DataFlowSemaPhase {
                     worklist[worklist.count - 1].nextIndex += 1
                     let superNominal = frame.supers[frame.nextIndex]
                     if inProgress.contains(superNominal) {
-                        // Layout cannot give a cyclic graph a consistent
-                        // base-first order, so reject it.
                         if reportedCycleTargets.insert(superNominal).inserted {
                             let name = symbols.symbol(superNominal)
                                 .map { renderFQName($0.fqName, interner: interner) } ?? "?"
@@ -287,7 +282,6 @@ extension DataFlowSemaPhase {
         let itableSize = max(nextItableSlot, layoutHint?.declaredItableSize ?? 0)
 
         let ownFields: [SemanticSymbol] = if nominalSymbol.kind == .interface {
-            // Interfaces have no backing field storage; skip property fields.
             []
         } else {
             Self.ownMembers(of: nominalSymbol, symbols: symbols)
@@ -298,10 +292,6 @@ extension DataFlowSemaPhase {
                     case .field:
                         return id
                     case .property:
-                        // Member extension properties are implemented by
-                        // accessors that receive both the enclosing instance
-                        // and the extension receiver; they never occupy an
-                        // instance field slot.
                         guard !symbols.hasExtensionPropertyReceiver(id) else {
                             return nil
                         }
@@ -589,7 +579,6 @@ extension DataFlowSemaPhase {
         return methods.sorted(by: { $0.id.rawValue < $1.id.rawValue })
     }
 
-    /// Shared by header-time named layouts and body-time local/anonymous layouts.
     static func assignPropertyAccessorVtableSlots(
         for nominalSymbol: SemanticSymbol,
         symbols: SymbolTable,
@@ -602,10 +591,6 @@ extension DataFlowSemaPhase {
             symbols: symbols
         )
         for property in ownAccessorProperties {
-            // Properties cannot be overloaded, so — unlike methods above,
-            // which must disambiguate same-(name, arity) siblings — a name
-            // match against the class's own inheritance chain is always
-            // unambiguous.
             let inheritedProperty = property.flags.contains(.overrideMember)
                 ? Self.findInheritedClassProperty(named: property.name, startingAt: nominalSymbol.id, symbols: symbols)
                 : nil
@@ -633,9 +618,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// A plain `final` property is never overridden in either direction, so
-    /// it keeps the existing direct field-offset/accessor-call fast path
-    /// untouched and never needs a slot here.
     private static func orderedOwnAccessorProperties(
         for nominalSymbol: SemanticSymbol,
         symbols: SymbolTable
@@ -653,12 +635,6 @@ extension DataFlowSemaPhase {
             .sorted(by: { $0.id.rawValue < $1.id.rawValue })
     }
 
-    /// Walks `nominalID`'s superclass chain (never interfaces — those are
-    /// BUG-141's separate itable-relative slot space) for the nearest
-    /// ancestor that directly declares a property named `name`. Properties
-    /// cannot be overloaded, so a name match is always the property being
-    /// overridden — no arity/type disambiguation is needed the way method
-    /// overrides require.
     private static func findInheritedClassProperty(
         named name: InternedString,
         startingAt nominalID: SymbolID,
@@ -683,10 +659,6 @@ extension DataFlowSemaPhase {
         return nil
     }
 
-    /// Members of same-module expect and actual declarations share an FQName.
-    /// Reconstruct each declaration's member set from source ranges so unmarked
-    /// members of an expect class and platform-only actual members stay attached
-    /// to the declaration that contains them.
     private static func ownMembers(of nominalSymbol: SemanticSymbol, symbols: SymbolTable) -> [SemanticSymbol] {
         let members = symbols.children(of: nominalSymbol.id).compactMap { symbols.symbol($0) }
         let expectsActualCounterpart = nominalSymbol.flags.contains(.expectDeclaration)
