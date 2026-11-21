@@ -16,11 +16,8 @@ extension ExprLowerer {
         let sourceType = sema.bindings.exprTypes[exprID]
         let samFunctionType: TypeID? = if let sourceType,
                                          case .functionType = sema.types.kind(of: sourceType) {
-            // Preserve source nullability so a null function stays a null SAM.
             sourceType
         } else {
-            // Projected and intersection types may only expose their callable
-            // shape through the underlying SAM binding.
             sema.bindings.samUnderlyingFunctionType(for: exprID) ?? sourceType
         }
         if sema.bindings.isSamConversion(exprID),
@@ -35,17 +32,11 @@ extension ExprLowerer {
                 default:
                     break
                 }
-                // A nominal value whose class implements FunctionN — e.g. the
-                // `(::A)()` result in `SamInterface((::A)())` (KUU-3203) —
-                // is invocable through the same callable ABI, so the wrapper
-                // can capture and `invoke` it like any function value.
                 return sema.types.functionTypeWitness(
                     from: loweredType,
                     compatibleWith: type
                 ) != nil
             }()
-            // A discarded cast can smartcast an `Any` local without changing
-            // the stored KIR value type. Already-wrapped SAM values stay nominal.
             if loweredValueCanBeFunction,
                let wrapper = driver.lambdaLowerer.lowerFunctionValueSamWrapper(
                    exprID, value: value, functionType: function, sema: sema,
@@ -91,8 +82,6 @@ extension ExprLowerer {
             sema: sema
         )
         {
-            // Native calls can still return a register for source-level Nothing.
-            // Match JVM lowering by making that impossible normal edge throw.
             let exceptionType: TypeID = if let symbol = sema.symbols.lookup(fqName: [
                 interner.intern("kotlin"), interner.intern("KotlinNothingValueException"),
             ]) {
@@ -553,8 +542,6 @@ extension ExprLowerer {
                       sema.bindings.lambdaReturnLambdaPaths[exprID]?.isEmpty == false else { return nil }
                 return .function(driver.ctx.syntheticLambdaSymbol(for: target))
             }()
-            // A labeled return targeting a lambda body inlined into a loop (e.g. `repeat`)
-            // ends only that iteration: run the inner `finally` blocks, then jump.
             if !targetsFunction, let label, let iterationEnd = driver.ctx.continueLabel(for: label) {
                 if let value {
                     _ = lowerExpr(
@@ -587,9 +574,6 @@ extension ExprLowerer {
                     instructions: &instructions
                 )
                 if discardsConstructorUnitReturn {
-                    // Kotlin treats `return Unit` in a constructor like `return`:
-                    // evaluate the expression, then leave without returning Unit
-                    // in place of the constructed instance.
                     returnValue = nil
                 } else {
                     // A bare variable read resolves to the variable's own storage
