@@ -185,7 +185,6 @@ public class Timer private constructor(name: String?, isDaemon: Boolean, marker:
     public fun purge(): Int = state.purge()
 }
 
-/** A task scheduled by [Timer]. Subclasses provide the task body. */
 public abstract class TimerTask : Runnable {
     private val guard = SynchronizedObject()
     private var cancelled = false
