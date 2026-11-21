@@ -1,6 +1,5 @@
 package java.util.logging
 
-/** A log severity level with a name and an integer ranking. */
 public class Level private constructor(public val name: String, private val value: Int) {
     public fun intValue(): Int = value
 
@@ -26,7 +25,6 @@ public class Level private constructor(public val name: String, private val valu
     }
 }
 
-/** A named logger that dispatches records through its handlers and parent logger. */
 public class Logger internal constructor(public val name: String) {
     private val handlers = ArrayList<Handler>()
     private var configuredLevel: Level? = null
