@@ -46,18 +46,6 @@ extension CollectionLiteralLoweringSupport {
         state.tag(expr, as: trackedKind)
     }
 
-    /// Uses the once-per-pass `lookup.staticTypeClassification` tables — a single
-    /// dictionary probe plus an element-wise package prefix check, instead of
-    /// re-interning ~43 constant names per call.
-    ///
-    /// RF-LOWER-STATE-009: static type alone cannot tell a source Sequence
-    /// object from a RuntimeSequenceBox (KSP-441〜447 moved the pipeline to
-    /// Kotlin source, but some factories/bridges still hand back the runtime
-    /// representation) — the `.sequence` result records only that the type is
-    /// Sequence, via `Classification.sequenceType`. The confirmed-provenance
-    /// facts (`Classification.sequence` / `.sequenceSourceObject`) are seeded
-    /// in +PreScan.swift instead, from known factories/bridges/source
-    /// declarations/copies.
     func trackedStaticTypeKind(
         of symbol: SemanticSymbol,
         lookup: CollectionLiteralLookupTables
@@ -81,23 +69,6 @@ extension CollectionLiteralLoweringSupport {
         return entry.kind
     }
 
-    /// True when `symbol`'s declared receiver type is one of the bundled
-    /// `asSequence()` overloads confirmed, by reading its body, to construct
-    /// a fresh `object : Sequence<T>`: `Iterable`, `Iterator`, `CharSequence`,
-    /// `Map` (Sequences.kt, StringCollectionConversions.kt, MapHOF.kt).
-    ///
-    /// Deliberately excludes two other source-backed overloads:
-    ///  - `Array<T>.asSequence()` (ArrayHOF.kt) delegates to
-    ///    `toList().asSequence()` in source too, but the array virtual-call
-    ///    rewrite intercepts `asSequence()` ahead of source resolution for
-    ///    any receiver tracked as an array and redirects it to
-    ///    `kk_array_asSequence`, so this body never runs for such a receiver.
-    ///  - `Sequence<T>.asSequence()` (identity, `= this`): the result's
-    ///    provenance is the *receiver's* own, which a callee-only check like
-    ///    this has no way to look up.
-    /// Used only to confirm ``CollectionLiteralLoweringSupport/Classification/sequenceSourceObject``,
-    /// never ``CollectionLiteralLoweringSupport/Classification/sequence`` — a
-    /// name match here is evidence of a source object, not a runtime bridge.
     func isKnownSourceObjectConstructingAsSequenceReceiver(
         symbol: SymbolID,
         sema: SemaModule,
