@@ -1,7 +1,4 @@
 extension InlineLoweringPass {
-    /// Visit frozen snapshots in callee-before-caller order, including bodies
-    /// reached through lambda arguments. Each original is transformed at most
-    /// once; a back edge is not revisited, leaving cycles to the residue check.
     func expandNestedBodylessInlineCalls(
         index: InlineExpansionIndex,
         module: KIRModule,
@@ -30,16 +27,11 @@ extension InlineLoweringPass {
             guard visited.insert(symbol).inserted,
                   let original = index.originalBodies[symbol] else { continue }
             var dependencies: Set<SymbolID> = []
-            // One scan per snapshot body answers every per-argument lambda
-            // lookup below; rescanning the body per argument made this
-            // dependency pass quadratic in the body size (KUU-3777).
             let bodyIndex = InlineCallerBodyIndex(body: original.body, stats: stats)
             for instruction in original.body {
                 guard case let .call(callSymbol, callee, arguments, _, _, _, _, _) = instruction else {
                     continue
                 }
-                // Resolving reachable descriptors here discovers their own
-                // dependencies before expansion, without parsing unused imports.
                 if let target = index.inlineTarget(
                     callSymbol: callSymbol, callee: callee,
                     inlineFunctionsByName: index.inlineFunctionsByName
@@ -66,7 +58,6 @@ extension InlineLoweringPass {
             worklist.append(contentsOf: ordered(dependencies).reversed().map { ($0, false) })
         }
 
-        // Ordinary chains with no bodyless dependency are handled in callers.
         var pending = ordered(affected)
         while let symbol = pending.popLast() {
             for caller in ordered(callers[symbol] ?? []) where affected.insert(caller).inserted {
@@ -88,19 +79,6 @@ extension InlineLoweringPass {
         }
     }
 
-    /// Emits one deterministic diagnostic per leftover call that names a
-    /// bodyless callee -- `isInlineOnly` declarations and imported inline
-    /// symbols whose bodies are never emitted, so an unexpanded call would
-    /// dangle at link time. Non-mandatory calls (to regular `inline`
-    /// functions or non-expansion targets) are legal to leave behind and are
-    /// not reported. A callee on or reaching a bodyless call cycle can never
-    /// converge, so its callers are diagnosed as recursion; any other residue
-    /// means the expansion budget ran out.
-    ///
-    /// This runs after both expansion phases and scans the module's
-    /// post-expansion bodies in declaration order. The residue verdict is
-    /// the contract `expandNestedBodylessInlineCalls` and `inlineTransform`
-    /// are held to regardless of their scheduling strategy.
     func diagnoseMandatoryInlineResidue(
         module: KIRModule,
         index: InlineExpansionIndex,
