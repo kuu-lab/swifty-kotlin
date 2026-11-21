@@ -47,16 +47,8 @@ extension ExprLowerer {
                     propertyConstantInitializers: propertyConstantInitializers,
                     instructions: &instructions
                 )
-                // Bodies Sema never visits (a stdlib delegate's callback
-                // lambda, for instance) have no bound expression type; the
-                // lowered KIR type is the only description of the value and
-                // must still drive the string conversion.
                 let exprType = sema.bindings.exprTypes[exprID] ?? arena.exprType(lowered)
                 if let exprType, exprType != stringType {
-                    // See CallLowerer.emitAnyToStringWithNullGuard for why nullable
-                    // Float?/Double?/ULong? need an explicit null guard before
-                    // kk_any_to_string (their null-sentinel bit pattern coincides
-                    // with a legitimate in-range value for those tags).
                     let converted = driver.callLowerer.emitAnyToStringWithNullGuard(
                         valueID: lowered,
                         valueType: exprType,
