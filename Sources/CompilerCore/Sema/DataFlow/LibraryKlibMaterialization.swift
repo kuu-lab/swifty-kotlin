@@ -1,17 +1,6 @@
 import Foundation
 
 extension DataFlowSemaPhase {
-    /// Decodes the serialized Kotlin IR inside a `.klib` module and converts
-    /// its declarations into `ImportedLibrarySymbolRecord`s, so the regular
-    /// `.kklib` import machinery registers symbols, signatures, generics and
-    /// supertype edges exactly as it does for native `.kklib` bundles.
-    ///
-    /// Type parameters are encoded as `T<n>` signature tokens using a
-    /// module-global counter keyed by the type parameter's signature table
-    /// entry, mirroring how `.kklib` emits the producer's raw symbol IDs.
-    ///
-    /// Returns the materialized records plus the decoded IR module so the
-    /// caller can keep it for body materialization during KIR lowering.
     func materializeKlibRecords(
         module: KlibModule,
         interner: StringInterner,
@@ -129,8 +118,6 @@ private struct KlibRecordMaterializer {
             materializeTypeAlias(alias, containerFqName: containerFqName, fileIndex: fileIndex)
         case .anonymousInit, .variable, .valueParameter, .typeParameter,
              .localDelegatedProperty:
-            // Scope-internal declarations are not addressable by fq name; they
-            // become relevant only through body translation.
             break
         }
     }
@@ -423,7 +410,6 @@ private struct KlibRecordMaterializer {
             return
         }
         let name = (try? module.string(property.nameIndex, fileIndex: fileIndex)) ?? "_"
-        // The property type lives on its backing field or getter return type.
         let propertyTypeIndex = property.backingField?.nameType.typeIndex
             ?? property.getter?.base.nameType.typeIndex
         guard let propertyTypeIndex,
@@ -439,8 +425,6 @@ private struct KlibRecordMaterializer {
                 visibility: metadataVisibility(property.base.flags.visibility),
                 mangledName: mangledName(of: property.base.symbol, fileIndex: fileIndex),
                 fqName: fqName.map { interner.intern($0) },
-                // Override-ness lives on the serialized accessors, not the
-                // property itself.
                 isOverride: property.getter?.overridden.isEmpty == false
                     || property.setter?.overridden.isEmpty == false,
                 typeSignature: propertySignature,
@@ -561,9 +545,6 @@ private struct KlibRecordMaterializer {
         )
     }
 
-    /// `CommonIdSignature` carries package + declaration segments directly;
-    /// file-local/private declarations fall back to the walk context's
-    /// container fq-name plus the declaration's own name.
     private func fqNameSegments(
         of symbol: KlibSymbolRef,
         nameIndex: Int32?,
@@ -591,8 +572,6 @@ private struct KlibRecordMaterializer {
         return containerFqName + [name]
     }
 
-    /// `T<n>` index for a type parameter's signature entry, stable across the
-    /// whole module so owner and member records agree on the same indices.
     private mutating func typeParameterIndex(of symbol: KlibSymbolRef, fileIndex: Int) -> Int {
         let key = KlibSignatureKey(fileIndex: fileIndex, signatureIndex: symbol.signatureIndex)
         if let index = typeParameterIndexBySignature[key] { return index }
@@ -602,9 +581,6 @@ private struct KlibRecordMaterializer {
         return index
     }
 
-    /// `Lfq.Name<T0,...>;` — the use-site self type of a nominal declaration
-    /// (invariant type arguments), used for member receivers and constructor
-    /// return types.
     private mutating func nominalUseSiteSignature(
         _ klass: KlibClass,
         fqName: [String],
@@ -732,7 +708,6 @@ private struct KlibRecordMaterializer {
     private func metadataModality(_ modality: KlibModality) -> MetadataModality {
         switch modality {
         case .open: .open
-        // Sealed classes are abstract; `isSealedClass` carries the rest.
         case .abstract, .sealed: .abstract
         case .final: .final
         }
@@ -754,8 +729,6 @@ private struct KlibRecordMaterializer {
         }
     }
 
-    /// Field initializers are bare `IrExpression` entries, unlike function
-    /// bodies.
     private func constLiteral(_ bodyIndex: Int32?, fileIndex: Int, typeSignature: String) -> String? {
         guard let bodyIndex,
               let expression = try? module.expressionBody(bodyIndex, fileIndex: fileIndex)
