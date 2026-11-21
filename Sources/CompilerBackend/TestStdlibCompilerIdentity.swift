@@ -7,11 +7,7 @@ import Darwin
 import Glibc
 #endif
 
-/// Inputs that must match between a test process and its isolated stdlib builder.
 public enum TestStdlibCompilerIdentity {
-    /// Why ``current()`` could not produce an identity. ``currentWithDiagnostics()``
-    /// surfaces the failing stage so CI logs name it instead of only reporting a
-    /// missing fingerprint.
     public enum IdentityUnavailable: Error, CustomStringConvertible, Equatable {
         case injectedLibraries
         case llvmUnavailable
@@ -53,8 +49,6 @@ public enum TestStdlibCompilerIdentity {
         }
         let llvmIdentity = "\(llvmPath)|\(llvmHash)"
         #elseif canImport(Glibc)
-        // If the selected image cannot be queried portably, fingerprint every
-        // candidate in search order and every loaded executable mapping.
         let linuxIdentity: Result<String, IdentityUnavailable> = withExtendedLifetime(llvm) {
             var files: [String: LinuxDigest] = [:]
             guard let candidates = candidateLibrariesFingerprint(files: &files) else {
@@ -216,7 +210,6 @@ public enum TestStdlibCompilerIdentity {
     }
 
     static func environmentFingerprint(_ environment: [String: String]) -> String {
-        // These identify the test request itself, not compiler inputs.
         let transientKeys: Set<String> = ["KSWIFTK_TEST_STDLIB_PROVENANCE", "CODEX_TOOL_CALL_ID"]
         var data = Data()
         func append(_ value: String) {
