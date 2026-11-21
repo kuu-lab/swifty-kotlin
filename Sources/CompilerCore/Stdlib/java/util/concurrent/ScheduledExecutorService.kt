@@ -28,7 +28,6 @@ public interface ScheduledExecutorService : ExecutorService {
     ): ScheduledFuture<*>
 }
 
-/** Scheduled executor facade backed by the bundled Timer and worker pool. */
 public open class ScheduledThreadPoolExecutor(corePoolSize: Int) : ScheduledExecutorService {
     private val workers: ExecutorService
     private val timer = Timer("ScheduledThreadPoolExecutor", true)
