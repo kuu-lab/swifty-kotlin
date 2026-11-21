@@ -557,7 +557,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             }
 
         case "associateByTo", "associateWithTo", "groupByTo":
-            // *To(destination, keySelector/valueSelector, [valueTransform]): returns the destination map
             guard args.count == 2 || (args.count == 3 && calleeStr != "associateWithTo") else {
                 sema.bindings.bindExprType(id, type: sema.types.anyType)
                 return sema.types.anyType
@@ -565,13 +564,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             var destType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: expectedType)
             var nonNullableDestType = sema.types.makeNonNullable(destType)
 
-            // The bundled declarations bound the destination as a
-            // `MutableMap` (`M : MutableMap<in K, in V>` for associateByTo /
-            // associateWithTo, `M : MutableMap<in K, MutableList<V>>` for
-            // groupByTo). Re-parameterize the bound with the destination's own
-            // arguments — the same nominal-family check the collection
-            // destination path runs — so a non-map destination such as
-            // `mutableListOf()` cannot reach lowering (KUU-4292).
             if let mutableMapSymbol = lookupStdlibSymbol("MutableMap", symbols: sema.symbols, interner: interner) {
                 let shapeBoundArguments: [TypeArg] = if case let .classType(destClassType) = sema.types.kind(
                     of: nonNullableDestType
@@ -651,7 +643,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
             var valueType: TypeID = destValueType
             if args.count == 3 {
-                // For groupByTo the destination stores MutableList<V>, so the lambda returns V.
                 let secondLambdaExpectedReturn: TypeID
                 if destinationNeedsDeferredInference {
                     secondLambdaExpectedReturn = sema.types.nullableAnyType
@@ -702,12 +693,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     boundType: boundType,
                     sema: sema
                 ) {
-                    // The first pass diagnosed the still-unconstrained
-                    // destination call (KSWIFTK-SEMA-INFER on bare factories
-                    // such as `mutableMapOf()`); the re-inference below
-                    // re-derives it under the destination bound, so drop
-                    // those stale errors up front and restore them only when
-                    // re-inference fails.
                     let firstPassDestinationDiagnostics: [Diagnostic] = ast.arena
                         .exprRange(args[0].expr)
                         .map { ctx.sema.diagnostics.removeErrorDiagnostics(containedIn: $0) }
@@ -733,16 +718,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 }
             }
 
-            // The shape check above re-parameterized `MutableMap` with the
-            // destination's *own* arguments, so it only proves the destination
-            // is a map at all. kotlinc declares the bound contravariantly —
-            // `M : MutableMap<in K, in V>` for associateByTo/associateWithTo
-            // and `M : MutableMap<in K, MutableList<V>>` for groupByTo — which
-            // additionally requires the destination key/value types to be
-            // *supertypes* of what the selectors produce. The produced types
-            // are only knowable after the lambdas — and any deferred factory
-            // destination — have been inferred, so the check runs here
-            // against the final destination type (KUU-4292).
             let producedLambdaReturn: (ExprID) -> TypeID? = { argExpr in
                 if case let .lambdaLiteral(_, bodyExpr, _, _) = self.ast.arena.expr(argExpr) {
                     return self.sema.bindings.exprType(for: bodyExpr)
@@ -754,11 +729,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 }
                 return nil
             }
-            // A receiver whose declared type arguments are absent
-            // (`class L : MutableList<Int>`) leaves `collectionElementType` at
-            // its `Any` fallback — not evidence the bound demands `in Any`,
-            // so element-derived positions stay unchecked there (the same
-            // guard the collection destination path applies).
             let receiverDeclaresElementArgument = collectionElementType != sema.types.anyType
                 || (resolveClassType(receiverType, sema: sema).map { !$0.args.isEmpty } ?? false)
             let requiredKeyType: TypeID?
@@ -782,11 +752,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     ? producedLambdaReturn(args[2].expr)
                     : (receiverDeclaresElementArgument ? collectionElementType : nil)
             }
-            // A `nil` produced type means the call never fixed it — an
-            // unbound lambda result or a receiver without declared type
-            // arguments — so there is no evidence the bound is violated;
-            // checking anyway could reject destinations the bound does not
-            // actually forbid.
             var requiredBoundViolation = false
             var requiredBoundForMessage: TypeID?
             if let requiredKeyType,
@@ -807,10 +772,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                             args: [.in(requiredKeyType), .invariant(messageListType)],
                             nullability: .nonNull
                         )))
-                        // The `in Nothing` placeholder verifies the key
-                        // position and the `MutableMap` nominal shape without
-                        // committing `V`; the invariant `MutableList<V>` value
-                        // is verified separately below.
                         let keyAndShapeBound = sema.types.make(.classType(ClassType(
                             classSymbol: mutableMapSymbol,
                             args: [.in(requiredKeyType), .in(sema.types.nothingType)],
@@ -864,9 +825,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
             resultType = destType
 
-            // Source-backed overloads:
-            //   associateByTo<T,K,M> / associateByTo<T,K,V,M> / associateWithTo<T,V,M>
-            //   groupByTo<T,K,M> / groupByTo<T,K,V,M>
             let toTypeArgs: [TypeID] = args.count == 3
                 ? [collectionElementType, firstLambdaReturn, valueType, nonNullableDestType]
                 : [collectionElementType, firstLambdaReturn, nonNullableDestType]
@@ -1065,12 +1023,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     )
                 }
             } else if calleeStr == "sortedWith", !isSequenceReceiver {
-                // KUU-542: Set/Collection receivers bind the bundled
-                // Iterable<T>.sortedWith declaration, whose only parameter
-                // shape is Comparator — a lambda literal must be inferred
-                // as a Comparator (SAM) for the call to dispatch. A
-                // function-typed argument cannot take that shape, so it is
-                // left unbound exactly as before.
                 let argExpr = ast.arena.expr(args[0].expr)
                 if argExpr?.isLambdaOrCallableRef == true {
                     _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: comparatorExpectedType)
@@ -1125,10 +1077,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                 }
             }
-            // KUU-542: the bundled Iterable *With overloads take a
-            // Comparator parameter, so a function-typed comparator (an
-            // invalid Kotlin call shape) must stay unbound rather than
-            // misdispatching through the source declaration.
             if isComparatorTypedArgument(args[0].expr) {
                 sourceBackedIterableAggregateTypeArguments = [collectionElementType]
             }
@@ -1245,20 +1193,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         return nil
     }
 
-    /// `groupByTo` stores `MutableList<V>` values: the destination's map value
-    /// argument must itself be a `MutableList<X>` and the produced element
-    /// only needs to be a subtype of `X`. kotlinc fixes `V := X` through the
-    /// invariant `MutableList<V>` position of `MutableMap<in K, MutableList<V>>`
-    /// rather than comparing the produced element type against the whole list
-    /// type — so `MutableMap<String, MutableList<Int?>>` still accepts an
-    /// `Int` transform while `MutableMap<String, List<Int>>` and
-    /// `MutableMap<String, ArrayList<Int>>` do not (KUU-4292).
-    ///
-    /// The value argument is read through the destination's `MutableMap`
-    /// supertype so map implementations whose own type parameters do not
-    /// mirror `MutableMap`'s (for example `class StringKeyMap<V> :
-    /// MutableMap<String, V>`) are checked by their projected map type rather
-    /// than rejected for lacking two type arguments of their own.
     func groupByDestinationValueAccepts(
         _ destinationType: TypeID,
         producedElementType: TypeID,
@@ -1272,11 +1206,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
               ),
               mapArguments.count >= 2
         else {
-            // A destination that is not a concrete `MutableMap` class type —
-            // a type parameter bounded by one, an intersection, or an
-            // already-failed expression — gives no positive evidence the
-            // `MutableList<V>` slot is violated, so the check stays lenient
-            // there rather than rejecting what the bound does not forbid.
             return true
         }
         let mapValueType: TypeID?
@@ -1287,15 +1216,11 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             mapValueType = nil
         }
         guard let mapValueType else {
-            // `MutableMap<K, *>` cannot satisfy the invariant `MutableList<V>`
-            // slot for any concrete `V`.
             return false
         }
         guard case let .classType(valueClass) = sema.types.kind(
             of: sema.types.makeNonNullable(mapValueType)
         ) else {
-            // A non-class value argument (a type parameter, an error type)
-            // is not positive evidence of a violation either.
             return true
         }
         guard valueClass.classSymbol == mutableListSymbol,
