@@ -1,24 +1,3 @@
-/// Kotlin's `operator` modifier is inherited by overrides: an `override`
-/// of an `operator fun` is itself usable through operator syntax even when
-/// the override does not repeat the keyword.
-///
-/// ```kotlin
-/// open class A { open operator fun plus(n: Int) = n }
-/// class B : A() { override fun plus(n: Int) = n * 2 }
-/// fun main() {
-///     println(B() + 1)  // 2
-/// }
-/// ```
-///
-/// `HeaderHelpers.flags(from:)` sets `.operatorFunction` purely from the
-/// declaration's own modifiers, and every operator-resolution filter in
-/// `ExprTypeChecker` / `CallTypeChecker` keys off that flag, so `B.plus`
-/// above used to be dropped and the call rejected with `KSWIFTK-SEMA-0002`.
-///
-/// This pass iterates to a fixpoint so a chain of intermediate keyword-less
-/// overrides inherits regardless of the order `symbols.allSymbols()` visits
-/// them in.
-///
 /// Only overrides declared in user source inherit the flag. Bundled stdlib
 /// declarations keep exactly the modifiers they spell out: several of them
 /// (for example `ULongProgression.iterator`) describe values that are
