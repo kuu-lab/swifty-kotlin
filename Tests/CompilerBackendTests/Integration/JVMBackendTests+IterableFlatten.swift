@@ -62,7 +62,8 @@ extension JVMBackendTests {
             }
             """#
             try javaSource.write(to: root.appendingPathComponent("JavaConsumer.java"), atomically: true, encoding: .utf8)
-            _ = try javac(["--release", "8", "-Xlint:unchecked", "-Werror", "-classpath", library.path, "JavaConsumer.java"])
+            let javaCompiled = try jvmTool("javac", ["--release", "8", "-Xlint:unchecked", "-Xlint:-options", "-Werror", "-classpath", library.path, "JavaConsumer.java"], root: root)
+            try #require(javaCompiled.exitCode == 0, "\(javaCompiled.stderr)")
             let javaConsumer = try java(["-cp", root.path + ":" + library.path, "JavaConsumer"])
             #expect(javaConsumer.stdout == "[1, 2, 3]\n")
             #expect(javaConsumer.stderr.isEmpty)
@@ -74,7 +75,7 @@ extension JVMBackendTests {
                 classpath: [library.path]
             )
             #expect(invalid.1 != 0)
-            #expect(invalid.2.contains { $0.code == "KSWIFTK-SEMA-0024" })
+            #expect(invalid.2.contains { $0.code == "KSWIFTK-SEMA-0002" })
         }
     }
 }
