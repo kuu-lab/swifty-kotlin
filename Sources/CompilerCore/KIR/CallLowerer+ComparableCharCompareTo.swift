@@ -9,7 +9,6 @@
 /// `kk_char_compareTo` reproduces that without changing how the local is
 /// stored (the runtime helper unboxes either representation).
 extension CallLowerer {
-    /// Optionally wrapped in `!!` (the null check itself is a non-escaping read).
     private func comparableCharReceiverSymbol(
         _ exprID: ExprID,
         ast: ASTModule,
@@ -43,8 +42,6 @@ extension CallLowerer {
     ) -> KIRExprID? {
         guard args.count == 1,
               calleeName == KnownCompilerNames(interner: interner).compareTo,
-              // Only when the call resolved to `Comparable<T>.compareTo` — the
-              // member whose generic dispatch is `__kk_comparable_compareTo`.
               let chosenCallee = sema.bindings.callBindings[exprID]?.chosenCallee,
               sema.symbols.externalLinkName(for: chosenCallee) == "__kk_comparable_compareTo",
               comparableCharReceiverSymbol(receiverExpr, ast: ast, sema: sema) != nil
@@ -75,7 +72,6 @@ extension CallLowerer {
         return result
     }
 
-    /// `loweredReceiverID` must already hold the lowered receiver.
     func tryLowerComparableCharCompareToSafeCall(
         _ exprID: ExprID,
         receiverExpr: ExprID,
