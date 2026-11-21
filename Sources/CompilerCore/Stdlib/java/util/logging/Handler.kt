@@ -1,6 +1,5 @@
 package java.util.logging
 
-/** A destination for formatted log records. */
 public open class Handler {
     private var configuredLevel: Level = Level.ALL
     private var configuredFormatter: Formatter = SimpleFormatter()
