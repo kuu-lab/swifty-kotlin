@@ -1,23 +1,6 @@
 
-/// Synthetic Comparable helpers retained after the KSP-697 nominal shell migration.
-/// Comparable<in T> sub-helpers for primitive compatibility.
-///
-/// Split out to isolate merge conflicts between parallel stdlib PRs adding new
-/// entries to this package.
 extension DataFlowSemaPhase {
 
-    /// Registers the `kotlin.Byte`/`kotlin.Long`/`kotlin.Short` nominal class
-    /// anchors and their synthetic Companion objects. These primitives are
-    /// represented directly by TypeSystem, so they have no source declaration
-    /// from which the Companion nominal can be collected; the anchors exist so
-    /// bundled Companion extensions (`Stdlib/kotlin/{Byte,Long,Short}/Companion/
-    /// Companion.kt`) resolve. The constants themselves are Kotlin source-backed.
-    ///
-    /// Residual (c) language-core surface moved from the deleted
-    /// `HeaderHelpers+SyntheticMathStubs.swift` (KUU-586). The `kotlin.math`
-    /// package ensure that file also carried is intentionally dropped: bundled
-    /// `Math.kt` defines the package via `definePackageSymbol`, and the
-    /// `--no-stdlib` fallback is covered by `registerSyntheticCoercionStubs`.
     func registerSyntheticPrimitiveCompanionAnchors(
         symbols: SymbolTable,
         interner: StringInterner
@@ -65,10 +48,6 @@ extension DataFlowSemaPhase {
             symbols.setSupertypeTypeArgs([.in(primitiveType)], for: primitiveSymbol, supertype: comparableSymbol)
             types.setNominalSupertypeTypeArgs([.in(primitiveType)], for: primitiveSymbol, supertype: comparableSymbol)
 
-            // KSP-833/KSP-847/KSP-853/KSP-904/KSP-907/KSP-910/KSP-913: Double,
-            // Float, Int, UByte, UInt, ULong, and UShort are compiler
-            // primitives, so retain only the synthetic Companion anchors
-            // needed by source-backed extensions.
             if typeName == "Double" || typeName == "Float" || typeName == "Int" || typeName == "UByte" || typeName == "UInt" || typeName == "ULong" || typeName == "UShort" {
                 ensureSyntheticPrimitiveCompanionSymbol(
                     ownerSymbol: primitiveSymbol,
