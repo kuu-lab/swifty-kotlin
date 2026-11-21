@@ -1,11 +1,4 @@
 
-/// Runs after DataEnumSealedSynthesisPass which creates the $enumOrdinalToName helper.
-///
-/// `name` and `ordinal` are source-backed properties on the shared kotlin.Enum
-/// base class. Their representation is still compiler-owned, so this pass
-/// rewrites the source member access to the per-enum residual helpers. The
-/// synthetic registration in HeaderHelpers+SyntheticEnumStubs.swift remains a
-/// fallback for source-less enum surfaces.
 final class EnumNameAccessLoweringPass: LoweringPass {
     static let name = "EnumNameAccessLowering"
     static let requiredStage: KIRStage = .propertyLowered
@@ -120,10 +113,6 @@ final class EnumNameAccessLoweringPass: LoweringPass {
                     continue
                 }
                 if accessorCallee == ordinalCallee {
-                    // The KIR representation of an enum value already *is* its
-                    // boxed ordinal (see $enumOrdinalToName's own first step
-                    // below), so reading .ordinal is just unboxing it -- no
-                    // per-class helper needed.
                     let targetResult = result ?? module.arena.appendTemporary(type: intType)
                     newBody.append(.call(
                         callee: ctx.interner.intern("kk_unbox_int"),
@@ -162,14 +151,6 @@ final class EnumNameAccessLoweringPass: LoweringPass {
         module.recordLowering(Self.name)
     }
 
-    /// `enumValue.toString()` binds to `kotlin.Any.toString` and, absent a
-    /// user override, renders the bare entry name via `$enumOrdinalToName`.
-    /// BUG-A/BUG-Planet: prefer an actual `toString()` implementation when
-    /// the enum class declares one -- either directly on the class body
-    /// (`enumToStringOverrideHelper`'s class-level branch) or through the
-    /// per-entry dispatch helper reached when only some entry bodies
-    /// override `toString()` (`Op.MUL`'s case, after `EnumEntryBodyHeaders`
-    /// registers it as a dispatch target).
     private func rewriteEnumStringConversionCall(
         instruction: KIRInstruction,
         sema: SemaModule,
@@ -359,23 +340,6 @@ final class EnumNameAccessLoweringPass: LoweringPass {
     }
 }
 
-/// BUG-A/BUG-Planet: resolves the function that should render `classSym`'s
-/// enum values as strings when a user `toString()` override exists, so
-/// callers can prefer it over the default `$enumOrdinalToName` bare-name
-/// rendering. Checked in order:
-///  1. A direct, non-synthetic `toString()` declared on the enum class body
-///     itself (e.g. `enum class Planet { ...; override fun toString() = ... }`).
-///  2. The per-entry dispatch helper for `kotlin.Enum.toString()`, reached
-///     when at least one entry body overrides `toString()` (e.g. `Op.MUL`'s
-///     `override fun toString() = "times"`). `EnumEntryBodyHeaders` registers
-///     this helper under the enum class's own fqName, keyed by the shared
-///     `Enum.toString` base symbol's mangled name, so looking it up this way
-///     stays correct even when multiple enum classes in the same
-///     compilation each register their own dispatch for that shared base --
-///     a lookup keyed by the base symbol alone could not tell them apart.
-/// Returns `nil` when neither exists, meaning the default rendering applies.
-/// Takes the raw `SymbolTable` (rather than `SemaModule`) so it is usable
-/// from both KIR lowering passes and the lower-level call-emission helpers.
 func enumToStringOverrideHelper(
     for classSym: SemanticSymbol,
     symbols: SymbolTable,
