@@ -269,9 +269,6 @@ public final class LexPhase: CompilerPhase {
 public final class ParsePhase: CompilerPhase {
     public static let name = "Parse"
 
-    /// Reject top-level statements in non-`.kts` user sources. Enabled by the
-    /// compile pipelines; phase-level harnesses (golden dumps, parser tests)
-    /// keep parsing script-shaped `.kt` fixtures without the diagnostic.
     private let rejectsTopLevelStatementsOutsideScripts: Bool
 
     public init(rejectsTopLevelStatementsOutsideScripts: Bool = false) {
@@ -311,10 +308,6 @@ public final class ParsePhase: CompilerPhase {
 }
 
 extension ParsePhase {
-    /// Top-level statements make the parser pick script mode, which is only a
-    /// valid compilation unit for `.kts` sources. In a regular `.kt` file
-    /// kotlinc rejects every statement with "expecting a top level declaration",
-    /// so a forgotten `fun main` can no longer become an executable by accident.
     private func reportTopLevelStatementsOutsideScripts(
         _ syntaxTrees: [(FileID, SyntaxArena, NodeID)],
         ctx: CompilationContext
