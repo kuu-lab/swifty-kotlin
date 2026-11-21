@@ -9,11 +9,6 @@ import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.concurrent.Volatile
 
-// KUU-3059: java.util.concurrent.RunnableFuture / FutureTask — the
-// Runnable+Future carrier that executors run and callers block on. get()
-// parks the waiting thread on its per-thread atomicfu handle until run()
-// finishes; cancel() never interrupts (no thread interruption exists yet).
-
 public interface RunnableFuture<V> : Runnable, Future<V> {
     public override fun run()
 }
@@ -51,8 +46,6 @@ public open class FutureTask<V> : RunnableFuture<V> {
             val value = callable.call()
             guard.lock()
             try {
-                // A cancel racing the callable's completion wins — but the
-                // waiters still need releasing below.
                 if (state == 0) {
                     result = value
                     state = 1
