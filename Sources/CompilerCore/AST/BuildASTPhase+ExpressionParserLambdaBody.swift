@@ -37,8 +37,6 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
 
-        // The caller reparses the tokens as an expression when this probe
-        // cannot form a block, so discarded diagnostics must not leak.
         let diagnosticsCheckpoint = diagnostics?.checkpoint()
         func rollbackSpeculativeDiagnostics() {
             if let diagnosticsCheckpoint {
@@ -53,9 +51,6 @@ extension BuildASTPhase.ExpressionParser {
         }
 
         let hasStatementOnlyBody = statements.contains { statementID in
-            // Compound assignments on non-assignable targets (`this += x`,
-            // `a?.b += x`, call results) desugar to a marked blockExpr — still
-            // a statement, never a value-producing tail.
             if astArena.isCallResultCompoundAssignmentBlock(statementID) {
                 return true
             }
@@ -69,8 +64,6 @@ extension BuildASTPhase.ExpressionParser {
                 return false
             }
         }
-        // A leading empty statement is omitted from `ranges`, so a single
-        // expression after it must stay a block body with a trailing value.
         if ranges.count == 1, !hasStatementOnlyBody, ranges[0].0 == 0 {
             // The statement probe already ran the same ExpressionParser the
             // expression fallback in `parseLambdaBody` would run on these
@@ -94,11 +87,6 @@ extension BuildASTPhase.ExpressionParser {
         ))
     }
 
-    /// Parses each statement range. `plainExpressionParses` collects the
-    /// statements that came from the plain `ExpressionParser.parse()`
-    /// fallback inside `parseLambdaBodyStatement` — the same parse
-    /// `parseLambdaBody` would run on the whole body when it is a single
-    /// expression — so the caller can reuse them instead of reparsing.
     private func parseLambdaBodyStatements(
         ranges: [(Int, Int)],
         tokens: [Token]
@@ -110,8 +98,6 @@ extension BuildASTPhase.ExpressionParser {
             guard !group.isEmpty else {
                 continue
             }
-            // Keep a final indexed mutation as an expression so the lambda returns
-            // the old value for postfix or the updated value for prefix.
             if rangeIndex == ranges.count - 1,
                let prefixExpr = parseTrailingPrefixMutation(group)
             {
@@ -133,10 +119,6 @@ extension BuildASTPhase.ExpressionParser {
         return (statements, plainExpressionParses)
     }
 
-    /// `isPlainExpressionParse` is true only when the statement came from the
-    /// trailing `ExpressionParser.parse()` fallback — declaration and
-    /// mutation probes return shaped results the expression fallback would
-    /// not reproduce, so they must keep the reparse path.
     private func parseLambdaBodyStatement(
         from group: ArraySlice<Token>
     ) -> (expr: ExprID, isPlainExpressionParse: Bool)? {
@@ -167,9 +149,6 @@ extension BuildASTPhase.ExpressionParser {
            first.kind == .keyword(.val) || first.kind == .keyword(.var),
            diagnostics?.checkpoint() != speculationCheckpoint
         {
-            // Keep diagnostics from a malformed initializer in a declaration
-            // inside a lambda body. A declaration-shaped placeholder prevents
-            // the enclosing lambda probe from rolling the diagnostic back.
             guard let nameToken = group.dropFirst().first(where: {
                 TypeRefParserCore.isDeclarationNameToken($0.kind)
             }),
@@ -221,8 +200,6 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
 
-        // This whole parse is speculative: on bail the token group is reparsed
-        // as a statement or a plain expression, so its diagnostics must not leak.
         let diagnosticsCheckpoint = diagnostics?.checkpoint()
         let parser = BuildASTPhase.ExpressionParser(
             tokens: expressionTokens,
