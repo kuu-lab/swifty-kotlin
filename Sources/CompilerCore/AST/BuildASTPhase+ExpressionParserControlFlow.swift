@@ -1,6 +1,5 @@
 
 extension BuildASTPhase.ExpressionParser {
-    /// Returns whether an assignment operator was diagnosed.
     @discardableResult
     private func diagnoseAssignmentOperatorAfterExpression() -> Bool {
         guard let token = current() else { return false }
@@ -21,15 +20,11 @@ extension BuildASTPhase.ExpressionParser {
     private func parseRequiredControlFlowCondition() -> ExprID? {
         if let token = current(), token.kind == .symbol(.rParen) {
             diagnostics?.error("KSWIFTK-PARSE-0001", "Expected expression.", range: token.range)
-            // Preserve the control-flow node so surrounding declarations don't cascade into name errors.
             return astArena.appendExpr(.boolLiteral(false, token.range))
         }
         return parseExpression(minPrecedence: 0)
     }
 
-    /// Records a trailing `else` (optionally preceded by `;`) that follows a
-    /// completed control-flow expression. An enclosing if may still claim it
-    /// as its dangling else; `parse()` diagnoses it if no if does.
     private func recordStrayElseIfPresent() {
         if matches(.keyword(.else)) {
             strayElseToken = current()
@@ -65,8 +60,6 @@ extension BuildASTPhase.ExpressionParser {
                     index = startIndex + bodyEnd
                     return localDecl
                 }
-                // A later named argument can supply the assignment token in
-                // this slice. A partial branch expression is not its LHS.
                 if let localAssign = parseLocalAssignFromSlice(bodySlice[...], requiresCompleteExpressions: true) {
                     index = startIndex + bodyEnd
                     return localAssign
@@ -93,8 +86,6 @@ extension BuildASTPhase.ExpressionParser {
         var nestedIfs = 0
         for offset in 0 ..< end {
             let token = tokens[offset]
-            // `if`/`else` inside a `${ ... }` template belong to the
-            // template's own expression, not to this statement's structure.
             if depth.isAtTopLevel, depth.template == 0 {
                 if token.kind == .keyword(.if) {
                     nestedIfs += 1
@@ -103,8 +94,6 @@ extension BuildASTPhase.ExpressionParser {
                     nestedIfs -= 1
                 }
             }
-            // Angle tokens can be comparison operators. Type arguments cannot
-            // contain an if/else branch, so only expression delimiters matter.
             if token.kind != .symbol(.lessThan), token.kind != .symbol(.greaterThan) {
                 depth.track(token.kind)
             }
@@ -213,7 +202,6 @@ extension BuildASTPhase.ExpressionParser {
                 }
                 while matches(.symbol(.comma)) {
                     _ = consume()
-                    // If we see '->' after comma, it was a trailing comma; stop
                     if matches(.symbol(.arrow)) {
                         break
                     }
@@ -228,9 +216,6 @@ extension BuildASTPhase.ExpressionParser {
 
             var guardExpr: ExprID?
             if isElseBranch {
-                // Kotlin 2.1 when guards: `else if <expr> ->` is a fallible
-                // catch-all branch — not the final `else` — so further
-                // branches (including a plain `else`) may still follow.
                 if matches(.keyword(.if)) {
                     _ = consume()
                     guardExpr = parseExpression(minPrecedence: 0)
@@ -262,7 +247,6 @@ extension BuildASTPhase.ExpressionParser {
                 end = branchRange.end
             }
 
-            // Progress guard: force token consumption to avoid infinite loops.
             if index == loopStart {
                 _ = consume()
             }
@@ -534,19 +518,12 @@ extension BuildASTPhase.ExpressionParser {
         return scan
     }
 
-    /// Whether the token at `index` can be the last token of a when-branch body expression.
-    /// A line break after an operator or keyword that still expects an operand
-    /// continues the body, so the next line cannot open a new entry even if a
-    /// later `->` makes it look like a branch header.
     private func whenBranchBodyTokenCanEndExpression(at index: Int, bodyStart: Int) -> Bool {
         let token = tokens[index]
         switch token.kind {
         case .symbol(.bangBang), .symbol(.plusPlus), .symbol(.minusMinus):
-            // Postfix operators can close the body expression.
             return true
         case .symbol(.greaterThan):
-            // A closing type-argument `>` ends a cast/check type, unlike a
-            // comparison operator that still expects its right operand.
             return isClosingTypeArgument(at: index, bodyStart: bodyStart)
         case .symbol(.plus), .symbol(.minus), .symbol(.star), .symbol(.slash), .symbol(.percent),
              .symbol(.ampAmp), .symbol(.barBar),
@@ -593,8 +570,6 @@ extension BuildASTPhase.ExpressionParser {
         }
         let baseCanEnd: Bool
         if reachedBodyStart {
-            // The token before a branch body is the `->` that introduces it, so
-            // the first `downTo`/`step` of the body is a primary expression.
             baseCanEnd = false
         } else {
             baseCanEnd = whenBranchBodyTokenCanEndExpression(at: cursor, bodyStart: bodyStart)
@@ -602,8 +577,6 @@ extension BuildASTPhase.ExpressionParser {
         return operatorCount % 2 == 1 ? !baseCanEnd : baseCanEnd
     }
 
-    /// Whether the closing `>` at `index` belongs to a type argument list in an
-    /// `is`/`as` type rather than to a comparison operator.
     private func isClosingTypeArgument(at index: Int, bodyStart: Int) -> Bool {
         var angleDepth = 1
         var parenDepth = 0
@@ -644,8 +617,6 @@ extension BuildASTPhase.ExpressionParser {
         return typeArgumentListHasCastOrCheck(before: open, bodyStart: bodyStart)
     }
 
-    /// After finding the `<` that `>` closes, require the type it introduces to
-    /// be the target of an `is` check or `as`/`as?` cast inside this body.
     private func typeArgumentListHasCastOrCheck(before openIndex: Int, bodyStart: Int) -> Bool {
         var cursor = tokens.index(before: openIndex)
         guard cursor >= bodyStart else { return false }
@@ -781,10 +752,6 @@ extension BuildASTPhase.ExpressionParser {
         return false
     }
 
-    /// Whether the tokens after `else if` reach a `->` that terminates a
-    /// Kotlin 2.1 guarded else entry. The guard may span newlines; a depth-0
-    /// `else` ends the scan because it belongs to an if expression inside
-    /// the previous branch body (or to the enclosing construct entirely).
     private func guardedElseReachesArrow(from startIndex: Int) -> Bool {
         var scan = startIndex
         var parenDepth = 0
@@ -840,14 +807,6 @@ extension BuildASTPhase.ExpressionParser {
         }
     }
 
-    /// Whether a line break before `tokens[index]` still sits inside a
-    /// candidate when-branch header. The entry parser accepts a line break
-    /// after every token that cannot end a condition (`cond,\n` expects the
-    /// next condition, `x is\n` expects its type) and before every token that
-    /// resumes the entry: `,`/`->` on their own line, an infix `is`/`in`/`as`
-    /// or binary operator continuing the condition expression, and the
-    /// postfix `.`/`?.`/call/index/lambda/`!!` suffixes
-    /// (`2\n.plus(3) ->`, `x\nis T ->`, `2 +\n3 ->`) (KUU-4096).
     private func whenHeaderContinuesAcrossLineBreak(at index: Int) -> Bool {
         let token = tokens[index]
         let previous = tokens[tokens.index(before: index)]
@@ -861,8 +820,6 @@ extension BuildASTPhase.ExpressionParser {
              .keyword(.is), .keyword(.in), .keyword(.as):
             return true
         case .symbol(.bang):
-            // `!is`/`!in` extend the checked expression across the break; a
-            // bare `!` starts a new prefix condition and must not.
             let next = tokens.index(after: index)
             guard next < tokens.endIndex else {
                 return false
@@ -873,9 +830,6 @@ extension BuildASTPhase.ExpressionParser {
         }
     }
 
-    /// Tokens that cannot terminate a condition expression, so a line break
-    /// after them is always still inside the header (`x is\nT ->`,
-    /// `cond,\ncond2 ->`, `2 +\n3 ->`).
     private func whenHeaderTokenCanEndCondition(_ token: Token) -> Bool {
         switch token.kind {
         case .symbol(.comma), .symbol(.arrow),
@@ -944,7 +898,6 @@ extension BuildASTPhase.ExpressionParser {
             end = labelToken.range.end
         }
 
-        // An else clause terminates a bare return in the enclosing if branch.
         let value = matches(.keyword(.else)) ? nil : parseExpression(minPrecedence: 0)
         if let value, let valueEnd = astArena.exprRange(value)?.end {
             end = valueEnd
@@ -1098,8 +1051,6 @@ extension BuildASTPhase.ExpressionParser {
                     range: range
                 ))
                 if declaringEntryCount > 0, declaringEntryCount != destructuringNames.count {
-                    // kotlinc: once one entry declares `val`, every entry must
-                    // ("Expecting val keyword").
                     diagnostics?.error(
                         "KSWIFTK-PARSE-0029",
                         "Expecting 'val' keyword in destructuring declaration.",
@@ -1170,15 +1121,11 @@ extension BuildASTPhase.ExpressionParser {
                         range: following.range
                     )
                 } else {
-                    // Capture the declared loop-variable type (e.g. `c: Int`)
-                    // so sema can check it against the iterator element type.
                     var typeTokens: [Token] = []
                     var typeDepth = 0
                     while let typeToken = current() {
                         if typeToken.kind == .keyword(.in) { break }
                         if typeToken.kind == .symbol(.rParen), typeDepth == 0 { break }
-                        // Leave a top-level `,` (`for (i: Int, j in x)`) for
-                        // the comma check below instead of swallowing it.
                         if typeToken.kind == .symbol(.comma), typeDepth == 0 { break }
                         switch typeToken.kind {
                         case .symbol(.lParen), .symbol(.lBracket), .symbol(.lessThan):
@@ -1268,9 +1215,6 @@ extension BuildASTPhase.ExpressionParser {
         let range = SourceRange(start: start ?? forToken.range.start, end: end)
         let exprID = astArena.appendExpr(.forExpr(loopVariable: loopVariable, iterable: iterable, body: body, label: label, range: range))
         if !loopVariableAnnotations.isEmpty {
-            // The loop variable is represented by its enclosing forExpr in the
-            // current AST model, so retain its annotations there. Sema's
-            // expression-annotation pass then validates and applies @Suppress.
             astArena.prependExpressionAnnotations(loopVariableAnnotations, for: exprID)
         }
         if let loopVariableTypeRef {
@@ -1408,8 +1352,6 @@ extension BuildASTPhase.ExpressionParser {
     }
 
     private func parseDoWhileBodyExpression(from bodyTokens: ArraySlice<Token>) -> ExprID? {
-        // When the body is a braced block, parse it as-is so that semicolons
-        // are preserved for intra-block statement splitting.
         if let first = bodyTokens.first, first.kind == .symbol(.lBrace) {
             return BuildASTPhase.ExpressionParser(
                 tokens: bodyTokens, interner: interner, astArena: astArena,
@@ -1520,8 +1462,6 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
 
-        // Nested expressions can bypass the structured CST parser. Use the
-        // same range and diagnostic so reparsing a CST error reports it once.
         let nextIsHandler = (matches(.keyword(.catch)) || matches(.keyword(.finally)))
             && peek(1)?.kind != .symbol(.at)
         if !nextIsHandler {
