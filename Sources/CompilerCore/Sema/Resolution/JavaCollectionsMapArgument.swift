@@ -1,6 +1,4 @@
 extension OverloadResolver {
-    /// Preserve Java's Boolean! value constraint and captured key argument.
-    /// This applies only to the compiler-owned platform signature.
     func javaCollectionsMapArgument(
         fqName: [InternedString], signature: FunctionSignature, call: CallExpr, ctx: SemaModule
     ) -> (compatible: Bool, replacement: TypeID?) {
