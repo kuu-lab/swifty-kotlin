@@ -442,9 +442,6 @@ extension CallTypeChecker {
             return inferred
         }
 
-        // KSP-678: `Channel()` / `Channel(capacity)` resolve through the bundled
-        // Kotlin factory functions (Channels.kt) via normal overload resolution.
-
         let withContextExpectedLambdaType = resolveWithContextExpectedLambdaType(
             calleeName: calleeName, args: args, expectedType: expectedType, ctx: ctx
         )
@@ -473,19 +470,7 @@ extension CallTypeChecker {
         var constructorTypeAlias: SymbolID?
         var implicitReceiverScopeCandidates: [SymbolID] = []
         var callImplicitReceiverType = ctx.implicitReceiverType
-        /// Member-extension candidates -> the receiver-tower symbol Sema
-        /// picked to supply their declared extension receiver. Recorded into
-        /// `implicitExtensionReceiverSymbols` once overload resolution
-        /// chooses, so KIR lowering materializes that exact receiver value
-        /// (through capture when the call sits inside a nested lambda)
-        /// instead of blindly using the innermost implicit receiver.
         var memberExtensionReceiverMarks: [SymbolID: SymbolID] = [:]
-        /// Members merged from the innermost implicit receiver while the
-        /// scope lookup produced no candidates (e.g. `FlowCollector.emit`
-        /// inside a `transform` lambda). Their resolver pass can fail on an
-        /// opaque builder-inference type parameter in the receiver
-        /// signature, so the member path's lenient single-candidate bind
-        /// must still apply to them.
         var mergedImplicitReceiverMembers: [SymbolID] = []
         var callInvisible: [SemanticSymbol] = []
         var knownApplicableImplicitMembers: Set<SymbolID> = []
@@ -618,9 +603,6 @@ extension CallTypeChecker {
         if candidates.isEmpty, calleeName == nil,
            let calleeExpr, !calleeExpr.isLambdaOrCallableRef {
             let calleeCheckpoint = sema.diagnostics.checkpoint()
-            // The callee sits on the call spine: it is evaluated iff the call
-            // itself is, so it keeps the conditionality this call node was
-            // entered with rather than the raised flag that gates arguments.
             var calleeCtx = ctx
             calleeCtx.isConditionallyEvaluated = ctx.receiverConditionallyEvaluated
             let calleeType = driver.inferExpr(calleeID, ctx: calleeCtx, locals: &locals)
@@ -636,9 +618,6 @@ extension CallTypeChecker {
                    calleeID, ctx: ctx, expectedReturnType: expectedType
                )
             {
-                // Preserve callee-side flow for argument checking. Retry the
-                // branches with the common type of already-resolved references
-                // and re-emit any real callee diagnostics from that pass.
                 sema.diagnostics.rollback(to: calleeCheckpoint)
                 branchCalleeContextType = branchContextType
             } else {
@@ -740,8 +719,6 @@ extension CallTypeChecker {
                 )
             }
         }
-        // Contextual argument inference uses the underlying owner's positions,
-        // while overload resolution consumes the alias's public type arguments.
         let argumentContextTypeArgs = typeAliasConstructor.map {
             aliasConstructorArgumentContextTypes($0, explicitTypeArgs: explicitTypeArgs, sema: sema)
         } ?? explicitTypeArgs
@@ -761,12 +738,6 @@ extension CallTypeChecker {
             lambdaContextOverrides: &lambdaContextOverrides
         )
 
-        // Calling a function-typed value (`m { it }`): no candidate declares
-        // the argument types, so use the value's own function type for lambda
-        // and inferable nested-call arguments. For an extension function value
-        // called with its receiver explicitly, that receiver is argument zero.
-        // This includes member properties accessed through the implicit
-        // receiver, such as a function property called from an init block.
         let callableValueType: TypeID? = if candidates.isEmpty, let calleeName {
             if let local = locals[calleeName] {
                 local.type
@@ -776,8 +747,6 @@ extension CallTypeChecker {
         } else {
             nil
         }
-        // Smart-cast intersections (`f as KFunction<*>`) keep their unique
-        // structural conjunct for lambda/argument hints as well (KUU-3652).
         if let callableValueType,
            let calleeFunctionType = sema.types.uniqueStructuralFunctionType(
                for: sema.types.makeNonNullable(callableValueType)
@@ -877,11 +846,6 @@ extension CallTypeChecker {
             preparedArgs: preparedArgs,
             argTypes: argTypes
         ) {
-            // A successful nested inference can still make another invariant
-            // argument incompatible. Retry the whole call without lifted hints,
-            // retaining its declared expected result and all ordinary constraints.
-            // listOf retains useful element hints even in the fallback pass.
-            // Those hints must not recursively schedule the same retry again.
             if inferred == sema.types.errorType, ctx.allowsLiftedCallExpectedTypeHints, !expectedTypeHintIndices.isEmpty {
                 sema.diagnostics.rollback(to: argumentDiagnosticsCheckpoint)
                 locals = originalArgumentLocals
@@ -930,9 +894,6 @@ extension CallTypeChecker {
                       named: calleeName, ctx: ctx
                   )
         {
-            // Inherited `private` members never enter the candidate set (they
-            // are not inherited), but the member still exists — report it as
-            // inaccessible rather than unresolved, matching kotlinc (KUU-3766).
             driver.helpers.emitVisibilityError(
                 for: privateMember,
                 name: interner.resolve(calleeName),
@@ -944,9 +905,6 @@ extension CallTypeChecker {
                       named: calleeName, ctx: ctx
                   )
         {
-            // A `private` nested classifier on a supertype is not inherited,
-            // so it stays out of the candidate set — report it as
-            // inaccessible rather than unresolved, matching kotlinc (KUU-3798).
             driver.helpers.emitVisibilityError(
                 for: privateClassifier,
                 name: interner.resolve(calleeName),
@@ -1031,11 +989,6 @@ extension CallTypeChecker {
             && interner.resolve(symbol.fqName[1]) == name
     }
 
-    /// True when `candidate` is a non-stdlib declaration that is applicable to the
-    /// call, so it takes precedence over the `context` / `contextOf` intrinsic
-    /// handling. Declarations with a different arity — or without the type
-    /// parameters the call spells out explicitly — are not applicable and leave
-    /// the intrinsic path in charge.
     func shadowsStdlibContextHelper(
         _ candidate: SymbolID,
         named name: String,
