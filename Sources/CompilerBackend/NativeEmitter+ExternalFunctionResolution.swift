@@ -8,8 +8,6 @@ extension NativeEmitter.FunctionEmissionContext {
         argumentCount: Int,
         appendThrownChannel: Bool
     ) -> NativeEmitter.LLVMFunction? {
-        // Lambda bodies may reach codegen with callee "length" when receiver type is not
-        // available during KIR lowering (e.g. mapIndexed { _, v -> v.length }).
         let effectiveName: String = if NativeEmitter.isStringLengthAggregateAccessorName(calleeName),
                                        argumentCount == 1,
                                        !appendThrownChannel
@@ -27,7 +25,6 @@ extension NativeEmitter.FunctionEmissionContext {
                 case .nullableIntptrPointer:
                     return outThrownPointerType
                 case .constUInt8Pointer, .nullableConstUInt8Pointer:
-                    // Flat bridges consume native pointers; legacy raw calls carry pointer bits as intptr.
                     return NativeEmitter.flatScalarReturnCallSpecs[effectiveName] != nil
                         || NativeEmitter.flatStringReturnCallSpecs[effectiveName] != nil
                         ? typeLowering?.dataPointerType : int64Type
@@ -38,7 +35,6 @@ extension NativeEmitter.FunctionEmissionContext {
             return declareExternalFunction(
                 named: effectiveName,
                 parameterTypes: parameterTypes,
-                // Function addresses must agree with the flat String call's native pointer return.
                 returnType: NativeEmitter.flatStringReturnCallSpecs[effectiveName] != nil
                     ? typeLowering?.dataPointerType : int64Type
             )
@@ -158,9 +154,6 @@ extension NativeEmitter.FunctionEmissionContext {
                               argumentValues[index],
                               suffix: "\(suffix)_arg\(index)_raw"
                           ) {
-                    // Fallback for boxed string pointers in any/unknown-typed expressions
-                    // (e.g. kk_list_iterator_next result used in a string template).
-                    // Excluded: primitive types (Int, Bool, Char…) which are never string boxes.
                     stringValue = bridged
                 } else {
                     return nil
@@ -180,7 +173,6 @@ extension NativeEmitter.FunctionEmissionContext {
         argumentTypes: [TypeID?],
         appendThrownChannel _: Bool
     ) -> (symbol: SymbolID, function: NativeEmitter.LLVMFunction)? {
-        // Match by KIR param count (user args only); outThrown is appended by codegen.
         let lookupKey = NativeEmitter.FunctionLookupKey(name: calleeName, parameterCount: argumentCount)
         let candidates = internalFunctionsByLookupKey[lookupKey, default: []].compactMap { candidate -> (symbol: SymbolID, function: NativeEmitter.LLVMFunction, parameters: [TypeID])? in
             guard let llvmFunction = internalFunctions[candidate.symbol] else {
@@ -272,9 +264,6 @@ extension NativeEmitter.FunctionEmissionContext {
             "kk_min_float", "kk_max_float", "kk_min_double", "kk_max_double",
         ].contains(externalLinkName)
         if let spec = NativeEmitter.runtimeABIFunctionByName[externalLinkName] {
-            // Runtime callees that throw carry a trailing `outThrown` channel
-            // that is not part of the Kotlin parameter list, so exclude it
-            // when matching against the source-level signature.
             let abiValueParameters = spec.parameters.filter { parameter in
                 !(parameter.name == "outThrown" && parameter.type == .nullableIntptrPointer)
             }
@@ -303,8 +292,6 @@ extension NativeEmitter.FunctionEmissionContext {
                 }
             }
             if isRawNumericComparisonHelper, spec.returnType == .intptr {
-                // Keep the raw-bit return type aligned with RuntimeABI when an
-                // inline precompiled body retains the helper's source symbol.
                 resolvedReturnType = typeSystem.intType
             } else if stringAggregateBridge.isStringAggregateType(signature.returnType), isHandleLike(spec.returnType) {
                 resolvedReturnType = typeSystem.intType
