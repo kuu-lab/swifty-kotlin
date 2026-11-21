@@ -16,10 +16,8 @@ package enum JavaProperties {
             var line = String(physicalLine)
             if line.hasSuffix("\r") { line.removeLast() }
             if continuation {
-                // Leading whitespace on a continuation line is skipped.
                 logical += line.drop(while: { $0 == " " || $0 == "\t" || $0 == "\u{0C}" })
             } else {
-                // Leading whitespace does not start a new property.
                 line = String(line.drop(while: { $0 == " " || $0 == "\t" || $0 == "\u{0C}" }))
                 if line.isEmpty || line.hasPrefix("#") || line.hasPrefix("!") {
                     continue
@@ -40,8 +38,6 @@ package enum JavaProperties {
         return pairs
     }
 
-    /// True when the line ends with an odd number of `\` (continuation).
-    /// Only the trailing run counts — `\t` earlier in the line is unrelated.
     private static func hasContinuation(_ line: String) -> Bool {
         var backslashes = 0
         for ch in line.reversed() {
@@ -52,7 +48,6 @@ package enum JavaProperties {
     }
 
     private static func splitProperty(_ line: String) throws -> (key: String, value: String) {
-        // First unescaped `=`, `:` or whitespace separates key and value.
         var keyEnd = line.startIndex
         var escaped = false
         scan: while keyEnd < line.endIndex {
@@ -85,7 +80,6 @@ package enum JavaProperties {
 
     private static func unescape(_ string: String) throws -> String {
         guard string.contains("\\") else { return string }
-        // Java escapes encode UTF-16 code units, including surrogate pairs.
         var result: [UInt16] = []
         var i = string.startIndex
         while i < string.endIndex {
@@ -127,7 +121,6 @@ package enum JavaProperties {
 /// `builtins_platform`, `ir_signature_versions`, `library_version` and the
 /// platform target keys (`native_targets`, `wasm_targets`, `jsOutputName`).
 package struct KlibManifest {
-    /// `x.y.z` style version; the patch component is optional.
     package struct Version: Comparable, CustomStringConvertible {
         package let major: Int
         package let minor: Int
@@ -140,8 +133,6 @@ package struct KlibManifest {
                   let major = Int(parts[0]),
                   let minor = Int(parts[1])
             else { return nil }
-            // Kotlin may suffix versions ("2.4.20-dev-7885"); keep the
-            // leading numeric component of the patch field.
             let patchField = parts.count > 2 ? parts[2] : "0"
             let digits = patchField.prefix(while: { $0.isASCII && $0.isNumber })
             let suffix = patchField.dropFirst(digits.count)
@@ -166,9 +157,7 @@ package struct KlibManifest {
     }
 
     package enum Compatibility: Equatable {
-        /// Uses an IR wire format supported by this reader.
         case supported
-        /// Cannot be imported; `reason` should be surfaced as an error.
         case unsupported(reason: String)
     }
 
@@ -178,10 +167,8 @@ package struct KlibManifest {
     package let metadataVersion: Version?
     package let libraryVersion: String?
     package let irSignatureVersions: Set<Int>
-    /// `depends` — space-separated `unique_name`s of required libraries.
     package let depends: [String]
     package let builtinsPlatform: String?
-    /// All remaining key/value pairs, last value wins.
     package let properties: [String: String]
 
     package init(contents: String) throws {
