@@ -1,6 +1,4 @@
 extension DataFlowSemaPhase {
-    /// Bundled progression sources whose companion object may already exist
-    /// as a synthetic symbol, keyed by source path.
     private static let bundledProgressionSourceTypeNames: [String: String] = [
         "__bundled_kotlin/ranges/IntProgression/IntProgression.kt": "IntProgression",
         "__bundled_kotlin/ranges/LongProgression/LongProgression.kt": "LongProgression",
