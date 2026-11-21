@@ -1,4 +1,3 @@
-/// Uses declaration ownership to separate package dots from nested-class separators.
 private func kclassDisplayName(
     for symbolID: SymbolID, sema: SemaModule, interner: StringInterner
 ) -> String {
@@ -110,7 +109,6 @@ func emitKClassCastNameRegistration(
     ))
 }
 
-/// Called after metadata registration for literals and constructed nominal objects.
 func emitKClassDisplayNameRegistration(
     symbol: SymbolID,
     typeTokenExpr: KIRExprID,
