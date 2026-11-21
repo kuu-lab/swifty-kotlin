@@ -160,8 +160,6 @@ extension BuildASTPhase.ExpressionParser {
 
         index = lParenIndex
         let funToken = tokens[functionStartIndex]
-        // kotlinc reports 'type parameters are prohibited here' on generic
-        // anonymous function literals — the `<` immediately after `fun`.
         if lParenIndex > functionStartIndex + 1,
            tokens[functionStartIndex + 1].kind == .symbol(.lessThan) {
             diagnostics?.error(
@@ -177,10 +175,6 @@ extension BuildASTPhase.ExpressionParser {
             var depth = BuildASTPhase.BracketDepth()
             var previousKind: TokenKind?
             var sawAnnotation = false
-            // The return type ends at `{`/`=` (body) or, for a bodiless
-            // `fun(...): T`, at the enclosing boundary. Closers and
-            // separators can't appear inside a type at top level, and a
-            // second identifier can't extend a completed atom (`Int f`).
             typeScan: while let token = current() {
                 if depth.isAtTopLevel {
                     switch token.kind {
@@ -218,9 +212,6 @@ extension BuildASTPhase.ExpressionParser {
         let expressionBody: ExprID?
         let headerEndIndex = index
         if matches(.symbol(.assign)) {
-            // A lone `<...>` type parameter clause is not a receiver —
-            // kotlinc accepts `fun <T>(x: T) = x` (it only prohibits the
-            // type parameters themselves, reported above).
             _ = consume()
             guard let body = parseExpression(minPrecedence: 0) else {
                 index = expressionStartIndex
@@ -231,10 +222,6 @@ extension BuildASTPhase.ExpressionParser {
             skipBalancedBraceIfNeeded()
             expressionBody = nil
         } else {
-            // A bodiless `fun(...)` still parses as an anonymous function;
-            // parseLocalFunDeclExpr reports 'must have a body' on it, the
-            // same diagnostic kotlinc emits ('function 'anonymous' must
-            // have a body.').
             expressionBody = nil
         }
         let endIndex = index
@@ -272,9 +259,6 @@ extension BuildASTPhase.ExpressionParser {
         return function
     }
 
-    /// Tokens after which an identifier can still continue a return-type
-    /// spelling (qualified names, function types, generic arguments,
-    /// `suspend`). Everything else means the type is complete.
     private static func isAnonymousFunctionTypeConnector(_ kind: TokenKind) -> Bool {
         switch kind {
         case .symbol(.dot), .symbol(.questionDot), .symbol(.arrow),
