@@ -1,7 +1,5 @@
 import Foundation
 
-/// A resolved Android SDK toolchain: build-tools directory, the platform
-/// `android.jar`, and the individual tool paths used by `--emit dex`/`apk`.
 package struct AndroidToolchain: Sendable {
     package let sdkRoot: URL
     package let buildToolsDirectory: URL
@@ -9,9 +7,6 @@ package struct AndroidToolchain: Sendable {
     package let aapt2Path: String?
     package let zipalignPath: String?
     package let apksignerPath: String?
-    /// `platforms/android-<api>/android.jar`, or nil when no platform is
-    /// installed. Used both as the `d8 --lib` bootclasspath and the `aapt2
-    /// link -I` framework.
     package let androidJarPath: String?
 }
 
@@ -35,10 +30,6 @@ package enum AndroidSDKError: Error, CustomStringConvertible {
     }
 }
 
-/// Locates the Android SDK, a build-tools version, and a platform
-/// `android.jar` for `--emit dex`/`apk`. Resolution order for the SDK root:
-/// `--android-sdk`, `ANDROID_HOME`, `ANDROID_SDK_ROOT`, then the platform
-/// default install location.
 package enum AndroidSDKLocator {
     package static func locate(
         sdkPath: String?,
@@ -69,9 +60,6 @@ package enum AndroidSDKLocator {
         )
     }
 
-    /// The platform `android.jar` alone, without requiring build-tools. Used
-    /// by the JVM frontend to inject the Android framework onto the classpath
-    /// before codegen runs.
     package static func androidJarPath(
         sdkPath: String?,
         compileSdk: String?,
@@ -113,7 +101,6 @@ package enum AndroidSDKLocator {
             guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory),
                   isDirectory.boolValue
             else { continue }
-            // A real SDK root has build-tools and/or platforms subdirectories.
             let hasBuildTools = fileManager.fileExists(
                 atPath: url.appendingPathComponent("build-tools").path
             )
@@ -153,7 +140,6 @@ package enum AndroidSDKLocator {
             }
             return buildToolsRoot.appendingPathComponent(version, isDirectory: true)
         }
-        // Prefer the newest version that actually ships d8.
         for candidate in versions {
             let dir = buildToolsRoot.appendingPathComponent(candidate, isDirectory: true)
             if fileManager.isExecutableFile(atPath: dir.appendingPathComponent("d8").path) {
@@ -208,11 +194,6 @@ package enum AndroidSDKLocator {
         return FileManager.default.isExecutableFile(atPath: path) ? path : nil
     }
 
-    /// Dotted numeric version comparison: "36.0.0" > "34.0.0" > "30.0.3",
-    /// "37.0" > "36". Non-numeric components sort below numeric ones.
-    /// True when two platform version strings denote the same API level:
-    /// exact match, or equal after dropping trailing ".0" components
-    /// ("37" matches "37.0", but "36" does not match "36.1").
     private static func platformVersionMatches(_ lhs: String, _ rhs: String) -> Bool {
         if lhs == rhs { return true }
         func normalized(_ value: String) -> [Int] {
