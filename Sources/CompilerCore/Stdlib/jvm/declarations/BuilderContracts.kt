@@ -1,5 +1,4 @@
 package kotlin.contracts
-// Contract effects are compiler-only and are erased before JVM emission.
 interface ContractEffect
 interface Effect : ContractEffect
 interface ConditionalEffect : Effect
