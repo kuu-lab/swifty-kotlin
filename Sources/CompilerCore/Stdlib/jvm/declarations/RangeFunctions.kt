@@ -38,8 +38,6 @@ public operator fun IntProgression.contains(value: Int): Boolean = null!!
 // the common ProgressionConstructors.kt declaration is.
 public operator infix fun IntProgression.step(step: Int): IntProgression = null!!
 
-// Reversing swaps the endpoints and negates the step; the specialized
-// progression overload keeps the IntProgression return type.
 public fun IntProgression.reversed(): IntProgression = null!!
 
 public inline fun IntRange.all(predicate: (Int) -> Boolean): Boolean {
