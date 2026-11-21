@@ -1,6 +1,5 @@
 package java.nio
 
-/** A position-based view of a long array. */
 public class LongBuffer private constructor(
     private val longs: LongArray,
     private val start: Int,
