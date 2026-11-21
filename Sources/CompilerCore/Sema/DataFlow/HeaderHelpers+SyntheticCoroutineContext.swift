@@ -50,10 +50,6 @@ extension DataFlowSemaPhase {
 
         if !context.projectsCoroutineContextIsActive,
            !bundledIndex.contains(ownerFQName: kotlinCoroutinesPkg + [interner.intern("CoroutineContext")], name: interner.intern("isActive"), arity: 0) {
-            // `kotlinx.coroutines.isActive`: an extension on CoroutineContext (not just
-            // CoroutineScope/Job) so `currentCoroutineContext().isActive` resolves.
-            // Mirrors `this[Job]?.isActive ?: true` -- a context with no Job element is
-            // considered active.
             registerSyntheticObjectProperty(
                 ownerSymbol: coroutineContextSymbol,
                 ownerType: coroutineContextType,
@@ -385,8 +381,6 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([coroutineContextElementSymbol, coroutineContextSymbol], for: coroutineExceptionHandlerSymbol)
         types.setNominalDirectSupertypes([coroutineContextElementSymbol, coroutineContextSymbol], for: coroutineExceptionHandlerSymbol)
 
-        // KUU-1405: The companion `Key` materializes the `kk_exception_handler_key`
-        // singleton so `ctx[CoroutineExceptionHandler]` / `minusKey` resolve like Job.Key.
         if symbols.companionObjectSymbol(for: coroutineExceptionHandlerSymbol) == nil {
             let keyName = interner.intern("Key")
             let keyFQName = coroutinesPkg
@@ -434,7 +428,6 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        // The bundled constructor allocates the runtime-owned name handle.
         if !hasBundledCoroutineName {
             registerSyntheticCoroutineTopLevelFunction(
                 named: "CoroutineName",
@@ -469,8 +462,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // KUU-4361: the nominal is an interface, which has no constructors —
-        // the same-name factory function above covers `CoroutineExceptionHandler(handler)`.
         if symbols.symbol(coroutineExceptionHandlerSymbol)?.kind == .class {
             registerSyntheticCoroutineConstructor(
                 ownerSymbol: coroutineExceptionHandlerSymbol,
@@ -576,9 +567,6 @@ extension DataFlowSemaPhase {
         let kotlinCoroutinesPkg = context.kotlinCoroutinesPkg
         let kotlinCoroutineContextSymbol = context.kotlinCoroutineContextSymbol!
 
-        // KSP-1145: the public object and its six members are bundled Kotlin
-        // source. Keep the synthetic object only for configurations that do
-        // not inject/import that source.
         let emptyCoroutineContextFQName = kotlinCoroutinesPkg + [interner.intern("EmptyCoroutineContext")]
         let hasSourceBackedEmptyCoroutineContext = bundledIndex.contains(
             ownerFQName: emptyCoroutineContextFQName,
