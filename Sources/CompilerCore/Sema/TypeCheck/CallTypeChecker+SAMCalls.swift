@@ -1,7 +1,5 @@
 
 extension CallTypeChecker {
-    /// Nominal context for a nested SAM constructor before eager inference.
-    /// Abstain when a same-named callable could take precedence over the interface.
     func inferableSamConstructorSymbol(_ exprID: ExprID, ctx: TypeInferenceContext) -> SymbolID? {
         guard let expr = ctx.ast.arena.expr(exprID),
               case let .call(callee, typeArgs, args, _) = expr,
@@ -105,9 +103,6 @@ extension CallTypeChecker {
                 return symbol.kind == .function || symbol.kind == .constructor
             }).visible
         }
-        // A same-named factory participates in ordinary overload resolution before
-        // the synthetic SAM constructor. Check applicability without inferring a
-        // losing lambda body or suppressing errors in the winning factory context.
         let hasSamConstructor = samConstructorTarget(
             named: calleeName, qualifiedName: qualifiedName, ctx: ctx
         ) != nil
@@ -287,9 +282,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// The synthetic SAM constructor accepts a function value, not only a
-    /// lambda or reference. Abstain when a same-named function could take
-    /// precedence.
     private func inferSamConstructorFromFunctionValue(
         _ id: ExprID,
         calleeName: InternedString,
@@ -314,11 +306,6 @@ extension CallTypeChecker {
         ).visible.isEmpty
         guard !hasCallable else { return nil }
 
-        // The argument may be any expression producing a function value —
-        // calls on callable references like `::foo.get()` or `(::A)()`,
-        // casts, `if`/`when` results, nominal FunctionN subtypes — not only a
-        // bare local of function type (KUU-3203). Infer it, then check its
-        // function view against the SAM member signature.
         let argExpr = args[0].expr
         let argType = driver.inferExpr(argExpr, ctx: ctx, locals: &locals)
         guard let probeInterfaceType = samFunctionValueProbeInterfaceType(
@@ -340,12 +327,6 @@ extension CallTypeChecker {
         )
     }
 
-    /// Best-effort interface type for checking a non-literal SAM constructor
-    /// argument before `inferSamConstructorCallExpr` commits: the expected
-    /// type when it names the interface, then explicit type arguments, then
-    /// the raw (parameterless) interface. Generic interfaces without either
-    /// source of arguments defer to the normal path, which resolves their
-    /// type arguments from the argument itself.
     private func samFunctionValueProbeInterfaceType(
         _ interfaceSymbol: SymbolID,
         expectedType: TypeID?,
@@ -523,10 +504,6 @@ extension CallTypeChecker {
         expectedType: TypeID?,
         explicitTypeArgs: [TypeID]
     ) -> TypeID? {
-        // A function-typed value converts like a lambda (`Owner.Nested(f)`,
-        // KUU-3662) — `isSamConvertibleArgument` only sees literal forms.
-        // Nominal FunctionN subtypes (e.g. `Owner.Nested((::A)())`, KUU-3203)
-        // qualify through their function-type witness as well.
         let argIsFunctionValue = args.count == 1
             && !isSamConvertibleArgument(args[0].expr, ast: ctx.ast)
             && (argTypes.first.map { argType in
@@ -652,12 +629,6 @@ extension CallTypeChecker {
                     ctx: ctx,
                     locals: locals
                 ) {
-                    // Type parameters the lambda return cannot constrain (an
-                    // `in T` used only in a parameter position, e.g. KT-78073 /
-                    // KUU-3839) stay as star projections rather than producing a
-                    // malformed zero-argument interface type. Callers with a
-                    // contextual expected type — such as `by` delegates, which
-                    // bind the getValue `thisRef` — fill them precisely instead.
                     inferredInterfaceArgs = partialArgs.map { $0 ?? .star }
                 } else {
                     inferredInterfaceArgs = annotationArgs
@@ -893,12 +864,6 @@ extension CallTypeChecker {
         return inferredArguments
     }
 
-    /// Completes an expected-type-derived interface argument list: concrete
-    /// positions stay as declared, while `.star` positions are inferred from
-    /// the lambda return type and explicit parameter annotations (in that
-    /// order). Positions no source can constrain keep their star projection
-    /// (KUU-3839: `by` delegates pass the getValue `thisRef` in concrete
-    /// positions and stars elsewhere).
     private func completeSamInterfaceArguments(
         _ expectedArgs: [TypeArg],
         interfaceSymbol: SymbolID,
@@ -938,10 +903,6 @@ extension CallTypeChecker {
         return completed
     }
 
-    /// Infers a raw SAM constructor's type arguments from the lambda's explicit
-    /// parameter type annotations, which are the only source of that information
-    /// when neither explicit type arguments nor an expected type are available
-    /// (BUG-046).
     private func inferInterfaceArgsFromLambdaAnnotations(
         _ interfaceSymID: SymbolID,
         typeParameters: [SymbolID],
@@ -973,11 +934,6 @@ extension CallTypeChecker {
         return inferredArgs.count == typeParameters.count ? inferredArgs : []
     }
 
-    /// Per-parameter inference from the lambda body's result type. Positions
-    /// the solved substitution leaves unbound come back as `nil` entries so
-    /// callers can merge a contextual source or fall back to star projections
-    /// instead of dropping every inferred argument (KUU-3839: `in T` type
-    /// parameters that never appear in the SAM return type).
     private func inferInterfaceArgsFromLambdaReturnType(
         _ interfaceSymID: SymbolID,
         typeParameters: [SymbolID],
@@ -1030,8 +986,6 @@ extension CallTypeChecker {
             return nil
         }
 
-        // Give the lambda its SAM input types but a top return type so its body
-        // is inferred without prematurely checking against unresolved T.
         let returnProbeType = sema.types.make(.functionType(FunctionType(
             contextReceivers: functionType.contextReceivers,
             receiver: functionType.receiver,
