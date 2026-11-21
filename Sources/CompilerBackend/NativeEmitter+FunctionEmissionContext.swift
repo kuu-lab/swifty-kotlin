@@ -1,12 +1,6 @@
 import CompilerCore
 
 extension NativeEmitter {
-    /// Shared per-function emission state. `emitFunctionBody` used to carry this
-    /// state as locals captured by ~30 nested local funcs; the refactor turns
-    /// each captured local into a property and each local func into a method so
-    /// the code could be split across the `NativeEmitter+*Emission*` sibling
-    /// files. Optionals marked `!` are populated by `emitBody`'s prologue before
-    /// any helper runs (same ordering as the original single function).
     final class FunctionEmissionContext {
         let emitter: NativeEmitter
 
@@ -107,10 +101,6 @@ extension NativeEmitter {
                 interner: emitter.interner
             )
         }
-
-        // The moved code was written against `self` (the emitter). These
-        // forwards keep the extracted bodies verbatim instead of rewriting
-        // every member reference to go through `emitter`.
 
         var bindings: LLVMCAPIBindings { emitter.bindings }
         var module: KIRModule { emitter.module }
