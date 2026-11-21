@@ -1,13 +1,4 @@
 
-/// A `var` declared without an initializer (deferred init) has no KIR value to
-/// seed a mutable-capture cell with if the *first* assignment reachable from
-/// Sema's definite-assignment analysis happens to be inside a lambda that
-/// captures it (e.g. `var r: Int; once { r = 3 }` under a
-/// `callsInPlace(EXACTLY_ONCE/AT_LEAST_ONCE)` contract). Definite assignment
-/// guarantees this placeholder is never actually read before the real write,
-/// so any representable bit pattern for the type is safe -- this mirrors the
-/// zero/null mapping `delegationDefaultValue` already uses for the same
-/// "no real value yet" situation in constructor-delegation dispatch.
 func deferredLocalCaptureCellSeedValue(
     for type: TypeID,
     sema: SemaModule,
@@ -25,8 +16,6 @@ func deferredLocalCaptureCellSeedValue(
         .doubleLiteral(0)
     case .primitive, .nothing(.nonNull):
         .intLiteral(0)
-    // `Nothing?`/`Nothing!` are inhabited — their only legal seed is `null`
-    // (KUU-4158).
     case .nullableUnit, .platformUnit, .nothing(.nullable), .nothing(.platformType), .stringStruct, .classType, .functionType, .typeParam, .any, .intersection, .kClassType:
         .null
     case .error:
