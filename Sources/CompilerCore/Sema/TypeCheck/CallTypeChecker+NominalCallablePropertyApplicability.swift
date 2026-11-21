@@ -36,14 +36,9 @@ extension CallTypeChecker {
                 return candidates
             }
         }
-        // Preserve the best diagnostic when every tier has candidates but none
-        // accepts this call shape.
         return firstCandidateTier ?? []
     }
 
-    /// Probe member invoke signatures without checking a losing lambda body.
-    /// Defaults, named arguments, varargs and type arguments retain the ordinary
-    /// overload resolver's mapping and constraints.
     func nominalCallablePropertyAcceptsArgumentShape(
         _ type: TypeID, request: MemberCallInferenceRequest, argTypes: [TypeID], locals: LocalBindings
     ) -> Bool {
