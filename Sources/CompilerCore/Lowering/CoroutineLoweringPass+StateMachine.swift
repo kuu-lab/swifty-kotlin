@@ -61,8 +61,6 @@ extension CoroutineLoweringPass {
             interner.intern("kk_channel_send"),
             interner.intern("__kk_channel_receive_catching"),
         ])
-        // CORO-004: runtime suspend callees that take the caller continuation as a
-        // trailing argument so they can resume the awaiting coroutine without blocking.
         let continuationConsumingRuntimeCallees: Set<InternedString> = [
             interner.intern("kk_suspend_function_invoke_0"),
             interner.intern("kk_suspend_function_invoke"),
@@ -71,9 +69,6 @@ extension CoroutineLoweringPass {
             interner.intern("kk_suspend_function_invoke_4"),
             interner.intern("kk_suspend_function_invoke_5"),
             interner.intern("kk_suspend_function_invoke_6"),
-            // KSP-1566: bundled `delay` overloads are declared straight on the
-            // `kk_kxmini_delay` bridge, whose external suspend call emits the
-            // cdecl directly with the caller continuation appended.
             interner.intern("kk_kxmini_delay"),
             interner.intern("kk_kxmini_async_await"),
             interner.intern("kk_job_join"),
@@ -274,10 +269,6 @@ extension CoroutineLoweringPass {
                             lowered.append(instruction)
                             continue
                         }
-                        // KUU-3833: route through the OrReturn-aware invoke so a
-                        // resume delivered through the block's continuation marks
-                        // the state — the suspend call then reports suspended
-                        // while the delivered value rides the completion channel.
                         loweredSuspendCallee = interner.intern("kk_suspend_coroutine_orreturn")
                         loweredSuspendArguments = [blockExpr, continuationExpr]
                     // The intrinsic `yield()` is top-level and argumentless. Same-name
@@ -316,13 +307,6 @@ extension CoroutineLoweringPass {
                         }()
                         loweredSuspendCallee = isMillisDelayCall ? runtimeDelayCallee : suspendCallInfo.callee
                         loweredSuspendArguments = suspendCallInfo.arguments
-                        // KSP-1566: `delay(duration)` binds the bundled Duration
-                        // overload straight to `kk_kxmini_delay`; the argument
-                        // arrives as a tagged payload, so convert it to the
-                        // runtime's millisecond ABI. KUU-1093: Duration is now
-                        // a boxed object (it implements Comparable<Duration>) —
-                        // kk_duration_inWholeMilliseconds accepts every
-                        // representation, boxed or tagged raw.
                         if suspendCallInfo.callee == runtimeDelayCallee,
                            let firstArg = loweredSuspendArguments.first,
                            let argType = module.arena.exprType(firstArg),
@@ -353,24 +337,13 @@ extension CoroutineLoweringPass {
                                 spec.parameters.filter { $0.name != "outThrown" }.count
                             }
                             if let expectedArgCount, loweredSuspendArguments.count < expectedArgCount {
-                                // Interface-delegation forwarding stubs emit direct bridge calls
-                                // without a trailing blocking-path placeholder slot.
                                 loweredSuspendArguments.append(continuationExpr)
                             } else if !loweredSuspendArguments.isEmpty {
-                                // KIR supplies the blocking-path continuation slot.
-                                // Replace it rather than adding an extra ABI argument;
-                                // owner lock's outThrown stays in thrownResult.
                                 loweredSuspendArguments[loweredSuspendArguments.count - 1] = continuationExpr
                             } else {
                                 loweredSuspendArguments.append(continuationExpr)
                             }
                         } else if isMillisDelayCall || continuationConsumingRuntimeCallees.contains(suspendCallInfo.callee) {
-                            // CORO-004: append the caller continuation so await / join can
-                            // resume the coroutine via the runtime instead of blocking.
-                            // KUU-2161: KIR call lowering already appended a zero
-                            // continuation placeholder to Semaphore.acquire; swap it
-                            // for the real caller continuation instead of adding a
-                            // third argument.
                             if suspendCallInfo.callee == semaphoreAcquireCallee,
                                loweredSuspendArguments.count >= 2
                             {
@@ -429,7 +402,6 @@ extension CoroutineLoweringPass {
                     if let thrownResult = suspendCallInfo.thrownResult {
                         lowered.append(.jumpIfNotNull(value: thrownResult, target: synchronousContinueLabel))
                     }
-                    // An uncontended Mutex acquisition does not check cancellation.
                     if !mutexLockCallees.contains(suspendCallInfo.callee) {
                         lowered.append(.call(
                             callee: checkCancellationCallee,
@@ -472,9 +444,6 @@ extension CoroutineLoweringPass {
 
                 case .returnUnit:
                     let unitExpr = module.arena.appendExpr(.unit, type: unitType)
-                    // `.returnUnit` completes the coroutine with kotlin.Unit —
-                    // box the raw representation so the `Result` payload is
-                    // the Unit singleton, not raw 0.
                     let boxedUnit = emitNonThrowingCall(
                         callee: interner.intern("kk_box_unit"),
                         arg: unitExpr,
@@ -498,13 +467,6 @@ extension CoroutineLoweringPass {
         return lowered
     }
 
-    /// Boxes a suspend function's completion value for the `Any?` boundary it
-    /// crosses on coroutine exit. The returned value is the payload of the
-    /// `Result` delivered to the completion continuation and the value a
-    /// synchronous suspend call returns to its caller, so primitives, Unit,
-    /// enums, and value classes must arrive boxed exactly like the argument
-    /// to `Result.success`. Falls back to the raw value when the type system
-    /// is unavailable.
     private func boxedCoroutineCompletionValue(
         _ value: KIRExprID,
         suspendReturnType: TypeID,
