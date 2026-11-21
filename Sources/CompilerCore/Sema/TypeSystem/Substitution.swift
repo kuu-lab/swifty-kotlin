@@ -68,8 +68,6 @@ public extension TypeSystem {
         }
     }
 
-    /// Renders well-known inference types without leaking internal symbol IDs
-    /// into user-facing constraint diagnostics.
     internal func renderConstraintType(_ type: TypeID) -> String {
         switch kind(of: type) {
         case let .classType(classType) where classType.classSymbol == numberClassSymbol:
@@ -125,17 +123,11 @@ public extension TypeSystem {
     }
 
     struct VarianceProjectionResult {
-        /// Substitution for covariant positions (return types).
-        /// For `out Number`: T → Number.  For `in Number`: T → Any?.  For `*`: T → Any?.
         public let covariantSubstitution: [TypeVarID: TypeID]
-        /// Type parameter symbols that are projected as `out` or `*` (write-forbidden).
         public let writeForbiddenSymbols: Set<SymbolID>
-        /// Projected inputs made explicitly nullable by a supertype argument.
         public let nullableWriteSymbols: Set<SymbolID>
     }
 
-    /// Resolve the effective upper bound for a type parameter, returning `Any?` when
-    /// no explicit bounds exist and an intersection type when multiple bounds exist.
     private func effectiveUpperBound(for symbol: SymbolID) -> TypeID {
         let bounds = declaredUpperBounds(for: symbol)
         if bounds.isEmpty { return nullableAnyType }
@@ -143,13 +135,6 @@ public extension TypeSystem {
         return make(.intersection(bounds))
     }
 
-    /// Build variance-aware substitutions for a member access on a projected receiver type.
-    ///
-    /// Given a receiver like `MutableList<out Number>`, this builds:
-    /// - Covariant substitution: T → Number (for return types)
-    /// - A set of type parameter symbols that are write-forbidden (`out` or `*` projections)
-    ///
-    /// Returns `nil` if the receiver has no projected type arguments (all invariant).
     func buildVarianceProjectionSubstitutions(
         receiverType: TypeID,
         signature: FunctionSignature,
@@ -178,8 +163,6 @@ public extension TypeSystem {
             return nil
         }
         var nullableWriteSymbols: Set<SymbolID> = []
-        // An inherited member's parameters belong to its declaring receiver.
-        // Preserve the projections while lifting the actual subtype to it.
         if signature.classTypeParameterCount > 0,
            let receiver = signature.receiverType,
            case let .classType(declared) = kind(of: receiver),
@@ -220,7 +203,6 @@ public extension TypeSystem {
                 if case let .typeParam(parameter) = kind(of: captured), let capture = parameter.capture {
                     captureIdentities.insert(capture.identity)
                 }
-                // Keep an explicit supertype T? separate from a nullable upper bound.
                 return .invariant(makeNonNullable(captured))
             }
             let capturedReceiver = self.classType(
@@ -303,8 +285,6 @@ public extension TypeSystem {
     ) -> Int? {
         guard !writeForbiddenSymbols.isEmpty else { return nil }
         for (index, paramType) in signature.parameterTypes.enumerated() {
-            // Nothing can be passed to an existential input without producing
-            // a value. Every supplied argument for this parameter must be bottom.
             let suppliedIndices = parameterMapping.compactMap { $0.value == index ? $0.key : nil }
             let acceptsNull: Bool
             if case let .typeParam(parameter) = kind(of: paramType) {
@@ -347,8 +327,6 @@ public extension TypeSystem {
                 case .nullable:
                     return makeNullable(concrete)
                 case .platformType:
-                    // A nullable Java type argument collapses the flexible
-                    // bounds to T?, so it must never become assignable to T.
                     if nullability(of: concrete) == .nullable { return concrete }
                     return withNullability(.platformType, for: concrete)
                 case .nonNull:
@@ -400,8 +378,6 @@ public extension TypeSystem {
             if newParts == parts {
                 return type
             }
-            // A non-null intersection component removes null from every
-            // substituted part, including a nullable concrete type argument.
             let hasNonNullPart = newParts.contains { isDefinitelyNonNull($0) }
             let narrowedParts = hasNonNullPart
                 ? newParts.map { part in
@@ -417,10 +393,6 @@ public extension TypeSystem {
         }
     }
 
-    /// Rewrites references to type-parameter symbols in `arg` according to
-    /// `mapping` (old symbol -> replacement symbol), keeping each reference's
-    /// nullability. Used to reconcile the synthetic `T<n>` symbols that
-    /// library metadata spells with the symbols a nominal was registered with.
     func substitutingTypeParameterSymbols(_ arg: TypeArg, mapping: [SymbolID: SymbolID]) -> TypeArg {
         let orderedOldSymbols = mapping.keys.sorted { $0.rawValue < $1.rawValue }
         let typeVarBySymbol = makeTypeVarBySymbol(orderedOldSymbols)
