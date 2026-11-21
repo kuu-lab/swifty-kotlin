@@ -1,6 +1,4 @@
 extension TypeSystem {
-    /// Replacing a captured argument by its upper bound is safe only where
-    /// that argument occurs covariantly. Invariant results need a capture.
     func canApproximateCapturedUpperBound(
         in type: TypeID, parameter: SymbolID, position: TypeVariance = .out
     ) -> Bool {
