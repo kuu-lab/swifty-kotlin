@@ -1,14 +1,4 @@
 
-// Coercion extension stubs (STDLIB-150) for kotlin.ranges.
-// Int/Long/Double/Float coercion tests: CoercionSyntheticStubTests (TEST-002)
-//
-// KSP-1544 (KUU-588): the remaining registrations are all bucket (c)
-// compiler/runtime residuals — language-core primitive casts lowered directly
-// to kk_* runtime symbols (see docs/stdlib-pipeline.md §9). The source-backed
-// (b) surface is fully migrated: range coercion lives in
-// Stdlib/kotlin/ranges/RangeCoercion.kt, and Float/Double.toByte()/toShort()
-// live in Stdlib/kotlin/Numbers.kt.
-
 extension DataFlowSemaPhase {
     func registerSyntheticCoercionStubs(
         symbols: SymbolTable,
@@ -16,20 +6,7 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
-        // Unsigned coercion overloads are provided by bundled Kotlin source (RangeCoercion.kt).
 
-        // STDLIB-NUM-130: isNaN / isInfinite / isFinite
-
-        // Int.countOneBits() / countLeadingZeroBits() / countTrailingZeroBits() (STDLIB-501)
-        // STDLIB-BIT-007: Additional bit manipulation functions.
-        // KSP-646: Double/Float isNaN, isInfinite, and isFinite now use IEEE
-        // 754 bit-pattern checks in bundled Kotlin (Stdlib/kotlin/util/Numbers.kt).
-        // KSP-647: toBits and toRawBits are bundled Kotlin extensions in the
-        // same source file, backed by __kk_* declarations there.
-
-        // Primitive bit-count and one-bit functions are declared in bundled Kotlin source
-        // (Stdlib/kotlin/BitOperations.kt) since KSP-643/KSP-644.
-        // Use if-let instead of guard-return so future registrations below are not skipped.
         if let kotlinPackageSymbol = symbols.lookup(fqName: kotlinPkg) {
             let coercions = coercionRows(packageFQName: kotlinPkg, packageSymbol: kotlinPackageSymbol, symbols: symbols, interner: interner, types: types)
             coercions.fn("toByte", "kk_int_to_byte", on: types.intType, ret: types.byteType)
@@ -37,9 +14,6 @@ extension DataFlowSemaPhase {
             coercions.fn("toInt", "kk_primitive_identity", on: types.intType, ret: types.intType)
             coercions.fn("toLong", "kk_int_to_long", on: types.intType, ret: types.longType)
             coercions.fn("toFloat", "kk_int_to_float", on: types.intType, ret: types.floatType)
-
-            // KSP-1536: Int.toDouble() and Int.toChar() are declared in bundled
-            // Kotlin source (`Stdlib/kotlin/Numbers.kt`).
 
             coercions.fn("toUByte", "kk_int_to_ubyte", on: types.intType, ret: types.ubyteType)
             coercions.fn("toUShort", "kk_int_to_ushort", on: types.intType, ret: types.ushortType)
@@ -54,10 +28,6 @@ extension DataFlowSemaPhase {
             coercions.fn("toUShort", "kk_long_to_ushort", on: types.longType, ret: types.ushortType)
             coercions.fn("toUInt", "kk_long_to_uint", on: types.longType, ret: types.uintType)
             coercions.fn("toULong", "kk_long_to_ulong", on: types.longType, ret: types.ulongType)
-
-            // KSP-1544: Float.toByte()/toShort() and Double.toByte()/toShort()
-            // are source-backed in Stdlib/kotlin/Numbers.kt (toInt().toX()
-            // composition with error-level deprecation metadata).
 
             coercions.fn("toFloat", "kk_double_to_float", on: types.doubleType, ret: types.floatType)
 
@@ -152,9 +122,6 @@ extension DataFlowSemaPhase {
                 coercions.fn(stub.name, stub.link, on: stub.receiver, ret: stub.result)
             }
 
-            // Include the unsigned identities independently of the unsigned
-            // non-identity matrix in KUU-919. A source-backed declaration, if
-            // present, wins because registration skips its exact signature.
             let primitiveIdentities: [(name: String, type: TypeID)] = [
                 ("toByte", types.byteType),
                 ("toShort", types.shortType),
@@ -276,7 +243,6 @@ extension DataFlowSemaPhase {
     }
 }
 
-/// Rows for package-level primitive coercions; see `SyntheticMemberRows`.
 struct SyntheticCoercionRows {
     let register: (
         _ name: String, _ externalLinkName: String, _ receiverType: TypeID,
