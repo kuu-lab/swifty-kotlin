@@ -20,7 +20,6 @@ extension KotlinLexer {
     }
 
     func isIdentifierStart(_ ch: UInt8) -> Bool {
-        // `$` is reserved for string-template markers, not Kotlin identifiers.
         ch == 0x5F || (0x41 ... 0x5A).contains(ch) || (0x61 ... 0x7A).contains(ch) || ch >= 0x80
     }
 
@@ -63,8 +62,6 @@ extension KotlinLexer {
     }
 
     func starts<Bytes: Collection>(with literal: Bytes, at position: Int) -> Bool where Bytes.Element == UInt8 {
-        // Compare the UTF-8 view or precomputed symbol bytes directly, without
-        // allocating a temporary array for each prefix check.
         bytes.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) in
             guard position >= 0, position <= buffer.count,
                   literal.count <= buffer.count - position
