@@ -1262,6 +1262,10 @@ extension DataFlowSemaPhase {
             externalLinkName: "java/io/File.<init>", symbols: symbols, interner: interner
         )
         registerFileMemberProperty(
+            named: "path", externalLinkName: "java/io/File.getPath",
+            ownerSymbol: owner, returnType: types.stringType, symbols: symbols, interner: interner
+        )
+        registerFileMemberProperty(
             named: "absolutePath", externalLinkName: "java/io/File.getAbsolutePath",
             ownerSymbol: owner, returnType: types.stringType, symbols: symbols, interner: interner
         )
