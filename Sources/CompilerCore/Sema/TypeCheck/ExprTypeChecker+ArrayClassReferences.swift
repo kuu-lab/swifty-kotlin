@@ -1,6 +1,4 @@
 extension ExprTypeChecker {
-    /// JVM class literals accept concrete Array types, while ordinary generic
-    /// classifiers must omit their type arguments on the left of `::class`.
     func inferExplicitArrayClassRef(
         _ id: ExprID,
         receiverTypeRef: TypeRefID,
