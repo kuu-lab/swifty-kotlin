@@ -8,10 +8,6 @@ import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.DurationUnit
 import kotlin.time.toDuration
 
-// KUU-3059: java.util.concurrent.TimeUnit. Conversions follow the JVM
-// multiply/divide semantics with saturating multiplication; `sleep` parks the
-// calling thread on the atomicfu parker (no timer thread needed).
-
 public enum class TimeUnit {
     NANOSECONDS,
     MICROSECONDS,
