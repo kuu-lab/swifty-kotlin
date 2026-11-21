@@ -51,9 +51,6 @@ extension CallTypeChecker {
             sema: sema,
             interner: interner
         ), elementType == sema.types.floatType || elementType == sema.types.doubleType {
-            // Generic source-backed rangeUntil resolves through OpenEndRange<T>.
-            // Preserve its concrete floating-point element type for the KIR/runtime
-            // bridge, just as the legacy scalar range path does for range literals.
             sema.bindings.markFloatingPointRangeExpr(id)
             sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id)
         }
@@ -72,9 +69,6 @@ extension CallTypeChecker {
             }
         }
 
-        // Preserve the legacy external-link-name fast paths for the residual
-        // synthetic/runtime-backed operators (rangeTo, old signed rangeUntil,
-        // etc.) whose return type may still be the scalar handle.
         if let externalLinkName = sema.symbols.externalLinkName(for: chosen) {
             if externalLinkName == "__kk_uint_rangeTo"
                 || externalLinkName == "__kk_uint_progression_fromClosedRange"
@@ -128,8 +122,6 @@ extension CallTypeChecker {
         )
         sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
         maybeRecordPowerAssertCall(callExprID: id, chosenCallee: chosen, sema: sema)
-        // Resolve imports, aliases, bounds and the receiver normally before
-        // recording the reified argument for the native KClass fast path.
         if sema.symbols.symbol(chosen)?.fqName == ["kotlin", "reflect", "full", "findAnnotation"].map(driver.interner.intern),
            let searchType = sema.bindings.callBindings[id]?.substitutedTypeArguments.first {
             sema.bindings.bindFindAnnotationSearchType(id, type: searchType)
@@ -185,8 +177,6 @@ extension CallTypeChecker {
                     substitution: resolved.substitutedTypeArguments,
                     typeVarBySymbol: typeVarBySymbol
                 )
-                // A generic parameter consumes its erased declaration type,
-                // not the type selected by inference for this particular call.
                 driver.recordGenericCallConsumer(
                     argument.expr, type: signature.parameterTypes[parameterIndex]
                 )
@@ -300,37 +290,15 @@ extension CallTypeChecker {
         guard let nullableCallee = sema.symbols.lookupAll(fqName: symbol.fqName).first(where: {
             sema.symbols.functionSignature(for: $0)?.parameterTypes == [sema.types.nullableAnyType]
         }) else { return chosen }
-        // Discard a tentative String hint now that the actual parameter accepts null.
         sema.bindings.bindPlatformNullAssertion(arguments[0].expr, targetType: nil)
         return nullableCallee
     }
 
-    /// How an extension-function-typed callee's own receiver (if any) may be
-    /// supplied when the arity of `argTypes` doesn't by itself say whether
-    /// argument 0 is that receiver or the first ordinary parameter.
     enum CallableValueArityPolicy {
-        /// The callee type's receiver (if any) is never read from `argTypes`.
-        /// The receiver, if required, comes from an implicit call context.
         case receiverNeverExplicit
-        /// A bare call (`ef(...)`) accepts either the historical shape, where
-        /// the receiver comes from an active implicit-receiver scope
-        /// (`argTypes.count == params.count`, e.g. calling a `T.() -> Unit`
-        /// value bare inside `T.run { ... }`), or the receiver supplied
-        /// positionally as argument 0 (`argTypes.count == params.count + 1`,
-        /// e.g. `ef(3, 4)`).
         case receiverOptionallyExplicit
-        /// A member property's dispatch receiver supplies a receiver-function
-        /// value's receiver when it has the required type; otherwise a
-        /// receiver can be supplied as argument 0 (`holder.f(3)`).
         case receiverExplicitOrMemberDispatch(TypeID)
-        /// An explicit `.invoke(...)` member call has no implicit-receiver
-        /// concept: when the callee type has a receiver, it must always be
-        /// supplied positionally as argument 0 (`ef.invoke(3, 4)`); there is
-        /// no arity at which it may be omitted (`ef.invoke(4)` is invalid).
         case receiverRequiredExplicit
-        /// `receiver.(expression)(...)` requires the callee type itself to
-        /// declare an extension receiver; a plain function's first parameter
-        /// cannot stand in for it.
         case receiverMustBePresent
     }
 
@@ -357,15 +325,6 @@ extension CallTypeChecker {
         case let .functionType(type):
             functionType = type
         case .intersection, .typeParam:
-            // A smart cast (`f as KFunction<*>`) or a positive `is` branch
-            // narrows a stable local to an intersection such as
-            // `(Boolean) -> Any & KFunction<*>`. The value stays invocable
-            // through its structural conjunct — select it only when the
-            // intersection holds one unique function type; a genuinely
-            // ambiguous set of conjuncts keeps the unresolved path
-            // (KUU-3652). A type parameter bounded by a function type —
-            // `c: F` where `F : (T) -> R` — is invocable through the bound
-            // the same way (KUU-4087).
             guard let structuralFunction = sema.types.uniqueStructuralFunctionType(for: nonNullCalleeType) else {
                 return nil
             }
@@ -455,17 +414,6 @@ extension CallTypeChecker {
                 }
             }
         }
-        /// Whether an implicit receiver with a type assignable to the
-        /// function type's own receiver is in scope to supply a receiver the
-        /// call omits positionally (`with(1) { f(2) }`, a member function's
-        /// `this`, an outer `this@label`). The candidates mirror the
-        /// `markImplicitExtensionReceiver` lookup below plus the active
-        /// `implicitReceiverType`, which lowering reads via
-        /// `activeImplicitReceiverExprID`; context parameters and companion
-        /// objects outside a `.companion` declaration cannot be materialized
-        /// there, so they do not qualify. Without one, the omitted-receiver
-        /// shape is an arity error like kotlinc's "no value passed for
-        /// parameter" (KUU-3878).
         func hasImplicitReceiverValue() -> Bool {
             guard let requiredReceiver = functionType.receiver else { return true }
             if let thisLocal = locals[ctx.interner.intern("this")],
@@ -483,9 +431,6 @@ extension CallTypeChecker {
             }) {
                 return true
             }
-            // Mirror the mark lookup below: only the innermost matching
-            // outer entry can be bound, and `nil` symbols are `this@Label`
-            // typing entries whose runtime value cannot be captured.
             return ctx.outerReceiverTypes.reversed().first(where: {
                 sema.types.isSubtype($0.type, requiredReceiver)
             })?.symbol != nil
@@ -564,9 +509,6 @@ extension CallTypeChecker {
             }
             return (0, offset)
         }()
-        /// Feasible receiver offsets ignoring the supplied argument count —
-        /// the count-sensitive `receiverOffset(for:)` returns nil for the
-        /// too-few shapes this is meant to diagnose.
         func receiverOffsetCandidates() -> [Int] {
             switch arityPolicy {
             case .receiverNeverExplicit:
@@ -585,12 +527,6 @@ extension CallTypeChecker {
                 return functionType.receiver != nil ? [1] : []
             }
         }
-        /// kotlinc reports NO_VALUE_FOR_PARAMETER (KUU-4168) when every
-        /// feasible reading of the call supplies fewer arguments than the
-        /// function type requires. Function-type parameters carry no declared
-        /// names, so the diagnostic uses kotlinc's synthesized `pN` names,
-        /// numbered over context receivers, the extension receiver, then the
-        /// value parameters in declaration order.
         func missingCallableValueParameterName() -> String? {
             let offsets = receiverOffsetCandidates().sorted()
             var interpretations: [(contextCount: Int, offset: Int)] = []
@@ -607,15 +543,8 @@ extension CallTypeChecker {
             else {
                 return nil
             }
-            // The layout attempts explicit context arguments first, so the
-            // first interpretation determines which slot is reported missing.
             let best = interpretations[0]
             let missingIndex = argTypes.count - best.contextCount - best.offset
-            // A direct callable reference (`::f(...)`, `f.invoke(...)` on a
-            // reference-typed value) exposes the referenced declaration's
-            // parameter names, which kotlinc prefers over the synthesized
-            // `pN` names. Value-typed locals (`val h = ::f`) do not carry
-            // them, so those keep the synthesized names.
             if missingIndex >= 0,
                case let .symbol(symbol) = callableTarget,
                let signature = sema.symbols.functionSignature(for: symbol),
@@ -731,9 +660,6 @@ extension CallTypeChecker {
                 diagnostics: ctx.sema.diagnostics
             )
         }
-        // Downstream readers require the bound `functionType` to be a
-        // structural `.functionType`; nominal function interfaces and
-        // smart-cast intersections both collapse to the selected conjunct.
         let callableValueFunctionType: TypeID = if case .functionType = sema.types.kind(of: nonNullCalleeType) {
             nonNullCalleeType
         } else {
@@ -790,11 +716,6 @@ extension CallTypeChecker {
         return functionType.returnType
     }
 
-    /// Whether a stable `x != null`/`x!!` narrowing proves the invoked callee
-    /// value non-null at this call site (KUU-4138). Looks up the callee
-    /// expression's stable flow reference — locals via `f`, stable member
-    /// properties via `h.f` — and falls back to the resolved callable
-    /// target's symbol when the expression is not a flow-tracked reference.
     private func hasNonNullCalleeFlowFact(
         calleeValueExpr: ExprID?,
         callableTarget: CallableTarget?,
@@ -823,10 +744,6 @@ extension CallTypeChecker {
         return flow.isStable && flow.nullability == .nonNull
     }
 
-    /// User-facing callee type name for the nullable-invocation diagnostic
-    /// (KUU-4138): function types need `renderType`'s parentheses to keep
-    /// `(() -> Unit)?` distinct from `() -> Unit?`, while other kinds want
-    /// `displayName`'s resolved symbols (`F`, not `T#42`).
     private func calleeTypeDisplayName(_ type: TypeID, ctx: TypeInferenceContext) -> String {
         if case .functionType = ctx.sema.types.kind(of: type) {
             return ctx.sema.types.renderType(type)
@@ -847,9 +764,6 @@ extension CallTypeChecker {
            session.mentionsVariable(left, types: sema.types)
                || session.mentionsVariable(right, types: sema.types)
         {
-            // Function values have no candidate signature for the ordinary
-            // postponed-argument collector. Preserve constraints from their
-            // inputs too, including inherited contravariant nominal types.
             session.constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
                 subtype: left, supertype: right,
                 typeVarBySymbol: session.typeVarBySymbol, typeSystem: sema.types,
@@ -894,8 +808,6 @@ extension CallTypeChecker {
         argumentTypes: [TypeID],
         locals: inout LocalBindings
     ) -> TypeID? {
-        // Function values have no infix modifier. Local infix declarations
-        // resolve as function symbols through the ordinary candidate path.
         guard !request.ctx.ast.arena.isInfixCall(request.id) else { return nil }
         let sema = request.ctx.sema
         let name = request.calleeName
@@ -908,11 +820,6 @@ extension CallTypeChecker {
             // naming it bare is rejected (KUU-3007), so leave it to the
             // ordinary candidate path that ranks it above package extensions.
             guard sema.symbols.symbol(local.symbol)?.kind != .function else { return nil }
-            // A same-named local extension function declared at the same or a
-            // nearer lexical level is a declaration, not a competing value:
-            // it outranks the function-typed local, so leave the call to the
-            // ordinary candidate path that binds the function symbol
-            // (KUU-3791).
             if localExtensionFunctionShadowsCallableValue(
                 local, named: name, request: request,
                 argumentTypes: argumentTypes, receiverType: callSiteReceiver, ctx: request.ctx
@@ -921,27 +828,18 @@ extension CallTypeChecker {
             }
             candidateType = local.type
         } else if let implicitReceiver = request.ctx.implicitReceiverType,
-                  // A callable property on a nullable implicit receiver is
-                  // unsafe to invoke — kotlinc does not offer it (KUU-4504).
                   sema.types.nullability(of: implicitReceiver) != .nullable,
                   let property = driver.helpers.lookupMemberProperty(
                       named: name,
                       receiverType: sema.types.makeNonNullable(implicitReceiver),
                       sema: sema
                   ),
-                  // Inaccessible members do not participate in
-                  // implicit-receiver resolution from outside their
-                  // declaring scope (KUU-4335).
                   let propertySymbol = sema.symbols.symbol(property.symbol),
                   request.ctx.visibilityChecker.isAccessible(
                       propertySymbol,
                       fromFile: request.ctx.currentFileID,
                       enclosingClass: request.ctx.enclosingClassSymbol
                   ) {
-            // A member extension function reachable through the same implicit
-            // receiver shares the property's tier, where the declaration wins;
-            // local functions are strictly nearer than the implicit receiver
-            // (KUU-3791).
             if nearerTierExtensionFunctionShadowsCallableValue(
                 named: name,
                 implicitReceivers: [sema.types.makeNonNullable(implicitReceiver)],
@@ -955,12 +853,6 @@ extension CallTypeChecker {
             }
             candidateType = property.type
         } else {
-            // Package-scope properties only: extension properties carry a
-            // receiver on the property itself and resolve through
-            // resolveExtensionPropertyGetter instead (KUU-3145). Functions at
-            // the property's own tier or a nearer one — locals, implicit
-            // receiver member extensions, explicit imports, same-package
-            // declarations — outrank its function value (KUU-3791).
             let property = request.ctx.cachedScopeLookup(name).first(where: {
                 sema.symbols.symbol($0)?.kind == .property
                     && sema.symbols.extensionPropertyReceiverType(for: $0) == nil
@@ -1022,9 +914,6 @@ extension CallTypeChecker {
             }
         }
         defer {
-            // An argument still bound to the error type was not recovered by
-            // the retry, so its removed diagnostics remain genuine failures
-            // that nothing re-emitted (KUU-3750).
             for (argumentExpr, diagnostic) in removedArgumentDiagnostics
             where sema.bindings.exprType(for: argumentExpr) == sema.types.errorType {
                 sema.diagnostics.emit(diagnostic)
@@ -1083,7 +972,6 @@ extension CallTypeChecker {
             arityPolicy: .receiverRequiredExplicit,
             extensionCallableExpr: calleeExpr
         ) ?? sema.types.errorType
-        // Keep the lexical reference visible to lambda/local-class capture analysis.
         if let symbol = sema.bindings.identifierSymbol(for: calleeExpr) {
             sema.bindings.bindIdentifier(request.id, symbol: symbol)
         }
@@ -1092,9 +980,6 @@ extension CallTypeChecker {
         return finalType
     }
 
-    /// Whether the extension-function `candidate` accepts this call's receiver
-    /// and argument shape the way `collectExtensionCallCandidates` judges
-    /// applicability (KUU-3791).
     private func applicableShadowingExtensionFunction(
         _ candidate: SymbolID,
         request: MemberCallInferenceRequest,
@@ -1117,16 +1002,6 @@ extension CallTypeChecker {
         )
     }
 
-    /// Whether a same-named local extension function declared at the same or a
-    /// nearer lexical level shadows `value` for `receiver.name()` calls.
-    ///
-    /// Local `val`/`var` declarations mark their owning scope through
-    /// `registerLocalValueOrClassifierDeclaration`, and scope-inserted symbols
-    /// (e.g. constructor parameters) appear in `candidates(for:)`. Parameters
-    /// and synthetic locals never register: a value parameter lives at its
-    /// owner function's signature level, so only a local function declared
-    /// inside that same function beats it; other unregistered locals such as
-    /// `it` are innermost and keep the invocation (KUU-3791).
     private func localExtensionFunctionShadowsCallableValue(
         _ value: LocalBindings.Value,
         named name: InternedString,
@@ -1174,15 +1049,6 @@ extension CallTypeChecker {
         return ownerRange.contains(functionRange)
     }
 
-    /// Whether a same-named extension function nearer than (or at) the given
-    /// value tier shadows a function-typed value. `implicitReceivers` lists
-    /// the implicit receiver types whose member extensions share the value's
-    /// tier: only the property's own receiver for a member property, the
-    /// whole implicit receiver tower for a package property.
-    /// `maximumScopePriority` is the highest `callableInvocationScopePriority`
-    /// a scope function may have and still outrank the value — 0 admits only
-    /// local functions, 3 admits everything down to the package tier
-    /// (KUU-3791).
     private func nearerTierExtensionFunctionShadowsCallableValue(
         named name: InternedString,
         implicitReceivers: [TypeID],
@@ -1205,8 +1071,6 @@ extension CallTypeChecker {
         }) {
             return true
         }
-        // Member extensions on implicit receivers never appear in the scope
-        // chain, so they are probed through member lookup directly.
         return implicitReceivers.contains { receiver in
             driver.helpers.collectMemberFunctionCandidates(
                 named: name, receiverType: receiver, sema: sema, interner: ctx.interner
