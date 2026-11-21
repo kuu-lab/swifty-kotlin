@@ -62,9 +62,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 sema.bindings.bindExprType(id, type: sema.types.booleanType)
                 return sema.types.booleanType
             }
-            // KUU-4493: containsAll's parameter is `Collection<T>`; passing the
-            // element type lets a bare nested factory (`emptyList()`) infer its
-            // type variable instead of collapsing to SEMA-INFER.
             let containsAllExpectedType: TypeID = {
                 if let collectionSymbol = lookupStdlibSymbol(
                     "Collection", symbols: sema.symbols, interner: interner
@@ -78,11 +75,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 return sema.types.anyType
             }()
             _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: containsAllExpectedType)
-            // KUU-4318: containsAll's only overloads take a Collection
-            // parameter; a range expression or other non-Collection argument
-            // must reach regular overload resolution so the mismatch is
-            // reported like kotlinc instead of binding the source function
-            // unchecked.
             guard checker.collectionFallbackBulkCallArgumentIsAdmissible(
                 memberName: calleeName,
                 args: args,
@@ -249,11 +241,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                         resultType = sema.types.anyType
                     }
                 case "sum":
-                    // KSP-1359: a Sequence receiver binds the bundled
-                    // monomorphic Sequence<E>.sum() overload matching its
-                    // element type, and the call's result is that
-                    // overload's declared return type (UInt/ULong included)
-                    // rather than the historical hard-wired Int.
                     resultType = (isSequenceReceiver
                         ? bindBundledSequenceSumSource(locals: &locals)
                         : bindBundledIterableSumSource())
@@ -306,17 +293,12 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                        ["first", "last"].contains(calleeStr),
                        !(calleeStr == "first" && isSetReceiver)
                     {
-                        // Collection<T> and map.values use the generic
-                        // Iterable<T> source implementation when no more
-                        // specific List/Set overload is applicable.
                         _ = bindBundledIterableSourceFunction(
                             typeArguments: [collectionElementType]
                         )
                     }
                 }
                 if isMapReceiver, calleeStr == "none" {
-                    // KSP-1016: bind the zero-argument Map overload to its
-                    // bundled source symbol instead of the name-only fallback.
                     _ = bindBundledMapSourceFunction(locals: &locals)
                 }
                 if calleeStr == "sum", !isSequenceReceiver, !isRangeReceiver {
@@ -341,14 +323,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                                 receiverElementType: sema.types.intType
                             )
                         } else if !bound {
-                            // BUG-256: ListCollectionOps.kt only declares a
-                            // concrete `List<Int>.sum()` overload, so every
-                            // other element type (UInt, ULong, Long,
-                            // Double, ...) falls back to the generic
-                            // Iterable<T>.sum() family instead of being
-                            // left unbound (which used to reach codegen as
-                            // an unresolved `sum` callee and fail at link
-                            // time).
                             _ = bindBundledIterableSumSource()
                         }
                     } else {
@@ -371,10 +345,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                        isIterableReceiver,
                        !isArrayReceiver
                     {
-                        // Iterable.average() is defined only for the six
-                        // non-null numeric element types. Do not let the
-                        // legacy name-based fallback accept String, nullable,
-                        // or otherwise unsupported Iterable receivers.
                         ctx.sema.diagnostics.error(
                             "KSWIFTK-SEMA-0024",
                             "No viable overload found for call.",
@@ -446,11 +416,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
                 }
                 if calleeStr == "flatMap" || calleeStr == "flatMapIndexed" {
-                    // flatMap's transform returns a nested Iterable/Sequence
-                    // whose element the enclosing expected result fixes
-                    // (`listOf<T>() + list.flatMap { .. }`), so the lambda's
-                    // expected return is seeded from `expectedType` instead
-                    // of the `Any` placeholder (KUU-4464).
                     checker.inferFlatMapTransformArgument(
                         args[0].expr,
                         parameterTypes: lambdaParameterTypes,
@@ -471,11 +436,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                               let refReturnType = sema.symbols.functionSignature(for: refTarget)?.returnType,
                               !sema.types.typeContainsAnyTypeParam(refReturnType)
                     {
-                        // The callable reference is inferred against the
-                        // placeholder `(T) -> Any` expected type, which the
-                        // reference then adopts as its own type. Take the
-                        // result element type from the resolved target
-                        // instead, so `map(::mk)` yields `List<Top>`.
                         refReturnType
                     } else if case let .functionType(fnType) = sema.types.kind(of: sema.bindings.exprType(for: args[0].expr) ?? sema.types.anyType) {
                         fnType.returnType
@@ -534,7 +494,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                             elementType: collectionElementType
                         )
                     } else if isMapReceiver {
-                        // Map.filter/filterNot return Map<K, V>, not List<Map.Entry<K, V>>.
                         resultType = receiverType
                     } else if let listSymbol = lookupStdlibSymbol("List", symbols: sema.symbols, interner: interner) {
                         resultType = sema.types.make(.classType(ClassType(
