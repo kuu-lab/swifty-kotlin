@@ -7,10 +7,6 @@ import kotlinx.atomicfu.locks.ParkingSupport
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlin.concurrent.Volatile
 
-// KUU-3059: java.util.concurrent.CountDownLatch. Waiters park on their
-// per-thread atomicfu handle; countDown() unparks everyone once the count
-// reaches zero.
-
 public class CountDownLatch(count: Int) {
     private val guard = SynchronizedObject()
     private val waiters = ArrayList<ParkingHandle>()
@@ -67,8 +63,6 @@ public class CountDownLatch(count: Int) {
                 jucPark(if (deadline < 0L) -1L else left)
             }
         } finally {
-            // A timed-out await must not leak a stale handle; a released one is
-            // already absent and the remove is a no-op.
             guard.lock()
             try {
                 waiters.remove(handle)
