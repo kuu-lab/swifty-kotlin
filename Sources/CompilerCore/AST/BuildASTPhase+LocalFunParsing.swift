@@ -1,8 +1,5 @@
 
 extension BuildASTPhase {
-    /// Kotlin requires a newline after a local expression-bodied function,
-    /// even when its expression is followed by a semicolon. Check the original
-    /// block tokens because statement splitting discards empty semicolon groups.
     func validateLocalFunctionSeparator(
         after expression: ExprID,
         in tokens: [Token],
@@ -44,14 +41,6 @@ extension BuildASTPhase {
         bodyOverride: FunctionBody? = nil,
         isAnonymousFunction: Bool = false
     ) -> ExprID? {
-        // Leading annotations were already peeled by callers for dispatch;
-        // strip them here instead so declaration-level annotations can reach
-        // Sema: they are re-attached to the produced declaration expression
-        // below — the same channel local val/var `@Suppress` uses (KUU-3920) —
-        // where OptIn propagation, annotation-target validation (as a
-        // function site) and symbol annotation registration pick them up
-        // (KUU-4290). Previously only `@Suppress` was forwarded and every
-        // other annotation kind was dropped.
         let declarationAnnotations = annotationsFromTokens(statementTokens, interner: interner)
         let statementTokens = Self.skipLeadingLocalAnnotations(statementTokens, interner: interner)
         guard !statementTokens.isEmpty else {
@@ -164,8 +153,6 @@ extension BuildASTPhase {
                 continue
             }
             switch modifier.name {
-            // kotlinc accepts `external` on local functions with no
-            // diagnostic (JVM treats it like any other external decl).
             case "suspend", "infix", "operator", "tailrec", "inline", "external":
                 continue
             default:
@@ -266,9 +253,6 @@ extension BuildASTPhase {
             }
         }
 
-        // kotlinc requires `infix` functions to be members or extension
-        // functions with exactly one non-vararg value parameter; a local
-        // function is only eligible through an extension receiver.
         if isInfix,
            isAnonymousFunction || receiverType == nil
                || valueParams.count != 1
@@ -281,9 +265,6 @@ extension BuildASTPhase {
             )
         }
 
-        // KUU-3149: kotlinc also checks `operator` arity/eligibility on local
-        // functions; a local function is never a member, so it qualifies only
-        // through an extension receiver.
         if hasOperator,
            let violation = DeclarationPositionValidator.operatorEligibilityViolation(
                name: interner.resolve(name),
@@ -305,11 +286,6 @@ extension BuildASTPhase {
             allowsWhereClause: !typeParams.isEmpty
         )
 
-        // A `where` clause sits between the optional return type and the body:
-        // `fun <T> f(t: T): T where T : Comparable<T> = t`. Top-level
-        // declarations extract it from the CST node; local functions parse
-        // flat statement tokens, so consume the clause here and fold its
-        // bounds into the type parameters (KUU-4409).
         if !typeParams.isEmpty, index + 2 < funTokens.count,
            funTokens[index].kind == .softKeyword(.where),
            TypeRefParserCore.isTypeLikeNameToken(funTokens[index + 1].kind),
@@ -369,12 +345,6 @@ extension BuildASTPhase {
         }
 
         let isSyntheticAnonymous = isAnonymousFunction
-        // `external` and `abstract` make a bodiless declaration legal as
-        // written, so kotlinc emits neither 'must have a body' nor 'must be
-        // abstract' for them. `expect` stays non-exempt: kotlinc still
-        // reports 'without a body must be abstract' on local expect funs.
-        // Anonymous function expressions get the same 'must have a body'
-        // diagnostic as kotlinc, displayed with the literal name 'anonymous'.
         let bodilessExempt = hasExternal
             || leadingModifiers.contains(where: { $0.name == "abstract" })
         if body == .unit, !bodilessExempt,
@@ -388,8 +358,6 @@ extension BuildASTPhase {
             )
         }
 
-        // kotlinc reports 'external declaration cannot have a body' on any
-        // external function that carries one, underlining the modifier.
         if hasExternal, body != .unit {
             diagnostics?.error(
                 "KSWIFTK-SEMA-EXTERNAL",
@@ -462,8 +430,6 @@ extension BuildASTPhase {
                 if token.kind == .symbol(.lBrace) || token.kind == .symbol(.assign) {
                     break
                 }
-                // `where T : Bound` starts the where clause; the `Ident :`
-                // lookahead keeps a type literally named `where` usable.
                 if allowsWhereClause,
                    token.kind == .softKeyword(.where),
                    index + 2 < statementTokens.count,
