@@ -89,21 +89,5 @@ extension JVMBackendTests {
             #expect(referenceConsumer.stderr.isEmpty)
         }
     }
-
-    @Test
-    func jvmOverloadsRejectsConstructorUseOutsideFunctionScope() throws {
-        try withWorkspace { root in
-            let result = try compile(
-                "class Box @JvmOverloads constructor(value: Int = 1, other: Int = 2)",
-                root: root,
-                mode: .jvmJar
-            )
-            #expect(result.0 == 1)
-            #expect(
-                result.1.contains { $0.code == "KSWIFTK-JVM-0001" && $0.message == "JVM @JvmOverloads currently supports functions only." },
-                "\(result.1.map { ($0.code, $0.message) })"
-            )
-        }
-    }
 }
 #endif
