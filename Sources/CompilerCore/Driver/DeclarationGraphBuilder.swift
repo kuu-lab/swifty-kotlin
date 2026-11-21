@@ -20,8 +20,6 @@ import Foundation
 ///   the unit's text, plus every declaration with an operator-convention name
 ///   (call sites like `a + b` never spell `plus`).
 public enum DeclarationGraphBuilder {
-    /// Names the language resolves implicitly from syntax (operators,
-    /// destructuring, delegation, iteration, indexing, invocation).
     static let conventionNames: Set<String> = [
         "plus", "minus", "times", "div", "rem", "mod", "rangeTo", "rangeUntil",
         "unaryPlus", "unaryMinus", "not", "inc", "dec", "contains", "get", "set",
@@ -77,8 +75,6 @@ public enum DeclarationGraphBuilder {
             for entry in entries {
                 let start = entry.range.start.offset
                 let end = entry.range.end.offset
-                // Overlapping/nested ranges (should not happen at top level)
-                // fall back to hashing from the declaration's own start.
                 let gapStart = previousEnd <= start ? previousEnd : start
                 previousEnd = max(previousEnd, end)
 
@@ -99,7 +95,6 @@ public enum DeclarationGraphBuilder {
                     if let bodyRange, bodyRange.start.offset >= gapStart, bodyRange.end.offset <= end {
                         signature = text(gapStart, bodyRange.start.offset)
                         body = text(bodyRange.start.offset, bodyRange.end.offset)
-                        // Trailing text after the body (rare) belongs to the signature.
                         if bodyRange.end.offset < end {
                             signature.append(text(bodyRange.end.offset, end))
                         }
@@ -118,8 +113,6 @@ public enum DeclarationGraphBuilder {
                 ))
             }
 
-            // Top-level script statements have no declaration boundary: one
-            // unit hashes the whole file.
             if !file.scriptBody.isEmpty {
                 let hash = FileFingerprint.sha256Hex(contents)
                 drafts.append(Draft(
@@ -149,7 +142,6 @@ public enum DeclarationGraphBuilder {
         return DeclarationDependencyGraph(units: units)
     }
 
-    /// Identifier-shaped tokens plus whole backtick-quoted names.
     static func identifiers(in data: Data) -> Set<String> {
         var result = Set<String>()
         var index = data.startIndex
@@ -158,7 +150,7 @@ public enum DeclarationGraphBuilder {
         func isPart(_ b: UInt8) -> Bool { isStart(b) || (b >= 0x30 && b <= 0x39) }
         while index < end {
             let byte = data[index]
-            if byte == 0x60 { // backtick
+            if byte == 0x60 {
                 var close = index + 1
                 while close < end, data[close] != 0x60, data[close] != 0x0A { close += 1 }
                 if close < end, data[close] == 0x60 {
