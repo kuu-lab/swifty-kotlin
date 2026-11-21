@@ -1,7 +1,6 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
-    /// Resolve callable properties after applicable member/extension functions.
     func tryInferCallableMemberPropertyInvocation(
         _ request: MemberCallInferenceRequest,
         memberLookupType: TypeID,
@@ -12,18 +11,12 @@ extension CallTypeChecker {
     ) -> TypeID? {
         let invocationLocals = locals
         let isSuperReceiver = if case .superRef = request.ast.arena.expr(request.receiverID) { true } else { false }
-        // An explicit `receiver.f()` call takes the same path so a
-        // zero-parameter function-typed property can be invoked (KUU-644).
-        // Skip this for class-name receivers — only companion members are
-        // accessible via `ClassName.member`, not instance properties.
         let memberProperty = driver.helpers.lookupMemberProperty(
             named: request.calleeName,
             receiverType: memberLookupType,
             receiverDeclaration: request.receiverDeclaration,
             sema: request.sema
         )
-        // Lexical receiver-function values precede package extension properties.
-        // Nominal member properties retain their existing priority.
         if !isClassNameReceiver, !isSuperReceiver,
            !request.args.isEmpty || request.ast.arena.isExplicitCall(request.id), memberProperty == nil,
            maximumPropertyPriority.map({ $0 >= 1 }) ?? true {
@@ -81,9 +74,6 @@ extension CallTypeChecker {
                 return memberProperty
             }
             if isSuperReceiver { return nil }
-            // Char properties are represented by synthetic functions, but invoking
-            // their values follows the same operator-invoke path as a property.
-            // Try this only after ordinary functions have exhausted their tiers.
             if maximumPropertyPriority == nil, request.ast.arena.isExplicitCall(request.id),
                (request.safeCall ? request.sema.types.makeNonNullable(memberLookupType) : memberLookupType) == request.sema.types.charType,
                let facade = request.sema.symbols.lookupByShortName(request.calleeName).first(where: {
@@ -93,9 +83,6 @@ extension CallTypeChecker {
             {
                 return (facade, signature.returnType)
             }
-            // Package-owned extension properties have getter accessors rather
-            // than nominal fields. Resolve the getter without replacing this
-            // expression's eventual function-value invocation binding.
             guard let propertyType = resolveExtensionPropertyGetter(
                 id: request.id, calleeName: request.calleeName, range: request.range,
                 receiverType: memberLookupType, expectedType: nil, ctx: request.ctx, bindCall: false, requireInScope: true,
@@ -116,11 +103,6 @@ extension CallTypeChecker {
             return (property, propertyType)
         }()
         if let propResult = callableProperty {
-            // The losing member-candidate attempt may have inferred these
-            // arguments against its own parameter list and left error
-            // diagnostics inside their ranges. The property invoke re-infers
-            // them, so stale argument errors must not leak past a successful
-            // bind (KUU-3145).
             var removedArgumentDiagnostics: [(ExprID, Diagnostic)] = []
             for argument in request.args {
                 guard let argumentRange = request.ast.arena.exprRange(argument.expr) else { continue }
@@ -129,9 +111,6 @@ extension CallTypeChecker {
                 }
             }
             defer {
-                // An argument still bound to the error type was not recovered
-                // by the retry, so its removed diagnostics remain genuine
-                // failures that nothing re-emitted (KUU-3750).
                 for (argumentExpr, diagnostic) in removedArgumentDiagnostics
                 where request.sema.bindings.exprType(for: argumentExpr) == request.sema.types.errorType {
                     request.sema.diagnostics.emit(diagnostic)
@@ -147,9 +126,6 @@ extension CallTypeChecker {
             }
             let callableType = inferFunctionTypeOrError(from: propResult.type, sema: request.sema)
             let invokeName = request.interner.intern("invoke")
-            // The invoke-operator fallback only runs where the direct
-            // callable-value arm cannot — a non-function type, or a nullable
-            // function value that must go through `invoke` resolution.
             let invokeCandidates: [SymbolID] = callableType == nil || isNullableFunctionValue
                 ? nominalCallablePropertyInvokeCandidates(
                     propResult.type, request: request, argTypes: argTypes, locals: invocationLocals
@@ -228,16 +204,6 @@ extension CallTypeChecker {
             }
         }
 
-        // A package-scope property whose value has receiver-function type is
-        // still a valid invoke target for `receiver.name(args)` (KUU-3145):
-        // `a.x { }` resolves `x` even when member/extension candidates named
-        // `x` were collected but produced no viable callee. It ranks below
-        // member and extension properties — `val A.x` beats a same-named
-        // package `val x`, while an inapplicable member or extension does not
-        // shadow it — so it is tried only after those paths, under the same
-        // scope-priority cap and visibility/argument-shape checks. The no-
-        // candidate path reaches the same fallback directly through
-        // inferRegularMemberCallWithoutCandidates.
         if !isClassNameReceiver, !isSuperReceiver,
            !request.args.isEmpty || request.ast.arena.isExplicitCall(request.id),
            let packageProperty = request.ctx.cachedScopeLookup(request.calleeName).first(where: {
@@ -261,10 +227,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// `Enum.ENTRY(args)` is a value call, but it reaches member-call
-    /// inference before the enum entry can be read as a standalone value.
-    /// This path runs only after ordinary `ENTRY` member candidates and
-    /// extensions have failed.
     func inferEnumEntryInvokeCall(
         _ request: MemberCallInferenceRequest,
         memberLookupType: TypeID,
@@ -428,9 +390,6 @@ extension CallTypeChecker {
            ),
            !(receiverQualifierIsTypeAlias(receiverID: request.receiverID, ctx: request.ctx)
                && request.sema.symbols.symbol(staticMember.symbol)?.kind == .object),
-           // An explicit `()` on a nested `object` is a function invocation,
-           // not a value read — fall through so `invoke` can dispatch
-           // (KUU-3662).
            !(request.ast.arena.isExplicitCall(request.id)
                && request.sema.symbols.symbol(staticMember.symbol)?.kind == .object)
         {
@@ -461,12 +420,6 @@ extension CallTypeChecker {
                 request.sema.bindings.bindExprType(request.id, type: finalType)
                 return finalType
             }
-            // KSP-724: `String.length` is now a bundled extension property, so a
-            // non-nullable `String` falls through to the fallback above. A nullable
-            // `String?` reaches this path because the property requires a non-null
-            // receiver; emit the nullable-receiver diagnostic instead of
-            // "unresolved member". SEMA-0020 is already used for reified type
-            // parameters, so this path uses the fresh SEMA-0026 code.
             if !request.safeCall,
                request.sema.types.nullability(of: lookupReceiverType) == .nullable,
                request.sema.types.isSubtype(request.sema.types.makeNonNullable(lookupReceiverType), request.sema.types.stringType)
@@ -632,7 +585,6 @@ extension CallTypeChecker {
                 }
             }
         }
-        // isNullOrEmpty/isNullOrBlank accept String? receiver directly (no safe-call needed).
         if request.args.isEmpty {
             if !isNullLiteralReceiver,
                request.calleeStr == "isNullOrEmpty",
@@ -652,10 +604,6 @@ extension CallTypeChecker {
                     return resultType
                 }
             }
-            // STDLIB-TEXT-FN-087: `String?.toBoolean()` accepts nullable receivers
-            // directly per Kotlin spec (`null.toBoolean()` returns false). Mirror the
-            // isNullOrBlank handling above so non-null receivers also match without a
-            // safe-call.
             if !isNullLiteralReceiver,
                request.calleeStr == "toBoolean"
             {
@@ -735,17 +683,6 @@ extension CallTypeChecker {
             isClassNameReceiver: isClassNameReceiver, locals: &locals
         ) { return result }
 
-        // Function types have no nominal member table, so candidate
-        // collection never reaches `FunctionN.invoke` — bind the
-        // callable-value invocation directly. `callableTarget` stays nil
-        // so KIR lowering uses the lowered receiver expression itself as
-        // the function object.
-        // A non-safe `x.invoke` on a nullable function value is rejected by
-        // the callable-value arm like `x(args)` — `x?.invoke` unwraps the
-        // receiver first, so only the unsafe form is rejected (KUU-644,
-        // KUU-4138).
-        // A smart-cast intersection (`f as KFunction<*>`) resolves `invoke`
-        // through its unique structural function conjunct as well (KUU-3652).
         if !isClassNameReceiver,
            request.calleeStr == "invoke",
            let invokeFunctionType = request.sema.types.uniqueStructuralFunctionType(for: memberLookupType)
@@ -784,16 +721,12 @@ extension CallTypeChecker {
                 request.sema.bindings.bindExprType(request.id, type: finalType)
                 return finalType
             }
-            // Mismatched arguments fall through to the normal
-            // unresolved-member diagnostics (SEMA-0024).
         }
 
         if lookupReceiverType == request.sema.types.errorType {
             return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
         }
         if let firstInvisible = invisibleCandidates.first {
-            // KUU-946: an inaccessible member cannot shadow a same-named
-            // extension that the call does resolve to.
             if let fallbackType = tryBindShadowedExtensionCallFallback(
                 request,
                 receiverType: receiverType,
@@ -818,7 +751,6 @@ extension CallTypeChecker {
         ) {
             return fallbackType
         }
-        // Allow flow chain calls only when receiver provenance is known as Flow.
         if !isClassNameReceiver, isFlowReceiver {
             if request.knownNames.flowChainMemberNames.contains(request.calleeName) {
                 let acceptsArity = request.calleeName == request.knownNames.single ? request.args.isEmpty : request.args.count == 1
@@ -964,9 +896,6 @@ extension CallTypeChecker {
             }
         }
 
-        // Collection fallback needs to run before the generic overload resolver
-        // so synthetic collection members can use their specialized lambda
-        // expectations without type-variable noise from the general path.
         if let fallbackType = tryCollectionMemberFallback(
             request.id,
             calleeName: request.calleeName,
@@ -994,8 +923,6 @@ extension CallTypeChecker {
             return fallbackType
         }
 
-        // A trailing lambda (`a.f { }`) is a call too: `isExplicitCall` only
-        // records the `(` token, so admit any call that carries arguments.
         if !isClassNameReceiver,
            !request.args.isEmpty || request.ast.arena.isExplicitCall(request.id),
            let result = inferLexicalExtensionCallableInvocation(request, receiverType: receiverType, argumentTypes: argTypes, locals: &locals) {
@@ -1052,17 +979,6 @@ extension CallTypeChecker {
             }
         }
 
-        // KSP-1263: A nested `class`/`enumClass`/`object`/`annotationClass`
-        // declared directly inside an `object` is reachable through the
-        // enclosing object's own value reference (e.g. `Outer.Inner` where
-        // `Outer` is itself an `object`, as in `GC.MainThreadFinalizerProcessor`),
-        // not only through the class-name-receiver path used for
-        // `class`/`interface`/`enumClass` receivers (inferRegularMemberCall
-        // excludes `.object` from `classNameReceiverNominalSymbol` so that
-        // ordinary instance members keep resolving normally). Mirrors the
-        // nested-owner resolution in that class-name-receiver branch, scoped
-        // to `.enumClass`/`.object`/`.annotationClass` nested owners only —
-        // nested `.class` construction is unrelated to this gap.
         if request.args.isEmpty,
            let ownerSymbol = driver.helpers.nominalSymbol(
                of: request.sema.types.makeNonNullable(lookupReceiverType),
@@ -1119,10 +1035,6 @@ extension CallTypeChecker {
             }
         }
 
-        // KUU-946: members that filtered out entirely (e.g. all invisible or
-        // removed by the shaping filters) must not shadow same-named
-        // extensions — retry against the extension candidate set before
-        // reporting the member failure.
         if let fallbackType = tryBindShadowedExtensionCallFallback(
             request,
             receiverType: receiverType,
@@ -1145,12 +1057,6 @@ extension CallTypeChecker {
             return invokeType
         }
 
-        // Inherited `private` members never enter the qualified candidate
-        // set (they are not inherited), but the member still exists —
-        // report it as inaccessible rather than unresolved, matching
-        // kotlinc (KUU-3762). A class-name receiver resolves through the
-        // companion's member scope, so the owner class's own `private`
-        // instance members correctly stay unresolved there.
         let privateMemberProbeTypes: [TypeID] = if isClassNameReceiver {
             classNameReceiverNominalSymbol.flatMap {
                 driver.helpers.companionScopeType(for: $0, ctx: request.ctx)
@@ -1158,24 +1064,12 @@ extension CallTypeChecker {
         } else {
             [memberLookupType]
         }
-        // `x.f()` can only target a callable member — a private function, or
-        // a private property whose type is invocable (function type or an
-        // accessible `invoke` operator). kotlinc reports `a.f()` on a private
-        // `val f: Int` as "cannot be invoked", not as a private-access error,
-        // so a non-callable property must not produce the visibility
-        // diagnostic in call position (KUU-4062). Property reads — which
-        // reach this probe when the private member was filtered out of
-        // qualified lookup — keep reporting any same-named private member
-        // (KUU-3762).
         let isExplicitCallShape = request.ast.arena.isExplicitCall(request.id) || !request.args.isEmpty
         if let privateMember = driver.helpers.inaccessiblePrivateQualifiedMember(
             named: request.calleeName,
             probeReceiverTypes: privateMemberProbeTypes,
             ctx: request.ctx,
             matching: { member in
-                // Reads and private functions stay reportable as before; only
-                // a property/field in explicit-call position additionally
-                // needs an invocable type to count as the call target.
                 guard isExplicitCallShape,
                       member.kind == .property || member.kind == .field
                 else {
