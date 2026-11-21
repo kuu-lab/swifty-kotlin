@@ -20,8 +20,6 @@ struct SemaSnapshotArchivePayload: Codable {
     let inlineFunctions: [SemaSnapshotInlineFunction]
 }
 
-/// Legacy support for serializing a fully materialized stdlib Sema state.
-/// The normal artifact builder and importer now use compact-indexed lazy loading.
 public enum StdlibSemaSnapshotArchive {
     static let fileName = "sema.snapshot"
     // v2: snapshots written by schema 1 omitted the deferred inline-body
@@ -32,8 +30,6 @@ public enum StdlibSemaSnapshotArchive {
     // binding correctly.
     static let schemaVersion = 2
 
-    /// Builds a clean import context and writes its complete Sema state into
-    /// the artifact. This is retained for archive tests and explicit tooling.
     public static func write(
         forArtifactAt artifactPath: String,
         target: TargetTriple,
