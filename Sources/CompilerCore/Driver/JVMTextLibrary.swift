@@ -453,7 +453,15 @@ extension JVMFunctionBuilder {
             if context.interner.resolve(property.name) == "length" { return size }
             let result = try value(.int); instructions.append(.binary(.subtract, size, try constant(.int(1), .int), result)); return result
         }
-        guard let method = program.textLibraryProperties[symbol] ?? context.jvmImports?.importedPropertyGetters[symbol] else { return nil }
+        if let declaration = program.sema.bindings.declSymbols.first(where: { $0.value == symbol })?.key,
+           case let .propertyDecl(property) = arena.decl(declaration), property.modifiers.contains(.const),
+           let site = program.sema.symbols.symbol(symbol)?.declSite,
+           context.sourceManager.path(of: site.start.file).hasPrefix("<kswiftk-jvm-import>/"),
+           let initializer = property.initializer,
+           case let .constant(literal) = try program.annotationConstant(initializer) {
+            return try constant(literal, program.expressionType(id))
+        }
+        guard let method = program.textLibraryProperties[symbol] ?? context.jvmImports?.importedTopLevelGetters[symbol] else { return nil }
         if method.annotations.contains(where: { $0.descriptor == "Landroidx/compose/runtime/Composable;" }) {
             guard let composer = activeComposer else { throw fail("JVM @Composable property getters require an active Composer.", id) }
             guard activeRegions.isEmpty else { throw fail("JVM @Composable calls are unsupported inside a try expression.", id) }
@@ -466,18 +474,7 @@ extension JVMFunctionBuilder {
                 throw fail("Unsupported JVM composable property getter signature.", id)
             }
             var prefix: [JVMValue] = []
-            var instance: JVMValue?
-            if !method.isStatic {
-                // An imported object member (`import fixture.Theme.scheme`) or an
-                // implicit receiver resolves like any other member reference.
-                // Only a Kotlin object's INSTANCE stands in for the receiver; a
-                // class with a same-typed static field still uses `this` or the
-                // extension receiver Sema chose.
-                let isObject = context.jvmImports?.classes[method.owner]?.isKotlinObject == true
-                let object = try receiver.map(requireValue)
-                    ?? (isObject ? importedSingleton(method.owner) : nil) ?? unconvertedInstance(id)
-                instance = try convert(object, to: .reference(method.owner, nullable: false))
-            } else if composerIndex == 1 {
+            if composerIndex == 1 {
                 guard let receiverValue = try receiver.map(requireValue) ?? implicitExtensionReceiver(id) else {
                     throw fail("Missing JVM extension property receiver.", id)
                 }
@@ -489,7 +486,7 @@ extension JVMFunctionBuilder {
             let resultType = try program.expressionType(id)
             let result = try value(foreignResultType(method.result, resolved: resultType))
             try beginComposeGroup(composer, key: composeCallKey(at: id))
-            instructions.append(.foreignCall(method, receiver: instance, arguments: prefix + hidden, result: result))
+            instructions.append(.foreignCall(method, receiver: nil, arguments: prefix + hidden, result: result))
             _ = try jdkCall(JVMCompose.composer, JVMCompose.end, [], .unit, receiver: composer, interface: true)
             return try convert(result, to: resultType)
         }

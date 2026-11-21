@@ -41,6 +41,7 @@ extension JVMFunctionBuilder {
     }
 
     func memberExpression(_ id: ExprID, receiver: ExprID, name: InternedString, typeArgs: [TypeRefID], args: [CallArgument]) throws -> JVMValue? {
+        if let argument = samConstructorArgument(args, id: id) { return try expression(argument) }
         if context.interner.resolve(name) == "isInitialized", args.isEmpty, let result = try lateinitInitialized(receiver) { return result }
         if let callee = program.sema.bindings.callBinding(for: id)?.chosenCallee,
            let isRaw = stdlibBitReinterpretIsRaw(callee, args: args),

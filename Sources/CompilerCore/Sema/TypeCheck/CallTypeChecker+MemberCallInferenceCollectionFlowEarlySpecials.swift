@@ -469,8 +469,13 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     )
                 } else if receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver {
                     bindBundledListSourceFunction(typeArguments: [filterType], parameterMapping: [:])
+                        || bindBundledIterableSourceFunction(
+                            typeArguments: [filterType], enforceTypeParameterCount: true, allowCollectionReceiver: true
+                        )
                 } else {
-                    bindBundledIterableSourceFunction(typeArguments: [filterType])
+                    bindBundledIterableSourceFunction(
+                        typeArguments: [filterType], enforceTypeParameterCount: true, allowNominalIterableReceiver: true
+                    )
                 }
                 let ownerFQName = isSequenceReceiver
                     ? [interner.intern("kotlin"), interner.intern("sequences")]

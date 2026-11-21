@@ -1,9 +1,17 @@
 extension JVMForeignMethod {
+    func composePropertyABI(hasReceiver: Bool) -> Bool {
+        let receiverCount = hasReceiver ? 1 : 0
+        return parameters.count == receiverCount + 2
+            && parameters[receiverCount].referenceName == JVMCompose.composer
+            && parameters.last == .int
+            && annotations.contains { $0.descriptor == "Landroidx/compose/runtime/Composable;" }
+    }
+
     /// Compose appends a Composer, change masks and an optional default mask
     /// to a source signature. The classfile annotation and exact descriptor
-    /// distinguish this entry point from ordinary Kotlin static functions.
+    /// distinguish this entry point from ordinary Kotlin functions.
     func composeABI(for function: JVMKotlinFunction) -> (changes: Int, defaults: Int)? {
-        guard isStatic, !function.isSuspend, function.descriptor == descriptor,
+        guard !function.isSuspend, function.descriptor == descriptor,
               annotations.contains(where: { $0.descriptor == "Landroidx/compose/runtime/Composable;" }),
               function.parameters.count <= 31 else { return nil }
         let firstHidden = function.parameters.count + function.leadingParameterCount
@@ -50,6 +58,15 @@ extension JVMFunctionBuilder {
     ) throws -> JVMIntrinsicResult {
         guard let composer = activeComposer else { throw fail("JVM @Composable calls require an active Composer.", id) }
         guard activeRegions.isEmpty else { throw fail("JVM @Composable calls are unsupported inside a try expression.", id) }
+        let dispatch: JVMValue?
+        if method.isStatic {
+            dispatch = nil
+        } else if signature.receiver != nil {
+            dispatch = try instance(id)
+        } else {
+            let value = try receiverValue ?? receiver.map(requireValue) ?? instance(id)
+            dispatch = try convert(value, to: .reference(method.owner, nullable: false))
+        }
         var prefix = try importedContextArguments(binding, method: method, id: id)
         if signature.receiver != nil {
             guard let value = try receiverValue ?? receiver.map(requireValue) ?? implicitExtensionReceiver(id) else {
@@ -68,10 +85,16 @@ extension JVMFunctionBuilder {
             hidden.append(try constant(.int(Int32(bitPattern: explicit.masks[0])), .int))
         }
         let resultType = try expectedResult ?? program.expressionType(id)
-        let result = method.result == .unit ? nil : try value(foreignResultType(method.result, resolved: resultType))
-        try beginComposeGroup(composer, key: composeCallKey(at: id))
-        instructions.append(.foreignCall(method, receiver: nil, arguments: prefix + explicit.values + hidden, result: result))
-        _ = try jdkCall(JVMCompose.composer, JVMCompose.end, [], .unit, receiver: composer, interface: true)
+        // A generic composable specialized to Unit still returns an
+        // object at the JVM boundary. Discard that carrier for a Unit call.
+        let result = method.result == .unit || resultType == .unit
+            ? nil : try value(foreignResultType(method.result, resolved: resultType))
+        let needsGroup = !method.annotations.contains { $0.descriptor == "Landroidx/compose/runtime/ReadOnlyComposable;" }
+        if needsGroup { try beginComposeGroup(composer, key: composeCallKey(at: id)) }
+        instructions.append(.foreignCall(method, receiver: dispatch, arguments: prefix + explicit.values + hidden, result: result))
+        if needsGroup {
+            _ = try jdkCall(JVMCompose.composer, JVMCompose.end, [], .unit, receiver: composer, interface: true)
+        }
         return JVMIntrinsicResult(value: try result.map { try convert($0, to: resultType) })
     }
 }

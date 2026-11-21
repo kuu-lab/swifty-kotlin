@@ -1064,17 +1064,6 @@ extension ExprTypeChecker {
     }
 
     func resolveTypeForCandidate(_ symbol: SemanticSymbol, sema: SemaModule) -> TypeID? {
-        if let signature = sema.symbols.functionSignature(for: symbol.id) {
-            return signature.returnType
-        }
-        if symbol.kind == .property || symbol.kind == .field {
-            driver.resolveInferredPropertyType(for: symbol.id)
-            return driver.helpers.propertyReadType(
-                for: symbol.id,
-                declaredType: sema.symbols.propertyType(for: symbol.id),
-                sema: sema
-            )
-        }
         // Objects are singletons – always resolve to their nominal type so
         // that `ObjectName.member()` works.
         if symbol.kind == .object {
@@ -1087,6 +1076,17 @@ extension ExprTypeChecker {
                 return objectType
             }
             return sema.types.make(.classType(ClassType(classSymbol: symbol.id, args: [], nullability: .nonNull)))
+        }
+        if let signature = sema.symbols.functionSignature(for: symbol.id) {
+            return signature.returnType
+        }
+        if symbol.kind == .property || symbol.kind == .field {
+            driver.resolveInferredPropertyType(for: symbol.id)
+            return driver.helpers.propertyReadType(
+                for: symbol.id,
+                declaredType: sema.symbols.propertyType(for: symbol.id),
+                sema: sema
+            )
         }
         // For class/interface/enum symbols, only resolve to nominal type when
         // they have a companion object so that `ClassName.companionMember()`

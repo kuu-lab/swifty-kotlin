@@ -17,3 +17,13 @@ annotation class Volatile
 @kotlin.annotation.Retention(kotlin.annotation.AnnotationRetention.SOURCE)
 @kotlin.annotation.MustBeDocumented
 annotation class Transient
+
+@Target(
+    AnnotationTarget.CLASS,
+    AnnotationTarget.FUNCTION,
+    AnnotationTarget.PROPERTY,
+    AnnotationTarget.TYPE
+)
+@Retention(AnnotationRetention.BINARY)
+@MustBeDocumented
+public annotation class JvmSuppressWildcards(val suppress: Boolean = true)

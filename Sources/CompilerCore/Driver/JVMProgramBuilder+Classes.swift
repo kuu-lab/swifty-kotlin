@@ -314,6 +314,12 @@ extension JVMProgramBuilder {
             guard !exposedField || (hasField && p.delegateExpression == nil) else {
                 throw JVMFrontendError(message: "JVM @JvmField property must have a backing field.", range: p.range)
             }
+            let usesPrivateBackingField = hasField && p.modifiers.contains(.private)
+                && p.getter == nil && p.setter == nil && p.delegateExpression == nil
+                && !p.modifiers.contains(.lateinit) && !exposedField
+                && !sema.bindings.callableReferenceBindings.values.contains { reference in
+                    reference.chosenCallee == symbol || sema.symbols.propertySymbol(forAccessor: reference.chosenCallee) == symbol
+                }
             // @JvmField inside any object — including a companion — publishes a
             // static field on that object, matching kotlinc's layout.
             let staticObjectField = exposedField && plan.isObject
@@ -330,6 +336,7 @@ extension JVMProgramBuilder {
             var property = JVMProperty(name: name, type: type, getter: getter, setter: setter, field: field, modifiers: p.modifiers)
             property.isGetterInline = p.modifiers.contains(.inline) || p.getter?.isInline == true
             property.isSetterInline = p.modifiers.contains(.inline) || p.setter?.isInline == true
+            property.usesPrivateBackingField = usesPrivateBackingField
             property.kotlinType = try kotlinType(propertyType)
             property.kotlinReceiver = try extensionReceiverSemantic.map(kotlinType)
             property.genericSignature = try signatureType(propertyType)

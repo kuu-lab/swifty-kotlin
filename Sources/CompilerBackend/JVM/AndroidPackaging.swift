@@ -15,6 +15,7 @@ enum AndroidPackaging {
         hasMain: Bool,
         module: (String, Data)?,
         classes: [(String, Data)],
+        inputs: AndroidBuildInputs?,
         phaseTimer: PhaseTimer?
     ) throws {
         let work = try AndroidBuildTool.makeWorkDirectory()
@@ -37,7 +38,8 @@ enum AndroidPackaging {
         try runD8(
             toolchain: toolchain, options: options, phaseTimer: phaseTimer,
             output: dexArchive,
-            programInputs: [jarPath] + dexProgramInputs(options: options, androidJarPath: androidJar),
+            programInputs: [jarPath] + dexProgramInputs(options: options, androidJarPath: androidJar)
+                + (inputs?.dexJars ?? []),
             classpathEntries: dexClasspathEntries(options: options, androidJarPath: androidJar)
         )
         try installArtifact(from: dexArchive, to: options.outputPath)
@@ -53,6 +55,7 @@ enum AndroidPackaging {
         module: (String, Data)?,
         classes: [(String, Data)],
         linkedResources: AndroidResourceLink?,
+        inputs: AndroidBuildInputs?,
         phaseTimer: PhaseTimer?
     ) throws {
         let toolchain = try linkedResources?.toolchain ?? resolveToolchain(options: options)
@@ -77,10 +80,12 @@ enum AndroidPackaging {
 
         let dexDirectory = work.appendingPathComponent("dex", isDirectory: true)
         try FileManager.default.createDirectory(at: dexDirectory, withIntermediateDirectories: true)
+        let programInputs = [jarPath] + dexProgramInputs(options: options, androidJarPath: androidJar)
+            + (inputs?.dexJars ?? [])
         try runD8(
             toolchain: toolchain, options: options, phaseTimer: phaseTimer,
             output: dexDirectory.path,
-            programInputs: [jarPath] + dexProgramInputs(options: options, androidJarPath: androidJar),
+            programInputs: programInputs,
             classpathEntries: dexClasspathEntries(options: options, androidJarPath: androidJar)
         )
         let dexFiles = try dexFileNames(in: dexDirectory)
@@ -98,6 +103,30 @@ enum AndroidPackaging {
             currentDirectoryPath: dexDirectory.path,
             phaseTimer: phaseTimer, subPhaseName: "Android/add-dex"
         )
+
+        // d8 keeps only classes; ServiceLoader registrations such as
+        // kotlinx.coroutines' Main dispatcher live in jar resources.
+        let staging = work.appendingPathComponent("apk-extra", isDirectory: true)
+        let javaResources = try stageJavaResources(from: programInputs, into: staging)
+        if !javaResources.isEmpty {
+            try AndroidBuildTool.run(
+                tool: "zip", executable: zip,
+                arguments: ["-q", unsignedAPK] + javaResources,
+                currentDirectoryPath: staging.path,
+                phaseTimer: phaseTimer, subPhaseName: "Android/add-resources"
+            )
+        }
+        // Native libraries are stored uncompressed (`zipalign -p` then page-aligns
+        // them) so `android:extractNativeLibs="false"` can map them in place.
+        let nativeLibraries = try stageNativeLibraries(inputs?.libraries, into: staging)
+        if !nativeLibraries.isEmpty {
+            try AndroidBuildTool.run(
+                tool: "zip", executable: zip,
+                arguments: ["-q", "-0", unsignedAPK] + nativeLibraries,
+                currentDirectoryPath: staging.path,
+                phaseTimer: phaseTimer, subPhaseName: "Android/add-native-libraries"
+            )
+        }
 
         // 3. Align, then sign.
         var alignedAPK = unsignedAPK
@@ -209,6 +238,76 @@ enum AndroidPackaging {
     }
 
     // MARK: - APK packaging
+
+    /// Copies the non-class entries of every dexed jar into `directory`,
+    /// first occurrence winning, minus the entries AGP's default
+    /// `packaging.resources.excludes` drop (licenses, signatures, Maven and
+    /// Kotlin module metadata). Returns the relative paths written.
+    static func stageJavaResources(from jars: [String], into directory: URL) throws -> [String] {
+        var written: [String] = []
+        var seen: Set<String> = []
+        for jar in jars {
+            let archive: ZipArchive
+            do {
+                archive = try ZipArchive(data: Data(contentsOf: URL(fileURLWithPath: jar)))
+            } catch {
+                throw AndroidPackagingError.invalidInput("Cannot read \(jar): \(error)")
+            }
+            for entry in archive.entries where !entry.isDirectory && isPackagedJavaResource(entry.name) {
+                guard seen.insert(entry.name).inserted else { continue }
+                let destination = directory.appendingPathComponent(entry.name)
+                try FileManager.default.createDirectory(
+                    at: destination.deletingLastPathComponent(), withIntermediateDirectories: true
+                )
+                try Data(archive.contents(of: entry)).write(to: destination)
+                written.append(entry.name)
+            }
+        }
+        return written
+    }
+
+    static func isPackagedJavaResource(_ name: String) -> Bool {
+        if name.hasSuffix(".class") || name.hasPrefix("/") || name.split(separator: "/").contains("..") {
+            return false
+        }
+        let components = name.split(separator: "/")
+        if components.contains(where: { $0.hasPrefix(".") || $0.hasPrefix("_") || $0.hasSuffix("~") }) {
+            return false
+        }
+        let upper = name.uppercased()
+        let root = ["LICENSE", "LICENSE.TXT", "NOTICE", "NOTICE.TXT"]
+        if components.count == 1 { return !root.contains(upper) }
+        guard components[0] == "META-INF" else { return true }
+        if components.count == 2 {
+            let file = upper.dropFirst("META-INF/".count)
+            if root.contains(String(file)) || file == "MANIFEST.MF" || file == "INDEX.LIST" { return false }
+            for suffix in [".SF", ".RSA", ".DSA", ".EC", ".KOTLIN_MODULE"] where file.hasSuffix(suffix) {
+                return false
+            }
+            return true
+        }
+        return !["maven", "proguard", "com.android.tools", "versions"].contains(String(components[1]))
+    }
+
+    /// AAR `jni/<abi>/*.so` files become `lib/<abi>/*.so` in the APK.
+    private static func stageNativeLibraries(_ libraries: AndroidLibrarySet?, into directory: URL) throws -> [String] {
+        var written: [String] = []
+        let fileManager = FileManager.default
+        for library in libraries?.libraries ?? [] {
+            guard let jni = library.nativeLibraries,
+                  let files = fileManager.enumerator(at: jni, includingPropertiesForKeys: nil) else { continue }
+            let base = jni.resolvingSymlinksInPath().pathComponents.count
+            for case let file as URL in files where file.pathExtension == "so" {
+                let relative = "lib/" + file.resolvingSymlinksInPath().pathComponents.dropFirst(base).joined(separator: "/")
+                guard !written.contains(relative) else { continue }
+                let destination = directory.appendingPathComponent(relative)
+                try fileManager.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try fileManager.copyItem(at: file, to: destination)
+                written.append(relative)
+            }
+        }
+        return written
+    }
 
     /// apksigner arguments for the resolved keystore. The default debug
     /// keystore at `~/.android/debug.keystore` is generated via `keytool`
