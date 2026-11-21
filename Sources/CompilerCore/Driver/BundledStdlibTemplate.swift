@@ -30,12 +30,6 @@ internal enum BundledStdlibTemplate {
         var hasElse = false
     }
 
-    /// - Parameters:
-    ///   - template: raw template bytes.
-    ///   - path: template path relative to the `Stdlib` directory; outputs are
-    ///     placed next to it.
-    /// - Returns: output paths in `//@ file` order, without the `.kt` suffix
-    ///   (the `relativePaths` convention of `BundledStdlib`), with contents.
     static func expand(
         _ template: Data,
         at path: String
@@ -69,7 +63,6 @@ internal enum BundledStdlibTemplate {
                     }
                     body.append((line, open))
                 case .prologue:
-                    // Only blank lines and ordinary comments may precede the header.
                     guard line.isEmpty || line.hasPrefix("//") else {
                         throw failure(number, "expected a //@ directive before //@ header")
                     }
