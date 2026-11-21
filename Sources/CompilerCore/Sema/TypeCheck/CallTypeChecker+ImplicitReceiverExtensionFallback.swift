@@ -1,11 +1,4 @@
 extension CallTypeChecker {
-    /// Nullability part of an implicit receiver-tower match. The lenient
-    /// `extensionSyntheticFallbackReceiverMatches` deliberately strips
-    /// nullability for candidate discovery, so a binding must re-check it:
-    /// a nullable tower entry can supply only a receiver that admits null —
-    /// a nullable declared type, or an unsolved receiver type parameter whose
-    /// upper bounds all admit null (the parameter then infers to the nullable
-    /// type itself). Everything else is an unsafe call (KUU-4501).
     func implicitReceiverEntryNullabilityCompatible(
         callSiteReceiver: TypeID,
         declaredReceiver: TypeID,
@@ -28,11 +21,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Whether `candidate` must not bind through an implicit-receiver tower
-    /// entry of type `supplyingReceiverType` because the bare call carries no
-    /// `?.` marker. A nullable entry rejects every receiver that cannot hold
-    /// null; the only exception mirrors Kotlin's member scope for `T?`, which
-    /// exposes `Any`'s `toString()`, `hashCode()`, and `equals` (KUU-4501).
     func isUnsafeNullableImplicitReceiverCall(
         _ candidate: SymbolID,
         supplyingReceiverType: TypeID,
@@ -64,10 +52,6 @@ extension CallTypeChecker {
     }
 
     func implicitMemberExtensionReceiverMatches(_ actual: TypeID, declared: TypeID, sema: SemaModule) -> Bool {
-        // Same nullability contract as `extensionSyntheticFallbackReceiverMatches`:
-        // a nullable receiver cannot supply a non-null member-extension receiver,
-        // but a declared receiver type parameter whose bounds admit null still
-        // matches (`T` binds `String?`, KUU-4501).
         guard implicitReceiverEntryNullabilityCompatible(
             callSiteReceiver: actual,
             declaredReceiver: declared,
@@ -79,8 +63,6 @@ extension CallTypeChecker {
         let declared = sema.types.makeNonNullable(declared)
         if sema.types.isSubtype(actual, declared) { return true }
         guard case let .typeParam(parameter) = sema.types.kind(of: declared) else { return false }
-        // Match an unsolved receiver parameter against its bounds before
-        // overload resolution. The resolver still checks the complete call.
         let variables = sema.types.makeTypeVarBySymbol([parameter.symbol])
         guard let variable = variables[parameter.symbol] else { return false }
         return sema.symbols.typeParameterUpperBounds(for: parameter.symbol).allSatisfy { bound in
@@ -90,20 +72,11 @@ extension CallTypeChecker {
             return sema.types.isSubtype(actual, sema.types.makeNonNullable(bound))
         }
     }
-    /// A package extension with an incompatible receiver must not hide an
-    /// imported extension before its arguments can be contextualized.
     func scopeCallCandidatesConsideringImplicitReceivers(
         named name: InternedString,
         ctx: TypeInferenceContext
     ) -> [SymbolID] {
-        // Same-package properties do not occupy the callable namespace, so
-        // they must not hide default-imported functions in call syntax.
         let samePackage = ctx.currentASTFile?.packageFQName
-        // A property whose type has no function shape cannot be invoked, so
-        // it never occupies the callable namespace — at any tier. A
-        // non-callable member `val` must not hide a same-named outer-tier
-        // function in call syntax either (KUU-3913). An imported property
-        // likewise yields to default-imported functions (KUU-2731).
         func isNonCallableProperty(_ candidate: SymbolID) -> Bool {
             guard let symbol = ctx.cachedSymbol(candidate), symbol.kind == .property,
                   let type = ctx.sema.symbols.propertyType(for: candidate)
@@ -111,7 +84,6 @@ extension CallTypeChecker {
             if case .functionType = ctx.sema.types.kind(of: ctx.sema.types.makeNonNullable(type)) {
                 return false
             }
-            // A type with a member `invoke` is callable too.
             return driver.helpers.collectMemberFunctionCandidates(
                 named: ctx.interner.intern("invoke"), receiverType: type, sema: ctx.sema, interner: ctx.interner
             ).isEmpty
@@ -144,12 +116,6 @@ extension CallTypeChecker {
                 sema: ctx.sema
             )
         }
-        // Keep ordinary callables on their existing resolution path. Scope
-        // lookup can contain receiver-bearing library functions attached to
-        // nominal receivers as well as package extensions, and overloads with
-        // unrelated receivers must not contribute lambda parameter types.
-        // Resolve the nearest applicable receiver in the tower, which may be
-        // farther out when the active receiver is a dispatch owner.
         guard candidates.allSatisfy({ ctx.sema.symbols.functionSignature(for: $0)?.receiverType != nil }) else {
             return candidates
         }
@@ -159,10 +125,6 @@ extension CallTypeChecker {
             if !applicable.isEmpty {
                 return applicable
             }
-            // Ordinary name lookup stops at the first scope that declares this
-            // name, even when its extensions have unrelated receivers. Retry
-            // through the scope chain with the receiver predicate so a nearer
-            // same-name extension cannot hide an applicable imported overload.
             if scopeExtensionsOnly {
                 let matchingScopeCandidates = ctx.scope.lookup(name, matching: { candidate in
                     isScopeExtensionCandidate(candidate, ctx: ctx)
@@ -176,11 +138,6 @@ extension CallTypeChecker {
         return candidates
     }
 
-    /// Same-package top-level non-extension functions and explicitly imported
-    /// top-level non-extension functions with the same name participate in one
-    /// overload set. Ordinary scope lookup stops at the package declaration,
-    /// so restore the explicit imports before overload resolution can reject
-    /// them by arity.
     private func scopeCallCandidatesWithExplicitImportOverloads(
         named name: InternedString,
         candidates: [SymbolID],
@@ -238,18 +195,11 @@ extension CallTypeChecker {
            let parent = ctx.sema.symbols.symbol(parentID),
            parent.kind != .package
         {
-            // Public/internal package extensions may be attached to their
-            // receiver nominal for member lookup, but keep their package FQ name.
             return symbol.fqName != parent.fqName + [symbol.name]
         }
         return true
     }
 
-    /// Whether the declared receiver of `candidate` can be supplied by an
-    /// implicit receiver tower entry of type `entryType`. Mirrors the
-    /// matching rule used to pick `callImplicitReceiverType`: member
-    /// extensions match through the member-extension predicate, every other
-    /// receiver-bearing callable through the synthetic-fallback one.
     func callCandidateDeclaredReceiver(
         _ candidate: SymbolID,
         matchesTowerEntryType entryType: TypeID,
@@ -269,12 +219,6 @@ extension CallTypeChecker {
         )
     }
 
-    /// A scope-visible callable is DSL-blocked when every implicit receiver
-    /// tower entry able to supply its declared receiver is hidden by a nearer
-    /// receiver carrying the same DslMarker annotation. Package-scope
-    /// extensions have no class owner for
-    /// `TypeInferenceContext.isCandidateBlockedByDslMarker` to test, so this
-    /// receiver-tower check must apply on top of it.
     func isCallCandidateBlockedByDslHiddenReceivers(
         _ candidate: SymbolID,
         hiddenReceiverTypes: Set<TypeID>,
@@ -292,8 +236,6 @@ extension CallTypeChecker {
         return sawMatchingEntry
     }
 
-    /// Package extensions are not members of their receiver class, so the member
-    /// recovery path cannot find them when a receiver lambda shadows `this`.
     func resolveOuterImplicitReceiverExtensionCall(
         candidates: [SymbolID],
         args: [CallArgument],
@@ -334,10 +276,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// Prefer the receiver-specific predicate extension before contextual lambda
-    /// inference. An implicit receiver call currently starts with package-scope
-    /// candidates, so keeping the Collection overload beside the predicate
-    /// overload leaves a bare `it` without a unique function type.
     func preferImplicitReceiverPredicateCandidates(
         _ candidates: [SymbolID],
         fallbackCandidates: [SymbolID] = [],
@@ -391,10 +329,6 @@ extension CallTypeChecker {
             return preferred
         }
 
-        // An applicable member callback overload has Kotlin member precedence.
-        // Revisit the original scope extensions only when the selected member
-        // set cannot accept the predicate lambda at all, such as
-        // MutableList.removeAll(Collection) inside `apply`.
         let hasFunctionTypedLambdaParameter = candidates.contains { candidate in
             guard let signature = sema.symbols.functionSignature(for: candidate) else {
                 return false
@@ -418,10 +352,6 @@ extension CallTypeChecker {
         return preferred
     }
 
-    /// Resolve collection members before package-scope extensions for an
-    /// implicit receiver. This preserves Kotlin member precedence for calls such
-    /// as `apply { remove(1) }` and avoids the deprecated `MutableList.remove`
-    /// extension being selected first.
     func tryBindImplicitReceiverCollectionMemberCall(
         _ id: ExprID,
         calleeName: InternedString,
@@ -600,9 +530,6 @@ extension CallTypeChecker {
                 && !ctx.isImportedSymbolShadowedBySource($0)
                 && matches($0, requireSynthetic: false)
         }
-        // An implicit member can hide an imported package extension in ordinary
-        // name lookup. Retry through visible scopes rather than importing every
-        // same-named library extension from the global symbol table.
         let visibleExtensions = ctx.scope.lookupMergingChain(calleeName).filter { candidate in
             guard isScopeExtensionCandidate(candidate, ctx: ctx),
                   let symbol = ctx.cachedSymbol(candidate),
@@ -621,9 +548,6 @@ extension CallTypeChecker {
         candidates.append(contentsOf: sema.symbols.lookupByShortName(calleeName).filter {
             matches($0, requireSynthetic: true)
         })
-        // Bundled stdlib source extensions are omitted from ordinary file scopes.
-        // Prefer their source-backed declarations over residual synthetic members
-        // when an atomic receiver exposes the migrated surface.
         let bundledCandidates = collectBundledStdlibExtensionCandidates(
             named: calleeName,
             receiverType: nonNullReceiver,
@@ -666,9 +590,6 @@ extension CallTypeChecker {
             ctx: ctx.sema
         )
         if let diagnostic = resolved.diagnostic {
-            // When only the receiver's nullability blocks the call — the same
-            // overload set resolves once the receiver is non-null — kotlinc
-            // reports an unsafe call rather than a constraint failure.
             if sema.types.nullability(of: receiverType) == .nullable {
                 let probe = ctx.resolver.resolveCall(
                     candidates: candidates,
@@ -717,16 +638,6 @@ extension CallTypeChecker {
         return resultType
     }
 
-    /// Scope lookup for an unqualified call also returns package-scope extension
-    /// functions that merely share the simple name but declare a receiver the
-    /// enclosing implicit receiver cannot satisfy (e.g. `AtomicInt.compareAndSet`
-    /// seen from an `AtomicBoolean` extension body), or whose arguments cannot
-    /// be satisfied even though the receiver matches (e.g. the kotlin.text
-    /// `T.append(vararg CharSequence?)` extension seen from an `Appendable`
-    /// extension body calling `append('\n')`).  Scope-candidate resolution has
-    /// already failed when this runs, so the call has to resolve against the
-    /// implicit receiver's own members instead of failing overload resolution.
-    /// Only recovers calls that would otherwise be reported as errors.
     func tryBindImplicitReceiverMemberCallForInapplicableScopeCandidates(
         _ id: ExprID,
         calleeName: InternedString,
@@ -744,15 +655,8 @@ extension CallTypeChecker {
               args.count == argTypes.count
         else { return nil }
         let nonNullReceiver = sema.types.makeNonNullable(implicitReceiverType)
-        // Attached scope extensions must retain their full overload set in the
-        // extension tower path, rather than being collapsed as inherited members.
         let scopeExtensions = Set(scopeCandidates.filter { isScopeExtensionCandidate($0, ctx: ctx) })
 
-        // Kotlin's implicit-receiver tower: the innermost receiver first, then
-        // enclosing receivers whose `this` value is reachable through capture.
-        // Only entries carrying a receiver symbol participate — the symbol is
-        // what capture analysis stores into an object literal's fields so KIR
-        // lowering can materialize the receiver value from it.
         var receiverChain: [(type: TypeID, symbol: SymbolID?)] = [
             (type: implicitReceiverType, symbol: nil)
         ]
@@ -774,9 +678,6 @@ extension CallTypeChecker {
                 interner: ctx.interner
             ).filter { !scopeExtensions.contains($0) }
             guard !memberCandidates.isEmpty else { continue }
-            // Member extensions surface under the dispatch receiver type but
-            // resolve against the implicit receiver tower entry picked for
-            // their declared extension receiver.
             var regularMemberCandidates: [SymbolID] = []
             var memberExtensionGroups: [(
                 symbols: [SymbolID], receiverType: TypeID, symbol: SymbolID?
@@ -828,9 +729,6 @@ extension CallTypeChecker {
                     implicitReceiverType: group.receiverType,
                     ctx: ctx.sema
                 )
-                // Member extensions were resolved against their real picked
-                // entry above; regular members keep the stripped lookup form,
-                // so the unsafe-call gate applies on the real tower type.
                 guard resolved.diagnostic == nil,
                       let chosen = resolved.chosenCallee,
                       !regularMemberCandidates.contains(chosen)
