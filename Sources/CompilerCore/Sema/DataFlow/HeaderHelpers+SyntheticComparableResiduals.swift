@@ -42,7 +42,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // Store in TypeSystem for use in isSubtype.
         types.comparableInterfaceSymbol = comparableSymbol
         types.setNominalTypeParameterVariances([.in], for: comparableSymbol)
 
