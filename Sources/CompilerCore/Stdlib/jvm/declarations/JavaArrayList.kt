@@ -1,5 +1,4 @@
 package java.util
-// JDK declaration only; implementation remains in the JDK.
 class ArrayList<T>: kotlin.collections.MutableList<T> {
     constructor()
     constructor(initialCapacity: Int)
