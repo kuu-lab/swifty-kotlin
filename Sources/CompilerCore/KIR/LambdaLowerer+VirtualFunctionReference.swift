@@ -1,14 +1,4 @@
 extension LambdaLowerer {
-    /// `(receiver, args...) -> result` call target for a callable reference
-    /// to an interface / open / abstract member function.
-    ///
-    /// The reference's target symbol is the *declaring* member, which for an
-    /// interface or abstract method is a body-less stub; calling it directly
-    /// yields the stub's zero value instead of the implementer's result. This
-    /// returns a thunk that performs the same itable / vtable dispatch a
-    /// literal `receiver.member(args)` call would, or `nil` when the call
-    /// resolves statically (final receiver type, top-level / extension
-    /// function, constructor, contextual member or compiler-provided owner).
     func virtualFunctionReferenceThunk(
         targetSymbol: SymbolID,
         receiverStaticType: TypeID?,
@@ -235,8 +225,6 @@ extension LambdaLowerer {
         return (thunkSymbol, name)
     }
 
-    /// Scalar adapters keep their existing invoke ABI. Their internal call to
-    /// a source vararg body still needs one packed array/List for each slot.
     func packOrdinaryCallableVarargValues(
         _ arguments: [KIRExprID], targetSymbol: SymbolID, parameterOffset: Int,
         resultType: TypeID,
@@ -250,8 +238,6 @@ extension LambdaLowerer {
               !driver.callLowerer.kirIsRuntimeBridgedCallee(targetSymbol, sema: sema),
               parameterOffset >= 0, arguments.count == parameterOffset + signature.parameterTypes.count
         else { return arguments }
-        // The complete callable shape separates legal scalar adaptation from
-        // whole-array invoke; Array-shaped contexts require a packed match.
         let expected = sema.types.make(.functionType(FunctionType(
             params: arguments.dropFirst(parameterOffset).map { arena.exprType($0) ?? sema.types.anyType },
             returnType: resultType, isCallableReference: true
@@ -275,9 +261,6 @@ extension LambdaLowerer {
         for index in signature.parameterTypes.indices
             where signature.valueParameterIsVararg.indices.contains(index) && signature.valueParameterIsVararg[index] {
             let elementType = signature.parameterTypes[index]
-            // Declaration T remains reference storage even when specialized to
-            // Int. Its allocation component comes from the inferred scalar
-            // callable shape, rather than erased declaration bounds.
             let allocatedElement = scalarParameters.flatMap { $0.indices.contains(index) ? $0[index] : nil } ?? elementType
             let primitiveArray = primitiveVarargArrayType(elementType: elementType, sema: sema, interner: interner)
             let arrayType = primitiveArray
