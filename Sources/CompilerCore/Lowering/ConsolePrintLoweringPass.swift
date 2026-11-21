@@ -1,13 +1,4 @@
 
-/// Rewrites `kotlin.io.print`/`println` call sites so class, data-class, object
-/// and enum values print via their `toString()` implementation instead of
-/// `Any.toString()` falling back to the raw handle.
-///
-/// With `print`/`println` implemented in bundled Kotlin source, the `Any?`
-/// receiver inside `Console.kt` loses the static class type, so the compiler
-/// emits the generic `kk_any_to_string` path. This pass restores the previous
-/// behavior by rewriting call sites at the KIR level, before `println` bodies
-/// are inlined.
 final class ConsolePrintLoweringPass: LoweringPass {
     static let name = "ConsolePrintLowering"
     static let requiredStage: KIRStage = .propertyLowered
@@ -90,9 +81,6 @@ final class ConsolePrintLoweringPass: LoweringPass {
         case println
     }
 
-    /// Handles both source-backed calls (callee name is `print`/`println`) and
-    /// library-imported calls (callee is `kk_fn_print...` but the symbol is the
-    /// Kotlin function).
     private static func consolePrintKind(
         symbol: SymbolID?,
         callee: InternedString,
@@ -183,8 +171,6 @@ final class ConsolePrintLoweringPass: LoweringPass {
         }
 
         if sema.types.nullability(of: argType) != .nonNull {
-            // Build the non-null rewrite first on a scratch body so we only
-            // commit the branch when a class-specific toString is available.
             var nonNullBody = KIRLoweringEmitContext()
             guard let stringExpr = Self.classToStringExpression(
                 argument: argument,
@@ -282,8 +268,6 @@ final class ConsolePrintLoweringPass: LoweringPass {
         }
     }
 
-    /// Returns nil when the argument is not a primitive or string type (callers
-    /// should fall through to class / `Any?` handling).
     private func primitiveToStringExpression(
         argument: KIRExprID,
         arena: KIRArena,
@@ -364,8 +348,6 @@ final class ConsolePrintLoweringPass: LoweringPass {
         return result
     }
 
-    /// Used when `arena.exprType` is not available, e.g. for expressions
-    /// restored from an imported library's inline KIR.
     private func inferPrimitiveType(
         argument: KIRExprID,
         sema: SemaModule,
@@ -433,8 +415,6 @@ final class ConsolePrintLoweringPass: LoweringPass {
         let instructions: [KIRInstruction]
     }
 
-    /// Returns nil when no class-specific toString behavior is available
-    /// (callers should fall back to source `println`).
     private static func classToStringExpression(
         argument: KIRExprID,
         classSymbol: SemanticSymbol,
@@ -456,7 +436,6 @@ final class ConsolePrintLoweringPass: LoweringPass {
         // (kk_any_to_string -> runtimeElementToString), which already knows
         // how to render a RuntimeSetBox.
         let knownNames = KnownCompilerNames(interner: interner)
-        // Enum base receivers use tagged boxes and runtime Any override dispatch.
         if classSymbol.fqName == knownNames.kotlinCollectionsHashSetFQName
             || classSymbol.fqName == [interner.intern("kotlin"), interner.intern("Enum")] {
             return nil
