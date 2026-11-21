@@ -3,9 +3,6 @@ extension JVMFunctionBuilder {
         guard let binding = program.sema.bindings.invokeOperatorPropertyCalls[id] else { return nil }
         if case .functionType = program.sema.types.kind(of: binding.propertyType) { return nil }
 
-        // Getter evaluation precedes invoke arguments. Reuse the receiver AST
-        // only as an operand key so the normal call paths keep defaults,
-        // argument mapping, and virtual/interface/extension dispatch.
         let object = try requireValue(receiver)
         let raw: JVMValue
         if let property = program.properties[binding.property] {
