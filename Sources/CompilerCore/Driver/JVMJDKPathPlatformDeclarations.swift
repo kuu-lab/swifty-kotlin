@@ -1,7 +1,6 @@
 import Foundation
 
 extension JVMClasspathIndex {
-    /// Supplies the java.nio.file contracts used by the JVM stdlib path helpers.
     func injectJDKPathPlatformDeclarations(into context: CompilationContext) throws {
         let path = "java/nio/file/Path"
         let paths = "java/nio/file/Paths"
