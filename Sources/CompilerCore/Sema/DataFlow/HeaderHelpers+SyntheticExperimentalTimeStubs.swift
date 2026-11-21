@@ -1,6 +1,3 @@
-/// The public operations are implemented in bundled Kotlin source. This file
-/// retains only the opt-in marker, nominal/bootstrap anchors, and hidden
-/// bridge declarations needed by compiler/runtime dispatch.
 extension DataFlowSemaPhase {
     func registerSyntheticExperimentalTimeStubs(
         symbols: SymbolTable,
@@ -83,11 +80,6 @@ extension DataFlowSemaPhase {
         )))
         symbols.setDirectSupertypes([timeMarkSymbol], for: comparableTimeMarkSymbol)
         types.setNominalDirectSupertypes([timeMarkSymbol], for: comparableTimeMarkSymbol)
-
-        // KSP-648: TimeMark / ComparableTimeMark members (elapsedNow, hasPassedNow,
-        // hasNotPassedNow, plus/minus Duration, mark-to-mark minus, compareTo) are Kotlin
-        // source members. Only the nominal types stay
-        // synthetic so that markNow() and friends can refer to them.
 
         let timeSourceSymbol = ensureInterfaceSymbol(
             named: "TimeSource",
