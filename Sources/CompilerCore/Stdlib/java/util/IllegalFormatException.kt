@@ -1,6 +1,5 @@
 package java.util
 
-// Runtime formatting errors expose this hierarchy for typed catch clauses.
 public open class IllegalFormatException : IllegalArgumentException()
 
 public class DuplicateFormatFlagsException : IllegalFormatException()
