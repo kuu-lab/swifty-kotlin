@@ -30,57 +30,25 @@ public object Runtime {
 
     public fun availableProcessors(): Int = __availableProcessors()
 
-    /**
-     * Executes the specified string command in a separate process.
-     * The command string is tokenized like `java.lang.StringTokenizer` with
-     * the default delimiters (space, tab, newline, carriage return, and form
-     * feed): runs of delimiters count as one separator and leading or
-     * trailing delimiters are ignored. Like the JDK, an empty command string
-     * is rejected before any tokenization happens.
-     */
     public fun exec(command: String): Process {
         if (command.isEmpty()) throw IllegalArgumentException("Empty command")
         return exec(tokenizeExecCommand(command), null, null)
     }
 
-    /**
-     * Executes the specified string command in a separate process with the
-     * given environment. A `null` [envp] inherits the parent environment;
-     * a non-null array fully replaces it (entries are `KEY=VALUE` strings),
-     * matching the JDK.
-     */
     public fun exec(command: String, envp: Array<String>?): Process =
         exec(command, envp, null)
 
-    /**
-     * Executes the specified string command in a separate process with the
-     * given environment and working directory. `null` [envp]/[dir] inherit the
-     * parent's environment and current directory, matching the JDK.
-     */
     public fun exec(command: String, envp: Array<String>?, dir: File?): Process {
         if (command.isEmpty()) throw IllegalArgumentException("Empty command")
         return exec(tokenizeExecCommand(command), envp, dir)
     }
 
-    /** Executes the specified command array in a separate process. */
     public fun exec(command: Array<String>): Process = exec(command, null, null)
 
-    /**
-     * Executes the specified command array in a separate process with the
-     * given environment. A `null` [envp] inherits the parent environment;
-     * a non-null array fully replaces it, matching the JDK.
-     */
     public fun exec(command: Array<String>, envp: Array<String>?): Process =
         exec(command, envp, null)
 
-    /**
-     * Executes the specified command array in a separate process with the
-     * given environment and working directory. `null` [envp]/[dir] inherit the
-     * parent's environment and current directory, matching the JDK.
-     */
     public fun exec(command: Array<String>, envp: Array<String>?, dir: File?): Process {
-        // The JDK reaches this state through ProcessBuilder.start() and the
-        // native launcher indexing argv[0]; surface the same exception.
         if (command.isEmpty()) {
             throw ArrayIndexOutOfBoundsException("Index 0 out of bounds for length 0")
         }
