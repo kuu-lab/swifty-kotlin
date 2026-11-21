@@ -68,10 +68,6 @@ struct FlowLoweringNames {
 }
 
 extension CoroutineLoweringPass {
-    /// Bundled Kotlin declarations imported from a stdlib artifact carry both
-    /// `importedLibrary` and `synthetic`, so provenance is checked together
-    /// with the compiler-generated `kk_fn_` link name. Runtime bridge stubs
-    /// remain intrinsics even when they are source-backed metadata records.
     func hasRealDeclaration(_ symbol: SymbolID?, in ctx: KIRContext) -> Bool {
         guard let symbol, let sema = ctx.sema, let resolvedSymbol = sema.symbols.symbol(symbol) else {
             return false
@@ -83,7 +79,6 @@ extension CoroutineLoweringPass {
             && CallLowerer.isSourceBackedLinkName(sema.symbols.externalLinkName(for: symbol))
     }
 
-    /// Mirrors the `sequenceExprIDs` pattern in `CollectionLiteralLoweringPass`.
     func lowerFlowExpressions(module: KIRModule, ctx: KIRContext) {
         let flowName = ctx.interner.intern("flow")
         let emitName = ctx.interner.intern("emit")
@@ -205,11 +200,6 @@ extension CoroutineLoweringPass {
             }
             return symbols
         }
-        // Calls whose function-value arguments execute with a Flow collector
-        // in scope: `flow { }` builders and the Flow operators whose callback
-        // may invoke the bare `emit` effect (`transform`, `catch`,
-        // `retryWhen`, `onEach`, `onEmpty`, ...). Other argument shapes
-        // (ints, handles) simply resolve to no function symbol.
         let flowEmitScopeCalleeNames: Set<InternedString> = [
             flowName, collectName, collectLatestName, mapName, filterName,
             takeName, transformName, takeWhileName, dropWhileName,
@@ -220,19 +210,10 @@ extension CoroutineLoweringPass {
             ctx.interner.intern("onEach"),
             ctx.interner.intern("onEmpty"),
             kkFlowCreateName, kkChannelFlowCreateName, kkCallbackFlowCreateName,
-            // Already-lowered bridge calls carry the callback as a payload:
-            // tagged `kk_flow_emit` (transform/map/catch/...), collector
-            // references of `kk_flow_collect`, and the flatMap/combine family.
             kkFlowEmitName, kkFlowCollectName, kkFlowCollectLatestName,
             kkFlowFlatMapConcatName, kkFlowFlatMapMergeName, kkFlowFlatMapLatestName,
             kkFlowZipName, kkFlowCombineName, kkFlowMergeName,
         ]
-        // Container writes that carry a callback into an object or
-        // continuation feeding a flow call: `kk_array_set(obj, i, v)` and
-        // `kk_coroutine_launcher_arg_set(cont, i, v)`. kklib-imported call
-        // shapes route `flow`/`collect` arguments through these slots
-        // (e.g. `.map { }` lowering where the lambda is packed into the
-        // collector object next to `externSymbolAddress` launcher thunks).
         let containerWriteCallees: Set<InternedString> = [
             ctx.interner.intern("kk_array_set"),
             ctx.interner.intern("kk_coroutine_launcher_arg_set"),
@@ -305,9 +286,6 @@ extension CoroutineLoweringPass {
                     break
                 }
             }
-            // Bounded closure from a flow-call argument to every expression
-            // that produced it or was written into the containers carrying it,
-            // so indirect callback shapes still resolve to a lambda symbol.
             func seedFlowArgumentClosure(_ root: KIRExprID) {
                 var queue: [KIRExprID] = [root]
                 var seen: Set<Int32> = []
@@ -342,8 +320,6 @@ extension CoroutineLoweringPass {
                 }
                 for lambdaArg in arguments {
                     seedFlowArgumentClosure(lambdaArg)
-                    // Convention-based fallback for synthetic lambda names,
-                    // mirroring FlowLoweringPass.
                     flowScopeFunctionNames.insert(
                         ctx.interner.intern("kk_lambda_\(lambdaArg.rawValue)")
                     )
