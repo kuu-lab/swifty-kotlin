@@ -3,7 +3,6 @@ struct KIRCallableValueInfo {
     let callee: InternedString
     let captureArguments: [KIRExprID]
     let hasClosureParam: Bool
-    /// Raw entry for trampolines that must own the lambda's continuation frames.
     let unboxedSymbol: SymbolID?
     /// The expression is already a heap function-value object — a
     /// `kk_function_create_N` box or a callable-ref tag target that shares
@@ -67,9 +66,6 @@ final class LambdaLowerer {
                symbols: sema.symbols
            )
         {
-            // A generic callback invokes this adapter through the erased `T`
-            // ABI. A nullable-underlying value class arrives as its nominal
-            // box, while the typed lambda body expects the raw payload.
             let normalizedExpr = arena.appendTemporary(type: type)
             emitValueClassUnboxCall(
                 value: exprID,
@@ -84,10 +80,6 @@ final class LambdaLowerer {
             return normalizedExpr
         }
         let unboxCallee: InternedString? = {
-            // Enum values use their raw ordinal in lambda bodies, while
-            // collection HOFs pass elements through Any-erased slots as
-            // RuntimeIntBox handles. Normalize both representations before
-            // lowering the body (e.g. `entries.find { it.rgb == rgb }`).
             if case let .classType(classType) = rawKind,
                classType.nullability == .nonNull,
                let symbol = sema.symbols.symbol(classType.classSymbol),
@@ -114,13 +106,6 @@ final class LambdaLowerer {
     }
 
 
-    /// Best-effort scan for whether a lowered lambda body performs a call that
-    /// requires a suspend context. Used to correct a lambda literal's
-    /// `isSuspend` when the contextual/expected type it was checked against is
-    /// non-suspend (e.g. `List.map`'s plain `(T) -> R` `transform` parameter)
-    /// but the body suspends anyway -- see the call sites for why trusting the
-    /// contextual type alone causes suspend calls to run without a valid
-    /// continuation.
     private func lambdaBodyRequiresSuspend(
         _ body: [KIRInstruction],
         arena: KIRArena,
@@ -201,8 +186,6 @@ final class LambdaLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let boundType = sema.bindings.exprTypes[exprID]
-        // For SAM-converted lambdas, the bound type is the interface type.
-        // Use the stored underlying function type instead.
         let effectiveFuncTypeID: TypeID? = {
             if sema.bindings.isSamConversion(exprID),
                let samFuncType = sema.bindings.samUnderlyingFunctionType(for: exprID)
@@ -269,9 +252,6 @@ final class LambdaLowerer {
         let substitutedReturnType = functionType?.returnType
             ?? sema.bindings.exprTypes[bodyExpr]
             ?? sema.types.anyType
-        // A return the callee declares as a type parameter carries a boxed value
-        // at runtime even though the body is checked against the substituted
-        // concrete type, so box on the way out.
         let returnsErasedGeneric = !needsClosureParam && !isSamConversion
             && driver.ctx.lambdaReturnsErasedGeneric(for: exprID, ast: ast, sema: sema)
         let erasedLambdaReturnClaim = driver.ctx.erasedLambdaReturnClaim(for: exprID, ast: ast, sema: sema)
@@ -345,8 +325,6 @@ final class LambdaLowerer {
             ))
         }
 
-        // For lambdas passed to C HOFs (filter, map, toComponents, etc.),
-        // Runtime expects (closureRaw, ...valueParams, outThrown).
         let lambdaParameters: [KIRParameter]
         if needsClosureParam {
             let closureParamType = captureBindings.count == 1
@@ -428,10 +406,6 @@ final class LambdaLowerer {
                 normalizedParamExpr = paramExpr
             }
             driver.ctx.setLocalValue(normalizedParamExpr, for: lambdaParam.symbol)
-            // When a parameter is the explicit receiver (from a function-with-receiver type),
-            // set it as the implicit receiver so that member calls resolve correctly.
-            // For collection-HOF lambdas the closure param is first, so the receiver
-            // follows it.
             let receiverParamIndex = (needsClosureParam ? 1 : 0) + contextParameterCount
             if needsExplicitReceiver, paramIndex == receiverParamIndex {
                 driver.ctx.setImplicitReceiver(symbol: lambdaParam.symbol, exprID: normalizedParamExpr)
@@ -454,7 +428,6 @@ final class LambdaLowerer {
                 }
             }
         }
-        // Multi-capture HOF lambda: closureRaw is a packed closure object.
         if usesClosureObjectCapture,
            let closureParam = lambdaParameters.first,
            let closureObjExpr = driver.ctx.localValue(for: closureParam.symbol)
@@ -479,8 +452,6 @@ final class LambdaLowerer {
                 }
             }
         }
-        // Restore direct-call metadata using this body's environment values,
-        // after all raw or packed captures have been bound.
         var capturedValues: [KIRExprID: KIRExprID] = [:]
         for capture in captureBindings {
             if let value = driver.ctx.localValue(for: capture.capturedSymbol)
@@ -520,19 +491,13 @@ final class LambdaLowerer {
                 driver.ctx.setImplicitReceiver(symbol: receiverParam.symbol, exprID: receiverValue)
             }
         }
-        // Publish this lambda's receiver under its per-lambda symbol so that
-        // `this@callee` (in this body or a nested lambda that captures it)
-        // reads this receiver rather than the innermost implicit one.
         bindCoroutineScopeLambdaReceiver(exprID, sema: sema, arena: arena, interner: interner, instructions: &lambdaBody)
         registerLambdaReceiverValue(lambdaExprID: exprID, hasReceiverParam: hasReceiverParam)
-        // Map param names → symbols for nameRef fallback when identifierSymbols is unbound.
         let effectiveParamNames: [InternedString] = if params.isEmpty, let functionType, !functionType.params.isEmpty {
             [interner.intern("it")]
         } else {
             params
         }
-        // Value parameters start after the closure environment, context inputs,
-        // and explicit receiver so a source name never aliases an ABI-only slot.
         let valueParamStart = (needsClosureParam ? 1 : 0) + contextParameterCount
             + (needsExplicitReceiver ? 1 : 0)
         for (i, paramName) in effectiveParamNames.enumerated() where valueParamStart + i < lambdaParameters.count {
@@ -579,10 +544,6 @@ final class LambdaLowerer {
         }
         lambdaBody.append(.endBlock)
 
-        // Coroutine launcher lambdas with an explicit receiver use launcher slot 0
-        // for that receiver (for example, the Channel receiver of `produce {}`).
-        // Keep that receiver first in the lowered function ABI; ordinary captured
-        // lambdas retain the historical capture-first layout.
         let receiverFirstLauncherABI = sema.bindings.isCoroutineLauncherLambdaExpr(exprID)
             && needsExplicitReceiver
         if receiverFirstLauncherABI {
@@ -592,18 +553,10 @@ final class LambdaLowerer {
             ? lambdaParameters + functionCaptureBindings.map(\.param)
             : functionCaptureBindings.map(\.param) + lambdaParameters
 
-        // The expected/contextual function type (e.g. a plain `(T) -> R)` HOF
-        // parameter like `List.map`'s `transform`) doesn't always match what the
-        // lambda body actually does: Kotlin only requires the *parameter* to be
-        // `suspend` when the argument lambda calls suspend functions, but KSwiftK
-        // currently still permits a suspend call inside a lambda literal checked
-        // against a non-suspend expected type (matching real Kotlin's behavior for
-        // `inline` HOFs, but without requiring the HOF itself to be inlined away).
         // If such a lambda is lowered as `isSuspend: false` anyway, it never gets
         // picked up by CoroutineLoweringPass's CPS transform, so its suspend calls
         // run without a valid continuation and corrupt memory at runtime instead
         // of suspending. Detect that mismatch directly from the lowered body so
-        // the declared isSuspend always matches what the body actually needs.
         let effectiveIsSuspend = (functionType?.isSuspend ?? false)
             || lambdaBodyRequiresSuspend(lambdaBody, arena: arena, sema: sema, interner: interner)
         let hasNonLocalReturn = lambdaBody.contains { instruction in
@@ -651,8 +604,6 @@ final class LambdaLowerer {
             return samValue
         }
 
-        // For SAM-converted lambdas, use the function type (not the interface
-        // type) so the KIR callable value machinery dispatches correctly.
         let lambdaValueType = effectiveFuncTypeID
             ?? boundType
             ?? sema.types.make(
@@ -753,12 +704,6 @@ final class LambdaLowerer {
         return lambdaValueExpr
     }
 
-    /// Re-establishes one captured symbol's value inside a lambda body's
-    /// fresh scope (`resetScopeForFunction()` clears the outer scope's
-    /// bindings, including delegate storage -- see `ScopeSnapshot`).
-    ///
-    /// A delegated local's (KSP-491: `val x by lazy { ... }`/`by Prop()`)
-    /// captured value is the delegate *instance*, not a value
     /// (`setLocalDelegateStorage`) -- reads inside the lambda body must
     /// still call getValue fresh, exactly like reads in the declaring
     /// scope (see `ExprLowerer.readLocalDelegateValue`), or a vetoable/
@@ -784,8 +729,6 @@ final class LambdaLowerer {
             driver.ctx.setLocalValue(capturedValue, for: capture.capturedSymbol)
         }
         driver.ctx.setLocalDeclaredType(capture.declaredType, for: capture.capturedSymbol)
-        // A nested receiver lambda can still access an enclosing interface
-        // member through its captured dispatch receiver and itable slot.
         if let capturedKind = sema.symbols.symbol(capture.capturedSymbol)?.kind,
            capturedKind == .class || capturedKind == .interface
         {
@@ -813,7 +756,6 @@ final class LambdaLowerer {
 
     private func bindCapturedOuterLambdaReceiver(_ receiver: KIRExprID, type: TypeID, sema: SemaModule, overwriteExisting: Bool = true) {
         guard case let .classType(classType) = sema.types.kind(of: type) else { return }
-        // An extension receiver may share the dispatch owner's nominal type.
         if !overwriteExisting, driver.ctx.capturedOuterReceiverExprID(for: classType.classSymbol) != nil {
             return
         }
@@ -933,9 +875,6 @@ final class LambdaLowerer {
         }
         lambdaBody.append(.endBlock)
 
-        // See the matching comment in lowerLambdaLiteralExpr: the expected/
-        // contextual functionType doesn't always match what the body actually
-        // does, so trust the lowered body over a non-suspend contextual type.
         let effectiveIsSuspend = (functionType?.isSuspend ?? false)
             || lambdaBodyRequiresSuspend(lambdaBody, arena: arena, sema: sema, interner: interner)
         let hasNonLocalReturn = lambdaBody.contains { instruction in
