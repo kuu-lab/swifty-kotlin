@@ -1,9 +1,5 @@
 
 extension DataFlowSemaPhase {
-    /// Registers synthetic enum type/container stubs: kotlin.Enum<T> and
-    /// EnumEntries<T>. The top-level enum functions are bundled source
-    /// declarations; their concrete calls are expanded by the enum-specific
-    /// type checker/lowerer.
     func registerSyntheticEnumStubs(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -40,8 +36,6 @@ extension DataFlowSemaPhase {
         let enumName = interner.intern("Enum")
         let enumFQName = kotlinPkg + [enumName]
         let enumSymbol = ensureEnumClassSymbol(symbols: symbols, interner: interner, kotlinPkg: kotlinPkg)
-        // KUU-2673: reading an imported shell's type parameters decodes it;
-        // run the check after materialization instead.
         let ensureEnumTypeParameters = { [self] in
             if types.nominalTypeParameterSymbols(for: enumSymbol).isEmpty {
                 let enumTypeParamSymbol = ensureEnumTypeParameter(symbols: symbols, interner: interner, enumFQName: enumFQName)
@@ -119,11 +113,6 @@ extension DataFlowSemaPhase {
         return symbol
     }
 
-    /// Mirrors the `Enum<T> : Comparable<T>` contract the source declaration
-    /// carries: the nominal supertype edge plus a concrete `compareTo` member.
-    /// Without them, supertype member-provider lookups cannot see `compareTo`
-    /// as supplied by the Enum base and the enum-entry abstract-member check
-    /// demands it from every entry.
     private func registerEnumComparableContract(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -168,10 +157,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Registers `final override fun compareTo(other: T): Int` on the
-    /// synthetic `kotlin.Enum` shell — the member the bundled `Enum.kt`
-    /// declares with `@KsSymbolName("kk_enum_compareTo")`. Skipped when a
-    /// bundled or already-registered declaration owns the real member.
     private func registerEnumCompareToMember(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -323,15 +308,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // kotlin.enums.EnumEntries<T> : kotlin.collections.List<T> (Kotlin 1.9+:
-        // `EnumClass.entries` is a read-only List<T>). Registering the
-        // supertype relationship in both the SymbolTable and TypeSystem
-        // nominal-supertype graphs (mirroring how List/Collection/Iterable
-        // register their own supertypes, e.g. registerSyntheticListStub) lets
-        // ordinary member-call resolution and the collection member-call
-        // fallback find List's real members (.size, .forEach, etc.) on an
-        // EnumEntries<T>-typed receiver instead of reporting "Unresolved
-        // member function".
         guard let tParamSymbol = symbols.lookup(fqName: tParamFQName),
               let listInterfaceSymbol = symbols.lookupNominal(fqName: kotlinCollectionsPkg + [interner.intern("List")])
         else {
@@ -460,9 +436,6 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         let valuesName = interner.intern("values")
-        // Source-backed enum extensions such as
-        // `RequiresOptIn.Level.values()` own the class-name API. Do not add
-        // the generated enum member as a duplicate in that case.
         guard !BundledSyntheticStubRegistration.bundledIndex.contains(
             ownerFQName: ownerFQName,
             name: valuesName,
@@ -477,8 +450,6 @@ extension DataFlowSemaPhase {
         guard !existingFunctions.contains(where: { symbols.parentSymbol(for: $0.0) == ownerSymbol }) else {
             return
         }
-        // Class-name lookup filters by exact owner, so transfer the common stub
-        // when an actual enum follows the expect declaration.
         if symbols.symbol(ownerSymbol)?.flags.contains(.actualDeclaration) == true,
            let expectStub = existingFunctions.first(where: { candidate in
                guard candidate.1.flags.contains(.synthetic),
@@ -553,7 +524,6 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        // valueOf(name: String): T — companion receiver so Color.valueOf resolves
         let valueOfName = interner.intern("valueOf")
         let valueOfFQName = companionFQName + [valueOfName]
         if symbols.lookupAll(fqName: valueOfFQName).compactMap({ symbols.symbol($0) }).allSatisfy({ $0.kind != .function }) {
