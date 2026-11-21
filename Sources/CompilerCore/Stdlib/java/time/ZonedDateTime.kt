@@ -2,7 +2,6 @@ package java.time
 
 import java.time.format.DateTimeFormatter
 
-/** A date-time with a time-zone in the ISO-8601 calendar system. */
 public class ZonedDateTime private constructor(
     private val dateTime: LocalDateTime,
     public val offset: ZoneOffset,
