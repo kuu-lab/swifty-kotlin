@@ -1,6 +1,5 @@
 package java.time
 
-/** A year and month in the ISO-8601 calendar system. */
 public class YearMonth private constructor(
     public val year: Int,
     public val monthValue: Int,
