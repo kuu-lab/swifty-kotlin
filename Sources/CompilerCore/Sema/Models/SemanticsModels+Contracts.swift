@@ -48,9 +48,6 @@ public struct ContractNonNullEffect: Equatable, Sendable, Codable {
 
 public enum ContractReturnsEffect: Equatable, Sendable, Codable {
     case returnsNormally
-    /// `conditionParameterIndex`: heuristic index of the first Boolean parameter,
-    /// used by downstream smart-cast analysis (e.g. `require(condition)` patterns).
-    /// May be nil if no Boolean parameter exists.
     case returnsBooleanValue(expectedValue: Bool, conditionParameterIndex: Int?)
 }
 
@@ -76,8 +73,6 @@ public enum InvocationKind: String, Equatable, Sendable, Codable {
 }
 
 public struct ContractConditionEffect: Equatable, Sendable, Codable, CustomStringConvertible {
-    /// Index into the function signature's value-parameter list whose argument
-    /// expression is guaranteed true on normal return.
     public let conditionParameterIndex: Int
 
     /// When to apply the smart cast:
