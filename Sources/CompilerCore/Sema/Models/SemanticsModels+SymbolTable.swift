@@ -922,6 +922,17 @@ public final class SymbolTable {
         deferredFunctionSignatureLoader = loader
     }
 
+    /// Runs the deferred loader for one symbol without the stdlib metadata
+    /// loader, so facts the loader records (such as JVM package access) are
+    /// in place before a visibility check reads them.
+    func loadDeferredFunctionSignature(for symbol: SymbolID) {
+        lock.lock()
+        defer { lock.unlock() }
+        if deferredFunctionSignatures.remove(symbol) != nil {
+            deferredFunctionSignatureLoader?(symbol)
+        }
+    }
+
     func ensureLazyImportedMetadataLoaded(for symbol: SymbolID, resolvingFunctionSignature: Bool = false) {
         lock.lock()
         defer { lock.unlock() }
