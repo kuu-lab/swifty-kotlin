@@ -18,11 +18,6 @@ extension CallTypeChecker {
         sema: SemaModule,
         range: SourceRange
     ) -> EnumStdlibSpecialCallResult? {
-        // Cheap interned-ID bail: only the four enum intrinsic spellings —
-        // or a file-local import alias of one (`import kotlin.enumValueOf as
-        // evo` binds the same SymbolID) — can resolve to a well-known enum
-        // intrinsic, so every other unqualified call exits before the scope
-        // lookup below.
         guard calleeName == knownNames.enumValues
             || calleeName == knownNames.enumValueOf
             || calleeName == knownNames.enumEntries
@@ -40,8 +35,6 @@ extension CallTypeChecker {
         let visibleCandidates: [SymbolID]
         if explicitlyImportedCandidates.isEmpty {
             let visible = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
-            // An inaccessible declaration cannot hide a default-import
-            // intrinsic in an outer scope tier.
             visibleCandidates = visible.isEmpty
                 ? ctx.filterByVisibility(ctx.scope.lookupMergingChain(calleeName)).visible
                 : visible
@@ -67,9 +60,6 @@ extension CallTypeChecker {
             if symbol.flags.contains(.synthetic) {
                 return false
             }
-            // The well-known table identifies the bundled/imported declaration
-            // itself. Any other non-synthetic visible candidate is a user
-            // declaration and must shadow the intrinsic path.
             return sema.wellKnownSymbols.enumIntrinsic(for: candidate) == nil
         }
         if locals[calleeName] != nil || hasNonSyntheticUserCandidate {
@@ -79,8 +69,6 @@ extension CallTypeChecker {
         if resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs) == nil,
            intrinsic == .enumValues, args.isEmpty
         {
-            // Reuse generic return-type constraints, including use-site variance,
-            // rather than stripping a projection from the expected Array type.
             let resolved = ctx.resolver.resolveCall(
                 candidates: [stubSymbol],
                 call: CallExpr(range: range, calleeName: calleeName, args: []),
@@ -183,10 +171,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Whether `calleeName` is an import alias in the current file for one of
-    /// the enum intrinsic FQ names. The alias resolves to the intrinsic's
-    /// SymbolID, so aliased calls must reach the scope lookup above. The
-    /// alias-name set is computed once per file and memoized on `SemaModule`.
     private func isEnumIntrinsicImportAlias(
         _ calleeName: InternedString,
         ctx: TypeInferenceContext,
