@@ -17,8 +17,6 @@ extension CallTypeChecker {
         let knownNames = KnownCompilerNames(interner: interner)
 
 
-        // We infer the `flow { }` lambda with a flow-builder scope so unqualified
-        // `emit` resolves in Sema fallback.
         let flowFactoryNames: Set<InternedString> = [
             knownNames.flow,
         ]
@@ -81,13 +79,6 @@ extension CallTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
-        // KSP-674: flowOf / emptyFlow are Kotlin source (kotlinx.coroutines.flow),
-        // so they resolve through normal overload resolution to their bundled
-        // declarations. The former builtin fixed-flow special-casing (which only
-        // bound a Flow type without a callable target) was removed; missing the
-        // import now yields a proper unresolved-reference diagnostic, matching
-        // kotlinx.coroutines.
-
         // During generic receiver-builder inference, postpone an unqualified
         // FlowCollector.emit argument as a constraint on the enclosing type
         // variables. The regular member-call path cannot resolve `R` until
@@ -113,10 +104,6 @@ extension CallTypeChecker {
                 let emittedType = driver.inferExpr(
                     args[0].expr, ctx: ctx, locals: &locals, expectedType: elementType
                 )
-                // The postponed constraint is the emit argument against the
-                // collector's element parameter, so a concrete mismatch is an
-                // argument-type failure (KSWIFTK-SEMA-0473), not a generic
-                // constraint failure (KUU-4325).
                 builderInference.constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
                     subtype: emittedType, supertype: elementType,
                     typeVarBySymbol: builderInference.typeVarBySymbol,
@@ -140,8 +127,6 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
-        // The flow-builder collector is closer in the implicit-receiver tower
-        // than any enclosing class member named `emit`.
         if ctx.isFlowBuilderLambdaScope,
            let calleeName,
            calleeName == knownNames.emit,
