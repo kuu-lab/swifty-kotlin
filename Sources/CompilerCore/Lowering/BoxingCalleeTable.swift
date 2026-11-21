@@ -107,10 +107,6 @@ struct BoxingCalleeTable {
         .double: "kk_box_double_nonnull",
     ]
 
-    /// ABI entry points for values whose primitive representation is known at
-    /// the compiler boxing boundary. These retain the canonical Swift object
-    /// box but use the tagged-handle fast path; ambiguous runtime values keep
-    /// the legacy callees above.
     private static let staticPrimitiveBoxCalleeNamesByPrimitive: [PrimitiveType: String] = [
         .int: "kk_box_int_static",
         .byte: "kk_box_byte_static",
