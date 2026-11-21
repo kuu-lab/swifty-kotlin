@@ -88,9 +88,6 @@ extension CoroutineLoweringPass {
                     )
                 }
             } else {
-                // Adapter-valued or opaque values: `suspendArgExpr` evaluates
-                // to the FunctionValueBox; the runtime resolves its
-                // `(closureEnv, receiver, outThrown)` entry itself.
                 entryExpr = suspendArgExpr
                 envExpr = arena.appendExpr(.intLiteral(0), type: rewrite.intType)
                 instructions.append(.constValue(result: envExpr, value: .intLiteral(0)))
@@ -106,9 +103,6 @@ extension CoroutineLoweringPass {
             return instructions
         }
 
-        // Captures either arrive flattened as trailing call args or ride
-        // inside the suspend value's callable info — use whichever form the
-        // emitter produced.
         let trailingCaptures = Array(call.arguments.dropFirst(4))
         let captures: [KIRExprID] = trailingCaptures.isEmpty
             ? (callableInfo?.captureArguments ?? [])
@@ -117,9 +111,6 @@ extension CoroutineLoweringPass {
         let receiverFirst = arena.receiverFirstLauncherLambdaSymbols.contains(symbol)
         let suspendParamCount = arena.function(for: symbol)?.params.count
             ?? (captures.count + 1)
-        // A zero-parameter suspend fn gets no launcher thunk — its
-        // `(continuation)` ABI is already the thunk shape — so the lowered
-        // symbol itself is the launcher entry.
         let entrySymbol = rewrite.launcherThunkByOriginalSymbol[symbol]?.symbol
             ?? (suspendParamCount == 0 ? lowered.symbol : nil)
         guard let entrySymbol else {
@@ -168,8 +159,6 @@ extension CoroutineLoweringPass {
                 appendLauncherArgSet(index, index < captures.count ? captures[index] : zeroExpr)
             }
         }
-        // Reserve the receiver slot so launcherArgs is sized for it; the
-        // runtime overwrites it with the receiver scope handle.
         appendLauncherArgSet(scopeSlot, zeroExpr)
 
         let entryExpr = arena.appendTemporary(type: rewrite.intType)
