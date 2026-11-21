@@ -1,12 +1,6 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
-    /// KUU-4209: returns a `this` expression addressing the innermost
-    /// function-typed receiver on the implicit-receiver tower — the active
-    /// receiver first, then labeled outer receivers. Extension receivers
-    /// keep their function-name label, so `this@name` reaches them from a
-    /// nested lambda with its own receiver (`flow { emit(invoke()) }`
-    /// inside `(() -> T).asFlow()`).
     private func functionTypeInvokeThisRef(
         range: SourceRange,
         ctx: TypeInferenceContext
@@ -29,13 +23,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// KUU-2173/KUU-4271: an unqualified `invoke(...)` on a function-typed
-    /// implicit receiver (`((A) -> T).foo() = { invoke(x) }`, or an extension
-    /// on a function-type alias such as kotlinx-coroutines'
-    /// `OnUndeliveredElement`) is the implicit-receiver form of
-    /// `this.invoke(...)`. Scope-level `invoke` candidates that fail overload
-    /// resolution must not hide it. Returns nil when the callee is not
-    /// `invoke` or no receiver on the tower is function-typed.
     func inferImplicitReceiverFunctionTypeInvokeCall(
         _ id: ExprID,
         calleeName: InternedString,
@@ -210,9 +197,6 @@ extension CallTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
 
-        // KUU-2173: an unqualified `invoke(...)` inside a function-typed
-        // extension receiver (`((A) -> T).foo() = { invoke(x) }`) is the
-        // implicit-receiver form of `this.invoke(...)`.
         if let calleeName,
            let recovered = inferImplicitReceiverFunctionTypeInvokeCall(
                id,
@@ -344,8 +328,6 @@ extension CallTypeChecker {
                     interner: interner
                 )
             }
-            // Inaccessible members are skipped by the implicit-receiver
-            // tower rather than treated as candidates (KUU-4335).
             memberCandidates = memberCandidates.filter { candidate in
                 guard let symbol = sema.symbols.symbol(candidate) else { return false }
                 return ctx.visibilityChecker.isAccessible(
@@ -355,10 +337,6 @@ extension CallTypeChecker {
                 )
             }
             if !memberCandidates.isEmpty {
-                // Member extensions surface under the dispatch receiver type
-                // but resolve against the implicit receiver tower entry picked
-                // for their declared extension receiver. Regular members take
-                // precedence over member extensions on the same receiver.
                 var regularMemberCandidates: [SymbolID] = []
                 var innermostMemberExtensionGroups: [(
                     symbols: [SymbolID], receiverType: TypeID, symbol: SymbolID?
@@ -394,9 +372,6 @@ extension CallTypeChecker {
                     }
                 )
                 var regularMemberGroupResolution: ResolvedCall?
-                // Eagerly infer argument types for overload resolution.
-                // Integer literals still see the candidates' parameter type
-                // so calls like `onTimeout(30)` can narrow `30` to `Long`.
                 let memberArgTypes = args.enumerated().map { index, argument in
                     var literalExpectedType: TypeID?
                     if let argumentExpr = ctx.ast.arena.expr(argument.expr) {
@@ -526,13 +501,6 @@ extension CallTypeChecker {
                     }
                 }
             }
-            // Kotlin's implicit-receiver tower: when the innermost receiver
-            // has no matching member, unqualified calls continue outward
-            // through enclosing receivers — e.g. a class enclosing an object
-            // literal (`object : Any() { fun f() = fetch(0) }`). Only entries
-            // carrying a receiver symbol participate: the symbol is what
-            // capture analysis stores into the object literal's fields, so
-            // KIR lowering can materialize the receiver value from it.
             for outerReceiver in ctx.outerReceiverTypes.reversed() {
                 let outerNonNullReceiver = sema.types.makeNonNullable(outerReceiver.type)
                 guard let outerReceiverSymbol = outerReceiver.symbol,
@@ -557,12 +525,6 @@ extension CallTypeChecker {
                 guard !outerCandidates.isEmpty else {
                     continue
                 }
-                // Member extensions consume two implicit receivers: the tower
-                // entry dispatches them while a (usually innermost) receiver
-                // supplies their declared extension receiver — `bump()` inside
-                // `Int.add()` binds `Base.bump` on dispatch `this@Derived` with
-                // receiver `Int`. Resolve them apart from plain members, which
-                // check the tower entry itself.
                 var outerMemberExtensionCandidates: [(symbol: SymbolID, receiverType: TypeID)] = []
                 var outerRegularCandidates: [SymbolID] = []
                 for candidate in outerCandidates {
@@ -708,13 +670,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// Argument-list verdicts that make a single implicit-receiver member
-    /// inapplicable no matter how lenient the fallback is: overload
-    /// rejection, argument type mismatch, or a missing required value — the
-    /// same set `closedMemberInputApplicability` treats as `.inapplicable`.
-    /// The identity parameter mapping the single-candidate binding installs
-    /// cannot express any of them, so the call must stay unresolved and let
-    /// the diagnostic path report it (KUU-4331).
     private func implicitReceiverFallbackResolutionIsInapplicable(
         _ resolved: ResolvedCall?
     ) -> Bool {
