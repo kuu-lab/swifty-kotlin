@@ -25,23 +25,17 @@ public struct FunctionBodySemaSnapshot: Codable, Equatable, Sendable {
     public var identifierSymbols: [Entry<SnapshotSymbol>]
     public var callBindings: [Entry<SnapshotCallBinding>]
 
-    /// Names of the `BindingTable` properties this snapshot reproduces.
     public static let coveredBindings: Set<String> = ["exprTypes", "identifierSymbols", "callBindings"]
 }
 
-/// Result of decoding a snapshot against a live compilation: the bindings
-/// keyed by that compilation's own IDs.
 struct RestoredFunctionBodyBindings {
     var exprTypes: [ExprID: TypeID] = [:]
     var identifierSymbols: [ExprID: SymbolID] = [:]
     var callBindings: [ExprID: CallBinding] = [:]
 }
 
-/// Locates a function declaration's expressions and local symbols in a
-/// compilation, and converts between live bindings and snapshots.
 struct FunctionBodySemaScope {
     let functionSymbol: SymbolID
-    /// Expressions whose source range lies inside the declaration, ascending.
     let exprIDs: [ExprID]
     let localSymbols: [SymbolID]
     private let exprSet: Set<ExprID>
@@ -168,8 +162,6 @@ extension FunctionBodySemaSnapshot {
         return restored
     }
 
-    /// Differences between a restored snapshot and what type checking
-    /// actually produced for the same declaration. Empty means identical.
     static func differences(
         restored: RestoredFunctionBodyBindings, declID: DeclID, ast: ASTModule, sema: SemaModule
     ) -> [String] {
