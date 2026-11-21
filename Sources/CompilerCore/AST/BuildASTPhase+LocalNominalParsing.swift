@@ -1,13 +1,4 @@
 extension BuildASTPhase {
-    /// The CST path already tags these nodes `.classDecl`/`.objectDecl`, but
-    /// statement parsing is token-driven everywhere (the CST statement group
-    /// in `blockExpressions`, local-function bodies via `parseBraceBody`,
-    /// lambda bodies via `parseBlockExpression`), so the declaration is
-    /// reconstructed the same way `parseObjectLiteralFunctionDecl` rebuilds
-    /// object-literal members: re-run `KotlinParser` over the statement's
-    /// tokens and feed the resulting node to the shared `makeClassDecl` /
-    /// `makeObjectDecl` builders. The decl is wrapped in `.localNominalDecl`
-    /// so Sema can bind the name as a local rather than a file-level symbol.
     static func parseLocalNominalDeclExpr(
         from tokens: [Token],
         interner: StringInterner,
@@ -53,10 +44,6 @@ extension BuildASTPhase {
         }
         var nominalHeadIndex = headIndex
         if tokens[headIndex].kind == .keyword(.companion) {
-            // `companion` only introduces a local companion-object
-            // declaration; before other nominal heads it is a (invalid but
-            // parseable) modifier, so keep scanning for the real head and let
-            // the decl-level validator report it.
             guard let realHead = localNominalDeclHeadIndex(
                 in: Array(tokens[(headIndex + 1)...]), interner: interner
             ) else {
@@ -120,10 +107,6 @@ extension BuildASTPhase {
         return nil
     }
 
-    /// `enum` and `companion` can head a nominal declaration, but every
-    /// nominal shape is claimed by the local-nominal probe first — when a
-    /// function/property statement scan still sees them they are
-    /// (invalid but diagnosable) modifiers.
     static func isLocalStatementModifierKeyword(_ keyword: Keyword) -> Bool {
         KotlinParser.isDeclarationModifierKeyword(keyword)
             || keyword == .enum || keyword == .companion
@@ -135,10 +118,6 @@ extension BuildASTPhase {
         interner: StringInterner,
         diagnostics: DiagnosticEngine?
     ) {
-        // Modifier diagnostics come first, in source order: non-default
-        // visibility is positional, kind-invalid modifiers report to
-        // 'interface' (`external` to 'class'), and `fun`/`public`/`open`/
-        // `abstract`/`sealed`/`expect`/`actual` are legal or unreported.
         var scan = 0
         while scan < index {
             let token = tokens[scan]
@@ -241,9 +220,6 @@ extension BuildASTPhase {
         return nil
     }
 
-    /// `object` in particular also starts an *expression* (`object : Base {}`,
-    /// `object {}`), which stays on the object-literal path — the name check is
-    /// what keeps those apart.
     private static func localNominalDeclExpectsName(
         at index: Int,
         in tokens: [Token]
@@ -253,8 +229,6 @@ extension BuildASTPhase {
         case .keyword(.class), .keyword(.object), .keyword(.typealias):
             nameIndex = index + 1
         case .keyword(.enum):
-            // `enum class X` is parsed as a class carrying the enum modifier;
-            // the declaration-level check rejects it as a local class.
             guard index + 1 < tokens.count,
                   tokens[index + 1].kind == .keyword(.class)
             else {
