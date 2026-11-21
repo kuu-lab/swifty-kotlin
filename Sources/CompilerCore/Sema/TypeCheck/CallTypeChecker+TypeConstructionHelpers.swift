@@ -1,7 +1,4 @@
 extension CallTypeChecker {
-    /// Promoted from `private` to module-`internal` so the
-    /// `+MemberCallInference*` extension files can share the single definition
-    /// instead of duplicating it.
     func makeSyntheticListType(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -385,9 +382,6 @@ extension CallTypeChecker {
         )))
     }
 
-    // KUU-556: LinkedHashMap is now a real HashMap subclass (LinkedHashMap.kt),
-    // not a MutableMap typealias, so its constructor call needs its own
-    // nominal type the same way makeSourceBackedHashMapType does.
     func makeSourceBackedLinkedHashMapType(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -443,11 +437,6 @@ extension CallTypeChecker {
         {
             parameterIndex = index
         } else if let effect = sema.symbols.contractConditionEffect(for: chosen),
-                  // STDLIB-591: only `returns() implies (condition)` (any normal
-                  // return) is handled here; `returns(true/false) implies (...)`
-                  // would need to correlate with how the call's own result is
-                  // branched on at the use site, which this post-call helper
-                  // doesn't have visibility into.
                   effect.returnsValue == nil,
                   effect.conditionParameterIndex < args.count,
                   effect.conditionParameterIndex < signature.parameterTypes.count
@@ -459,9 +448,6 @@ extension CallTypeChecker {
         guard let argumentIndex = sema.bindings.callBinding(for: id)?.parameterMapping.first(where: { $0.value == parameterIndex })?.key,
               args.indices.contains(argumentIndex) else { return }
         let conditionExpr = args[argumentIndex].expr
-        // Synthetic precondition effects describe a Boolean condition, while
-        // source-backed contract effects point directly at the nullable
-        // argument from a returns() implies clause.
         let narrowedState: DataFlowState
         if signature.parameterTypes[parameterIndex] == sema.types.booleanType {
             let branch = ctx.dataFlow.branchOnCondition(
@@ -491,15 +477,6 @@ extension CallTypeChecker {
         )
     }
 
-    /// STDLIB-592 definite assignment: when `chosen` declares
-    /// `contract { callsInPlace(param, EXACTLY_ONCE) }` (or `AT_LEAST_ONCE`) for one
-    /// of its lambda parameters, the argument lambda's body is guaranteed to run to
-    /// completion at least once as part of this call. Fold the outer-scope locals
-    /// that lambda body unconditionally initialized (recorded by
-    /// `inferLambdaLiteralExpr`) back into the call site's own definite-assignment
-    /// state -- the same way a plain sequential block would.
-    /// `AT_MOST_ONCE`/`UNKNOWN` do not guarantee the lambda runs at all, so they are
-    /// skipped.
     private func applyContractCallsInPlaceEffects(
         id: ExprID,
         chosen: SymbolID,
