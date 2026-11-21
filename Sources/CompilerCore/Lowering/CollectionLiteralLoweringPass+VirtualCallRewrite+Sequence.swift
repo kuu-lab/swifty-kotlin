@@ -1,7 +1,5 @@
 // swiftlint:disable file_length
 
-/// Split out from `CollectionLiteralLoweringPass+VirtualCallRewrite.swift`
-/// to keep each rewrite source scoped to a single receiver kind.
 extension CollectionVirtualCallRewriteLoweringPass {
     func rewriteSequenceVirtualCall(
         symbol: SymbolID?,
@@ -46,9 +44,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // Array receivers are handled by rewriteArrayVirtualCall (guarded by arrayExprIDs).
-        // Non-tracked receivers are now classified by static type via
-        // classifyReceiverByStaticType (LOWERING-001) before reaching here.
         if callee == lookup.asSequenceName, arguments.isEmpty,
            state.contains(.list, receiver)
         {
@@ -309,8 +304,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
 
         if callee == lookup.plusMemberName, arguments.count == 1, state.contains(.sequence, receiver) {
             let argID = arguments[0]
-            // Only sequence/list/array are supported by kk_sequence_plus
-            // at the ABI level (not Set/Map).
             let isArgCollection = state.contains(.list, argID)
                 || state.contains(.sequence, argID)
                 || state.contains(.array, argID)
@@ -341,8 +334,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
            state.contains(.sequence, receiver)
         {
             let argID = arguments[0]
-            // Only sequence/list/array are supported by the ABI (not
-            // Set/Map) -- consistent with plus path.
             let isArgCollection = state.contains(.list, argID)
                 || state.contains(.sequence, argID)
                 || state.contains(.array, argID)
@@ -357,7 +348,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 instructions: &loweredBody
             )
             guard case .emitted = rewriteResult else {
-                // Fall through: collection-removal not supported
                 return false
             }
             state.tagResult(.sequence, result)
