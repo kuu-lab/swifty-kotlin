@@ -1,7 +1,3 @@
-/// Compiler-owned top-level collection factories that still have a dedicated
-/// KIR lowering path. The table deliberately contains only the declarations
-/// whose exact SymbolID is used by that path; source-backed helpers such as
-/// `listOfNotNull` remain ordinary Kotlin calls.
 enum WellKnownCollectionFactory: CaseIterable, Hashable, Sendable {
     case emptyList
     case listOf
@@ -40,8 +36,6 @@ enum WellKnownCollectionFactory: CaseIterable, Hashable, Sendable {
     }
 }
 
-/// `enumEntriesIntrinsic` is the internal source-level entry point used by the
-/// bundled enum implementation.
 enum WellKnownEnumIntrinsic: CaseIterable, Hashable, Sendable {
     case enumValues
     case enumValueOf
@@ -67,9 +61,6 @@ enum WellKnownEnumIntrinsic: CaseIterable, Hashable, Sendable {
     }
 }
 
-/// The bundled `kotlin.reflect.typeOf` declaration is expanded by the `typeOf`
-/// special-call path in the call type checker, the same way the enum
-/// intrinsics dispatch to their own lowering.
 enum WellKnownReflectIntrinsic: CaseIterable, Hashable, Sendable {
     case typeOf
 
@@ -108,9 +99,6 @@ private enum WellKnownSymbol: Hashable, Sendable {
     }
 }
 
-/// ARCH-021: resolves the small set of compiler-owned special declarations
-/// once, after header collection. Consumers compare exact SymbolIDs instead
-/// of re-deriving ownership from short names and package strings.
 struct WellKnownSymbols: Sendable {
     static let empty = WellKnownSymbols(symbolByID: [:])
 
