@@ -163,9 +163,6 @@ extension CallTypeChecker {
                         named: calleeName, receiverType: receiverType, sema: sema, interner: interner
                     )
                 }
-                // Imported library declarations also carry the synthetic flag.
-                // Include them before argument inference so receiver lambdas on
-                // members such as HexFormat.Builder.bytes get their expected type.
                 let sourceMembers = memberCandidates.filter {
                     !scopeSelection.excludedMembers.contains($0)
                         && (sema.symbols.isSourceBackedSymbol($0)
@@ -174,9 +171,6 @@ extension CallTypeChecker {
                 let visibleMembers = ctx.filterByVisibility(sourceMembers).visible
                 if !visibleMembers.isEmpty {
                     let scopeProvidedNoCandidates = candidates.isEmpty
-                    // Member-extension members surface under the dispatch
-                    // receiver type but must resolve against the implicit
-                    // receiver tower entry picked for the extension receiver.
                     var regularMembers: [SymbolID] = []
                     var memberExtensionCandidates: [(symbol: SymbolID, receiverType: TypeID)] = []
                     for candidate in visibleMembers {
@@ -378,12 +372,6 @@ extension CallTypeChecker {
                     guard !visibleOuterCandidates.isEmpty else {
                         continue
                     }
-                    // Member extensions consume two implicit receivers — the
-                    // tower entry that owns the declaration (dispatch) and an
-                    // implicit receiver matching the declared extension
-                    // receiver — so they resolve under a different
-                    // `callImplicitReceiverType` than ordinary members, which
-                    // check the dispatch receiver itself.
                     var memberExtensionCandidates: [(symbol: SymbolID, receiverType: TypeID)] = []
                     var regularCandidates: [SymbolID] = []
                     for candidate in visibleOuterCandidates {
@@ -391,12 +379,6 @@ extension CallTypeChecker {
                             regularCandidates.append(candidate)
                             continue
                         }
-                        // Kotlin allows any implicit receiver in the tower
-                        // whose type satisfies the declared extension
-                        // receiver — innermost first. The picked entry's
-                        // symbol is recorded so KIR lowering materializes
-                        // that exact value (e.g. the enclosing Int receiver
-                        // captured past a `with("s")` lambda receiver).
                         guard let signature = sema.symbols.functionSignature(for: candidate),
                               let declaredReceiver = signature.receiverType,
                               let picked = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
@@ -448,10 +430,6 @@ extension CallTypeChecker {
                 guard ctx.cachedSymbol(candidate)?.flags.contains(.localFunction) == true else {
                     return false
                 }
-                // A local extension function without an implicit receiver is
-                // not callable in this position. Let a same-named local
-                // function value (for example, `val label = receiver::label`)
-                // reach callable-value invocation instead.
                 guard sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
                       let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType
                 else {
@@ -506,13 +484,8 @@ extension CallTypeChecker {
                     }
                 }()
                 if localReceiverFunctionValueIsApplicable {
-                    // A same-named local `T.() -> R` value is invoked with the
-                    // matching implicit receiver and shadows local extensions
-                    // in this call form (KUU-2921).
                     candidates = []
                 } else {
-                    // Call-position lookup keeps every same-scope local overload,
-                    // even when a value with the same name occupies the value namespace.
                     candidates = localFunctionCandidates
                 }
                 resolvedFromLocalShadow = true
@@ -526,10 +499,6 @@ extension CallTypeChecker {
                     if case .functionType = sema.types.kind(of: local.type) {
                         return true
                     }
-                    // A type parameter bounded by a function type (`c: F`
-                    // where `F : (T) -> R`) is a callable value through the
-                    // bound, so it shadows same-named functions the same way
-                    // a concrete function-typed local does (KUU-4087).
                     if sema.types.uniqueStructuralFunctionType(for: local.type) != nil {
                         return true
                     }
@@ -574,10 +543,6 @@ extension CallTypeChecker {
                         if driver.helpers.samFunctionType(for: parameterType, sema: sema) != nil {
                             continue
                         }
-                        // A lambda or callable reference cannot satisfy a plain
-                        // value parameter of a local function value. Keep the
-                        // visible function candidates so a same-named extension
-                        // can accept the functional argument instead.
                         return true
                     }
                     return false
@@ -637,9 +602,6 @@ extension CallTypeChecker {
                     else { return nil }
                     return local.symbol
                 }
-                // An inner class on an implicit receiver shadows file-level
-                // classifiers of the same name — the receiver supplies the
-                // enclosing instance for the call (KUU-3858).
                 let receiverInnerClassifier = implicitReceiverInnerClassifier(
                     named: calleeName, in: ctx
                 )
@@ -736,11 +698,6 @@ extension CallTypeChecker {
                         }
                     }
 
-                    // An inherited nested classifier owns the first chance to
-                    // resolve an unqualified constructor call. Keep constructors
-                    // from the next lexical/import/package classifier tier as
-                    // fallback candidates so a mismatch, abstract class, or
-                    // inaccessible class/constructor does not mask them.
                     for fallbackClassID in outerClassifierFallbacks {
                         guard let fallbackClass = ctx.cachedSymbol(fallbackClassID),
                               fallbackClass.kind != .interface,
@@ -759,14 +716,7 @@ extension CallTypeChecker {
                     }
 
                     if classSymbol.kind == .interface {
-                        // Interfaces have no constructors; any call candidate
-                        // added above must come from the companion object.
                     } else if classSymbol.flags.contains(.abstractType) {
-                        // P5-112: Prohibit direct instantiation of abstract classes,
-                        // but only when there is no other viable candidate (e.g. a
-                        // coexisting top-level factory function): an abstract
-                        // class's own constructor is never itself a usable call
-                        // target, so it must not blot out a real candidate.
                         if candidates.isEmpty, callInvisible.isEmpty {
                             let className = classSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
                             ctx.sema.diagnostics.error(
@@ -884,8 +834,6 @@ extension CallTypeChecker {
                     case let .classType(classType):
                         expandedClassType = classType
                     case .any:
-                        // `kotlin.Any` has a special type representation, but
-                        // its constructor is registered on the nominal class symbol.
                         expandedClassType = sema.types.anyClassSymbol.map { ClassType(classSymbol: $0) }
                     default:
                         expandedClassType = nil
@@ -927,10 +875,6 @@ extension CallTypeChecker {
                                     return true
                                 }
                                 return !existingCandidates.contains { existingID in
-                                    // A @LowPriorityInOverloadResolution
-                                    // function legally shares the signature —
-                                    // it must not suppress the ctor candidate
-                                    // (KUU-3922).
                                     if isLowPriorityInOverloadResolution(existingID, symbols: sema.symbols) {
                                         return false
                                     }
@@ -983,8 +927,6 @@ extension CallTypeChecker {
                 guard let symbol = ctx.cachedSymbol(candidate) else { return false }
                 return symbol.kind == .function || symbol.kind == .constructor
             }
-            // Same use-site suppression as scope candidates: a covering
-            // @Suppress must expose bundled-internal FQN calls (KUU-3920).
             let (vis, invis) = ctx.filterByVisibility(fqnCandidates, usageRange: range)
             candidates = vis
             callInvisible.append(contentsOf: invis)
