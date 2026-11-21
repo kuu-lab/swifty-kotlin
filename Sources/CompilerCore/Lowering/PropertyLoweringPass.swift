@@ -24,16 +24,11 @@ final class PropertyLoweringPass: LoweringPass {
             return result
         }()
 
-        // Global reads can only become receiver-free accessor calls. Stored
-        // property getters used by itables retain a receiver parameter.
         let emittedReceiverFreeGetterSymbols = Set(module.arena.declarations.compactMap { decl -> SymbolID? in
             guard case let .function(fn) = decl, fn.params.isEmpty else { return nil }
             return fn.symbol
         })
 
-        // Every property-derived set below requires an emitted receiver-free
-        // getter, so walk those getters (a handful) and recover the owning
-        // property instead of scanning the whole symbol table.
         let receiverFreeGetterProperties: [SymbolID] = {
             guard let sema = ctx.sema else { return [] }
             return emittedReceiverFreeGetterSymbols.compactMap { getter -> SymbolID? in
@@ -46,26 +41,11 @@ final class PropertyLoweringPass: LoweringPass {
 
         let computedPropertySymbols: Set<SymbolID> = {
             guard let sema = ctx.sema else { return [] }
-            // Only include if a getter accessor function was actually emitted
-            // — this avoids over-matching regular stored properties that have
-            // no custom getter.
             return Set(receiverFreeGetterProperties.filter {
                 sema.symbols.backingFieldSymbol(for: $0) == nil
             })
         }()
 
-        // Top-level AND object-member properties with a custom getter still
-        // emit a backing field global when they also have an initializer, a
-        // setter, or an explicit Kotlin 2.0 backing field. Their reads
-        // therefore arrive here as `loadGlobal(propertySymbol)` rather than
-        // through the getter-only computed-property set above (that set
-        // requires no backing field at all). Rewrite those loads to the
-        // emitted zero-argument getter so the backing field remains an
-        // implementation detail and getter side effects are preserved. This
-        // mirrors ExprLowerer/CallLowerer, which emit the same bare
-        // `loadGlobal(propertySymbol)` for both parent kinds — object
-        // properties use module-level global storage exactly like top-level
-        // ones (a single instance, so no per-object field offset is needed).
         let packageOrObjectAccessorPropertySymbols: Set<SymbolID> = {
             guard let sema = ctx.sema else { return [] }
             return Set(receiverFreeGetterProperties.filter { property in
@@ -104,11 +84,6 @@ final class PropertyLoweringPass: LoweringPass {
                     ? function.instructionLocations[index]
                     : nil
                 guard case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _) = instruction else {
-                    // A top-level or object-member property with an
-                    // initializer and a custom getter has a real global for
-                    // backing storage, but reads must still invoke the
-                    // getter. Keep the accessor itself from recursively
-                    // rewriting its own backing-field reads.
                     if case let .loadGlobal(lgResult, sym) = instruction,
                        packageOrObjectAccessorPropertySymbols.contains(sym)
                     {
@@ -129,9 +104,6 @@ final class PropertyLoweringPass: LoweringPass {
                         continue
                     }
 
-                    // ExprLowerer emits loadGlobal for top-level property
-                    // references; without this rewrite the backend would look
-                    // for a non-existent global slot.
                     if case let .loadGlobal(lgResult, sym) = instruction,
                        computedPropertySymbols.contains(sym)
                     {
@@ -169,8 +141,6 @@ final class PropertyLoweringPass: LoweringPass {
                        case let .symbolRef(sym) = value,
                        computedPropertySymbols.contains(sym)
                     {
-                        // Skip rewriting if we are inside the getter accessor
-                        // for this property to avoid infinite recursion.
                         let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: sym)
                         if function.symbol != getterSymbol {
                             loweredBody.append(
@@ -260,9 +230,6 @@ final class PropertyLoweringPass: LoweringPass {
                     continue
                 }
 
-                // Only rewrite calls whose symbol is a delegate storage field
-                // (name starts with $delegate_) to avoid rewriting user-defined
-                // getValue/setValue methods.
                 if callee == getValueName || callee == setValueName,
                    let sema = ctx.sema,
                    let sym = symbol,
@@ -271,8 +238,6 @@ final class PropertyLoweringPass: LoweringPass {
                    interner.resolve(symInfo.name).hasPrefix("$delegate_")
                 {
                     let isSetter = callee == setValueName
-                    // MemberLowerer creates accessor functions keyed off the
-                    // property symbol, not the delegate storage field.
                     guard let propSymbol = self.propertySymbolForDelegateField(
                         delegateStorageSymbol: sym, symInfo: symInfo, sema: sema, interner: interner
                     ) else {
@@ -282,9 +247,6 @@ final class PropertyLoweringPass: LoweringPass {
                     let accessorSymbol = isSetter
                         ? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propSymbol)
                         : SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propSymbol)
-                    // If the current function IS the accessor being
-                    // targeted, keep the original getValue/setValue call
-                    // to avoid infinite recursion (accessor calling itself).
                     if function.symbol == accessorSymbol {
                         loweredBody.append(instruction)
                         continue
@@ -308,10 +270,6 @@ final class PropertyLoweringPass: LoweringPass {
                     continue
                 }
 
-                // Rewrite get/set calls to use the synthetic accessor
-                // symbol for direct dispatch, eliminating the
-                // kk_property_access indirection and accessor-kind
-                // boolean argument.
                 let isSetter = callee == setterName
                 if let sym = symbol,
                    let sema,
@@ -389,7 +347,6 @@ final class PropertyLoweringPass: LoweringPass {
         return [receiverExpr, from]
     }
 
-    /// Uses a lazily built reverse map for O(1) lookups after the first call.
     private func propertySymbolForBackingField(
         _ backingFieldSymbol: SymbolID,
         sema: SemaModule
