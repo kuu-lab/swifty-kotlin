@@ -250,7 +250,6 @@ extension DataFlowSemaPhase {
         }
         let pairs = parseInlineKeyValuePairs(parts.dropFirst())
 
-        // Legacy select: expand to control flow (jumpIfEqual + copy + jump + label)
         if opcode == "select" {
             guard let conditionRaw = pairs["condition"], let condition = Int32(conditionRaw),
                   let thenRaw = pairs["then"], let thenValue = Int32(thenRaw),
@@ -264,7 +263,6 @@ extension DataFlowSemaPhase {
             labelCounter += 2
             let falseExprID = KIRExprID(rawValue: exprCounter)
             exprCounter += 1
-            // Define result expr so InlineLoweringPass can clone it via localExprMap
             return [
                 .constValue(result: KIRExprID(rawValue: result), value: .unit),
                 .constValue(result: falseExprID, value: .boolLiteral(false)),
@@ -308,7 +306,6 @@ extension DataFlowSemaPhase {
         func returnTarget(_ key: String) -> KIRReturnTarget? {
             guard let encoded = pairs[key], let link = decodeBase64String(encoded), !link.isEmpty else { return nil }
             if let symbol = resolver.symbol(forLinkName: link) { return .function(symbol) }
-            // Private inline callees have no exported symbol, but still own an exit.
             return .importedFunction(interner.intern(link))
         }
         for key in ["targetB64", "functionB64"] where pairs[key] != nil {
