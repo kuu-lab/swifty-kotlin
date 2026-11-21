@@ -1,22 +1,11 @@
 // swiftlint:disable file_length
 
-/// Legacy stdlib/member special-case lowering path.
-///
-/// This remains deliberately isolated while narrower families continue to move out.
 extension CallLowerer {
-    /// A declaration compiled from Kotlin source either carries no external link
-    /// name (bundled source in this compilation) or the compiler's own `kk_fn_*`
-    /// mangling (the same declaration imported from a stdlib library artifact).
-    /// Any other `kk_*` link name is a runtime-bridge ABI stub.
     static func isSourceBackedLinkName(_ linkName: String?) -> Bool {
         guard let linkName, !linkName.isEmpty else { return true }
         return linkName.hasPrefix("kk_fn_")
     }
 
-    /// bundled Kotlin source in KSP-435, KSP-632, KSP-978, KSP-983, and KSP-986. A call bound to one of those
-    /// source declarations bypasses this file's runtime-bridge special cases.
-    /// KUU-3032 keeps the inline `zipWithNext(transform)` body on this path so
-    /// its callback can be expanded with non-local returns intact.
     static let sourceBackedIterableCollectionMemberNames: Set<String> = [
         "all", "any", "none", "firstNotNullOf", "firstNotNullOfOrNull", "joinTo", "joinToString",
         "containsAll", "count", "isNotEmpty", "intersect", "last", "lastIndexOf", "lastOrNull",
@@ -184,25 +173,14 @@ extension CallLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
-            // Freeze each bare mutable-local argument immediately after
-            // lowering it (e.g. `x` in `c.combine(x, x++)`) so it observes
-            // its value at the point it was evaluated, not any mutation a
-            // later argument performs on the same variable. Anything else
-            // (a literal, a lambda, a nested call, ...) is left untouched —
             // see needsEvaluationOrderFreeze's doc comment for why an
             // unconditional freeze here is unsafe for trailing-lambda
             // arguments to inline functions (e.g. range `fold`/`reduce`).
-            // Only worth it when a later argument could actually mutate
-            // something (expressionMayMutateState).
             return needsEvaluationOrderFreeze(argument.expr, ast: ast, sema: sema)
                 && anyExpressionMayMutateState(args[(argumentIndex + 1)...].map(\.expr), ast: ast)
                 ? freezeEvaluationOrderOperand(rawArgID, arena: arena, instructions: &instructions)
                 : rawArgID
         }
-        // KClass member calls resolved through an implicit receiver (e.g.
-        // `with(k) { isInstance(v) }`) bypass `lowerMemberCallExpr`'s
-        // kclassMembers intercept. KClass handles are runtime boxes with no
-        // source itable, so emit the same runtime registry bridges here.
         let memberReceiverType = sema.bindings.exprTypes[receiverExpr]
             ?? arena.exprType(loweredReceiverID)
         if let memberReceiverType,
@@ -235,10 +213,6 @@ extension CallLowerer {
             guard sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) else {
                 return false
             }
-            // Keep all String APIs whose public declaration now lives in the
-            // bundled Kotlin source on their source body. The table-driven
-            // runtime path below is retained for compatibility-only builds
-            // where the source declaration is absent.
             // KUU-1766: a range call with one omitted index must retain its
             // selected Kotlin overload/default stub. The name/arity table
             // otherwise treats that Int argument as a Charset tag.
@@ -250,10 +224,6 @@ extension CallLowerer {
             }
             return Self.sourceBackedStringMemberNames.contains(calleeNameStr)
         }()
-        // KSP-435: the generic Iterable/Collection surface is bundled Kotlin source
-        // (Stdlib/kotlin/collections/Iterables.kt, Collections.kt). When Sema binds a
-        // call to one of those declarations, the legacy `kk_iterable_*`/`kk_collection_*`
-        // interceptions below must not hijack it.
         let isSourceBackedIterableCollectionCall: Bool = {
             guard let chosenCallee = chosenCalleeForArgumentAdaptation,
                   chosenCallee != .invalid,
@@ -266,9 +236,6 @@ extension CallLowerer {
             let memberName = calleeNameStr
             let knownNames = KnownCompilerNames(interner: interner)
             if memberName == "plus" {
-                // `plus` is shared by collections, sequences, maps, and other
-                // receivers. Only the source declaration whose extension
-                // receiver is Iterable belongs to this source-backed path.
                 guard let signature = sema.symbols.functionSignature(for: chosenCallee),
                       let declaredReceiver = signature.receiverType,
                       let (_, declaredReceiverSymbol) = resolveClassTypeSymbol(
@@ -280,9 +247,6 @@ extension CallLowerer {
                 }
                 return declaredReceiverSymbol.fqName == knownNames.kotlinCollectionsIterableFQName
             }
-            // KSP-967: Iterable.contains is an ordinary bundled source call.
-            // Collection, Set, List, Map, and Sequence retain their existing
-            // owner-specific member/source/runtime paths.
             if memberName == "contains",
                let signature = sema.symbols.functionSignature(for: chosenCallee),
                let declaredReceiver = signature.receiverType,
@@ -298,8 +262,6 @@ extension CallLowerer {
                 return true
             }
             if calleeNameStr == "zip" {
-                // KUU-3072: transform callbacks must stay on the inline source
-                // body so a non-local return can escape the callback.
                 if args.count >= 2 {
                     return true
                 }
@@ -308,10 +270,6 @@ extension CallLowerer {
                 else {
                     return false
                 }
-                // KSP-999: keep the Array overload on its source-backed path.
-                // Inspect the bound argument rather than the generic declaration
-                // signature so Array<out R> remains visible after overload
-                // substitution.
                 if isGenericKotlinArrayType(
                     sema.types.makeNonNullable(firstArgumentType),
                     sema: sema,
@@ -320,9 +278,6 @@ extension CallLowerer {
                     return true
                 }
 
-                // KUU-3483: an Iterable interface value may be a lazy source-backed
-                // wrapper (for example, the result of withIndex()), not a runtime
-                // collection handle that the eager zip bridge can read.
                 let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
                 return isIterableOrCollectionInterfaceType(
                     sema.types.makeNonNullable(receiverType),
@@ -340,10 +295,6 @@ extension CallLowerer {
                 interner: interner
             )
         }()
-        // KSP-1515: Array copy APIs now have bundled Kotlin source implementations
-        // (Stdlib/kotlin/collections/ArrayContentAndCopy.kt). When Sema resolves
-        // the call to one of those declarations, skip the legacy copy interception
-        // below so the resolved source symbol is emitted.
         let isSourceBackedArrayCopyCall: Bool = {
             guard let chosenCallee = chosenCalleeForArgumentAdaptation,
                   chosenCallee != .invalid,
@@ -356,9 +307,6 @@ extension CallLowerer {
             let knownNames = KnownCompilerNames(interner: interner)
             return knownNames.sourceBackedArrayCopyFQNames.contains(symbol.fqName)
         }()
-        // KSP-1513: array `toList` is a bundled Kotlin extension. Keep its
-        // selected source declaration so its typed private `__kk_*` bridge is
-        // emitted instead of the generic array shortcut.
         let isSourceBackedArrayToListCall: Bool = {
             guard calleeNameStr == "toList",
                   let chosenCallee = chosenCalleeForArgumentAdaptation,
@@ -377,9 +325,6 @@ extension CallLowerer {
             }
             return Self.sourceBackedArrayNames.contains(interner.resolve(receiverSymbol.name))
         }()
-        // RF-LOWER-CALL-013: array `toMutableList` is now a bundled Kotlin
-        // extension too (delegates to the type-correct `toList` above). Keep
-        // the selected source declaration instead of the generic
         // `kk_array_toMutableList` shortcut, which boxed every element as a
         // plain word and lost Long/ULong's type-specific null-sentinel and
         // signedness handling (e.g. `longArrayOf(Long.MIN_VALUE).toMutableList()`
@@ -402,8 +347,6 @@ extension CallLowerer {
             }
             return Self.sourceBackedArrayNames.contains(interner.resolve(receiverSymbol.name))
         }()
-        // KSP-1516: selected Array/primitive-array conversion declarations are
-        // ordinary bundled Kotlin calls, not legacy runtime shortcuts.
         let isSourceBackedArrayConversionCall: Bool = {
             let memberName = calleeNameStr
             guard ["sliceArray", "reversedArray", "asList", "toTypedArray"].contains(memberName),
@@ -422,8 +365,6 @@ extension CallLowerer {
                 interner: interner
             )
         }()
-        // Array and primitive-array extensions retain their typed Kotlin call
-        // convention. Array receivers must never reach a List zip bridge.
         let isSourceBackedArrayIterableCall: Bool = {
             guard let chosenCallee = chosenCalleeForArgumentAdaptation,
                   sema.symbols.isSourceBackedSymbol(chosenCallee),
@@ -731,8 +672,6 @@ extension CallLowerer {
             return tableDrivenStringMember
         }
 
-        // Migrated source-backed members must lower through their Kotlin body;
-        // flat ABI exceptions are excluded by isSourceBackedMemberCall above.
         if !isSourceBackedMemberCall, !isSourceBackedIterableCollectionCall, !isSourceBackedArrayIterableCall {
             if let lowered = lowerLegacyCollectionIsNullOrEmptyCall(
                 exprID,
@@ -901,7 +840,6 @@ extension CallLowerer {
 
         let isSuperCall = sema.bindings.isSuperCallExpr(exprID)
 
-        // Sema binds super<T> to the selected direct supertype, not the enclosing class.
         var qualifiedSuperType: SymbolID?
         if isSuperCall,
            case .superRef(.some, _, _) = ast.arena.expr(receiverExpr),
