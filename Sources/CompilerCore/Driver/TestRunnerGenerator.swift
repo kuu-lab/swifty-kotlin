@@ -1,7 +1,5 @@
 import Foundation
 
-/// Discovers only declarations in the compilation's user inputs. Wrappers stay
-/// in their original lexical scope, so private tests need no visibility changes.
 final class TestRunnerGenerator {
     static let entryPoint = "kswiftk.generated.tests.main"
     static let generatedPackage = "kswiftk.generated.tests"
@@ -139,8 +137,6 @@ final class TestRunnerGenerator {
         let sourceFile = ast.file(for: file)
         for id in declarations {
             guard let declaration = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id) else { continue }
-            // Resolve against the complete table and the declaration's lexical
-            // scope, without the legacy unscoped annotation fallback.
             if let sourceFile {
                 sourceTags[symbol] = Set(declaration.annotations.compactMap { annotation in
                     if annotation.name.contains("."), !Self.annotationFQNames.contains(annotation.name) {
@@ -188,7 +184,7 @@ final class TestRunnerGenerator {
             case let .interfaceDecl(interface):
                 collect(interface.nestedClasses + interface.nestedObjects + (interface.companionObject.map { [$0] } ?? []), file: file)
             default:
-                break // Interfaces do not contribute Native test annotations.
+                break
             }
         }
     }
@@ -212,9 +208,6 @@ final class TestRunnerGenerator {
         }
     }
 
-    /// A base bridge dispatches the original member normally, including an
-    /// override without annotations. Private base hooks remain callable only
-    /// through their own scope. Overloads with arguments do not hide a test.
     private func inheritedMethods(_ suite: Suite, visited: Set<SymbolID>) -> [Method] {
         guard let sema = context.sema, !visited.contains(suite.symbol) else { return [] }
         var next = visited
@@ -348,8 +341,6 @@ final class TestRunnerGenerator {
                 return identifier(context.interner.resolve(method.declaration.name)) + "()"
             }.joined(separator: "\n")
             if let lexicalOwner {
-                // Keep hidden companions accessible from their original class
-                // scope without constructing a test instance or changing visibility.
                 let member = tag == "BeforeClass" ? "before" : "after"
                 accessMethods += "\nfun \(member)(): Unit {\n\(calls)\n}\n"
                 calls = receiver(lexicalOwner, instantiate: false) + "." + accessObject + "." + member + "()"
@@ -381,8 +372,6 @@ final class TestRunnerGenerator {
             if tokens[lastIndex].kind == .symbol(.rBrace) {
                 closingOffset = tokens[lastIndex].range.start.offset
             } else if lastIndex + 1 < tokens.count, tokens[lastIndex + 1].kind == .symbol(.lBrace) {
-                // Bare nominal declarations can have a header-only AST range.
-                // Walk the actual body tokens rather than appending a new body.
                 var depth = 0
                 for token in tokens[(lastIndex + 1)...] {
                     if token.kind == .symbol(.lBrace) { depth += 1 }
@@ -396,7 +385,6 @@ final class TestRunnerGenerator {
         if let closingOffset {
             insertions[suite.file, default: []].append((closingOffset, text))
         } else {
-            // A declaration with inherited tests may have no body of its own.
             let offset = lastIndex.map { tokens[$0].range.end.offset } ?? suite.range.end.offset
             if let index = insertions[suite.file]?.firstIndex(where: { $0.0 == offset }) {
                 let old = insertions[suite.file]![index].1
