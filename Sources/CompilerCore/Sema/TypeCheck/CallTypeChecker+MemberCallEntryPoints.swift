@@ -46,8 +46,6 @@ extension CallTypeChecker {
         return result
     }
 
-    /// Only Kotlin-approved primitive bitwise/shift members and UInt/ULong
-    /// compareTo have infix eligibility; arithmetic names must resolve extensions.
     func isInfixPrimitiveIntrinsic(
         _ calleeName: InternedString, receiverType: TypeID?, ctx: TypeInferenceContext
     ) -> Bool {
