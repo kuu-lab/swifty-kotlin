@@ -146,8 +146,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Registered after inheritance edges are bound so inherited interface
-    /// members are included.
     func registerEnumEntryDispatchFunctions(
         entries: [EnumEntryDecl],
         memberFunctions: [DeclID],
@@ -347,9 +345,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Registers enum-entry property accessors as ordinal dispatch targets.
-    /// Stored enum-entry properties are lowered through enum property helpers;
-    /// custom accessors retain their own accessor symbols as the target.
     private func registerEnumEntryDispatchProperties(
         entries: [EnumEntryDecl],
         memberProperties: [DeclID],
@@ -479,10 +474,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// An inherited member (e.g. `kotlin.Enum<T>.toString`) keeps the
-    /// declaring class's generic receiver, which `isSubtype` rejects against
-    /// the concrete enum, so the erased nominal ancestry is the right
-    /// granularity for dispatch.
     private func receiverMatchesEnum(
         _ candidateReceiverType: TypeID,
         enumType: TypeID,
