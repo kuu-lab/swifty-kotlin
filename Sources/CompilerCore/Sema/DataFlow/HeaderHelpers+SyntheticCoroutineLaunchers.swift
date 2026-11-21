@@ -1,8 +1,3 @@
-/// Extracted from `registerSyntheticCoroutineStubs`
-/// (HeaderHelpers+SyntheticCoroutineRegistry.swift). The extracted
-/// methods thread the shared registry state through `context` so the
-/// call order and side effects are unchanged.
-
 extension DataFlowSemaPhase {
     func registerCoroutineLauncherStubs(context: inout SyntheticCoroutineRegistryContext) {
         let symbols = context.symbols
@@ -22,7 +17,6 @@ extension DataFlowSemaPhase {
         let channelSymbol = context.channelSymbol!
         let kotlinCoroutinesPkg = context.kotlinCoroutinesPkg
 
-        // Bundled runBlocking owns the generic context and suspend-block contract.
         if !bundledIndex.contains(ownerFQName: coroutinesPkg, name: interner.intern("runBlocking"), arity: 2) {
             registerSyntheticCoroutineTopLevelFunction(
                 named: "runBlocking",
@@ -40,8 +34,6 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
-        // Bundled launch owns the CoroutineContext/start/receiver contract.
-        // Retain legacy launcher declarations only for --no-stdlib builds.
         if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("CoroutineScope")], name: interner.intern("launch"), arity: 3) {
             registerSyntheticCoroutineTopLevelFunction(
                 named: "launch",
@@ -92,9 +84,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 interner: interner
             )
-            // rewriteLauncherCall disambiguates the 2-arg launch overloads by the
-            // first argument's type: CoroutineDispatcher goes to the dispatcher-
-            // aware runtime, CoroutineStart goes to the lazy-start runtime.
 
         }
 
@@ -118,9 +107,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // Lowering reads the CoroutineStart value and routes the call to the
-        // async runtime entry point implementing that mode (see
-        // rewriteStartModeLauncherCall).
         registerSyntheticCoroutineTopLevelFunction(
             named: "async",
             packageFQName: coroutinesPkg,
@@ -219,12 +205,6 @@ extension DataFlowSemaPhase {
                 for: functionSymbol
             )
         }
-        // KSP-679: `coroutineScope` / `supervisorScope` are now real suspend
-        // functions in bundled Kotlin (Stdlib/kotlinx/coroutines/
-        // CoroutineScope.kt), delegating to the residual (c) scope primitives.
-        // KSP-1566: `delay` / `withTimeout` / `withTimeoutOrNull` are bundled
-        // Kotlin now (Stdlib/kotlinx/coroutines/Delay.kt and Timeout.kt),
-        // delegating to the kk_kxmini_delay / kk_with_timeout(_or_null) bridges.
         registerSyntheticCoroutineTopLevelFunction(
             named: "yield",
             packageFQName: coroutinesPkg,
@@ -234,10 +214,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // Parks the continuation on the never-completing
-        // runtimeNonCancellableJob (upstream parks it for the job's whole
-        // lifetime); the suspend point unwinds only via cancellation of the
-        // awaiting coroutine.
         registerSyntheticCoroutineTopLevelFunction(
             named: "awaitCancellation",
             packageFQName: coroutinesPkg,
@@ -259,13 +235,6 @@ extension DataFlowSemaPhase {
         )
         guard !context.bundledIndex.contains(ownerFQName: coroutinesPkg, name: interner.intern("withContext"), arity: 2)
         else { return }
-        // withContext accepts any CoroutineContext (e.g. NonCancellable, not just a
-        // dispatcher), matching kotlinx.coroutines' actual signature. `ensureInterfaceSymbol`
-        // is idempotent, so calling it here ahead of the "STDLIB-CORO-077" block below (which
-        // defines the canonical `coroutineContextSymbol`/`coroutineContextType` local bindings)
-        // just returns the same already-registered symbol -- this only widens the accepted
-        // argument type; CoroutineDispatcher already has CoroutineContext as a supertype (see
-        // below), so existing `withContext(Dispatchers.IO) { }`-style calls are unaffected.
         let withContextContextSymbol = ensureInterfaceSymbol(
             named: "CoroutineContext",
             in: kotlinCoroutinesPkg,
@@ -329,9 +298,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // KSP-674: flowOf / emptyFlow / Iterable.asFlow are now Kotlin source
-        // (Stdlib/kotlinx/coroutines/flow/Builders.kt), composed from the
-        // retained `flow { }` (kk_flow_create) + `emit` (kk_flow_emit) core.
 
         guard !context.bundledIndex.contains(ownerFQName: coroutinesPkg, name: interner.intern("withContext"), arity: 2)
         else { return }
