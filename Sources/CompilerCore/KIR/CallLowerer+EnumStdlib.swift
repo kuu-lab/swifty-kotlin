@@ -187,9 +187,6 @@ func emitEnumLazyInitGuard(
         ))
         return
     }
-    // A storage-free enum never defines `$enumEnsureInit$`; its companion's
-    // lazy init (if synthesized already, or known through import metadata)
-    // is the only initializer such an enum can carry.
     if let companionSymbol = sema.symbols.companionObjectSymbolIfKnown(for: enumSymbol) {
         let lazyInitName = interner.intern("__companion_lazy_init_\(companionSymbol.rawValue)")
         let localInit = arena.declarations.first(where: { decl in
@@ -220,15 +217,11 @@ func emitEnumLazyInitGuard(
         }
     }
     if let firstEntry = entryFieldSymbols.first {
-        // The enum's helpers are synthesized later during its own lowering;
-        // the trigger pass inserts the ensure-init/companion-init calls
-        // ahead of this reference.
         let marker = arena.appendExpr(.symbolRef(firstEntry), type: sema.types.anyType)
         instructions.append(.constValue(result: marker, value: .symbolRef(firstEntry)))
     }
 }
 
-/// Shared by concrete calls and reified calls specialized after inlining.
 func emitEnumEntryCollection(
     classType: ClassType,
     nominalSymbol: SemanticSymbol,
@@ -249,8 +242,6 @@ func emitEnumEntryCollection(
             let lhsOffset = $0.declSite?.start.offset ?? Int.max
             let rhsOffset = $1.declSite?.start.offset ?? Int.max
             if lhsOffset != rhsOffset { return lhsOffset < rhsOffset }
-            // Imported entries have no declaration ranges. Layout metadata
-            // retains their declaration order, independently of import IDs.
             let lhsFieldOffset = fieldOffsets[$0.id] ?? Int.max
             let rhsFieldOffset = fieldOffsets[$1.id] ?? Int.max
             if lhsFieldOffset != rhsFieldOffset { return lhsFieldOffset < rhsFieldOffset }
