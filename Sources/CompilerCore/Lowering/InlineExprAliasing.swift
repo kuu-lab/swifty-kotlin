@@ -1,13 +1,4 @@
-/// The alias map itself (`expandInlineCalls`'s `aliases`,
-/// `expandInlineCall`/`expandLambdaBody`'s `localExprMap`) stays owned by the
-/// caller: those functions also write bindings directly for cases that are
-/// not themselves a resolution concern (parameter substitution, merge-slot
-/// promotion), so this type only owns the read side and the one instruction
-/// rewrite built from it.
 enum InlineExprAliasing {
-    /// Stops at a self-alias, or once revisiting an already-seen expression
-    /// would loop forever, so a cycle resolves to the last expression reached
-    /// instead of hanging.
     static func resolveAlias(of expr: KIRExprID, aliases: [KIRExprID: KIRExprID]) -> KIRExprID {
         var current = expr
         var visited: Set<KIRExprID> = []
@@ -15,11 +6,6 @@ enum InlineExprAliasing {
         while let next = aliases[current], next != current {
             hops += 1
             if hops == 2 {
-                // A revisit is only possible from the third hop onward
-                // (`next != current` already covers self-aliases, and the
-                // second hop cannot revisit `expr`), so the visited set is
-                // seeded here rather than allocated on the common
-                // single-hop resolution.
                 visited = [expr, current]
             } else if hops > 2 {
                 guard visited.insert(current).inserted else { return current }
@@ -29,14 +15,7 @@ enum InlineExprAliasing {
         return current
     }
 
-    /// Every defined result (`result:`, `thrownResult:`) is left as-is;
-    /// `.copy` is the one case where both sides -- `from` and its own `to` --
-    /// are resolved.
     static func rewriteInstruction(_ instruction: KIRInstruction, aliases: [KIRExprID: KIRExprID]) -> KIRInstruction {
-        // `expandInlineCalls` rewrites the whole caller body every round but
-        // only populates its alias map during lambda splices — most rounds it
-        // stays empty, so resolving is identity and the rebuilt instruction
-        // (plus a fresh `arguments` array per call) is pure allocation.
         guard !aliases.isEmpty else { return instruction }
         return switch instruction {
         case let .binary(op, lhs, rhs, result):
