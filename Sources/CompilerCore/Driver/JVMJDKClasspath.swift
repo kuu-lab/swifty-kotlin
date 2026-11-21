@@ -1,8 +1,5 @@
 import Foundation
 
-/// Materializes the imported packages from the active JDK runtime image as
-/// lazy classpath entries. The JVM class reader consumes ordinary class files;
-/// `jimage` is the JDK-supported way to expose them from `lib/modules`.
 struct JVMJDKClasspath {
     struct ClassFile: Codable {
         let path: String
@@ -47,9 +44,6 @@ struct JVMJDKClasspath {
                 }
                 if importedPackages.contains("java/util/concurrent") {
                     recursivePackages.insert("java/util/concurrent")
-                    // Concurrent collection classes extend java.util interfaces
-                    // (Map/Collection/Set); import that package too so their
-                    // stubs can expose the Kotlin collection surface.
                     packages.insert("java/util")
                 }
             }
@@ -57,8 +51,6 @@ struct JVMJDKClasspath {
 
         var patterns = packages.sorted().map { "glob:**/\($0)/*.class" }
             + recursivePackages.sorted().map { "glob:**/\($0)/**/*.class" }
-        // These two signatures complete JDK interface hierarchies commonly
-        // reached from java.lang.Iterable and java.nio.file.DirectoryStream.
         patterns += ["glob:**/java/util/Iterator.class", "glob:**/java/io/Closeable.class"]
         let classFiles = try JVMJDKClasspathCache.load(image: image, jimage: jimage, patterns: patterns) {
             if let classFiles = JVMJDKImageReader.read(image: image, jimage: jimage, patterns: patterns) {
