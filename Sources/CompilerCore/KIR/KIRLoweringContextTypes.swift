@@ -12,16 +12,8 @@ struct KIRLoweringEmitContext: RandomAccessCollection, MutableCollection, RangeR
     typealias Index = Array<KIRInstruction>.Index
 
     var instructions: [KIRInstruction]
-    /// Per-instruction source locations, parallel to ``instructions``.
-    /// `nil` entries mean "same as function-level location".
     var instructionLocations: [SourceRange?]
-    /// The current source range to associate with newly appended instructions.
-    /// Set this before appending instructions to propagate source locations.
     var currentSourceRange: SourceRange?
-    /// Highest label ID among the instructions accumulated so far. Kept in
-    /// sync by the collection mutators below so ``appendRelocatingLabels``
-    /// can read it in O(1) instead of rescanning the whole buffer per splice.
-    ///
     /// Only mutations through the collection interface update it — writes
     /// that reach `instructions` directly (e.g. `&context.instructions`)
     /// bypass the bookkeeping, so a context mutated that way must not be
@@ -96,7 +88,6 @@ struct KIRLoweringEmitContext: RandomAccessCollection, MutableCollection, RangeR
         noteReplacedLabels(removedMax: removedMaxLabelID, insertedMax: insertedMaxLabelID)
     }
 
-    /// Shadows the `RangeReplaceableCollection` default (which would route a
     /// single-element append through `replaceSubrange`, allocating two
     /// throwaway arrays and rescanning label IDs per element). Emit-heavy
     /// lowering passes append millions of instructions (KUU-3777), so this
@@ -105,8 +96,6 @@ struct KIRLoweringEmitContext: RandomAccessCollection, MutableCollection, RangeR
         let insertedMaxLabelID = KIRLabelRelocation.maxLabelID(of: newElement)
         instructions.append(newElement)
         if instructionLocations.count >= instructions.count {
-            // Mirror `replaceSubrange`'s normalization for an out-of-sync
-            // locations buffer: insert at the new index, then truncate.
             instructionLocations[instructions.count - 1] = currentSourceRange
             instructionLocations.removeLast(instructionLocations.count - instructions.count)
         } else {
@@ -121,9 +110,6 @@ struct KIRLoweringEmitContext: RandomAccessCollection, MutableCollection, RangeR
         noteReplacedLabels(removedMax: nil, insertedMax: insertedMaxLabelID)
     }
 
-    /// The full buffer is rescanned only when the edit removed the
-    /// instruction(s) supplying the current maximum without inserting an
-    /// equal-or-higher ID, so appends stay O(1) in the tracked value.
     private mutating func noteReplacedLabels(removedMax: Int32?, insertedMax: Int32?) {
         guard let current = maxLabelID else {
             maxLabelID = insertedMax
