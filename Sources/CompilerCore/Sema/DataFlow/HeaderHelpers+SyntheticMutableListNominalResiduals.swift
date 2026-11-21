@@ -1,6 +1,3 @@
-/// Source-backed MutableList and AbstractMutableList retain nominal bootstrap
-/// metadata for cached artifacts and the MutableIterable compatibility edge.
-/// Sorting, shuffle, and reverse are bundled Kotlin extensions.
 extension DataFlowSemaPhase {
 
     func registerSyntheticMutableListStub(
@@ -41,10 +38,6 @@ extension DataFlowSemaPhase {
         let mlTypeParamType = types.make(.typeParam(TypeParamType(
             symbol: mlTypeParamSymbol, nullability: .nonNull
         )))
-        // Source-declared or imported MutableList keeps its real type
-        // parameter and supertype edges; only the synthetic fallback shell
-        // is decorated here (patchSourceBackedMutableListSupertypes applies
-        // the residual MutableIterable edge for the imported case).
         if !symbols.isSourceBackedSymbol(mutableListInterfaceSymbol) {
             types.setNominalTypeParameterSymbols([mlTypeParamSymbol], for: mutableListInterfaceSymbol)
             types.setNominalTypeParameterVariances([.invariant], for: mutableListInterfaceSymbol)
@@ -74,10 +67,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Restore the shared MutableIterable residual edge after a bundled
-    /// MutableList source declaration is bound. The source declaration owns
-    /// List/MutableCollection, while the compiler shell still supplies the
-    /// residual MutableIterable compatibility edge.
     func patchSourceBackedMutableListSupertypes(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -93,8 +82,6 @@ extension DataFlowSemaPhase {
         else {
             return
         }
-        // KUU-2673: reading the imported shell's type parameters and
-        // supertypes decodes it; patch after materialization instead.
         if symbols.deferUntilAfterImportedShellMaterializes(mutableListSymbol, work: { [self] in
             patchSourceBackedMutableListSupertypes(symbols: symbols, types: types, interner: interner)
         }) {
@@ -131,7 +118,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Register `kotlin.collections.AbstractMutableList<E>` surface (STDLIB-COL-ABSTRACT-006).
     func registerSyntheticAbstractMutableListStub(
         symbols: SymbolTable,
         types: TypeSystem,
