@@ -7,14 +7,6 @@ import kotlin.collections.MutableSet
 import kotlin.internal.KsSymbolName
 import kotlin.internal.__valuesEqual
 
-// Construction is lowered to the runtime sorted-map entry points
-// (`__kk_tree_map_new` for the empty/comparator forms,
-// `__kk_tree_map_new_map`/`__kk_tree_map_new_sorted_map` for the copy forms)
-// by `CollectionLiteralLoweringPass`; see TreeSet.kt for the `init`-attach
-// rationale. Member externals mirror the HashMap.kt pattern so concrete
-// `TreeMap<K, V>` receivers dispatch straight to the `__kk_map_*` /
-// `__kk_mutable_map_*` bridges.
-
 @KsSymbolName("__kk_tree_map_init")
 private external fun <K, V> __kkTreeMapInit(map: TreeMap<K, V>, comparator: Comparator<in K>?)
 
@@ -115,8 +107,6 @@ public open class TreeMap<K, V> : NavigableMap<K, V> {
 
     override fun isEmpty(): Boolean = __treeMapIsEmpty()
 
-    // `__kk_map_keys` returns a NavigableSet-tagged view for sorted maps,
-    // matching `java.util.TreeMap.keySet()`.
     override val keys: MutableSet<K>
         get() = __treeMapKeys()
 
