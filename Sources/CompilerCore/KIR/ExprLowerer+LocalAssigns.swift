@@ -54,16 +54,9 @@ extension ExprLowerer {
             instructions: &instructions
         )
         if let symbol = sema.bindings.identifierSymbols[exprID] {
-            // Check if this is a top-level or object-member property assignment.
-            // These need a copy to global storage rather than just updating
-            // localValuesBySymbol (which wouldn't persist across function calls).
             if let delegateStorageID = driver.ctx.localDelegateStorage(for: symbol),
                let setValueSymbol = sema.symbols.delegateSetValueSymbol(for: symbol)
             {
-                // Local delegated `var` (BUG-014 / KSP-CAP-007 / BUG-052): `x = value`
-                // calls `Prop().setValue(null, KProperty("x"), value)`, mirroring
-                // the getValue call synthesized at the declaration in the
-                // `.localDecl` case, instead of overwriting x's storage register.
                 let setterArgs = driver.memberLowerer.buildLocalDelegateAccessorArgs(
                     localSymbol: symbol,
                     sema: sema,
@@ -129,15 +122,10 @@ extension ExprLowerer {
                    sema.symbols.symbol(ownerSymbol)?.kind == .object
                 {
                     if sema.bindings.isObjectLiteralPropertySymbol(symbol) {
-                        // A local object's member setter is a per-instance
-                        // accessor: its `this` is the active implicit receiver
-                        // (the materialized local object), not a global
-                        // singleton `symbolRef`.
                         if let receiverExprID = driver.ctx.activeImplicitReceiverExprID() {
                             setterInputs.insert(receiverExprID, at: 0)
                         }
                     } else {
-                        // Bare references to singleton properties omit the dispatch receiver.
                         driver.emitObjectLazyInitGuardIfNeeded(
                             objectSymbol: ownerSymbol,
                             arena: arena,
@@ -195,10 +183,6 @@ extension ExprLowerer {
                 if sema.symbols.symbol(symbol)?.kind == .property,
                    let backingFieldSymbol = sema.symbols.backingFieldSymbol(for: symbol)
                 {
-                    // A custom getter with no custom setter still has the
-                    // compiler-provided setter, which writes the backing field.
-                    // Keep bare assignments on that same storage so later
-                    // getter calls observe the new value.
                     let backingFieldType = sema.symbols.propertyType(for: backingFieldSymbol)
                         ?? sema.symbols.propertyType(for: symbol)
                         ?? sema.types.anyType
@@ -262,8 +246,6 @@ extension ExprLowerer {
                           instructions: &instructions
                       ) != nil
             {
-                // Bare interface-property writes in nested receiver lambdas
-                // must dispatch through the captured implementing instance.
             } else if let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(
                 forProperty: symbol,
                 sema: sema,
@@ -333,13 +315,6 @@ extension ExprLowerer {
                       let ownerInfo = sema.symbols.symbol(ownerSymbol),
                       ownerInfo.kind == .class || ownerInfo.kind == .interface
             {
-                // A missing field offset can mean an accessor-backed class
-                // property or an interface property, which has no per-instance
-                // layout. Resolve interface writes through its itable setter;
-                // class properties use their setter body or backing field.
-                // (`.object` is deliberately excluded: the branch above
-                // already routes every object-member property through
-                // global-copy storage before reaching here.)
                 if ownerInfo.kind == .interface,
                    driver.callLowerer.tryLowerInterfaceItablePropertySetterWrite(
                        propertySymbol: symbol,
@@ -352,10 +327,6 @@ extension ExprLowerer {
                        instructions: &instructions
                    ) != nil
                 {
-                    // An interface has no instance field layout of its own.
-                    // A bare property name in a nested lambda still refers to
-                    // the captured dispatch receiver, so write through its
-                    // runtime itable setter just like an explicit receiver.
                 } else if let virtualSetterDispatch = driver.callLowerer.resolvePropertyAccessorVirtualDispatch(
                     propertySymbol: symbol,
                     accessorKind: .setter,
@@ -439,19 +410,12 @@ extension ExprLowerer {
                     )
                     instructions.append(.storeGlobal(value: storedValueID, symbol: backingFieldSym))
                 } else if let storageID = driver.ctx.localValue(for: symbol) {
-                    // Neither a real setter nor a backing field exists (e.g. an
-                    // abstract property with no accessor of its own): fall back
-                    // to the same treatment as the outer `else` below rather than
-                    // silently dropping the write, since this `else if` already
-                    // claimed the assignment and nothing after it will run.
                     instructions.append(.copy(from: valueID, to: storageID))
                 } else {
                     driver.ctx.setLocalValue(valueID, for: symbol)
                 }
             } else {
                 if let storageID = driver.ctx.localValue(for: symbol) {
-                    // Mutable local already has storage: emit a copy so the C variable
-                    // is updated in place, preserving the value across loop iterations.
                     instructions.append(.copy(from: valueID, to: storageID))
                     // Reassigning a callable-typed local to a different lambda/function
                     // reference must overwrite storageID's callableValueInfo too, or a
