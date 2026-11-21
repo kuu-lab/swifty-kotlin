@@ -1,9 +1,6 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
-    /// `earlyReturnType` carries a bound result when a companion property or
-    /// extension short-circuits resolution; otherwise candidates and the
-    /// companion receiver type are returned for the resolver.
     func collectRegularMemberCallCandidates(
         _ request: MemberCallInferenceRequest,
         argTypes: [TypeID],
@@ -21,19 +18,12 @@ extension CallTypeChecker {
         typeAliasConstructor: inout TypeAliasConstructorContext?
     ) -> (allCandidates: [SymbolID], companionReceiverType: TypeID?, earlyReturnType: TypeID?) {
 
-        // Track the companion type so we can pass it (not the owner class type)
-        // as the implicit receiver when resolving the call.
         var companionReceiverType: TypeID?
 
         var allCandidates: [SymbolID]
         if isClassNameReceiver {
-            // Class-name receiver: only companion members are valid targets.
-            // Search from the companion, rather than the owner class, so its
-            // inherited members are included without exposing owner instances.
             let classNameReceiverBlockSymbol: SymbolID? = {
                 guard let ownerNominal = classNameReceiverNominalSymbol else { return nil }
-                // In a platform module, resolve through the implementation companion
-                // so member calls bind to actual declarations with emitted symbols.
                 if let actualOwner = request.sema.symbols.actualSymbol(for: ownerNominal),
                    let blockCompanion = companionBlockSymbol(for: actualOwner, sema: request.sema, interner: request.interner)
                 {
@@ -118,7 +108,6 @@ extension CallTypeChecker {
                             range: request.range,
                             diagnostics: request.ctx.sema.diagnostics
                         )
-                        // Re-bind receiver to companion type for correct KIR lowering
                         request.sema.bindings.bindExprType(request.receiverID, type: propertyReceiverType)
                         request.sema.bindings.bindIdentifier(request.id, symbol: propSymbol)
                         request.sema.bindings.bindExprType(request.id, type: propType)
@@ -164,7 +153,6 @@ extension CallTypeChecker {
                     }
                 }
 
-                // Then try companion function candidates
                 var companionCandidates: [SymbolID] = []
                 var selectedCompanionReceiverType: TypeID?
                 if classNameReceiverBlockSymbol != nil {
@@ -217,10 +205,6 @@ extension CallTypeChecker {
                         selectedCompanionReceiverType = ownerReceiverType
                     }
                 }
-                // Precompiled library extensions are not inserted into
-                // file scopes, because their receiver is resolved during
-                // member-call inference. Recover those synthetic
-                // declarations by short name for class-name receivers.
                 let syntheticCompanionCandidates = {
                     request.sema.symbols.lookupByShortName(request.calleeName).filter { candidate in
                         guard let symbol = request.sema.symbols.symbol(candidate),
@@ -242,11 +226,6 @@ extension CallTypeChecker {
                     }
                 }
                 if companionCandidates.isEmpty {
-                    // Fall back to Companion-scoped extension functions
-                    // (e.g. `fun Duration.Companion.parse(value: String): Duration`)
-                    // written as Kotlin source at package scope. These are resolved
-                    // via scope lookup (like ordinary extension functions), not the
-                    // companion member lookup above.
                     companionCandidates = request.ctx.cachedScopeLookup(request.calleeName, matching: { candidate in
                         guard let symbol = request.ctx.cachedSymbol(candidate),
                               symbol.kind == .function,
@@ -281,8 +260,6 @@ extension CallTypeChecker {
                 }
                 if let selectedCompanionReceiverType {
                     companionReceiverType = selectedCompanionReceiverType
-                    // Re-bind receiver expression to companion type so KIR
-                    // lowering passes the selected implementation receiver.
                     request.sema.bindings.bindExprType(request.receiverID, type: selectedCompanionReceiverType)
                 }
                 allCandidates = companionCandidates
@@ -357,12 +334,6 @@ extension CallTypeChecker {
                         interner: request.interner
                     )
                 } ?? []
-            // Source-backed range overloads are recovered from the bundled
-            // declaration index because their extensions are not generally
-            // visible through member lookup. A same-named extension in the
-            // active Kotlin scope still has normal overload priority, though;
-            // keep it ahead of the bundled candidates so a user declaration
-            // is not silently replaced by the stdlib fallback.
             let rangeReceiverKind = MemberRuntimeDispatch.rangeReceiverKind(
                 receiverExpr: request.receiverID,
                 receiverType: lookupReceiverType,
@@ -537,9 +508,6 @@ extension CallTypeChecker {
             } else if !mutableMapPutAllSourceCandidates.isEmpty {
                 standardMemberCandidates = mutableMapPutAllSourceCandidates
             } else if !primitiveArraySourceCandidates.isEmpty {
-                // Primitive-array source members are bundled Kotlin extensions. Prefer the
-                // exact source receiver over synthetic member stubs, including
-                // joinToString(transform), whose legacy stub shares the same name.
                 standardMemberCandidates = primitiveArraySourceCandidates
             } else if !scopedRangeUserCandidates.isEmpty {
                 standardMemberCandidates = scopedRangeUserCandidates
@@ -552,9 +520,6 @@ extension CallTypeChecker {
                 // Any.equals/hashCode/toString win before extension fallback.
                 standardMemberCandidates = instantValueSemanticsCandidates
             } else if !bundledStdlibCandidates.isEmpty {
-                // Source-backed bundled declarations are the live implementation
-                // for migrated atomic APIs and should win over residual synthetic
-                // candidates such as inherited Any members.
                 standardMemberCandidates = bundledStdlibCandidates
             } else {
                 standardMemberCandidates = driver.helpers.collectMemberFunctionCandidates(
@@ -573,10 +538,6 @@ extension CallTypeChecker {
             // normal extension fallback.
             let sourceBackedOverloads: [SymbolID] = {
                 let memberName = request.interner.resolve(request.calleeName)
-                // kotlinx.io.bytestring Base64 codec functions are bundled source
-                // extensions whose first parameter is ByteString, disjoint from
-                // every same-named kotlin.io.encoding.Base64 member's
-                // ByteArray/CharSequence source, so merging them is unambiguous.
                 guard memberName == "toString" || memberName == "replace"
                     || memberName == "encode" || memberName == "decode"
                     || memberName == "encodeToByteArray" || memberName == "encodeIntoByteArray"
@@ -658,13 +619,9 @@ extension CallTypeChecker {
                         argTypes: argTypes, sema: request.sema
                     )
             }
-            // An applicable reflective callBy already returned from its contextual
-            // fast path. Let the ordinary extension lookup try both function and
-            // KFunction receiver views when that member was inapplicable.
             let inapplicableReflectiveCallBy = callableReferenceFunctionType != nil
                 && request.calleeName == request.knownNames.callBy
                 ? request.sema.symbols.lookup(fqName: ["kotlin", "reflect", "KCallable", "callBy"].map(request.interner.intern)) : nil
-            // Infix eligibility precedes the member/extension priority decision.
             let memberCandidates = unfilteredMemberCandidates.filter {
                 $0 != inapplicableReflectiveCallBy
                     && (!request.ast.arena.isExplicitCall(request.id) || !isSyntheticCharPropertyFacadeFunction($0, ctx: request.ctx))
@@ -716,10 +673,6 @@ extension CallTypeChecker {
                     },
                     requiresInfix: request.ast.arena.isInfixCall(request.id)
                 )
-                // A nearer-scope extension only shadows the pseudo-members
-                // when it can actually apply to this call; an inapplicable
-                // same-named declaration must not hide the bundled overload
-                // (matches kotlinc, which keeps resolving lower tiers).
                 let applicableScopedCandidates = scopedExtensionCandidates.filter {
                     self.extensionCandidateMatchesCallShape(
                         $0, request: request, argumentTypes: argTypes, receiverType: memberLookupType
@@ -728,8 +681,6 @@ extension CallTypeChecker {
                 return applicableScopedCandidates.isEmpty ? memberCandidates : applicableScopedCandidates
             }()
             if !effectiveMemberCandidates.isEmpty {
-                // Check if the found candidates belong to a companion object so we
-                // can supply the correct implicit receiver type later.
                 if let first = effectiveMemberCandidates.first,
                    let parentSymbol = request.sema.symbols.parentSymbol(for: first),
                    let ownerNominal = driver.helpers.nominalSymbol(of: memberLookupType, types: request.sema.types),
@@ -759,11 +710,6 @@ extension CallTypeChecker {
                     typeAliasConstructor = aliasConstructors.typeAliasConstructor
                 } else {
                     if let callableReferenceFunctionType {
-                        // A callable reference is both a reflective KFunction and an
-                        // invokable function value. Resolve generic extensions such as
-                        // `let` against its structural function type first so the inferred
-                        // receiver type retains its parameter list. Reflection-specific
-                        // extensions still use the KFunction lookup below as a fallback.
                         allCandidates = collectExtensionCallCandidates(
                             named: request.calleeName,
                             memberLookupType: callableReferenceFunctionType,
@@ -808,8 +754,6 @@ extension CallTypeChecker {
         if request.ast.arena.isExplicitCall(request.id) {
             allCandidates.removeAll { isSyntheticCharPropertyFacadeFunction($0, ctx: request.ctx) }
         }
-        // With no visible extension, retain the member for ordinary mismatch
-        // diagnostics instead of accepting an invalid parameter map.
         if allCandidates.isEmpty,
            callableReferenceFunctionType != nil,
            request.calleeName == request.knownNames.callBy,
@@ -817,9 +761,6 @@ extension CallTypeChecker {
         {
             allCandidates = [member]
         }
-        // If no infix callable exists, retain the ordinary lookup only for the
-        // missing-modifier diagnostic enforced at the member-call entry point.
-        // An existing but inapplicable infix candidate must never take this path.
         if request.ast.arena.isInfixCall(request.id), allCandidates.isEmpty {
             allCandidates = driver.helpers.collectMemberFunctionCandidates(
                 named: request.calleeName, receiverType: memberLookupType,
@@ -838,10 +779,6 @@ extension CallTypeChecker {
                 )
             }
         }
-        // MutableMap.remove(key) has a source-backed projected-key overload in
-        // addition to the retained interface member. Prefer the Kotlin source
-        // declaration for ordinary MutableMap receiver calls while preserving
-        // the synthetic member for interface and lowering bridges.
         if request.calleeName == request.knownNames.remove,
            ReceiverClassifier(sema: request.sema, interner: request.interner).isMutableMapType(memberLookupType),
            request.args.count == 1
@@ -865,10 +802,6 @@ extension CallTypeChecker {
                 allCandidates = mutableMapRemoveCandidates
             }
         }
-        // A mutable map has a source-backed iterator overload whose return type
-        // is MutableIterator<MutableMap.MutableEntry<K, V>>. If the inherited
-        // synthetic collection surface won the initial lookup, prefer the
-        // exact bundled extension before ordinary overload resolution.
         if request.calleeName == request.knownNames.iterator,
            ReceiverClassifier(sema: request.sema, interner: request.interner).isMutableMapType(memberLookupType)
         {
@@ -887,10 +820,6 @@ extension CallTypeChecker {
                 allCandidates = mutableMapIteratorCandidates
             }
         }
-        // `MutableMap.getValue(key)` is the read-only Map extension. The
-        // MutableMap delegated accessor has the same short name but requires
-        // `(thisRef, KProperty<*>)`; keep that two-argument delegate surface
-        // out of ordinary one-argument member calls.
         if request.calleeName == request.knownNames.getValue,
            ReceiverClassifier(sema: request.sema, interner: request.interner).isMutableMapType(memberLookupType),
            request.args.count == 1
@@ -933,8 +862,6 @@ extension CallTypeChecker {
     ) -> [SymbolID] {
         let sema = ctx.sema
         var candidates = ctx.cachedScopeLookup(name)
-        // Name-indexed companion extension decls replace a per-call scan of
-        // every file's `topLevelDecls` (same order, built once per module).
         for symbol in driver.companionExtensionFunctionDeclsByName[name] ?? []
         where !candidates.contains(symbol) {
             candidates.append(symbol)
@@ -956,10 +883,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Whether the symbol is declared by a `companion`-marked top-level
-    /// extension (`companion fun A.f` / `companion val A.x`) — the only
-    /// extension declarations reachable through the owner class-name's
-    /// companion scope.
     func isCompanionExtension(_ symbolID: SymbolID, ctx: TypeInferenceContext) -> Bool {
         guard let symbol = ctx.sema.symbols.symbol(symbolID),
               let sourceFileID = symbol.declSite?.start.file,
