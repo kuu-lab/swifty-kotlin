@@ -34,8 +34,6 @@ extension CallTypeChecker {
                 || typeContainsErrorType(argumentType, sema: sema)
                 || sema.diagnostics.diagnostics.dropFirst(checkpoint).contains(where: { $0.severity == .error })
             {
-                // An inapplicable member must allow visible extensions to resolve.
-                // Rebuild contextual bindings before ordinary argument preparation.
                 sema.diagnostics.rollback(to: checkpoint)
                 var restoredLocals = locals
                 _ = driver.inferExpr(argument, ctx: ctx, locals: &restoredLocals)
