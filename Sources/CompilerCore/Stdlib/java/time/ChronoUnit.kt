@@ -1,6 +1,5 @@
 package java.time
 
-/** Standard date and time units used to measure temporal amounts. */
 public enum class ChronoUnit(public val unitCode: Int) {
     NANOS(0),
     MICROS(1),
