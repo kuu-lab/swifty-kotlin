@@ -1,6 +1,4 @@
 extension CollectionLiteralLoweringSupport {
-    /// State facts are authoritative; a receiver signature can only
-    /// prove that an unclassified receiver is not a Sequence.
     func sequenceRuntimeRepresentationForCall(
         symbol: SymbolID?,
         receiver: KIRExprID?,
