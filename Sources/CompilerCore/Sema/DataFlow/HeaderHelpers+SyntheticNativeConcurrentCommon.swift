@@ -369,8 +369,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // KUU-2673: reading supertypes of an imported shell decodes it; defer
-        // the merge until the record is applied instead.
         let mergeCPointedSupertype = {
             if !symbols.directSupertypes(for: cFunctionSymbol).contains(cPointedSymbol) {
                 symbols.setDirectSupertypes(
@@ -409,8 +407,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // KUU-2673: reading supertypes of an imported shell decodes it; defer
-        // the merge until the record is applied instead.
         let mergeFunctionSupertype = {
             if !symbols.directSupertypes(for: ownerSymbol).contains(functionSymbol) {
                 symbols.setDirectSupertypes(
@@ -425,8 +421,6 @@ extension DataFlowSemaPhase {
                 )
             }
 
-            // KUU-1084: FunctionN type params are declared in Kotlin order
-            // [P1..PN, R] — args carry the parameter types then the return type.
             let supertypeArgs: [TypeArg] = functionArgumentTypes.map { .in($0) }
                 + [.out(types.unitType)]
             symbols.setSupertypeTypeArgs(supertypeArgs, for: ownerSymbol, supertype: functionSymbol)
