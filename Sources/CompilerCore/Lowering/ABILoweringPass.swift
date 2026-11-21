@@ -61,9 +61,6 @@ final class ABILoweringPass: LoweringPass {
             ctx.interner.intern("kk_op_usub"),
             ctx.interner.intern("kk_op_umul"),
         ]
-        // Comparison operators: result type is Boolean so we cannot use the
-        // result to drive unboxing.  Idempotent for already-unboxed values
-        // (kk_unbox_* passes raw primitives through unchanged).
         let inlineComparisonCallees: Set<InternedString> = [
             ctx.interner.intern("kk_op_eq"),
             ctx.interner.intern("kk_op_ne"),
@@ -164,11 +161,6 @@ final class ABILoweringPass: LoweringPass {
             ctx.interner.intern("kk_op_safe_cast"),
         ]
 
-        // Callees that retrieve an erased value from a collection, object field,
-        // or closure environment. These slots may contain a boxed pointer even
-        // when the KIR result type is a non-null primitive. Normalize at the
-        // retrieval site so downstream arithmetic, comparisons, and calls see
-        // the plain primitive value.
         let erasedValueAccessorCallees: Set<InternedString> = [
             ctx.interner.intern("__kk_list_get"),
             ctx.interner.intern("__kk_map_get"),
@@ -184,10 +176,6 @@ final class ABILoweringPass: LoweringPass {
         let genericArrayGetCallee = ctx.interner.intern("kk_array_get")
         let arrayClassName = ctx.interner.intern("Array")
 
-        // `kk_array_is_empty` returns a boxed Boolean but is emitted for both
-        // generic and primitive arrays without a Sema function signature. Keep
-        // its result on the same ABI normalization path as other erased
-        // collection results so conditions compare the unboxed Boolean.
         let boxedBooleanReturnCallees: Set<InternedString> = [
             ctx.interner.intern("kk_array_is_empty"),
         ]
@@ -213,9 +201,6 @@ final class ABILoweringPass: LoweringPass {
         )
 
         var signatureByName: [InternedString: FunctionSignature] = [:]
-        // `$default` stubs have no Sema signature. Recover their actual ABI
-        // from the KIR declaration, preferring the synthetic symbol and using
-        // the name for symbol-less calls (KUU-3224).
         var stubSignatureByName: [InternedString: FunctionSignature] = [:]
         var stubSignatureBySymbol: [SymbolID: FunctionSignature] = [:]
         if let symbols {
@@ -311,16 +296,10 @@ final class ABILoweringPass: LoweringPass {
         }
 
         if let types {
-            // Inline expansion can substitute a raw concrete enum ordinal into
-            // the compiler-owned abstract Enum.name bridge. Restore its erased
-            // receiver contract so normal enum boxing runs at this boundary.
             boundaryBridgeSignatureByLinkName[ctx.interner.intern("__kk_enum_name")] = FunctionSignature(
                 parameterTypes: [types.anyType], returnType: types.stringType
             )
 
-            // MutableSet and HashSet share this bridge with different declared
-            // receiver and element types. A symbol-less call still takes a set
-            // handle and a boxed element, including non-null floating values.
             boundaryBridgeSignatureByLinkName[ctx.interner.intern("__kk_mutable_set_add")] = FunctionSignature(
                 parameterTypes: [types.anyType, types.nullableAnyType], returnType: types.booleanType
             )
@@ -332,11 +311,6 @@ final class ABILoweringPass: LoweringPass {
             newBody.instructions.reserveCapacity(function.body.count)
             var nullableGenericResults: Set<KIRExprID> = []
 
-            // `.constValue` bindings for literal operands the lowering passes
-            // stage in temporaries (e.g. `kk_flow_emit`'s op tag): the arg's
-            // own expr is `.temporary`, not `.intLiteral`. An expr rebound to
-            // a different literal (or overwritten by another instruction kind)
-            // is ambiguous and dropped.
             var intLiteralConstants: [KIRExprID: Int64] = [:]
             var mutableIntConstants: Set<KIRExprID> = []
             for ins in function.body {
@@ -635,9 +609,6 @@ final class ABILoweringPass: LoweringPass {
                     continue
                 }
 
-                // `var x: V? = V(...)` stores into a backing field/global slot
-                // bypass `.copy`, so the `V` -> `V?` boundary is normalized
-                // here for nullable-underlying value classes (KUU-3115).
                 if case let .storeGlobal(value, symbol) = instruction,
                    let types, let symbols,
                    let slotType = symbols.propertyType(for: symbol),
@@ -725,9 +696,6 @@ final class ABILoweringPass: LoweringPass {
                         newBody: &newBody
                     )
                 }
-                // Stubs explicitly marked .throwingFunction must always emit the
-                // outThrown channel regardless of whether their callee name appears
-                // in nonThrowingCallees.
                 let isExplicitlyThrowing: Bool = {
                     if isSyntheticAccessor, let s = callSymbol,
                        symbols?.functionSignature(for: s)?.canThrow == true {
@@ -775,8 +743,6 @@ final class ABILoweringPass: LoweringPass {
                 if let symbols, let effectiveCallSymbol {
                     signature = symbols.functionSignature(for: effectiveCallSymbol)
                 }
-                // A default stub's symbol identifies its owner even when other
-                // declarations have the same `$default` display name.
                 if signature == nil, let effectiveCallSymbol,
                    let stubSignature = stubSignatureBySymbol[effectiveCallSymbol]
                 {
@@ -812,7 +778,6 @@ final class ABILoweringPass: LoweringPass {
                     )
                     recoveredStubSignature = true
                 }
-                // ABI-002: see boundaryBridgeSignatureByLinkName above.
                 if signature == nil, effectiveCallSymbol == nil {
                     signature = boundaryBridgeSignatureByLinkName[effectiveCallee]
                 }
@@ -837,8 +802,6 @@ final class ABILoweringPass: LoweringPass {
                         {
                             return 0
                         }
-                        // A member exposed through an external runtime bridge
-                        // can omit its Kotlin owner from the bridge ABI.
                         if let symbol = effectiveCallSymbol,
                            symbols?.externalLinkNameIfKnown(for: symbol) != nil,
                            arguments.count == signature.parameterTypes.count + signature.contextParameterTypes.count
@@ -881,9 +844,6 @@ final class ABILoweringPass: LoweringPass {
                         boxingCalleeTable: boxingCalleeTable,
                         callee: effectiveCallee,
                         interner: ctx.interner,
-                        // A recovered `$default` stub is a source-generated
-                        // Kotlin function, so its type-parameter slots carry
-                        // the same boxed values as any Kotlin-source callee.
                         boxTypeParamArguments: isKotlinSourceCallee(effectiveCallSymbol, symbols: symbols)
                             || recoveredStubSignature,
                         preservedBoxedArgumentIndices: preservedBoxedArgumentIndices,
@@ -988,8 +948,6 @@ final class ABILoweringPass: LoweringPass {
                     )
                 }
 
-                // See `channelElementSendCallees` above: the element argument
-                // of a channel send must meet readers in its Any-erased form.
                 if channelElementSendCallees.contains(effectiveCallee)
                     || channelElementSendCallees.contains(runtimeLink),
                    boxedArguments.count >= 2,
@@ -1011,9 +969,6 @@ final class ABILoweringPass: LoweringPass {
                     )
                 }
 
-                // Inline arithmetic calls (kk_op_add, etc.) have no
-                // FunctionSignature so the normal argument-boxing path above
-                // leaves them untouched.
                 if signature == nil, let types, let result,
                    inlineArithmeticCallees.contains(effectiveCallee)
                 {
@@ -1185,10 +1140,6 @@ final class ABILoweringPass: LoweringPass {
                                 boxedArguments[i] = boxedTemp
                                 continue
                             }
-                            // A value-class probe must carry the same tagged
-                            // box the elements were stored as, or
-                            // `A(1) in listOf(A(1))` misses on the nominal
-                            // tag check (KUU-3616).
                             guard let symbols,
                                   classType.nullability == .nonNull,
                                   symbols.symbol(classType.classSymbol)?.flags.contains(.valueType) == true,
@@ -1254,13 +1205,6 @@ final class ABILoweringPass: LoweringPass {
                         }
                     }
                 }
-                // The result is Boolean so the arithmetic path above cannot
-                // determine the operand's primitive type from the result; use
-                // each operand's own declared type instead.
-                // When one operand has no type info (e.g. the result of x+0 whose
-                // Sema type was not recorded), collect a hint from a sibling operand
-                // that does have type info and forward it so the unboxing can still
-                // emit the correct kk_unbox_* call.
                 if signature == nil, let types,
                    inlineComparisonCallees.contains(effectiveCallee)
                 {
@@ -1370,9 +1314,6 @@ final class ABILoweringPass: LoweringPass {
                     boxedReturnCallees: unboxSkipCallees
                 )
 
-                // Fallback: collection element accessors may return a boxed primitive.
-                // resolveUnboxForCall cannot handle these because they have no
-                // FunctionSignature entry. Unbox using the KIR result type as the target.
                 var effectiveUnbox: (InternedString, TypeID)? = resolvedUnbox
                 let needsErasedResultUnbox =
                     erasedValueAccessorCallees.contains(effectiveCallee)
@@ -1400,7 +1341,6 @@ final class ABILoweringPass: LoweringPass {
                     // unbox a flat aggregate as if it were a raw handle, causing a
                     // double conversion crash.
                     if case .stringStruct = resultKind {
-                        // Leave string unboxing to the backend bridge.
                     } else if let unboxCallee = unboxingCallee(
                         sourceKind: TypeKind.any(.nullable), targetKind: resultKind,
                         boxingCalleeTable: boxingCalleeTable, types: types, symbols: symbols,
@@ -1524,14 +1464,8 @@ final class ABILoweringPass: LoweringPass {
         }
         let rawValueKind = types.kind(of: valueType)
         let resolvedValueKind = resolveValueClassKind(rawValueKind, types: types, symbols: symbols)
-        // A nullable-underlying value class crossing the `V`/`V?`/reference
-        // boundary in either direction uses the nominal box helpers rather
-        // than a `kk_box_*`/`kk_unbox_*` callee (KUU-3115).
         if valueType != returnType, let symbols {
             let rawReturnKind = types.kind(of: returnType)
-            // Reference-backed value classes take the same wrapper when the
-            // declared return slot is a boxed target — `fun f(): Any = r`
-            // must not leak the payload handle as the Any value (KUU-3616).
             if let vcSymbol = nullableUnderlyingValueClassSymbol(
                 of: rawValueKind, types: types, symbols: symbols
             ) ?? referenceBackedValueClassSymbol(
@@ -1546,10 +1480,6 @@ final class ABILoweringPass: LoweringPass {
                 instructions.append(.returnValue(boxedResult))
                 return instructions
             }
-            // `Any`/type-parameter/`V?` slots may hold a reference-backed
-            // value-class box; an `R` return slot expects the payload, so
-            // unwrap the nominal box the same way copies do — the helper
-            // passes non-matching values through unchanged (KUU-3616).
             if let vcSymbol = nullableUnderlyingValueClassSymbol(
                 of: rawReturnKind, types: types, symbols: symbols
             ) ?? referenceBackedValueClassSymbol(
@@ -1565,8 +1495,6 @@ final class ABILoweringPass: LoweringPass {
                 return instructions
             }
         }
-        // A smart-cast name can still refer to its erased/nullable storage.
-        // Explicit returns have no copy instruction to normalize that boundary.
         if valueType != returnType,
            case .primitive(_, .nonNull) = functionReturnKind,
            let unboxCallee = unboxingCallee(
@@ -1678,9 +1606,6 @@ final class ABILoweringPass: LoweringPass {
             )
             return instructions
         }
-        // Reference-backed boxes unwrap the same way: an `Any`/`T` slot or a
-        // `V?` slot can carry the wrapper, and `kk_value_class_unbox` passes
-        // payloads and foreign boxes through unchanged (KUU-3616).
         if let symbols,
            let vcSymbol = referenceBackedValueClassSymbol(of: rawToKind, types: types, symbols: symbols)
                ?? nullableUnderlyingValueClassSymbol(of: rawToKind, types: types, symbols: symbols),
