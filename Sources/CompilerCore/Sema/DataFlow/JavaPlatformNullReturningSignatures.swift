@@ -1,16 +1,4 @@
 extension DataFlowSemaPhase {
-    /// Returns the flexible `T!` view of a bundled java.* member's declared
-    /// nullable return type when the member's JVM counterpart is an
-    /// unannotated Java declaration (KUU-3869).
-    ///
-    /// Kotlin/JVM resolves these call-site results as platform types, so
-    /// `list.pollFirst().member` compiles without `?.`/`!!`. The bundled
-    /// bodies keep their `T?` implementations — empty or absent results are
-    /// still a genuine null, and the platform contract routes non-null uses
-    /// through a runtime null assertion like the JVM intrinsic checks do.
-    ///
-    /// Restricted to compiler-owned API surfaces: Kotlin declarations a user
-    /// adds under java.* retain normal Kotlin nullable rules.
     func javaPlatformNullReturnType(
         _ returnType: TypeID,
         ownerFQName: [String]?,
@@ -29,10 +17,6 @@ extension DataFlowSemaPhase {
             else { return returnType }
             return types.withNullability(.platformType, for: returnType)
         case let .classType(classType):
-            // e.g. `MutableMap.MutableEntry<K, V>?` / `Comparator<in K>?` —
-            // Java leaves the reference and every type-variable use inside it
-            // unannotated, so the outer reference and its type-parameter
-            // arguments are all flexible.
             guard classType.nullability == .nullable else { return returnType }
             return types.make(.classType(ClassType(
                 classSymbol: classType.classSymbol,
@@ -48,9 +32,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Marks a type-variable argument of a platform-returned parameterized
-    /// type flexible (`K`/`V` -> `K!`/`V!`), matching Java's unannotated
-    /// signature. Non-type-parameter arguments keep Kotlin nullability.
     private func javaPlatformNullArgument(_ argument: TypeArg, types: TypeSystem) -> TypeArg {
         switch argument {
         case let .invariant(type):
@@ -69,11 +50,6 @@ extension DataFlowSemaPhase {
         return types.withNullability(.platformType, for: type)
     }
 
-    /// Bundled java.* owner -> member names whose declared nullable return is
-    /// an unannotated reference on the JVM. Entries span the Queue/Deque
-    /// poll/peek family (the KUU-3869 surface), the sorted navigable views,
-    /// the concurrent-map conditional-update returns, and the same-shaped
-    /// nullable utilities (`Properties`, `Objects.toString`, `Matcher.group`).
     private static let javaPlatformNullReturningMembers: [[String]: Set<String>] = [
         ["java", "util", "Queue"]: ["peek", "poll"],
         ["java", "util", "LinkedList"]: ["peek", "peekFirst", "peekLast", "poll", "pollFirst", "pollLast"],
