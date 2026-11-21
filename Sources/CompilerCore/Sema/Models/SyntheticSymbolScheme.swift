@@ -33,8 +33,6 @@ public enum SyntheticSymbolScheme {
     /// be encoded silently.
     private static let bandLimit: Int32 = 1_000_000
 
-    /// Largest original symbol the band can encode. Beyond it the derived
-    /// symbols would leave the band and alias another synthetic family.
     private static let firstBandCapacity: Int32 = (bandLimit - bandBase) / kindCount
     private static let overflowBandBase: Int32 = 800_000_000
     private static let overflowBandLimit: Int32 = 900_000_000
@@ -51,8 +49,6 @@ public enum SyntheticSymbolScheme {
     /// accessor's own ID, keeping `receiverParameterOwner` intact.
     private static let accessorReceiverBandBase: Int32 = 900_000_000
 
-    /// Largest magnitude a negative original may have before its derived
-    /// symbols would overflow `Int32`.
     static let maxMirrorOriginalMagnitude: Int32 = (Int32.max - mirrorBandBase) / kindCount - 1
 
     private enum Kind: Int32 {
@@ -67,9 +63,6 @@ public enum SyntheticSymbolScheme {
         case delegateLambdaParameter2 = 8
     }
 
-    /// Delegate callback lambdas take at most three parameters
-    /// (`property`, `oldValue`, `newValue`), so each position owns its own band
-    /// kind.
     private static let delegateLambdaParameterKinds: [Kind] = [
         .delegateLambdaParameter0, .delegateLambdaParameter1, .delegateLambdaParameter2
     ]
@@ -161,8 +154,6 @@ public enum SyntheticSymbolScheme {
         makeSymbol(kind: .receiver, original: functionSymbol)
     }
 
-    /// Recover only real synthetic receiver parameters, without allocating or
-    /// encoding a new symbol for an arbitrary declaration at a use site.
     static func receiverParameterOwner(for symbol: SymbolID) -> SymbolID? {
         guard let (kind, original) = decode(symbol), kind == .receiver else { return nil }
         return original
@@ -212,10 +203,6 @@ public enum SyntheticSymbolScheme {
         makeSymbol(kind: .getter, original: propertySymbol)
     }
 
-    /// Inverse of `propertyGetterAccessorSymbol(for:)`: recovers the property a
-    /// synthetic getter accessor was derived from, or nil when `symbol` is not
-    /// one. Lets callers walk the (few) emitted getters instead of scanning the
-    /// whole symbol table for properties.
     public static func propertyOwnerOfGetterAccessor(_ symbol: SymbolID) -> SymbolID? {
         guard let (kind, original) = decode(symbol), kind == .getter else { return nil }
         return original
@@ -237,8 +224,6 @@ public enum SyntheticSymbolScheme {
         }
     }
 
-    /// Preserves the historical heuristic used by ABI lowering to classify
-    /// synthetic accessor call symbols as non-throwing.
     static func isLikelySyntheticPropertyAccessor(_ symbol: SymbolID) -> Bool {
         switch decode(symbol)?.kind {
         case .getter, .setter:
@@ -252,10 +237,6 @@ public enum SyntheticSymbolScheme {
         decode(symbol)?.kind == .setter
     }
 
-    /// Synthetic kinds that legally appear as `.call` targets: property
-    /// accessors and `$default` stubs are emitted as module functions (or
-    /// resolved by codegen name matching) even though they are never
-    /// registered in the symbol table. Used by the KIR verifier.
     static func isSyntheticCallTarget(_ symbol: SymbolID) -> Bool {
         switch decode(symbol)?.kind {
         case .getter, .setter, .stub:
@@ -265,14 +246,10 @@ public enum SyntheticSymbolScheme {
         }
     }
 
-    /// Reverse of the property accessor constructors: recovers the original
-    /// property symbol from either a synthetic getter or setter accessor.
     static func originalPropertySymbolFromAccessor(_ accessor: SymbolID) -> SymbolID {
         decode(accessor)?.original ?? .invalid
     }
 
-    /// Reverse of `propertySetterAccessorSymbol(for:)`: recovers the original
-    /// property symbol from a synthetic setter accessor symbol.
     public static func originalPropertySymbolFromSetterAccessor(_ setterAccessor: SymbolID) -> SymbolID {
         originalPropertySymbolFromAccessor(setterAccessor)
     }
