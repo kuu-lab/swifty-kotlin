@@ -69,9 +69,6 @@ extension CallSupportLowerer {
             case 1:
                 return interner.intern("__kk_regex_create_flat")
             case 2:
-                // Two 2-arg overloads exist: Regex(String, RegexOption) and
-                // Regex(String, Set<RegexOption>). Disambiguate by inspecting
-                // the second argument's type.
                 let secondArgType = argumentTypes.count > 1 ? argumentTypes[1] : nil
                 if let secondType = secondArgType {
                     let kind = types.kind(of: secondType)
