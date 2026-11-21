@@ -1,8 +1,6 @@
 import Foundation
 
 enum ImportedLibraryLimits {
-    /// Keep imported callable shapes small enough that malformed metadata cannot
-    /// trigger disproportionate allocations or parser work.
     static let maxCallableArity = 1_024
 }
 
@@ -163,7 +161,6 @@ extension DataFlowSemaPhase {
         } else {
             []
         }
-        // P5-78: parse sealed subclass FQ names for cross-module exhaustiveness
         let sealedSubclassFQNames: [[InternedString]] = metadataRecord.sealedSubclassFQNames.compactMap { fqStr in
             let parsed = fqStr.split(separator: ".").map { interner.intern(String($0)) }
             return parsed.isEmpty ? nil : parsed
@@ -639,10 +636,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Preserve the source-backed shape of the synthetic enum companion
-    /// `valueOf(name)` parameter when its helper is reconstructed from a
-    /// precompiled artifact. The parameter is part of the Kotlin signature,
-    /// but is not itself an imported declaration.
     private func isImportedEnumCompanionValueOf(
         record: ImportedLibrarySymbolRecord,
         interner: StringInterner
@@ -657,10 +650,6 @@ extension DataFlowSemaPhase {
         return record.typeSignature?.hasSuffix(",L\(enumFQName);>") == true
     }
 
-    /// `collectTypeParameterSymbols` visits the receiver first, so a member of a
-    /// generic class starts with exactly the type parameters carried by its
-    /// owner's type arguments. Extension callables are excluded: their receiver
-    /// type arguments are the function's own type parameters.
     private func ownerNominalTypeParameterCount(
         of functionType: FunctionType,
         record: ImportedLibrarySymbolRecord,
@@ -690,8 +679,6 @@ extension DataFlowSemaPhase {
         return seen.count
     }
 
-    /// Metadata type parameters are encoded by their declaration index, while a
-    /// receiver can mention a later parameter first.
     private func collectTypeParameterSymbols(
         from functionType: FunctionType,
         types: TypeSystem
