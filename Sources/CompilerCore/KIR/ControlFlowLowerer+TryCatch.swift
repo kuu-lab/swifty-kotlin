@@ -276,7 +276,6 @@ extension ControlFlowLowerer {
             return
         }
 
-        // A successful call in finally must preserve any pending exception.
         let exceptionSlot = arena.appendTemporary(type: sema.types.nullableAnyType)
         let typeSlot = arena.appendTemporary(type: sema.types.intType)
         let nullValue = arena.appendExpr(.null, type: sema.types.nullableAnyType)
@@ -300,7 +299,6 @@ extension ControlFlowLowerer {
         instructions.append(.jump(endLabel))
         instructions.append(.endFinallyGuard)
 
-        // A throw from finally replaces the pending exception or control transfer.
         instructions.append(.label(rethrowLabel))
         if let outerHandler {
             instructions.append(.copy(from: exceptionSlot, to: outerHandler.exceptionSlot))
@@ -312,14 +310,6 @@ extension ControlFlowLowerer {
         instructions.append(.label(endLabel))
     }
 
-    /// This first performs a fast integer comparison against the encoded catch type token.
-    /// When the exact token comparison misses, it falls back to `kk_op_is`, because a
-    /// known thrown subtype token can still match a catch clause for one of its supertypes.
-    /// The runtime fallback also handles UNKNOWN (0) tokens from external/runtime calls.
-    ///
-    /// Shared boolean/int constants (`unknownTypeToken`, `trueValue`, `falseValue`) are
-    /// created once per try/catch block by the caller and passed in to avoid emitting
-    /// duplicate `constValue` instructions for each catch clause.
     private func emitExceptionTypeCheck(
         catchType: TypeID,
         exceptionSlot: KIRExprID,
@@ -334,7 +324,6 @@ extension ControlFlowLowerer {
         arena: KIRArena,
         instructions: inout [KIRInstruction]
     ) {
-        // Per-catch: only the encoded type token is unique to each clause.
         let encodedToken = RuntimeTypeCheckToken.encode(type: catchType, sema: sema, interner: interner)
         let tokenExpr = arena.appendExpr(.intLiteral(encodedToken), type: intType)
         let typeMatches = arena.appendTemporary(type: boolType)
@@ -353,8 +342,6 @@ extension ControlFlowLowerer {
         ))
         instructions.append(.jumpIfEqual(lhs: typeMatches, rhs: trueValue, target: exactMatchLabel))
 
-        // Keep the UNKNOWN comparison explicit for KIR diagnostics and to make
-        // external/runtime-call fallback visible in dumps.
         instructions.append(.binary(
             op: .equal,
             lhs: exceptionTypeSlot,
@@ -385,9 +372,6 @@ extension ControlFlowLowerer {
         instructions: inout [KIRInstruction]
     ) {
         let intType = sema.types.make(.primitive(.int, .nonNull))
-        // Track nested finally-guard depth so that instructions inside
-        // an already-wrapped finally region are passed through verbatim,
-        // preventing double-wrapping (CODE-001).
         var finallyGuardDepth = 0
         var finallyCleanupDepth = 0
         for instruction in loweredInstructions {
@@ -441,9 +425,6 @@ extension ControlFlowLowerer {
             }
             switch instruction {
             case let .nullAssert(operand, result):
-                // `OperatorLoweringPass` runs after this source-level control-flow
-                // lowering. Lower the assertion here as well so its thrown value
-                // is routed to the enclosing try/catch exception slot.
                 let resultType = arena.exprType(result)
                 if let operandType = arena.exprType(operand),
                    nullAssertProbeCannotBeNull(
@@ -505,11 +486,6 @@ extension ControlFlowLowerer {
                               sema.types.kind(of: operandType), targetClassSymbol: valueClass
                           )
                 {
-                    // `v!!` narrows a nullable-underlying / reference-backed
-                    // value class's `V?`/erased slot (a nominal box) to the raw
-                    // `V` payload — the same `V?` -> `V` boundary the
-                    // non-throwing path lowers in OperatorLoweringPass
-                    // (KUU-3115/KUU-4086).
                     emitValueClassUnboxCall(
                         value: notNullResult, classSymbol: valueClass, result: result,
                         types: sema.types, symbols: sema.symbols, interner: interner,
