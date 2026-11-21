@@ -60,7 +60,6 @@ extension CallLowerer {
         }
         let scope = arena.appendTemporary(type: receiverType)
         body.append(.call(callee: interner.intern("kk_coroutine_current_scope"), arguments: [], result: scope, canThrow: false))
-        // Literal launcher lambdas are receiver-first; stored values are capture-first.
         let receiverFirst = sourceArgExprs.contains { sema.bindings.isCoroutineLauncherLambdaExpr($0) }
         let callArguments = callable == nil
             ? captureRefs + [scope]
@@ -407,9 +406,6 @@ extension CallLowerer {
             hasStringSignature = concreteType.contextReceivers.contains(where: sema.types.isString)
                 || concreteType.params.contains(where: sema.types.isString)
                 || sema.types.isString(concreteType.returnType)
-            // The erased ABI applies to `Any`/`Any?` reference returns and to
-            // type-parameter returns (`(T) -> R` style `transform` params): in
-            // both cases the thunk must deliver a boxed value.
             switch sema.types.kind(of: functionType.returnType) {
             case .classType, .typeParam:
                 needsReturnBoxing = functionValueBoxedReturnType(
@@ -546,16 +542,6 @@ extension CallLowerer {
         return materialized
     }
 
-    /// Whether a function value already materialized into a
-    /// `kk_function_create_N` box for `boxFunctionType` can serve an
-    /// invocation site expecting `expectedFunctionType`'s erased ABI as-is
-    /// (KUU-4037). The box's adapter already normalizes erased arguments for
-    /// its own concrete signature, so an erased (`Any` / type-parameter)
-    /// expected slot needs no further bridging; a concrete expected slot must
-    /// be exactly the type the adapter casts to. The return is compatible
-    /// when the box already delivers a handle — reference kinds and `Unit`
-    /// qualify — or when no additional boxing would be required for a raw
-    /// value return.
     private func functionValueBoxSatisfiesExpectedABI(
         _ boxFunctionType: FunctionType,
         expectedFunctionType: FunctionType,
@@ -625,8 +611,6 @@ extension CallLowerer {
             || sema.importedInlineFunctions.functions[chosenCallee] != nil
             || sema.importedInlineFunctions.pendingBodySymbols.contains(chosenCallee)
 
-        // Synthetic launchers consume a suspend entry reference plus captures,
-        // not the boxed function-value ABI used by ordinary Kotlin functions.
         if let symbol,
            sema.symbols.isSyntheticStubSymbol(chosenCallee),
            symbol.fqName.starts(with: ["kotlinx", "coroutines"].map(interner.intern)),
@@ -692,31 +676,14 @@ extension CallLowerer {
             else {
                 continue
             }
-            // KIR's callable environment also includes captures propagated
-            // through nested lambdas and references to local functions.
-            // Check the job before boxing hides that environment; producer
-            // deliberately remains free to capture caller state.
             if parameterIndex == 2,
                sema.bindings.workerExecuteCallees.contains(chosenCallee),
                let callable = driver.ctx.callableValueInfo(for: arguments[finalArgIndex]),
                ({
-                   // A materialized (fnPtr, closureRaw) function value stores
-                   // the ABI closure slot in `captureArguments`, not the
-                   // callable's semantic environment: a non-capturing job
-                   // lambda boxed for an erased ABI boundary (for example a
-                   // primitive-parameter lambda) still carries one slot for
-                   // its empty closure object. `unboxedSymbol` links the
-                   // materialized value back to the underlying callable,
-                   // whose definition-site capture list is the real
-                   // environment; callable-reference thunks never populate
-                   // that table, and the Sema-level check on the job
-                   // expression already rejects any receiver they capture.
                    callable.unboxedSymbol
                        .map { arena.lambdaCaptureArgsBySymbol[$0] ?? [] }
                        ?? callable.captureArguments
                })().contains(where: { capture in
-                   // A static local function entry is code, not captured state.
-                   // Capturing callees also contribute their environment here.
                    guard let dependency = driver.ctx.callableValueInfo(for: capture),
                          dependency.captureArguments.isEmpty,
                          sema.symbols.symbol(dependency.symbol)?.flags.contains(.localFunction) == true
@@ -732,9 +699,6 @@ extension CallLowerer {
             let isCallableReference = sema.bindings.callableRefKind(
                 for: sourceArgExprs[sourceArgExprIndex]
             ) != nil
-            // Older imported inline signatures may omit the per-parameter
-            // permission mask. When an inline body is available, treat those
-            // unmarked parameters as inline while preserving tagged references.
             let allowsRawInlineArgument = signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex)
                 ? signature.valueParameterAllowsNonLocalReturn[parameterIndex]
                 : !isImported || hasImportedInlineBody
@@ -765,24 +729,6 @@ extension CallLowerer {
                 }
                 functionType = nominalFunctionType
             case .typeParam:
-                // The callee's own declaration erases this parameter to a bare
-                // type parameter (e.g. Pair<A, B>'s `first: A`), so a function
-                // value flowing through it is only visible from the argument's
-                // own inferred type, not the signature. It still crosses the
-                // same erased boundary and needs the same wrapping, built from
-                // a fully-erased mirror of its concrete signature so a
-                // primitive parameter still gets unboxed inside the adapter
-                // (see makeCollectionHOFCallableAdapter's erasedFunctionType).
-                //
-                // Prefer the Sema-recorded type of the original source
-                // argument over the lowered KIR expr's arena type: a
-                // non-capturing lambda stored in a `val` and read back here
-                // is constant-folded to a bare `symbolRef` to the lambda's
-                // own function symbol, and that expr's arena type reflects
-                // the lambda body's own inferred type (e.g. the `String`
-                // its last statement produces), not the closure's function
-                // type as a value -- only the Sema binding on the original
-                // argument expression reliably carries that.
                 let functionTypeCandidates = [
                     sema.bindings.exprTypes[sourceArgExprs[sourceArgExprIndex]],
                     arena.exprType(arguments[finalArgIndex]),
@@ -804,13 +750,6 @@ extension CallLowerer {
                     isSuspend: concreteFunctionType.isSuspend,
                     isCallableReference: concreteFunctionType.isCallableReference
                 )
-                // KUU-4037: the erased mirror above is a conservative proxy for
-                // "some erased consumer". A generic container slot (e.g.
-                // `MutableMap<K, V>.set`'s `key: K`) is actually read back and
-                // invoked as the SUBSTITUTED parameter type, so when this
-                // call's binding resolves `parameterType` to a concrete
-                // function signature, use that as the ABI reference for the
-                // already-boxed pass-through check.
                 identityCheckFunctionType = resolvedDeclaredParameterFunctionType(
                     parameterType: parameterType,
                     signature: signature,
@@ -862,13 +801,6 @@ extension CallLowerer {
         }
     }
 
-    /// KUU-4037: resolves the concrete function signature a type-parameter
-    /// slot carries at this call site. Function type parameters substitute
-    /// through the call binding's `substitutedTypeArguments`; owner-class
-    /// type parameters (e.g. `MutableMap<K, V>.set`'s `K`) lift from the
-    /// receiver value's concrete class type through
-    /// `liftedNominalSupertypeArgs`. Returns `nil` when nothing resolves,
-    /// letting callers fall back to the fully-erased expected signature.
     private func resolvedDeclaredParameterFunctionType(
         parameterType: TypeID,
         signature: FunctionSignature,
@@ -1091,11 +1023,6 @@ extension CallLowerer {
         return (fnPtr, functionValue)
     }
 
-    /// Not private: also called from CallLowerer.swift's three generateSequence
-    /// early-return special cases, none of which go through
-    /// appendClosureArgumentsIfNeeded (each constructs its `.call` directly —
-    /// see those call sites for why), so this is the one place that centralizes
-    /// the (fnPtr, closureRaw) expansion + boxing for all of them.
     func expandGenerateSequenceNextFunction(
         loweredArgID: KIRExprID,
         argExprID: ExprID,
@@ -1106,14 +1033,8 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> (fnPtr: KIRExprID, closureRaw: KIRExprID) {
         var fnPtr = loweredArgID
-        // Runtime sequence bridges consume the same `(closureRaw, value,
-        // outThrown)` ABI as collection HOFs. The source-backed wrapper is
-        // generic and does not need a name-specific semantic marker, so recover
-        // callable metadata directly from the materialized function value.
         var callableInfo = driver.ctx.callableValueInfo(for: loweredArgID)
         if callableInfo == nil {
-            // Forwarded function values can be raw noncapturing functions or
-            // boxed closures. Let the erased invoke ABI dispatch either shape.
             return makeForwardedFunctionCallback(
                 functionValue: loweredArgID, valueParameterCount: valueParameterCount,
                 sema: sema, arena: arena, interner: interner, instructions: &instructions
@@ -1159,12 +1080,6 @@ extension CallLowerer {
             fnPtr = adapterExpr
             callableInfo = adapterInfo
         }
-        // Route through the shared helper instead of reading
-        // captureArguments.first directly — a nextFunction closure with 2+
-        // captures needs them packed into a boxed closure object here (see
-        // makeClosureRawOrBoxedArgument's doc comment), otherwise the closure
-        // body's kk_array_get_inbounds unpacking misreads a single raw capture
-        // value as that object.
         let closureRaw = makeClosureRawOrBoxedArgument(
             callableInfo: callableInfo,
             sema: sema,
@@ -1326,9 +1241,6 @@ extension CallLowerer {
             return [expanded.fnPtr, expanded.closureRaw]
         }
 
-        // Capturing builder lambdas need the same closure-aware adapter shape
-        // as collection HOFs so the runtime can call
-        // (closureRaw, builderRaw, outThrown).
         if externalLinkName == "__kk_sequence_builder_build"
             || externalLinkName == "__kk_iterator_builder_build",
            loweredArguments.count == 1
@@ -1430,8 +1342,6 @@ extension CallLowerer {
             return finalArgs
         }
 
-        // Keep the old three-callback storage entry for old source bridges.
-        // New range output adds lazy description; input has five callbacks.
         let ioCallbacks: (count: Int, rangeIndex: Int)?
         switch externalLinkName {
         case "__kk_kotlin_sink_output_stream": ioCallbacks = (3, 0)
@@ -1456,12 +1366,9 @@ extension CallLowerer {
             return result
         }
 
-        // Function0 runtime entry points receive lambda arguments as
-        // (fnPtr, closureRaw).
         let function0RuntimeNames: Set<String> = [
             "__kk_auto_closeable_create",
             "__kk_closeable_create",
-            // Atomicfu TLS factory uses (closureRaw, outThrown), including raw Function0 literals.
             "__kk_atomicfu_current_parking_handle",
             "kk_runtime_result_run_catching",
         ]
@@ -1477,8 +1384,6 @@ extension CallLowerer {
             )
         }
 
-        // __kkSynchronized(lock, block) — expand the block argument to
-        // (lock, fnPtr, closureRaw) while preserving the runtime outThrown slot.
         if externalLinkName == "__kk_synchronized", loweredArguments.count == 2 {
             return makeClosureThunkExpandedArguments(
                 prefixArguments: [loweredArguments[0]],
@@ -1491,8 +1396,6 @@ extension CallLowerer {
             )
         }
 
-        // DeepRecursiveFunction keeps the original suspend lambda so coroutine
-        // rewrite can find loweredBySymbol. Captures travel as closureRaw.
         if externalLinkName == "__kk_deep_recursive_function_new",
            let loweredArgID = loweredArguments.last
         {
@@ -1624,7 +1527,6 @@ extension CallLowerer {
             body.append(.label(continueLabel))
         }
 
-        // Result stores an erased payload; ABI lowering boxes concrete return values.
         let adapterReturnType = returnsErasedValue ? sema.types.anyType : functionType.returnType
         switch sema.types.kind(of: adapterReturnType) {
         case .unit, .nothing(.nonNull):
