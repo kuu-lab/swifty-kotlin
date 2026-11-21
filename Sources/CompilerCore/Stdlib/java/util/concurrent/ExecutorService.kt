@@ -11,9 +11,6 @@ public interface ExecutorService : Executor {
     public val isShutdown: Boolean
     public val isTerminated: Boolean
 
-    // KUU-3059: the remaining ExecutorService surface. awaitTermination is
-    // blocking; submit/invokeAll/invokeAny are implemented by the bundled
-    // Executors pools.
     public fun awaitTermination(timeout: Long, unit: TimeUnit): Boolean
     public fun <T> submit(task: Callable<T>): Future<T>
     public fun <T> submit(task: Runnable, result: T): Future<T>
