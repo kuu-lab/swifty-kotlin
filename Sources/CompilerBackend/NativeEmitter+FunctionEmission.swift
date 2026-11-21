@@ -4,10 +4,6 @@ import CompilerCore
 
 extension NativeEmitter {
 
-    /// Emits the body of one KIR function. The shared per-function emission
-    /// state lives in `FunctionEmissionContext`; `emitBody` is the
-    /// prologue-plus-dispatch driver and the extracted helpers live in the
-    /// `NativeEmitter+*Emission*` sibling files.
     func emitFunctionBody(
         function: KIRFunction,
         llvmFunction: NativeEmitter.LLVMFunction,
@@ -151,9 +147,6 @@ extension NativeEmitter.FunctionEmissionContext {
             bindings.disposeBuilder(builder)
         }
 
-        // When debug info is active and the function has a subprogram,
-        // set the function-level debug location so the LLVM verifier accepts
-        // all instructions emitted under this builder.
         if let diContext,
            let subprogram = diContext.subprograms[function.symbol],
            bindings.debugLocationAvailable
@@ -208,8 +201,6 @@ extension NativeEmitter.FunctionEmissionContext {
             parameterValues[parameter.symbol] = value
         }
 
-        // Position builder at the entry block before emitting parameter debug
-        // info (alloca/store require a valid insert point).
         bindings.positionBuilder(builder, at: entryBlock)
 
         if let diContext,
@@ -245,7 +236,6 @@ extension NativeEmitter.FunctionEmissionContext {
                 ) else {
                     continue
                 }
-                // Create an alloca for the parameter so dbg.declare can reference it.
                 let parameterType = usesRuntimeCallbackRawABI
                     ? int64Type
                     : loweredLLVMType(
@@ -433,8 +423,6 @@ extension NativeEmitter.FunctionEmissionContext {
             {
                 var instrLine: UInt32 = 0
                 var instrCol: UInt32 = 0
-                // Only use per-instruction locations
-                // when the parallel array is in sync with body (same count).
                 if function.instructionLocations.count == function.body.count,
                    instructionIndex < function.instructionLocations.count,
                    let instrRange = function.instructionLocations[instructionIndex],
@@ -518,8 +506,6 @@ extension NativeEmitter.FunctionEmissionContext {
                 }
 
             case let .constValue(result, value):
-                // Constants can emit runtime calls (for example, String
-                // literals), so they must respect block termination too.
                 guard !bindings.hasTerminator(currentBlock) else {
                     continue
                 }
@@ -563,9 +549,6 @@ extension NativeEmitter.FunctionEmissionContext {
                         type: int64DIType
                     ) {
                         let emptyExpr = bindings.diBuilderCreateExpression(diContext.diBuilder)
-                        // Use the copy-target alloca if one exists (the copy instruction
-                        // will store the real value there), otherwise fall back to a
-                        // dedicated debug alloca with the current (possibly zero) value.
                         let debugStorageType = loweredLLVMType(
                             for: module.arena.exprType(result),
                             lowering: typeLowering,
@@ -846,8 +829,6 @@ extension NativeEmitter.FunctionEmissionContext {
                 var copySource = resolveValue(from)
                 let fromType = module.arena.exprType(from)
                 let toType = module.arena.exprType(to)
-                // If the copy target is a global symbolRef, store to the
-                // LLVM global variable so the write persists across reads.
                 if let targetExpr = module.arena.expr(to),
                    case let .symbolRef(targetSymbol) = targetExpr,
                    let globalPtr = globalVariables[targetSymbol]
@@ -1008,10 +989,6 @@ extension NativeEmitter.FunctionEmissionContext {
                 continue
 
             case let .nonLocalReturn(value, _):
-                // Non-local returns should have been lowered by InlineLoweringPass.
-                // If one reaches codegen, it indicates a lowering bug. Emit a
-                // trap in debug builds; in release builds fall back to a return
-                // to avoid crashing the compiler, but the output is incorrect.
                 assertionFailure("nonLocalReturn reached codegen -- InlineLoweringPass should have converted it")
                 guard !bindings.hasTerminator(currentBlock) else {
                     continue
