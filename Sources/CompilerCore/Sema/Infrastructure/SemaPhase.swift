@@ -42,8 +42,6 @@ public final class SemaPhase: CompilerPhase {
     }
 }
 
-/// Holds the non-`Sendable` pass list so the large-stack thread can run them
-/// without capturing non-`Sendable` values through escaping closures.
 private final class SemaPhaseWork: @unchecked Sendable {
     let passes: [CompilerPhase]
     let ctx: CompilationContext
