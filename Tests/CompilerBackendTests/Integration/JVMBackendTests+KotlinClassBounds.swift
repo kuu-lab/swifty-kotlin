@@ -161,5 +161,81 @@ extension JVMBackendTests {
             #expect(innerInvalid.2.contains { $0.severity == .error && $0.code == "KSWIFTK-SEMA-BOUND" })
         }
     }
+
+    @Test
+    func kotlinClasspathBoundsValidateInnerOuterAndKeywordShapes() throws {
+        try withWorkspace { root in
+            try """
+            package dep
+
+            class Marker<T>
+            class Outer<A> {
+                inner class Box<T : Marker<A>>
+                fun use(box: Box<Marker<A>>?) {}
+            }
+            class BoundedOuter<A : Number> {
+                inner class Item
+            }
+            class `when`
+            open class KeywordParent<T>
+            open class KeywordChild : KeywordParent<`when`>()
+            """.write(to: root.appendingPathComponent("ReviewBounds.kt"), atomically: true, encoding: .utf8)
+            let library = root.appendingPathComponent("review-bounds.jar")
+            let compiled = try jvmTool("kotlinc", ["ReviewBounds.kt", "-d", library.path], root: root)
+            try #require(compiled.exitCode == 0, "\(compiled.stderr)")
+
+            let innerScope = try m22Build(
+                root: root,
+                sources: [("InnerScopeConsumer.kt", """
+                import dep.Outer
+
+                fun callUse(outer: Outer<String>) { outer.use(null) }
+                """)],
+                name: "inner-scope.jar",
+                classpath: [library.path]
+            )
+            try #require(innerScope.1 == 0, "\(innerScope.2.map(\.message))")
+
+            let boundedValid = try m22Build(
+                root: root,
+                sources: [("BoundedOuterValid.kt", """
+                import dep.BoundedOuter
+
+                fun ok(item: BoundedOuter<Int>.Item?) {}
+                """)],
+                name: "bounded-outer-valid.jar",
+                classpath: [library.path]
+            )
+            try #require(boundedValid.1 == 0, "\(boundedValid.2.map(\.message))")
+
+            let boundedInvalid = try m22Build(
+                root: root,
+                sources: [("BoundedOuterInvalid.kt", """
+                import dep.BoundedOuter
+
+                fun ok(item: BoundedOuter<Int>.Item?) {}
+                fun bad(item: BoundedOuter<String>.Item?) {}
+                """)],
+                name: "bounded-outer-invalid.jar",
+                classpath: [library.path]
+            )
+            #expect(boundedInvalid.1 != 0)
+            #expect(boundedInvalid.2.contains { $0.severity == .error && $0.code == "KSWIFTK-SEMA-BOUND" })
+
+            let keyword = try m22Build(
+                root: root,
+                sources: [("KeywordConsumer.kt", """
+                import dep.KeywordChild
+
+                open class Mine : KeywordChild()
+
+                fun use(value: Mine) {}
+                """)],
+                name: "keyword.jar",
+                classpath: [library.path]
+            )
+            try #require(keyword.1 == 0, "\(keyword.2.map(\.message))")
+        }
+    }
 }
 #endif
