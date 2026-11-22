@@ -1,13 +1,11 @@
 package platform.Foundation
 
-/** Typed facade over an ARC-owned Foundation object; contains no SDK emulation. */
 public open class NSObject internal constructor(internal val __handle: Long) {
     public constructor() : this(__foundation_object_create())
     init { __foundation_attach(this, __handle) }
     override fun equals(other: Any?): Boolean = other is NSObject &&
         __foundation_object_equals(__handle, other.__handle)
     override fun hashCode(): Int = __foundation_object_hash(__handle)
-    /** -description: the Foundation object's own description. */
     public open val description: String
         get() = __foundation_object_description(__handle)
     override fun toString(): String = description
