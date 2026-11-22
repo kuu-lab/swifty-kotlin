@@ -151,7 +151,6 @@ extension JVMFunctionBuilder {
         guard activeRegions.isEmpty else { throw fail("JVM @Composable calls are unsupported inside a try expression.", id) }
         let needsGroup = !program.sema.readonlyComposableFunctions.contains(symbol)
         if needsGroup {
-            // Distinguish branches calling the same composable at different sites.
             try beginComposeGroup(composer, key: composeCallKey(at: id))
         }
         let changed = try constant(.int(0), .int)
@@ -165,8 +164,6 @@ extension JVMFunctionBuilder {
         guard let composer = activeComposer, let symbol = functionSymbol,
               !program.sema.readonlyComposableFunctions.contains(symbol) else { return }
         let end = JVMForeignMethod(owner: JVMCompose.composer, name: JVMCompose.end, descriptor: "()V", parameters: [], result: .unit, isStatic: false, isInterface: true, isAbstract: true)
-        // Every ordinary exit must close the replaceable group. Exceptions
-        // unwind through the enclosing Compose composition's abort path.
         instructions = instructions.flatMap { instruction in
             guard case .returnValue = instruction else { return [instruction] }
             return [.foreignCall(end, receiver: composer, arguments: [], result: nil), instruction]
