@@ -44,10 +44,6 @@ public fun <T> MutableSharedFlow<T>.asSharedFlow(): SharedFlow<T> = ReadonlyShar
 
 public fun <T> MutableStateFlow<T>.asStateFlow(): StateFlow<T> = ReadonlyStateFlow(this)
 
-// flowOn, cancellable, and rendezvous buffer are identity operators for
-// SharedFlow. KSwiftK also preserves identity for configurable buffers and
-// conflate because it does not yet model their downstream channel semantics;
-// that compatibility limit is pinned by the snapshot API regression case.
 public fun <T> SharedFlow<T>.buffer(
     capacity: Int = -2,
     onBufferOverflow: BufferOverflow = BufferOverflow.SUSPEND
@@ -65,7 +61,6 @@ public fun <T> SharedFlow<T>.cancellable(): SharedFlow<T> = this
 
 public fun <T> SharedFlow<T>.conflate(): SharedFlow<T> = this
 
-// StateFlow collection already suppresses equal consecutive values.
 public fun <T> StateFlow<T>.distinctUntilChanged(): StateFlow<T> = this
 
 public fun <T> Flow<T>.shareIn(
@@ -92,7 +87,6 @@ public fun <T> Flow<T>.stateIn(
     return SharingStateFlow<T>(state, sharing.controller)
 }
 
-// A scope-owned controller applies the reactive sharing command stream.
 private class SnapshotSharing<T>(
     source: Flow<T>,
     scope: CoroutineScope,
