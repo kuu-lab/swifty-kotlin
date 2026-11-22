@@ -1,14 +1,12 @@
 import Foundation
 import CompilerCore
 
-/// JVM classfile output with verifier frames for the typed JVM CFG.
 enum JVMClassFile {
     static func emit(_ program: JVMProgram, target: JVMTarget = .java8, javaParameters: Bool = false, classIndex: ClassIndex) throws -> Data {
         let pool = JVMConstantPool()
         guard program.functions.count < 65_535 else { throw JVMEmissionError.limit("JVM class exceeds the method-count limit.") }
         var methods = try program.functions.map { try emitMethod($0, owner: program.internalClassName, javaParameters: javaParameters, pool: pool) }
         let launcherDescriptor = JVMProgram.launcherDescriptor
-        // A declared main(String[]) already occupies the launcher signature.
         let hasArrayMain = program.functions.contains {
             $0.reference.name == "main" && $0.reference.descriptor == launcherDescriptor
         }
