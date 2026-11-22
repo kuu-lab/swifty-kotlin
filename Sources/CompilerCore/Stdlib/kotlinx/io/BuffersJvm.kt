@@ -27,31 +27,12 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 
-/**
- * Reads and exhausts bytes from [input] into this buffer. Stops reading data on [input] exhaustion.
- *
- * @param input the stream to read data from.
- *
- * @sample kotlinx.io.samples.KotlinxIoSamplesJvm.bufferTransferToStream
- */
 @IgnorableReturnValue
 public fun Buffer.transferFrom(input: InputStream): Buffer {
     write(input, Long.MAX_VALUE, true)
     return this
 }
 
-/**
- * Reads [byteCount] bytes from [input] into this buffer. Throws an exception when [input] is
- * exhausted before reading [byteCount] bytes.
- *
- * @param input the stream to read data from.
- * @param byteCount the number of bytes read from [input].
- *
- * @throws IOException when [input] exhausted before reading [byteCount] bytes from it.
- * @throws IllegalArgumentException when [byteCount] is negative.
- *
- * @sample kotlinx.io.samples.KotlinxIoSamplesJvm.writeInputStreamToBuffer
- */
 @IgnorableReturnValue
 public fun Buffer.write(input: InputStream, byteCount: Long): Buffer {
     checkByteCount(byteCount)
@@ -81,16 +62,6 @@ private fun Buffer.write(input: InputStream, byteCount: Long, forever: Boolean) 
     }
 }
 
-/**
- * Consumes [byteCount] bytes from this buffer and writes it to [out].
- *
- * @param out the [OutputStream] to write to.
- * @param byteCount the number of bytes to be written, [Buffer.size] by default.
- *
- * @throws IllegalArgumentException when [byteCount] is negative or exceeds the buffer size.
- *
- * @sample kotlinx.io.samples.KotlinxIoSamplesJvm.bufferTransferToStream
- */
 @OptIn(UnsafeIoApi::class)
 public fun Buffer.readTo(out: OutputStream, byteCount: Long = size) {
     checkOffsetAndCount(size, 0, byteCount)
@@ -105,19 +76,6 @@ public fun Buffer.readTo(out: OutputStream, byteCount: Long = size) {
     }
 }
 
-/**
- * Copies bytes from this buffer's subrange, starting at [startIndex] and ending at [endIndex], to [out]. This method
- * does not consume data from the buffer.
- *
- * @param out the destination to copy data into.
- * @param startIndex the index (inclusive) of the first byte to copy, `0` by default.
- * @param endIndex the index (exclusive) of the last byte to copy, `buffer.size` by default.
- *
- * @throws IndexOutOfBoundsException when [startIndex] or [endIndex] is out of this buffer bounds (`[0..buffer.size)`).
- * @throws IllegalArgumentException when `startIndex > endIndex`.
- *
- * @sample kotlinx.io.samples.KotlinxIoSamplesJvm.copyBufferToOutputStream
- */
 @OptIn(UnsafeIoApi::class)
 public fun Buffer.copyTo(
     out: OutputStream,
