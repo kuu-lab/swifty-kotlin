@@ -54,10 +54,6 @@ private final class RuntimeObjectCache: @unchecked Sendable {
     }
 }
 
-// The runtime source fingerprint re-reads every Runtime/RuntimeABI source,
-// so a key is resolved once per (configuration, target, packageRoot) and
-// reused by every later caller — the prefetch path warms the key the
-// linker discovery would otherwise recompute per compile.
 private final class RuntimeBuildCacheKeyMemo: @unchecked Sendable {
     private let lock = NSLock()
     private var keys: [String: String] = [:]
@@ -112,8 +108,6 @@ extension CodegenRuntimeSupport {
         try runtimeLinkInputs(target: target, configuration: configuration).objects
     }
 
-    /// Resolve and verify the package once, then carry its fingerprint and layout
-    /// through discovery/build instead of re-enumerating sources for each path.
     static func runtimeLinkInputs(
         target: TargetTriple,
         configuration: RuntimeBuildConfiguration = .release
@@ -155,8 +149,6 @@ extension CodegenRuntimeSupport {
                 return fallback
             }
         }
-        // Link plans embed per-checkout toolchain state, so they stay beside
-        // the package rather than in the shared object cache.
         return (objects, runtimeLinkerCacheDirectory(packageRoot: packageRoot), cacheKey)
     }
 
@@ -200,7 +192,6 @@ extension CodegenRuntimeSupport {
     // machines that are slower or more heavily loaded still.
     private static let defaultRuntimeBuildTimeoutSeconds: TimeInterval = 600
 
-    // Exposed for testing, like discoverRuntimeObjectPaths below.
     static func runtimeBuildTimeoutSeconds(
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> TimeInterval {
@@ -226,7 +217,6 @@ extension CodegenRuntimeSupport {
         }
     }
 
-    // Exposed for testing, like discoverRuntimeObjectPaths below.
     static func writeRuntimeObjectsManifest(_ paths: [String], to manifestURL: URL) throws {
         try FileManager.default.createDirectory(
             at: manifestURL.deletingLastPathComponent(),
@@ -236,9 +226,6 @@ extension CodegenRuntimeSupport {
             .write(to: manifestURL, atomically: true, encoding: .utf8)
     }
 
-    // Returns the manifest's object paths only while every one of them still
-    // exists; anything else (no manifest, empty manifest, missing object)
-    // reports a cache miss so the runtime build re-runs.
     static func manifestValidatedRuntimeObjectPaths(manifestURL: URL) -> [String] {
         guard let contents = try? String(contentsOf: manifestURL, encoding: .utf8) else {
             return []
@@ -254,8 +241,6 @@ extension CodegenRuntimeSupport {
         return paths
     }
 
-    // Exposed for testing so the discovery/fallback logic can be exercised
-    // against synthesized on-disk layouts without running a real build.
     static func discoverRuntimeObjectPaths(
         inScratchBuildDirectory buildDirectory: URL,
         scratchRootDirectory rootDirectory: URL
@@ -359,10 +344,6 @@ extension CodegenRuntimeSupport {
             .sorted()
     }
 
-    // Only called once a directory is already confirmed to be a Runtime
-    // build-products directory (see `runtimeBuildProductsDirectoryNames`),
-    // so widening the walk to the whole subtree can't pull in objects
-    // belonging to unrelated targets.
     private static func collectObjectPathsRecursively(in directory: URL) -> [String] {
         guard let enumerator = FileManager.default.enumerator(
             at: directory,
@@ -469,12 +450,6 @@ extension CodegenRuntimeSupport {
         runtimeSharedScratchRoot()
     }
 
-    /// Runtime objects are keyed by a content hash of the Runtime sources (see
-    /// `runtimeSourceFingerprint`), not by checkout location, so one cache
-    /// directory is shared by every worktree: a fresh worktree whose Runtime
-    /// sources are unchanged reuses the objects instead of paying a full
-    /// from-scratch `swift build`. `KSWIFTK_RUNTIME_CACHE_DIR` overrides it.
-    /// Exposed for testing and for `incrementalEnvironmentFingerprint`.
     static func runtimeSharedScratchRoot(
         environment: [String: String] = ProcessInfo.processInfo.environment,
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
@@ -529,8 +504,6 @@ extension CodegenRuntimeSupport {
     static func runtimePackageRootURL(
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) throws -> URL {
-        // Resolution walks ancestors checking Package.swift verification;
-        // KSWIFTK_PACKAGE_ROOT is the only input that changes the outcome.
         let memoKey = "root\u{0}\(environment["KSWIFTK_PACKAGE_ROOT"] ?? "")"
         if let cachedPath = runtimeBuildCacheKeyMemo.value(for: memoKey) {
             return URL(fileURLWithPath: cachedPath, isDirectory: true)
@@ -543,9 +516,6 @@ extension CodegenRuntimeSupport {
     private static func resolveRuntimePackageRootURL(
         environment: [String: String]
     ) throws -> URL {
-        // KSWIFTK_PACKAGE_ROOT is an explicit development override, so a value
-        // that resolves to nothing or fails verification is rejected loudly
-        // rather than silently falling through to an implicit root.
         if let overridePath = environment["KSWIFTK_PACKAGE_ROOT"], !overridePath.isEmpty {
             let overrideURL = URL(fileURLWithPath: overridePath, isDirectory: true)
             guard let candidate = firstAncestorContainingPackage(startingAt: overrideURL) else {
@@ -600,8 +570,6 @@ extension CodegenRuntimeSupport {
         return starts
     }
 
-    // <repo>/Sources/CompilerBackend/<this file>, so three components up is
-    // the checkout the compiler itself was built from. Exposed for testing.
     static let runtimeSourceCheckoutRootURL = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()
         .deletingLastPathComponent()
@@ -661,9 +629,6 @@ extension CodegenRuntimeSupport {
             if let reason = untrustedPathRejection(directoryURL.path, fileManager: fileManager) {
                 return reason
             }
-            // A writable directory is enough to flag the tree, but a stray
-            // writable file inside a locked-down directory is just as
-            // replaceable-by-edit, so verify every entry as well.
             guard let enumerator = fileManager.enumerator(
                 at: directoryURL,
                 includingPropertiesForKeys: nil,
@@ -680,9 +645,6 @@ extension CodegenRuntimeSupport {
         return nil
     }
 
-    // Rejects a path whose attributes cannot be read (fail closed), whose
-    // owner is neither the current user nor root, or that other users can
-    // write to.
     private static func untrustedPathRejection(_ path: String, fileManager: FileManager) -> String? {
         let resolvedPath = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
         guard let attributes = try? fileManager.attributesOfItem(atPath: resolvedPath) else {
@@ -767,9 +729,6 @@ extension CodegenRuntimeSupport {
         return listing
     }
 
-    // Hashes file contents under package-relative paths so the key is identical
-    // across worktrees holding the same Runtime sources. RuntimeABI is part of
-    // the linked object set, so it participates in the key too.
     private static func runtimeSourceFingerprint(packageRoot: URL) throws -> String {
         try runtimeSourceFingerprint(
             packageRoot: packageRoot,
@@ -777,13 +736,7 @@ extension CodegenRuntimeSupport {
         )
     }
 
-    /// `scratchRoot` is a parameter so tests exercise the persisted-fingerprint
-    /// behavior against synthetic roots instead of the user's real cache.
     package static func runtimeSourceFingerprint(packageRoot: URL, scratchRoot: URL) throws -> String {
-        // The content hash is reused across processes through the shared
-        // scratch root: a stat-only signature of the same file set guards it,
-        // so an unchanged tree skips reading every Runtime source on every
-        // compile while any real edit still recomputes the fingerprint.
         let signature = runtimeSourcesSignature(packageRoot: packageRoot)
         if let persisted = persistedRuntimeFingerprints(scratchRoot: scratchRoot)[signature] {
             return persisted
@@ -815,9 +768,6 @@ extension CodegenRuntimeSupport {
         return fingerprint
     }
 
-    /// A stat(2)-only identity of the runtime source file set — relative path,
-    /// size, mtime and inode per file. Any edit, checkout or rewrite changes
-    /// it; identical untouched trees share it.
     private static func runtimeSourcesSignature(packageRoot: URL) -> String {
         var hasher = StableFNV1a64.Hasher()
         for (module, modulePrefix, files) in runtimeSourceListing(packageRoot: packageRoot) {
@@ -849,10 +799,6 @@ extension CodegenRuntimeSupport {
         #endif
     }
 
-    /// Source signatures seen so far -> computed content fingerprints, kept in
-    /// the shared scratch root so every kswiftc process reuses them. Entries
-    /// are advisory only: a lost or forged one at worst reuses or recomputes
-    /// one content hash, and the map is reset past a bound so it never grows.
     private static let persistedRuntimeFingerprintName = "source-fingerprints.json"
     private static let maxPersistedRuntimeFingerprints = 16
 
