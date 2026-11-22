@@ -20,8 +20,6 @@ extension JVMFunctionBuilder {
     private func isDirectInlineArrayInitializer(_ id: ExprID) -> Bool {
         guard case let .nameRef(name, _) = arena.expr(id) else { return false }
         if inlineArgument(name) != nil { return true }
-        // Producer bodies have ordinary locals rather than expanded lambdas.
-        // Compare semantic symbols so a local with the same name remains legal.
         guard declaration.isInline,
               let symbol = program.sema.bindings.identifierSymbol(for: id),
               let index = semanticSignature?.valueParameterSymbols.firstIndex(of: symbol),
