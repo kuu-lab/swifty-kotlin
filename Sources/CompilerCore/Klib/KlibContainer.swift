@@ -1,9 +1,5 @@
 import Foundation
 
-/// A klib carries one or more *components* — top-level directories that
-/// each contain a `manifest`. Libraries produced for a single target use
-/// the conventional `default` component; `read(_:)` resolves paths relative
-/// to the selected component root.
 package struct KlibContainer {
     enum Storage {
         case archive(ZipArchive)
@@ -47,7 +43,6 @@ package struct KlibContainer {
         return try KlibManifest(contents: String(decoding: bytes, as: UTF8.self))
     }
 
-    /// Component-relative entry paths, e.g. `ir/irDeclarations.knd`.
     package func entryPaths() -> [String] {
         let prefix = component + "/"
         switch storage {
@@ -79,8 +74,6 @@ package struct KlibContainer {
         }
     }
 
-    /// Reads an entry relative to the component root (`ir/types.knt`,
-    /// `manifest`, ...). Traversal (`..`, absolute paths) is rejected.
     package func read(_ relativePath: String) throws -> [UInt8] {
         switch storage {
         case .archive(let archive):
@@ -100,8 +93,6 @@ package struct KlibContainer {
         }
     }
 
-    /// Pick the component to read: `"default"` when present, otherwise the
-    /// lexicographically first top-level directory containing a manifest.
     private static func pickComponent(
         names: [String],
         hasManifest: (String) -> Bool
