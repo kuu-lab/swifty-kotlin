@@ -1,10 +1,6 @@
 import Dispatch
 import Foundation
 
-// KUU-1732: private syscall/memory/GC kernels for the source-owned atomicfu API.
-// Ordinary Kotlin wrappers keep these registered objects in GC-traced Any fields.
-// This kernel never accepts an ordinary wrapper as a coroutine Mutex handle.
-
 private final class AtomicfuThreadIdentity {
     let value = RuntimeTaskKey.makeUnique().rawValue
 }
@@ -32,7 +28,7 @@ final class RuntimeAtomicfuRecursiveLock: @unchecked Sendable {
     private final class Waiter {
         let owner: UInt64
         let wake = DispatchSemaphore(value: 0)
-        var granted = false // only accessed with stateLock held
+        var granted = false
         init(owner: UInt64) { self.owner = owner }
     }
     let ownerErrorIsArgument: Bool
@@ -94,7 +90,6 @@ final class RuntimeAtomicfuRecursiveLock: @unchecked Sendable {
         return true
     }
 
-    // Used by deterministic direct Runtime tests, not exported through the ABI.
     var queuedWaiterCount: Int {
         stateLock.lock()
         defer { stateLock.unlock() }
@@ -156,7 +151,7 @@ final class RuntimeAtomicfuParker: @unchecked Sendable {
             waiter = nil
             current.wake.signal()
         } else {
-            permit = true // one bit: repeated pre-unpark calls coalesce
+            permit = true
         }
     }
 }
