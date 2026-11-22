@@ -59,7 +59,6 @@ extension JVMProgramBuilder {
             let ctor = JVMForeignMethod(owner: name, name: "<init>", descriptor: "()V", parameters: [], result: object.type, isStatic: false, isInterface: false, isAbstract: false)
             let run = JVMForeignMethod(owner: "kotlin/coroutines/jvm/internal/RunSuspendKt", name: "runSuspend", descriptor: "(Lkotlin/jvm/functions/Function1;)V", parameters: [function.type], result: .unit, isStatic: true, isInterface: false, isAbstract: false)
             program.functions.append(rawFunction(program.internalClassName, name: "main", parameters: [], result: .unit, access: 0x1009, locals: [object, function], instructions: [.allocate(name, object), .foreignCall(ctor, receiver: object, arguments: [], result: nil), .copy(object, function), .foreignCall(run, receiver: nil, arguments: [function], result: nil), .returnValue(nil)]))
-            // A suspend main has no source-level function value to register arity one.
             if !functionArities.contains(1) {
                 functionArities.insert(1)
                 program.classes += functionRuntime().filter { type in !program.classes.contains { $0.name == type.name } }
@@ -74,8 +73,6 @@ extension JVMProgramBuilder {
         return program
     }
 
-    /// The exported wrapper allocates an independent invocation frame. Its
-    /// ContinuationImpl subclass resumes the same static worker directly.
     private func coroutine(_ source: JVMFunction, stateName name: String, helperName: String, ownerIsInterface: Bool, valueResults: [String: JVMSuspendValueResult]) throws -> (wrapper: JVMFunction, helper: JVMFunction?, state: JVMClass?) {
         var wrapper = source
         wrapper.reference = source.reference.suspendABI
@@ -155,7 +152,6 @@ extension JVMProgramBuilder {
                 let getMarker = JVMForeignMethod(owner: "kotlin/coroutines/intrinsics/IntrinsicsKt", name: "getCOROUTINE_SUSPENDED", descriptor: "()Ljava/lang/Object;", parameters: [], result: coroutineObject, isStatic: true, isInterface: false, isAbstract: false)
                 let suspended = label()
                 code += [.foreignCall(getMarker, receiver: nil, arguments: [], result: marker), .referenceCompare(.notEqual, raw, marker, check), .jumpIfFalse(check, suspended)]
-                // Both synchronous completion and resume enter the same result check.
                 if let representation {
                     let done = label(), nonnull = label()
                     if representation.boxed.isNullable {
@@ -241,7 +237,6 @@ extension JVMInstruction {
     }
 }
 
-// Inline ABI adapters splice a body after argument conversion labels.
 extension JVMInstruction {
     func offsettingLabels(by offset: Int) -> JVMInstruction {
         switch self {
