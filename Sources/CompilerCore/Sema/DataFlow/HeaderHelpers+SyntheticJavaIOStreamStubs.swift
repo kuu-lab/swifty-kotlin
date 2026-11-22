@@ -1,49 +1,5 @@
-/// Synthetic stubs for the shared `java.io` stream primitives (`Reader`/
-/// `Writer`/`InputStream`/`OutputStream` families) plus `java.io.File`'s
-/// bare nominal shell.
-///
-/// CLEANUP-STUB-107 removed `java.io.File`'s own filesystem-operation
-/// *members* — `readText`/`writeText`/`appendText`,
-/// `exists`/`isFile`/`isDirectory`, `delete`/`mkdirs`/`listFiles`/`walk`,
-/// `bufferedReader`/`bufferedWriter`/`inputStream`/`outputStream`/
-/// `printWriter` factories, `copyTo`/`copyRecursively`, and `PrintWriter` —
-/// as target-out JVM-only surface — see TODO.md. What remains here is kept
-/// because other surfaces still depend on it:
-///
-/// - `File`'s two constructors (`File(path)` / `File(parent, child)`) and its
-///   `path` property are NOT removed: `Stdlib/kotlin/io/Files.kt` (KSP-483)
-///   builds new `File` values (`resolveSibling`/`normalize`), and
-///   `kotlin.io.FileSystemException`'s `file`/`other` properties (KSP-619)
-///   are typed `File`/`File?` with real call sites (e.g.
-///   `AccessDeniedException(File(path))`). Without a constructor, `File`
-///   would be a type nothing could ever produce.
-/// - `kotlin.io.createTempDir`/`createTempFile` are also NOT removed, despite
-///   an earlier pass in this same task briefly deleting them: they are real,
-///   force-deprecated (`@Deprecated(level = ERROR)`) top-level stdlib
-///   functions, not part of File's own member facade — `AnnotationSemanticTests
-///   .testAnnotationSemanticSema` exercises the deprecation-error diagnostic
-///   and its `@Suppress` escape hatch. They were only ever co-located with
-///   File's setup by historical accident (one shared bootstrap function).
-/// - `Reader`/`BufferedReader`/`Writer`/`BufferedWriter`/`InputStream`/
-///   `OutputStream`/`ByteArrayInputStream`/`SequenceInputStream`/
-///   `BufferedInputStream` are reused by File-independent `kotlin.io`
-///   extensions (`String.byteInputStream()`, `ByteArray.inputStream()`,
-///   `InputStream.copyTo()`, etc). NOTE: despite bare class-symbol anchors
-///   for `BufferedReader`/`BufferedWriter`/`OutputStream` existing in
-///   `HeaderHelpers+SyntheticPathStubs.swift`, `Path` does not currently
-///   register `bufferedReader()`/`bufferedWriter()`/`outputStream()` as
-///   callable members — those anchors have no producer today. Since
-///   `File.outputStream()`/`bufferedWriter()` were this compiler's only
-///   producers of a bare `OutputStream`/`Writer`, those two types are
-///   currently unconstructible from Kotlin source (CLEANUP-STUB-115 territory).
-/// - `ClassLoader` resource access and `Charset` are unrelated to `File` but
-///   were historically co-located in this file; left untouched here.
-
 extension DataFlowSemaPhase {
 
-    // KSP-1519: relocated from HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift
-    // (deleted). Generic instance-member/top-level-function registration helpers used
-    // by the File I/O and Platform stubs below; not specific to sequences.
     func registerSyntheticSystemMember(
         ownerSymbol: SymbolID,
         ownerType: TypeID,
@@ -81,9 +37,6 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         interner: StringInterner
     ) {
-        // KUU-2673: when imported candidates at this FQName are still shells,
-        // re-run once the first materializes so the dedup reads real
-        // signatures.
         let functionFQName = packageFQName + [interner.intern(name)]
         if symbols.deferWorkUntilImportedMemberMaterializes(at: functionFQName, work: { [self] in
             registerSyntheticTopLevelFunction(
@@ -151,7 +104,6 @@ extension DataFlowSemaPhase {
             assertionFailure("kotlin.collections.List symbol not found; java.io stream stubs will use Any as fallback")
         }
 
-        // List<String> type for BufferedReader.readLines()/useLines() return
         let listOfStringType: TypeID = if let listSym = listSymbol {
             types.make(.classType(ClassType(
                 classSymbol: listSym,
@@ -162,7 +114,6 @@ extension DataFlowSemaPhase {
             types.anyType
         }
 
-        // (String) -> Unit function type for BufferedReader.forEachLine action parameter
         let stringToUnitType = types.make(.functionType(FunctionType(
             params: [types.stringType],
             returnType: types.unitType,
@@ -171,11 +122,6 @@ extension DataFlowSemaPhase {
         )))
 
         if !hasSourceBackedFileContract {
-            // KUU-4440: `File.separator`/`pathSeparator`/`separatorChar`/
-            // `pathSeparatorChar` are exposed as Kotlin-source extension
-            // properties on `File.Companion` in `Stdlib/java/io/File.kt`; the
-            // companion object must exist for them to resolve (same pattern as
-            // the synthetic Instant companion).
             _ = ensureSyntheticCompanionSymbol(
                 ownerSymbol: fileSymbol,
                 symbols: symbols,
@@ -222,16 +168,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // `kotlin.io.createTempDir`/`createTempFile` are real (if
-        // force-deprecated since Kotlin 1.4, level=ERROR) top-level stdlib
-        // functions that return `File` — not part of File's own member
-        // facade, so CLEANUP-STUB-107 must not have removed them. They were
-        // lost as an unintended side effect of deleting the old
-        // `registerSyntheticFileIOBootstrap` call site, which happened to
-        // register them alongside File's own now-removed members; restored
-        // verbatim here. `AnnotationSemanticTests.testAnnotationSemanticSema`
-        // and `Scripts/diff_cases/deprecated_apis.kt` exercise the
-        // Deprecated(level=ERROR) diagnostic and its `@Suppress` escape hatch.
         let createTempKotlinIOPkg = ensureSyntheticPackageHierarchy(
             fqName: [interner.intern("kotlin"), interner.intern("io")],
             symbols: symbols
@@ -354,7 +290,6 @@ extension DataFlowSemaPhase {
         let nullableStringType = types.makeNullable(types.stringType)
         let intType = types.intType
 
-        // ByteArray is represented as List<Int> in the runtime.
         let listOfIntType: TypeID = if let listSym = listSymbol {
             types.make(.classType(ClassType(
                 classSymbol: listSym,
@@ -376,18 +311,12 @@ extension DataFlowSemaPhase {
             listOfIntType
         }
 
-        // `java.io.Reader` is the abstract supertype of `BufferedReader` and is
-        // the receiver of `kotlin.io` extension functions such as
-        // `Reader.readText()` (STDLIB-IO-FN-033). We register it as a synthetic
-        // class so that extension calls on any concrete reader instance
-        // resolve correctly.
         let readerSymbol = ensureClassSymbol(
             named: "Reader",
             in: javaIOPkg,
             symbols: symbols,
             interner: interner
         )
-        // Source-backed concrete readers inherit this Java abstract base.
         symbols.insertFlags([.abstractType, .openType], for: readerSymbol)
         let bufferedReaderSymbol = ensureClassSymbol(
             named: "BufferedReader",
@@ -414,11 +343,6 @@ extension DataFlowSemaPhase {
 
         bufferedReaderMembers.fn("close", "__kk_buffered_reader_close", ret: types.unitType)
 
-        // Register BufferedReader as a Reader/Closeable subtype.
-        // - Reader supertype lets `Reader.readText()` (STDLIB-IO-FN-033) resolve
-        //   when invoked on a `BufferedReader` value.
-        // - Closeable supertype (STDLIB-IO-093) lets `.use {}` work:
-        //   `path.bufferedReader().use { reader -> ... }`.
         let readerCloseableSymbol = types.ioCloseableInterfaceSymbol ?? javaIOCloseableSymbol
         symbols.setDirectSupertypes([readerCloseableSymbol], for: readerSymbol)
         types.setNominalDirectSupertypes([readerCloseableSymbol], for: readerSymbol)
@@ -469,14 +393,6 @@ extension DataFlowSemaPhase {
         bufferedReaderMembers.fn("read", "__kk_buffered_reader_read", ret: intType)
         bufferedReaderMembers.fn("ready", "__kk_buffered_reader_ready", ret: types.booleanType)
 
-        // BufferedReader.iterator() -> Iterator<String>  (STDLIB-IO-FN-022)
-        //
-        // The standard library declares `iterator()` as an `operator` extension on
-        // `BufferedReader` so that `for (line in reader) { ... }` is a shorthand
-        // for iterating over the reader's lines. We register the function as a
-        // synthetic *operator* member here so it can be picked up both by
-        // explicit calls (`reader.iterator()`) and by the for-loop lowering
-        // (which requires the `.operatorFunction` flag).
         let iteratorOfStringType = syntheticIteratorType(
             elementType: types.stringType,
             symbols: symbols,
@@ -484,14 +400,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         bufferedReaderMembers.fn("iterator", "__kk_buffered_reader_iterator", ret: iteratorOfStringType)
-        // Promote the synthetic iterator member to an operator function so that
-        // implicit `for (line in reader)` resolution succeeds. We look up the
-        // symbol after registration because `registerFileMemberFunction` does
-        // not surface the newly defined SymbolID.
         let iteratorFQName: [InternedString] = (symbols.symbol(bufferedReaderSymbol)?.fqName ?? [])
             + [interner.intern("iterator")]
-        // KUU-2673: patch operator flags once imported candidates materialize
-        // instead of decoding their signatures eagerly.
         let promoteIteratorToOperator = {
             for candidate in symbols.lookupAll(fqName: iteratorFQName) {
                 guard let info = symbols.symbol(candidate),
@@ -536,12 +446,6 @@ extension DataFlowSemaPhase {
         )))
         bufferedReaderMembers.fn("useLines", "__kk_buffered_reader_useLines", [("block", sequenceOfStringToAnyTypeBR)], ret: types.anyType)
 
-        // BufferedReader.forEachLine { line: String -> Unit } (STDLIB-IO-FN-017)
-        //
-        // Kotlin declares `forEachLine` as an extension function on `kotlin.io.Reader`
-        // (which `BufferedReader` extends). The lambda receives each line as a `String`
-        // and returns `Unit`. We model it as a member of `java.io.BufferedReader`.
-        // Unlike `useLines`, the reader is NOT automatically closed after iteration.
         bufferedReaderMembers.fn("forEachLine", "__kk_buffered_reader_forEachLine", [("action", stringToUnitType)], ret: types.unitType)
 
         let writerSymbol = ensureClassSymbol(
@@ -550,7 +454,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // Writer is an abstract Java base class for source-backed writers.
         symbols.insertFlags([.abstractType], for: writerSymbol)
         let bufferedWriterSymbol = ensureClassSymbol(
             named: "BufferedWriter",
@@ -571,7 +474,6 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(writerType, for: writerSymbol)
         symbols.setPropertyType(bufferedWriterType, for: bufferedWriterSymbol)
 
-        // Register BufferedWriter as a Closeable subtype (STDLIB-IO-093)
         let writerCloseableSymbol = types.ioCloseableInterfaceSymbol ?? javaIOCloseableSymbol
         symbols.setDirectSupertypes([writerCloseableSymbol], for: writerSymbol)
         types.setNominalDirectSupertypes([writerCloseableSymbol], for: writerSymbol)
@@ -667,8 +569,6 @@ extension DataFlowSemaPhase {
         symbols.insertFlags([.abstractType, .openType], for: inputStreamSymbol)
         symbols.insertFlags([.abstractType, .openType], for: outputStreamSymbol)
 
-        // Register InputStream/OutputStream as Closeable subtypes (STDLIB-IO-093)
-        // so that .use {} works with stream resources.
         let streamCloseableSymbol = types.ioCloseableInterfaceSymbol ?? javaIOCloseableSymbol
         symbols.setDirectSupertypes([streamCloseableSymbol], for: inputStreamSymbol)
         types.setNominalDirectSupertypes([streamCloseableSymbol], for: inputStreamSymbol)
@@ -701,8 +601,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // Native foreign-handle producer used by unchanged upstream Java IO
-        // consumers. Ordinary OutputStream operations retain their existing ABI.
         if let arraySymbol = symbols.lookup(fqName: ["kotlin", "ByteArray"].map(interner.intern)) {
             let owner = ensureClassSymbol(named: "ByteArrayOutputStream", in: javaIOPkg,
                 symbols: symbols, interner: interner)
@@ -728,12 +626,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // STDLIB-IO-FN-011: String.byteInputStream(charset: Charset = Charsets.UTF_8): ByteArrayInputStream
-        // Lives in kotlin.io as an extension function on String. Two overloads are
-        // exposed so callers can resolve both `value.byteInputStream()` and
-        // `value.byteInputStream(Charsets.UTF_16)` without relying on default-argument
-        // synthesis. ByteArrayInputStream → InputStream → Closeable, so the return
-        // type carries `.use {}` compatibility through existing supertype wiring.
         let kotlinIOPkg = ensureSyntheticPackageHierarchy(
             fqName: [interner.intern("kotlin"), interner.intern("io")],
             symbols: symbols
@@ -783,17 +675,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols, interner: interner)
         }
 
-        // MARK: - InputStream.readBytes() (STDLIB-IO-FN-029)
-        //
-        // Kotlin defines:
-        //   public fun InputStream.readBytes(): ByteArray
-        //
-        // Reads all remaining bytes from `this` and returns them as a freshly
-        // allocated ByteArray.
-        //
-        // Note: this extension does NOT close the receiver — callers typically
-        // wrap the call in `.use { it.readBytes() }`. Sema only needs to
-        // resolve the call shape; the runtime drains the stream.
         inputStreamMembers.fn("readBytes", "__kk_input_stream_readAllBytes", ret: byteArrayReturnType)
         inputStreamMembers.fn("mark", "__kk_input_stream_mark", [("readLimit", intType)], ret: types.unitType)
 
@@ -829,12 +710,6 @@ extension DataFlowSemaPhase {
             symbols.insertFlags(.openType, for: member)
         }
 
-        // Kotlin defines:
-        //   public inline fun InputStream.buffered(bufferSize: Int = DEFAULT_BUFFER_SIZE): BufferedInputStream
-        // We model BufferedInputStream as a java.io.InputStream subtype and expose
-        // both the zero-arg and bufferSize overloads as member-style synthetic stubs
-        // on InputStream so user code can call `inputStream.buffered()` or
-        // `inputStream.buffered(8 * 1024)` and receive a BufferedInputStream value.
         let bufferedInputStreamSymbol = ensureClassSymbol(
             named: "BufferedInputStream",
             in: javaIOPkg,
@@ -849,32 +724,16 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(bufferedInputStreamType, for: bufferedInputStreamSymbol)
 
-        // BufferedInputStream extends InputStream so it inherits Closeable + read/skip/etc.
         symbols.setDirectSupertypes([inputStreamSymbol], for: bufferedInputStreamSymbol)
         types.setNominalDirectSupertypes([inputStreamSymbol], for: bufferedInputStreamSymbol)
 
-        // STDLIB-IO-FN-029: BufferedInputStream.readBytes() — delegate to the same
-        // runtime entry so that member dispatch resolves without a supertype walk.
         let bufferedInputStreamMembers = fileMemberRows(of: bufferedInputStreamSymbol, type: bufferedInputStreamType, symbols: symbols, interner: interner)
         bufferedInputStreamMembers.fn("readBytes", "__kk_input_stream_readAllBytes", ret: byteArrayReturnType)
 
-        // InputStream.buffered() -> BufferedInputStream (uses DEFAULT_BUFFER_SIZE = 8 * 1024)
         inputStreamMembers.fn("buffered", "__kk_input_stream_buffered_default", ret: bufferedInputStreamType)
 
-        // InputStream.buffered(bufferSize: Int) -> BufferedInputStream
         inputStreamMembers.fn("buffered", "__kk_input_stream_buffered", [("bufferSize", intType)], ret: bufferedInputStreamType)
 
-        // STDLIB-IO-FN-013: InputStream.copyTo(out, bufferSize) -> Long
-        //
-        // Kotlin signature:
-        //   public fun InputStream.copyTo(
-        //       out: OutputStream,
-        //       bufferSize: Int = DEFAULT_BUFFER_SIZE
-        //   ): Long
-        //
-        // Registered as a kotlin.io extension function on InputStream.
-        // Two overloads: one with an explicit bufferSize and one that
-        // relies on the default (DEFAULT_BUFFER_SIZE = 8 * 1024).
         registerKotlinIOExtensionFunction(
             named: "copyTo",
             packageFQName: kotlinIOPkg,
@@ -933,16 +792,8 @@ extension DataFlowSemaPhase {
             symbols.insertFlags(.openType, for: member)
         }
 
-        // STDLIB-IO-FN-004: OutputStream.buffered() / buffered(bufferSize) extension members.
-        // Returns an OutputStream that wraps the receiver with buffering. The runtime
-        // implementation is identity-compatible: the underlying RuntimeOutputStreamBox
-        // already streams through the OS, so the wrapped handle is the same instance.
-        // This satisfies Kotlin's `fun OutputStream.buffered(bufferSize: Int = DEFAULT_BUFFER_SIZE): BufferedOutputStream`
-        // contract at the Sema surface — callers can chain `.write(...)` / `.flush()` / `.close()` etc.
         outputStreamMembers.fn("buffered", "__kk_output_stream_buffered", ret: outputStreamType)
         outputStreamMembers.fn("buffered", "__kk_output_stream_buffered_sized", [("bufferSize", intType)], ret: outputStreamType)
-
-        // ClassLoader resource access functions (STDLIB-IO-093)
 
         let classLoaderMembers = fileMemberRows(of: classLoaderSymbol, type: classLoaderType, symbols: symbols, interner: interner)
         classLoaderMembers.fn("getResource", "__kk_classloader_getResource", [("name", types.stringType)], ret: nullableStringType)
@@ -977,9 +828,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Kotlin signature: `public fun OutputStream.bufferedWriter(
-        //     charset: Charset = Charsets.UTF_8
-        // ): BufferedWriter`  declared in the `kotlin.io` package.
         let kotlinTextPkgFQName = ensurePackage(
             path: ["kotlin", "text"],
             symbols: symbols,
@@ -1015,13 +863,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - Reader.readText() (STDLIB-IO-FN-033)
-        //
-        // Kotlin signature: `public fun Reader.readText(): String` declared in
-        // the `kotlin.io` package. Reads the entire remaining content of the
-        // receiver into a single `String`. Mirrors the stdlib semantics of
-        // exhausting the reader; the runtime helper `__kk_reader_readText`
-        // delegates to `RuntimeBufferedReaderBox.readText()`.
         registerKotlinIOExtensionFunction(
             named: "readText",
             packageFQName: kotlinIOPkg,
@@ -1033,18 +874,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Kotlin signature:
-        //   public fun Reader.copyTo(out: Writer, bufferSize: Int = DEFAULT_BUFFER_SIZE): Long
-        // declared in the `kotlin.io` package.  Copies the receiver's remaining
-        // characters into `out` using an internal buffer of `bufferSize` chars
-        // (Kotlin's default is 16 * 1024 = 16384) and returns the total number
-        // of characters transferred.  Neither the receiver nor `out` is closed.
-        //
-        // We register both the two-arg form (with `bufferSize`'s default-value
-        // marker) and a zero-arg overload that routes to a `_default` runtime
-        // variant — matching how Path extensions handle defaulted parameters
-        // because codegen does not currently synthesise default-value calls.
-        // Two-arg overload (explicit bufferSize required): reader.copyTo(writer, 1024)
         registerKotlinIOExtensionFunction(
             named: "copyTo",
             packageFQName: kotlinIOPkg,
@@ -1061,9 +890,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Single-arg overload (default bufferSize): reader.copyTo(writer)
-        // Registers as a separate overload to avoid ambiguity between this
-        // and the two-arg form.
         registerKotlinIOExtensionFunction(
             named: "copyTo",
             packageFQName: kotlinIOPkg,
@@ -1075,19 +901,11 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Kotlin stdlib declares two overloads in kotlin.io:
-        //   fun ByteArray.inputStream(): ByteArrayInputStream
-        //   fun ByteArray.inputStream(offset: Int, length: Int): ByteArrayInputStream
-        //
-        // We register both on the ByteArray class symbol so that extension-receiver
-        // resolution succeeds for both `bytes.inputStream()` and
-        // `bytes.inputStream(offset, length)`.
         if let byteArraySymbol = symbols.lookup(fqName: byteArrayFQName) {
             let byteArrayType = types.make(.classType(ClassType(
                 classSymbol: byteArraySymbol, args: [], nullability: .nonNull
             )))
 
-            // STDLIB-IO-FN-020: ByteArray.inputStream() -> ByteArrayInputStream
             registerSyntheticStringExtensionFunction(
                 named: "inputStream",
                 externalLinkName: "__kk_bytearray_inputStream",
@@ -1099,7 +917,6 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
 
-            // STDLIB-IO-FN-021: ByteArray.inputStream(offset: Int, length: Int) -> ByteArrayInputStream
             registerSyntheticStringExtensionFunction(
                 named: "inputStream",
                 externalLinkName: "__kk_bytearray_inputStream_range",
@@ -1115,8 +932,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // Writer.buffered(): BufferedWriter
-        // Writer.buffered(bufferSize: Int): BufferedWriter
         registerFilePackageExtensionFunction(
             named: "buffered",
             packageFQName: kotlinIOPkg,
@@ -1276,10 +1091,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Registers a top-level extension function in a Kotlin package
-    /// (e.g. `kotlin.io`) whose receiver is a class symbol such as
-    /// `java.io.OutputStream`.  Used for stdlib extensions like
-    /// `OutputStream.bufferedWriter(charset)` (STDLIB-IO-FN-009).
     private func registerKotlinIOExtensionFunction(
         named name: String,
         packageFQName: [InternedString],
@@ -1293,8 +1104,6 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         let functionName = interner.intern(name)
-        // Match the shared registration path: a bundled source body owns
-        // its public extension even when a legacy synthetic type differs.
         if let types = BundledSyntheticStubRegistration.types,
            BundledSyntheticStubRegistration.shouldSkipRegistration(
                declaredOwnerFQName: packageFQName, receiverType: receiverType,
@@ -1446,13 +1255,11 @@ extension DataFlowSemaPhase {
             return existingSignature.receiverType == ownerType
                 && existingSignature.parameterTypes == parameters.map(\.type)
         }) {
-            // Only overwrite synthetic symbols to avoid clobbering user/stdlib declarations
             guard let existingInfo = symbols.symbol(existing),
                   existingInfo.flags.contains(.synthetic) || existingInfo.declSite == nil else {
                 return
             }
             symbols.setExternalLinkName(externalLinkName, for: existing)
-            // Update the signature if the return type diverges from the intended type
             if let existingSignature = symbols.functionSignature(for: existing),
                existingSignature.returnType != returnType {
                 symbols.setFunctionSignature(
@@ -1544,8 +1351,6 @@ extension DataFlowSemaPhase {
         return javaIOPkg
     }
 
-    /// Keep the JVM compatibility nominal without synthesizing the common
-    /// `kotlin.AutoCloseable` or `kotlin.io.Closeable` declarations.
     func ensureJavaIOCloseableCompatibilityAnchor(
         symbols: SymbolTable,
         interner: StringInterner
@@ -1672,7 +1477,6 @@ extension DataFlowSemaPhase {
         if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: { symbolID in
             symbols.symbol(symbolID)?.kind == .property
         }) {
-            // Only overwrite synthetic symbols to avoid clobbering user/stdlib declarations
             guard let existingInfo = symbols.symbol(existing),
                   existingInfo.flags.contains(.synthetic) || existingInfo.declSite == nil else {
                 return
@@ -1695,8 +1499,6 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(returnType, for: propertySymbol)
     }
 
-    /// Registers a synthetic top-level extension function on a receiver type within
-    /// a package (e.g. `kotlin.io.Writer.buffered()`).
     private func registerFilePackageExtensionFunction(
         named name: String,
         packageFQName: [InternedString],
