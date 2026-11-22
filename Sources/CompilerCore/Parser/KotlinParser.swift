@@ -1,7 +1,4 @@
 final class KotlinParser {
-    /// The budget is shared across blocks, statements, and declarations because
-    /// those productions call one another to parse nested control flow and
-    /// declaration bodies.
     static let maxNestingDepth = 128
 
     let stream: TokenStream
@@ -21,8 +18,6 @@ final class KotlinParser {
         arena = SyntaxArena()
     }
 
-    /// Enters one recursive grammar production. The caller must pair success
-    /// with `leaveNesting()` using `defer`.
     func enterNesting() -> Bool {
         nestingDepth += 1
         guard nestingDepth <= Self.maxNestingDepth else {
@@ -64,8 +59,6 @@ final class KotlinParser {
         var range = RangeAccumulator()
         var sawTopLevelStatement = false
         var sawFileBody = false
-        // Scripts (kotlinc -script / .kts) allow any declaration kind at top
-        // level alongside bare statements, but never a `package` declaration.
         var sawPackageHeader = false
 
         var pendingImports: [SyntaxChild] = []
@@ -119,16 +112,10 @@ final class KotlinParser {
                     case .declaration:
                         node = parseDeclaration()
                     case .notDeclaration, .overBudget:
-                        // `context` can also be an ordinary identifier at the
-                        // start of an expression. Recover over-budget prefixes
-                        // iteratively through the statement parser.
                         node = parseTopLevelStatement()
                     }
                 } else if isAmbiguousDeclarationPrefix(token),
                           declarationPrefixVerdict(at: 0) == .overBudget {
-                    // Check modifier-starting prefixes too, but keep their
-                    // existing declaration/expression fallback below the limit.
-                    // Statement recovery consumes an over-budget run iteratively.
                     node = parseTopLevelStatement()
                 } else {
                     node = parseDeclaration()
