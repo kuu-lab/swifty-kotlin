@@ -935,6 +935,7 @@ extension DataFlowSemaPhase {
             guard seenUseSitesByAnnotation[annotationSymbolID, default: []].insert(useSiteTarget).inserted else {
                 let isRepeatable = symbols.annotations(for: annotationSymbolID).contains {
                     KnownCompilerAnnotation.repeatable.matches($0.annotationFQName)
+                        || KnownCompilerAnnotation.jvmRepeatable.matches($0.annotationFQName)
                 }
                 if !isRepeatable {
                     diagnostics.error(
