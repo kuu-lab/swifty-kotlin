@@ -3,15 +3,9 @@ package kotlin.io
 import java.io.IOException
 import kotlin.internal.KsSymbolName
 
-// KSP-614: Only "write one already-rendered value to stdout" stays in the
-// runtime (`__kk_print_raw`); it needs the platform's stdout.
-
 @KsSymbolName("__kk_print_raw")
 internal external fun __printRaw(message: Any?)
 
-// KSP-1163: Kotlin/Native keeps String-specialized console bridges in the
-// kotlin.io metadata. The bundled compiler exposes the same exact overloads;
-// the call-site lowering may still use the shared raw bridge for user calls.
 @PublishedApi
 @KsSymbolName("__kk_print_raw")
 internal external fun __printStringRaw(message: String)
@@ -120,9 +114,6 @@ public fun println() {
 public fun println(message: Any?) {
     println(message.toString())
 }
-
-// KSP-615: Only the platform-dependent "read one line from stdin" operation
-// stays in the runtime (`__kk_readline_raw`).
 
 @KsSymbolName("__kk_readline_raw")
 internal external fun __readLineRaw(): String?
