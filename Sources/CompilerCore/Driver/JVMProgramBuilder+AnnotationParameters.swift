@@ -1,8 +1,6 @@
 import Foundation
 
 extension JVMProgramBuilder {
-    /// Parameter annotations are not materialized as runtime factories by the
-    /// shared frontend. Preserve their source tokens and evaluate constants here.
     func annotationRecords(for symbol: SymbolID) throws -> [MetadataAnnotationRecord] {
         var records = sema.symbols.annotations(for: symbol)
         var nodes: [(AnnotationNode, String?)] = []
