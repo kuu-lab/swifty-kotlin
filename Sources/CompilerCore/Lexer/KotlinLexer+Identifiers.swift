@@ -25,8 +25,6 @@ extension KotlinLexer {
         return scanTemplateNameCore(start: start, leadingTrivia: leadingTrivia)
     }
 
-    /// Unlike `scanIdentifierCore`, this stops at `$` so that adjacent
-    /// template references like `"$i$j"` are parsed as two separate names.
     private func scanTemplateNameCore(start: Int, leadingTrivia: [TriviaPiece]) -> Token {
         var cursor = start
         while cursor < byteCount(),
