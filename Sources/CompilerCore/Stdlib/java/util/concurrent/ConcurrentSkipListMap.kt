@@ -137,13 +137,11 @@ public open class ConcurrentSkipListMap<K, V> : TreeMap<K, V>, ConcurrentNavigab
         return if (containsKey(key)) __cslmPut(key, value) else null
     }
 
-    /** JVM `Map.getOrDefault`; the null-key NPE comes from `get`. */
     public fun getOrDefault(key: K, defaultValue: V): V {
         requireNonNullKey(key)
         return __cslmGet(key) ?: defaultValue
     }
 
-    /** JVM `clone()`: a fresh map carrying the same comparator and entries. */
     public fun clone(): ConcurrentSkipListMap<K, V> {
         val copy = ConcurrentSkipListMap<K, V>(comparator())
         copy.putAll(this)
