@@ -8,12 +8,8 @@ public extension RuntimeABISpec {
         abi.nt("__kk_set_of", "arrayRaw count"),
         abi.nt("__kk_hash_set_of", "arrayRaw count"),
         abi.th("__kk_hash_set_new_checked", "capacity loadFactorBits outThrown"),
-        // Nominal-tag bridge for the mutable set factories and the
-        // LinkedHashSet constructors, mirroring `__kk_hash_set_of`.
         abi.nt("__kk_linked_hash_set_of", "arrayRaw count"),
         abi.th("__kk_emptySet"),
-        // Attach runtime-backed storage to source-allocated
-        // LinkedHashSet instances, including user subclasses.
         abi.nt("__kk_linked_hash_set_init", "setRaw"),
         abi.nt("__kk_set_size", "setRaw"),
         abi.nt("__kk_set_contains", "setRaw element", raw: true),
