@@ -11,8 +11,6 @@ extension CallTypeChecker {
               sema.symbols.isSourceBackedSymbol(chosenCallee),
               symbol.fqName == knownNames.kotlinCollectionsFillFQName
         else { return false }
-        // User extensions, including declarations in kotlin.collections, must
-        // retain their own receiver contract.
         if let file = sema.symbols.sourceFileID(for: chosenCallee) ?? symbol.declSite?.start.file {
             guard ctx.visibilityChecker.sourceManager?.origin(of: file)?.isBundledStdlib == true else { return false }
         } else {
@@ -93,10 +91,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Finds the exact primitive-array source overload before the default-import
-    /// scope fallback can select a same-named Sequence extension. Primitive
-    /// arrays are compiler-provided nominal classes, while their bundled source
-    /// members live in kotlin.collections as top-level extensions.
     func collectPrimitiveArraySourceMembers(
         named calleeName: InternedString,
         receiverType: TypeID,
@@ -104,7 +98,6 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> [SymbolID] {
         let knownNames = KnownCompilerNames(interner: interner)
-        // JVM withIndex overloads participate in ordinary extension scope resolution.
         if sema.requiresResolvedLibraryCalls, calleeName == knownNames.withIndex {
             return []
         }
@@ -138,10 +131,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Finds the exact bundled source overload for an Array or primitive-array
-    /// source-backed member. These functions are top-level extensions in
-    /// kotlin.collections, so member lookup can otherwise select a synthetic
-    /// array stub or a same-named generic collection extension first.
     func collectArraySourceBackedCandidates(
         named calleeName: InternedString,
         receiverType: TypeID,
@@ -178,8 +167,6 @@ extension CallTypeChecker {
             }
             return signatureSymbol.fqName == receiverSymbol.fqName
         }
-        // Exact bundled overloads must not erase lexically visible user
-        // extensions, including same-name overloads with different parameters.
         let userCandidates = ctx.cachedScopeLookup(calleeName).filter { candidate in
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.kind == .function,
@@ -209,9 +196,6 @@ extension CallTypeChecker {
             else {
                 return true
             }
-            // Introducing CharArray.sumOf must not make an existing concrete
-            // user selector ambiguous. Only shadow the identical single-selector
-            // shape; different arities, varargs and labels remain resolver inputs.
             return !userCandidates.contains { userCandidate in
                 guard let userSignature = sema.symbols.functionSignature(for: userCandidate),
                       userSignature.typeParameterSymbols.isEmpty,
@@ -481,9 +465,6 @@ extension CallTypeChecker {
         ) ?? sema.types.anyType
     }
 
-    /// Primitive arrays carry no type argument, so their element type has to be
-    /// recovered from the class name.
-    /// Note: Byte/Short map to intType (same as builtinType resolution).
     func primitiveArrayElementType(
         className: InternedString,
         sema: SemaModule,
@@ -587,7 +568,6 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: finalType)
             return finalType
         case knownNames.parameters:
-            // parameters returns List<Any?>, but at this stage use anyType as a safe fallback.
             let resultType = sema.types.anyType
             let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
             sema.bindings.bindExprType(id, type: finalType)
