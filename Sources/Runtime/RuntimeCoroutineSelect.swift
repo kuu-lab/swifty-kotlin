@@ -13,25 +13,19 @@ private let selectBuilderKey = "KSwiftK.selectBuilder"
 /// off, so the same element is never delivered to two clauses.
 let runtimeSelectClaimLock = NSLock()
 
-/// Poll-only status beyond `ChannelOperationStatus`: the polled clause lost
-/// the selection to another clause of the same select and must not consume.
 let kSelectResultDecided = 4
 
 /// Per-`select {}` state shared between the bundled `SelectImplementation`
 /// and the runtime objects its clauses poll. Every mutable field is touched
 /// only under `runtimeSelectClaimLock`.
 final class RuntimeSelectState: @unchecked Sendable {
-    /// The clause that won the selection. `nil` while undecided.
     private(set) var selectedClause: RuntimeSelectClause?
-    /// `true` once `doSelect` returned or was cancelled — claims stop.
     private(set) var finished = false
 
     /// Marks the select finished. Caller must hold `runtimeSelectClaimLock`.
     func markFinishedUnlocked() {
         finished = true
     }
-    /// Channel waiters this select's clauses registered, kept so `finish`
-    /// can remove consumable offers eagerly (cancellation cleanup).
     var pendingWaiters: [(channel: RuntimeChannelHandle, waiter: RuntimeSelectWaiter)] = []
 
     /// Atomic single-shot claim. Caller must hold `runtimeSelectClaimLock`.
@@ -52,10 +46,6 @@ final class RuntimeSelectState: @unchecked Sendable {
     }
 }
 
-/// One clause registration inside a `select`. Channel and mutex polls key
-/// their deposits on this token so an outcome committed for the clause is
-/// materialized exactly once, even if `ready` is consulted again after the
-/// external claim that produced it.
 final class RuntimeSelectClause: @unchecked Sendable {
     weak var select: RuntimeSelectState?
 
@@ -63,9 +53,6 @@ final class RuntimeSelectClause: @unchecked Sendable {
         self.select = select
     }
 
-    /// `true` once this clause's outcome is committed — by its own poll
-    /// consuming an offer, or by an external claimant resolving a
-    /// registered waiter. Written under `runtimeSelectClaimLock`.
     var delivered = false
     var deliveredStatus = 0
     var deliveredValue = 0 {
@@ -76,18 +63,11 @@ final class RuntimeSelectClause: @unchecked Sendable {
     }
     private var valueRoot: RuntimeGCRootedValue?
     private var causeRoot: RuntimeGCRootedValue?
-    /// `true` while a channel waiter registered for this clause is queued.
     var waiterRegistered = false
 }
 
-/// A pending offer left in a channel queue by a select clause: `onSend`
-/// leaves the element so a receiver can claim it, `onReceive` leaves an
-/// empty slot a sender fills. Claimed through `clause` via the owning
-/// select's atomic `trySelect`, so a rendezvous resolves for exactly one
-/// waiter and exactly one clause.
 final class RuntimeSelectWaiter: @unchecked Sendable {
     weak var clause: RuntimeSelectClause?
-    /// The offered element for send-side waiters (`0` for receivers).
     private let valueRoot: RuntimeGCRootedValue
     var value: Int { valueRoot.value }
 
@@ -126,8 +106,6 @@ public func __kk_select_builder_current() -> Int {
     Thread.current.threadDictionary[selectBuilderKey] as? Int ?? runtimeNullSentinelInt
 }
 
-// Select receives share the same opaque ChannelResult representation as
-// the ordinary Channel API, including failure and close causes.
 @_cdecl("__kk_select_try_receive")
 public func __kk_select_try_receive(_ handle: Int) -> Int {
     __kk_channel_try_receive(handle)
@@ -137,13 +115,11 @@ public func __kk_select_receive_value(_ token: Int) -> Int {
     __kk_channel_result_value_or_null(token)
 }
 
-/// Per-invocation state backing one `select { }` — see `RuntimeSelectState`.
 @_cdecl("__kk_select_state_new")
 public func __kk_select_state_new() -> Int {
     registerRuntimeObject(RuntimeSelectState())
 }
 
-/// Per-clause registration token minted by `SelectBuilder.registerClause`.
 @_cdecl("__kk_select_clause_new")
 public func __kk_select_clause_new(_ stateRaw: Int) -> Int {
     guard let state = resolveRuntimeHandle(stateRaw, as: RuntimeSelectState.self) else {
@@ -152,10 +128,6 @@ public func __kk_select_clause_new(_ stateRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeSelectClause(select: state))
 }
 
-/// Atomic finalize used by `doSelect` when a clause reports ready: the
-/// first clause to claim the select wins and every later claim observes
-/// the winner and loses. Returns 1 when this clause owns (or already
-/// owned) the selection, 0 when another clause won or the select finished.
 @_cdecl("__kk_select_try_select")
 public func __kk_select_try_select(_ clauseRaw: Int) -> Int {
     guard let clause = resolveRuntimeHandle(clauseRaw, as: RuntimeSelectClause.self),
@@ -166,10 +138,6 @@ public func __kk_select_try_select(_ clauseRaw: Int) -> Int {
     return won ? 1 : 0
 }
 
-/// `SelectInstance.trySelect(clauseObject, result)` — claims the clause
-/// and deposits `result` so the clause's next poll materializes it.
-/// Non-clause objects resolve to nil and lose, matching `trySelect`'s
-/// contract of refusing foreign clause objects.
 @_cdecl("__kk_select_try_select_result")
 public func __kk_select_try_select_result(_ clauseRaw: Int, _ result: Int) -> Int {
     guard let clause = resolveRuntimeHandle(clauseRaw, as: RuntimeSelectClause.self),
@@ -185,8 +153,6 @@ public func __kk_select_try_select_result(_ clauseRaw: Int, _ result: Int) -> In
     return won ? 1 : 0
 }
 
-/// `SelectInstance.selectInRegistrationPhase` — marks the select decided
-/// without a registered winner clause, so pending waiter claims die.
 @_cdecl("__kk_select_mark_selected")
 public func __kk_select_mark_selected(_ stateRaw: Int) -> Int {
     guard let state = resolveRuntimeHandle(stateRaw, as: RuntimeSelectState.self) else {
@@ -198,8 +164,6 @@ public func __kk_select_mark_selected(_ stateRaw: Int) -> Int {
     return 0
 }
 
-/// Returns the winning clause's registration token, or the null sentinel
-/// while the select is undecided.
 @_cdecl("__kk_select_selected_clause")
 public func __kk_select_selected_clause(_ stateRaw: Int) -> Int {
     guard let state = resolveRuntimeHandle(stateRaw, as: RuntimeSelectState.self) else {
@@ -214,9 +178,6 @@ public func __kk_select_selected_clause(_ stateRaw: Int) -> Int {
     return Int(bitPattern: Unmanaged.passUnretained(clause).toOpaque())
 }
 
-/// Marks the select finished and removes every channel waiter it still
-/// has queued. Called from `SelectImplementation.complete()` for both the
-/// selected and the cancelled path, so a cancelled select never leaves a
 /// consumable offer behind. The claim lock is released before taking any
 /// channel lock — the lock order is always channel → claim.
 @_cdecl("__kk_select_state_finish")
@@ -235,11 +196,6 @@ public func __kk_select_state_finish(_ stateRaw: Int) -> Int {
     return 0
 }
 
-/// `onReceive`/`onReceiveCatching` poll: like `tryReceive`, but the outcome
-/// is committed through the clause's atomic selection — a suspended or
-/// select-registered sender is claimed in the same critical section that
-/// records this clause as selected, and when nothing is receivable a
-/// receive waiter is parked for a later send to claim.
 @_cdecl("__kk_select_poll_receive")
 public func __kk_select_poll_receive(_ handle: Int, _ clauseRaw: Int) -> Int {
     guard let channel = runtimeChannelHandleObject(from: handle),
