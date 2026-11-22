@@ -38,7 +38,7 @@ extension JVMForeignMethod {
         return zip(parameters, logical).enumerated().allSatisfy { index, pair in
             let (physical, source) = pair
             guard callbacks.contains(index - function.leadingParameterCount) else {
-                return physical.descriptor == source.descriptor
+                return physical.descriptor == source.withBoxedUnit.descriptor
             }
             guard let carrier = source.referenceName, carrier.hasPrefix(functionPrefix),
                   let arity = Int(carrier.dropFirst(functionPrefix.count)) else { return false }
