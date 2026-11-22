@@ -3,12 +3,6 @@
 @testable import CompilerBackend
 import Testing
 
-/// KUU-4452: a bundled java.util platform `T!` result used in a non-null
-/// position raises the JVM `checkNotNullExpressionValue` NPE
-/// `"<call>(...) must not be null"` — catchable, so `e.message` is
-/// observable. Platform values reaching non-null positions through locals
-/// or `!!` keep the plain message-less NPE, and discarded/nullable poll
-/// results leave the deque throwing NoSuchElementException afterwards.
 @Suite
 struct CodegenBackendKuu4452PlatformNpeMessageTests {
     @Test
