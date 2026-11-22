@@ -1,20 +1,3 @@
-/// kotlinc `kotlin-noarg` equivalent. Classes annotated with a configured
-/// annotation gain a synthetic public zero-argument constructor that
-/// delegates only to the superclass constructor — property initializers and
-/// `init` blocks do not run unless `invokeInitializers` is enabled, so
-/// fields keep their JVM-default values. Frameworks (JPA, Android) reach it
-/// through reflection; the constructor is marked `@Deprecated(HIDDEN)` so
-/// Kotlin call resolution cannot select it, matching kotlinc.
-///
-/// Configuration:
-///   -P plugin:org.jetbrains.kotlin.noarg:annotation=<fqName>   (repeatable)
-///   -P plugin:org.jetbrains.kotlin.noarg:invokeInitializers=true
-///
-/// The plugin only synthesizes constructors for source declarations in the
-/// current module. Classes that already expose a zero-argument call — an
-/// explicit `constructor()`, an implicit primary with no parameters, or a
-/// primary whose parameters all have defaults (covered by the built-in
-/// all-defaults no-arg constructor) — are skipped, mirroring kotlinc.
 struct NoArgPlugin: CompilerPlugin {
     let id = "org.jetbrains.kotlin.noarg"
 
@@ -75,9 +58,6 @@ struct NoArgPlugin: CompilerPlugin {
         var primaryHasAllDefaults = false
         for ctor in existingCtors {
             guard let signature = symbols.functionSignature(for: ctor) else { continue }
-            // An existing zero-parameter constructor — explicit `constructor()`
-            // or an implicit primary on a parameterless class — already
-            // provides `<init>()V`; generating another would duplicate it.
             if signature.parameterTypes.isEmpty { return }
             // The primary constructor's declSite is the class range. When all
             // of its parameters default, the compiler already synthesizes the
@@ -97,9 +77,6 @@ struct NoArgPlugin: CompilerPlugin {
         }
         if primaryHasAllDefaults { return }
 
-        // Resolve the super constructor a bare `super()` call would select:
-        // an exact no-arg overload wins, otherwise an all-default overload
-        // (fewest parameters first, matching overload-resolution preference).
         var superCtor: SymbolID? = nil
         var supertypeTypeArguments: [TypeArg] = []
         if let edgeSupertype = symbols.directSupertypes(for: classID).first(where: {
