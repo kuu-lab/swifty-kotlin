@@ -42,9 +42,6 @@ extension OverloadResolver {
                 continue
             }
             let resolved = substitution[typeVar]
-            // A type variable is "uninferred" when it was either never
-            // included in the substitution (no constraints at all) or the
-            // solver explicitly set it to errorType.
             guard resolved == nil || resolved == typeSystem.errorType else {
                 continue
             }
