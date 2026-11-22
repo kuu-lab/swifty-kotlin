@@ -1,6 +1,4 @@
 extension TypeCheckDriver {
-    /// SequenceScope permits suspension only through its own receiver. Check
-    /// resolved receiver identities after lambda and overload inference finish.
     func validateJVMSequenceSuspensionContexts(inlineLambdaArguments: Set<ExprID>, suspendLambdaArguments: Set<ExprID>) {
         guard sema.requiresResolvedLibraryCalls else { return }
         let scope = sema.symbols.lookup(fqName: ["kotlin", "sequences", "SequenceScope"].map(interner.intern))
@@ -22,7 +20,6 @@ extension TypeCheckDriver {
         }
         for id in callSuspensionContexts.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
             guard let context = callSuspensionContexts[id], !suspendingCallNames(for: id).isEmpty else { continue }
-            // The trusted builder implements yield using the lower-level suspension primitive.
             if sema.isJVMStdlibBuild, let owner = context.function,
                sema.symbols.symbol(owner).map({ let fqName = $0.fqName; return fqName.count == knownNames.kotlinSequencesBuilderIteratorFQName.count + 1 && fqName.starts(with: knownNames.kotlinSequencesBuilderIteratorFQName) && ["yield", "yieldAll"].contains(interner.resolve(fqName[3])) }) == true { continue }
             var restricted: SymbolID?
@@ -47,9 +44,6 @@ extension TypeCheckDriver {
                 if case let .functionType(f) = sema.types.kind(of: binding.functionType) { return f }; return nil
             }
             let scopeCallable = isScope(callable?.receiver)
-            // Kotlin permits the raw argument form f(scope), including forwarding
-            // from an ordinary suspend function. Receiver syntax and .invoke
-            // still obey restricted-receiver identity rules.
             if scopeCallable, let callable, case let .call(_, _, args, _) = ast.arena.expr(id), args.count == callable.params.count + 1 { continue }
             guard restricted != nil || scopeMember || scopeExtension || scopeCallable else { continue }
             var receiver: SymbolID?
