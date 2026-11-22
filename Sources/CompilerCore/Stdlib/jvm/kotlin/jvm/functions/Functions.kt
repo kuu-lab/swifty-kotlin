@@ -1,6 +1,5 @@
 package kotlin.jvm.functions
 
-// JVM function interfaces share their erased ABI with Kotlin function values.
 public interface Function0<out R> : kotlin.Function<R> {
     public operator fun invoke(): R
 }
