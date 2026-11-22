@@ -46,19 +46,11 @@ func runtimeRegisterCharSequenceItable(_ raw: Int) {
 
 @_cdecl("kk_char_sequence_length")
 public func kk_char_sequence_length(_ raw: Int) -> Int {
-    // KSP-817: Match Kotlin's UTF-16 CharSequence.length contract. The receiver
-    // may be any CharSequence implementation (String or StringBuilder handles).
     if let length = runtimeCharSequenceUTF16Length(from: raw) {
         return length
     }
     return runtimeKotlinStringUTF16Length(runtimeStringFromRawOrPanic(raw, caller: #function))
 }
-
-// KSP-1374/1384/1399: CharSequence first/last/single (+ OrNull) are
-// source-backed via the __kk_string_*_flat bridges in RuntimeStringFlat.swift.
-// The boxed (non-flat, Int-handle) kk_string_first/last/single/firstOrNull/
-// lastOrNull/singleOrNull functions that used to live here were superseded
-// and unreachable from any CompilerCore call site; removed.
 
 public func kk_string_getOrNull(_ strRaw: Int, _ index: Int) -> Int {
     let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
@@ -303,8 +295,3 @@ public func __kk_string_compareTo_member(_ strRaw: Int, _ otherRaw: Int) -> Int 
     let rhs = runtimeStringFromRawOrPanic(otherRaw, caller: #function)
     return runtimeCompareStrings(lhs, rhs)
 }
-
-// KSP-413: compareTo(ignoreCase) and CharSequence?.contentEquals are bundled
-// Kotlin source (Stdlib/kotlin/text/StringComparison.kt); the
-// kk_string_compareToIgnoreCase / kk_string_contentEquals /
-// kk_string_contentEquals_ignoreCase bridges were removed.
