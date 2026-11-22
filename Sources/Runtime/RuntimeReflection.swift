@@ -70,7 +70,6 @@ private func runtimeKClassToStringDisplayName(_ name: String) -> String {
     }
 }
 
-/// Renders class handles consistently across Any.toString, printing, and collections.
 func runtimeKClassToString(_ box: RuntimeKClassBox) -> String {
     if let arrayName = runtimeArrayKClassQualifiedName(typeToken: box.typeToken) {
         return "class \(arrayName)"
@@ -82,7 +81,6 @@ func runtimeKClassToString(_ box: RuntimeKClassBox) -> String {
 }
 
 
-// (a) RF-DEAD-002: 配線予定 → STDLIB-REFLECT-067 (KClass.typeParameters.size)
 public func __kk_kclass_get_arity(_ kclassRaw: Int) -> Int {
     guard let kclass = runtimeKClassBox(from: kclassRaw) else {
         return 0
@@ -91,10 +89,6 @@ public func __kk_kclass_get_arity(_ kclassRaw: Int) -> Int {
 }
 
 
-/// Returns the annotations list for a KClass as a RuntimeListBox.
-/// Each element is a RuntimeAnnotationBox raw handle.
-/// - Parameter kclassRaw: Opaque pointer to a RuntimeKClassBox.
-/// - Returns: Opaque pointer to a RuntimeListBox of annotation handles.
 @_cdecl("__kk_kclass_get_annotations")
 public func __kk_kclass_get_annotations(_ kclassRaw: Int) -> Int {
     guard let kclass = runtimeKClassBox(from: kclassRaw),
@@ -106,7 +100,6 @@ public func __kk_kclass_get_annotations(_ kclassRaw: Int) -> Int {
     return runtimeAnnotationList(metadata.annotations)
 }
 
-/// Distinguishes native KClass boxes from source implementations of KClass.
 @_cdecl("__kk_kclass_is_runtime")
 public func __kk_kclass_is_runtime(_ raw: Int) -> Int {
     runtimeKClassBox(from: raw) == nil ? 0 : 1
@@ -129,9 +122,6 @@ public func __kk_annotation_mark_reflection_materialized(_ raw: Int) -> Int {
           let box = tryCast(ptr, to: RuntimeObjectBox.self)
     else { return 0 }
     box.annotationReflectionMaterialized = true
-    // Nested annotation members (and annotation arrays) materialize through
-    // the same factory expression; mark them recursively so the JVM proxy
-    // format applies at every depth (KUU-4418).
     var visited: Set<Int> = [raw]
     for element in box.elements {
         runtimeMarkAnnotationMaterializedDeep(element, visited: &visited)
@@ -139,11 +129,6 @@ public func __kk_annotation_mark_reflection_materialized(_ raw: Int) -> Int {
     return 0
 }
 
-/// Marks `annotationReflectionMaterialized` on annotation instances nested
-/// inside a materialized annotation's member fields. Annotation member types
-/// are limited to primitives, String, enums, KClass, annotations and arrays
-/// thereof, so the reachable object graph stays small; the visited set guards
-/// against cycles through array elements.
 private func runtimeMarkAnnotationMaterializedDeep(_ raw: Int, visited: inout Set<Int>) {
     guard visited.insert(raw).inserted,
           let ptr = UnsafeMutableRawPointer(bitPattern: raw),
@@ -176,9 +161,6 @@ func runtimeAnnotationValue(_ record: RuntimeAnnotationRecord, materializeFactor
                             outThrown: UnsafeMutablePointer<Int>?) -> Int {
     if materializeFactory, record.factory != 0 {
         let result = kk_function_invoke_0(record.factory, outThrown)
-        // Source-backed factories mark themselves during lowering; imported
-        // `factoryLinkName` factories cannot, so mark the produced instance
-        // here to keep the JVM proxy toString format (KUU-4418).
         if outThrown?.pointee == 0 {
             _ = __kk_annotation_mark_reflection_materialized(result)
         }
@@ -192,7 +174,6 @@ func runtimeAnnotationValue(_ record: RuntimeAnnotationRecord, materializeFactor
 func runtimeAnnotationList(_ records: [RuntimeAnnotationRecord], materializeFactories: Bool = false,
                            outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
     var annotationHandles: [Int] = []
-    // Stable slots keep earlier results rooted while a later factory executes.
     let roots = UnsafeMutablePointer<UnsafeMutableRawPointer?>.allocate(capacity: max(1, records.count))
     roots.initialize(repeating: nil, count: max(1, records.count))
     defer {
@@ -320,8 +301,6 @@ public func __kk_kclass_find_annotation_typed(
     }
 }
 
-/// The current metadata pipeline records annotation arguments as strings, so
-/// this returns null unless a future emitter stores a runtime object handle.
 @_cdecl("__kk_kclass_find_associated_object")
 public func __kk_kclass_find_associated_object(_ kclassRaw: Int, _ keyNameRaw: Int) -> Int {
     guard let kclass = runtimeKClassBox(from: kclassRaw),
@@ -352,13 +331,6 @@ private func runtimeAssociatedObjectHandle(from arguments: [String]) -> Int {
     return runtimeNullSentinelInt
 }
 
-/// Called during module initialization (once per annotation) to attach compile-time
-/// annotation data to the already-registered metadata entry.
-/// - Parameters:
-///   - typeToken: The type token identifying the type.
-///   - fqNameRaw: Runtime string pointer for the annotation FQ name.
-///   - argsEncodedRaw: Runtime string pointer for pipe-delimited argument values (empty string if none).
-///   - argCount: Number of arguments encoded in the argsEncoded string.
 @_cdecl("__kk_kclass_register_single_annotation")
 public func __kk_kclass_register_single_annotation(
     _ typeToken: Int,
@@ -396,8 +368,6 @@ public func __kk_kclass_register_annotation_factory(
     runtimeKClassMetadataRegistry.appendAnnotations(typeToken: typeToken, annotations: [record])
     return 0
 }
-
-// MARK: - KFunction Dynamic Call (STDLIB-REFLECT-067)
 
 private func runtimeKFunctionBox(from raw: Int) -> RuntimeKFunctionBox? {
     resolveRuntimeHandle(raw, as: RuntimeKFunctionBox.self)
@@ -501,26 +471,18 @@ public func __kk_kparameter_get_kind(_ raw: Int) -> Int {
     // boundary — the same split __kk_ktypeprojection_get_variance
     // uses for KVariance.
     switch runtimeKParameterBox(from: raw)?.kind ?? 2 {
-    case 0: return 0  // INSTANCE
-    case 1: return 2  // EXTENSION_RECEIVER
-    case 3: return 1  // CONTEXT
-    default: return 3 // VALUE
+    case 0: return 0
+    case 1: return 2
+    case 3: return 1
+    default: return 3
     }
 }
 
-/// Distinguishes native KParameter boxes from source implementations of
-/// KParameter so `KAnnotatedElement.annotations` reads can bypass the
-/// interface getter (KUU-4017).
 @_cdecl("__kk_kparameter_is_runtime")
 public func __kk_kparameter_is_runtime(_ raw: Int) -> Int {
     runtimeKParameterBox(from: raw) == nil ? 0 : 1
 }
 
-/// Returns the annotations list for a KParameter as a RuntimeListBox.
-/// Parameter-annotation metadata is not yet emitted for runtime
-/// KParameter boxes, so this returns an empty list; source-backed
-/// KParameter implementations keep their own `annotations` through
-/// interface dispatch.
 @_cdecl("__kk_kparameter_get_annotations_typed")
 public func __kk_kparameter_get_annotations_typed(_ raw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     return runtimeThrowingBridge(outThrown) {
@@ -529,11 +491,6 @@ public func __kk_kparameter_get_annotations_typed(_ raw: Int, _ outThrown: Unsaf
     }
 }
 
-/// The owning callable's runtime handle for a `RuntimeKParameterBox`, when it
-/// can be resolved. `__kk_kcallable_register` back-fills `callableRaw` for
-/// compiler-emitted lists whose `callableOwner` is an encoded SymbolID;
-/// runtime-created reflection members pass the callable's raw handle as
-/// `callableOwner` directly, which is itself the handle.
 func runtimeKParameterCallableRaw(_ box: RuntimeKParameterBox) -> Int {
     if box.callableRaw != 0 {
         return box.callableRaw
@@ -544,17 +501,6 @@ func runtimeKParameterCallableRaw(_ box: RuntimeKParameterBox) -> Int {
     return 0
 }
 
-/// Value equality for KParameter boxes, mirroring the JVM's
-/// `ReflectKParameter.equals` (`callable == other.callable && index ==
-/// other.index`). `callableOwner` is the callable's value identity — an
-/// encoded SymbolID for compiler-emitted parameter lists, the owning
-/// callable's handle for runtime-created reflection members — while the
-/// discriminator separates a property from its accessors. Repeated
-/// evaluations of the same callable/accessor therefore compare equal. Bound
-/// callable references additionally compare their captured arguments, the
-/// same components `runtimeCallableReferenceValuesEqual` checks on the
-/// callable itself; `callBy`'s key-matching fallback
-/// (`callableParameterMatches`) delegates here so both paths agree.
 func runtimeKParameterBoxesEqual(_ lhs: RuntimeKParameterBox, _ rhs: RuntimeKParameterBox) -> Bool {
     guard lhs.callableOwner != 0,
           lhs.callableOwner == rhs.callableOwner,
@@ -568,9 +514,6 @@ func runtimeKParameterBoxesEqual(_ lhs: RuntimeKParameterBox, _ rhs: RuntimeKPar
         .allSatisfy { runtimeValuesEqual($0, $1) }
 }
 
-/// `ReflectKParameter.hashCode` = `callable.hashCode() * 31 + index`. The
-/// callable side hashes the same owner/discriminator identity equality
-/// compares, so equal parameters hash identically.
 func runtimeKParameterHashCode(_ box: RuntimeKParameterBox) -> Int {
     var hash = Int32(truncatingIfNeeded: box.callableOwner ^ (box.callableOwner >> 32))
     if box.callableOwnerDiscriminator != RuntimeKParameterCallableOwnerDiscriminator.property {
@@ -582,10 +525,6 @@ func runtimeKParameterHashCode(_ box: RuntimeKParameterBox) -> Int {
     return Int(31 &* hash &+ Int32(truncatingIfNeeded: box.index))
 }
 
-/// `ReflectionObjectRenderer.renderParameter`: "<kind text> of <callable>".
-/// The callable text reuses the JVM-shaped description already pinned on
-/// callable references (`fun f(kotlin.Int): kotlin.Unit`) and property stubs
-/// (`val C.v: kotlin.Int`), matching `renderCallable`.
 func runtimeKParameterToString(_ box: RuntimeKParameterBox) -> String {
     let name: String? = box.nameRaw == 0 || box.nameRaw == runtimeNullSentinelInt
         ? nil
@@ -657,16 +596,6 @@ public func __kk_kfunction_create(
     return registerRuntimeObject(box, typeID: kFunctionRuntimeTypeID)
 }
 
-/// - Parameters:
-///   - nameRaw: KKString for the function name.
-///   - arity: Number of value parameters.
-///   - returnTypeRaw: KKString for the return type.
-///   - flags: Packed modifier flags (see `__kk_kfunction_create`; bit0=suspend,
-///            bit1=inline, bit2=operator, bit3=infix, bit4=external).
-///   - fnPtr: C function pointer.
-///   - closureRaw: Closure environment pointer.
-///   - paramListRaw: Runtime list of KParameter handles (0 for empty).
-///   - typeStringRaw: KKString for the function type signature (0 if unknown).
 @_cdecl("__kk_kfunction_create_full")
 public func __kk_kfunction_create_full(
     _ nameRaw: Int,
@@ -704,9 +633,6 @@ public func __kk_kfunction_create_full(
     return registerRuntimeObject(box, typeID: kFunctionRuntimeTypeID)
 }
 
-/// Resolves packed modifier flags for a handle that is either a
-/// `RuntimeKFunctionBox` (class member reflection) or a callable-reference
-/// object tagged via `kk_callable_ref_tag_kfunction` (KUU-1357).
 private func runtimeKFunctionFlags(for raw: Int) -> Int {
     if let box = runtimeKFunctionBox(from: raw) {
         return box.flags
@@ -763,7 +689,7 @@ public func __kk_kfunction_get_value_parameters(_ kfunctionRaw: Int) -> Int {
     }
     let valueParams = box.parameterRaws.filter { raw in
         guard let paramBox = runtimeKParameterBox(from: raw) else { return true }
-        return paramBox.kind == 2 // VALUE
+        return paramBox.kind == 2
     }
     return registerRuntimeObject(RuntimeListBox(elements: valueParams))
 }
@@ -992,20 +918,12 @@ private func runtimeKTypeArgumentsToString(_ argumentRaws: [Int]) -> String {
     return "<\(renderedArguments.joined(separator: ", "))>"
 }
 
-/// KUU-1084: renders a KType whose classifier token is a FunctionN in Kotlin's
-/// function-type notation — `suspend (P1, P2) -> R` — instead of the nominal
-/// `kotlin.FunctionN<P1, P2, R>` form. Argument projections follow Kotlin
-/// order: context receivers, extension receiver, value parameters, then the
-/// return type.
 private func runtimeFunctionKTypeToString(_ box: RuntimeKTypeBox, classifier kclassBox: RuntimeKClassBox) -> String {
     let payload = (Int64(truncatingIfNeeded: kclassBox.typeToken) >> RuntimeTypeTokenEncoding.payloadShift)
         & RuntimeTypeTokenEncoding.payloadMask
     let (arity, isSuspend) = RuntimeTypeTokenEncoding.functionPayloadParts(payload)
     let argumentRaws = box.argumentRaws
     guard argumentRaws.count == arity + 1 else {
-        // A function classifier without its full projection list (e.g. built
-        // through a path that could not see the static type) keeps the nominal
-        // classifier spelling.
         let baseName = isSuspend
             ? "kotlin.coroutines.intrinsics.SuspendFunction\(arity)"
             : "kotlin.Function\(arity)"
@@ -1017,8 +935,6 @@ private func runtimeFunctionKTypeToString(_ box: RuntimeKTypeBox, classifier kcl
     if isSuspend {
         parts.append("suspend")
     }
-    // kotlinc renders parameter projections bare inside the param parens —
-    // `(() -> kotlin.Unit, kotlin.Int) -> kotlin.String` — no extra wrapper.
     let renderedParams = argumentRaws[..<arity].map(runtimeKTypeProjectionRendered)
     let renderedReturn = runtimeKTypeProjectionRendered(argumentRaws[arity])
     parts.append("(\(renderedParams.joined(separator: ", "))) -> \(renderedReturn)")
@@ -1095,14 +1011,6 @@ func runtimeKTypeToString(_ box: RuntimeKTypeBox) -> String {
 }
 
 
-/// - Parameters:
-///   - nameRaw: Opaque pointer to the KKString for the constructor name (typically "<init>").
-///   - arity: Number of parameters.
-///   - returnTypeRaw: Opaque pointer to the KKString for the return type (0 if unknown).
-///   - fnPtr: C function pointer integer for direct dispatch (0 if unavailable).
-///   - isPrimary: 1 if this is the primary constructor, 0 otherwise.
-///   - visibilityRaw: Opaque pointer to the KKString for visibility (0 for default/PUBLIC).
-///   - declaringClassRaw: Opaque pointer to the declaring KClass box (0 if unknown).
 @_cdecl("__kk_kconstructor_create")
 public func __kk_kconstructor_create(
     _ nameRaw: Int,
@@ -1137,7 +1045,6 @@ public func __kk_kconstructor_create(
     return raw
 }
 
-/// Adds one JVM-erased parameter class token to a constructor reflection handle.
 @_cdecl("__kk_kconstructor_set_parameter_type")
 public func __kk_kconstructor_set_parameter_type(
     _ constructorRaw: Int,
