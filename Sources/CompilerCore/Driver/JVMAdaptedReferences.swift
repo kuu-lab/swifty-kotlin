@@ -10,7 +10,7 @@ extension JVMFunctionBuilder {
         }
         let method = program.methods[symbol] ?? context.jvmImports?.method(for: symbol), ref = program.references[symbol]
         guard method != nil || ref != nil else { throw fail("Missing JVM adapted reference target.", id) }
-        let constructor = method?.isConstructor == true, extensionMember = program.extensionSymbols.contains(symbol)
+        let constructor = method?.isConstructor == true, extensionMember = program.extensionSymbols.contains(symbol) || context.jvmImports?.extensionSymbols.contains(symbol) == true
         let member = method?.isStatic == false && !constructor
         let plan = method.flatMap { m in program.classes.values.first { $0.name == m.owner } }
         let innerConstructor = constructor && plan?.isInner == true

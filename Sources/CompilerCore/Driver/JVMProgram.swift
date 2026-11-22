@@ -234,6 +234,7 @@ public struct JVMFunction {
     public var jvmName: String? = nil
     public var metadataDescriptor: String? = nil
     public var metadataParameterOffset = 0
+    public var declaredExceptions: [String] = []
     public var annotations: [JVMAnnotation] = []
     public var parameterAnnotations: [[JVMAnnotation]] = []
     public var annotationDefault: JVMAnnotationValue? = nil
@@ -276,10 +277,12 @@ public struct JVMForeignMethod: Sendable {
     public var isVarargs = false
     public var isSuspend = false
     public var isProtected = false
+    var isPackagePrivate = false
     var isSynthetic = false
     public var annotations: [JVMAnnotation] = []
     public var annotationDefault: JVMAnnotationValue? = nil
     // Classpath methods keep their physical descriptor until bound to a Kotlin call.
+    var parameterAnnotations: [[JVMAnnotation]] = []
     var kotlinSuspendFunction: JVMKotlinSuspendFunction?
     var genericResultParameter: (name: String, classParameterIndices: Set<Int>)?
     var genericSignature: String?
@@ -323,6 +326,7 @@ public struct JVMProperty {
     public var isGetterInline: Bool = false
     public var isSetterInline: Bool = false
     var accessesForeignField = false
+    var usesPrivateBackingField = false
 }
 
 public struct JVMRecordComponent {

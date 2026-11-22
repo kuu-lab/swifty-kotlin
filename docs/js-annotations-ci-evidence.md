@@ -103,11 +103,6 @@ KUU-1616 の保存結果と同じ分類だった。runner 回帰は11 + 6 + 8 = 
 fresh stdlib build は exit0 / 74.48秒、専用コマンド全体は契約不一致により exit1。
 旧実行の Runtime sandbox 障害と二つの compile timeout はこの再実行では発生していない。
 
-| 保存ファイル | 内容 |
-|---|---|
-| [kuu-1617-native-matrix-results.json](fixtures/js_annotations/evidence/kuu-1617-native-matrix-results.json) | 全108セルの portable matrix、全artifactファイルのhash、toolchain、期待値/map hash、経路間比較 |
-| [kuu-1617-ci-results.md](fixtures/js_annotations/evidence/kuu-1617-ci-results.md) | 解除判定false、fixture別結果・理由、runner回帰、実際のbuild/検証コマンド、CI未実行 |
-
 実行は2026-10-13 10:13:25–10:35:41 JST、revision
 `4838c0b14c1d4a3cb279a198a721bf8d1cac2f6f`、Apple Swift 6.4 / arm64 macOSで行った。
 compiler SHA256 は `587ddd6eb8cc0e53cf1143b043dd2ed63c0f232a20b99621dce838a6cf27e7da`、

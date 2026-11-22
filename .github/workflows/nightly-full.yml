@@ -31,7 +31,10 @@ jobs:
   build-debug-tests:
     name: Build debug Swift test bundle once
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # A cold SwiftPM cache costs up to ~32 min to build, ~15 min to warm the
+    # candidate stdlib, and ~15 min for the candidate-only cases (~9 s each),
+    # so 60 min cancelled the job before the candidate-only step finished.
+    timeout-minutes: 90
     outputs:
       bundle: ${{ steps.package.outputs.bundle }}
     env:

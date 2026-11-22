@@ -112,7 +112,7 @@ LoadSources
 | `Lowering/` | KIR 脱糖パス群 | `LoweringPhase.swift` (パス登録) + 各 `*LoweringPass.swift`。実行順は §9 参照 | for/when/property のデシュガー修正、新 lowering pass 追加 |
 | `Sema/NameMangler.swift` | マングリング | `NameMangler` | シンボル名マングリング修正 |
 | `Driver/` | パイプライン制御 + frontend/JVM 分岐 + 横断インフラ | `Driver.swift`, `CompilationContext.swift`, `Diagnostics.swift`, `Phases.swift`, `FrontendPhases.swift`, `SourceManager.swift`, `SourceLocation.swift`, `CommandRunner.swift`, `PhaseTimer.swift`, `IncrementalCompilationCache.swift`, `DependencyGraph.swift`, `FileFingerprint.swift`, `JVMFrontendPhase.swift`, `JVMSourceValidationPhase.swift`, `JVMClasspath*.swift`, `JVMProgramBuilder*.swift`, `BundledStdlib.swift`, `StdlibProfile.swift` | 新フェーズ追加、診断メッセージ修正、JVM classpath/frontend、インクリメンタルビルド |
-| `Stdlib/` | Kotlin stdlib ソース（リソース） | `kotlin/**`, `kotlinx/**`, `java/**`, `platform/**`, `kswiftk/**` に加え、JVM 用 `jvm/**`、wasm target 用 `wasm/**`（詳細は [`stdlib-pipeline.md`](stdlib-pipeline.md) / [`jvm-backend.md`](jvm-backend.md) / [`wasm-support-plan.md`](wasm-support-plan.md)）。native source injection は `jvm/` を除外し、`wasm/` は wasm target 時のみ注入（`Driver/BundledStdlib.swift`） | stdlib 拡張関数の追加・修正 |
+| `Stdlib/` | Kotlin stdlib ソース（リソース） | `kotlin/**`, `kotlinx/**`, `java/**`, `platform/**`, `kswiftk/**` に加え、JVM 用 `jvm/**`、wasm target 用 `wasm/**`（詳細は [`stdlib-pipeline.md`](stdlib-pipeline.md) / [`jvm-backend.md`](jvm-backend.md)）。native source injection は `jvm/` を除外し、`wasm/` は wasm target 時のみ注入（`Driver/BundledStdlib.swift`） | stdlib 拡張関数の追加・修正 |
 
 ### `Sources/CompilerBackend/` (Native/Wasm/JVM backends)
 
@@ -130,7 +130,7 @@ LoadSources
 | `CodegenRuntimeSupport.swift` (+`+RuntimeObjects`) | ランタイムサポート関数 |
 | `CodegenSymbolSupport.swift` | シンボルサポート |
 | `JVM/` (`JVMCodegenPhase.swift`, `JVMClassFile.swift`, `JVMConstantPool.swift`, `JVMMethodEmitter.swift`, `JVMJarArchive.swift`, `AndroidPackaging.swift` ほか) | JVM backend。typed `JVMProgram` から `.class` / `.jar` を生成し、`dex` / `apk` は Android SDK build-tools で後処理 | JVM classfile/JAR/DEX/APK 出力、Android packaging |
-| `Wasm/` (`WasmModule.swift`, `WasmEmitter.swift`, `WasmEmitter+Function.swift`, `WasmEmitter+Runtime.swift`) | wasm バックエンド（LLVM 非依存の自前バイナリエンコーダ + KIR→wasm エミッタ）。`--target wasm32-wasi` で `.wasm` を生成（計画は [`wasm-support-plan.md`](wasm-support-plan.md)） | wasm モジュール出力 |
+| `Wasm/` (`WasmModule.swift`, `WasmEmitter.swift`, `WasmEmitter+Function.swift`, `WasmEmitter+Runtime.swift`) | wasm バックエンド（LLVM 非依存の自前バイナリエンコーダ + KIR→wasm エミッタ）。`--target wasm32-wasi` で `.wasm` を生成 | wasm モジュール出力 |
 | `StdlibArtifactCache.swift` | 実行ファイル生成時に使う stdlib `.kklib` の生成・探索（パッケージ同梱を優先、無ければユーザーキャッシュに生成） |
 
 ### `Sources/KSwiftKCLI/`

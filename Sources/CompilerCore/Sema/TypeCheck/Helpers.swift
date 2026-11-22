@@ -1374,7 +1374,7 @@ struct TypeCheckHelpers {
         diagnostics: DiagnosticEngine?,
         range: SourceRange?
     ) {
-        guard let diagnostics else { return }
+        guard let diagnostics, range.map({ sema.jvmClasspathStubFiles.contains($0.start.file) }) != true else { return }
         TypeArgumentBoundsValidator(symbols: sema.symbols, types: sema.types, diagnostics: diagnostics)
             .validate(type: type, range: range)
     }

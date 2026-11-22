@@ -76,6 +76,10 @@ extension LLVMCAPIBindings {
         setLinkageFn(value, 3)
     }
 
+    func setWeakODRLinkage(_ value: LLVMValueRef?) {
+        setLinkageFn(value, 6)
+    }
+
     func setThreadLocal(_ value: LLVMValueRef?, isThreadLocal: Bool = true) {
         setThreadLocalFn(value, isThreadLocal ? 1 : 0)
     }

@@ -63,6 +63,20 @@
     "kind": "virtual"
   },
   {
+    "symbol": "__jvmInputStreamReader",
+    "owner": "java/io/InputStreamReader",
+    "name": "<init>",
+    "descriptor": "(Ljava/io/InputStream;Ljava/nio/charset/Charset;)V",
+    "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmReaderRead",
+    "owner": "java/io/Reader",
+    "name": "read",
+    "descriptor": "([C)I",
+    "kind": "virtual"
+  },
+  {
     "symbol": "__jvmOutputStreamWrite",
     "owner": "java/io/ByteArrayOutputStream",
     "name": "write",

@@ -10,6 +10,7 @@ struct JVMMethodCode {
     let locals: UInt16
     let frames: Data?
     var exceptions: [(UInt16, UInt16, UInt16, UInt16)] = []
+    var declaredExceptions: [String] = []
     var signature: String? = nil
     var annotations: [JVMAnnotation] = []
     var parameterAnnotations: [[JVMAnnotation]] = []

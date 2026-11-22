@@ -49,6 +49,7 @@ public extension CompilerDriver {
         for (path, data) in inMemorySources {
             _ = context.sourceManager.addFile(path: path, contents: data)
         }
+        _ = backendPhasesForJavaSources(options)
 
         let phases: [CompilerPhase] = [LoadSourcesPhase()]
             + (options.emit.isJVM ? [JVMPreparationPhase()] : []) + [

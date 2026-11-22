@@ -348,7 +348,13 @@ public final class SymbolTable {
     private var pendingTypeParameterBoundConflictChecks: [(symbol: SymbolID, declSite: SourceRange?)] = []
     private var pendingTypeArgumentBoundChecks: [PendingTypeArgumentBoundCheck] = []
     private var sourceFileIDs: [SymbolID: FileID] = [:]
+    // JVM classpath access is scoped by the binary package, independently of Kotlin visibility.
+    var jvmFilePackages: [FileID: [InternedString]] = [:]
     private var jvmJavaMethods: Set<SymbolID> = []
+    var jvmMutableCollectionViews: [SymbolID: SymbolID] = [:]
+    private var jvmJavaBeanProperties: Set<SymbolID> = []
+    var jvmJavaFieldWriteTypes: [SymbolID: TypeID] = [:]
+    private(set) var jvmPackageAccess: [SymbolID: [InternedString]] = [:]
     /// Selected symbols imported from the validated stdlib artifact, including
     /// indexed declarations whose bodies have not been materialized yet.
     private var importedStdlibSymbolIDs: Set<SymbolID> = []
@@ -496,6 +502,9 @@ public final class SymbolTable {
         worker.byDeclSite = byDeclSite
         worker.functionSignatures = functionSignatures
         worker.jvmJavaMethods = jvmJavaMethods
+        worker.jvmMutableCollectionViews = jvmMutableCollectionViews
+        worker.jvmJavaBeanProperties = jvmJavaBeanProperties
+        worker.jvmJavaFieldWriteTypes = jvmJavaFieldWriteTypes
         worker.valueParameterOwners = valueParameterOwners
         worker.propertyTypes = propertyTypes
         worker.propertyHasCustomGetter = propertyHasCustomGetter
@@ -911,6 +920,14 @@ public final class SymbolTable {
         defer { lock.unlock() }
         deferredFunctionSignatures = signatures
         deferredFunctionSignatureLoader = loader
+    }
+
+    func loadDeferredFunctionSignature(for symbol: SymbolID) {
+        lock.lock()
+        defer { lock.unlock() }
+        if deferredFunctionSignatures.remove(symbol) != nil {
+            deferredFunctionSignatureLoader?(symbol)
+        }
     }
 
     func ensureLazyImportedMetadataLoaded(for symbol: SymbolID, resolvingFunctionSignature: Bool = false) {
@@ -2215,6 +2232,16 @@ public final class SymbolTable {
     func markJVMJavaMethod(_ symbol: SymbolID) { jvmJavaMethods.insert(symbol) }
 
     func isJVMJavaMethod(_ symbol: SymbolID) -> Bool { jvmJavaMethods.contains(symbol) }
+
+    func markJVMJavaBeanProperty(_ symbol: SymbolID) { jvmJavaBeanProperties.insert(symbol) }
+
+    func isJVMJavaBeanProperty(_ symbol: SymbolID) -> Bool { jvmJavaBeanProperties.contains(symbol) }
+
+    func setJVMPackageAccess(_ package: [InternedString], for symbol: SymbolID) {
+        jvmPackageAccess[symbol] = package
+        bumpBindingVersions(startingAt: symbol)
+    }
+
 
     public func setSourceFileID(_ fileID: FileID, for symbol: SymbolID) {
         sourceFileIDs[symbol] = fileID

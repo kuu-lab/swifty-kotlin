@@ -17,6 +17,10 @@ extension JVMFunctionBuilder {
             try requireWritableArguments(receiverID, at: id)
         }
 
+        let receiverType = try convert(
+            requireValue(receiverID),
+            to: .reference(owner, nullable: false)
+        )
         var supplied: [Int: (ExprID, JVMValue)] = [:]
         let binding = program.sema.bindings.callBinding(for: id)
         for (position, argument) in args.enumerated() {
@@ -41,10 +45,6 @@ extension JVMFunctionBuilder {
         let resultType = try program.expressionType(id)
         let result = try value(resultType)
         let object: JVMValueType = .reference("java/lang/Object", nullable: true)
-        let receiverType = try convert(
-            requireValue(receiverID),
-            to: .reference(owner, nullable: false)
-        )
         if isList {
             let index = try convert(key, to: .int)
             let size = try jdkCall(owner, "size", [], .int, receiver: receiverType, interface: true)!

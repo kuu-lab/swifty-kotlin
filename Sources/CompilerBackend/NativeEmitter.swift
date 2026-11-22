@@ -919,10 +919,14 @@ struct NativeEmitter {
     /// Declares an LLVM global for every KIR global declaration. With
     /// `emitDefinitions: false` only external declarations are created — used
     /// by partition worker modules whose definitions merge in afterwards.
+    /// `definitionsUsedOnlyByOtherObjects` is for a globals-only object whose
+    /// definitions are referenced solely from separately compiled partition
+    /// objects: linkonce_odr would let -O2 GlobalDCE drop every one of them.
     func declareGlobals(
         llvmModule: LLVMCAPIBindings.LLVMModuleRef,
         int64Type: LLVMCAPIBindings.LLVMTypeRef,
-        emitDefinitions: Bool
+        emitDefinitions: Bool,
+        definitionsUsedOnlyByOtherObjects: Bool = false
     ) -> [SymbolID: LLVMCAPIBindings.LLVMValueRef] {
         var llvmGlobalVariables: [SymbolID: LLVMCAPIBindings.LLVMValueRef] = [:]
         let globalDecls = module.arena.declarations.compactMap { decl -> (slotName: String, global: KIRGlobal)? in
@@ -957,7 +961,12 @@ struct NativeEmitter {
                         // precompiled stdlib .kklib and a consuming module) can each
                         // contain a tentative definition of the same global; the
                         // linker keeps one copy and all references resolve to it.
-                        bindings.setLinkOnceODRLinkage(llvmGlobal)
+                        // weak_odr merges the same way but is not discardable.
+                        if definitionsUsedOnlyByOtherObjects {
+                            bindings.setWeakODRLinkage(llvmGlobal)
+                        } else {
+                            bindings.setLinkOnceODRLinkage(llvmGlobal)
+                        }
                         if let zero = bindings.constInt(int64Type, value: 0) {
                             bindings.setInitializer(llvmGlobal, value: zero)
                         }

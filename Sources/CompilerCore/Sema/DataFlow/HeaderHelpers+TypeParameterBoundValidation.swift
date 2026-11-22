@@ -17,9 +17,11 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        precompiledFiles: Set<FileID> = []
     ) {
         for pending in symbols.typeParametersPendingBoundConflictCheck() {
+            if let site = pending.declSite, precompiledFiles.contains(site.start.file) { continue }
             guard let typeParamInfo = symbols.symbol(pending.symbol) else {
                 continue
             }
@@ -36,6 +38,9 @@ extension DataFlowSemaPhase {
 
         let argumentBoundsValidator = TypeArgumentBoundsValidator(symbols: symbols, types: types, diagnostics: diagnostics)
         for pending in symbols.typeArgumentBoundChecksPendingValidation() {
+            // Imported declaration stubs may erase inaccessible or raw parents.
+            // The classfile already validated its declaration; source uses are checked.
+            if let range = pending.range, precompiledFiles.contains(range.start.file) { continue }
             argumentBoundsValidator.validate(
                 symbol: pending.symbol,
                 arguments: pending.arguments,

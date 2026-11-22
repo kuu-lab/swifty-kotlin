@@ -6,6 +6,9 @@ public func makeBackendPhases() -> [CompilerPhase] {
 }
 
 public func makeBackendPhases(keepLLVMContextAlive: Bool) -> [CompilerPhase] {
+    // The frontend compiles Android Java sources before Sema and needs the
+    // runtime jar the backend builds for `-include-runtime`.
+    AndroidBuildInputs.runtimeJarProvider = { try JVMCodegenPhase.runtimeJar(for: $0) }
     let session = LLVMBackendSession(keepContextAlive: keepLLVMContextAlive)
     return [CodegenPhase(session: session), LinkPhase(session: session)]
 }

@@ -20,7 +20,11 @@ package final class AndroidResourceLink {
     package let androidJarPath: String
     package let directory: URL
     package var unsignedAPK: String { directory.appendingPathComponent("unsigned.apk").path }
+    /// The app's own `R` classes, visible to Sema.
     private(set) var classFiles: [(String, Data)] = []
+    /// `R` classes of library packages. Library bytecode reads them at
+    /// runtime, so they are dexed, but Kotlin sources never see them.
+    package private(set) var libraryClassFiles: [(String, Data)] = []
 
     private init(toolchain: AndroidToolchain, androidJarPath: String, directory: URL) {
         self.toolchain = toolchain
@@ -33,7 +37,8 @@ package final class AndroidResourceLink {
     }
 
     package static func prepare(
-        options: AndroidOptions, toolchain: AndroidToolchain, phaseTimer: PhaseTimer?
+        options: AndroidOptions, toolchain: AndroidToolchain,
+        libraries: AndroidLibrarySet? = nil, phaseTimer: PhaseTimer?
     ) throws -> AndroidResourceLink {
         guard let aapt2 = toolchain.aapt2Path else {
             throw AndroidPackagingError.toolchain(AndroidSDKError.toolMissing("aapt2").description)
@@ -48,7 +53,7 @@ package final class AndroidResourceLink {
                 toolchain: toolchain, androidJarPath: androidJar,
                 directory: try AndroidBuildTool.makeWorkDirectory()
             )
-            try link.run(aapt2: aapt2, options: options, phaseTimer: phaseTimer)
+            try link.run(aapt2: aapt2, options: options, libraries: libraries, phaseTimer: phaseTimer)
             return link
         } catch let error as AndroidPackagingError {
             throw error
@@ -57,14 +62,60 @@ package final class AndroidResourceLink {
         }
     }
 
-    private func run(aapt2: String, options: AndroidOptions, phaseTimer: PhaseTimer?) throws {
-        let manifest = try Self.resolveManifest(options.manifestPath)
+    private func run(
+        aapt2: String, options: AndroidOptions, libraries: AndroidLibrarySet?, phaseTimer: PhaseTimer?
+    ) throws {
+        let (manifest, appPackage) = try prepareManifest(options: options, libraries: libraries)
         var arguments = ["link", "-o", unsignedAPK, "-I", androidJarPath, "--manifest", manifest]
         if let minAPI = options.minAPI {
             arguments += ["--min-sdk-version", String(minAPI)]
         }
+        if let targetSdk = options.targetSdk {
+            arguments += ["--target-sdk-version", String(targetSdk)]
+        }
+        if let versionCode = options.versionCode {
+            arguments += ["--version-code", String(versionCode)]
+        }
+        if let versionName = options.versionName {
+            arguments += ["--version-name", versionName]
+        }
+        if options.debuggable {
+            arguments.append("--debug-mode")
+        }
+        if let applicationID = options.applicationID, applicationID != appPackage {
+            // The manifest package stays the R namespace; aapt2 rewrites the
+            // package and expands relative component names against the old one.
+            arguments += ["--rename-manifest-package", applicationID]
+        }
         if let assets = options.assetPath {
             arguments += ["-A", assets]
+        }
+        let resourceLibraries = (libraries?.libraries ?? []).compactMap { library in
+            library.resources.map { (package: library.package, resources: $0) }
+        }
+        for library in libraries?.libraries ?? [] {
+            if let assets = library.assets { arguments += ["-A", assets.path] }
+        }
+        var generatesR = false
+        if !resourceLibraries.isEmpty {
+            // Overlays apply in order, later winning: dependencies before the
+            // libraries that depend on them (the resolver lists dependents
+            // first), and the app's own resources last.
+            for (index, library) in resourceLibraries.enumerated().reversed() {
+                let archive = directory.appendingPathComponent("library-res-\(index).zip").path
+                try AndroidBuildTool.run(
+                    tool: "aapt2", executable: aapt2,
+                    arguments: ["compile", "--dir", library.resources.path, "-o", archive],
+                    phaseTimer: phaseTimer, subPhaseName: "Android/aapt2-compile"
+                )
+                arguments += ["-R", archive]
+            }
+            arguments.append("--auto-add-overlay")
+            let packages = Set(resourceLibraries.compactMap { $0.package }).subtracting([appPackage]).sorted()
+            if !packages.isEmpty {
+                arguments += ["--extra-packages", packages.joined(separator: ":")]
+            }
+            generatesR = true
         }
         if let resources = options.resourcePath {
             let resURL = URL(fileURLWithPath: resources).standardizedFileURL
@@ -81,17 +132,58 @@ package final class AndroidResourceLink {
                 arguments: ["compile", "--dir", resURL.path, "-o", resArchive],
                 phaseTimer: phaseTimer, subPhaseName: "Android/aapt2-compile"
             )
-            let javaSources = directory.appendingPathComponent("java", isDirectory: true)
+            // With library overlays the app's resources must overlay last so
+            // they override library values; alone they are the base input.
+            arguments += resourceLibraries.isEmpty ? [resArchive] : ["-R", resArchive]
+            generatesR = true
+        }
+        let javaSources = directory.appendingPathComponent("java", isDirectory: true)
+        if generatesR {
             try FileManager.default.createDirectory(at: javaSources, withIntermediateDirectories: true)
-            arguments += ["--java", javaSources.path, resArchive]
+            arguments += ["--java", javaSources.path]
         }
         try AndroidBuildTool.run(
             tool: "aapt2", executable: aapt2, arguments: arguments,
             phaseTimer: phaseTimer, subPhaseName: "Android/aapt2-link"
         )
-        if options.resourcePath != nil {
-            classFiles = try compileResourceClasses(phaseTimer: phaseTimer)
+        if generatesR {
+            let appDirectory = appPackage.replacingOccurrences(of: ".", with: "/") + "/"
+            let compiled = try compileResourceClasses(phaseTimer: phaseTimer)
+            classFiles = compiled.filter { $0.0.hasPrefix(appDirectory) && !$0.0.dropFirst(appDirectory.count).contains("/") }
+            libraryClassFiles = compiled.filter { entry in !classFiles.contains { $0.0 == entry.0 } }
         }
+    }
+
+    /// The manifest aapt2 links: the app manifest as given, or merged with
+    /// the library manifests (written into the work directory).
+    private func prepareManifest(
+        options: AndroidOptions, libraries: AndroidLibrarySet?
+    ) throws -> (path: String, package: String) {
+        let path = try Self.resolveManifest(options.manifestPath)
+        let app: AndroidXMLElement
+        do {
+            app = try AndroidXMLElement.parse(Data(contentsOf: URL(fileURLWithPath: path)))
+        } catch {
+            throw AndroidPackagingError.invalidInput("Cannot read \(path): \(error)")
+        }
+        guard let package = app[attribute: "package"] ?? options.namespace else {
+            throw AndroidPackagingError.invalidInput(
+                "\(path) has no package attribute; pass --android-namespace <package>."
+            )
+        }
+        let manifests = (libraries?.libraries ?? []).compactMap { library in
+            library.manifest.map { (package: library.package, manifest: $0) }
+        }
+        // Merge even without libraries: `${applicationId}` placeholders and
+        // `tools:` markers in the app manifest itself must be processed.
+        let merged = AndroidManifestMerger.merge(
+            app: app, namespace: package,
+            applicationID: options.applicationID ?? package,
+            libraries: manifests
+        )
+        let output = directory.appendingPathComponent("AndroidManifest.xml")
+        try Data(merged.serialized().utf8).write(to: output)
+        return (output.path, package)
     }
 
     private func compileResourceClasses(phaseTimer: PhaseTimer?) throws -> [(String, Data)] {
