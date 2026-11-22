@@ -294,5 +294,14 @@ extension JVMBackendTests {
             try #require(constructor.1 == 0, "\(constructor.2.map(\.message))")
         }
     }
+
+    @Test
+    func kotlinKeywordEscapedTypeEscapesUnqualifiedKeywords() throws {
+        let index = try JVMClasspathIndex.load([])
+        #expect(index.kotlinKeywordEscapedType("Parent<when>") == "Parent<`when`>")
+        #expect(index.kotlinKeywordEscapedType("Parent<when?>") == "Parent<`when`?>")
+        #expect(index.kotlinKeywordEscapedType("Parent<in dep.Foo, out dep.Bar>") == "Parent<in dep.Foo, out dep.Bar>")
+        #expect(index.kotlinKeywordEscapedType("suspend (dep.when) -> dep.when") == "suspend (dep.`when`) -> dep.`when`")
+    }
 }
 #endif
