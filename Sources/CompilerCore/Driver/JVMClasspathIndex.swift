@@ -3803,9 +3803,11 @@ final class JVMClasspathIndex {
                 case let .funDecl(function) where function.range == site:
                     return function
                 case let .classDecl(owner):
-                    if let found = function(in: owner.memberFunctions + owner.nestedClasses + owner.nestedObjects) { return found }
+                    let children = owner.memberFunctions + owner.nestedClasses + owner.nestedObjects
+                    if let found = function(in: children + [owner.companionObject].compactMap { $0 }) { return found }
                 case let .interfaceDecl(owner):
-                    if let found = function(in: owner.memberFunctions + owner.nestedClasses + owner.nestedObjects) { return found }
+                    let children = owner.memberFunctions + owner.nestedClasses + owner.nestedObjects
+                    if let found = function(in: children + [owner.companionObject].compactMap { $0 }) { return found }
                 case let .objectDecl(owner):
                     if let found = function(in: owner.memberFunctions + owner.nestedClasses + owner.nestedObjects) { return found }
                 default:

@@ -171,7 +171,7 @@ struct ComposePlugin: CompilerPlugin {
                     context.sema.stableAnnotatedSymbols.insert(symID)
                 }
             }
-            for childDecl in classDecl.memberFunctions + classDecl.memberProperties + classDecl.nestedClasses + classDecl.nestedObjects {
+            for childDecl in classDecl.memberFunctions + classDecl.memberProperties + classDecl.nestedClasses + classDecl.nestedObjects + [classDecl.companionObject].compactMap({ $0 }) {
                 scanDeclRecursively(
                     declID: childDecl,
                     context: context,
@@ -184,7 +184,7 @@ struct ComposePlugin: CompilerPlugin {
             }
 
         case let .interfaceDecl(interfaceDecl):
-            for childDecl in interfaceDecl.memberFunctions + interfaceDecl.memberProperties + interfaceDecl.nestedClasses + interfaceDecl.nestedObjects {
+            for childDecl in interfaceDecl.memberFunctions + interfaceDecl.memberProperties + interfaceDecl.nestedClasses + interfaceDecl.nestedObjects + [interfaceDecl.companionObject].compactMap({ $0 }) {
                 scanDeclRecursively(
                     declID: childDecl,
                     context: context,
