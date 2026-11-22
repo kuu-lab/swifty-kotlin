@@ -92,12 +92,7 @@ typealias KKClosureFunctionEntryPoint22 = @convention(c) (Int, Int, Int, Int, In
 
 final class RuntimeStringBox {
     let value: String
-    /// `value` is immutable, so the cache never invalidates.
     private var cachedUTF16CodeUnits: [UInt16]?
-    /// Flat-ABI buffer backing this string, materialized once so repeated
-    /// `kk_string_to_flat` bridges share a single registered storage instead
-    /// of accumulating one buffer per call. Owned by the flat-string registry,
-    /// so the cache stays weak and self-heals after `kk_flat_string_release`.
     private weak var cachedFlatStorage: RuntimeFlatStringStorage?
     private let utf16CodeUnitsLock = NSLock()
 
@@ -116,8 +111,6 @@ final class RuntimeStringBox {
         return units
     }
 
-    /// UTF-16 length without allocating the code-unit array when nothing has
-    /// indexed this string yet.
     var utf16Length: Int {
         utf16CodeUnitsLock.lock()
         let cached = cachedUTF16CodeUnits
@@ -125,8 +118,6 @@ final class RuntimeStringBox {
         return cached?.count ?? runtimeKotlinStringUTF16Length(value)
     }
 
-    /// The box is the storage's canonical boxed handle, so a flat→raw bridge
-    /// of the same buffer resolves back to this box.
     func flatStringStorage() -> RuntimeFlatStringStorage {
         utf16CodeUnitsLock.lock()
         defer { utf16CodeUnitsLock.unlock() }
@@ -154,8 +145,6 @@ final class RuntimeStringBox {
             return untaggedCanonicalAlias
         }
         let raw = Int(bitPattern: Unmanaged.passUnretained(self).toOpaque())
-        // The nominal type can sit on either this exact handle (in-place tag)
-        // or its primitive-tag-bits handle (registerTaggedPrimitiveBox clone).
         let taggedPrimitiveRaw = Int(bitPattern: UInt(bitPattern: raw) | runtimePrimitiveBoxTag)
         guard runtimeObjectTypeID(rawValue: raw) != nil
                 || runtimeObjectTypeID(rawValue: taggedPrimitiveRaw) != nil
@@ -178,8 +167,6 @@ struct RuntimeValue {
     var payload1: Int
     var payload2: Int
     var payload3: Int
-    // Static type information used by Any fallback operations. This is kept
-    // separate from `tag`, which describes the storage representation.
     var anyFallbackTag: Int32
 
     init(raw: Int, anyFallbackTag: Int32 = 0) {
