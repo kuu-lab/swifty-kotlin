@@ -7,10 +7,6 @@ private struct RuntimeThrowableHierarchyCache {
 
 class RuntimeThrowableBox {
     let message: String?
-    /// Handle of the Kotlin `String` argument handed to the constructor, when
-    /// one was supplied. `__kk_throwable_message` returns it verbatim so
-    /// `throwable.message === arg` holds like on the JVM; for synthesized
-    /// messages the getter lazily materializes one stable box here.
     var messageRaw: Int
     var cause: Int
     /// JVM parity for `Throwable.initCause`: the cause slot starts out
@@ -24,7 +20,6 @@ class RuntimeThrowableBox {
     var stackTraceElementsRaw: Int = 0
     var suppressionEnabled = true
     var writableStackTrace = true
-    /// Stores raw Int pointers to other RuntimeThrowableBox instances.
     var suppressed: [Int] = []
     private var cachedExceptionHierarchy: RuntimeThrowableHierarchyCache?
     private let exceptionHierarchyCacheLock = NSLock()
@@ -52,12 +47,10 @@ class RuntimeThrowableBox {
         return cache
     }
 
-    /// Stable nominal IDs for `exceptionHierarchyFQNames`, computed once per box.
     var exceptionHierarchyTypeIDs: [Int64] {
         exceptionHierarchyCache().typeIDs
     }
 
-    /// Whether the hierarchy is exactly `[kotlin.Throwable]` (the untyped fallback).
     var exceptionHierarchyIsBaseThrowable: Bool {
         exceptionHierarchyCache().isBaseThrowable
     }
@@ -69,9 +62,6 @@ class RuntimeThrowableBox {
     init(message: String?, cause: Int = 0, messageRaw: Int = 0) {
         self.message = message
         self.cause = cause
-        // A non-zero cause can only come from a cause-taking constructor, so it
-        // is already initialized; cause-taking `@_cdecl` factories mark the
-        // explicit-null case via `runtimeMarkThrowableCauseInitialized`.
         self.causeInitialized = cause != 0
         self.messageRaw = messageRaw == runtimeNullSentinelInt ? 0 : messageRaw
         self.stackTraceAddresses = runtimeCurrentStackTraceAddresses()
@@ -103,15 +93,6 @@ final class RuntimeUninitializedPropertyAccessExceptionBox: RuntimeThrowableBox 
     }
 }
 
-/// Distinct type used to identify CancellationException at runtime.
-/// The runtime checks `is RuntimeCancellationBox` to distinguish cancellation from
-/// regular throwables (CORO-002 / spec.md J17).
-///
-/// Non-final so `RuntimeTimeoutCancellationBox` can subclass it: every existing
-/// `is RuntimeCancellationBox` / `tryCast(_:to: RuntimeCancellationBox.self)` site
-/// (notably `kk_is_cancellation_exception`, which backs the
-/// `catch (e: CancellationException)` fast path) then accepts the timeout flavour
-/// without further wiring, matching kotlinx.coroutines' subclass relationship.
 class RuntimeCancellationBox: RuntimeThrowableBox {
     // Job-generated wrappers identify cancellation without confusing a user-
     // thrown CancellationException (even one with the same underlying cause).
