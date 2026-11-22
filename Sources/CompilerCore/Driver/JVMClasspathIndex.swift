@@ -685,6 +685,10 @@ final class JVMClasspathIndex {
             || name == "kotlin/Unit" || name == "kotlin/Nothing"
     }
 
+    func exposesKotlinMetadataClass(_ name: String) -> Bool {
+        isCovered(name, covered: activeCoveredNames) || classes[name] != nil
+    }
+
     // A function type marker "->" only counts at the top level of the
     // source type — `List<() -> Unit>` still carries a `List` on the JVM.
     private func sourceTypeIsTopLevelFunction(_ sourceType: String) -> Bool {
@@ -1030,6 +1034,11 @@ final class JVMClasspathIndex {
         if name == "androidx/activity/result/contract/ActivityResultContract",
            let arguments = child.kotlinParameterizedSupertypes[name], let base = kotlinSupertypeName(name) {
             return base + "<" + arguments.map { $0 == "java.lang.Void?" ? "kotlin.Nothing?" : $0 }.joined(separator: ", ") + ">"
+        }
+        if child.hasKotlinMetadata,
+           let arguments = child.kotlinParameterizedSupertypes[name],
+           let base = kotlinSupertypeName(name) {
+            return base + "<" + arguments.joined(separator: ", ") + ">"
         }
         if name == "kotlin/coroutines/CoroutineContext$Key", let signature = child.genericSignature,
            let prefix = signature.range(of: "L" + name + "<L"),

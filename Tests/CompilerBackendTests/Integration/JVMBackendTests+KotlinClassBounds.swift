@@ -73,5 +73,93 @@ extension JVMBackendTests {
             try #require(javaConsumer.1 == 0, "\(javaConsumer.2.map(\.message))")
         }
     }
+
+    @Test
+    func kotlinClasspathBoundsPreserveDependencyShapes() throws {
+        try withWorkspace { root in
+            try """
+            package dep
+
+            class DateBox<T : java.util.Date>
+
+            open class Key<T>
+            class StringKey : Key<String>()
+            class Registry<T : Key<String>>
+
+            class Marker<T>
+            class Outer<A> {
+                inner class Box<T : Marker<A>>
+            }
+            """.write(to: root.appendingPathComponent("Bounds.kt"), atomically: true, encoding: .utf8)
+            let library = root.appendingPathComponent("bounds.jar")
+            let compiled = try jvmTool("kotlinc", ["Bounds.kt", "-d", library.path], root: root)
+            try #require(compiled.exitCode == 0, "\(compiled.stderr)")
+
+            let dateBox = try m22Build(
+                root: root,
+                sources: [("DateBoxConsumer.kt", """
+                import dep.DateBox
+
+                fun use(box: DateBox<*>?) {}
+                """)],
+                name: "datebox.jar",
+                classpath: [library.path]
+            )
+            try #require(dateBox.1 == 0, "\(dateBox.2.map(\.message))")
+
+            let registry = try m22Build(
+                root: root,
+                sources: [("RegistryConsumer.kt", """
+                import dep.Registry
+                import dep.StringKey
+
+                fun use(): Registry<StringKey>? = null
+                """)],
+                name: "registry.jar",
+                classpath: [library.path]
+            )
+            try #require(registry.1 == 0, "\(registry.2.map(\.message))")
+
+            let registryInvalid = try m22Build(
+                root: root,
+                sources: [("RegistryInvalid.kt", """
+                import dep.Registry
+
+                fun bad(): Registry<String>? = null
+                """)],
+                name: "registry-invalid.jar",
+                classpath: [library.path]
+            )
+            #expect(registryInvalid.1 != 0)
+            #expect(registryInvalid.2.contains { $0.severity == .error && $0.code == "KSWIFTK-SEMA-BOUND" })
+
+            let inner = try m22Build(
+                root: root,
+                sources: [("InnerConsumer.kt", """
+                import dep.Marker
+                import dep.Outer
+
+                fun use(box: Outer<String>.Box<Marker<String>>?) {}
+                """)],
+                name: "inner.jar",
+                classpath: [library.path]
+            )
+            try #require(inner.1 == 0, "\(inner.2.map(\.message))")
+
+            let innerInvalid = try m22Build(
+                root: root,
+                sources: [("InnerInvalid.kt", """
+                import dep.Marker
+                import dep.Outer
+
+                fun bad(box: Outer<String>.Box<Marker<Int>>?) {}
+                """)],
+                name: "inner-invalid.jar",
+                classpath: [library.path]
+            )
+            #expect(innerInvalid.1 != 0)
+            #expect(innerInvalid.2.contains { $0.severity == .error && $0.code == "KSWIFTK-SEMA-BOUND" })
+        }
+    }
 }
 #endif
