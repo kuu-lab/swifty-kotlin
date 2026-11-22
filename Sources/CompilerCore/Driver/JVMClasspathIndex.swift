@@ -1006,7 +1006,8 @@ final class JVMClasspathIndex {
             } else {
                 let isKeyword = Keyword(rawValue: token) != nil || SoftKeyword(rawValue: token) != nil
                 let followedByWhitespace = end < type.endIndex && type[end].isWhitespace
-                result += isKeyword && !followedByWhitespace ? "`\(token)`" : token
+                let isContextFunctionPrefix = token == "context" && end < type.endIndex && type[end] == "("
+                result += isKeyword && !followedByWhitespace && !isContextFunctionPrefix ? "`\(token)`" : token
             }
             index = end
         }
