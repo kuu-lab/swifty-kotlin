@@ -5,8 +5,6 @@ final class RuntimeRangeBox {
     let step: Int
     let kind: RuntimeRangeKind
 
-    // Range handles share one representation, so preserve Char identity for
-    // erased Iterable/Iterator calls that must return a boxed element.
     init(first: Int, last: Int, step: Int, kind: RuntimeRangeKind = .intRange) {
         self.first = first
         self.last = last
@@ -22,8 +20,6 @@ final class RuntimeRangeIteratorBox {
     let kind: RuntimeRangeKind
     var hasNextValue: Bool
 
-    // Range handles share one representation, so preserve Char identity for
-    // erased Iterable/Iterator calls that must return a boxed element.
     init(current: Int, last: Int, step: Int, kind: RuntimeRangeKind = .intRange) {
         self.current = current
         self.last = last
@@ -83,10 +79,6 @@ final class RuntimeRangeIteratorBox {
     }
 }
 
-/// BUG-198: Iterator state for compiler-lowered signed range `for-in` loops.
-/// This intentionally has no Iterator itable: the lowering calls the three
-/// dedicated entry points directly, while explicit `range.iterator()` keeps the
-/// KSP-452 source-backed iterator implementation.
 final class RuntimeSignedRangeForInIteratorBox {
     var current: Int
     let last: Int
@@ -271,9 +263,6 @@ func runtimeSignedRangeIsEmpty(_ range: RuntimeRangeBox) -> Bool {
 }
 
 func runtimeRangeContains(_ range: RuntimeRangeBox, _ element: Int) -> Int {
-    // Membership intrinsics box the element argument for non-range
-    // containers; a boxed integral probe that still reaches a range unwraps
-    // back to its payload word here (KUU-3027).
     let element = maybeUnbox(element)
     switch range.kind {
     case .uintRange, .uintProgression, .ulongRange, .ulongProgression:
@@ -312,14 +301,9 @@ func runtimeSignedRangeTraverse(
 ) -> Bool {
     var current = range.first
     var index = 0
-    // Checked arithmetic matches the unsigned traverse: stepping past a type
-    // boundary (e.g. Long.MIN_VALUE) must stop the loop instead of wrapping.
     if range.step > 0 {
         while current <= range.last {
             if !body(current, index) { return false }
-            // The stored last is already snapped to the progression's final
-            // reachable element, so reaching it ends the walk without letting
-            // the advance wrap around an Int/Long boundary (KUU-819).
             if current == range.last { break }
             let (next, overflow) = current.addingReportingOverflow(range.step)
             if overflow { break }
@@ -471,8 +455,6 @@ func runtimeCharRangeRandom(
     }
 }
 
-// MARK: - Range.random(Random) helpers
-
 func runtimeRandomBits(from randomRaw: Int) -> UInt64 {
     runtimeRandomNextBits64(randomRaw)
 }
@@ -488,8 +470,6 @@ func runtimeRandomIndex(upperBound: UInt64, randomRaw: Int?) -> UInt64 {
         }
         return UInt64(Int.random(in: 0 ..< Int(upperBound)))
     }
-    // Rejection sampling remains the fallback for progressions whose index
-    // count cannot be represented by Kotlin's positive Int bound.
     let rejectionLimit = UInt64.max - (UInt64.max % upperBound)
     var candidate: UInt64
     if let randomRaw {
@@ -679,9 +659,6 @@ public func kk_op_notnull(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?)
     }
 }
 
-/// `kk_op_notnull` variant carrying the JVM `checkNotNullExpressionValue`
-/// diagnostic (`"<call>(...) must not be null"`) that kotlinc attaches when a
-/// platform-typed call result flows into a non-null position (KUU-4452).
 @_cdecl("kk_op_notnull_msg")
 public func kk_op_notnull_msg(_ value: Int, _ messageRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeThrowingBridge(outThrown) {
@@ -722,10 +699,7 @@ public func __kk_op_downTo(_ lhs: Int, _ rhs: Int) -> Int {
 
 @_cdecl("__kk_op_step")
 public func __kk_op_step(_ rangeRaw: Int, _ stepValue: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    // The invalid-step paths return the receiver range alongside the
-    // exception, so the error writes stay manual inside the bridge closure.
     return runtimeThrowingBridge(outThrown) {
-        // Kotlin spec: step() requires a strictly positive argument (STDLIB-022).
         guard stepValue > 0 else {
             outThrown?.pointee = runtimeAllocateIllegalArgumentException(
                 message: "Step must be positive, was: \(stepValue)."
@@ -751,11 +725,6 @@ public func __kk_op_step(_ rangeRaw: Int, _ stepValue: Int, _ outThrown: UnsafeM
             ))
         }
         let nextStep = range.step < 0 ? (0 &- stepValue) : stepValue
-        // Align 'last' to the step like Kotlin's getProgressionLastElement:
-        // last is the final value in the progression that stays within the range.
-        // Guard empty ranges first — Kotlin returns 'last' unchanged for empty
-        // progressions (positive step: first > last; negative step: first < last).
-        // Use wrapping arithmetic (&-/&+) to avoid trapping on extreme Int ranges.
         let alignedLast: Int
         if nextStep > 0 {
             guard range.first <= range.last else {
@@ -801,10 +770,6 @@ private let runtimeIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.Iterator"
 )
 
-/// BUG-167: Calls `iterator()` on a source-implemented `Iterable` object through
-/// the `kotlin.collections.Iterable` itable (method slot 0). Returns nil when
-/// the value does not implement `Iterable` in source, so callers can fall back
-/// to the runtime box representations.
 func runtimeSourceIterableIterator(
     _ iterableRaw: Int,
     outThrown: UnsafeMutablePointer<Int>? = nil
@@ -831,8 +796,6 @@ func runtimeSourceIterableIterator(
     return iterRaw
 }
 
-/// KSP-998: Explicit `Iterable.iterator()` calls use a throwing bridge so a
-/// source iterator is acquired lazily and its exception reaches Kotlin catch.
 @_cdecl("kk_iterable_iterator")
 public func kk_iterable_iterator(_ iterableRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     return runtimeThrowingBridge(outThrown) {
@@ -849,9 +812,6 @@ public func kk_iterable_iterator(_ iterableRaw: Int, _ outThrown: UnsafeMutableP
         if let arrayBox = runtimeArrayBox(from: iterableRaw), type(of: arrayBox) == RuntimeArrayBox.self {
             return kk_list_iterator(iterableRaw)
         }
-        // Preserve the legacy compiler bridge for the old runtime-backed
-        // IndexingIterable representation while source-backed withIndex() uses the
-        // Kotlin IndexingIterable class above.
         if runtimeIndexingIterableBox(from: iterableRaw) != nil {
             return kk_indexing_iterable_iterator(iterableRaw)
         }
@@ -899,11 +859,6 @@ public func kk_range_iterator(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer
         if let arrayBox = runtimeArrayBox(from: rangeRaw), type(of: arrayBox) == RuntimeArrayBox.self {
             return kk_list_iterator(rangeRaw)
         }
-        // BUG-167: A source-implemented `Iterable` (e.g. `class C : Iterable<Int>`)
-        // reaches this entry point too, since its `iterator()` is only known
-        // dynamically. Dispatch it through the `kotlin.collections.Iterable` itable
-        // — the same shape `runtimeTraverseSourceSequenceObject` uses for
-        // `Sequence` — instead of treating the object as an invalid range.
         if let sourceIterator = runtimeSourceIterableIterator(rangeRaw, outThrown: outThrown) {
             return sourceIterator
         }
@@ -960,7 +915,6 @@ public func kk_range_next(_ iterRaw: Int) -> Int {
     return iterator.advance()
 }
 
-/// BUG-198: Fast path used only after lowering proves a signed built-in range.
 @_cdecl("__kk_range_for_in_iterator")
 public func kk_range_for_in_iterator(_ rangeRaw: Int) -> Int {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
@@ -1009,9 +963,6 @@ public func kk_range_for_in_next(_ iterRaw: Int) -> Int {
 public func kk_iterator_hasNext(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
     return runtimeThrowingBridge(outThrown) {
         let object = resolveRuntimeObjectHandle(iterRaw)
-        // KUU-3850: runtime-backed sequence iterators sit under every lazy
-        // Sequence<T> traversal; dispatch them directly instead of walking the
-        // remaining type checks plus a dynamic itable lookup per element.
         if let sequenceIterator = object as? RuntimeSequenceIteratorBox {
             return sequenceIterator.hasNext(outThrown: outThrown) ? 1 : 0
         }
@@ -1057,13 +1008,6 @@ func runtimeRangeErasedElement(_ value: Int, kind: RuntimeRangeKind) -> Int {
     }
 }
 
-/// Materializes a range/progression handle into the same element list its
-/// `toList()` produces (see `runtimeRangeElementList`): raw scalars for
-/// Int/UInt kinds, erased boxes for the Char/Long/ULong kinds. Shared by the
-/// iterable/sequence source extractors so generic `Iterable<T>` bridges
-/// (`zipWithNext`, `zip`, `flatMap` sub-iterables, ...) accept range receivers
-/// — a `RuntimeRangeBox` is a valid `Iterable` even though it is neither a
-/// collection box nor a `RuntimeObjectBox` with an Iterable itable.
 func runtimeRangeIterableElements(_ range: RuntimeRangeBox) -> [Int] {
     var elements: [Int] = []
     if range.kind.usesUnsignedValues {
@@ -1084,9 +1028,6 @@ func runtimeRangeIterableElements(_ range: RuntimeRangeBox) -> [Int] {
 public func kk_iterator_next(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
     return runtimeThrowingBridge(outThrown) {
         let object = resolveRuntimeObjectHandle(iterRaw)
-        // KUU-3850: see kk_iterator_hasNext — direct dispatch for runtime-backed
-        // sequence iterators. `RuntimeSequenceIteratorBox` never registers a
-        // CharIterator typeID, so the trailing char-boxing branch cannot apply.
         if let sequenceIterator = object as? RuntimeSequenceIteratorBox {
             return sequenceIterator.next(outThrown: outThrown)
         }
@@ -1098,7 +1039,6 @@ public func kk_iterator_next(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<I
                 return runtimeThrowIteratorExhausted(outThrown)
             }
             let value = rangeIterator.advance()
-            // `Iterator<T>.next()` is an erased boundary.
             switch rangeIterator.kind {
             case .intRange, .intProgression:
                 return kk_box_int(value)
@@ -1128,14 +1068,9 @@ public func kk_iterator_next(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<I
             if let outThrown, outThrown.pointee != 0 {
                 return objectResult
             }
-            // Iterator<T>.next() crosses an erased generic boundary. Source-backed
-            // primitive iterators return raw scalar words from their concrete
-            // methods, so box them before generic consumers store the value.
             if let boxedPrimitive = runtimeBoxSourceIteratorPrimitiveValue(objectResult, iteratorRaw: iterRaw) {
                 return boxedPrimitive
             }
-            // Source-backed CharIterator implementations return the raw Char scalar from their
-            // concrete method, so box it before generic consumers store the value.
             if runtimeSourceIteratorValue(objectResult, iteratorRaw: iterRaw).tag == RuntimeValue.charTag {
                 return kk_box_char(objectResult)
             }
@@ -1222,8 +1157,6 @@ public func kk_range_count(_ rangeRaw: Int) -> Int {
     }
     if range.step > 0 {
         guard range.first <= range.last else { return 0 }
-        // Use wrapping arithmetic to avoid trapping on extreme ranges
-        // (e.g., first == Int.min, last == Int.max).
         return (range.last &- range.first) / range.step &+ 1
     } else if range.step < 0 {
         guard range.first >= range.last else { return 0 }
@@ -1253,7 +1186,6 @@ public func kk_range_sum(_ rangeRaw: Int) -> Int {
     switch range.kind {
     case .intRange, .intProgression, .charRange, .charProgression,
          .uintRange, .uintProgression:
-        // Int/UInt sums wrap at 32 bits, matching Kotlin's Int return type.
         var sum32: Int32 = 0
         _ = runtimeSignedRangeTraverse(range) { current, _ in
             sum32 = sum32 &+ Int32(truncatingIfNeeded: current)
@@ -1439,7 +1371,6 @@ public func kk_char_range_forEach(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: I
             var current = first
             while current <= last {
                 var thrown = 0
-                // Pass raw char value (Unicode scalar) — the lambda expects Char-typed values
                 _ = lambda(closureRaw, current, &thrown)
                 if thrown != 0 { throw RuntimeThrownHandle(thrown) }
                 if current == last { break }
@@ -1646,7 +1577,6 @@ public func __kk_long_progression_fromClosedRange(_ receiverRaw: Int, _ rangeSta
                                                 _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     return runtimeThrowingBridge(outThrown) {
         _ = receiverRaw
-        // For LongProgression, we use the same RuntimeRangeBox but treat values as Long
         guard step != 0 else {
             throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Step must be non-zero."))
         }
@@ -1668,7 +1598,6 @@ public func __kk_uint_progression_fromClosedRange(_ receiverRaw: Int, _ rangeSta
                                                 _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     return runtimeThrowingBridge(outThrown) {
         _ = receiverRaw
-        // UIntProgression uses signed Int for step, UInt for range values
         guard step != 0 else {
             throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Step must be non-zero."))
         }
@@ -1690,7 +1619,6 @@ public func __kk_ulong_progression_fromClosedRange(_ receiverRaw: Int, _ rangeSt
                                                  _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     return runtimeThrowingBridge(outThrown) {
         _ = receiverRaw
-        // ULongProgression uses signed Int for step, ULong for range values
         guard step != 0 else {
             throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Step must be non-zero."))
         }
