@@ -49,8 +49,6 @@ extension DataFlowSemaPhase {
                    symbols.symbol($0)?.kind == .constructor && symbols.parentSymbol(for: $0) == owner
                }), let signature = symbols.functionSignature(for: constructor),
                index < signature.parameterTypes.count {
-                // The call signature stores a vararg's element type, but its
-                // source parameter type is the same array as the property.
                 let parameterType = parameter.isVararg
                     ? symbols.propertyType(for: propertySymbol) ?? signature.parameterTypes[index]
                     : signature.parameterTypes[index]
@@ -72,8 +70,6 @@ extension DataFlowSemaPhase {
                           for: annotationSymbol, symbols: symbols, filesByID: filesByID, interner: interner
                       ), targets.contains("PROPERTY")
                 else { return false }
-                // Kotlin's default primary-constructor site prefers the value
-                // parameter when both VALUE_PARAMETER and PROPERTY apply.
                 if annotation.useSiteTarget == nil && targets.contains("VALUE_PARAMETER") { return false }
                 if let usage = annotation.usageID, let symbol = symbols.symbol(annotationSymbol) {
                     resolvedNames[usage] = symbol.fqName.map(interner.resolve).joined(separator: ".")
@@ -95,8 +91,6 @@ extension DataFlowSemaPhase {
                 sourceFileID: file.fileID, sourceFile: file, sourceManager: sourceManager,
                 interner: interner, symbols: symbols, diagnostics: diagnostics
             )
-            // Registration now runs after headers, so preserve the exact
-            // classifier even for qualified relative names and nested aliases.
             let records = symbols.annotations(for: propertySymbol).map { annotation in
                 MetadataAnnotationRecord(
                     annotationFQName: annotation.usageID.flatMap { resolvedNames[$0] } ?? annotation.annotationFQName,
@@ -201,10 +195,6 @@ extension DataFlowSemaPhase {
                   let owner = symbols.symbol(symbol) else { return nil }
             return (decl.range, owner.fqName)
         }
-        // Type references embedded in body expressions (local declarations,
-        // casts, explicit type arguments, object-literal supertypes, local
-        // functions) are not reachable from the declaration walk; validate
-        // their annotations with the same enclosing-decl context.
         validateBodyEmbeddedTypeAnnotations(
             ast: ast, owners: owners, types: types, bindings: bindings,
             symbols: symbols, diagnostics: diagnostics, interner: interner,
@@ -259,8 +249,6 @@ extension DataFlowSemaPhase {
                 if let usageID = annotation.usageID, !seenAnnotationUsages.insert(usageID).inserted {
                     continue
                 }
-                // Register before body inference and worker creation, retaining
-                // the existing diagnostic-name and severity suppression policy.
                 if let symbolID = resolveAnnotationSymbol(
                     named: annotation.name, in: file, symbols: symbols, interner: interner,
                     types: types, enclosingFQName: resolutionContext.enclosingFQName,
@@ -397,9 +385,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Mirrors the `validateTypeAnnotationTargets(typeRefID:)` descent so the
-    /// caller can cheaply skip expressions whose type references contain no
-    /// `.annotated` node (which the validator would no-op on anyway).
     private func typeRefContainsAnnotations(_ typeRefID: TypeRefID, arena: ASTArena) -> Bool {
         guard let typeRef = arena.typeRef(typeRefID) else {
             return false
@@ -544,8 +529,6 @@ extension DataFlowSemaPhase {
            resolutionContext.propertyValidator.accessorUsesBackingField(property.getter)
                || resolutionContext.propertyValidator.accessorUsesBackingField(property.setter)
         {
-            // A local named `field` can shadow the accessor's backing field.
-            // Reuse the post-inference target pass to inspect resolved bindings.
             bindings.deferAnnotationTargets(declID, lexicalEnclosingFQNames: resolutionContext.lexicalEnclosingFQNames)
             return
         }
@@ -831,12 +814,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Validates annotations on a value parameter, mapping use-site targets to the
-    /// appropriate `AnnotationUsageSite` rather than blindly using `.valueParameter`.
-    ///
-    /// Kotlin allows `@field:Anno`, `@get:Anno`, `@set:Anno`, `@param:Anno`, and
-    /// `@setparam:Anno` on primary-constructor parameters. Each must be validated
-    /// against the corresponding target kind, not the `VALUE_PARAMETER` target.
     private func validateValueParamAnnotations(
         param: ValueParamDecl,
         ownerDecl: Decl,
@@ -940,7 +917,6 @@ extension DataFlowSemaPhase {
     ) {
         guard annotations.count > 1 else { return }
 
-        // A property and its accessors are separate annotation sites.
         var seenUseSitesByAnnotation: [SymbolID: Set<String>] = [:]
         for annotation in annotations {
             guard let annotationSymbolID = resolveAnnotationSymbol(
@@ -1563,8 +1539,6 @@ extension DataFlowSemaPhase {
             }
             return allowedTargets.contains("FIELD")
         case .paramField:
-            // Regular-class constructor properties have a backing field;
-            // annotation class elements do not.
             guard !isAnnotationClassDecl(decl) else { return false }
             return allowedTargets.contains("FIELD")
         case .delegate:
@@ -1684,8 +1658,6 @@ extension DataFlowSemaPhase {
             guard let backingField else { return false }
             return bindings.identifierSymbol(for: expression) == backingField
         }
-        // Storage follows accessor semantics, independently of whether the
-        // initializer appears here, in an init block, or in a constructor.
         return !validator.accessorHasBody(propertyDecl.getter)
             || (propertyDecl.isVar && !validator.accessorHasBody(propertyDecl.setter))
             || validator.accessorUsesBackingField(propertyDecl.getter, isBackingFieldReference: usesBackingField)
@@ -1705,8 +1677,6 @@ extension DataFlowSemaPhase {
         case getter
         case setter
         case field
-        /// Like `.field` but applies to a constructor parameter's backing field —
-        /// always valid for `FIELD` target without requiring a `PropertyDecl`.
         case paramField
         case delegate
         case file
