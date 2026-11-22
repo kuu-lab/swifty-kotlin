@@ -257,6 +257,42 @@ extension JVMBackendTests {
         }
     }
     @Test
+    func sourceCompanionComposableCallbackIsNeverMiscompiled() throws {
+        let stdlib = try ownStdlibLibrary()
+        try withWorkspace { root in
+            let runtime = try composeJVMFixture(root, stdlib: stdlib)
+            let classpath = [runtime.path, stdlib.path]
+            let declarations = """
+            import androidx.compose.runtime.Composable
+
+            @Composable fun Row(index: Int) { println(index) }
+            class Panel { companion object { fun render(content: @Composable (Int) -> Unit) = 42 } }
+            interface Board { companion object { fun render(content: @Composable (Int) -> Unit) = 7 } }
+            """
+            func run(_ main: String, jar: String) throws -> String? {
+                let (app, exit, _) = try m22Build(
+                    root: root, sources: [("\(jar).kt", declarations + "\n" + main)], name: "\(jar).jar", classpath: classpath
+                )
+                guard exit == 0 else { return nil }
+                return try java(["-Xverify:all", "-cp", ([app.path] + classpath).joined(separator: ":"), "\(jar.capitalized)Kt"]).stdout
+            }
+            let plain = try run("""
+            fun main() {
+                println(Panel.render { _: Int -> })
+                println(Board.render { _: Int -> })
+            }
+            """, jar: "plain")
+            #expect(plain == "42\n7\n")
+            let composing = try run("""
+            fun main() {
+                println(Panel.render { index -> Row(index) })
+                println(Board.render { index -> Row(index) })
+            }
+            """, jar: "composing")
+            #expect(composing == nil || composing == "42\n7\n")
+        }
+    }
+    @Test
     func importedKotlinObjectComposableMemberUsesInstanceDispatchAndMasks() throws {
         let stdlib = try ownStdlibLibrary()
         try withWorkspace { root in
