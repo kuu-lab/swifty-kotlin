@@ -1,6 +1,5 @@
 
 extension ExprTypeChecker {
-    /// Resolve bare classifier paths without interpreting a segment as a constructor call.
     func inferQualifiedClassRefExpr(
         _ id: ExprID,
         receiver: ExprID,
@@ -44,7 +43,6 @@ extension ExprTypeChecker {
             default: false
             }
         }
-        // Values retain lexical priority; uninvoked functions do not qualify a type path.
         let roots = ctx.scope.lookup(first.name, matching: { candidate in
             guard let symbol = ctx.cachedSymbol(candidate) else { return false }
             return symbol.kind != .function && symbol.kind != .constructor
@@ -67,7 +65,6 @@ extension ExprTypeChecker {
                 path = classifier.fqName
                 resolved.append((segment.expr, classifier.id))
             } else {
-                // Package prefixes need no runtime receiver or expression binding.
                 guard resolved.isEmpty else { return nil }
                 path.append(segment.name)
             }
@@ -145,8 +142,6 @@ extension ExprTypeChecker {
             _ = driver.inferExpr(receiver, ctx: ctx, locals: &locals, expectedType: nil)
             return kClassType
         }
-        // Builtin/primitive type names (Int, String, Boolean, etc.) are not class
-        // symbols in the symbol table but still support ::class.
         let builtinNames = driver.builtinTypeNamesCache
         if let builtinType = builtinNames.resolveBuiltinType(receiverName, types: sema.types) {
             sema.bindings.bindClassRefTargetType(id, type: builtinType)
@@ -155,9 +150,6 @@ extension ExprTypeChecker {
             _ = driver.inferExpr(receiver, ctx: ctx, locals: &locals, expectedType: nil)
             return kClassType
         }
-        // KUU-1084: `FunctionN::class`. The synthetic `kotlin.Function.FunctionN`
-        // interfaces live outside ordinary scope lookup, but `FunctionN::class`
-        // is the classifier of every arity-N function type in Kotlin.
         let receiverNameString = interner.resolve(receiverName)
         if receiverNameString.hasPrefix("Function"),
            let arity = Int(receiverNameString.dropFirst("Function".count)),
@@ -180,9 +172,6 @@ extension ExprTypeChecker {
     }
 
     private func classRefTypeArgument(for symbolID: SymbolID, ctx: TypeInferenceContext) -> TypeID {
-        // Keep the classifier binding for native reflection metadata, but use
-        // the canonical primitive in KClass<T> so cast/safeCast retain T.
-        // A user classifier named Int (or an alias to it) must remain nominal.
         if let symbol = ctx.cachedSymbol(symbolID),
            symbol.fqName.count == 2,
            symbol.fqName[0] == ctx.interner.intern("kotlin"),
@@ -205,9 +194,6 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
-        // A qualified classifier such as `Outer.Nested` is a static class
-        // literal, even when Outer has a companion value. Do not evaluate it
-        // as a bound receiver; constructor calls and properties stay bound.
         if case let .memberCall(_, _, _, args, _) = ctx.ast.arena.expr(receiver),
            args.isEmpty, !ctx.ast.arena.isExplicitCall(receiver),
            let symbolID = sema.bindings.identifierSymbol(for: receiver),
@@ -242,8 +228,6 @@ extension ExprTypeChecker {
         let targetType = sema.types.makeNonNullable(receiverType)
         sema.bindings.bindClassRefTargetType(id, type: targetType)
         sema.bindings.bindBoundClassRef(id)
-        // An expression's runtime class may be a subtype of its static type.
-        // Kotlin therefore types value::class as KClass<out StaticType>.
         guard let kClassSymbol = sema.types.kClassInterfaceSymbol else {
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
