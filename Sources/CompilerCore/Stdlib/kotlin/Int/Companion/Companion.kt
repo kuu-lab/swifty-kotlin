@@ -1,7 +1,5 @@
 package kotlin
 
-// KSP-853: Int is a compiler primitive, so these extension properties provide
-// the public stdlib surface without a runtime bridge.
 public val Int.Companion.MAX_VALUE: Int get() = 2147483647
 
 public val Int.Companion.MIN_VALUE: Int get() = -2147483648
