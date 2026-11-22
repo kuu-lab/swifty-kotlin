@@ -302,6 +302,36 @@ extension JVMBackendTests {
         #expect(index.kotlinKeywordEscapedType("Parent<when?>") == "Parent<`when`?>")
         #expect(index.kotlinKeywordEscapedType("Parent<in dep.Foo, out dep.Bar>") == "Parent<in dep.Foo, out dep.Bar>")
         #expect(index.kotlinKeywordEscapedType("suspend (dep.when) -> dep.when") == "suspend (dep.`when`) -> dep.`when`")
+        #expect(index.kotlinKeywordEscapedType("Base<context(dep.Token) () -> kotlin.String>") == "Base<context(dep.Token) () -> kotlin.String>")
+        #expect(index.kotlinKeywordEscapedType("Parent<context>") == "Parent<`context`>")
+    }
+
+    @Test
+    func kotlinClasspathContextFunctionSupertypeParses() throws {
+        try withWorkspace { root in
+            try """
+            package dep
+
+            class Token
+            open class Base<T>
+            class Child : Base<context(Token) () -> String>()
+            """.write(to: root.appendingPathComponent("ContextDep.kt"), atomically: true, encoding: .utf8)
+            let library = root.appendingPathComponent("context-dep.jar")
+            let compiled = try jvmTool("kotlinc", ["-Xcontext-parameters", "ContextDep.kt", "-d", library.path], root: root)
+            try #require(compiled.exitCode == 0, "\(compiled.stderr)")
+
+            let consumer = try m22Build(
+                root: root,
+                sources: [("Consumer.kt", """
+                import dep.Child
+
+                fun use(child: Child) {}
+                """)],
+                name: "context-consumer.jar",
+                classpath: [library.path]
+            )
+            try #require(consumer.1 == 0, "\(consumer.2.map(\.message))")
+        }
     }
 }
 #endif
