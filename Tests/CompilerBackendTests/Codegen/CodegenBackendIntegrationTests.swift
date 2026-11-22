@@ -364,7 +364,6 @@ import Testing
 
     @Test
     func testEnumBuiltInOrdinalImplementsInterfaceProperty() throws {
-        // KUU-3528: Enum.ordinal is a valid implementation of an interface property.
         let source = """
         interface Ordinaled { val ordinal: Int }
         enum class A : Ordinaled { X }
@@ -380,7 +379,6 @@ import Testing
 
     @Test
     func testCodegenEnumValuesAndValueOf() throws {
-        // Test enumValueOf (no map dependency)
         let sourceValueOf = """
         enum class Color { RED, GREEN, BLUE }
 
@@ -390,7 +388,6 @@ import Testing
         """
         try assertKotlinOutput(sourceValueOf, moduleName: "EnumValueOf", expected: "GREEN\n")
 
-        // Test enumValues
         let sourceValues = """
         enum class Color { RED, GREEN, BLUE }
 
@@ -988,8 +985,6 @@ import Testing
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            // The imported artifact retains the declaration as a mangled
-            // Kotlin callee in the consumer KIR.
             #expect(
                 containsKotlinCallee("flatten", in: callees),
                 "Expected the imported flatten artifact symbol, got: \(callees.sorted())"
@@ -1096,7 +1091,6 @@ import Testing
         try assertKotlinOutput(source, moduleName: "ListToHashSetRuntime", expected: "[1, 2, 3]\ntrue\nfalse\n[1, 2, 3, 4]\n")
     }
 
-    // STDLIB-COMP-FN-009: maxOf(Byte, Byte, Byte)
     @Test
     func testCodegenCompilesMaxOfByteThreeArgTopLevelCall() throws {
         let source = """
@@ -1111,7 +1105,6 @@ import Testing
         try assertKotlinOutput(source, moduleName: "MaxOfByteThreeArg", expected: "7\n")
     }
 
-    // STDLIB-COMP-FN-017: maxOf(Int, Int)
     @Test
     func testCodegenCompilesMaxOfIntTwoArgTopLevelCall() throws {
         let source = """
@@ -1125,7 +1118,6 @@ import Testing
         try assertKotlinOutput(source, moduleName: "MaxOfIntTwoArg", expected: "8\n")
     }
 
-    // STDLIB-COMP-FN-041: minOf(Int, Int)
     @Test
     func testCodegenCompilesMinOfIntTwoArgTopLevelCall() throws {
         let source = """
@@ -1139,7 +1131,6 @@ import Testing
         try assertKotlinOutput(source, moduleName: "MinOfIntTwoArg", expected: "4\n")
     }
 
-    // STDLIB-COMP-FN-043: minOf(a: Int, vararg other: Int)
     @Test
     func testCodegenCompilesMinOfIntVarargTopLevelCall() throws {
         let source = """
@@ -1170,7 +1161,6 @@ import Testing
         try assertKotlinOutput(source, moduleName: "MaxOfLongTwoArg", expected: "7\n400\n")
     }
 
-    // STDLIB-COMP-FN-022: maxOf(a: Long, vararg other: Long)
     @Test
     func testCodegenCompilesMaxOfLongVarargTopLevelCall() throws {
         let source = """
@@ -1187,7 +1177,6 @@ import Testing
         try assertKotlinOutput(source, moduleName: "MaxOfLongVararg", expected: "8\n400\n")
     }
 
-    // STDLIB-COMP-FN-046: minOf(a: Long, vararg other: Long)
     @Test
     func testCodegenCompilesMinOfLongVarargTopLevelCall() throws {
         let source = """
@@ -1204,7 +1193,6 @@ import Testing
         try assertKotlinOutput(source, moduleName: "MinOfLongVararg", expected: "1\n50\n")
     }
 
-    // STDLIB-COMP-FN-032: minOf(Byte, Byte)
     @Test
     func testCodegenCompilesMinOfByteTwoArgTopLevelCall() throws {
         let source = """
@@ -1218,7 +1206,6 @@ import Testing
         try assertKotlinOutput(source, moduleName: "MinOfByteTwoArg", expected: "3\n")
     }
 
-    // STDLIB-COMP-FN-034: minOf(a: Byte, vararg other: Byte)
     @Test
     func testCodegenCompilesMinOfByteVarargTopLevelCall() throws {
         let source = """
@@ -1234,7 +1221,6 @@ import Testing
         try assertKotlinOutput(source, moduleName: "MinOfByteVararg", expected: "1\n")
     }
 
-    // STDLIB-COMP-FN-012: maxOf(Double, Double, Double)
     @Test
     func testCodegenCompilesMaxOfDoubleThreeArgTopLevelCall() throws {
         let source = """
@@ -1249,7 +1235,6 @@ import Testing
         try assertKotlinOutput(source, moduleName: "MaxOfDoubleThreeArg", expected: "7.25\n")
     }
 
-    // STDLIB-COMP-FN-024: maxOf(Short, Short, Short)
     @Test
     func testCodegenCompilesMaxOfShortThreeArgTopLevelCall() throws {
         let source = """
@@ -1264,7 +1249,6 @@ import Testing
         try assertKotlinOutput(source, moduleName: "MaxOfShortThreeArg", expected: "7\n")
     }
 
-    // STDLIB-COMP-FN-036: minOf(Double, Double, Double)
     @Test
     func testCodegenCompilesMinOfDoubleThreeArgTopLevelCall() throws {
         let source = """
@@ -1279,7 +1263,6 @@ import Testing
         try assertKotlinOutput(source, moduleName: "MinOfDoubleThreeArg", expected: "1.5\n")
     }
 
-    // STDLIB-COMP-FN-039: minOf(Float, Float, Float)
     @Test
     func testCodegenCompilesMinOfFloatThreeArgTopLevelCall() throws {
         let source = """
@@ -1294,7 +1277,6 @@ import Testing
         try assertKotlinOutput(source, moduleName: "MinOfFloatThreeArg", expected: "1.5\n")
     }
 
-    // STDLIB-COMP-FN-029: minOf(T, T) where T : Comparable<T>
     @Test
     func testCodegenCompilesMinOfComparableTwoArgCall() throws {
         let source = """
@@ -1308,7 +1290,6 @@ import Testing
         try assertKotlinOutput(source, moduleName: "MinOfComparableTwoArg", expected: "apple\n")
     }
 
-    // STDLIB-COMP-FN-030: minOf(T, T, T) where T : Comparable<T>
     @Test
     func testCodegenCompilesMinOfComparableThreeArgCall() throws {
         let source = """
@@ -1323,7 +1304,6 @@ import Testing
         try assertKotlinOutput(source, moduleName: "MinOfComparableThreeArg", expected: "apple\n")
     }
 
-    // STDLIB-COMP-FN-011: maxOf(Double, Double)
     @Test
     func testCodegenCompilesMaxOfDoubleTwoArgTopLevelCall() throws {
         let source = """
@@ -1337,7 +1317,6 @@ import Testing
         try assertKotlinOutput(source, moduleName: "MaxOfDoubleTwoArg", expected: "7.25\n")
     }
 
-    // STDLIB-COMP-FN-035: minOf(Double, Double)
     @Test
     func testCodegenCompilesMinOfDoubleTwoArgTopLevelCall() throws {
         let source = """
@@ -1351,7 +1330,6 @@ import Testing
         try assertKotlinOutput(source, moduleName: "MinOfDoubleTwoArg", expected: "1.5\n")
     }
 
-    // STDLIB-COMP-FN-050: minOf(UByte, UByte): UByte — end-to-end codegen
     @Test
     func testCodegenCompilesUnsignedMinOfTopLevelCalls() throws {
         let source = """
@@ -1363,7 +1341,6 @@ import Testing
 
         try assertKotlinOutput(source, moduleName: "UnsignedComparisonMinOf", expected: "true\ntrue\n")
     }
-    // MARK: - Private Helpers
 
     private func assertDeterministicCodegenOutput(source: String, emit: EmitMode) throws {
         try withTemporaryFile(contents: source) { path in
