@@ -3,7 +3,6 @@ import Testing
 
 @Suite
 struct CodegenBackendArrayListBuildTests {
-    // Source-injected O2 still reproduces the shared stdlib ABI failure tracked in KUU-969.
     @Test(arguments: [(false, 0), (true, 0), (true, 2)])
     func buildPreservesContentsAndRejectsMutation(allowDefaultStdlibLibrary: Bool, optimization: Int) throws {
         let optLevel = try #require(OptimizationLevel(rawValue: optimization))
