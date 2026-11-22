@@ -153,28 +153,12 @@ extension ExprLowerer {
         return negatedResult
     }
 
-    /// The runtime erasure a non-reified `as T`/`as? T` can check against:
-    /// the parameter's first upper bound, resolved transitively when bounds
-    /// reference other type parameters. Kotlin/JVM checkcasts `as T` against
-    /// exactly this erasure — `R : C, I1, I2` checks `C` and leaves the rest
-    /// unchecked. Returns nil when there is no bound or the bound encodes no
-    /// runtime classifier (`.any`/`.unknown`), where the cast keeps the
-    /// null-contract-only behavior.
     private func checkableCastErasure(of type: TypeID, sema: SemaModule) -> TypeID? {
         kirCheckableCastErasure(of: type, sema: sema)
     }
 
 
 
-    /// KUU-3535: a non-reified generic return crosses the call boundary in
-    /// erased form — the callee's own `as T` cannot verify it, so
-    /// Kotlin/JVM emits the checkcast where the result is claimed at the
-    /// substituted type. Mirror that here: when the resolved callee's
-    /// declared return type erases to a type parameter and the call-site
-    /// type carries a runtime classifier, guard the result with
-    /// `kk_op_cast` so a wrong-type value throws a catchable
-    /// ClassCastException carrying both class names instead of corrupting
-    /// a later virtual dispatch.
     func checkedErasedGenericCallResult(
         _ resultID: KIRExprID,
         exprID: ExprID,
@@ -196,8 +180,6 @@ extension ExprLowerer {
         guard let checkType else {
             return resultID
         }
-        // Generic call results keep the erased representation, including
-        // boxed primitives, until after the type check.
         let erasedOperand = arena.appendTemporary(type: sema.types.nullableAnyType)
         instructions.append(.copy(from: resultID, to: erasedOperand))
         let typeToken = lowerTypeCheckTokenExpr(
@@ -232,11 +214,6 @@ extension ExprLowerer {
         return checked
     }
 
-    /// Both sides name the same class once `?` is stripped (`N` vs `N?`).
-    /// The runtime check for such casts only re-verifies the class the
-    /// operand already statically is — but a value class's operand carries
-    /// its unboxed payload, which has no nominal tag for `kk_op_cast` to
-    /// find, so the check must be resolved statically here.
     private func sameNominalCastClass(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
         guard case let .classType(lhsClass) = sema.types.kind(of: sema.types.makeNonNullable(lhs)),
               case let .classType(rhsClass) = sema.types.kind(of: sema.types.makeNonNullable(rhs))
@@ -246,9 +223,6 @@ extension ExprLowerer {
         return lhsClass.classSymbol == rhsClass.classSymbol
     }
 
-    /// `x as V` on a null operand never throws, whatever `V`'s underlying
-    /// type: kotlinc checkcasts the box, which always admits null, and does
-    /// not insert the `checkNotNull` a non-value-class cast would get.
     private func isValueClassCastTarget(_ type: TypeID, sema: SemaModule) -> Bool {
         guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)),
               let symbol = sema.symbols.symbol(classType.classSymbol)
@@ -258,8 +232,6 @@ extension ExprLowerer {
         return symbol.flags.contains(.valueType)
     }
 
-    /// A plain T may admit null through its upper bounds even when its type
-    /// parameter node has no explicit `?`. Follow dependent bounds as well.
     private func castTypeRequiresNonNull(_ type: TypeID, sema: SemaModule) -> Bool {
         var visited: Set<SymbolID> = []
         func requiresNonNull(_ type: TypeID) -> Bool {
@@ -274,8 +246,6 @@ extension ExprLowerer {
         return requiresNonNull(type)
     }
 
-    /// A type parameter used through `T & Any` in the enclosing signature has
-    /// a non-null use-site contract even when its declared upper bound is `Any?`.
     private func castTargetRequiresNonNull(_ type: TypeID, sema: SemaModule) -> Bool {
         if castTypeRequiresNonNull(type, sema: sema) {
             return true
@@ -362,9 +332,6 @@ extension ExprLowerer {
         return containsUse(type)
     }
 
-    /// Returns the type parameter from the source-level `T & Any` shape.
-    /// Such a definitely-non-null type retains T's erased runtime bound; the
-    /// `Any` conjunct only adds a null contract and has no runtime classifier.
     private func definitelyNotNullTypeParameter(of type: TypeID, sema: SemaModule) -> TypeID? {
         kirDefinitelyNotNullTypeParameter(of: type, sema: sema)
     }
@@ -451,8 +418,6 @@ extension ExprLowerer {
         if let targetType = sema.bindings.castTargetType(for: exprID),
            let componentType = referenceArrayElementType(targetType, sema: sema, interner: interner)
         {
-            // Reference arrays retain their allocation component type even
-            // though Kotlin's generic type arguments are otherwise erased.
             let componentToken = runtimeArrayComponentTypeExpr(
                 for: componentType,
                 context: driver.ctx,
