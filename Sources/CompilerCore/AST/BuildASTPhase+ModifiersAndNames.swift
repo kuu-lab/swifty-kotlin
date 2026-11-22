@@ -47,13 +47,10 @@ extension BuildASTPhase {
                 }
             }
             if depth.isAtTopLevel, let modifier = modifier(from: token) {
-                // Qualified name segments (e.g. `internal` inside
-                // `@kotlin.internal.InlineOnly`) are not modifiers.
                 let isQualifiedNameSegment =
                     (index > 0 && tokens[index - 1].kind == .symbol(.dot))
                     || (index + 1 < tokens.count && tokens[index + 1].kind == .symbol(.dot))
                 if !isQualifiedNameSegment {
-                    // kotlinc reports every repeated modifier occurrence.
                     let inserted = modifiers.insert(modifier).inserted
                     if diagnoseRepeats, !inserted,
                        case let .keyword(keyword) = token.kind
@@ -71,11 +68,6 @@ extension BuildASTPhase {
         return modifiers
     }
 
-    /// Source range of the declaration-introducing keyword (`fun`, `val`,
-    /// `var`, `typealias`, `constructor`, ...) at top level in the
-    /// declaration's token stream — i.e. past leading modifiers and
-    /// annotations. kotlinc underlines this keyword for per-member
-    /// diagnostics like 'members are prohibited in annotation classes'.
     func declarationKindKeywordRange(
         from nodeID: NodeID,
         in arena: SyntaxArena
@@ -98,10 +90,6 @@ extension BuildASTPhase {
         return nil
     }
 
-    /// Source range of a specific modifier keyword on a declaration
-    /// (e.g. `override`), at top level in its token stream. kotlinc
-    /// underlines the modifier itself for modifier-scoped diagnostics like
-    /// 'X overrides nothing', not the declaration head.
     func declarationModifierKeywordRange(
         from nodeID: NodeID,
         in arena: SyntaxArena,
