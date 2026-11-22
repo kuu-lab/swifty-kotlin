@@ -1,10 +1,3 @@
-// These factories were originally `private` inside `StdlibSurfaceSpec.swift`.
-// They are promoted to `internal` so that the per-ownerKind member tables
-// (`+ListHOF.swift`, `+SetHOF.swift`, `+MapHOF.swift`, `+SequenceHOF.swift`)
-// can be split into separate files without colliding on the same single
-// source file when parallel branches add new members. Visibility is still
-// confined to the RuntimeABI module.
-
 extension StdlibSurfaceSpec {
     static func list(
         _ memberName: String,
