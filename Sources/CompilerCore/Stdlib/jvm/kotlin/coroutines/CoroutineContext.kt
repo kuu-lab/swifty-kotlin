@@ -30,7 +30,6 @@ private fun appendContextElement(context: CoroutineContext, element: CoroutineCo
     if (remaining === EmptyCoroutineContext) return element
     val interceptor = remaining[ContinuationInterceptor.Key]
     if (interceptor == null) return CombinedContext(remaining, element)
-    // Keeping the interceptor last makes dispatcher lookup independent of context size.
     val withoutInterceptor = remaining.minusKey(ContinuationInterceptor.Key)
     if (withoutInterceptor === EmptyCoroutineContext) return CombinedContext(element, interceptor)
     return CombinedContext(CombinedContext(withoutInterceptor, element), interceptor)
