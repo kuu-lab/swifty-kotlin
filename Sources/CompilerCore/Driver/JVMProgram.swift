@@ -282,6 +282,15 @@ public struct JVMForeignMethod: Sendable {
     var kotlinCollisionSourceName: String?
     var kotlinFunction: JVMKotlinFunction?
     public var isConstructor: Bool { name == "<init>" }
+    var isHiddenByDeprecation: Bool {
+        annotations.contains { annotation in
+            guard annotation.descriptor == "Lkotlin/Deprecated;" else { return false }
+            return annotation.values.contains { name, value in
+                if name == "level", case .enumEntry("Lkotlin/DeprecationLevel;", "HIDDEN") = value { return true }
+                return false
+            }
+        }
+    }
 }
 
 public struct JVMField {

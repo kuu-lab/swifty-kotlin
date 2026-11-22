@@ -701,16 +701,6 @@ final class JVMClasspathIndex {
         return false
     }
 
-    private func isHiddenByDeprecation(_ method: JVMForeignMethod) -> Bool {
-        method.annotations.contains { annotation in
-            guard annotation.descriptor == "Lkotlin/Deprecated;" else { return false }
-            return annotation.values.contains { name, value in
-                if name == "level", case .enumEntry("Lkotlin/DeprecationLevel;", "HIDDEN") = value { return true }
-                return false
-            }
-        }
-    }
-
     private func memberSourceName(for method: JVMForeignMethod) -> String {
         kotlinFunction(method)?.name ?? method.sourceName
     }
@@ -728,7 +718,7 @@ final class JVMClasspathIndex {
         if method.isStatic, method.annotations.contains(where: { $0.descriptor == JVMMetro.invoke }) { return false }
         guard method.isConstructor || JVMProgramBuilder.isIdentifier(exposedName) else { return false }
         if isReplacedByComposeContract(method) { return false }
-        if method.isSynthetic, isHiddenByDeprecation(method) { return false }
+        if method.isSynthetic, method.isHiddenByDeprecation { return false }
         if method.isSynthetic, method.kotlinFunction == nil, method.kotlinSuspendFunction == nil,
            kotlinFunction(method) == nil { return false }
         if method.isSynthetic, method.kotlinFunction == nil, method.kotlinSuspendFunction == nil,
