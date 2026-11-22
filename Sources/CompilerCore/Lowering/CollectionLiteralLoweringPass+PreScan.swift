@@ -124,9 +124,6 @@ extension CollectionLiteralLoweringSupport {
         if let result, lookup.stringProducingCallees.contains(callee) {
             state.stringExprIDs.insert(result.rawValue)
         }
-        // KSP-441: Sequence factories whose source body is just a bridge to a
-        // runtime __kk_* / kk_* entry return a RuntimeSequenceBox handle.  Track
-        // those results so source Sequence HOFs route to the runtime helpers.
         if let result, lookup.sequenceRuntimeBridgeReturningNames.contains(callee) {
             state.sequenceExprIDs.insert(result.rawValue)
         }
@@ -158,9 +155,6 @@ extension CollectionLiteralLoweringSupport {
             callee: callee, arguments: arguments, result: result, lookup: lookup,
             state: &state
         )
-        // KSP-453: Source-backed IntRange/IntProgression HOFs are emitted as
-        // ordinary .call instructions. Track their results so downstream list
-        // operations (size, isEmpty, etc.) still lower correctly.
         if let result, !arguments.isEmpty, state.rangeExprIDs.contains(arguments[0].rawValue) {
             let listProducingRangeHOFs: Set<InternedString> = [
                 lookup.toListName, lookup.mapName, lookup.mapIndexedName, lookup.mapNotNullName,
@@ -214,8 +208,6 @@ extension CollectionLiteralLoweringSupport {
                     || callee == lookup.kkSetOfName
                     || callee == lookup.kkLinkedHashSetOfName
                     || callee == lookup.kkSetOfNotNullName
-                    // java.util.TreeSet construction and the sortedSetOf factory
-                    // produce RuntimeSetBox results — KUU-1361.
                     || callee == lookup.treeSetName
                     || callee == lookup.sortedSetOfName
                     || callee == lookup.kkTreeSetNewName
@@ -224,8 +216,6 @@ extension CollectionLiteralLoweringSupport {
             state.setExprIDs.insert(result.rawValue)
         } else if lookup.mapFactoryNames.contains(callee) || mutableMapConstructorName != nil
                     || callee == lookup.kkMapOfName
-                    // java.util.TreeMap construction and the sortedMapOf
-                    // factory produce RuntimeMapBox results — KUU-1361.
                     || callee == lookup.treeMapName
                     || callee == lookup.sortedMapOfName
                     || callee == lookup.kkTreeMapNewName
@@ -234,23 +224,12 @@ extension CollectionLiteralLoweringSupport {
             state.mapExprIDs.insert(result.rawValue)
         } else if lookup.arrayOfFactoryNames.contains(callee)
             || callee == lookup.kkArrayNewName
-            // CallLowerer may already lower intArrayOf/arrayOf to kk_array_of before this pass.
             || callee == lookup.kkArrayOfName
         {
             state.arrayExprIDs.insert(result.rawValue)
         }
     }
 
-    /// Symbol-level classification for the public `kotlin.sequences`
-    /// factories, which are overload-sensitive and therefore cannot live in
-    /// `sequenceRuntimeBridgeReturningNames` (KUU-3850):
-    ///  - `generateSequence`: only `(seedFunction: () -> T?, nextFunction)`
-    ///    constructs a source `object : Sequence`; it is the two-parameter
-    ///    overload whose first parameter is function-typed. Every other
-    ///    overload delegates to a private `__kk_sequence_*` bridge and returns
-    ///    a RuntimeSequenceBox.
-    ///  - `sequenceOf` / `emptySequence`: all overloads return a box.
-    ///  - `Sequence { iterator() }`: constructs `object : Sequence`.
     private func classifySequenceFactoryDecl(
         _ decl: SemanticSymbol,
         symbol: SymbolID,
@@ -295,7 +274,6 @@ extension CollectionLiteralLoweringSupport {
     ) {
         guard let result, !arguments.isEmpty else { return }
         let src = arguments[0].rawValue
-        // KSP-441〜447: Sequence パイプラインは source 化済み。runtime sequence handle の追跡は不要。
         if callee == lookup.groupByName || callee == lookup.associateByName
             || callee == lookup.associateWithName || callee == lookup.associateName
             || callee == lookup.associateByToName || callee == lookup.associateWithToName
@@ -321,7 +299,6 @@ extension CollectionLiteralLoweringSupport {
         {
             state.listExprIDs.insert(result.rawValue)
         }
-        // withIndex returns IndexingIterable, not List — do not add to state.listExprIDs
     }
 
     private func handleVirtualCallInstruction(
@@ -347,11 +324,6 @@ extension CollectionLiteralLoweringSupport {
                               symbol: symbol, sema: sema, lookup: lookup
                           )
                 {
-                    // Confirmed by reading the resolved overload's body
-                    // (Iterable/Iterator/CharSequence/Map.asSequence): it
-                    // constructs a fresh source `object : Sequence<T>`.
-                    // Array's overload and the Sequence identity overload
-                    // are deliberately excluded — see the helper's doc.
                     state.sequenceSourceObjectExprIDs.insert(result.rawValue)
                 }
             }
@@ -401,7 +373,6 @@ extension CollectionLiteralLoweringSupport {
             {
                 if let result { state.listExprIDs.insert(result.rawValue) }
             }
-            // withIndex returns IndexingIterable, not List — do not add to state.listExprIDs
         }
 
         if state.rangeExprIDs.contains(receiverRaw) {
@@ -452,10 +423,6 @@ extension CollectionLiteralLoweringSupport {
         return referencedExprIDs
     }
 
-    /// Handles expressions whose concrete collection kind cannot be determined
-    /// from factory/call patterns alone, such as function parameters typed as
-    /// `List<T>` or return values from user-defined functions returning
-    /// `Set<T>`.
     private func seedCollectionExprIDsFromStaticTypes(
         function: KIRFunction,
         lookup: CollectionLiteralLookupTables,
@@ -472,7 +439,6 @@ extension CollectionLiteralLoweringSupport {
         for rawID in referencedExprIDs {
             let exprID = KIRExprID(rawValue: rawID)
             guard let typeID = arena.exprType(exprID) else { continue }
-            // Already classified by factory-call scan — skip.
             if state.listExprIDs.contains(rawID) || state.setExprIDs.contains(rawID)
                 || state.mapExprIDs.contains(rawID) || state.arrayExprIDs.contains(rawID)
                 || state.sequenceExprIDs.contains(rawID) || state.stringExprIDs.contains(rawID)
