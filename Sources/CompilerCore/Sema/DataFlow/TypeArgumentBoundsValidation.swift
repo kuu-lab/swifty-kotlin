@@ -92,13 +92,30 @@ final class TypeArgumentBoundsValidator {
         var substitution: [TypeVarID: TypeID] = [:]
         let allParameters = enclosingParameters + parameters
         let typeVarBySymbol = types.makeTypeVarBySymbol(allParameters)
-        for (parameter, argument) in zip(allParameters, resolvedEnclosingArguments + resolvedArguments) {
+        let parameterArguments = Array(zip(enclosingParameters, resolvedEnclosingArguments))
+            + Array(zip(parameters, resolvedArguments))
+        for (parameter, argument) in parameterArguments {
             guard let variable = typeVarBySymbol[parameter] else { continue }
             switch argument {
             case let .invariant(type), let .out(type), let .in(type):
                 substitution[variable] = type
             case .star:
                 substitution[variable] = types.anyType
+            }
+        }
+
+        if checkBoundsEnabled {
+            for (parameter, argument) in zip(enclosingParameters, resolvedEnclosingArguments) {
+                let (_, inner) = split(argument)
+                guard let inner else { continue }
+                checkBounds(
+                    argumentType: inner,
+                    parameter: parameter,
+                    substitution: substitution,
+                    typeVarBySymbol: typeVarBySymbol,
+                    range: range,
+                    allowsTypeParameterArguments: allowsTypeParameterArguments
+                )
             }
         }
 
