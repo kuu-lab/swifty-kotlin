@@ -950,7 +950,10 @@ struct JVMKotlinMetadataPayload {
     }
 
     private static func sourceClassName(_ name: String) -> String {
-        name.replacingOccurrences(of: "/", with: ".")
+        name.replacingOccurrences(of: "/", with: ".").split(separator: ".").map { segment in
+            let text = String(segment)
+            return Keyword(rawValue: text) == nil ? text : "`\(text)`"
+        }.joined(separator: ".")
     }
 
     private func decodedData(limit: Int) throws -> [UInt8] {
