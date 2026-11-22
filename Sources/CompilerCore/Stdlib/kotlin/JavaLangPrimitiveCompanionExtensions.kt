@@ -1,8 +1,5 @@
 package kotlin
 
-// Long remains a Kotlin primitive while these companion extensions expose
-// Java's wrapper static APIs through its primitive type name. Double's JVM
-// static methods stay available through the java.lang.Double name only.
 public val Long.Companion.SIZE: Int get() = java.lang.Long.SIZE
 
 public val Long.Companion.BYTES: Int get() = java.lang.Long.BYTES
