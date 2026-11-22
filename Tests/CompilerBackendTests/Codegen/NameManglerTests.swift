@@ -111,7 +111,6 @@ struct NameManglerTests {
             signature: "_",
             nameResolver: { interner.resolve($0) }
         )
-        // Result ends with __<8 hex chars>
         let parts = result.split(separator: "_").filter { !$0.isEmpty }
         let lastPart = try String(#require(parts.last))
         #expect(lastPart.count == 8)
@@ -347,7 +346,6 @@ struct NameManglerTests {
             types: types,
             nameResolver: { interner.resolve($0) }
         )
-        // Should contain encoded function type with Int params
         #expect(sig.contains("I"))
     }
 
@@ -358,7 +356,6 @@ struct NameManglerTests {
         let symbols = SymbolTable()
         let types = TypeSystem()
 
-        // Define a value class "Meter" wrapping Int
         let meterSym = symbols.define(
             kind: .class,
             name: interner.intern("Meter"),
@@ -372,8 +369,6 @@ struct NameManglerTests {
 
         let meterType = types.make(.classType(ClassType(classSymbol: meterSym, args: [], nullability: .nonNull)))
         let encoded = mangler.encodeType(meterType, symbols: symbols, types: types, nameResolver: { interner.resolve($0) })
-        // Non-null value class should encode using VC<underlying> notation
-        // which contains the underlying type (Int -> "I")
         #expect(encoded == "VC<I>", "Non-null value class should encode as VC<underlying>")
     }
 
@@ -397,7 +392,6 @@ struct NameManglerTests {
 
         let nullableMeterType = types.make(.classType(ClassType(classSymbol: meterSym, args: [], nullability: .nullable)))
         let encoded = mangler.encodeType(nullableMeterType, symbols: symbols, types: types, nameResolver: { interner.resolve($0) })
-        // Nullable value class should NOT be unboxed; should contain class name
         #expect(encoded.contains("Meter"))
     }
 
@@ -438,10 +432,6 @@ struct NameManglerTests {
             types: types,
             nameResolver: { interner.resolve($0) }
         )
-        // With value class unboxing enabled, the mangler encodes the
-        // underlying type wrapped in VC<...> to distinguish from the
-        // raw primitive type. This prevents signature collisions between
-        // e.g. `fun f(Meter)` and `fun f(Int)`.
         #expect(sig.contains("VC<I>"), "Mangled signature should contain VC<underlying> for value class param")
     }
 
