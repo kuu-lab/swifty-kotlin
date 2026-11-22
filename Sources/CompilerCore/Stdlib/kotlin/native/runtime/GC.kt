@@ -21,9 +21,6 @@ public object GC {
     @KsSymbolName("kk_gc_schedule")
     public external fun schedule()
 
-    // This runtime has no legacy memory manager / background GC thread, so the
-    // control-flow API below is a permanent no-op, matching upstream Kotlin/Native
-    // 2.x (which removed the legacy MM these functions used to operate).
     @Deprecated("No-op in modern GC implementation")
     public fun collectCyclic() {}
 
@@ -107,12 +104,6 @@ public object GC {
     @Deprecated("No-op in modern GC implementation")
     public fun detectCycles(): Array<Any>? = null
 
-    /**
-     * Returns statistics of the last finished garbage collection run.
-     * This information is supposed to be used for testing and debugging purposes only.
-     *
-     * Can return null, if there was no garbage collection runs yet.
-     */
     @ExperimentalStdlibApi
     public val lastGCInfo: GCInfo?
         get() = __lastGCInfo()
@@ -147,8 +138,6 @@ public object GC {
                 stableReferences = snapshot[13],
             ),
             markedCount = snapshot[14],
-            // This collector manages a single heap pool; it is reported under
-            // the same "heap" name as Kotlin/Native's default allocator pool.
             sweepStatistics = mapOf(
                 "heap" to SweepStatistics(sweptCount = snapshot[15], keptCount = snapshot[16])
             ),
