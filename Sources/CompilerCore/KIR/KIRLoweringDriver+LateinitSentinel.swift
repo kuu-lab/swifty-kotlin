@@ -28,10 +28,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    /// The symbols of ordinary member properties explicitly initialized to
-    /// null. Their storage must receive the null sentinel before super init,
-    /// while the later default initializer remains elided to preserve virtual
-    /// writes made by the superclass constructor.
     func nullInitializerPropertySymbols(
         _ memberProperties: [DeclID],
         shared: KIRLoweringSharedContext
@@ -50,9 +46,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    /// The storage of a named `object` / `companion object` member is the
-    /// module global named by the (backing-field) symbol, mirroring the
-    /// initializer stores emitted for those declarations.
     func emitSingletonLateinitSentinels(
         _ memberProperties: [DeclID],
         shared: KIRLoweringSharedContext,
