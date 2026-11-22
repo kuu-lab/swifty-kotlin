@@ -17,9 +17,6 @@ extension JVMFunctionBuilder {
               let owner = try program.type(receiverType).referenceName,
               ["java/lang/Iterable", "java/util/Collection", "java/util/List", "java/util/Set", "java/util/ArrayList"].contains(owner) else { return nil }
 
-        // Some collection fallback calls have no CallBinding; the numeric
-        // receiver still identifies the aggregate to lower.
-
         let element: TypeID
         switch argument {
         case let .invariant(type), let .out(type): element = type
