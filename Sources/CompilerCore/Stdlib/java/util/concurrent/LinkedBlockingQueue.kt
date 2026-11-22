@@ -6,13 +6,6 @@ import kotlinx.atomicfu.locks.ParkingHandle
 import kotlinx.atomicfu.locks.ParkingSupport
 import kotlinx.atomicfu.locks.SynchronizedObject
 
-// KUU-4032: java.util.concurrent.LinkedBlockingQueue — a bounded FIFO over a
-// lock-guarded kotlin.collections.ArrayDeque. Producers park on `notFull`
-// handles while the queue is at capacity and consumers park on `notEmpty`
-// handles while it is empty; every state change wakes the opposing side,
-// which re-checks its condition under the guard, so spurious wakeups are
-// harmless. Iterators and toArray are snapshots taken under the guard —
-// weakly consistent like the JVM ones, never ConcurrentModificationException.
 public open class LinkedBlockingQueue<E> : BlockingQueue<E> {
     private val guard = SynchronizedObject()
     private val storage: ArrayDeque<E>
@@ -131,7 +124,6 @@ public open class LinkedBlockingQueue<E> : BlockingQueue<E> {
         return head ?: throw IllegalStateException("unreachable: untimed take cannot time out")
     }
 
-    /** JVM `Queue.remove`: like [poll] but throws on an empty queue. */
     override fun remove(): E {
         val head = poll()
         return head ?: throw NoSuchElementException()
@@ -276,9 +268,6 @@ public open class LinkedBlockingQueue<E> : BlockingQueue<E> {
         }
     }
 
-    // ---- blocking internals ----
-
-    /** Removes every registered handle and returns it for a post-unlock unpark. */
     private fun drainWaiters(waiters: ArrayList<ParkingHandle>): List<ParkingHandle> {
         if (waiters.isEmpty()) return emptyList()
         val drained = ArrayList(waiters)
