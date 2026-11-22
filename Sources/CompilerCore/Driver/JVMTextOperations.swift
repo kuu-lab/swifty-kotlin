@@ -7,7 +7,6 @@ struct JVMTextParameter {
     var variadic = false
 }
 
-/// The same intrinsic signatures drive Sema declarations and JVM invocation.
 struct JVMTextOperation {
     let name: String
     var receiver = "String"
