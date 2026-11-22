@@ -3,16 +3,8 @@ import Foundation
 import zlib
 #endif
 
-/// Kotlin `.klib` libraries are zip files with a fixed directory layout
-/// (`default/manifest`, `default/ir/...`). Foundation provides no zip support
-/// and the package has no external dependencies, so this parses the central
-/// directory and inflates entries directly.
-///
-/// Limitations (none apply to real .klib files): multi-disk archives and
-/// ZIP64 are rejected; only `stored` and `deflate` compression are supported.
 package struct ZipArchive: Sendable {
     package struct Entry: Sendable {
-        /// Entry path, using `/` separators (e.g. `default/manifest`).
         package let name: String
         /// 0 = stored, 8 = deflate.
         package let compressionMethod: UInt16
@@ -20,14 +12,12 @@ package struct ZipArchive: Sendable {
         package let crc32: UInt32
         package var isDirectory: Bool { name.hasSuffix("/") }
 
-        /// Absolute range of the compressed payload inside the archive.
         let dataRange: Range<Int>
     }
 
     private let bytes: [UInt8]
     private let entryOffsetsByName: [String: Int]
 
-    /// Central-directory order is preserved.
     package let entries: [Entry]
 
     package init(data: Data) throws {
@@ -83,7 +73,7 @@ package struct ZipArchive: Sendable {
             {
                 throw KlibFormatError.unsupportedZip64
             }
-            _ = flags // bit 3 (data descriptor) is legal; sizes come from the central directory.
+            _ = flags
 
             let dataOffset = try Self.localDataOffset(in: bytes, at: localHeaderOffset, name: name)
             let compressedSize = Int(compressedSizeRaw)
@@ -140,8 +130,6 @@ package struct ZipArchive: Sendable {
 
     #if canImport(zlib)
     private static func systemInflate(_ compressed: ArraySlice<UInt8>, size: Int) -> [UInt8]? {
-        // Limit speculative allocation from the ZIP header. The Swift decoder
-        // handles larger entries and preserves diagnostics if zlib rejects input.
         guard !compressed.isEmpty, compressed.count <= UInt32.max,
               size >= 0, size <= 16 * 1024 * 1024 else { return nil }
         var stream = z_stream()
@@ -151,7 +139,6 @@ package struct ZipArchive: Sendable {
         defer { inflateEnd(&stream) }
 
         var decoded = false
-        // One spare byte allows an empty stream and detects excess output.
         let output = [UInt8](unsafeUninitializedCapacity: size + 1) { buffer, initializedCount in
             let status = compressed.withUnsafeBufferPointer { input in
                 stream.next_in = UnsafeMutablePointer(mutating: input.baseAddress)
@@ -168,8 +155,6 @@ package struct ZipArchive: Sendable {
     #endif
 
     private static func findEndOfCentralDirectory(in bytes: [UInt8]) throws -> Int {
-        // EOCD is 22 bytes + optional comment (up to 64KiB). Scan backwards
-        // for the signature PK\x05\x06.
         let signature: [UInt8] = [0x50, 0x4B, 0x05, 0x06]
         guard bytes.count >= 22 else {
             throw KlibFormatError.notAZipArchive
@@ -182,7 +167,6 @@ package struct ZipArchive: Sendable {
                bytes[candidate + 2] == signature[2],
                bytes[candidate + 3] == signature[3]
             {
-                // Sanity: the declared comment length must reach the end.
                 let commentLength = Int((try? u16(bytes, candidate + 20)) ?? 0)
                 if candidate + 22 + commentLength == bytes.count {
                     return candidate
@@ -246,7 +230,6 @@ package struct ZipArchive: Sendable {
             var crc: UInt32 = 0xFFFF_FFFF
             var offset = 0
             while offset <= buffer.count - 8 {
-                // Each table advances its byte through the bytes to its right.
                 let word = UInt64(littleEndian: buffer.loadUnaligned(fromByteOffset: offset, as: UInt64.self)) ^ UInt64(crc)
                 crc = tables[7][Int(word & 0xFF)]
                     ^ tables[6][Int((word >> 8) & 0xFF)]
