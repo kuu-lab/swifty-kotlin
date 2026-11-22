@@ -427,20 +427,15 @@ public final class BuildASTPhase: CompilerPhase {
                 buildFile(index)
             }
         } else {
-            let jobSemaphore = DispatchSemaphore(value: jobs)
-            let completionGroup = DispatchGroup()
-            for index in syntaxTrees.indices {
-                jobSemaphore.wait()
-                completionGroup.enter()
-                DispatchQueue.global().async {
-                    defer {
-                        completionGroup.leave()
-                        jobSemaphore.signal()
-                    }
+            // concurrentPerform also runs iterations on the calling thread.
+            // Blocking a cooperative-pool caller on work queued to
+            // DispatchQueue.global() deadlocked once every pool thread did so.
+            let workers = min(jobs, syntaxTrees.count)
+            DispatchQueue.concurrentPerform(iterations: workers) { worker in
+                for index in stride(from: worker, to: syntaxTrees.count, by: workers) {
                     buildFile(index)
                 }
             }
-            completionGroup.wait()
         }
 
         let workerResults = results.orderedResults()
