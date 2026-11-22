@@ -969,7 +969,7 @@ final class JVMClasspathIndex {
 
     /// Metadata keeps class names unescaped for lookup and matching; escape
     /// Kotlin keyword segments only when rendering a type into stub source.
-    private func kotlinKeywordEscapedType(_ type: String) -> String {
+    func kotlinKeywordEscapedType(_ type: String) -> String {
         var result = ""
         var index = type.startIndex
         while index < type.endIndex {
@@ -1004,7 +1004,9 @@ final class JVMClasspathIndex {
                         ? text : "`\(text)`"
                 }.joined(separator: ".")
             } else {
-                result += token
+                let isKeyword = Keyword(rawValue: token) != nil || SoftKeyword(rawValue: token) != nil
+                let followedByWhitespace = end < type.endIndex && type[end].isWhitespace
+                result += isKeyword && !followedByWhitespace ? "`\(token)`" : token
             }
             index = end
         }
