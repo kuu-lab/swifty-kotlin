@@ -44,6 +44,23 @@ extension JVMClasspathIndex {
         return (bounds, references)
     }
 
+    func classTypeParameterBounds(_ info: JVMClassInfo) -> (bounds: [String], referencedClasses: Set<String>) {
+        guard let metadata = kotlinMetadata(info), !metadata.typeParameters.isEmpty else {
+            return javaTypeParameterBounds(info)
+        }
+        // Classfile signatures erase Kotlin bound nullability; metadata keeps it.
+        let names = Dictionary(metadata.typeParameters.map { ($0.id, $0.name) }, uniquingKeysWith: { _, name in name })
+        var bounds: [String] = []
+        var references: Set<String> = []
+        for parameter in metadata.typeParameters {
+            for bound in parameter.bounds {
+                bounds.append("`\(parameter.name)`: " + kotlinSourceType(bound, parameters: names))
+                Self.kotlinMetadataClassNames(bound, into: &references)
+            }
+        }
+        return (bounds, references)
+    }
+
     func javaClassTypeParameterErasure(_ name: String, in info: JVMClassInfo) -> String {
         renderableJavaClassBounds(name, in: info).first.map { "L" + $0.binary + ";" } ?? "Ljava/lang/Object;"
     }

@@ -408,7 +408,7 @@ final class JVMClasspathIndex {
             }.compactMap { supertypeReference($0, child: info) }
             parents = uniqueSupertypes(parents)
             if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
-            let bounds = javaTypeParameterBounds(info).bounds
+            let bounds = classTypeParameterBounds(info).bounds
             if !bounds.isEmpty { source += " where " + bounds.joined(separator: ", ") }
             source += " {\n"
             // Kotlin forbids companion objects inside inner (non-static
@@ -1871,7 +1871,7 @@ final class JVMClasspathIndex {
                 }.compactMap { supertypeReference($0, child: info) }
                 parents = uniqueSupertypes(parents)
                 if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
-                let bounds = javaTypeParameterBounds(info).bounds
+                let bounds = classTypeParameterBounds(info).bounds
                 if !bounds.isEmpty { source += " where " + bounds.joined(separator: ", ") }
                 source += " {\n"
                 source += memberDeclarations(info: info, members: info.methods, allowsCompanion: !isNonCancellable, projectsKotlinObject: isObjectStub)
@@ -2922,7 +2922,7 @@ final class JVMClasspathIndex {
                     }
                 }
             }
-            for name in javaTypeParameterBounds(info).referencedClasses { markNeeded(name) }
+            for name in classTypeParameterBounds(info).referencedClasses { markNeeded(name) }
             for name in info.genericSupertypeSignatures.keys {
                 if let supertype = javaGenericSupertype(name, of: info) {
                     for reference in supertype.referencedClasses { markNeeded(reference) }
