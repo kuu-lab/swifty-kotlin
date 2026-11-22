@@ -36,9 +36,6 @@ extension CallTypeChecker {
         }
 
         _ = driver.inferExpr(receiverID, ctx: ctx, locals: &locals)
-        // An unbound `C::p` reference types as `KProperty1`, which has no
-        // `isInitialized` member — defer to normal member resolution so it
-        // reports the standard unresolved-reference diagnostic (kotlinc parity).
         if sema.bindings.isUnboundCallableRef(receiverID) {
             return nil
         }
@@ -47,9 +44,6 @@ extension CallTypeChecker {
            propertyInfo.kind == .property,
            propertyInfo.flags.contains(.lateinitProperty)
         {
-            // kotlinc only permits `::p.isInitialized` where the backing field
-            // is reachable: member fields inside the declaring nominal (or a
-            // nested type within it), top-level fields in the same file.
             guard isLateinitBackingFieldAccessible(
                 propertySymbol: propertySymbol,
                 propertyInfo: propertyInfo,
@@ -86,12 +80,6 @@ extension CallTypeChecker {
         return driver.helpers.bindAndReturnErrorType(id, sema: sema)
     }
 
-    /// `KProperty0.isInitialized` reads the property's backing field, which is
-    /// private to its declaring scope. The reference is legal only where that
-    /// field is reachable: a member property requires the use site inside the
-    /// declaring nominal or a nominal nested within it (an enclosing class —
-    /// e.g. `Host` — does NOT see a companion object's field); a top-level
-    /// property requires the same file.
     private func isLateinitBackingFieldAccessible(
         propertySymbol: SymbolID,
         propertyInfo: SemanticSymbol,
