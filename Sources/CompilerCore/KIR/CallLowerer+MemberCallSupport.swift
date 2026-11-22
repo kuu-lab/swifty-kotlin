@@ -131,20 +131,12 @@ func boxSentinelProneValueForAnyDispatch(
     }
 }
 
-/// The `$enumOrdinalToName$<encodedFqName>(ordinal): String` helper for `type`,
-/// when `type` is a non-null enum class that has one.
-///
 /// `.synthetic` enum classes (Platform.OsFamily, RegexOption, …) are
 /// header-only symbols with no source declSite, so
 /// DataEnumSealedSynthesisPass never synthesizes their helper — see
 /// `emitBoxCallWithValueClassTag`, which skips them for the same reason.
 /// A nullable enum is excluded too: its null sentinel would be fed to the
 /// helper as an ordinal.
-///
-/// A free function (not a `CallLowerer` method) so `DataEnumSealedSynthesisPass`
-/// can share it too: its data-class `toString()` synthesis stringifies each
-/// property with this same enum/class resolution, but it runs as a standalone
-/// KIR rewrite with no `KIRLoweringDriver` to construct a `CallLowerer`.
 func resolveEnumOrdinalToNameCallee(
     for type: TypeID,
     sema: SemaModule,
@@ -171,10 +163,6 @@ func resolveEnumOrdinalToNameCallee(
             return nil
         }
     }
-    // BUG-A/BUG-Planet: a user `toString()` override takes precedence over
-    // the default bare-name rendering, so string interpolation on an
-    // enum-typed value (`"${Op.MUL}"`) matches an explicit `.toString()`
-    // call instead of always printing the entry name.
     if let override = enumToStringOverrideHelper(for: symbol, symbols: sema.symbols, interner: interner) {
         return (override.name, override.symbol)
     }
@@ -185,10 +173,6 @@ func resolveEnumOrdinalToNameCallee(
     return (helperName, helperSymbol)
 }
 
-/// Resolves the nearest class-declared `toString()` symbol — user-defined, or
-/// synthesized by `DataEnumSealedSynthesisPass` for a data class — while
-/// walking the class inheritance chain. The synthetic `kotlin.Any.toString()`
-/// placeholder every class inherits by default is excluded.
 func resolveClassToStringSymbol(
     for classSymbolID: SymbolID,
     sema: SemaModule,
@@ -237,27 +221,11 @@ func resolveClassToStringSymbol(
     return nil
 }
 
-/// Resolves `type`'s class-declared `toString()` symbol — user-defined, or
-/// synthesized by `DataEnumSealedSynthesisPass` for a data class — when one
-/// exists and is not the `kotlin.Any.toString()` placeholder every class
-/// inherits by default. The class hierarchy is searched from the static class
-/// type toward its direct superclass.
 /// `type` may be nullable: the class symbol is resolved from its non-null
 /// form, but callers passing a nullable `type` are responsible for
 /// null-guarding the receiver before invoking the returned callee (calling a
 /// member function on a null receiver crashes) — see the null-guard scaffold
 /// in `CallLowerer.emitAnyToStringWithNullGuard` for the pattern.
-///
-/// Shared by every pass that must call a class-typed value's own toString()
-/// directly instead of falling back to the generic `kk_any_to_string`
-/// Any-fallback tag path, which cannot distinguish a class's own fields from
-/// an ordinary heap pointer, or — for a value class — from its raw unboxed
-/// primitive representation: `CallLowerer.emitAnyToStringWithNullGuard`
-/// (string template interpolation, `+`/`+=` string concatenation) and
-/// `DataEnumSealedSynthesisPass`'s per-property data class `toString()`
-/// synthesis. Mirrors (but does not replace) the equivalent resolution in
-/// `ConsolePrintLoweringPass.classToStringExpression`, which additionally
-/// special-cases object/enum receivers for `println`/`print`.
 func resolveClassOwnToStringCallee(
     for type: TypeID,
     sema: SemaModule,
@@ -266,9 +234,6 @@ func resolveClassOwnToStringCallee(
     let toStringName = interner.intern("toString")
     let toStringSymbolID: SymbolID?
     if case .unit = sema.types.kind(of: sema.types.makeNonNullable(type)) {
-        // Unit has the builtin value representation, so it has no classType
-        // symbol to resolve. Its source-backed object member is still the
-        // authoritative implementation for direct and statically-known calls.
         guard let unitClassSymbol = sema.types.unitClassSymbol,
               let unitSymbol = sema.symbols.symbol(unitClassSymbol)
         else {
@@ -338,15 +303,7 @@ extension CallLowerer {
         "cancel", "complete", "completeExceptionally",
         "isActive", "isCompleted", "isCancelled"
     ]
-    // KSP-678: close / isClosedForReceive / isClosedForSend migrated to bundled
-    // Kotlin source; only the suspension core send / receive remain here.
     static let unresolvedChannelMemberNames: Set<String> = ["send", "receive"]
-    // Flow operators beyond map/filter/take/collect (already covered by
-    // unresolvedCollectionMemberNames because those names also exist on
-    // collections). These names are Flow-specific, so a Flow receiver with an
-    // unresolved chosenCallee still needs its receiver argument inserted here.
-    // KUU-1351: `onErrorReturn`/`onErrorResume`/`delayEach` are not
-    // kotlinx-coroutines Flow operators and stay unresolved.
     static let unresolvedFlowMemberNames: Set<String> = [
         "buffer", "conflate", "collectLatest", "debounce", "sample", "flowOn",
         "transform", "dropWhile", "flatMapConcat", "flatMapMerge", "flatMapLatest",
@@ -392,10 +349,6 @@ extension CallLowerer {
         computeAnyFallbackTag(for: type, sema: sema)
     }
 
-    /// The non-null primitive a flow narrowing (smartcast, null check)
-    /// binds an expression to: the bound type itself, or the primitive
-    /// part of a smartcast intersection such as `Interface & Char`.
-    /// Returns nil when the bound type carries no primitive component.
     func smartcastNarrowedPrimitiveType(of type: TypeID, sema: SemaModule) -> TypeID? {
         switch sema.types.kind(of: type) {
         case .primitive(_, .nonNull):
@@ -410,10 +363,6 @@ extension CallLowerer {
         }
     }
 
-    /// Whether a KIR value of kind `storedKind` still carries an erased
-    /// (boxed) or nullable representation for `narrowedPrimitive` — i.e. a
-    /// `.copy` into the primitive type lowers to a real `kk_unbox_*`
-    /// rather than a verbatim copy that would only relabel a box handle.
     func smartcastStorageNeedsPrimitiveUnbox(
         _ storedKind: TypeKind,
         narrowedPrimitive: PrimitiveType
@@ -428,10 +377,6 @@ extension CallLowerer {
         }
     }
 
-    /// Emit a `.copy` into a `primitiveType`-typed temp when `value`'s
-    /// storage still holds the erased/nullable representation described
-    /// above. Returns nil when the value is already primitive-shaped or
-    /// `primitiveType` is not a non-null primitive.
     func materializePrimitiveValue(
         _ value: KIRExprID,
         toType primitiveType: TypeID,
@@ -453,9 +398,6 @@ extension CallLowerer {
         return narrowed
     }
 
-    /// Materialize the primitive form of a flow-narrowed value. Non-null
-    /// primitives are unboxed from erased storage; nullable primitives keep
-    /// their box-or-sentinel representation in a narrowed typed alias.
     func materializeSmartcastedPrimitiveValue(
         _ value: KIRExprID,
         boundType: TypeID?,
@@ -485,9 +427,6 @@ extension CallLowerer {
         )
     }
 
-    /// Unbox an erased value after flow typing narrows it to a non-null value
-    /// class. The resulting KIR value keeps the value-class type but carries
-    /// its raw representation, matching a typed value-class parameter.
     func materializeSmartcastedValueClassValue(
         _ value: KIRExprID,
         boundType: TypeID?,
@@ -600,10 +539,6 @@ extension CallLowerer {
         case "toInt": return .int
         case "toShort": return .short
         case "toByte": return .byte
-        // KUU-1372: Number.toChar() is the one `open` (non-abstract)
-        // conversion member — it was omitted here originally, so its call fell
-        // through to a real vtable dispatch that crashed on primitive boxes
-        // (KSWIFTK-RUNTIME-0001).
         case "toChar": return .char
         default: return nil
         }
@@ -617,8 +552,6 @@ extension CallLowerer {
         resolveEnumOrdinalToNameCallee(for: type, sema: sema, interner: interner)
     }
 
-    /// Converts `valueID` (of static type `valueType`) to a `String` via
-    /// `kk_any_to_string`, using `anyFallbackTag`'s tag for `valueType` and
     /// guarding against the null-sentinel collision for nullable
     /// Float?/Double?/ULong? (tags 5/6/7): their null-sentinel bit pattern
     /// (Int.min) coincides with a legitimate in-range value (-0.0, or a
@@ -627,8 +560,6 @@ extension CallLowerer {
     /// intercepted here first or it renders as that in-range value instead of
     /// "null". Every call site that stringifies an arbitrary Any-typed value
     /// for concatenation/interpolation should route through this helper
-    /// rather than calling kk_any_to_string directly, so a future tag needing
-    /// the same guard only has to be added in one place.
     func emitAnyToStringWithNullGuard(
         valueID: KIRExprID,
         valueType: TypeID,
@@ -672,11 +603,6 @@ extension CallLowerer {
         // Unit values so string interpolation does not invoke Unit.toString()
         // on that sentinel.
         let needsNullGuard = isNullable || isUnit
-        // A statically enum-typed value is represented as its bare ordinal, so
-        // `kk_any_to_string` would render the number. The enum class's
-        // `$enumOrdinalToName$<encodedFqName>` helper maps it back to the entry name —
-        // the same helper `emitBoxCallWithValueClassTag` uses when an enum crosses
-        // an Any-erased boundary.
         if let nameHelper = enumOrdinalToNameCallee(for: valueType, sema: sema, interner: interner) {
             let name = arena.appendTemporary(type: stringType)
             instructions.append(.call(symbol: nameHelper.symbol, callee: nameHelper.callee, arguments: [valueID], result: name, canThrow: false))
@@ -868,8 +794,6 @@ extension CallLowerer {
         "maxBy", "minBy", "max", "min", "maxByOrNull", "minByOrNull", "maxOfOrNull", "minOfOrNull", "maxOrNull", "minOrNull",
         "plus", "plusElement", "minus", "minusElement",
         "asSequence", "asIterable", "toList", "toSet", "toMap", "toCollection", "toMutableList", "toMutableSet", "toSortedSet", "toTypedArray",
-        // Kept for non-List receivers (Set / Iterable): List receivers are
-        // source-backed since KSP-628 and no longer reach this path.
         "toBooleanArray", "toCharArray", "toShortArray", "toDoubleArray", "toFloatArray", "toIntArray", "toLongArray", "toByteArray", "toUByteArray", "toUShortArray", "toUIntArray", "toULongArray",
         "take", "takeWhile", "takeLast", "drop", "reversed", "asReversed", "sorted", "distinct", "flatten", "chunked", "windowed", "collect", "subList",
         "sortedDescending", "sortedByDescending", "sortedWith", "partition",
