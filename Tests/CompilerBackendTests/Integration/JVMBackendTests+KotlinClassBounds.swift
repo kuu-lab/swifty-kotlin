@@ -237,5 +237,62 @@ extension JVMBackendTests {
             try #require(keyword.1 == 0, "\(keyword.2.map(\.message))")
         }
     }
+
+    @Test
+    func kotlinClasspathKeywordMetadataRemainsMatchable() throws {
+        try withWorkspace { root in
+            try """
+            package dep
+
+            @JvmInline value class `data`(val value: Int)
+            class Service { fun take(value: `data`) {} }
+
+            abstract class Parent<`data`> { abstract val value: dep.`data` }
+            class Child : Parent<String>() { override val value: dep.`data` get() = TODO() }
+
+            @JvmInline value class `when`(val value: Int)
+            class Holder(val value: `when`)
+            """.write(to: root.appendingPathComponent("KeywordMetadata.kt"), atomically: true, encoding: .utf8)
+            let library = root.appendingPathComponent("keyword-metadata.jar")
+            let compiled = try jvmTool("kotlinc", ["KeywordMetadata.kt", "-d", library.path], root: root)
+            try #require(compiled.exitCode == 0, "\(compiled.stderr)")
+
+            let method = try m22Build(
+                root: root,
+                sources: [("DataMethodConsumer.kt", """
+                package dep
+
+                fun take(service: Service) { service.take(`data`(1)) }
+                """)],
+                name: "data-method.jar",
+                classpath: [library.path]
+            )
+            try #require(method.1 == 0, "\(method.2.map(\.message))")
+
+            let property = try m22Build(
+                root: root,
+                sources: [("DataPropertyConsumer.kt", """
+                package dep
+
+                fun prop(child: Child): `data` = child.value
+                """)],
+                name: "data-property.jar",
+                classpath: [library.path]
+            )
+            try #require(property.1 == 0, "\(property.2.map(\.message))")
+
+            let constructor = try m22Build(
+                root: root,
+                sources: [("WhenConsumer.kt", """
+                package dep
+
+                fun make(): Holder = Holder(`when`(1))
+                """)],
+                name: "when-constructor.jar",
+                classpath: [library.path]
+            )
+            try #require(constructor.1 == 0, "\(constructor.2.map(\.message))")
+        }
+    }
 }
 #endif
