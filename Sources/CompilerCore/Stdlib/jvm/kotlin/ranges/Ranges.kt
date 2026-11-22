@@ -146,7 +146,5 @@ public operator fun IntProgression.contains(value: Int): Boolean {
     return (value.toLong() - first.toLong()) % step.toLong() == 0L
 }
 
-// Upstream reverses by swapping the endpoints and negating the step; the
-// result is still an IntProgression, not the generic Iterable.reversed list.
 public fun IntProgression.reversed(): IntProgression =
     IntProgression.fromClosedRange(last, first, -step)
