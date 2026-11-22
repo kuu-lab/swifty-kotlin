@@ -7,10 +7,6 @@
 
 package kotlin.collections
 
-// KSP-943: The compiler-side MutableIterator shell remains the fallback for
-// contexts without bundled stdlib source, such as --no-stdlib and precompiled
-// metadata.
-
 public interface MutableIterator<out T> : Iterator<T> {
     public fun remove(): Unit
 }
