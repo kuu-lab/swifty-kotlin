@@ -10,7 +10,6 @@ internal class RepositoryBuilderState: java.io.Serializable {
     fun checkMutable() { if (frozen) throw UnsupportedOperationException() }
 }
 
-// Views and iterators share the same completion state as their root builder.
 internal class RepositoryBuilderIterator<E>(private val state: RepositoryBuilderState, private val source: MutableIterator<E>, private val entries: Boolean): MutableIterator<E>, KMutableIterator {
     private var expectedModification = state.modification
     private var canRemove = false
