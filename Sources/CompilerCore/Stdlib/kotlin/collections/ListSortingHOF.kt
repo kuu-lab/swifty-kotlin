@@ -5,16 +5,6 @@ import kotlin.comparisons.naturalOrder
 import kotlin.internal.KsSymbolName
 import kotlin.random.Random
 
-// MIGRATION-COL-006
-// Migration source:
-//   Sources/Runtime/RuntimeCollectionHOF.swift
-//   Sources/Runtime/RuntimeCollectionHOFMaxMin.swift
-//
-// KSP-1511 removed the last synthetic ABI fallback (shuffled/shuffled(Random),
-// the two members KSP-426 had deliberately kept runtime-backed via
-// BundledDeclarationIndex's shuffled retained-overlap case): every member
-// below is now the sole, source-backed implementation.
-
 public inline fun <T : Comparable<T>> List<T>.sorted(): List<T> {
     return sortedWith(naturalOrder<T>())
 }
@@ -99,7 +89,6 @@ public fun <T> List<T>.shuffled(random: Random): List<T> {
     return result
 }
 
-// A separate bridge preserves the mutable view identity at runtime.
 @KsSymbolName("__kk_mutable_list_as_reversed")
 private external fun <T> __kk_mutable_list_as_reversed(list: MutableList<T>): MutableList<T>
 
