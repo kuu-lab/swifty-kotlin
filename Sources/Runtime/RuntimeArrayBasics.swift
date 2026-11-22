@@ -1,8 +1,4 @@
 
-/// Element interpretation of a primitive array, resolved from the nominal
-/// type IDs the compiler tags onto every array handle (`kk_array_tag_type`).
-/// Generic `Array` handles have no entry in this table: their elements are
-/// boxed values that already carry their own dispatch information.
 enum RuntimePrimitiveArrayElementKind: Int8 {
     case boolean, byte, char, double, float, int, long, short
     case uByte, uShort, uInt, uLong
@@ -60,8 +56,6 @@ private func runtimeArrayTypeInfo(forTypeIDs typeIDs: Set<Int64>) -> RuntimeArra
     return best
 }
 
-/// KUU-3537: nominal type ID of the bundled `kotlin.Cloneable` marker
-/// interface, tagged onto array handles alongside their array class ID.
 let runtimeCloneableNominalTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.Cloneable")
 
 /// Array class IDs whose handles also answer `is Cloneable`. JVM parity:
@@ -111,21 +105,12 @@ func runtimeArrayIdentityToString(_ raw: Int) -> String {
     return "\(typeName)@\(String(hash, radix: 16))"
 }
 
-/// The primitive element kind of a tagged array, or nil for generic
-/// `Array` / untagged handles. Deep array operations (`contentDeepToString`
-/// and friends) consult this to decide whether raw element words need
-/// value-aware rendering, hashing, and comparison: primitive array elements
-/// are stored as raw machine words (e.g. IEEE 754 bits for Double, the
-/// UTF-16 code unit for Char) rather than as tagged/boxed values.
 func runtimePrimitiveArrayElementKind(rawValue: Int) -> RuntimePrimitiveArrayElementKind? {
     let typeIDs = runtimeArrayTypeIDs(rawValue: rawValue)
     guard !typeIDs.isEmpty else { return nil }
     return runtimeArrayTypeInfo(forTypeIDs: typeIDs)?.kind
 }
 
-/// The array is already allocated by `kk_array_new`; this function simply
-/// returns the handle so that the Swift runtime handles it consistently
-/// instead of falling through to the C preamble stub.
 @_cdecl("kk_array_of")
 public func kk_array_of(_ arrayRaw: Int, _: Int) -> Int {
     arrayRaw
@@ -136,9 +121,6 @@ public func kk_empty_array() -> Int {
     return kk_array_new(0)
 }
 
-/// Like `kk_array_new_checked`, a negative size must raise
-/// `NegativeArraySizeException` instead of silently clamping to an empty
-/// array (KUU-1382).
 @_cdecl("kk_array_of_nulls")
 public func kk_array_of_nulls(_ length: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeThrowingBridge(outThrown) {
@@ -162,18 +144,12 @@ public func kk_array_size(_ arrayRaw: Int) -> Int {
 @_cdecl("kk_array_is_empty")
 public func kk_array_is_empty(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
-        // Gracefully return true (empty) for invalid handles, consistent with
-        // __kk_array_size returning 0.  Avoids crashing on invalid input per
-        // the project's "never crash on invalid input" design principle.
         return kk_box_bool(1)
     }
     return kk_box_bool(array.count == 0 ? 1 : 0)
 }
 
 
-/// Nominal type IDs of `kotlin.Pair`/`kotlin.Triple`, tagged onto every box
-/// these constructors hand back to Kotlin.
-///
 /// Both classes are declared in bundled Kotlin source (`kotlin/Tuples.kt`) but
 /// allocate through these bridges rather than `kk_object_new`, so without an
 /// explicit tag their instances carry no nominal identity and `is Pair<*, *>`
@@ -287,9 +263,6 @@ public func kk_triple_third(_ tripleRaw: Int) -> Int {
 }
 
 
-/// A `vararg` parameter is materialized as a list handle inside its declaring
-/// function, so forwarding it with `*parts` yields a list box, whereas
-/// `*arrayOf(...)` yields an array box.
 func runtimeSpreadSourceValues(from rawValue: Int) -> [RuntimeValue]? {
     if let array = runtimeArrayBox(from: rawValue) {
         return Array(array.values)
@@ -574,9 +547,6 @@ public func kk_uIntArray_asList(_ arrayRaw: Int) -> Int {
 public func kk_uLongArray_asList(_ arrayRaw: Int) -> Int {
     kk_uarray_asList(arrayRaw, functionName: "__kk_uLongArray_asList", elementKind: .uLong)
 }
-
-// Width-matched signed and unsigned views share mutable storage while each
-// handle retains its own nominal array type. Element bit patterns are unchanged.
 
 @_cdecl("__kk_uByteArray_asByteArray")
 public func kk_uByteArray_asByteArray(_ arrayRaw: Int) -> Int {
