@@ -52,7 +52,6 @@ package enum KnownCompilerAnnotation: CaseIterable {
     case serializationTransient
     case serializationSerialName
 
-    /// Every known annotation's simple name is the last component of its qualified name.
     var simpleName: String {
         String(qualifiedName[qualifiedName.index(after: qualifiedName.lastIndex(of: ".")!)...])
     }
@@ -180,17 +179,11 @@ package enum KnownCompilerAnnotation: CaseIterable {
         rawName == simpleName || rawName == qualifiedName
     }
 
-    /// Built-in Kotlin annotation names the compiler recognises by name even
-    /// when the active stdlib surface does not declare them (e.g. the JVM
-    /// text library omits SOURCE-retention metadata annotations such as
-    /// `kotlin.Suppress` or `kotlin.UnsafeVariance`).
     package static func isKnownBuiltInAnnotation(_ rawName: String) -> Bool {
         allCases.contains { $0.isKnownBuiltInFallback && $0.matches(rawName) }
     }
 }
 
-/// Shared compiled regex matching `MarkerName::class` inside `@OptIn`-family
-/// annotation arguments; group 1 captures the marker's dotted name.
 enum OptInMarkerClassParser {
     static let classReferenceRegex = try! NSRegularExpression(
         pattern: #"([A-Za-z_][A-Za-z0-9_\.]*)\s*::\s*class"#
@@ -249,7 +242,6 @@ package struct KnownCompilerNames {
     let charArray: InternedString
     let uintArray: InternedString
 
-    // Range/Progression class names in kotlin.ranges (for-loop lowering)
     let intRange: InternedString
     let longRange: InternedString
     let charRange: InternedString
@@ -290,11 +282,7 @@ package struct KnownCompilerNames {
     let emptyListFn: InternedString
     let className: InternedString
     let isInitialized: InternedString
-    // STDLIB-REFLECT-061: KClass member access (remains a compiler special
-    // case — see the NOTE in KClasses.kt)
     let propertiesName: InternedString
-    // STDLIB-REFLECT-065: Annotation reflection (reified-type special cases
-    // that were not migrated to bundled Kotlin — see KClasses.kt)
     let findAssociatedObjectName: InternedString
     let size: InternedString
     let isEmpty: InternedString
@@ -310,11 +298,6 @@ package struct KnownCompilerNames {
     let coroutineScope: InternedString
     let supervisorScope: InternedString
 
-    // Free-function names intercepted on CallTypeChecker's per-call
-    // special-case dispatch; InternedString id compares avoid a locked
-    // resolve + String compare per call expression. `sequenceFn` is the
-    // `sequence {}` builder function — `sequence` already interns the
-    // "Sequence" type name (Fn suffix per `emptyListFn`).
     let contextOf: InternedString
     let sequenceFn: InternedString
     let compareBy: InternedString
@@ -328,24 +311,14 @@ package struct KnownCompilerNames {
     let enumValueOf: InternedString
     let enumEntries: InternedString
     let enumEntriesIntrinsic: InternedString
-    /// FQ names of the four enum intrinsics; used to recognize file-local
-    /// import-alias spellings (`import kotlin.enumValueOf as evo`) that must
-    /// stay on the intrinsic path in `enumStdlibSpecialCallKind`.
     let enumIntrinsicFQNames: Set<[InternedString]>
-
-    // Scope function names (STDLIB-004 / STDLIB-250)
 
     let get: InternedString
     let sbSet: InternedString
     let toString: InternedString
     let clear: InternedString
-    // STDLIB-STR-123
     let replace: InternedString
 
-    // Member, type, and package names checked on hot member-call paths
-    // (collection fallback, regular resolution, KIR lowering dispatch),
-    // interned once per interner so call sites compare `InternedString`
-    // IDs instead of re-interning literals or resolving back to String.
     let add: InternedString
     let addAll: InternedString
     let asIterable: InternedString
@@ -512,7 +485,6 @@ package struct KnownCompilerNames {
     let join: InternedString
     let awaitName: InternedString
 
-    // Range and array fallback member names dispatched by `calleeName`.
     let start: InternedString
     let end: InternedString
     let endInclusive: InternedString
@@ -537,7 +509,6 @@ package struct KnownCompilerNames {
     let isSuspend: InternedString
     let parameters: InternedString
 
-    // Additional member/marker names compared by name during type checking.
     let receive: InternedString
     let callBy: InternedString
     let send: InternedString
@@ -573,7 +544,6 @@ package struct KnownCompilerNames {
     let underscore: InternedString
     let bufferedReader: InternedString
 
-    // Package prefixes and FQ names for the same hot paths.
     let kotlinCollectionsPackage: [InternedString]
     let kotlinSequencesPackage: [InternedString]
     let kotlinRangesPackage: [InternedString]
@@ -661,9 +631,6 @@ package struct KnownCompilerNames {
     let kotlinReflectKClassFQName: [InternedString]
     let kotlinReflectKDeclarationContainerFQName: [InternedString]
 
-    // Constant member-name sets for the collection-member fallback and
-    // regular-resolution dispatch, interned once per interner instead of
-    // rebuilt per call.
     let collectionMembers: Set<InternedString>
     let listOnlyMembers: Set<InternedString>
     let collectionSpecificMembers: Set<InternedString>
@@ -709,16 +676,12 @@ package struct KnownCompilerNames {
     let inheritedOperatorNames: Set<InternedString>
     let coroutineHandleBoolProperties: Set<InternedString>
 
-    // Name tables migrated from per-file `Set<String>` literals so call sites
-    // compare interned IDs instead of resolving back to `String`.
     let builtinFlowMemberNames: Set<InternedString>
     let flowChainMemberNames: Set<InternedString>
     let resultMemberNames: Set<InternedString>
     let arrayFallbackMemberNames: Set<InternedString>
     let workerExtensionMemberNames: Set<InternedString>
     let rangeTypeNames: Set<InternedString>
-    /// Stdlib collection factory function names used for marking collection
-    /// literal expressions.
     let stdlibCollectionFactoryNames: Set<InternedString>
     /// The subset of `stdlibCollectionFactoryNames` that produce
     /// `Array`/primitive-array literals rather than `List`/`Set`/`Map`/
@@ -766,17 +729,10 @@ package struct KnownCompilerNames {
     let kotlinxCoroutinesAsyncFQName: [InternedString]
     let kotlinRangesPackageFQName: [InternedString]
     package let kotlinResultFQName: [InternedString]
-    /// Bundled Kotlin-source Array copy entry points (KSP-1515).
     let sourceBackedArrayCopyFQNames: Set<[InternedString]>
     let atomicScalarFactoryFQNames: Set<[InternedString]>
-    /// `MutableMap` plus its concrete stdlib/`java.util` subtype FQ names,
-    /// shared by `isMutableMapSymbol` and `isMapLikeSymbol`.
     let mutableMapLikeFQNames: Set<[InternedString]>
-    /// `MutableSet` plus its concrete stdlib/`java.util` subtype FQ names,
-    /// shared by `isMutableSetSymbol` and `isSetLikeSymbol`.
     let mutableSetLikeFQNames: Set<[InternedString]>
-    /// Nominals whose reused synthetic shell must keep the bundled declaration
-    /// source-backed (see HeaderCollection's declSite restoration path).
     let reusableSyntheticSourceBackedFQNames: Set<[InternedString]>
 
     package init(interner: StringInterner) {
@@ -897,13 +853,10 @@ package struct KnownCompilerNames {
         enumEntries = interner.intern("enumEntries")
         enumEntriesIntrinsic = interner.intern("enumEntriesIntrinsic")
 
-        // Scope function names (STDLIB-004 / STDLIB-250)
-
         get = interner.intern("get")
         sbSet = interner.intern("set")
         toString = interner.intern("toString")
         clear = interner.intern("clear")
-        // STDLIB-STR-123
         replace = interner.intern("replace")
 
         let kotlin = interner.intern("kotlin")
@@ -991,8 +944,6 @@ package struct KnownCompilerNames {
             [kotlin, kotlinConcurrent, kotlinConcurrentAtomics, atomicLongArrayName],
             [kotlin, kotlinConcurrent, kotlinConcurrentAtomics, atomicArrayName],
             [java, util, javaConcurrent, javaAtomic, javaAtomicIntegerName],
-            // KUU-3059: the rest of the java.util.concurrent.atomic surface
-            // shares the same runtime box factories.
             [java, util, javaConcurrent, javaAtomic, atomicLongName],
             [java, util, javaConcurrent, javaAtomic, atomicBooleanName],
             [java, util, javaConcurrent, javaAtomic, atomicReferenceName],
@@ -1634,7 +1585,6 @@ package struct KnownCompilerNames {
         if symbolMatches(symbol, fqName: kotlinStringBuilderFQName) {
             return true
         }
-        // Fall back to simple name match only for synthetic symbols (no FQN)
         return symbol.name == stringBuilder && symbol.fqName.isEmpty
     }
 
@@ -1675,9 +1625,6 @@ package struct KnownCompilerNames {
         symbol.name == cancellationException
     }
 
-    /// Short names of the built-in `kotlin.ranges` Range / Progression
-    /// classes, unsigned variants included. For-loop lowering routes these
-    /// classes through their bundled `iterator()` operators.
     func isRangeLikeClassName(_ name: InternedString) -> Bool {
         isSignedRangeLikeClassName(name)
             || name == uintRange || name == ulongRange
@@ -1713,14 +1660,10 @@ package struct KnownCompilerNames {
 
 
     func isConcreteListLikeSymbol(_ symbol: SemanticSymbol) -> Bool {
-        // Fall back to simple names only for synthetic symbols (no FQN).
         (symbol.fqName.isEmpty && (symbol.name == list || symbol.name == mutableList))
             || symbolMatches(symbol, fqName: kotlinCollectionsArrayListFQName)
             || symbolMatches(symbol, fqName: kotlinCollectionsListFQName)
             || symbolMatches(symbol, fqName: kotlinCollectionsMutableListFQName)
-            // kotlin.enums.EnumEntries<T> is a read-only List<T> subtype (Kotlin
-            // 1.9+ `EnumClass.entries`). Treat it exactly like List so the
-            // collection member-call fallback (.size, .forEach, etc.) resolves.
             || symbolMatches(symbol, fqName: kotlinEnumsEnumEntriesFQName)
     }
 
@@ -1747,7 +1690,6 @@ package struct KnownCompilerNames {
         {
             return true
         }
-        // Fall back to simple name match only for synthetic symbols (no FQN)
         return (symbol.name == set
             || symbol.name == mutableSet
             || symbol.name == hashSet
