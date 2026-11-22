@@ -7,8 +7,6 @@ import Testing
 
 @Suite
 struct ParallelCodegenEmissionTests {
-    /// Exercises calls across partitions, overridden methods, lambdas,
-    /// globals with initializers, and a file-facade `main`.
     private static let source = """
         object Singleton { val v = 3 }
         open class Base(val x: Int) { open fun describe(): Int = x }
@@ -56,8 +54,6 @@ struct ParallelCodegenEmissionTests {
         return try String(contentsOfFile: path, encoding: .utf8)
     }
 
-    /// `define` rows carry the module's externally visible symbols and must
-    /// match serial output verbatim.
     private func defineRows(_ ir: String) -> [String] {
         ir.components(separatedBy: "\n").filter { $0.hasPrefix("define ") }.sorted()
     }
@@ -103,7 +99,6 @@ struct ParallelCodegenEmissionTests {
                 frontendFlags: ["codegen-parallel", "jobs=4"],
                 timer: timer
             )
-            // The parallel path must actually have run — otherwise the test is vacuous.
             let phase = try #require(timer.phaseRecords.first)
             func namesIn(_ records: [PhaseTimer.PhaseRecord]) -> [String] {
                 records.flatMap { [$0.name] + namesIn($0.subRecords) }
