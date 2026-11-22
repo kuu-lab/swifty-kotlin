@@ -1,17 +1,4 @@
 
-/// Synthetic stdlib stubs for `kotlin.native.concurrent` (STDLIB-NATIVE-CONCURRENT-002).
-///
-/// Registers:
-///   - KSP-1216 package-level nominal anchors whose constructors and members are owned by follow-up tasks
-///   - `Continuation0` / `Continuation1` / `Continuation2` classes
-///   - `FreezingException` class with native constructor surface
-///   - `InvalidMutabilityException` class with native constructor surface
-///   - `Worker` class with `execute`, `requestTermination`, `isTerminated`, `name` members
-///   - `Future<T>` value-class anchor and the residual `Future(Int)` constructor
-///   - `@ObsoleteWorkersApi` marker annotation
-///   - `TransferMode` nominal anchor for the early `Worker.execute` registration
-///   - `@ThreadLocal` annotation (PROPERTY/CLASS target, native variant)
-
 private enum NativeConcurrentRegistrationStep: CaseIterable {
     case topLevelNominalAnchors
     case continuationTypes
@@ -146,37 +133,12 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Registers only the package-level class identities that still lack
-    /// bundled Kotlin declarations.
     private func registerNativeConcurrentTopLevelNominalAnchors(
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
     ) {
-        // AtomicInt now owns its source-backed constructor (KSP-1220) and
-        // AtomicLong is source-backed by KSP-1222 in Atomics.kt.
-        // AtomicInt receiver members reuse the source-backed class through
-        // KSP-1221 extensions.
-        // AtomicNativePtr is intentionally excluded: it is already
-        // source-backed by KSP-1224 (same file).
-        // FreezableAtomicReference is intentionally excluded: it is already
-        // source-backed by KSP-1236 (Stdlib/kotlin/native/concurrent/
-        // Atomics.kt). AtomicReference is intentionally excluded: it is
-        // already source-backed by KSP-1226 (same file).
 
-        // DetachedObjectGraph is source-backed by ObjectTransfer.kt. Its
-        // internal storage and receiver members are owned by KSP-1235; the
-        // public constructors remain the separate KSP-1234 surface.
-
-        // MutableData is intentionally excluded: it is already source-backed
-        // by KSP-1243 (Stdlib/kotlin/native/concurrent/MutableData.kt).
-        // WorkerBoundReference is intentionally excluded: it is already fully
-        // source-backed by KSP-1252 (constructor) and KSP-1253 (value /
-        // valueOrNull / worker), both in Stdlib/kotlin/native/concurrent/
-        // WorkerBoundReference.kt.
-
-        // NativePtr is the opaque representation used by two internal KSP-1216
-        // functions. Its own members remain outside this API slice.
         let nativeInternalPkg = ensurePackage(
             path: ["kotlin", "native", "internal"],
             symbols: symbols,
@@ -333,8 +295,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // The bundled declaration owns @ThreadLocal in regular compilation.
-        // The synthetic annotation remains available without the stdlib.
         if !BundledSyntheticStubRegistration.bundledIndex.containsNominal(
             fqName: packageFQName + [interner.intern("ThreadLocal")]
         ) {
@@ -357,12 +317,6 @@ extension DataFlowSemaPhase {
     }
 }
 
-/// Synthetic stdlib stubs for `kotlin.native.concurrent`: Continuation0/1/2 classes.
-///
-/// `callContinuation0/1/2` are no longer registered here — KSP-1217 moved them to
-/// bundled Kotlin source (`Stdlib/kotlin/native/concurrent/Continuation.kt`).
-///
-/// Consolidated into the RF-STUB-004 NativeConcurrent registry.
 extension DataFlowSemaPhase {
 
 
@@ -555,9 +509,6 @@ extension DataFlowSemaPhase {
 
 }
 
-/// Synthetic stdlib stubs for `kotlin.native.concurrent`: FreezingException and InvalidMutabilityException classes.
-///
-/// Consolidated into the RF-STUB-004 NativeConcurrent registry.
 extension DataFlowSemaPhase {
 
 
@@ -602,8 +553,6 @@ extension DataFlowSemaPhase {
         )
         symbols.setDirectSupertypes([runtimeExceptionSymbol], for: exceptionSymbol)
         types.setNominalDirectSupertypes([runtimeExceptionSymbol], for: exceptionSymbol)
-        // The exact constructor is owned by the bundled Kotlin declaration and
-        // its runtime bridge. Keep only this nominal anchor for source reuse.
     }
 
 
@@ -654,8 +603,6 @@ extension DataFlowSemaPhase {
             symbols: symbols
         )
 
-        // The bundled class owns its bridged constructor. Retain this residual
-        // constructor only when compiling without the bundled stdlib.
         if !BundledSyntheticStubRegistration.bundledIndex.containsNominal(fqName: exceptionFQName) {
             registerNativeConcurrentConstructor(
                 ownerSymbol: exceptionSymbol,
@@ -670,11 +617,6 @@ extension DataFlowSemaPhase {
     }
 }
 
-/// Synthetic stdlib stubs for `kotlin.native.concurrent`: Worker nominal shell
-/// with the Companion object anchor and the retained isTerminated compatibility
-/// property.
-///
-/// Consolidated into the RF-STUB-004 NativeConcurrent registry.
 extension DataFlowSemaPhase {
 
 
@@ -725,8 +667,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Worker companion object: anchors the source-backed Worker.Companion
-        // extensions (KSP-1251, Stdlib/kotlin/native/concurrent/Worker.kt).
         let companionName = interner.intern("Companion")
         let companionFQName = workerFQName + [companionName]
         let companionSymbol: SymbolID
@@ -835,19 +775,12 @@ extension DataFlowSemaPhase {
     }
 }
 
-/// Synthetic stdlib stubs for `kotlin.native.concurrent`: `<T>.freeze()` and
-/// `Any?.isFrozen` legacy-memory-manager surfaces.
-///
-/// Consolidated into the RF-STUB-004 NativeConcurrent registry.
 extension DataFlowSemaPhase {
 
 
 
 }
 
-/// Residual synthetic support for the source-backed `Future<T>` value class.
-///
-/// Consolidated into the RF-STUB-004 NativeConcurrent registry.
 extension DataFlowSemaPhase {
 
 
@@ -926,8 +859,5 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // The public Future members are implemented by the bundled Kotlin
-        // source in Future/Future.kt. Keep only the constructor above: it is
-        // the residual handle-wrapping surface established by KSP-1239.
     }
 }
