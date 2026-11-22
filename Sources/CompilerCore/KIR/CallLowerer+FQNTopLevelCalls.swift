@@ -1,9 +1,5 @@
 
 extension CallLowerer {
-    /// Lowers a package-qualified property or classifier without evaluating
-    /// its namespace-only receiver path. Sema marks these expressions while
-    /// resolving `kotlin.math.PI` or the `kotlin.Int` prefix of
-    /// `kotlin.Int.MAX_VALUE`.
     func tryLowerFQNQualifiedValue(
         _ exprID: ExprID,
         sema: SemaModule,
@@ -18,8 +14,6 @@ extension CallLowerer {
             return nil
         }
 
-        // kotlin.Unit is a namespace-qualified builtin value, not a nominal
-        // object handle. Use the same representation as bare Unit literals.
         if symbolID == sema.types.unitClassSymbol {
             let unit = arena.appendExpr(.unit, type: sema.types.unitType)
             instructions.append(.constValue(result: unit, value: .unit))
@@ -92,8 +86,6 @@ extension CallLowerer {
                 ))
                 return result
             }
-            // Qualified singleton values have the same first-access semantics
-            // as bare names, including when passed to a package-owned extension.
             driver.emitObjectLazyInitGuardIfNeeded(
                 objectSymbol: valueSymbol, arena: arena, sema: sema,
                 interner: interner,
@@ -107,9 +99,6 @@ extension CallLowerer {
         }
     }
 
-    /// Lowers a `.memberCall` resolved by Sema's FQN-package-qualified
-    /// top-level lookup (`CallTypeChecker.tryInferFQNPackageTopLevelCall`),
-    /// e.g. `kotlin.math.abs(x)` or `kotlin.text.StringBuilder()`. That
     /// resolution fires before receiver inference, so the receiver
     /// expression (the namespace path `kotlin.math`/`kotlin.text`) never
     /// gets a Sema type binding — it is not a real value, just a
@@ -120,10 +109,6 @@ extension CallLowerer {
     /// for a resolved constructor, silently prepends a bogus receiver
     /// argument that shifts the real constructor arguments by one slot and
     /// drops the last one. Marked explicitly by Sema
-    /// (`markFQNTopLevelCallExpr`) rather than inferred from the receiver's
-    /// missing type binding, so this can never misfire on some other
-    /// receiver-skipping special case that happens to leave the receiver
-    /// untyped for an unrelated reason.
     func tryLowerFQNTopLevelResolvedCall(
         _ exprID: ExprID,
         calleeName: InternedString,
