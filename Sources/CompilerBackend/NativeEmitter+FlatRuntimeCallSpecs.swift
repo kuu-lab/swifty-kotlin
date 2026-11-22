@@ -98,12 +98,6 @@ extension NativeEmitter {
                 extraArgumentCount: 1,
                 canThrow: false
             ),
-            // KSP-1396: reversed is bundled Kotlin source (StringBasics.kt);
-            // no flat emission spec.
-            // KSP-410: filter/filterNot/filterIndexed are bundled Kotlin
-            // source (StringHOF.kt); no flat emission spec.
-            // Source-backed declarations retain flat compatibility lowering
-            // for aggregate String receivers.
             "kk_string_ifBlank_flat": FlatStringReturnCallSpec(
                 flatName: "kk_string_ifBlank_flat",
                 stringArgumentCount: 1,
@@ -116,8 +110,6 @@ extension NativeEmitter {
                 extraArgumentCount: 2,
                 canThrow: true
             ),
-            // KSP-405: takeWhile/takeLastWhile/dropWhile are bundled Kotlin
-            // source (StringTakeDrop.kt); no flat emission spec.
             "kk_string_replace_flat": FlatStringReturnCallSpec(
                 flatName: "kk_string_replace_flat",
                 stringArgumentCount: 3,
@@ -130,19 +122,6 @@ extension NativeEmitter {
                 extraArgumentCount: 0,
                 canThrow: false
             ),
-            // KSP-406: substring/subSequence/slice/removeRange/replaceRange are
-            // bundled Kotlin source (StringSubstringSlice.kt); no flat emission spec.
-            // KSP-1390: padStart/padEnd are bundled Kotlin source
-            // (StringHOF.kt); no flat emission spec.
-            // KSP-1394: repeat is bundled Kotlin source (StringBasics.kt);
-            // no flat emission spec.
-            // KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source
-            // (StringTakeDrop.kt); no flat emission spec.
-            // KSP-404: removePrefix/removeSuffix/removeSurrounding are bundled
-            // Kotlin source (StringPrefixSuffix.kt); no flat emission spec.
-            // KSP-407: substringBefore/After/BeforeLast/AfterLast and
-            // replaceBefore/After/BeforeLast/AfterLast are bundled Kotlin
-            // source (StringSearchReplace.kt); no flat emission spec.
             "__kk_string_format_flat": FlatStringReturnCallSpec(
                 flatName: "__kk_string_format_flat",
                 stringArgumentCount: 1,
@@ -296,13 +275,6 @@ extension NativeEmitter {
                 stringArgumentCount: 0,
                 extraArgumentCount: 1
             ),
-            // KSP-404: startsWith/endsWith are bundled Kotlin source
-            // (StringPrefixSuffix.kt); no flat emission spec.
-            // KSP-408: contains/indexOf/lastIndexOf/indexOfAny/lastIndexOfAny/
-            // findAnyOf/findLastAnyOf are bundled Kotlin source (StringIndexOf.kt);
-            // no flat emission spec.
-            // KSP-413: compareTo(ignoreCase) / contentEquals / equals(ignoreCase)
-            // are bundled Kotlin source (StringComparison.kt); no flat emission spec.
             "kk_string_compareTo_flat": FlatScalarReturnCallSpec(
                 flatName: "kk_string_compareTo_flat",
                 stringArgumentCount: 2,
@@ -362,14 +334,6 @@ extension NativeEmitter {
                 extraArgumentCount: 1,
                 canThrow: true
             ),
-            // KSP-408: indexOfFirst/indexOfLast are bundled Kotlin source
-            // (StringIndexOf.kt); no flat emission spec.
-            // KSP-410: count/any/all/none/find/findLast/partition and
-            // map/mapIndexed/mapNotNull/firstNotNullOf(OrNull) are bundled
-            // Kotlin source (StringHOF.kt); no flat emission spec.
-            // KSP-410: sumBy/sumByDouble/reduceOrNull/reduceRightIndexed/
-            // reduceRightIndexedOrNull/reduceRightOrNull are bundled
-            // Kotlin source (StringHOF.kt); no flat emission spec.
             "__kk_string_toInt_flat": FlatScalarReturnCallSpec(
                 flatName: "__kk_string_toInt_flat",
                 stringArgumentCount: 1,
