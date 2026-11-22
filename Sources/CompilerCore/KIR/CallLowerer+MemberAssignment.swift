@@ -441,9 +441,6 @@ extension CallLowerer {
             instructions.append(.constValue(result: unit, value: .unit))
             return unit
         }
-        // Enum `var` properties, and body `val` assignments in secondary
-        // constructors, use ordinal-backed setter helpers when no entry slot
-        // is active in the current lowering scope.
         if let propertySymbol = enumPropertySymbol,
            let setterCallee = enumPropertySetterPlaceholder(
                for: propertySymbol,
@@ -468,7 +465,7 @@ extension CallLowerer {
             chosenCallee: chosenCallee,
             fallback: calleeName,
             receiverExpr: receiverExpr,
-            argumentCount: 2, // receiver + value
+            argumentCount: 2,
             sema: sema,
             interner: interner
         )
@@ -525,14 +522,6 @@ extension CallLowerer {
     }
 
 
-    /// Lowers `receiver.field op= value` (and the desugared form of
-    /// `receiver.field++` / `receiver.field--`) as load -> compute -> store,
-    /// evaluating `receiver` exactly once. The load and store sides mirror
-    /// `lowerMemberAssignExpr`'s safe, well-defined storage strategies,
-    /// falling back to a best-effort setter/getter name for anything else, the
-    /// same fallback (and the same pre-existing limitations for custom
-    /// accessors reached through an explicit receiver) that plain member
-    /// assignment already relies on.
     func lowerMemberCompoundAssignExpr(
         _ exprID: ExprID,
         op: CompoundAssignOp,
@@ -569,12 +558,6 @@ extension CallLowerer {
         )
     }
 
-    /// Receiver-pre-lowered core of `lowerMemberCompoundAssignExpr`, shared
-    /// with bare-name compound assignments (`count++`, `count += v`) whose
-    /// property resolves through an implicit receiver (KUU-4437). When
-    /// `receiverExpr` is nil the receiver is implicit: it can be neither a
-    /// `super` reference nor a range box, so accessor dispatch resolves
-    /// straight from the property symbol.
     func lowerMemberCompoundAssignExpr(
         _ exprID: ExprID,
         op: CompoundAssignOp,
@@ -635,8 +618,6 @@ extension CallLowerer {
             return (getterLink, String(getterLink.dropLast("_load".count)) + "_store")
         }()
 
-        // `object` member properties use flat global slots rather than
-        // per-instance field-offset storage (see `lowerMemberAssignExpr`).
         let isObjectOwned: Bool = {
             guard syntheticLinks == nil,
                   let propertySymbol,
@@ -649,9 +630,6 @@ extension CallLowerer {
             return ownerInfo.kind == .object
         }()
 
-        // Properties whose reads and writes go through accessors (custom
-        // get/set bodies, delegated properties) have no usable backing storage
-        // for a load/compute/store round trip.
         // The two halves are independent: a custom setter with a default
         // getter (or vice versa) has no accessor symbol for the default half,
         // so that half must keep using the backing field directly.
@@ -678,8 +656,6 @@ extension CallLowerer {
                 || memberPropertyUsesSetterAccessor(propertySymbol, ast: ast, sema: sema)
         }()
 
-        // Enum stored properties: load/store through the enum property
-        // helpers (per-entry storage), never through field offsets.
         let enumHelperCallees: (getter: InternedString, setter: InternedString)? = {
             guard syntheticLinks == nil,
                   !usesGetterAccessor,
@@ -709,12 +685,6 @@ extension CallLowerer {
             ]
         }()
 
-        // BUG-227: an open/abstract/override property whose owner has known
-        // subtypes must dispatch both the read and the write half of this
-        // compound assignment through the getter/setter's vtable slot —
-        // mirroring `lowerMemberAssignExpr`'s identical treatment of a plain
-        // (`=`) assignment. Resolved once up front since both the load and
-        // store sections below need it.
         let virtualGetterDispatch = propertySymbol.flatMap { propertySymbol in
             if let receiverExpr {
                 return tryResolvePropertyAccessorVirtualDispatch(
@@ -823,8 +793,6 @@ extension CallLowerer {
                       instructions: &instructions
                   )
         {
-            // Interface-typed receiver: the interface has no per-instance
-            // storage, so read through the itable getter slot.
             currentValue = itableValue
         } else if let virtualGetterDispatch {
             let result = arena.appendTemporary(type: propType)
@@ -914,9 +882,6 @@ extension CallLowerer {
         )
         let valueType = arena.exprType(valueID)
 
-        // `newValue == nil` means a Unit-returning `plusAssign`-style operator
-        // already mutated the loaded value in place, so no store is needed —
-        // mirrors bare-name compound assign's handling in ExprLowerer.
         let newValue: KIRExprID? = {
             if ast.arena.isIncrementDecrement(exprID),
                let callBinding = sema.bindings.callBindings[exprID],
@@ -924,9 +889,6 @@ extension CallLowerer {
                signature.receiverType != nil
             {
                 let callResult = arena.appendTemporary(type: signature.returnType)
-                // `++`/`--` invoke `inc()`/`dec()` with no explicit arguments,
-                // so defaulted parameters must ride the `<name>$default` stub
-                // just like an explicit `a.inc()` call.
                 emitIncrementDecrementOperatorCall(
                     callBinding: callBinding,
                     operatorName: op == .plusAssign ? "inc" : "dec",
@@ -1003,8 +965,6 @@ extension CallLowerer {
                 return returnType == sema.types.unitType ? nil : callResult
             }
 
-            // Builtin path: Int/Long/Double/... arithmetic or String
-            // concatenation, matching bare-name compound assign's fallback.
             let kirOp: KIRBinaryOp = switch op {
             case .plusAssign: .add
             case .minusAssign: .subtract
@@ -1100,8 +1060,6 @@ extension CallLowerer {
                           instructions: &instructions
                       ) != nil
             {
-                // Interface-typed receiver: write through the itable setter
-                // slot (the helper already emitted the call).
             } else if let virtualSetterDispatch {
                 let setterResult = arena.appendTemporary(type: sema.types.unitType)
                 let setterValueID = propertySymbol.map {
@@ -1184,9 +1142,6 @@ extension CallLowerer {
         return unit
     }
 
-    /// The setter placeholder for a stored member property of an enum class
-    /// (see `KIRLoweringDriver+EnumEntryStorage.swift`), or `nil` when the
-    /// property is not enum-owned or is written through its own accessor.
     func enumPropertySetterPlaceholder(
         for propertySymbol: SymbolID,
         allowValInitialization: Bool = false,
@@ -1216,9 +1171,6 @@ extension CallLowerer {
     ) -> InternedString? {
         guard let info = sema.symbols.symbol(propertySymbol),
               info.kind == .property,
-              // Enum-class statics (the synthetic `Enum.entries` stub) have
-              // no per-entry storage to read through the placeholder helper
-              // (KUU-3544).
               !info.flags.contains(.static),
               let ownerSymbol = enumClassOwnerSymbol(forProperty: propertySymbol, sema: sema)
         else {
@@ -1245,9 +1197,6 @@ extension CallLowerer {
         ast: ASTModule,
         sema: SemaModule
     ) -> Bool {
-        // Imported member properties have no accessor AST. Their metadata
-        // registers the setter that must also observe bare receiver-DSL writes.
-        // Backing-field symbols stay on the storage path inside the setter.
         if let property = sema.symbols.symbol(propertySymbol),
            property.kind == .property, property.flags.contains(.importedLibrary),
            let setter = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol),
@@ -1255,9 +1204,6 @@ extension CallLowerer {
         {
             return true
         }
-        // CLASS-008: a synthetic forwarding property for `by` delegation has
-        // no `.propertyDecl` AST node for the loop below to find — its setter
-        // writes through the delegate field, not a real backing field.
         if sema.symbols.classDelegationForwardingPropertyInfo(for: propertySymbol) != nil {
             return true
         }
@@ -1283,12 +1229,6 @@ extension CallLowerer {
         return false
     }
 
-    /// Write counterpart of `tryLowerInterfaceItablePropertyGetterRead`
-    /// (`CallLowerer+MemberPropertyReads.swift`, BUG-141): an interface has
-    /// no per-instance storage of its own, so a stored/abstract `var`
-    /// written through an interface-typed receiver cannot use a concrete
-    /// field offset either. Dispatch through the interface's itable to the
-    /// implementing type's setter, mirroring the read side.
     func tryLowerInterfaceItablePropertySetterWrite(
         propertySymbol: SymbolID,
         loweredReceiverID: KIRExprID,
@@ -1315,8 +1255,6 @@ extension CallLowerer {
         else {
             return nil
         }
-        // KUU-4454: see the getter-side counterpart — resolve the `$outer`
-        // receiver only after the itable write is known to apply.
         let loweredReceiverID = resolvePropertyOwnerReceiver(
             loweredReceiverID,
             ownerOf: propertySymbol,
