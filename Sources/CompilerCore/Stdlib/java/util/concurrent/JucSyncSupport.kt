@@ -20,7 +20,6 @@ internal fun jucNanosToDuration(nanos: Long): Duration = when {
     else -> nanos.nanoseconds
 }
 
-/** Parks the current thread for up to [nanos]; a negative value waits forever. */
 internal fun jucPark(nanos: Long): Unit = ParkingSupport.park(jucNanosToDuration(nanos))
 
 internal fun jucUnparkAll(handles: List<ParkingHandle>) {
@@ -29,13 +28,8 @@ internal fun jucUnparkAll(handles: List<ParkingHandle>) {
     }
 }
 
-/** Absolute [System.nanoTime] deadline for a relative [nanos] wait; -1 stays -1. */
 internal fun jucDeadlineNanos(nanos: Long): Long =
     if (nanos < 0L) -1L else System.nanoTime() + nanos
 
-/**
- * Nanos remaining until [deadlineNanos]; negative when expired.
- * A negative deadline reports [Long.MAX_VALUE] (no expiry).
- */
 internal fun jucNanosLeft(deadlineNanos: Long): Long =
     if (deadlineNanos < 0L) Long.MAX_VALUE else deadlineNanos - System.nanoTime()
