@@ -106,7 +106,6 @@ extension ExprTypeChecker {
         return true
     }
 
-    /// Only direct supertypes (interfaces and classes) are valid per Kotlin spec.
     private func resolveQualifiedSuper(
         id: ExprID,
         qualifier: InternedString,
@@ -116,10 +115,6 @@ extension ExprTypeChecker {
         ctx: TypeInferenceContext
     ) -> TypeID {
         let sema = ctx.sema
-        // Enum entry bodies are checked as members of their enum class, but
-        // that class is not listed in its own direct-supertype graph. Kotlin
-        // nevertheless accepts `super<Enum>.member()` to reach the enum
-        // implementation from an entry override.
         if let entrySuperContext = ctx.enumEntrySuperContext,
            entrySuperContext.ownerSymbol == classSymbol,
            isEnumEntryMemberBody(classSymbol: classSymbol, ctx: ctx),
@@ -208,10 +203,6 @@ extension ExprTypeChecker {
         // nil but keep the enclosing receiver entries (KUU-3226).
         if let label {
             if let qualifiedType = ctx.resolveQualifiedThis(label: label) {
-                // An outer receiver whose enclosing `this` is capturable (e.g.
-                // the class around an object literal) binds to its receiver
-                // parameter symbol so capture analysis stores it and KIR
-                // reads the captured value instead of the innermost receiver.
                 var boundReceiverSymbol: SymbolID?
                 if let receiverSymbol = ctx.resolveQualifiedThisReceiverSymbol(label: label) {
                     boundReceiverSymbol = receiverSymbol
@@ -221,11 +212,6 @@ extension ExprTypeChecker {
                           currentDecl.name == label,
                           sema.symbols.functionSignature(for: currentDeclSymbol)?.receiverType != nil
                 {
-                    // An extension function's receiver is also addressable by the
-                    // function-name label (for example `this@describe`). Bind that
-                    // reference to the same synthetic receiver symbol used by KIR
-                    // so nested receiver lambdas capture the outer receiver rather
-                    // than accidentally reading their own receiver.
                     boundReceiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: currentDeclSymbol)
                     sema.bindings.bindIdentifier(
                         id,
@@ -242,9 +228,6 @@ extension ExprTypeChecker {
                     boundReceiverSymbol = objectType.classSymbol
                     sema.bindings.bindIdentifier(id, symbol: objectType.classSymbol)
                 }
-                // `this@func` inside `func` denotes the same receiver as the
-                // unqualified `this`, so it must observe the same flow-narrowed
-                // type (`this@func is T && this@func.member`).
                 let resultType = if let boundReceiverSymbol,
                                     let thisLocal = locals[ctx.interner.intern("this")],
                                     thisLocal.symbol == boundReceiverSymbol
@@ -265,10 +248,6 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
-        // A nested class's supertype arguments run before its own receiver is
-        // initialized, but an enclosing object is a singleton and remains
-        // available. Bind `this` to the object symbol so KIR loads that value
-        // instead of falling back to the not-yet-initialized class receiver.
         if ctx.implicitReceiverType == nil,
            let outerObjectReceiver = ctx.singletonObjectOuterReceivers.last,
            case let .classType(objectType) = sema.types.kind(of: outerObjectReceiver.type)
