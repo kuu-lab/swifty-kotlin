@@ -8,13 +8,6 @@ import Testing
 @Suite
 struct CodegenBackendConstructorDelegationTests {
 
-    /// A class with two constructors where the first-declared one delegates
-    /// via `this(...)` to the second used to resolve back to itself instead
-    /// of its sibling, because KIR lowering picked the delegation target by
-    /// taking the first FQ-name match without excluding the constructor
-    /// being lowered. That caused infinite self-recursion at runtime. This
-    /// case needs no import alias or cross-package name collision to
-    /// reproduce -- overload/self selection was the actual bug.
     @Test
     func testCodegenConstructorDelegationSelectsSiblingOverloadNotItself() throws {
         let source = """
@@ -50,21 +43,12 @@ struct CodegenBackendConstructorDelegationTests {
                 "Compilation failed. Diagnostics: \(result.diagnostics.map { "\($0.code): \($0.message)" })"
             )
 
-            // Bounded timeout: a regression here is an infinite recursion
-            // that would otherwise hang the test run indefinitely.
             let runResult = try CommandRunner.run(executable: outputBase, arguments: [], timeout: 30)
             let normalizedStdout = runResult.stdout.replacingOccurrences(of: "\r\n", with: "\n")
             #expect(normalizedStdout == "42\n")
         }
     }
 
-    /// Reproduces the originally reported shape of the bug: two classes
-    /// sharing the simple name `Widget` in different packages, one
-    /// aliased-imported into the other, with a delegating constructor whose
-    /// delegation argument constructs the aliased sibling. The alias turned
-    /// out to be a red herring (see the sibling-overload test above for the
-    /// real mechanism), but this case pins down the exact user-facing
-    /// scenario that surfaced the bug during the KSP-466 migration.
     @Test
     func testCodegenConstructorDelegationResolvesAliasedCrossPackageSiblingName() throws {
         let alphaSource = """
