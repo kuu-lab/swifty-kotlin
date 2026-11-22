@@ -9,7 +9,6 @@ package kotlinx.io.files
 
 import kotlin.internal.KsSymbolName
 
-/** A string path in the host's POSIX filesystem. */
 public class Path internal constructor(internal val path: String, @Suppress("UNUSED_PARAMETER") marker: Boolean) {
     // This compiler mis-types block-bodied getters at call sites, so the
     // bodies delegate to private member functions; call sites see the same
@@ -48,18 +47,15 @@ public class Path internal constructor(internal val path: String, @Suppress("UNU
     override fun equals(other: Any?): Boolean = other is Path && path == other.path
 }
 
-/** Returns `true` when this path refers to the filesystem root. */
 public val Path.isRoot: Boolean
     get() = isAbsolute && segments.isEmpty()
 
-/** Returns `true` when this path is not absolute. */
 public val Path.isRelative: Boolean
     get() = !isAbsolute
 
 private fun pathLastIndexOfChar(value: String, char: Char): Int =
     if (value.isEmpty()) -1 else value.lastIndexOf(char, value.length - 1, false)
 
-/** Returns the last path segment without its file extension. */
 public val Path.nameWithoutExtension: String
     get() {
         val pathName = this.name
@@ -93,10 +89,8 @@ private fun normalizePathString(path: String): String {
     return if (absolute) "/$joined" else if (joined.isEmpty()) "." else joined
 }
 
-/** Removes `.` segments and resolves `..` segments where possible. */
 public fun Path.normalize(): Path = Path(normalizePathString(toString()))
 
-/** Returns this path relative to [base], treating [base] as a directory. */
 public fun Path.relativeTo(base: Path): Path {
     if (isAbsolute != base.isAbsolute) {
         throw IllegalArgumentException("this and base paths have different roots: $this and $base.")
@@ -119,7 +113,6 @@ public fun Path.relativeTo(base: Path): Path {
     return Path(result.joinToString("/"))
 }
 
-/** Tests whether this path starts with all segments of [other]. */
 public fun Path.startsWith(other: Path): Boolean {
     if (isAbsolute != other.isAbsolute) return false
     val pathSegments = pathComponents(this)
@@ -131,10 +124,8 @@ public fun Path.startsWith(other: Path): Boolean {
     return true
 }
 
-/** Tests whether this path starts with all segments of [other]. */
 public fun Path.startsWith(other: String): Boolean = startsWith(Path(other))
 
-/** Tests whether this path ends with all segments of [other]. */
 public fun Path.endsWith(other: Path): Boolean {
     if (other.isAbsolute) return this == other
     val pathSegments = pathComponents(this)
@@ -147,10 +138,8 @@ public fun Path.endsWith(other: Path): Boolean {
     return true
 }
 
-/** Tests whether this path ends with all segments of [other]. */
 public fun Path.endsWith(other: String): Boolean = endsWith(Path(other))
 
-/** Resolves [relative] against this path, treating this path as a directory. */
 public fun Path.resolve(relative: Path): Path {
     if (relative.isRooted) return relative
     val baseName = toString()
@@ -162,30 +151,23 @@ public fun Path.resolve(relative: Path): Path {
     })
 }
 
-/** Resolves [relative] against this path, treating this path as a directory. */
 public fun Path.resolve(relative: String): Path = resolve(Path(relative))
 
-/** Resolves [relative] against this path. */
 public operator fun Path.div(relative: Path): Path = resolve(relative)
 
-/** Resolves [relative] against this path. */
 public operator fun Path.div(relative: String): Path = resolve(relative)
 
-/** The native POSIX path separator. */
 public val SystemPathSeparator: Char get() = '/'
 
-/** The host temporary directory following the pinned Native actual. */
 public val SystemTemporaryDirectory: Path get() = Path(ioFsTemporaryDirectory())
 
 @KsSymbolName("__kk_io_fs_temporary_directory")
 private external fun ioFsTemporaryDirectory(): String
 
-/** Matches the kotlinx-io Native Path representation: only trailing separators are removed. */
 public fun Path(path: String): Path {
     return Path(removeTrailingSeparators(path), true)
 }
 
-/** Join a base string with path components using the system separator. */
 public fun Path(base: String, vararg parts: String): Path {
     var result = base
     for (part in parts) {
@@ -197,7 +179,6 @@ public fun Path(base: String, vararg parts: String): Path {
 
 // Forwarding `vararg` through a spread (`*parts`) crashes at runtime in this
 // compiler, so this overload repeats the join loop instead of delegating.
-/** Join a path with additional components. */
 public fun Path(base: Path, vararg parts: String): Path {
     var result = base.toString()
     for (part in parts) {
