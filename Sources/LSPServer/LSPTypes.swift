@@ -1,4 +1,3 @@
-/// A 0-based position in a text document. `character` counts UTF-16 code units.
 public struct LSPPosition: Codable, Equatable {
     public var line: Int
     public var character: Int
@@ -54,8 +53,6 @@ public struct DidOpenTextDocumentParams: Codable {
     public var textDocument: TextDocumentItem
 }
 
-/// A single content change. With full document sync (the mode this server
-/// advertises) `text` carries the entire new document and `range` is absent.
 public struct TextDocumentContentChangeEvent: Codable {
     public var text: String
 }
@@ -119,7 +116,6 @@ public struct PublishDiagnosticsParams: Codable {
     }
 }
 
-/// A text replacement in LSP UTF-16 document coordinates.
 public struct LSPTextEdit: Codable, Equatable {
     public var range: LSPRange
     public var newText: String
@@ -130,7 +126,6 @@ public struct LSPTextEdit: Codable, Equatable {
     }
 }
 
-/// A collection of edits grouped by document URI.
 public struct WorkspaceEdit: Codable, Equatable {
     public var changes: [String: [LSPTextEdit]]?
 
