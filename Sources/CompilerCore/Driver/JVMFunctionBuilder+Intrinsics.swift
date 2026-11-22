@@ -27,7 +27,6 @@ extension JVMFunctionBuilder {
         for (arg, type) in zip(arguments, parameters) { args.append(try convert(arg, to: type)) }
         let method = JVMForeignMethod(owner: owner, name: name, descriptor: "(" + parameters.map(\.descriptor).joined() + ")" + resultType.descriptor, parameters: parameters, result: resultType, isStatic: receiver == nil, isInterface: interface, isAbstract: false)
         let resolvedType = resolved ?? resultType
-        // An erased getter (e.g. Pair<Unit, T>.getFirst) returns an object, not void.
         let logical = resultType.referenceName != nil ? resolvedType.withBoxedUnit : resolvedType
         let result = resultType == .unit ? nil : try value(foreignResultType(resultType, resolved: logical))
         instructions.append(.foreignCall(method, receiver: receiver, arguments: args, result: result))
@@ -123,15 +122,10 @@ extension JVMFunctionBuilder {
         }
         if fq.hasPrefix("kotlin/collections/"), ["listOf", "mutableListOf", "setOf", "mutableSetOf", "emptyList", "emptySet", "mutableMapOf", "mapOf", "emptyMap"].contains(name) {
             let map = name.lowercased().contains("map"), set = name.lowercased().contains("set")
-            // Kotlin evaluates the whole vararg before hashing keys/elements.
             let items = try args.map { try requireValue($0.expr) }
             if !name.hasPrefix("mutable") {
-                // kotlinc exposes concrete JDK/bundled classes through getClass():
-                // Empty{List,Set,Map}, Collections$Singleton{List,Set,Map},
-                // Arrays$ArrayList, LinkedHashSet, LinkedHashMap.
                 let kind = map ? "Map" : (set ? "Set" : "List")
                 if items.isEmpty {
-                    // The singleton implementation classes need not be public.
                     let facade = map ? "MapsKt" : (set ? "SetsKt" : "CollectionsKt")
                     return JVMIntrinsicResult(value: try jdkCall(
                         "kotlin/collections/" + facade, "empty" + kind, [],
@@ -163,10 +157,6 @@ extension JVMFunctionBuilder {
         }
         return nil
     }
-    /// True when Sema selected a Kotlin extension (or another non-member
-    /// callable) for this call. Collection member intrinsics emit fixed JDK
-    /// member signatures, so they must defer to the regular extension
-    /// dispatch when the chosen callee is not the collection member itself.
     func collectionCallIsExtension(_ id: ExprID) -> Bool {
         guard let callee = program.sema.bindings.callBinding(for: id)?.chosenCallee else { return false }
         if program.extensionSymbols.contains(callee)
@@ -267,8 +257,6 @@ extension JVMFunctionBuilder {
             } else if case .comparison = overload,
                       sourceIndex == args.count - 1,
                       argumentIsFunction {
-                // A trailing lambda is the final comparison parameter even when
-                // earlier range arguments are supplied positionally.
                 parameterIndex = 2
             } else if signature?.parameterTypes.count == parameterTypes.count,
                       let mapped = binding?.parameterMapping[sourceIndex],
@@ -367,8 +355,6 @@ extension JVMFunctionBuilder {
         if let reflection = try reflectionMember(receiverID, name: member, args: args, id: id) { return reflection }
         guard let sourceType = try? program.expressionType(receiverID) else { return nil }
         if sourceType.referenceName == "kotlin/ranges/ClosedFloatingPointRange" {
-            // The JVM ABI erases generic range elements to Comparable; concrete
-            // Float/Double range classes provide bridges for these interface calls.
             let comparable: JVMValueType = .reference("java/lang/Comparable", nullable: false)
             let receiver = try requireValue(receiverID)
             switch member {
@@ -409,15 +395,12 @@ extension JVMFunctionBuilder {
         if let coroutine = try coroutineMember(receiverID, name: member, args: args, id: id) { return coroutine }
         let binding = program.sema.bindings.callBinding(for: id)
         let builtinHOF = binding.flatMap { program.sema.symbols.symbol($0.chosenCallee) }?.fqName.starts(with: KnownCompilerNames(interner: context.interner).kotlinCollectionsPackage) == true
-        // Array HOF inference may leave no callee binding, including when its
-        // callback is an existing function value rather than a lambda literal.
         let intrinsicHOF = binding == nil && higherOrderReceiver(receiverID) && args.last.flatMap { functionType($0.expr) } != nil
         if ["map", "filter", "forEach", "fold", "reduce"].contains(member), (builtinHOF || intrinsicHOF), higherOrderReceiver(receiverID) {
             return JVMIntrinsicResult(value: try higherOrder(receiverID, operation: member, args: args, id: id))
         }
         if let aggregate = try collectionAggregateMember(receiverID, name: member, args: args, id: id) { return aggregate }
         let object: JVMValueType = .reference("java/lang/Object", nullable: true)
-        // `to` is resolved as an extension; evaluate its receiver before the value.
         if member == "to", let binding = program.sema.bindings.callBinding(for: id),
            let symbol = program.sema.symbols.symbol(binding.chosenCallee), symbol.fqName == KnownCompilerNames(interner: context.interner).kotlinToFQName, args.count == 1 {
             let left = try convert(requireValue(receiverID), to: object), right = try convert(requireValue(args[0].expr), to: object)
@@ -540,8 +523,6 @@ extension JVMFunctionBuilder {
                     resolved: program.expressionType(id)
                 ))
             }
-            // JDK collection interfaces retain the virtual Object contract;
-            // their implementations provide structural equality and hashing.
             if ["hashCode", "toString"].contains(member), args.isEmpty {
                 return JVMIntrinsicResult(value: try jdkCall("java/lang/Object", member, [], member == "hashCode" ? .int : .string, receiver: requireValue(receiverID)))
             }
@@ -791,8 +772,6 @@ extension JVMFunctionBuilder {
     func allocateArray(_ type: JVMValueType, semantic: TypeID?, count: JVMValue, id: ExprID) throws -> JVMValue {
         guard let semantic, isReifiableArray(semantic) else { throw fail("JVM array creation requires a reifiable element type.", id) }
         let result = try value(type), element = try arrayComponent(type)
-        // Constructors and factories need the same runtime component token;
-        // exported inline bodies must retain an allocation reification marker.
         if case let .classType(t) = program.sema.types.kind(of: semantic), let arg = t.args.first,
            let component = reifiedArrayElement(arg) {
             if let token = try runtimeReifiedToken(component) {
@@ -865,8 +844,6 @@ extension JVMFunctionBuilder {
             return try convert(value, to: program.expressionType(id))
         }
         var object = try requireValue(receiver)
-        // An intersection can retain Iterable as its erased local type while
-        // Sema selects List.get from a smart-cast branch.
         if let owner = try mappedBuiltinMemberOwner(id),
            ["java/util/List", "java/util/Map", "kotlin/enums/EnumEntries"].contains(owner) {
             object = try convert(object, to: .reference(owner, nullable: false))
@@ -897,8 +874,6 @@ extension JVMFunctionBuilder {
         return try jdkCall(owner, "get", [["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? .int : .reference("java/lang/Object", nullable: true)], .reference("java/lang/Object", nullable: true), receiver: receiver, arguments: [index], interface: true, resolved: type)!
     }
 
-    /// `a?.b[i]` is one guarded read: when the safe receiver is null, the index
-    /// expressions and `get` are skipped instead of running on null.
     private func safeChainIndexedGet(_ receiver: ExprID, _ indices: [ExprID], _ id: ExprID) throws -> JVMValue? {
         let receiverValue = try requireValue(receiver)
         let type = try program.expressionType(id)
@@ -1237,7 +1212,6 @@ extension JVMFunctionBuilder {
             instructions.append(.constant(.int(0), index))
             if let withIndexCounter { instructions.append(.constant(.int(0), withIndexCounter)) }
             mark(test)
-            // CharSequence may change length while the body executes.
             let size = try fixedSize ?? textLength(source)
             let check = try value(.boolean); instructions.append(.binary(.lessThan, index, size, check)); instructions.append(.jumpIfFalse(check, exit))
             let element = try indexedRead(source, index: index, type: indexedElementType ?? elementType)
