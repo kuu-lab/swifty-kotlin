@@ -5,8 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-3077: the missing java.io reader/writer and data-stream classes resolve
-    /// from both injected sources and a freshly built stdlib artifact.
     @Test func testJavaIOStringAndDataStreamsAcrossStdlibSurfaces() throws {
         let source = """
         import java.io.BufferedWriter
@@ -113,8 +111,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-3851: Java stream overrides dispatch through base-typed references,
-    /// and runtime stream boxes conform to both Java closeable nominals.
     @Test func testJavaIOStreamBaseDispatchAndCloseableConformance() throws {
         let source = """
         import java.io.BufferedReader
