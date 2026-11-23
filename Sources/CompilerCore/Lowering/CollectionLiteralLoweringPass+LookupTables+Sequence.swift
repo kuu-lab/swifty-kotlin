@@ -41,8 +41,6 @@ struct SequenceLookupNames {
     let takeName: InternedString
     let yieldName: InternedString
     let yieldAllName: InternedString
-    // KUU-3850: `take`/`drop`/`*While` plus the traversal terminals so the
-    // pipeline/terminal rewrites can emit the runtime step forms directly.
     let kkSequenceTakeName: InternedString
     let kkSequenceDropName: InternedString
     let kkSequenceTakeWhileName: InternedString

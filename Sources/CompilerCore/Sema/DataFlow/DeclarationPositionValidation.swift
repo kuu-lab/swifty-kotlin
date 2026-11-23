@@ -59,11 +59,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// KUU-4119: resolves the visibility an `override` property without its own
-    /// visibility modifier inherits from the nearest overridden member.
-    /// Returns nil when no overridden property can be found — the accessor
-    /// check then treats the effective visibility as unknown rather than
-    /// wrongly assuming `public`.
     private func inheritedPropertyVisibility(
         forPropertyDecl declID: DeclID,
         ast: ASTModule,
@@ -86,9 +81,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// The effective visibility of a property symbol: a source-declared
-    /// `override` without its own visibility modifier recurses into the member
-    /// it overrides; anything else carries its declared visibility directly.
     private func effectivePropertyVisibility(
         of symbolID: SymbolID,
         visited: Set<SymbolID>,
@@ -103,8 +95,6 @@ extension DataFlowSemaPhase {
               let decl = ast.arena.decl(declID),
               case let .propertyDecl(propertyDecl) = decl
         else {
-            // Imported or synthetic members already carry their effective
-            // visibility on the symbol record.
             return symbol.visibility
         }
         guard propertyDecl.modifiers.contains(.override),
@@ -125,12 +115,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Walks `ownerID`'s supertypes in declaration order for the nearest
-    /// property member named `name`, mirroring the branch pruning of
-    /// `nearestOverriddenFunctionCandidates`: a supertype that declares the
-    /// member supplies it and shallower ancestors are never reached.
-    /// Properties cannot overload, so a non-private name match is always the
-    /// overridden member.
     private func nearestOverriddenProperty(
         named name: InternedString,
         owner ownerID: SymbolID,
@@ -286,10 +270,6 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine?,
         interner: StringInterner
     ) {
-        // kotlinc rejects `interface J : SomeClass` with
-        // "an interface cannot extend a class". Interfaces may only list
-        // interface supertypes. Annotation classes produce their own
-        // diagnostic elsewhere, so only nominal class kinds are reported here.
         for superTypeRefID in interfaceDecl.superTypes {
             guard let resolved = resolveTypeRef(
                 superTypeRefID,
@@ -423,8 +403,6 @@ extension DataFlowSemaPhase {
             else {
                 continue
             }
-            // Members of an `actual` nominal pair implicitly through their
-            // owner; explicit `actual` on them is legal Kotlin.
             if let parentID = symbols.parentSymbol(for: symbol.id),
                symbols.symbol(parentID)?.flags.contains(.actualDeclaration) == true
             {
