@@ -19,11 +19,10 @@ extension DataFlowSemaPhase {
         }) {
             return
         }
-        if symbols.lookupAll(fqName: memScopedFQName).contains(where: { symbolID in
+        if !symbols.lookupAll(fqName: memScopedFQName).contains(where: { symbolID in
             guard let sig = symbols.functionSignature(for: symbolID) else { return false }
             return sig.receiverType == nil && sig.parameterTypes.count == 1 && sig.typeParameterSymbols.count == 1
         }) {
-        } else {
             let memScopedRName = interner.intern("R")
             let memScopedRFQName = memScopedFQName + [memScopedRName]
             let memScopedRSymbol = symbols.define(
