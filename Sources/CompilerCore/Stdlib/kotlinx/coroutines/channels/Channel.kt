@@ -79,7 +79,7 @@ public fun Channel<*>.invokeOnClose(handler: (cause: Throwable?) -> Unit) {
     __kkChannelInvokeOnClose(this, handler)
 }
 
-public fun <E, R> Channel<E>.consume(block: Channel<E>.() -> R): R {
+public inline fun <E, R> Channel<E>.consume(block: Channel<E>.() -> R): R {
     var cause: Throwable? = null
     try {
         return block(this)
@@ -91,7 +91,7 @@ public fun <E, R> Channel<E>.consume(block: Channel<E>.() -> R): R {
     }
 }
 
-public suspend fun <E> Channel<E>.consumeEach(action: (E) -> Unit) {
+public suspend inline fun <E> Channel<E>.consumeEach(action: (E) -> Unit) {
     consume {
         for (element in this) {
             action(element as E)
@@ -99,6 +99,7 @@ public suspend fun <E> Channel<E>.consumeEach(action: (E) -> Unit) {
     }
 }
 
+@PublishedApi
 internal fun Channel<*>.cancelConsumed(cause: Throwable?) {
     this.cancel(
         if (cause == null) null
