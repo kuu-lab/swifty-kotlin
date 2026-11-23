@@ -271,7 +271,7 @@ extension JVMFunctionBuilder {
             composableParameters: composableParameters,
             importedDefaults: importedDefaults
         )
-        for contextIndex in contextParameterTypes.indices {
+        for contextIndex in contextParameterTypes.indices.dropFirst(importedContextCount) {
             let contextValue: JVMValue
             if let explicit = ordered.contextValues[contextIndex] {
                 contextValue = explicit

@@ -3157,7 +3157,8 @@ final class JVMClasspathIndex {
         _ method: JVMForeignMethod, asExtension: Bool = false, asFacadeMember: Bool = false,
         acceptsDefaults: Bool = false, usesKotlinMetadata: Bool = true, forcedResult: String? = nil
     ) -> String {
-        if usesKotlinMetadata, let owner = declaringClass(for: method), let function = kotlinFunction(method) {
+        if usesKotlinMetadata, method.kotlinFunction?.hasInlineContextCallback != true,
+           let owner = declaringClass(for: method), let function = kotlinFunction(method) {
             return kotlinFunctionDeclaration(function, owner: owner)
         }
         if usesKotlinMetadata, let function = method.kotlinFunction {

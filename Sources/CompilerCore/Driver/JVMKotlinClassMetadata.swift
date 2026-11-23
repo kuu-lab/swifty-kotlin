@@ -239,14 +239,22 @@ private struct JVMKotlinMetadataTypes {
                args.allSatisfy({ $0.type != nil }), let result = args.last?.type {
                 let extensionType = try message.messages(100).contains { try name($0.integer(1)) == "kotlin/ExtensionFunctionType" }
                 var parameters = args.dropLast().compactMap(\.type)
+                var contextCount = 0
+                for annotation in try message.messages(100) where try name(annotation.integer(1)) == "kotlin/ContextFunctionTypeParams" {
+                    guard let zigzag = try annotation.message(2)?.message(2)?.integer(2), zigzag % 2 == 0 else { throw JVMClassReader.Invalid() }
+                    contextCount = zigzag >> 1
+                }
+                guard contextCount <= parameters.count else { throw JVMClassReader.Invalid() }
+                let context = Array(parameters.prefix(contextCount))
+                parameters.removeFirst(contextCount)
                 let receiver = extensionType && !parameters.isEmpty ? parameters.removeFirst() : nil
                 let isSuspend = (message.integer(1) ?? 0) & 1 != 0
                 if isSuspend, case .named("kotlin/coroutines/Continuation", let arguments, _) = parameters.last,
                    let suspendResult = arguments.first?.type {
                     parameters.removeLast()
-                    type = .function(parameters, suspendResult, receiver: receiver, nullable: isNullable, isSuspend: true)
+                    type = .function(parameters, suspendResult, receiver: receiver, nullable: isNullable, isSuspend: true, context: context)
                 } else {
-                    type = .function(parameters, result, receiver: receiver, nullable: isNullable)
+                    type = .function(parameters, result, receiver: receiver, nullable: isNullable, context: context)
                 }
             } else {
                 type = .named(binary, args, nullable: isNullable)
