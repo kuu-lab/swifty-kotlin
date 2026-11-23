@@ -45,8 +45,6 @@ struct LocalOperatorFunctionParsingTests {
         ("private fun helper() {}", "KSWIFTK-SEMA-0400"),
         ("operator fun Int.notAnOperator(): Int = this", "KSWIFTK-SEMA-0416"),
         ("operator fun mod(a: Int): Int = a", "KSWIFTK-SEMA-0416"),
-        // KUU-3149: local operator functions are never members, so only the
-        // extension-receiver form with the convention arity is legal.
         ("operator fun plus(a: Int, b: Int): Int = a", "KSWIFTK-SEMA-0439"),
         ("operator fun unaryPlus(): Int = 1", "KSWIFTK-SEMA-0439"),
         ("operator fun Int.unaryPlus(a: Int): Int = a", "KSWIFTK-SEMA-0439"),
@@ -54,8 +52,6 @@ struct LocalOperatorFunctionParsingTests {
         ("operator fun Int.component1(a: Int): Int = a", "KSWIFTK-SEMA-0439"),
         ("operator fun Int.plus(vararg a: Int): Int = a.size", "KSWIFTK-SEMA-0439"),
         ("operator fun Int.plus(a: Int = 0): Int = a", "KSWIFTK-SEMA-0439"),
-        // KUU-3837: `of` is a legal operator name (collection literals), but
-        // a local function is never a companion member.
         ("operator fun of(vararg s: String): Int = s.size", "KSWIFTK-SEMA-0439"),
         ("operator fun Int.of(vararg s: String): Int = s.size", "KSWIFTK-SEMA-0439"),
     ])
