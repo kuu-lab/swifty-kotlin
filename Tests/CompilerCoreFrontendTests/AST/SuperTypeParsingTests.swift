@@ -114,8 +114,6 @@ struct SuperTypeParsingTests {
         #expect(!nullable)
     }
 
-    /// `Base(y = 1, x = 2)` used to be split into bare expressions, dropping
-    /// the labels so the arguments were passed positionally.
     @Test
     func testSupertypeConstructorInvocationKeepsNamedAndSpreadArguments() throws {
         let (ast, ctx) = try buildAST("""
