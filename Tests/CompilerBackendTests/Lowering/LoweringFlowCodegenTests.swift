@@ -43,10 +43,6 @@ struct LoweringFlowCodegenTests {
                 extractCallees(from: function.body, interner: ctx.interner)
             }
 
-            // KSP-CAP-010: artifact imports inline the map/filter transforms,
-            // while the non-inline terminal declarations retain concrete
-            // mangled artifact callees.  The executable check below fixes the
-            // observable semantics of the inlined transforms.
             #expect(containsKotlinCallee("toList", in: allCallees))
             #expect(containsKotlinCallee("first", in: allCallees))
             #expect(containsKotlinCallee("fold", in: allCallees))
@@ -384,8 +380,6 @@ struct LoweringFlowCodegenTests {
         )
     }
 
-    // KUU-2724: a thrown transform body must discard values the cancelled child
-    // already buffered; JVM's closed-with-cause produce channel delivers none.
     @Test
     func testTransformLatestFailureDropsBufferedValues() throws {
         try assertFlowExecutableOutput(
@@ -461,7 +455,6 @@ struct LoweringFlowCodegenTests {
             #expect(!allCallees.contains("flow"))
             #expect(!allCallees.contains(try runtimeABICallee("flow_single")))
 
-            // Operators stay source-backed; only cold-flow primitives use runtime links.
             for function in findAllKIRFunctions(in: module) where !function.isInlineOnly {
                 for instruction in function.body {
                     guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
@@ -836,7 +829,6 @@ struct LoweringFlowCodegenTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            // Exercise intrinsic lowering without bundled Flow declarations.
             let ctx = makeCompilationContext(
                 inputs: [path], moduleName: "FlowIntrinsicLoweringRewrite", emit: .kirDump,
                 includeStdlib: false, allowDefaultStdlibLibrary: false
@@ -903,10 +895,6 @@ struct LoweringFlowCodegenTests {
                 throw FlowTestFailure(description: "Expected kk_flow_collect call after lowering.")
             }
             // (flowHandle, collectorFnPtr, collectorEnvPtr, continuation/functionID).
-            // The third slot (collectorEnvPtr) was added so collectors that
-            // capture outer variables (e.g. `collect { capturedList.add(it) }`)
-            // receive their closure environment instead of always being invoked
-            // with a null environment pointer.
             #expect(callArgs.count == 4)
 
             guard let collectorExpr = module.arena.expr(callArgs[1]),
@@ -1063,11 +1051,6 @@ struct LoweringFlowCodegenTests {
         }
     }
 
-    // KSP-674: flowOf / emptyFlow / Iterable.asFlow are Kotlin source composed
-    // from flow { } (kk_flow_create) + emit (kk_flow_emit); the dedicated
-    // kk_flow_of / kk_flow_empty / kk_flow_as_flow bridges were removed. These
-    // cases pin their end-to-end behavior, including the emitter-side capture of
-    // an outer val inside an explicit flow { } builder.
     @Test
     func testFlowOfVarargExecutablePrintsExpectedOutput() throws {
         let source = """
