@@ -93,8 +93,6 @@ extension LambdaLowerer {
             body.append(.constValue(result: value, value: .symbolRef(param.symbol)))
             return value
         }
-        // Contravariant inputs and covariant results can cross boxed/unboxed
-        // boundaries. Typed copies let ABI lowering apply those conversions.
         let sourceParams = functionType.contextReceivers
             + (functionType.receiver.map { [$0] } ?? [])
             + functionType.params

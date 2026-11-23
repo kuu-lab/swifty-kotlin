@@ -69,23 +69,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 }
                 return true
             }
-            // RF-LOWER-CALL-012 dropped the Map-receiver branch that used to sit
-            // here (`map` / `filter` / `forEach` / `mapValues` / `mapKeys` /
-            // `filterKeys` / `filterValues` / `flatMap` / `any` / `all` /
-            // `none` / `maxByOrNull` / `minByOrNull` rewritten to `kk_map_*`).
-            // It was unreachable: every one of those names resolves to the
-            // bundled `MapHOF.kt` declaration (KSP-430) and is preserved by
-            // the source-backed preservation gate before
-            // `rewriteHigherOrderCollectionCall` runs, and `filterKeys` /
-            // `filterValues` / `maxByOrNull` / `minByOrNull` additionally never
-            // passed this function's own outer member-name gate above (it
-            // never listed them). `kk_map_map`, `kk_map_filter`,
-            // `kk_map_mapValues`, `kk_map_mapKeys`, `kk_map_filterKeys`,
-            // `kk_map_filterValues`, `kk_map_flatMap`, `kk_map_any`,
-            // `kk_map_all`, `kk_map_none`, `kk_map_forEach`,
-            // `kk_map_maxByOrNull`, `kk_map_minByOrNull` have no `@_cdecl` in
-            // `Sources/Runtime` any more. See `+CallRewriteHandlers.swift` and
-            // `MapHOFLoweringRoutingTests` for the full picture.
             if state.rangeExprIDs.contains(receiverID.rawValue),
                callee == lookup.mapName || callee == lookup.forEachName
             {
@@ -100,12 +83,8 @@ extension CollectionLiteralConstructionLoweringPass {
                 let isCharRange = state.charRangeExprIDs.contains(receiverID.rawValue)
                 let kkName: InternedString
                 if callee == lookup.mapName {
-                    // KSP-1527: ULongRange.map is source-backed in RangeHOF.kt;
-                    // kk_ulong_range_map no longer exists in Runtime.
                     kkName = lookup.kkRangeMapName
                 } else {
-                    // forEach: source-backed for ULongRange since KSP-1528; use char
-                    // or default range variant otherwise.
                     kkName = isCharRange ? lookup.kkCharRangeForEachName : lookup.kkRangeForEachName
                 }
                 let hofResult = module.arena.appendTemporary(type: nil
@@ -126,9 +105,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 }
                 return true
             }
-            // KSP-432: Set higher-order functions are source-backed in
-            // Stdlib/kotlin/collections/SetHOF.kt, so set receivers intentionally
-            // fall through to normal call lowering here.
         }
     }
 

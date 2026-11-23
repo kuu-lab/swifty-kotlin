@@ -97,10 +97,6 @@ extension InlineLoweringPass {
         {
             return fn
         }
-        // A callable materialized through `kk_function_create_N` wraps the
-        // lambda or adapter symbol as its first argument. CoroutineLowering
-        // rewrites suspend factories to `kk_suspend_function_create`, so both
-        // factory forms must be visible here for inline HOF callbacks.
         if let ctx {
             for callSite in callerBodyIndex.callSites(producing: argExpr) {
                 let calleeName = ctx.interner.resolve(callSite.callee)
@@ -112,10 +108,6 @@ extension InlineLoweringPass {
                 else {
                     continue
                 }
-                // The factory call's second argument carries the captured
-                // environment handed to the callable's leading closure
-                // parameter. Preserve it for `lambdaCaptureArguments` when
-                // the factory is expanded.
                 if callSite.arguments.count > 1 {
                     lambdaCaptureArgsByExpr[argExpr] = [callSite.arguments[1]]
                 }
@@ -125,8 +117,6 @@ extension InlineLoweringPass {
         return nil
     }
 
-    /// Returns `nil` when the expansion cannot proceed (e.g. argument/parameter
-    /// count mismatch), signalling the caller to fall back to a regular call.
     func expandLambdaBody(
         lambdaFunction: KIRFunction,
         arguments: [KIRExprID],
@@ -148,17 +138,11 @@ extension InlineLoweringPass {
                 lambdaParamValues[param.symbol] = arg
             }
         } else if arguments.count < paramCount {
-            // The call supplies only value arguments; the leading parameters
-            // are captures that were already bound at the call site.
             let offset = paramCount - arguments.count
             for i in 0 ..< arguments.count {
                 lambdaParamValues[lambdaFunction.params[offset + i].symbol] = arguments[i]
             }
         } else {
-            // More arguments than parameters.  This can happen when a
-            // receiver-lambda (e.g. `StringBuilder.() -> Unit`) is invoked
-            // with the receiver prepended as the first argument.  Map only
-            // the trailing parameters and ignore the leading receiver args.
             let offset = arguments.count - paramCount
             for i in 0 ..< paramCount {
                 lambdaParamValues[lambdaFunction.params[i].symbol] = arguments[offset + i]
@@ -169,7 +153,6 @@ extension InlineLoweringPass {
         var lowered = KIRLoweringEmitContext()
         var callAncestries: [Int: [SymbolID]] = [:]
         var callExternalLoopAliases: [Int: [InlineLoopLabelAliases]] = [:]
-        // Caller-supplied lambdas may legitimately call their enclosing inline function.
         let lambdaAncestry = budget.ancestry.filter { !budget.inlineSymbols.contains($0) }
         lowered.instructions.reserveCapacity(lambdaFunction.body.count)
         for param in lambdaFunction.params {
@@ -185,9 +168,6 @@ extension InlineLoweringPass {
         var hasNonLocalReturn = false
         var hasNormalReturn = false
 
-        // Lambda bodies with control flow (if/else branches) can contain
-        // multiple return instructions; breaking at the first one would
-        // truncate the remaining branches.
         let returnCount = lambdaFunction.body.reduce(0) { count, inst in
             switch inst {
             case .returnUnit, .returnValue: return count + 1
@@ -205,8 +185,6 @@ extension InlineLoweringPass {
                 return false
             }
             if hasValueReturn || ownsNonLocalReturn {
-                // Uses the lambda's declared return type so later passes see
-                // a properly typed merge expression.
                 let returnType = lambdaFunction.returnType
                 let mergeID = module.arena.appendTemporary(type: returnType
                 )
@@ -222,9 +200,6 @@ extension InlineLoweringPass {
             exitLabel = -1
         }
 
-        // Give this expansion its own label IDs, so the same lambda spliced
-        // twice does not define one label twice. The caller relocates them
-        // again on the way in (see `InlineLabelAllocator`).
         var labelRemap: [Int32: Int32] = [:]
         for instruction in lambdaFunction.body {
             if case let .label(id) = instruction {
@@ -436,8 +411,6 @@ extension InlineLoweringPass {
                 )
 
             case let .nonLocalReturn(value, target):
-                // Non-local return from a nested lambda. Preserve it so the
-                // caller's inlineTransform can convert it to a real return.
                 hasNonLocalReturn = true
                 if let value {
                     lowered.append(.nonLocalReturn(InlineExprAliasing.resolveAlias(of: value, aliases: localExprMap), target: target))
@@ -482,9 +455,6 @@ extension InlineLoweringPass {
         )
     }
 
-    /// Splice a lambda expansion in place of a call that already owns a local
-    /// exception slot, routing the lambda body's throws into that slot so the
-    /// surrounding inline try/catch can observe them.
     func appendInlinedLambdaExpansion(
         _ lambdaExpansion: InlineExpansion,
         callThrownResult: KIRExprID?,
