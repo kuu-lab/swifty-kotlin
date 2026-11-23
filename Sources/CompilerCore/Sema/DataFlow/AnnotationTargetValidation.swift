@@ -1568,11 +1568,9 @@ extension DataFlowSemaPhase {
             guard !isAnnotationClassDecl(decl) else { return false }
             return allowedTargets.contains("FIELD")
         case .delegate:
-            guard let propertySymbol,
-                  symbols.delegateStorageSymbol(for: propertySymbol) != nil
-            else {
-                return false
-            }
+            let hasDelegate = propertySymbol.map { symbols.delegateStorageSymbol(for: $0) != nil } == true
+                || decl.flatMap(propertyDecl(from:))?.delegateExpression != nil
+            guard hasDelegate else { return false }
             return allowedTargets.contains("FIELD")
         case .file:
             return allowedTargets.contains("FILE")

@@ -67,5 +67,65 @@ extension JVMBackendTests {
             #expect(expectedReflection.stderr.isEmpty)
         }
     }
+    @Test
+    func delegateUseSiteAnnotationIsAcceptedOnTopLevelDelegates() throws {
+        try withWorkspace { root in
+            let source = #"""
+            @Target(AnnotationTarget.FIELD)
+            @Retention(AnnotationRetention.RUNTIME)
+            annotation class Marker(val hash: Int)
+
+            object Res
+
+            @delegate:Marker(-1_991_362_839)
+            val Res.label: String by lazy { "res" }
+
+            @delegate:Marker(7)
+            val plain: Int by lazy { 42 }
+
+            fun main() { println(Res.label + plain) }
+            """#
+            let runtime = try m11Runtime()
+            let classpath = runtime.components(separatedBy: ":")
+            let compiled = try compile(source, root: root, mode: .jvmJar, classpath: classpath)
+            try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
+
+            let artifact = root.appendingPathComponent("hello.jar").path
+            let probe = root.appendingPathComponent("TopLevelDelegateProbe.java")
+            try """
+            public class TopLevelDelegateProbe {
+                public static void main(String[] args) throws ReflectiveOperationException {
+                    HelloKt.main();
+                    Marker label = HelloKt.class.getDeclaredField("label$delegate").getAnnotation(Marker.class);
+                    Marker plain = HelloKt.class.getDeclaredField("plain$delegate").getAnnotation(Marker.class);
+                    System.out.println(label.hash() + " " + plain.hash());
+                }
+            }
+            """.write(to: probe, atomically: true, encoding: .utf8)
+            let javaCompile = try javac(["-cp", artifact + ":" + runtime, "-d", root.path, probe.path])
+            try #require(javaCompile.exitCode == 0, "\(javaCompile.stderr)")
+            let run = try java(["-cp", artifact + ":" + runtime + ":" + root.path, "TopLevelDelegateProbe"])
+            #expect(run.exitCode == 0, "\(run.stderr)")
+            #expect(run.stdout == "res42\n-1991362839 7\n")
+        }
+    }
+
+    @Test
+    func delegateUseSiteAnnotationStillRejectsPropertiesWithoutDelegate() throws {
+        try withWorkspace { root in
+            let source = #"""
+            @Target(AnnotationTarget.FIELD)
+            annotation class Marker
+
+            @delegate:Marker val plain: Int = 1
+
+            fun main() { println(plain) }
+            """#
+            let runtime = try m11Runtime()
+            let compiled = try compile(source, root: root, mode: .jvmJar, classpath: runtime.components(separatedBy: ":"))
+            #expect(compiled.0 != 0)
+            #expect(compiled.1.contains { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" })
+        }
+    }
 }
 #endif
