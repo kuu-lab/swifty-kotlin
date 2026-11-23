@@ -23,6 +23,20 @@ struct SerializableKklibSerializerExportTests {
     class D(val x: Int)
     """
 
+    private let nestedLibrarySource = """
+    package demo
+
+    import kotlinx.serialization.Serializable
+
+    class Outer {
+        @Serializable
+        class Nested(val x: Int)
+    }
+
+    @Serializable
+    object O
+    """
+
     private let consumerSource = """
     package demo.consumer
 
@@ -45,13 +59,18 @@ struct SerializableKklibSerializerExportTests {
             )
             try runSema(libraryCtx)
             let sema = try #require(libraryCtx.sema)
+            let functionLinkNames = sema.serializationClasses.values.reduce(into: [SymbolID: String]()) { result, info in
+                if let serializer = info.companionSerializerMethod {
+                    result[serializer] = "kk_serializer"
+                }
+            }
 
             let records = MetadataEncoder().buildRecords(
                 symbols: sema.symbols,
                 types: sema.types,
                 moduleName: "SerialLib",
                 interner: libraryCtx.interner,
-                functionLinkNames: [:],
+                functionLinkNames: functionLinkNames,
                 includeSynthetic: false,
                 serializationClasses: sema.serializationClasses
             )
@@ -88,6 +107,36 @@ struct SerializableKklibSerializerExportTests {
                 })
                 #expect(importedSerializer.fqName.map { consumerCtx.interner.resolve($0) }.joined(separator: ".") == "demo.D.Companion.serializer")
             }
+        }
+    }
+
+    @Test
+    func unloweredSerializationMembersAreNotExported() throws {
+        try withTemporaryFiles(contents: [serializationStubSource, nestedLibrarySource]) { libraryPaths in
+            let libraryCtx = CompilerTestSupport.makeCompilationContext(
+                inputs: libraryPaths,
+                moduleName: "SerialLib",
+                emit: .kirDump,
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(libraryCtx)
+            let sema = try #require(libraryCtx.sema)
+            #expect(sema.serializationClasses.count >= 2)
+
+            let records = MetadataEncoder().buildRecords(
+                symbols: sema.symbols,
+                types: sema.types,
+                moduleName: "SerialLib",
+                interner: libraryCtx.interner,
+                functionLinkNames: [:],
+                includeSynthetic: false,
+                serializationClasses: sema.serializationClasses
+            )
+
+            #expect(!records.contains { $0.fqName == "demo.Outer.Nested.Companion.serializer" })
+            #expect(!records.contains { $0.fqName == "demo.O.Companion.serializer" })
+            #expect(!records.contains { $0.fqName == "demo.O.Companion" && $0.kind == .object })
         }
     }
 }

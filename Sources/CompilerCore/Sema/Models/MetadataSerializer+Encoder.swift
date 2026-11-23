@@ -28,7 +28,7 @@ package final class MetadataEncoder {
         enumStaticInitLinkNames: [SymbolID: String] = [:],
         runtimeReflectionOnly: Bool = false
     ) -> [MetadataRecord] {
-        let serializationMemberSymbolIDs = Self.serializationMemberSymbolIDs(serializationClasses)
+        let serializationMemberSymbolIDs = Self.serializationMemberSymbolIDs(serializationClasses, functionLinkNames: functionLinkNames)
         let exported = symbols.allSymbols()
             .filter { symbol in
                 if runtimeReflectionOnly,
@@ -1249,18 +1249,20 @@ package final class MetadataEncoder {
     static let nominalKinds: Set<SymbolKind> = [.class, .interface, .object, .enumClass, .annotationClass]
 
     /// The serialization plugin synthesizes `serializer()` and its companion
-    /// without declSites. Their bodies are already compiled into the producer
-    /// artifact, so consumers must receive the callable metadata just like
-    /// data-class or enum members instead of losing them to the synthetic
-    /// filter.
+    /// without declSites. Only keep them when the callable body was lowered into
+    /// this artifact: nested classes and objects can have plugin symbols without
+    /// a KIR body, and exporting those would leave consumers with a dangling
+    /// cross-module link.
     private static func serializationMemberSymbolIDs(
-        _ serializationClasses: [SymbolID: SerializationClassInfo]
+        _ serializationClasses: [SymbolID: SerializationClassInfo],
+        functionLinkNames: [SymbolID: String]
     ) -> Set<SymbolID> {
         var result = Set<SymbolID>()
         for info in serializationClasses.values {
-            if let companionSerializerMethod = info.companionSerializerMethod {
-                result.insert(companionSerializerMethod)
-            }
+            guard let companionSerializerMethod = info.companionSerializerMethod,
+                  functionLinkNames[companionSerializerMethod] != nil
+            else { continue }
+            result.insert(companionSerializerMethod)
             if let companionObjectSymbol = info.companionObjectSymbol {
                 result.insert(companionObjectSymbol)
             }
