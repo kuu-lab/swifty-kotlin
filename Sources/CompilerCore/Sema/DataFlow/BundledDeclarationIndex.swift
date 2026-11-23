@@ -186,6 +186,9 @@ package struct BundledDeclarationIndex: Sendable {
             guard !Self.isSyntheticAnnotationClassObjectMethod(symbol, symbols: symbols, interner: interner) else {
                 continue
             }
+            guard !Self.isImportedEnumStaticEntries(symbol, symbols: symbols, interner: interner) else {
+                continue
+            }
             // Header collection represents source-declared property accessors as
             // synthetic function symbols. They are implementation details of the
             // source property, not residual stdlib stubs that a KSP-002 guard
@@ -339,6 +342,26 @@ package struct BundledDeclarationIndex: Sendable {
         default:
             return false
         }
+    }
+
+    // Imported `entries` records carry no `.static` flag, so the qualified
+    // `E.entries` read of an imported enum always resolves through the
+    // synthetic static property registered at import time. That property
+    // shares its key with the imported record by design.
+    private static func isImportedEnumStaticEntries(
+        _ symbol: SemanticSymbol,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> Bool {
+        guard symbol.kind == .property,
+              symbol.flags.contains(.static),
+              interner.resolve(symbol.name) == "entries",
+              let ownerID = symbols.parentSymbol(for: symbol.id),
+              let owner = symbols.symbol(ownerID)
+        else {
+            return false
+        }
+        return owner.kind == .enumClass && owner.flags.contains(.importedLibrary)
     }
 
     private static func isSyntheticPairCopyOverlapWithSourceBackedExtension(
