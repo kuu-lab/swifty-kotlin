@@ -256,11 +256,11 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics, interner: interner, resolutionContext: resolutionContext
             )
             for annotation in annotations {
-                if let usageID = annotation.usageID, !seenAnnotationUsages.insert(usageID).inserted {
-                    continue
-                }
+                let isMirroredUsage = annotation.usageID.map { !seenAnnotationUsages.insert($0).inserted } ?? false
                 // Register before body inference and worker creation, retaining
                 // the existing diagnostic-name and severity suppression policy.
+                // A mirrored copy still registers its own range: the operand
+                // copy covers only the assignment target, not the assigned value.
                 if let symbolID = resolveAnnotationSymbol(
                     named: annotation.name, in: file, symbols: symbols, interner: interner,
                     types: types, enclosingFQName: resolutionContext.enclosingFQName,
@@ -274,6 +274,7 @@ extension DataFlowSemaPhase {
                         if !code.isEmpty { diagnostics.addSuppression(code: code, range: range) }
                     }
                 }
+                if isMirroredUsage { continue }
                 validateAnnotationTarget(
                     annotation: annotation, site: usageSite, ownerRange: range,
                     decl: nil, file: file, propertySymbol: nil, symbols: symbols,
