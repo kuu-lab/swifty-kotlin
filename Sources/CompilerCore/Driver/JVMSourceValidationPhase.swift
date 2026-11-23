@@ -570,7 +570,7 @@ private struct JVMSourceGrammar {
                         }
                         else if hasSubject, take(.keyword(.in)) { try expression() }
                         else { try expression() }
-                    } while take(.symbol(.comma))
+                    } while take(.symbol(.comma)) && kind != .symbol(.arrow)
                     if take(.keyword(.if)) { try expression(allowNewlines: true) }
                 }
                 try require(.symbol(.arrow))
