@@ -31,11 +31,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    // KUU-4587: a non-positive timeout must short-circuit before the block runs.
-    // kotlinx returns null from `withTimeoutOrNull` and throws
-    // `TimeoutCancellationException("Timed out immediately")` from `withTimeout`
-    // without executing the block; running the block races the already-expired
-    // deadline and can wrongly produce the block's value.
     @Test(arguments: [true, false])
     func testWithTimeoutNonPositiveDuration(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
