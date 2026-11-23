@@ -170,8 +170,6 @@ struct ActualConstructorSupertypeParsingTests {
         let splitFunctions = try memberFunctions(of: split, in: ast)
         #expect(splitFunctions.map { ctx.interner.resolve($0.name) } == ["read"])
 
-        // This is a CST boundary probe. The AST parameter splitter's separate
-        // comparison-vs-angle handling is outside this constructor recovery fix.
         let comparisons = parse("""
         class Comparisons private constructor(
             private val threshold: Boolean = left < right,
@@ -185,9 +183,6 @@ struct ActualConstructorSupertypeParsingTests {
         #expect(comparisons.arena.nodes.count { $0.kind == .funDecl } == 2)
         #expect(comparisons.arena.nodes.count { $0.kind == .propertyDecl } == 0)
 
-        // A consumed explicit constructor makes the class body the immediate
-        // post-header tail. Both class and file ranges must cover its members,
-        // or @file:Suppress stops at the constructor and misses header errors.
         let declaration = """
         @Deprecated("old", level = DeprecationLevel.ERROR)
         class Legacy constructor() {
@@ -279,8 +274,6 @@ struct ActualConstructorSupertypeParsingTests {
         let followingMemberFunctions = try memberFunctions(of: annotatedFollowing, in: ast)
         #expect(followingMemberFunctions.map { ctx.interner.resolve($0.name) } == ["read"])
 
-        // Recovery diagnostics belong to separate malformed inputs; valid
-        // multiline constructors above must remain completely diagnostic-free.
         let recoveryTails = [
             "class Following {}\nfun after(): Int = 1",
             "@NextClass\nclass Following {}\nfun after(): Int = 1",
