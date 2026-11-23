@@ -3,11 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// KSP-1091: the legacy `kotlin.concurrent.AtomicLong(Long)` constructor
-/// surface is a source-backed factory entry point while the residual synthetic
-/// constructor keeps its runtime ABI link for the remaining atomic surfaces.
-/// KSP-1116: the canonical `kotlin.concurrent.atomics.AtomicLong(Long)`
-/// constructor is a source-backed factory delegating to the same allocation.
 @Suite(.serialized)
 struct AtomicLongSourceMigrationTests {
     @Test
