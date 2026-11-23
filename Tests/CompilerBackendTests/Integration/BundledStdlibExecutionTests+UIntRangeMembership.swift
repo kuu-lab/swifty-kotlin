@@ -3,9 +3,6 @@ import CompilerCore
 import Testing
 
 extension BundledStdlibExecutionTests {
-    // A generic `T.rangeTo` creates a heap-backed ComparableRange<T>; it must
-    // keep its Kotlin contains dispatch instead of being treated as a runtime
-    // integer-range handle.
     @Test
     func testGenericUByteRangeMembershipThroughSourceAndArtifact() throws {
         let source = """
@@ -40,14 +37,6 @@ extension BundledStdlibExecutionTests {
         }
     }
 
-    // KSP-1523 (stdlib-pipeline.md §13-4 dual oracle, second leg): UIntRange's
-    // property/membership/aggregate members are now bundled Kotlin source
-    // (RangeHOF.kt) instead of synthetic Swift stubs. `average()`/`toUIntArray()`
-    // were investigated and dropped instead of migrated — neither exists on
-    // UIntRange in real Kotlin (see RangeHOF.kt and TODO.md's BUG-255).
-    // This exercises the remaining 11 members end to end, including the empty-range
-    // shape and the UInt.MAX_VALUE boundary that used to overflow `sum()` through a
-    // native Int64 accumulator instead of wrapping at 32 bits.
     @Test
     func testUIntRangeMembershipAndAggregatesExecuteThroughBundledKotlin() throws {
         try compileAndRunKotlin(
@@ -117,11 +106,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    // KSP-1311 regression: `in`/`!in` on unsigned ranges binds the
-    // `ClosedRange<T>.contains` interface residual, which carries no external
-    // link name. Through the precompiled stdlib artifact the symbol must still
-    // reach the `__kk_range_contains` bridge (UInt) or the bundled ULong
-    // implementation instead of emitting a bare `contains` reference.
     @Test
     func testInOperatorOnUnsignedRangesLinksThroughRangeBridge() throws {
         try compileAndRunKotlin(
