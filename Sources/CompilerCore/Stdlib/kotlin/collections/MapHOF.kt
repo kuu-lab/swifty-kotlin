@@ -22,7 +22,7 @@ public inline fun <K, V> Map<out K, V>?.isNullOrEmpty(): Boolean {
     contract {
         returns(false) implies (this != null)
     }
-    return this == null || __kkMapIsEmpty(this)
+    return this == null || this.size == 0
 }
 
 public inline fun <K, V> Map<out K, V>.asIterable(): Iterable<Map.Entry<K, V>> {
