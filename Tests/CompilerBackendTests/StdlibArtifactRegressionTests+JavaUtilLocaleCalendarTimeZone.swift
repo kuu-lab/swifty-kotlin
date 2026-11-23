@@ -5,7 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-3066: Java locale and calendar APIs must work through a fresh bundled stdlib artifact.
     @Test(arguments: [false, true])
     func testLocaleCalendarAndTimeZoneSurface(optimize: Bool) throws {
         let optLevel: OptimizationLevel = optimize ? .O2 : .O0
@@ -51,9 +50,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-4075: `Calendar.timeZone` property view plus the Rosetta date-task
-    /// surface (`isLeapYear`, field constants, `TimeZone.getTimeZone`) must
-    /// resolve and execute through a fresh bundled stdlib artifact.
     @Test(arguments: [false, true])
     func testCalendarTimeZonePropertySurface(optimize: Bool) throws {
         let optLevel: OptimizationLevel = optimize ? .O2 : .O0
