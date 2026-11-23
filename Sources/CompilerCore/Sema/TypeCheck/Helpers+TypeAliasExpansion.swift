@@ -194,13 +194,13 @@ extension TypeCheckHelpers {
             )))
         case let .functionType(fnType):
             let newContextReceivers = fnType.contextReceivers.map {
-                applyAliasSubstitution($0, argSubstitution: argSubstitution, sema: sema)
+                applyAliasSubstitutionAtInputPosition($0, argSubstitution: argSubstitution, sema: sema)
             }
             let newReceiver = fnType.receiver.map {
-                applyAliasSubstitution($0, argSubstitution: argSubstitution, sema: sema)
+                applyAliasSubstitutionAtInputPosition($0, argSubstitution: argSubstitution, sema: sema)
             }
             let newParams = fnType.params.map {
-                applyAliasSubstitution($0, argSubstitution: argSubstitution, sema: sema)
+                applyAliasSubstitutionAtInputPosition($0, argSubstitution: argSubstitution, sema: sema)
             }
             let newReturn = applyAliasSubstitution(
                 fnType.returnType, argSubstitution: argSubstitution, sema: sema
@@ -227,6 +227,22 @@ extension TypeCheckHelpers {
         default:
             return typeID
         }
+    }
+
+    // A star argument filling a function-type input is the `in Nothing`
+    // projection of that FunctionN parameter, so only `Nothing` accepts
+    // every function the alias stands for; `Any?` would reject them all.
+    private func applyAliasSubstitutionAtInputPosition(
+        _ typeID: TypeID,
+        argSubstitution: [SymbolID: TypeArg],
+        sema: SemaModule
+    ) -> TypeID {
+        if case let .typeParam(typeParam) = sema.types.kind(of: typeID),
+           case .star = argSubstitution[typeParam.symbol]
+        {
+            return sema.types.nothingType
+        }
+        return applyAliasSubstitution(typeID, argSubstitution: argSubstitution, sema: sema)
     }
 
     private func applyAliasToTypeParam(
