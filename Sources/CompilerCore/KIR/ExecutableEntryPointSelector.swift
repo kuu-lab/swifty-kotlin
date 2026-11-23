@@ -1,5 +1,3 @@
-/// Shared file-level entry selection for initializer injection and Link.
-/// Keeps the existing first-match order and exact-FQName behavior.
 public enum ExecutableEntryPointSelector {
     public static func firstFileLevelSymbol(
         ast: ASTModule,

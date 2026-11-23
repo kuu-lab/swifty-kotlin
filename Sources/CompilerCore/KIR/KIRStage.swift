@@ -1,20 +1,10 @@
-/// The stages intentionally describe contracts between passes, not every
-/// individual rewrite.  New stages should be added only when a pass boundary
-/// changes the invariants that later passes may rely on.
 public enum KIRStage: Int, CaseIterable, Comparable, CustomStringConvertible, Sendable {
-    /// KIR emitted directly from the AST/KIR builders.
     case raw = 0
-    /// KIR after tail-recursion rewriting, before block normalization.
     case tailrecLowered = 1
-    /// KIR after source-level desugaring and structural normalization.
     case desugared = 2
-    /// KIR after value-class representation boundaries are normalized.
     case valueClassUnboxed = 3
-    /// KIR after property accesses have been lowered to accessors.
     case propertyLowered = 4
-    /// KIR after integer-width semantics have been made explicit.
     case integerNarrowed = 5
-    /// KIR whose calls and values satisfy the runtime ABI contract.
     case abiLowered = 6
 
     public static func < (lhs: KIRStage, rhs: KIRStage) -> Bool {
@@ -41,9 +31,6 @@ public enum KIRStage: Int, CaseIterable, Comparable, CustomStringConvertible, Se
     }
 }
 
-/// This is thrown only by debug builds.  Release builds still record the
-/// declared output stage, keeping the contract zero-cost in production while
-/// retaining the marker for diagnostics and future consumers.
 enum KIRStageViolation: Error, Equatable, CustomStringConvertible {
     case unexpectedInput(
         passName: String,

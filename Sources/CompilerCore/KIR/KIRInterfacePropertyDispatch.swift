@@ -1,11 +1,3 @@
-/// BUG-141: interface stored/abstract properties (`override val`, no custom
-/// getter) had no virtual dispatch path. Reading such a property through an
-/// interface-typed receiver fell back to an undefined symbol and produced a
-/// `KSWIFTK-LINK-0001` link error. These helpers model an interface property as
-/// a getter method that lives in the interface's itable, mirroring how member
-/// functions are dispatched (see `resolveItableDispatch` /
-/// `appendObjectItableMethodRegistrations`).
-///
 /// Property getter slots are laid out *after* the interface's method slots
 /// (`[vtableSize, vtableSize + propertyCount)`) so they never collide with
 /// method slots and require no change to the persisted `NominalLayout`.
@@ -35,9 +27,6 @@ func kirEnumEntryDispatchHelper(
     }
 }
 
-/// A stored property declared on an open superclass may implement an
-/// interface property only in a descendant. Materialize its ordinary
-/// accessor so the descendant's itable bridge has a real function to call.
 func kirStoredPropertyInheritedInterfaceAccessors(
     propertySymbol: SymbolID,
     ownerSymbol: SymbolID,
@@ -94,7 +83,6 @@ func kirStoredPropertyInheritedInterfaceAccessors(
     return (needsGetter, needsSetter)
 }
 
-/// The interface's own instance properties that participate in itable dispatch,
 /// paired with the itable method slot each getter occupies. Ordered by property
 /// name so the dispatch site and the registration site agree even when they are
 /// in different compilation units (a precompiled library registers the getters,
@@ -211,8 +199,6 @@ func kirInterfacePropertyGetterSlots(
     }
 }
 
-/// The itable method slot the getter for `interfaceProperty` occupies, or nil
-/// when the property does not participate in itable dispatch.
 func kirInterfacePropertyGetterSlot(
     interfaceProperty: SymbolID,
     interfaceSymbol: SymbolID,
@@ -233,9 +219,6 @@ func kirInterfacePropertyGetterSlot(
         .slot
 }
 
-/// The implementing getter accessor symbol for `interfaceProperty` in
-/// `nominalSymbol` (a class or object-literal nominal), or nil when the type
-/// does not declare an override for it.
 func kirFindOverridePropertyGetter(
     for interfaceProperty: SymbolID,
     in nominalSymbol: SymbolID,
@@ -363,11 +346,9 @@ private func kirFindOverridePropertyGetter(
         else {
             continue
         }
-        // A `private` member never overrides (kt2477).
         if candidateSym.visibility == .private {
             continue
         }
-        // A `static` member never dispatches on an instance (KUU-3807).
         if candidateSym.flags.contains(.static) {
             continue
         }
@@ -377,16 +358,9 @@ private func kirFindOverridePropertyGetter(
     return nil
 }
 
-/// The interface's own instance `var` properties that participate in itable
 /// dispatch, paired with the itable slot each setter occupies. Setter slots
 /// are laid out *after* every getter slot (`[vtableSize + getterCount, ...)`)
 /// so a setter registration can never collide with a getter registration for
-/// the same or a different property on the same interface.
-///
-/// Reuses `kirInterfacePropertyGetterSlots`'s eligibility filtering (stdlib
-/// runtime bridges, non-Kotlin-declared synthetic members) so a property
-/// only gets a setter slot when it already has a getter slot — every `var`
-/// is also a `val`-shaped read, so this is not an additional restriction.
 struct KIRInterfacePropertySetterSlot {
     let propertySymbol: SymbolID
     let propertyName: InternedString
@@ -414,9 +388,6 @@ func kirInterfacePropertySetterSlots(
     }
 }
 
-/// The itable slot the setter for `interfaceProperty` occupies, or nil when
-/// the property does not participate in itable dispatch (not mutable, or
-/// excluded by `kirInterfacePropertyGetterSlots`'s eligibility rules).
 func kirInterfacePropertySetterSlot(
     interfaceProperty: SymbolID,
     interfaceSymbol: SymbolID,
@@ -432,9 +403,6 @@ func kirInterfacePropertySetterSlot(
     )
 }
 
-/// The implementing setter accessor symbol for `interfaceProperty` in
-/// `nominalSymbol`, or nil when the type does not declare an override for
-/// it. The setter counterpart of `kirFindOverridePropertyGetter` above.
 func kirFindOverridePropertySetter(
     for interfaceProperty: SymbolID,
     in nominalSymbol: SymbolID,
@@ -443,8 +411,6 @@ func kirFindOverridePropertySetter(
     guard let propertySym = sema.symbols.symbol(interfaceProperty) else {
         return nil
     }
-    // See `kirFindOverridePropertyGetter`: only the declaring interface or a
-    // descendant can hold a default for `interfaceProperty`.
     let interfaceOwner = sema.symbols.parentSymbol(for: interfaceProperty)
 
     var visited: Set<SymbolID> = []
@@ -459,11 +425,9 @@ func kirFindOverridePropertySetter(
             else {
                 continue
             }
-            // A `private` member never overrides (kt2477).
             if candidateSym.visibility == .private {
                 continue
             }
-            // A `static` member never dispatches on an instance (KUU-3807).
             if candidateSym.flags.contains(.static) {
                 continue
             }
@@ -509,8 +473,6 @@ func kirFindOverridePropertySetter(
             else {
                 continue
             }
-            // A `private` member never overrides — except the interface
-            // property's own declaration (kt2477).
             if candidate != interfaceProperty,
                candidateSym.visibility == .private
             {
@@ -524,8 +486,6 @@ func kirFindOverridePropertySetter(
     return nil
 }
 
-/// The interface itself is already registered by the method-registration pass
-/// (`kk_object_register_itable_iface`), so this only appends the getter slots.
 func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection>(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
@@ -645,11 +605,6 @@ func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection
     }
 }
 
-/// Enum classes have compiler-provided `name`/`ordinal` properties without a
-/// source accessor with a KIR body. Materialize the getter before its symbol
-/// is used in the interface table: `ordinal` unboxes the entry value, while
-/// `name` routes through the enum's `$enumOrdinalToName$` helper — the same
-/// helper `EnumNameAccessLoweringPass` rewrites direct `name` reads to.
 private func synthesizeEnumBasePropertyGetterIfNeeded(
     _ getterSymbol: SymbolID,
     sema: SemaModule,
@@ -738,14 +693,6 @@ private func synthesizeEnumBasePropertyGetterIfNeeded(
     _ = arena.appendDecl(.function(function))
 }
 
-/// The setter counterpart of `appendObjectItablePropertyGetterRegistrations` —
-/// without it, writing a `var` through an interface-typed receiver has no
-/// dispatch target to find at the write site
-/// (`tryLowerInterfaceItablePropertySetterWrite` in
-/// `CallLowerer+MemberAssignment.swift`), even though every concrete overriding
-/// class already has a real setter accessor function registered (BUG-227's
-/// `synthesizeStoredPropertySetterAccessor` emits one unconditionally for any
-/// `override var`).
 func appendObjectItablePropertySetterRegistrations<C: RangeReplaceableCollection>(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,

@@ -1,25 +1,10 @@
-/// ABI corrections needed while expanding inline bodies that cross an erased
-/// function-value boundary.
-///
-/// Imported inline KIR was ABI-lowered before it was serialized.  Its erased
-/// type-parameter and `Any` slots therefore carry boxed values, while the
-/// in-process expansion can expose the concrete primitive representation that
-/// was inferred at the call site.  This namespace owns only the adapters that
-/// restore that contract at the inline boundary; the general ABI lowering pass
-/// remains responsible for ordinary calls and copies.
 enum InlineErasedLambdaABI {
-    /// Runtime entry points that call a function value: the value is an adapter
-    /// with the erased convention, so every argument arrives boxed and the
-    /// result comes back boxed.
     static let erasedFunctionInvokeCallees: Set<String> = [
         "kk_function_invoke", "kk_function_invoke_0",
         "kk_function_invoke_2", "kk_function_invoke_3",
         "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2", "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5", "kk_suspend_function_invoke_6",
     ]
 
-    /// Imported inline HOF bodies were ABI-lowered before they were serialized.
-    /// Their erased selector results remain boxed even when the lambda body is
-    /// spliced into the caller. Floating-point operators consume raw bits.
     static func unboxErasedArithmeticArgumentsIfNeeded(
         callee: InternedString,
         arguments: [KIRExprID],
@@ -47,8 +32,6 @@ enum InlineErasedLambdaABI {
             }
             guard isErasedType(module.arena.exprType(argument), ctx: ctx)
                 || isErasedInvokeResult else { continue }
-            // The boxed result's Any/type-parameter type describes the handle,
-            // not the primitive representation required by this operator.
             let targetType = types.make(.primitive(primitive, .nonNull))
             let unboxed = module.arena.appendTemporary(type: targetType)
             body.append(.call(
@@ -62,9 +45,6 @@ enum InlineErasedLambdaABI {
         return normalized
     }
 
-    /// Box the arguments an inline expansion passes to an erased function-value
-    /// invoke: type substitution replaced the callee body's erased slots with
-    /// concrete primitives, which the adapter would misread as boxed pointers.
     static func boxSubstitutedErasedArguments(
         originalArguments: [KIRExprID],
         loweredArguments: [KIRExprID],
@@ -190,8 +170,6 @@ enum InlineErasedLambdaABI {
             if case .functionType = types.kind(of: $0.type) { return true }
             return false
         }
-        // Multi-callback HOFs can return different types from each callback.
-        // Restore the invoked parameter's type, never the first selector's.
         let parameter = functionParameters.first { $0.symbol == invokedParameter }
             ?? (invokedParameter == nil && functionParameters.count == 1 ? functionParameters.first : nil)
         if let parameter {
@@ -203,11 +181,6 @@ enum InlineErasedLambdaABI {
         return nil
     }
 
-    /// An imported generic higher-order function: its body was ABI-lowered when
-    /// the library was built and invokes its lambda through the erased
-    /// `kk_function_create_N` convention, so every value that meets an erased
-    /// slot in the expansion must be boxed. Imported non-HOF declarations keep
-    /// the raw representation their callers already pass.
     static func usesErasedLambdaABI(_ inlineTarget: KIRFunction, ctx: KIRContext) -> Bool {
         guard ctx.sema?.symbols.symbol(inlineTarget.symbol)?.flags.contains(.importedLibrary) == true,
               let types = ctx.sema?.types
@@ -220,8 +193,6 @@ enum InlineErasedLambdaABI {
         }
     }
 
-    /// A type whose values are carried as boxed references once erased: an
-    /// unsubstituted type parameter or `Any`.
     private static func isErasedType(_ type: TypeID?, ctx: KIRContext) -> Bool {
         guard let type, let types = ctx.sema?.types else { return false }
         switch types.kind(of: type) {
@@ -277,10 +248,6 @@ enum InlineErasedLambdaABI {
         return primitive
     }
 
-    /// Both nullabilities of a resolved primitive kind. Nullable parameters of
-    /// a spliced lambda still arrive boxed across the erased boundary and need
-    /// the sentinel-aware `kk_unbox_*` (which maps null to the primitive's
-    /// null sentinel), not a pass-through.
     private static func primitiveKind(of type: TypeID?, ctx: KIRContext) -> PrimitiveType? {
         guard let type, let types = ctx.sema?.types,
               let symbols = ctx.sema?.symbols
@@ -299,9 +266,6 @@ enum InlineErasedLambdaABI {
         return primitive
     }
 
-    /// Erased function values arrive boxed, and a nullable primitive can also be
-    /// narrowed by a surrounding safe call before it reaches a non-null lambda
-    /// parameter.
     static func unboxErasedLambdaArguments(
         arguments: [KIRExprID],
         lambdaFunction: KIRFunction,
@@ -317,8 +281,6 @@ enum InlineErasedLambdaABI {
         for index in arguments.indices {
             let parameterType = lambdaFunction.params[index].type
             let argumentType = module.arena.exprType(arguments[index])
-            // Instructions restored from a library's inline KIR carry no expr
-            // types, so inside such an expansion every value is erased.
             let argumentIsErased = argumentType
                 .map { isErasedType($0, ctx: ctx) } ?? erasedCallConvention
 
@@ -329,10 +291,6 @@ enum InlineErasedLambdaABI {
                case let .primitive(targetPrimitive, .nonNull) = types.kind(of: parameterType),
                sourcePrimitive == targetPrimitive
             {
-                // A safe-call branch proves this value is present, but its
-                // expression still carries the nullable boxed representation.
-                // A typed copy lets ABI lowering unbox it for the lambda's
-                // non-null primitive parameter.
                 let unboxed = module.arena.appendTemporary(type: parameterType)
                 body.append(.copy(from: arguments[index], to: unboxed))
                 normalized[index] = unboxed
@@ -342,10 +300,6 @@ enum InlineErasedLambdaABI {
             if argumentType == nil, erasedCallConvention,
                primitiveKind(of: parameterType, ctx: ctx) == nil
             {
-                // Imported inline bodies omit expression types. Preserve the
-                // callback parameter's static type on a local copy so later
-                // operations can still unbox a smart-cast Any value (for
-                // example `it + 1` after `it is Int`).
                 let typedArgument = module.arena.appendTemporary(type: parameterType)
                 body.append(.copy(from: arguments[index], to: typedArgument))
                 normalized[index] = typedArgument
@@ -390,9 +344,6 @@ enum InlineErasedLambdaABI {
                 body: body
             ) {
                 if argumentType == nil {
-                    // Imported inline KIR may omit the unboxed value's type.
-                    // Preserve the callback's declared type without changing
-                    // the original value used by other control-flow paths.
                     let typedArgument = module.arena.appendTemporary(type: parameterType)
                     body.append(.copy(from: arguments[index], to: typedArgument))
                     normalized[index] = typedArgument
@@ -411,9 +362,6 @@ enum InlineErasedLambdaABI {
         return normalized
     }
 
-    /// Imported inline bodies omit expression types. Preserve the erased ABI
-    /// assumption unless the argument's defining instruction already converted
-    /// the same primitive to its raw representation.
     private static func isAlreadyUnboxedPrimitiveArgument(
         _ argument: KIRExprID,
         primitive: PrimitiveType,
@@ -465,9 +413,6 @@ enum InlineErasedLambdaABI {
         return false
     }
 
-    /// Counterpart of `unboxErasedLambdaArguments`: when the invocation's result
-    /// feeds an erased slot, the concrete value the lambda body produced must be
-    /// boxed again, preserving a value-class nominal tag when present.
     static func boxErasedLambdaResultIfNeeded(
         returnedExpr: KIRExprID,
         result: KIRExprID,
@@ -487,8 +432,6 @@ enum InlineErasedLambdaABI {
         let returnedKind = resolveValueClassKind(
             sema.types.kind(of: returnedType), types: sema.types, symbols: sema.symbols
         )
-        // A spliced lambda can return the raw payload of a nullable argument.
-        // The erased slot needs a box for that payload and must preserve null.
         let requireNonNull: Bool = if case .primitive = returnedKind { false } else { true }
         return boxValueForAnySlot(
             returnedExpr,
@@ -529,8 +472,6 @@ enum InlineErasedLambdaABI {
             return argument
         }
         if nullability != .nonNull {
-            // A typed copy lets the backend preserve the null sentinel while
-            // bridging a nullable flat String to an erased slot.
             let boxed = module.arena.appendTemporary(type: types.nullableAnyType)
             body.append(.copy(from: argument, to: boxed))
             return boxed
@@ -643,9 +584,6 @@ enum InlineErasedLambdaABI {
         ctx: KIRContext,
         into body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
-        // A reified conversion can return a boxed R without any callback.
-        // Restore a specialized result whenever the expansion remains erased;
-        // already specialized expressions retain their native representation.
         guard isErasedType(inlineTarget.returnType, ctx: ctx),
               let resultType = module.arena.exprType(result),
               let sema = ctx.sema

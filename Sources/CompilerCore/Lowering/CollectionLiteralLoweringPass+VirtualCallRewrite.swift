@@ -8,8 +8,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
         let interner: StringInterner
     }
 
-    /// Runtime collection intrinsics are lowered to their ABI callee before
-    /// this gate; no collection API-name allowlist is needed here.
     private func shouldPreserveSourceBackedCall(
         symbol: SymbolID?,
         receiver: KIRExprID,
@@ -100,9 +98,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return false
         }
 
-        // Handles non-tracked receivers such as function parameters,
-        // function return values, and field loads whose concrete collection
-        // kind was not determined by the factory-call pre-scan.
         classifyReceiverByStaticType(
             receiver: receiver,
             context: context,
@@ -134,8 +129,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             loweredBody: &loweredBody
         ) { return true }
 
-        // Runtime collection boxes do not carry generated itables, so route
-        // stdlib list/set iterator calls directly to the shared iterator helper.
         if callee == lookup.iteratorName,
            arguments.isEmpty,
            state.listExprIDs.contains(receiver.rawValue) || state.setExprIDs.contains(receiver.rawValue)
@@ -216,23 +209,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
 
         return false
     }
-
-    // RF-LOWER-CALL-012 dropped `rewriteMapHOF`, the virtual-dispatch sibling
-    // of the direct-call Map branch removed from
-    // `+CallRewriteHOFCore.swift` / `+CallRewriteHandlers.swift`. It matched
-    // `map` / `filter` / `forEach` / `mapValues` / `mapKeys` / `filterKeys` /
-    // `filterValues` on a tracked Map receiver and rewrote to `kk_map_*`, but
-    // it could never fire: those names are all bundled Kotlin extension
-    // functions (`MapHOF.kt`, KSP-430), so Sema always resolves a call to them
-    // statically — CallLowerer never emits a `.virtualCall` for any of these
-    // names, only `.call`, so no `.virtualCall` instruction ever reaches
-    // `rewriteVirtualCallInstruction` (this file's entry point) with one of
-    // these callees in the first place; the source-backed preservation gate
-    // above is a separate, `.call`-independent reason these names are inert
-    // here. `MapHOFLoweringRoutingTests` includes probes through an interface
-    // property and an abstract-class method (both of which do force real
-    // `virtualCall` dispatch elsewhere in the same function) to pin that the
-    // Map HOF calls themselves stay direct `.call`s.
 
     @discardableResult
     func emitHOFCall(
@@ -475,7 +451,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
         else {
             return false
         }
-        // arguments: [destination, lambda] or [destination, lambda, closureRaw]
         guard arguments.count == 2 || arguments.count == 3,
               state.listExprIDs.contains(receiver.rawValue)
         else { return false }
@@ -599,7 +574,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // KSP-626: withIndex / forEachIndexed are bundled Kotlin source, not bridges.
         if callee == lookup.mapIndexedName
             || callee == lookup.mapIndexedNotNullName || callee == lookup.onEachIndexedName
             || callee == lookup.flatMapIndexedName,
