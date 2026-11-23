@@ -54,8 +54,6 @@ struct StdlibArtifactCacheTests {
         #expect(!FileManager.default.fileExists(atPath: snapshotURL.path))
     }
 
-    // MARK: - Cache recovery (KUU-1426)
-
     @Test
     func additionalIntegrityValidationRebuildsCorruptedObjects() throws {
         let fm = FileManager.default
@@ -91,9 +89,6 @@ struct StdlibArtifactCacheTests {
         #expect(buildCount == 2)
     }
 
-    /// A cached artifact whose manifest references an inline-KIR blob that is
-    /// no longer on disk must be rebuilt instead of being handed to a compile
-    /// that would then fail with KSWIFTK-LIB-0019 or missing link symbols.
     @Test(arguments: [false, true])
     func cachedArtifactMissingInlineKIRBlobIsRebuilt(compact: Bool) throws {
         let fm = FileManager.default
@@ -115,8 +110,6 @@ struct StdlibArtifactCacheTests {
         }
         #expect(buildCount == 1)
 
-        // Simulate a blob lost between publish and the next compile: the
-        // manifest and metadata still reference it.
         let missingBlob = artifactPath + "/inline-kir/"
             + MetadataEncoder.inlineKIRFileName(for: "alpha_inline")
         try fm.removeItem(atPath: missingBlob)
@@ -138,9 +131,6 @@ struct StdlibArtifactCacheTests {
         #expect(fm.fileExists(atPath: missingBlob))
     }
 
-    /// A blob replaced by a symlink that resolves outside the artifact must be
-    /// rejected. The `lstat` fast path defers symlinks to the strict containment
-    /// check, which is the only guard against an escaping link.
     @Test
     func cachedArtifactInlineKIRBlobSymlinkEscapeIsRebuilt() throws {
         let fm = FileManager.default
@@ -162,7 +152,6 @@ struct StdlibArtifactCacheTests {
         }
         #expect(buildCount == 1)
 
-        // Point the blob at a regular file that lives outside the artifact.
         let outsideFile = cacheDirectory
             .appendingPathComponent("outside-\(UUID().uuidString).bin")
         try Data("outside".utf8).write(to: outsideFile)
@@ -187,13 +176,9 @@ struct StdlibArtifactCacheTests {
 
         #expect(buildCount == 2)
         #expect(rebuilt == artifactPath)
-        // The rebuild restored a real blob, not the escaping symlink.
         #expect((try? fm.destinationOfSymbolicLink(atPath: blobPath)) == nil)
     }
 
-    /// A blob that is a symlink staying inside the artifact still resolves to a
-    /// contained regular file, so the strict check accepts it and no rebuild
-    /// happens. This pins the fallback so it neither over- nor under-rejects.
     @Test
     func cachedArtifactInlineKIRBlobInternalSymlinkStaysValid() throws {
         let fm = FileManager.default
@@ -215,8 +200,6 @@ struct StdlibArtifactCacheTests {
         }
         #expect(buildCount == 1)
 
-        // Redirect the blob at the artifact's own object file, which is a
-        // regular file inside the artifact root.
         let blobPath = artifactPath + "/inline-kir/"
             + MetadataEncoder.inlineKIRFileName(for: "alpha_inline")
         try fm.removeItem(atPath: blobPath)
@@ -241,8 +224,6 @@ struct StdlibArtifactCacheTests {
         #expect(resolved == artifactPath)
     }
 
-    /// A blob path occupied by a non-regular file (here a directory) is not a
-    /// valid inline-KIR blob and must trigger a rebuild.
     @Test
     func cachedArtifactInlineKIRBlobNonRegularFileIsRebuilt() throws {
         let fm = FileManager.default
@@ -285,8 +266,6 @@ struct StdlibArtifactCacheTests {
         #expect(rebuilt == artifactPath)
     }
 
-    /// Compilers with different fingerprints must never replace one another's
-    /// artifact paths, because a compile can load inline KIR after resolution.
     @Test
     func differentCompilerFingerprintsKeepArtifactsAtSeparatePaths() throws {
         let fm = FileManager.default
@@ -328,9 +307,6 @@ struct StdlibArtifactCacheTests {
         #expect(buildCounts["worktree-b"] == 1)
     }
 
-    /// A compile killed while the artifact was still building leaves only a
-    /// `.building-*` staging tree and the (harmless) `.lock` file behind; the
-    /// next resolve must ignore them and produce a valid artifact.
     @Test
     func interruptedBuildRemnantsDoNotBlockResolution() throws {
         let fm = FileManager.default
@@ -364,7 +340,6 @@ struct StdlibArtifactCacheTests {
             ofItemAtPath: staleStaging
         )
 
-        // A still-valid cached artifact is reused without rebuilding.
         var buildCount = 0
         let resolved = try StdlibArtifactCache.resolveOrBuildCached(
             target: target,
@@ -380,8 +355,6 @@ struct StdlibArtifactCacheTests {
         #expect(buildCount == 0)
         #expect(resolved == artifactPath)
 
-        // Force a rebuild by removing a blob and confirm the ancient staging
-        // tree is reclaimed while the fresh one is left alone.
         let missingBlob = artifactPath + "/inline-kir/"
             + MetadataEncoder.inlineKIRFileName(for: "alpha_inline")
         try fm.removeItem(atPath: missingBlob)
@@ -399,15 +372,12 @@ struct StdlibArtifactCacheTests {
         #expect(buildCount == 1)
         #expect(!fm.fileExists(atPath: staleStaging))
         #expect(fm.fileExists(atPath: freshStaging))
-        // The freshly published artifact is intact.
         #expect(fm.fileExists(
             atPath: artifactPath + "/inline-kir/"
                 + MetadataEncoder.inlineKIRFileName(for: "alpha_inline")
         ))
     }
 
-    /// A failed rebuild must not delete the artifact that is already in
-    /// place: the previous entry stays until a validated replacement exists.
     @Test
     func failedRebuildKeepsExistingArtifact() throws {
         let fm = FileManager.default
@@ -444,8 +414,6 @@ struct StdlibArtifactCacheTests {
         ))
     }
 
-    /// A build that produces a structurally incomplete artifact must not
-    /// publish it; the staging tree is cleaned up instead.
     @Test
     func invalidBuilderOutputIsNotPublished() throws {
         let fm = FileManager.default
@@ -458,7 +426,6 @@ struct StdlibArtifactCacheTests {
                 target: target,
                 cacheDirectory: cacheDirectory
             ) { outputBase in
-                // Build "succeeds" but never writes the referenced blob.
                 try Self.writeFakeArtifact(
                     at: outputBase,
                     target: target,
@@ -500,7 +467,6 @@ struct StdlibArtifactCacheTests {
         let metadata = URL(fileURLWithPath: artifact + "/metadata.bin")
         var data = try Data(contentsOf: metadata)
         if corruptIndex {
-            // Corrupt the record count, leaving all blobs and the manifest intact.
             let countOffset = "kklib-metadata-v3\n".utf8.count
             data.replaceSubrange(countOffset ..< countOffset + 4, with: repeatElement(UInt8(0xFF), count: 4))
         } else {
@@ -516,9 +482,6 @@ struct StdlibArtifactCacheTests {
             .appendingPathComponent("kswiftk-cache-test-\(UUID().uuidString)", isDirectory: true)
     }
 
-    /// Writes the smallest artifact `validateArtifact` accepts: manifest,
-    /// metadata index, one object file, and one `.kirbin` per `inline=1`
-    /// record (minus `omitBlobs`).
     private static func writeFakeArtifact(
         at outputBase: String,
         target: TargetTriple,
