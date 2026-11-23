@@ -4,11 +4,6 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-// MARK: - Test Helpers
-
-/// Bundles the common infrastructure every inline-lambda test needs so that
-/// individual tests only specify what differs per case (function bodies,
-/// declarations, assertions).
 private struct InlineLambdaTestContext {
     let interner = StringInterner()
     let arena = KIRArena()
@@ -28,8 +23,6 @@ private struct InlineLambdaTestContext {
         )))
     }
 
-    /// Register an inline function with a single value parameter and a
-    /// block parameter of `(Int) -> Int` type, returning `Int`.
     func defineInlineFunction(
         name: String
     ) -> (symbol: SymbolID, valueParam: SymbolID, blockParam: SymbolID) {
@@ -66,7 +59,6 @@ private struct InlineLambdaTestContext {
         return (symbol, valueParam, blockParam)
     }
 
-    /// Register a lambda function with a single `Int` parameter.
     func defineLambda(
         name: String,
         paramName: String
@@ -89,7 +81,6 @@ private struct InlineLambdaTestContext {
         return (symbol, paramSymbol)
     }
 
-    /// Register a plain function symbol (e.g. main, or an external function).
     func defineFunction(name: String, flags: SymbolFlags = []) -> SymbolID {
         symbols.define(
             kind: .function,
@@ -101,8 +92,6 @@ private struct InlineLambdaTestContext {
         )
     }
 
-    /// Build a KIR module, run the lowering phase, and return the callees
-    /// found in the lowered main function.
     func lowerAndExtractCallees(
         mainFunction: KIRFunction,
         otherDecls: [KIRFunction],
@@ -135,11 +124,7 @@ private struct InlineLambdaTestContext {
     }
 }
 
-// MARK: - Tests
-
 extension LoweringPassRegressionTests {
-
-    // MARK: - INLINE-002: Lambda argument inlining
 
     @Test
     func testInlineIdentityLambdaPreservesCallerArgument() throws {
@@ -173,7 +158,6 @@ extension LoweringPassRegressionTests {
         let (lambdaSymbol, lambdaParamSymbol) =
             tc.defineLambda(name: "$lambda_0", paramName: "it")
 
-        // Lambda function: { it -> it + 10 }
         let lambdaArgExpr = tc.arena.appendExpr(.symbolRef(lambdaParamSymbol), type: tc.intType)
         let lambdaTenExpr = tc.arena.appendExpr(.intLiteral(10), type: tc.intType)
         let lambdaSumExpr = tc.arena.appendExpr(.temporary(100), type: tc.intType)
@@ -200,7 +184,6 @@ extension LoweringPassRegressionTests {
             isInline: false
         )
 
-        // Inline function: inline fun applyBlock(x: Int, block: (Int) -> Int): Int = block(x)
         let inlineXExpr = tc.arena.appendExpr(.symbolRef(inlineValueParam), type: tc.intType)
         let inlineBlockExpr = tc.arena.appendExpr(.symbolRef(inlineBlockParam), type: tc.funcType)
         let inlineCallResult = tc.arena.appendExpr(.temporary(200), type: tc.intType)
@@ -229,7 +212,6 @@ extension LoweringPassRegressionTests {
             isInline: true
         )
 
-        // Caller: fun main(): Int = applyBlock(5) { it + 10 }
         let callerFiveExpr = tc.arena.appendExpr(.intLiteral(5), type: tc.intType)
         let callerLambdaRef = tc.arena.appendExpr(.symbolRef(lambdaSymbol), type: tc.funcType)
         let callerResult = tc.arena.appendExpr(.temporary(300), type: tc.intType)
@@ -261,14 +243,11 @@ extension LoweringPassRegressionTests {
             moduleName: "InlineLambda"
         )
 
-        // The inline function call should be eliminated.
         #expect(
             !callees.contains("applyBlock"),
             "applyBlock should have been inlined, got callees: \(callees)"
         )
 
-        // The lambda indirect call should also be eliminated; instead the
-        // lambda body (kk_op_add) should appear directly.
         #expect(
             !callees.contains("$lambda_0"),
             "Lambda should have been inlined, got callees: \(callees)"
@@ -290,10 +269,8 @@ extension LoweringPassRegressionTests {
         let mainSymbol = tc.defineFunction(name: "main")
         let (inlineSymbol, inlineValueParam, inlineBlockParam) =
             tc.defineInlineFunction(name: "applyBlock")
-        // Use a symbol that does NOT exist as a KIR function declaration.
         let unknownFuncSymbol = tc.defineFunction(name: "externalFunc")
 
-        // Inline function body: block(x)
         let inlineXExpr = tc.arena.appendExpr(.symbolRef(inlineValueParam), type: tc.intType)
         let inlineBlockExpr = tc.arena.appendExpr(.symbolRef(inlineBlockParam), type: tc.funcType)
         let inlineCallResult = tc.arena.appendExpr(.temporary(0), type: tc.intType)
@@ -322,7 +299,6 @@ extension LoweringPassRegressionTests {
             isInline: true
         )
 
-        // Caller passes a non-lambda symbolRef (not in module declarations).
         let callerArg = tc.arena.appendExpr(.intLiteral(42), type: tc.intType)
         let callerFuncRef = tc.arena.appendExpr(.symbolRef(unknownFuncSymbol), type: tc.funcType)
         let callerResult = tc.arena.appendExpr(.temporary(1), type: tc.intType)
@@ -354,14 +330,11 @@ extension LoweringPassRegressionTests {
             moduleName: "InlineLambdaFallback"
         )
 
-        // applyBlock should still be inlined (function body expansion).
         #expect(
             !callees.contains("applyBlock"),
             "Inline function body should still be expanded"
         )
 
-        // But the lambda call should remain as is since we cannot resolve
-        // the function reference to a KIR declaration.
         #expect(
             callees.contains("externalFunc"),
             "Unresolvable callable should remain as indirect call, got callees: \(callees)"
@@ -378,7 +351,6 @@ extension LoweringPassRegressionTests {
         let (lambdaSymbol, lambdaParamSymbol) =
             tc.defineLambda(name: "$lambda_1", paramName: "n")
 
-        // Lambda: { n -> val doubled = n * 2; doubled + 1 }
         let lambdaArgExpr = tc.arena.appendExpr(.symbolRef(lambdaParamSymbol), type: tc.intType)
         let lambdaTwoExpr = tc.arena.appendExpr(.intLiteral(2), type: tc.intType)
         let lambdaDoubledExpr = tc.arena.appendExpr(.temporary(50), type: tc.intType)
@@ -414,7 +386,6 @@ extension LoweringPassRegressionTests {
             isInline: false
         )
 
-        // Inline: inline fun transform(x: Int, block: (Int) -> Int): Int = block(x)
         let inlineXExpr = tc.arena.appendExpr(.symbolRef(inlineValueParam), type: tc.intType)
         let inlineBlockExpr = tc.arena.appendExpr(.symbolRef(inlineBlockParam), type: tc.funcType)
         let inlineCallResult = tc.arena.appendExpr(.temporary(60), type: tc.intType)
@@ -443,7 +414,6 @@ extension LoweringPassRegressionTests {
             isInline: true
         )
 
-        // Caller
         let callerArgExpr = tc.arena.appendExpr(.intLiteral(7), type: tc.intType)
         let callerLambdaRef = tc.arena.appendExpr(.symbolRef(lambdaSymbol), type: tc.funcType)
         let callerResult = tc.arena.appendExpr(.temporary(70), type: tc.intType)
@@ -475,10 +445,8 @@ extension LoweringPassRegressionTests {
             moduleName: "InlineMultiLambda"
         )
 
-        // Both the inline function and the lambda should be inlined.
         #expect(!callees.contains("transform"))
         #expect(!callees.contains("$lambda_1"))
-        // Both operations from the lambda body should appear.
         #expect(
             callees.contains(CompilerCall.opMul.name),
             "Lambda mul operation should be inlined, got: \(callees)"
@@ -499,11 +467,6 @@ extension LoweringPassRegressionTests {
         let (lambdaSymbol, lambdaParamSymbol) =
             tc.defineLambda(name: "$lambda_cf", paramName: "x")
 
-        // Lambda with control flow: { x ->
-        //   if (x == 0) return 100  // branch A
-        //   else return x + 1       // branch B
-        // }
-        // This produces two returnValue instructions, triggering the merge-label path.
         let lambdaArgExpr = tc.arena.appendExpr(.symbolRef(lambdaParamSymbol), type: tc.intType)
         let lambdaZeroExpr = tc.arena.appendExpr(.intLiteral(0), type: tc.intType)
         let lambdaHundredExpr = tc.arena.appendExpr(.intLiteral(100), type: tc.intType)
@@ -520,9 +483,7 @@ extension LoweringPassRegressionTests {
                 .beginBlock,
                 .constValue(result: lambdaArgExpr, value: .symbolRef(lambdaParamSymbol)),
                 .constValue(result: lambdaZeroExpr, value: .intLiteral(0)),
-                // if (x == 0) jump to else
                 .jumpIfEqual(lhs: lambdaArgExpr, rhs: lambdaZeroExpr, target: elseLabel),
-                // branch A: return x + 1
                 .constValue(result: lambdaOneExpr, value: .intLiteral(1)),
                 .call(
                     callee: tc.interner.intern(CompilerCall.opAdd.name),
@@ -531,7 +492,6 @@ extension LoweringPassRegressionTests {
                     canThrow: false
                 ),
                 .returnValue(lambdaSumExpr),
-                // branch B: return 100
                 .label(elseLabel),
                 .constValue(result: lambdaHundredExpr, value: .intLiteral(100)),
                 .returnValue(lambdaHundredExpr),
@@ -541,7 +501,6 @@ extension LoweringPassRegressionTests {
             isInline: false
         )
 
-        // Inline function: inline fun applyBlock(x: Int, block: (Int) -> Int): Int = block(x)
         let inlineXExpr = tc.arena.appendExpr(.symbolRef(inlineValueParam), type: tc.intType)
         let inlineBlockExpr = tc.arena.appendExpr(.symbolRef(inlineBlockParam), type: tc.funcType)
         let inlineCallResult = tc.arena.appendExpr(.temporary(600), type: tc.intType)
@@ -570,7 +529,6 @@ extension LoweringPassRegressionTests {
             isInline: true
         )
 
-        // Caller: fun main(): Int = applyBlock(0) { ... }
         let callerArgExpr = tc.arena.appendExpr(.intLiteral(0), type: tc.intType)
         let callerLambdaRef = tc.arena.appendExpr(.symbolRef(lambdaSymbol), type: tc.funcType)
         let callerResult = tc.arena.appendExpr(.temporary(700), type: tc.intType)
@@ -602,7 +560,6 @@ extension LoweringPassRegressionTests {
             moduleName: "InlineControlFlowLambda"
         )
 
-        // Both the inline function and the lambda should be fully inlined.
         #expect(
             !callees.contains("applyBlock"),
             "applyBlock should have been inlined, got callees: \(callees)"
@@ -612,14 +569,11 @@ extension LoweringPassRegressionTests {
             "Lambda should have been inlined, got callees: \(callees)"
         )
 
-        // The add operation from branch A should be present.
         #expect(
             callees.contains(CompilerCall.opAdd.name),
             "Branch A (kk_op_add) should be preserved, got callees: \(callees)"
         )
 
-        // The lowered body should contain both branches. Verify that:
-        // 1. At least one label exists (the merge label and/or the branch label)
         let labels = loweredMain.body.compactMap { inst -> Int32? in
             if case let .label(id) = inst { return id }
             return nil
@@ -629,8 +583,6 @@ extension LoweringPassRegressionTests {
             "Should have at least 2 labels (branch + merge), got \(labels.count)"
         )
 
-        // 2. Jump instructions exist for branch convergence (the merge-label
-        //    path emits jumps from each return site to the exit label).
         let jumps = loweredMain.body.filter {
             if case .jump = $0 { return true }
             return false
@@ -640,9 +592,6 @@ extension LoweringPassRegressionTests {
             "Merge-label path should emit jump instructions to converge branches"
         )
 
-        // 3. The body must NOT be truncated after the first return. Both branches
-        //    contribute instructions. The const value for 100 (branch B) must be
-        //    present alongside the kk_op_add call (branch A).
         let constValues = loweredMain.body.compactMap { inst -> KIRExprKind? in
             if case let .constValue(_, value) = inst { return value }
             return nil
@@ -656,7 +605,6 @@ extension LoweringPassRegressionTests {
             "Branch B (return 100) should be preserved in the lowered body"
         )
 
-        // 4. Exactly one returnValue in the final lowered body (everything merged)
         let returnValues = loweredMain.body.compactMap { inst -> KIRExprID? in
             if case let .returnValue(expr) = inst { return expr }
             return nil
@@ -677,7 +625,6 @@ extension LoweringPassRegressionTests {
         let (lambdaSymbol, lambdaParamSymbol) =
             tc.defineLambda(name: "$lambda_alias", paramName: "it")
 
-        // Lambda function: { it -> it + 20 }
         let lambdaArgExpr = tc.arena.appendExpr(.symbolRef(lambdaParamSymbol), type: tc.intType)
         let lambdaTwentyExpr = tc.arena.appendExpr(.intLiteral(20), type: tc.intType)
         let lambdaSumExpr = tc.arena.appendExpr(.temporary(800), type: tc.intType)
@@ -704,7 +651,6 @@ extension LoweringPassRegressionTests {
             isInline: false
         )
 
-        // Inline function: inline fun applyBlock(x: Int, block: (Int) -> Int): Int = block(x)
         let inlineXExpr = tc.arena.appendExpr(.symbolRef(inlineValueParam), type: tc.intType)
         let inlineBlockExpr = tc.arena.appendExpr(.symbolRef(inlineBlockParam), type: tc.funcType)
         let inlineCallResult = tc.arena.appendExpr(.temporary(900), type: tc.intType)
@@ -733,11 +679,7 @@ extension LoweringPassRegressionTests {
             isInline: true
         )
 
-        // Caller: materializes the lambda ref via a `constValue` instruction
-        // assigning to a temporary, rather than the expression itself being
-        // `.symbolRef`.
         let callerArgExpr = tc.arena.appendExpr(.intLiteral(3), type: tc.intType)
-        // The lambda ref expression is a `.temporary`, NOT `.symbolRef`.
         let callerLambdaRef = tc.arena.appendExpr(.temporary(999), type: tc.funcType)
         let callerResult = tc.arena.appendExpr(.temporary(1000), type: tc.intType)
 
@@ -748,7 +690,6 @@ extension LoweringPassRegressionTests {
             returnType: tc.intType,
             body: [
                 .constValue(result: callerArgExpr, value: .intLiteral(3)),
-                // The lambda reference is assigned through a constValue instruction
                 .constValue(result: callerLambdaRef, value: .symbolRef(lambdaSymbol)),
                 .call(
                     symbol: inlineSymbol,
@@ -769,14 +710,11 @@ extension LoweringPassRegressionTests {
             moduleName: "InlineLambdaAlias"
         )
 
-        // The inline function should be expanded.
         #expect(
             !callees.contains("applyBlock"),
             "applyBlock should have been inlined, got callees: \(callees)"
         )
 
-        // The lambda should also be resolved through the constValue alias
-        // and fully inlined.
         #expect(
             !callees.contains("$lambda_alias"),
             "Lambda should have been resolved through constValue and inlined, got callees: \(callees)"
