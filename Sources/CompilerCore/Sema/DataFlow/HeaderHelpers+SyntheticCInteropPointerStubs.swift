@@ -415,8 +415,7 @@ extension DataFlowSemaPhase {
             )))
             let cstrPropertyName = interner.intern("cstr")
             let cstrPropertyFQName = cinteropPkg + [interner.intern("MemScope"), cstrPropertyName]
-            if symbols.lookupAll(fqName: cstrPropertyFQName).contains(where: { symbols.symbol($0)?.kind == .property }) {
-            } else {
+            if !symbols.lookupAll(fqName: cstrPropertyFQName).contains(where: { symbols.symbol($0)?.kind == .property }) {
                 let cstrPropertySymbol = symbols.define(
                     kind: .property,
                     name: cstrPropertyName,
