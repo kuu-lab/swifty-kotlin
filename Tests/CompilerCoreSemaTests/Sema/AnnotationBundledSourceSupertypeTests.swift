@@ -3,10 +3,6 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-/// Regression coverage for KSP-719: the bundled `kotlin.Annotation` source
-/// reuses the synthetic `kotlin.Annotation` symbol, but `bindInheritanceEdges`
-/// sees an interface with no explicit supertype and would otherwise overwrite
-/// the `kotlin.Any` supertype installed by `registerSyntheticAnyStub`.
 @Suite
 struct AnnotationBundledSourceSupertypeTests {
 
