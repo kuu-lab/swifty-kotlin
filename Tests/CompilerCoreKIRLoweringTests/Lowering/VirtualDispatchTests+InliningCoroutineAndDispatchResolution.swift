@@ -5,7 +5,6 @@ import Testing
 @testable import CompilerTestSupport
 
 extension VirtualDispatchTests {
-    // MARK: - 11. InlineLoweringPass: virtualCall alias resolution
 
     @Test func testInlineLoweringResolvesAliasesInVirtualCall() throws {
         let interner = StringInterner()
@@ -83,14 +82,12 @@ extension VirtualDispatchTests {
         try runLowering(module: module, interner: interner, moduleName: "InlineVirtual", sema: sema)
 
         let lowered = try findKIRFunction(named: "caller", in: module, interner: interner)
-        // After inlining, the caller should contain a virtualCall (expanded from the inline function)
         let hasVirtualCall = lowered.body.contains { instruction in
             if case .virtualCall = instruction { return true }
             return false
         }
         #expect(hasVirtualCall, "After inlining, caller should contain the virtualCall from the inlined function body. Body: \(lowered.body)")
 
-        // Verify the dispatch kind is preserved
         let vcInstruction = lowered.body.first { instruction in
             if case .virtualCall = instruction { return true }
             return false
@@ -101,8 +98,6 @@ extension VirtualDispatchTests {
         }
         #expect(dispatch == .vtable(slot: 1), "Dispatch kind should be preserved after inlining")
     }
-
-    // MARK: - 12. Regression: existing .call instructions still work
 
     @Test func testRegularCallInstructionNotAffectedByVirtualCallChanges() throws {
         let interner = StringInterner()
@@ -165,7 +160,6 @@ extension VirtualDispatchTests {
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
         #expect(callees.contains("regularFunction"), "Regular .call should still work after virtual dispatch changes")
-        // Should NOT have any virtualCall
         let hasVirtualCall = lowered.body.contains { instruction in
             if case .virtualCall = instruction { return true }
             return false
@@ -173,18 +167,6 @@ extension VirtualDispatchTests {
         #expect(!hasVirtualCall, "Regular .call should not become virtualCall")
     }
 
-    // MARK: - 12b. Regression: KSP-1011 byName fallback must not fire for a known-but-unmatched symbol
-
-    /// A call whose callee `symbol` is *known* (Sema resolved it to a real
-    /// declaration -- e.g. a synthetic/runtime-dispatched interface member
-    /// such as the generic `Iterable<T>.iterator()` used inside `reduce`),
-    /// but that symbol has no compiled KIR function body anywhere in this
-    /// module, must not be redirected -- purely because its literal source
-    /// name happens to be the sole match -- to an unrelated same-named
-    /// bundled inline function (e.g. `Map<K, V>.iterator()`). Before the
-    /// fix, `InlineLoweringPass`'s "byName" fallback ignored a known-but-
-    /// unmatched symbol and spliced in the unrelated function's body,
-    /// crashing `(1..4).reduce { ... }` at runtime (KSWIFTK-LINK-0003).
     @Test func testInlineLoweringDoesNotRedirectKnownUnmatchedSymbolByName() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -194,10 +176,6 @@ extension VirtualDispatchTests {
         let anyType = types.anyType
         let calleeName = interner.intern("iterator")
 
-        // The symbol Sema bound the unqualified `iterator()` call to: it has
-        // a real function signature (so KIR building emits a genuine, known
-        // `symbol`), but -- like a synthetic/runtime-dispatched interface
-        // member -- no compiled KIR function body of its own in this module.
         let unresolvedIteratorSym = SymbolID(rawValue: 8000)
         symbols.setFunctionSignature(
             FunctionSignature(parameterTypes: [], returnType: anyType, valueParameterSymbols: []),
@@ -224,10 +202,6 @@ extension VirtualDispatchTests {
             isInline: false
         )
 
-        // An UNRELATED bundled inline function that happens to share the
-        // exact same literal name "iterator" -- analogous to a bundled
-        // `Map<K, V>.iterator()` living alongside the generic Iterable one.
-        // Its body contains a marker call that must never leak into `caller`.
         let markerResult = arena.appendExpr(.temporary(1), type: anyType)
         let unrelatedIteratorFn = KIRFunction(
             symbol: SymbolID(rawValue: 8002),
@@ -266,8 +240,6 @@ extension VirtualDispatchTests {
         )
     }
 
-    // MARK: - 13. Coroutine lowering: extractCallInfo for virtualCall
-
     @Test func testCoroutineLoweringExtractCallInfoForVirtualCall() {
         let arena = KIRArena()
         let types = TypeSystem()
@@ -294,7 +266,6 @@ extension VirtualDispatchTests {
         #expect(callInfo?.result == resultExpr)
         #expect(callInfo?.canThrow == true)
         #expect(callInfo?.isVirtual == true)
-        // Arguments should NOT include receiver
         #expect(callInfo?.arguments.count == 1, "extractCallInfo arguments should not include receiver")
         #expect(callInfo?.arguments.first == argExpr)
     }
@@ -327,8 +298,6 @@ extension VirtualDispatchTests {
         #expect(callInfo == nil, "extractCallInfo should return nil for non-call instruction")
     }
 
-    // MARK: - 14. Virtual suspend call emits virtualCall (not .call) in state machine
-
     @Test func testCoroutineLoweringEmitsVirtualCallForVirtualSuspendFunction() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -337,7 +306,6 @@ extension VirtualDispatchTests {
 
         let anyType = types.anyType
 
-        // Create a suspend function that contains a virtual call to another suspend function
         let outerSuspendSym = symbols.define(
             kind: .function,
             name: interner.intern("outerSuspend"),
@@ -386,7 +354,6 @@ extension VirtualDispatchTests {
             isInline: false
         )
 
-        // A main function that calls outerSuspend
         let mainSym = symbols.define(
             kind: .function,
             name: interner.intern("main"),
@@ -422,7 +389,6 @@ extension VirtualDispatchTests {
         let sema = makeSemaModule(symbols: symbols, types: types).ctx
         try runLowering(module: module, interner: interner, moduleName: "VirtualSuspend", sema: sema)
 
-        // Follow the wrapper's continuation target to the lowered state machine.
         let allFunctions = findAllKIRFunctions(in: module)
         let wrapper = try #require(allFunctions.first { $0.symbol == outerSuspendSym })
         let suspendFunction = try LoweringTestRuntime.loweredSuspendFunction(for: wrapper, in: module, interner: interner)
@@ -456,6 +422,5 @@ extension VirtualDispatchTests {
                 "Virtual suspend calls use the original blocking wrapper's explicit arguments.")
     }
 
-    // MARK: - 15. resolveVirtualDispatch: open class with subtypes -> vtable
 }
 #endif
