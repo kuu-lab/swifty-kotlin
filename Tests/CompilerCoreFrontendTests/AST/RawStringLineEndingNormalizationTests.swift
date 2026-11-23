@@ -72,7 +72,6 @@ struct RawStringLineEndingNormalizationTests {
             Issue.record("Expected .stringTemplate")
             return
         }
-        // First literal part should have LF, not CRLF
         guard case let .literal(firstID) = parts[0] else {
             Issue.record("Expected first part to be literal")
             return
@@ -83,8 +82,6 @@ struct RawStringLineEndingNormalizationTests {
 
     @Test
     func regularStringEscapeNotAffected() throws {
-        // Regular strings with \r\n escapes should NOT be normalized
-        // (they're escape sequences, not literal line breaks)
         let (expr, arena, interner) = try parseExpression("\"a\\r\\nb\"")
         guard case let .stringLiteral(id, _) = arena.expr(expr) else {
             Issue.record("Expected .stringLiteral")
