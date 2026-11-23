@@ -4,12 +4,6 @@ import Foundation
 import Testing
 
 extension JVMBackendTests {
-    /// Classpath stubs must keep Kotlin supertypes whose classes are provided
-    /// by the frontend's bundled sources rather than any jar on the classpath
-    /// (e.g. `kotlin.coroutines.AbstractCoroutineContextElement` /
-    /// `ContinuationInterceptor` for kotlinx-coroutines' `CoroutineDispatcher`).
-    /// Without those edges `Dispatchers.IO` is not a `CoroutineContext` and
-    /// `withContext(Dispatchers.IO)` fails semantic analysis.
     @Test
     func classpathStubKeepsCoveredKotlinSupertypes() throws {
         try withWorkspace { root in
@@ -56,9 +50,6 @@ extension JVMBackendTests {
         }
     }
 
-    /// Lazy classpath loading must treat types that appear only inside a
-    /// covered Kotlin supertype's type arguments as dependencies, or the
-    /// emitted stub references a class that was never injected.
     @Test
     func lazyCoveredSupertypeTypeArgumentsJoinDependencyClosure() throws {
         try withWorkspace { root in
