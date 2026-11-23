@@ -3,13 +3,8 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// TYPE-103: Verify that `arrayOf()` preserves element types and that
-/// array-specific members are not incorrectly resolved on `Any` receivers.
 @Suite
 struct ArrayOfTypeSafetyTests {
-
-    // MARK: - Positive: arrayOf(1, 2).get(0) should resolve without error
-    // MARK: - testArrayOfTypeSafetyClean
 
     @Test
     func testArrayOfTypeSafetyClean() throws {
@@ -211,7 +206,18 @@ struct ArrayOfTypeSafetyTests {
             let ushortArray = try #require(sema.symbols.lookup(fqName: names.kotlinUShortArrayFQName))
             let ubyteArray = try #require(sema.symbols.lookup(fqName: names.kotlinUByteArrayFQName))
 
-            // === testArrayOfIntGetResolvesWithoutError ===
+            do {
+
+                assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
+                assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+
+            }
+
+            do {
+
+                assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
+
+            }
 
             do {
 
@@ -220,15 +226,11 @@ struct ArrayOfTypeSafetyTests {
 
             }
 
-            // === testArrayOfStringSizeResolvesWithoutError ===
-
             do {
 
                 assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
 
             }
-
-            // === testArrayOfNullsResolvesAsNullableElementArray ===
 
             do {
 
@@ -237,33 +239,12 @@ struct ArrayOfTypeSafetyTests {
 
             }
 
-            // === testArrayOfContainsResolvesWithoutError ===
-
-            do {
-
-                assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
-
-            }
-
-            // === testArrayBinarySearchWithComparatorResolvesWithoutError ===
-
             do {
 
                 assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
                 assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
 
             }
-
-            // === testProjectedArrayBinarySearchWithComparatorResolvesWithoutError ===
-
-            do {
-
-                assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
-                assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
-
-            }
-
-            // === testArrayBinarySearchOverloadsResolveToInt ===
 
             do {
 
@@ -302,16 +283,12 @@ struct ArrayOfTypeSafetyTests {
 
             }
 
-            // === testArrayOfIntGetReturnsIntNotAny ===
-
             do {
 
                 let samplePath = paths[7]
 
 
 
-                // Walk the main body and find `val x = arr.get(0)`, then check
-                // the initializer type is Int (not Any).
                 let mainBody = try #require(findMainBodyStatements(in: ast, path: samplePath, ctx: ctx, interner: interner))
                 var foundGetResult = false
                 for exprID in mainBody {
@@ -320,7 +297,6 @@ struct ArrayOfTypeSafetyTests {
                           let initializer,
                           let boundType = sema.bindings.exprType(for: initializer)
                     else { continue }
-                    // The get(0) call on Array<Int> should return Int, not Any.
                     if boundType == sema.types.intType {
                         foundGetResult = true
                     }
@@ -329,16 +305,12 @@ struct ArrayOfTypeSafetyTests {
 
             }
 
-            // === testIntArrayOfGetReturnsInt ===
-
             do {
 
                 assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
                 assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
 
             }
-
-            // === testUShortArrayConstructorAndGetReturnUShort ===
 
             do {
 
@@ -374,8 +346,6 @@ struct ArrayOfTypeSafetyTests {
 
             }
 
-            // === testUByteArrayConstructorInfersUByteElements ===
-
             do {
 
                 let samplePath = paths[10]
@@ -409,8 +379,6 @@ struct ArrayOfTypeSafetyTests {
                 #expect(foundUByteGet, "Expected arr.get(0) to be typed as UByte.")
 
             }
-
-            // === testUShortArrayFactoryReturnsUShortArray ===
 
             do {
 
@@ -446,8 +414,6 @@ struct ArrayOfTypeSafetyTests {
 
             }
 
-            // === testUByteArrayOfFactoryResolvesWithoutError ===
-
             do {
 
                 let samplePath = paths[12]
@@ -482,8 +448,6 @@ struct ArrayOfTypeSafetyTests {
 
             }
 
-            // === testArrayBinarySearchResolvesWithoutError ===
-
             do {
 
                 assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
@@ -491,16 +455,12 @@ struct ArrayOfTypeSafetyTests {
 
             }
 
-            // === testULongArrayBinarySearchResolvesWithoutError ===
-
             do {
 
                 assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
                 assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
 
             }
-
-            // === testArrayOfNestedListExpectedTypeResolvesWithoutError ===
 
             do {
 
@@ -545,7 +505,6 @@ struct ArrayOfTypeSafetyTests {
         }
 
     }
-    // MARK: - testArrayOfTypeSafetyErrors
 
     @Test
     func testArrayOfTypeSafetyErrors() throws {
@@ -593,20 +552,14 @@ struct ArrayOfTypeSafetyTests {
             let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
 
-            // === testArrayGetOnAnyReceiverProducesError ===
-
             do {
 
-                // `get` is not a member of Any; should produce unresolved member error.
                 assertHasDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
 
             }
 
-            // === testArraySizeOnAnyReceiverProducesError ===
-
             do {
 
-                // `size` is not a member of Any; should produce unresolved member/field error.
                 let hasDiag = ctx.diagnostics.diagnostics.contains {
                     $0.code == "KSWIFTK-SEMA-0024" || $0.code == "KSWIFTK-SEMA-FIELD"
                 }
@@ -614,15 +567,11 @@ struct ArrayOfTypeSafetyTests {
 
             }
 
-            // === testIntArrayBinarySearchWithComparatorProducesError ===
-
             do {
 
                 assertHasDiagnostic("KSWIFTK-SEMA-0473", in: ctx)
 
             }
-
-            // === testBooleanArrayBinarySearchIsRejected ===
 
             do {
 
@@ -639,8 +588,6 @@ struct ArrayOfTypeSafetyTests {
         }
 
     }
-
-    // MARK: - Helpers
 
     private func findMainBodyStatements(
         in ast: ASTModule,
