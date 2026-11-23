@@ -307,7 +307,6 @@ struct KIRBuildClassLoweringTests {
             ctx.interner.resolve(function.name)
         }
 
-        // Secondary constructor defaults should generate a default stub path.
         #expect(
             functionNames.contains(where: { $0.hasPrefix("Box") }),
             "Expected lowered Box constructor-related functions, got: \(functionNames)"
@@ -685,8 +684,6 @@ struct KIRBuildClassLoweringTests {
         )
         let targets = Set(delegationTargetSymbols(in: body, interner: interner))
         #expect(!targets.isEmpty)
-        // Wrappers may delegate to another instance of their own class. Such
-        // calls must receive the stored delegate rather than recurse on `this`.
         for call in kirCalls(in: body) {
             guard let symbol = call.symbol, targets.contains(symbol)
             else { continue }
