@@ -7,7 +7,6 @@ extension BundledStdlibExecutionTests {
         useStdlibLibrary: Bool,
         optimization: Int
     ) throws {
-        // Expected values and exception types match Kotlin 2.3.10 on JDK 17.
         try compileAndRunKotlin(
             try diffCaseSource("string_code_point_at.kt", file: #filePath),
             expectedOutput: """
