@@ -5,7 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2033: compile the exact producer before consuming its captured tokens.
     @Test(arguments: [false, true], [0, 2])
     func testReifiedEnumValuesEscapingLambda(useArtifact: Bool, optimization: Int) throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -38,7 +37,6 @@ extension StdlibArtifactRegressionTests {
                                output: producerOutput)
         try runToLowering(producer)
         try assertNoDiagnosticErrors(producer)
-        // The escaping body must use the runtime token; its enum is chosen by the consumer.
         let module = try #require(producer.kir)
         #expect(findAllKIRFunctions(in: module).contains { function in
             function.body.contains { instruction in
