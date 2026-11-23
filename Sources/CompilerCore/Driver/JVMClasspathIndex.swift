@@ -728,6 +728,9 @@ final class JVMClasspathIndex {
         if method.isStatic, method.annotations.contains(where: { $0.descriptor == JVMMetro.invoke }) { return false }
         guard method.isConstructor || JVMProgramBuilder.isIdentifier(exposedName) else { return false }
         if isReplacedByComposeContract(method) { return false }
+        if method.isConstructor, method.kotlinConstructorParameterSourceTypes != nil {
+            return method.parameters.allSatisfy(exposeSuspendType)
+        }
         if method.isSynthetic, isHiddenByDeprecation(method) { return false }
         if method.isSynthetic, method.kotlinFunction == nil, method.kotlinSuspendFunction == nil,
            kotlinFunction(method) == nil { return false }
@@ -2911,6 +2914,7 @@ final class JVMClasspathIndex {
             }
             markSourceTypes(info.kotlinMemberProperties.values.map(\.sourceType))
             markSourceTypes(info.kotlinParameterizedSupertypes.values.flatMap { $0 })
+            markSourceTypes(info.methods.compactMap(\.kotlinConstructorParameterSourceTypes).flatMap { $0 })
             // Covered Kotlin supertypes render from kotlinSupertypes; their
             // type arguments can name lazy classpath classes that no other
             // signature references.
@@ -3298,8 +3302,11 @@ final class JVMClasspathIndex {
             } else {
                 parameterType = javaTypes?[index + (droppingReceiver ? 1 : 0)] ?? kotlinType(parameter)
             }
+            let metadataType = suspend == nil && !droppingReceiver
+                ? method.kotlinConstructorParameterSourceTypes.flatMap { $0.indices.contains(index) ? $0[index] : nil }
+                : nil
             return (isVararg ? "vararg " : "") + name + ": "
-                + (suspendSourceType ?? (parameterType + (nullable ? "?" : "")))
+                + (suspendSourceType ?? metadataType ?? (parameterType + (nullable ? "?" : "")))
         }.joined(separator: ", ")
     }
 

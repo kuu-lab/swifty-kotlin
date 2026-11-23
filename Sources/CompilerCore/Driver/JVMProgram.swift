@@ -279,6 +279,7 @@ public struct JVMForeignMethod: Sendable {
     var genericSignature: String?
     var kotlinOwnerResultParameter: String?
     var kotlinConstructorParameterNames: [String]?
+    var kotlinConstructorParameterSourceTypes: [String]?
     var kotlinCollisionSourceName: String?
     var kotlinFunction: JVMKotlinFunction?
     public var isConstructor: Bool { name == "<init>" }

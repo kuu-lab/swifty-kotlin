@@ -664,8 +664,9 @@ struct JVMClassReader {
            methods.contains(where: { $0.isConstructor && !$0.parameters.isEmpty }),
            let constructors = try? metadata.constructorParameterNames(byteLimit: bytes.count) {
             for index in methods.indices where methods[index].isConstructor {
-                if let names = constructors[methods[index].descriptor], names.count == methods[index].parameters.count {
-                    methods[index].kotlinConstructorParameterNames = names
+                if let entry = constructors[methods[index].descriptor], entry.names.count == methods[index].parameters.count {
+                    methods[index].kotlinConstructorParameterNames = entry.names
+                    methods[index].kotlinConstructorParameterSourceTypes = entry.sourceTypes
                 }
             }
         }
