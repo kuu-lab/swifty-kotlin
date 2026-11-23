@@ -1811,12 +1811,18 @@ package final class MetadataEncoder {
             if let decoded = SyntheticSymbolScheme.decodedPropertyAccessor(symbolID),
                let property = symbols.symbol(decoded.property)
             {
+                if let includedSymbolIDs, !includedSymbolIDs.contains(property.id) {
+                    return nil
+                }
                 let fqName = property.fqName.map { interner.resolve($0) }.joined(separator: ".")
                 guard !fqName.isEmpty else { return nil }
                 let prefix = decoded.kind == .getter ? "pget:" : "pset:"
                 return ("\(prefix)\(fqName)", slot)
             }
             if let property = symbols.symbol(symbolID), property.kind == .property {
+                if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID) {
+                    return nil
+                }
                 let fqName = property.fqName.map { interner.resolve($0) }.joined(separator: ".")
                 guard !fqName.isEmpty else { return nil }
                 return ("pget:\(fqName)", slot)
