@@ -2,8 +2,6 @@ import Foundation
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// Exercises RSA key generation, signing, verification, and in-memory
-    /// KeyStore entry handling through the bundled java.security APIs.
     @Test
     func testJavaSecurityJCAContracts() throws {
         try compileAndRunKotlin(
