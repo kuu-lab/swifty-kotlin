@@ -2,8 +2,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// KUU-851 regression: source-backed callable properties must dispatch
-    /// through their interface getter for user implementations.
     @Test
     func testUserCallableImplementationsDispatchPropertiesThroughInterfaces() throws {
         try compileAndRunKotlin(
@@ -73,12 +71,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// Runtime KProperty stubs (delegate `property:` arguments) register their
-    /// KCallable getters through the runtime itable. `name` returns a Kotlin
-    /// String, so the registered bridge must satisfy the flat-string sret ABI —
-    /// a regression returning the raw handle instead corrupted the receiver's
-    /// stack slot and made `Map.getValue`'s `property.name` lookup produce
-    /// garbage keys ("Key <pointer> is missing in the map").
     @Test
     func testRuntimeKPropertyStubsDispatchNameThroughInterface() throws {
         try compileAndRunKotlin(
@@ -105,12 +97,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// Runtime-registered `KCallable.name` itable shims return the raw String
-    /// handle, but the itable call site expects the flat String aggregate.
-    /// x86-64 SysV happens to pass that result through a hidden first-argument
-    /// pointer the shim can detect; AArch64 returns it in x0-x3, so property
-    /// references read through `KProperty<*>`/`KCallable<*>` crashed there.
-    /// The same interface call site must still dispatch user implementations.
     @Test
     func testInterfaceTypedCallableNameMixesRuntimeReferencesAndUserImplementations() throws {
         try compileAndRunKotlin(
@@ -145,13 +131,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-4017: `KParameter.annotations` is declared on `KAnnotatedElement`,
-    /// outside the `__kk_kparameter_*` member fast path, so runtime KParameter
-    /// boxes reached the source interface getter and died on the
-    /// KAnnotatedElement cast (`ClassCastException` → KSWIFTK-LINK-0003).
-    /// Native boxes must answer an empty list while source-backed KParameter
-    /// implementations keep their own `annotations` through interface
-    /// dispatch.
     @Test
     func testKParameterAnnotationsMixRuntimeBoxesAndUserImplementations() throws {
         try compileAndRunKotlin(
@@ -189,13 +168,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-4068: `KType` extends `KAnnotatedElement`, but the bundled KType
-    /// declaration omitted the supertype so `t.annotations` failed sema
-    /// (KSWIFTK-SEMA-0024). With resolution restored, runtime KType boxes
-    /// still have no `KAnnotatedElement` itable entry, so the read probes
-    /// `__kk_ktype_is_runtime` and answers an empty list, while source-backed
-    /// KType implementations keep their own `annotations` through interface
-    /// dispatch.
     @Test
     func testKTypeAnnotationsMixRuntimeBoxesAndUserImplementations() throws {
         try compileAndRunKotlin(
