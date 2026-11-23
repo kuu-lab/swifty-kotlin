@@ -3,16 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-// `.name`/`.ordinal` on an enum-typed receiver that isn't a literal entry
-// reference (`Direction.NORTH.name`) or constant-foldable local used to lower
-// to an unresolved external call literally named "name"/"ordinal" with the
-// receiver silently dropped from its argument list -- it never linked
-// ("Undefined symbols ... _name"). Root cause: `name`/`ordinal` are registered
-// as synthetic .property symbols on kotlin.Enum<T> (HeaderHelpers+SyntheticEnumStubs.swift),
-// not real .function declarations, so neither normal call-binding resolution
-// nor CallLowerer's recovery/fallback path ever attaches a usable chosenCallee,
-// and appendReceiverToMemberArguments had no case for "name"/"ordinal" to
-// prepend the receiver anyway.
 extension LoweringPassRegressionTests {
     @Test
     func testGenericEnumPropertiesBypassStoredFieldReads() throws {
@@ -116,9 +106,6 @@ extension LoweringPassRegressionTests {
 
     @Test
     func testEnumNameOnCollectionHOFLambdaParameterLowersToHelperCall() throws {
-        // The originally reported shape: a lambda parameter of enum type
-        // passed to a stdlib collection HOF (forEach), not a direct function
-        // parameter.
         let source = """
         enum class Direction { NORTH, SOUTH }
         fun main() {
@@ -144,10 +131,6 @@ extension LoweringPassRegressionTests {
 
     @Test
     func testEnumNameOnLiteralEntryReceiverStaysOnFastPath() throws {
-        // Regression guard: a literal entry reference (tryLowerEnumEntryPropertyRead)
-        // resolves straight to the per-entry NORTH$enumName() helper and must keep
-        // bypassing the generic $enumOrdinalToName(receiver) rewrite entirely -- no
-        // behavior change for the already-working path.
         let source = """
         enum class Direction { NORTH, SOUTH }
         fun main() {
@@ -186,12 +169,6 @@ extension LoweringPassRegressionTests {
         }
     }
 
-    // KUU-3196: `E.OK.name` on a literal entry reference is a compile-time
-    // constant on the JVM (intrinsic const evaluation) — the enum entry is
-    // never loaded and the enum's `<clinit>` does not run. The receiver's
-    // dead `.symbolRef(entry)` constValue used to remain in the body, so
-    // insertEnumLazyInitTriggers emitted a `$enumEnsureInit$` call whose
-    // init blocks ran anyway.
     @Test
     func testEnumNameOnLiteralEntryDoesNotTriggerLazyInit() throws {
         let source = """
@@ -255,8 +232,6 @@ extension LoweringPassRegressionTests {
         }
     }
 
-    // A `val` bound to an enum entry performs a real entry load on the JVM,
-    // so `<clinit>` must still run even though the `.name` read itself folds.
     @Test
     func testEnumEntryLocalReadStillTriggersLazyInit() throws {
         let source = """
@@ -281,14 +256,6 @@ extension LoweringPassRegressionTests {
         }
     }
 
-    // BUG-B/BUG-C: `name`/`ordinal`/a constructor property read via the
-    // *implicit* receiver inside an enum member function used to fall
-    // through every `.class`/`.interface`-owner branch in ExprLowerer's
-    // `.nameRef` case (enum values have no stored-field object layout) and
-    // land on the terminal `constValue(.symbolRef(propertySymbol))`
-    // fallback -- reading an unwritten slot as 0 for `rgb` (BUG-C), and a
-    // SIGSEGV once codegen dereferenced the bogus "pointer" as a String for
-    // `name` (BUG-B, `Dir.entries.map { it.name }`'s underlying shape).
     @Test
     func testEnumNameOnImplicitReceiverLowersToHelperCallWithReceiver() throws {
         let source = """
