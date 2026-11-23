@@ -1537,6 +1537,8 @@ final class JVMClasspathIndex {
             guard let typeName = kotlinClassLiteralType(descriptor) else { return nil }
             return typeName + "::class"
         case let .annotation(annotation):
+            let internalName = String(annotation.descriptor.dropFirst().dropLast())
+            if classes[internalName]?.classTypeParameterNames.isEmpty == false { return "null!!" }
             return annotationInstanceSource(annotation, depth: depth + 1)
         case let .array(elements):
             guard let elementType = annotationArrayElementType(type) else { return nil }
@@ -1579,8 +1581,9 @@ final class JVMClasspathIndex {
     private func kotlinClassLiteralType(_ descriptor: String) -> String? {
         if descriptor.hasPrefix("L"), descriptor.hasSuffix(";") {
             let name = String(descriptor.dropFirst().dropLast())
-            if name == "java/lang/Class" { return "kotlin.reflect.KClass<*>" }
-            return kotlinType(.reference(name, nullable: false))
+            if name == "java/lang/Class" { return "kotlin.reflect.KClass" }
+            let rendered = kotlinType(.reference(name, nullable: false))
+            return rendered.split(separator: "<", maxSplits: 1).first.map(String.init) ?? rendered
         }
         if descriptor.hasPrefix("[") { return kotlinType(.reference(descriptor, nullable: false)) }
         switch descriptor {
@@ -2919,6 +2922,23 @@ final class JVMClasspathIndex {
             // type arguments can name lazy classpath classes that no other
             // signature references.
             markSourceTypes(Array(info.kotlinSupertypes.values))
+            if info.isAnnotation {
+                func markDefault(_ value: JVMAnnotationValue) {
+                    switch value {
+                    case let .classType(descriptor):
+                        for name in signatureNames(.reference(descriptor, nullable: false)) where lazyClassNames.contains(name) && isInjected(name) {
+                            markNeeded(name)
+                        }
+                    case let .annotation(annotation):
+                        for (_, nested) in annotation.values { markDefault(nested) }
+                    case let .array(elements):
+                        for element in elements { markDefault(element) }
+                    default:
+                        break
+                    }
+                }
+                for method in info.methods { if let value = method.annotationDefault { markDefault(value) } }
+            }
             if let signature = info.genericSignature {
                 for supertype in javaSignatureSupertypes(signature) {
                     for reference in supertype.referencedClasses
