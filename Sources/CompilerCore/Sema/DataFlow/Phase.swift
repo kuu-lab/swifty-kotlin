@@ -54,6 +54,9 @@ final class DataFlowSemaPhase: CompilerPhase {
         let types = cachedImportSnapshot?.makeTypes(symbols: symbols) ?? TypeSystem()
         types.symbolTable = symbols
         let bindings = BindingTable()
+        if ctx.options.emit.isJVM {
+            symbols.jvmFilePackages = Dictionary(uniqueKeysWithValues: ast.files.map { ($0.fileID, $0.packageFQName) })
+        }
 
         // Build the bundled declaration index from AST before synthetic registration,
         // but keep bundled SymbolTable header collection after synthetic type foundations.
@@ -637,6 +640,14 @@ final class DataFlowSemaPhase: CompilerPhase {
                 interner: ctx.interner, into: &predeclared
             )
         }
+        if let imports = ctx.jvmImports {
+            for (declaration, symbol) in predeclared {
+                guard let file = ast.arena.decl(declaration)?.range.start.file,
+                      let info = imports.sourceClasses[file], info.flags & 1 == 0,
+                      let package = symbols.jvmFilePackages[file] else { continue }
+                symbols.setJVMPackageAccess(package, for: symbol)
+            }
+        }
         // Alias right-hand sides can reference nested types before their owners'
         // signatures are collected, including owners in later input files.
         for file in orderedFiles {
@@ -764,9 +775,12 @@ final class DataFlowSemaPhase: CompilerPhase {
                 interner: ctx.interner
             )
         }
+        let precompiledFiles = Set(ctx.jvmImports?.sourceClasses.keys.map { $0 } ?? [])
+        sema.jvmClasspathStubFiles = precompiledFiles
         withSubPhaseTiming("validateTypeParameterUpperBounds", timer: ctx.phaseTimer) {
             validateTypeParameterUpperBounds(
-                symbols: symbols, types: types, interner: ctx.interner, diagnostics: ctx.diagnostics
+                symbols: symbols, types: types, interner: ctx.interner, diagnostics: ctx.diagnostics,
+                precompiledFiles: precompiledFiles
             )
         }
         withSubPhaseTiming("validateTypeAliasCycles", timer: ctx.phaseTimer) {
@@ -787,6 +801,7 @@ final class DataFlowSemaPhase: CompilerPhase {
             )
         }
         if ctx.options.emit.isJVM {
+            registerJVMFileMembers(symbols: symbols, types: types, interner: ctx.interner)
             do { try ctx.jvmImports?.bind(in: ctx, sema: sema) }
             catch { ctx.diagnostics.error("KSWIFTK-JVM-0003", "Cannot bind JVM classpath: \(error)", range: nil) }
         }

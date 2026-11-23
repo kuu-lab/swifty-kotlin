@@ -159,6 +159,16 @@ extension JVMFunctionBuilder {
         if let binding, let metro = try importedMetroCall(binding, id: id) { return metro }
         if let binding, let action = try importedGlanceActivityAction(binding, args: args, id: id) { return action }
         if let binding, let builder = try importedOneTimeWorkRequestBuilder(binding, id: id) { return builder }
+        if let binding, let service = try importedContextService(binding, receiver: receiver, receiverValue: receiverValue, id: id) {
+            return service
+        }
+        if let binding, let model = try importedActivityViewModel(binding, args: args, receiver: receiver,
+                                                                receiverValue: receiverValue, id: id) {
+            return model
+        }
+        if let binding, let model = try importedHiltViewModel(binding, args: args, expectedResult: expectedResult, id: id) {
+            return model
+        }
         if let local = program.localFunctions[symbol] {
             return try localFunctionCall(local, symbol: symbol, args: args, receiver: receiver, id: id, expectedResult: expectedResult)
         }
@@ -306,6 +316,18 @@ extension JVMFunctionBuilder {
         } else if usesDefaults {
             if let importedDefault {
                 values += try maskArguments(ordered.masks, constructor: false)
+                if let dispatch {
+                    values.insert(try convert(dispatch, to: importedDefault.parameters[0]), at: 0)
+                } else if values.count < importedDefault.parameters.count {
+                    // A @JvmStatic forwarder can use the companion's default helper.
+                    let symbols = program.sema.symbols
+                    guard let companion = symbols.parentSymbol(for: symbol),
+                          let owner = symbols.parentSymbol(for: companion),
+                          let receiver = try importedCompanionValue(for: owner) else {
+                        throw fail("Missing JVM companion receiver for default arguments.", id)
+                    }
+                    values.insert(receiver, at: 0)
+                }
                 instructions.append(.foreignCall(importedDefault, receiver: nil, arguments: values, result: result))
             } else if constructor {
                 values += try maskArguments(ordered.masks, constructor: true)

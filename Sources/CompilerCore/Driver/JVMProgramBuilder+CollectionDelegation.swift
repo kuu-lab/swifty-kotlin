@@ -82,7 +82,6 @@ extension JVMProgramBuilder {
                 sema.types.isNominalSubtypeSymbol(plan.symbol, of: $0)
             } == true
         }
-        // These bases own the size bridge. Their subclasses override getSize.
         if name == "size", !subtype("AbstractSet"), !subtype("AbstractList"),
            subtype("Collection") || (!context.options.stdlibOnly && subtype("Map")) { return "size" }
         if !context.options.stdlibOnly, subtype("Map") { return ["keys": "keySet", "values": "values", "entries": "entrySet"][name] }
@@ -152,7 +151,6 @@ extension JVMProgramBuilder {
             let result = try b.value(target.result)
             b.instructions.append(.foreignCall(target, receiver: b.thisValue!, arguments: [], result: result))
             b.instructions.append(.returnValue(result))
-            // Publish both JVM entry points without duplicating the logical Kotlin property.
             var function = b.finish(); function.access = runtimeSizeAlias ? 0x11 : 1; function.isMetadataHidden = true
             function.genericSignature = "()" + (property.genericSignature ?? property.type.descriptor).replacingOccurrences(of: "+", with: "")
             functions.append(function)

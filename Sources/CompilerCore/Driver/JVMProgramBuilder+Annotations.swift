@@ -241,15 +241,14 @@ extension JVMProgramBuilder {
     private func annotationInstances(for symbol: SymbolID, target: String?, includeDefaults: Bool) throws -> [JVMAnnotation] {
         var result: [JVMAnnotation] = []
         let records = try annotationRecords(for: symbol)
-        // File annotations affect the source file/facade and are not emitted on
-        // individual JVM declarations. They can coexist with member annotations.
         if let unsupported = records.first(where: { $0.useSiteTarget.map { !["field", "get", "set", "property", "param", "setparam", "receiver", "file", "delegate"].contains($0) } ?? false }) { throw JVMFrontendError(message: "Unsupported JVM annotation use-site target: " + unsupported.useSiteTarget!) }
         for record in records where record.useSiteTarget == target {
             let name = record.annotationFQName
+            if isThrowsAnnotation(name) { continue }
             if [KnownCompilerAnnotation.repeatable.qualifiedName, KnownCompilerAnnotation.jvmRepeatable.qualifiedName].contains(name), classes[symbol]?.isAnnotation != true { throw JVMFrontendError(message: "JVM repeatable can only annotate annotation classes.") }
             if KnownCompilerAnnotation.jvmOverloads.matches(name) {
-                guard sema.symbols.symbol(symbol)?.kind == .function else {
-                    throw JVMFrontendError(message: "JVM @JvmOverloads currently supports functions only.")
+                guard let kind = sema.symbols.symbol(symbol)?.kind, kind == .function || kind == .constructor else {
+                    throw JVMFrontendError(message: "JVM @JvmOverloads currently supports functions and constructors only.")
                 }
                 continue
             }
@@ -257,6 +256,9 @@ extension JVMProgramBuilder {
             // user code can never apply it legally, and no emitted JVM decl
             // carries it (its bundled-stdlib usages live on non-emitted files).
             if [
+                "kotlin.jvm.JvmStatic", "JvmStatic",
+                "kotlin.jvm.JvmOverloads", "JvmOverloads",
+                "kotlin.jvm.JvmSuppressWildcards",
                 KnownCompilerAnnotation.metadata.qualifiedName,
                 KnownCompilerAnnotation.publishedApi.qualifiedName,
                 KnownCompilerAnnotation.publishedApi.simpleName,
@@ -295,12 +297,6 @@ extension JVMProgramBuilder {
         }
         return result
     }
-    /// kotlin.internal.* annotations are compile-time-only markers (inlining
-    /// policy, overload resolution, inference constraints, parameter-name
-    /// stability, runtime symbol naming). Consumer compiles inject them as
-    /// residual-stdlib declarations that are never emitted, so no classfile
-    /// plan exists to attach; stdlib builds still emit them where the
-    /// annotation class itself is compiled.
     func isPlanlessKotlinInternalAnnotation(_ fqName: String, owner: SymbolID?) -> Bool {
         guard fqName.hasPrefix("kotlin.internal."), let owner else { return false }
         return annotationPlan(owner) == nil
@@ -359,7 +355,6 @@ extension JVMProgramBuilder {
             result.annotations.append(JVMAnnotation(descriptor: "Ljava/lang/annotation/Target;", values: [("value", .array(names.map { .enumEntry("Ljava/lang/annotation/ElementType;", $0) }))]))
         }
         if records.contains(where: { $0.annotationFQName == KnownCompilerAnnotation.mustBeDocumented.qualifiedName }) { result.annotations.append(JVMAnnotation(descriptor: "Lkotlin/annotation/MustBeDocumented;")); result.annotations.append(JVMAnnotation(descriptor: "Ljava/lang/annotation/Documented;")) }
-        // Annotation elements use primitive/String/Class/enum/annotation/array JVM types.
         for i in result.functions.indices {
             let name = result.functions[i].reference.name
             if let parameter = plan.declaration!.primaryConstructorParams.first(where: { context.interner.resolve($0.name) == name }), let expression = parameter.defaultValue { result.functions[i].annotationDefault = try checkedAnnotationValue(annotationConstant(expression), type: result.functions[i].reference.result) }
@@ -374,8 +369,44 @@ extension JVMProgramBuilder {
         }
     }
 
+    private func isThrowsAnnotation(_ name: String) -> Bool {
+        ["Throws", "kotlin.Throws", "kotlin.jvm.Throws"].contains(name)
+    }
+
+    private func declaredExceptions(for symbol: SymbolID) throws -> [String] {
+        guard let annotation = try annotationRecords(for: symbol).first(where: {
+            $0.useSiteTarget == nil && isThrowsAnnotation($0.annotationFQName)
+        }) else { return [] }
+        if let declaration = sourceDeclarations[symbol],
+           let node = declaration.annotations.first(where: { $0.usageID != nil && $0.usageID == annotation.usageID }),
+           var tokens = node.constructionTokens, let last = tokens.last {
+            try rememberRawAnnotationConstruction(node, tokens: &tokens, lastToken: last, message: "Unsupported JVM @Throws annotation arguments.")
+        }
+        let construction = annotationConstruction(annotation)
+        let arguments: [CallArgument]
+        switch construction.flatMap(ast.arena.expr) {
+        case let .call(_, _, args, _), let .memberCall(_, _, _, args, _): arguments = args
+        default: arguments = []
+        }
+        if arguments.isEmpty, !annotation.arguments.isEmpty {
+            throw JVMFrontendError(message: "Cannot resolve JVM @Throws class literals.")
+        }
+        let constants = try arguments.flatMap { argument -> [JVMAnnotationValue] in
+            let value = try annotationConstant(argument.expr)
+            if case let .array(elements) = value { return elements }
+            return [value]
+        }
+        return try constants.map { value in
+            guard case let .classType(descriptor) = value, descriptor.hasPrefix("L"), descriptor.hasSuffix(";") else {
+                throw JVMFrontendError(message: "JVM @Throws requires Throwable class literals.")
+            }
+            return String(descriptor.dropFirst().dropLast())
+        }
+    }
+
     func annotated(_ function: JVMFunction, symbol: SymbolID, signature providedSignature: FunctionSignature? = nil) throws -> JVMFunction {
         var f = function; f.annotations = try annotations(for: symbol, target: nil)
+        f.declaredExceptions = try declaredExceptions(for: symbol)
         f.isSynchronized = try annotationRecords(for: symbol).contains {
             $0.annotationFQName == KnownCompilerAnnotation.jvmSynchronized.qualifiedName && $0.useSiteTarget == nil
         }

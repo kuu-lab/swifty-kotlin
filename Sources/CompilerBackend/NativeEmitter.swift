@@ -469,9 +469,6 @@ struct NativeEmitter {
         }
 
         let triple = targetTripleString()
-        // LLVM's target registry and module printing both touch process-global
-        // state on Linux, so keep the entire target-and-print sequence under the
-        // same process lock used for object emission.
         try CodegenCriticalSection.withLinuxLLVMProcessLock(target: target) {
             bindings.setTarget(built.module, triple: triple)
 
@@ -514,9 +511,6 @@ struct NativeEmitter {
             }
         }
 
-        // LLVM target registration and native emission use process-global state
-        // on Linux. Keep module construction parallel, but serialize only the
-        // target-machine section that is not thread-safe.
         try CodegenCriticalSection.withLinuxLLVMProcessLock(target: target) {
             let targetMachine = try withSubPhaseTiming("initTarget", timer: phaseTimer) {
                 try configuredTargetMachine(for: built.module)
@@ -547,9 +541,6 @@ struct NativeEmitter {
         let triple = targetTripleString()
         bindings.setTarget(llvmModule, triple: triple)
 
-        // Never silently retarget to the host: emitting a binary for a target
-        // other than the requested one (e.g. an arm64 host object when wasm32
-        // was asked for) produces confusing failures far downstream.
         guard let targetMachine = bindings.createTargetMachine(triple: triple, optLevel: optLevel) else {
             throw LLVMBackendError.nativeEmissionFailed(
                 "failed to create LLVM target machine for '\(triple)' (the loaded LLVM may lack this backend)"
@@ -597,11 +588,6 @@ struct NativeEmitter {
                symbols?.companionObjectSymbol(for: parentID) == symbol {
                 return symbols?.companionObjectInitializerSymbol(for: parentID) != nil
             }
-            // Synthetic singleton stubs (e.g. kotlin.system.System) have no
-            // backing state and no initializer, so their global slot is never
-            // emitted. Returning zero for their symbolRef is safe because the
-            // only uses are as receivers for static-like runtime bridges that
-            // discard the receiver.
             if symbols?.objectInitializerSymbol(for: symbol) == nil,
                symbols?.externalLinkName(for: symbol)?.isEmpty != false,
                symbols?.nominalLayout(for: symbol)?.instanceFieldCount == 0 {
@@ -651,10 +637,6 @@ struct NativeEmitter {
         return symbols.objectInitializerSymbol(for: symbol) == nil
     }
 
-    /// Without this, the backend silently emits zero for
-    /// references to globals defined in a precompiled `.kklib` (e.g.
-    /// `Uuid.Companion.NIL`) because those globals are not present in the
-    /// current module's KIR global declarations.
     func ensureImportedGlobalReferences(
         module: KIRModule,
         llvmModule: LLVMCAPIBindings.LLVMModuleRef,
@@ -713,9 +695,6 @@ struct NativeEmitter {
         }
     }
 
-    /// `partitionContexts` are worker LLVM contexts retained by partitioned
-    /// emission. They must stay alive until `module` is disposed: the merge
-    /// can leave the module referencing a worker context's type state.
     func buildModule() throws -> (
         context: LLVMCAPIBindings.LLVMContextRef,
         module: LLVMCAPIBindings.LLVMModuleRef,
@@ -859,7 +838,8 @@ struct NativeEmitter {
     func declareGlobals(
         llvmModule: LLVMCAPIBindings.LLVMModuleRef,
         int64Type: LLVMCAPIBindings.LLVMTypeRef,
-        emitDefinitions: Bool
+        emitDefinitions: Bool,
+        definitionsUsedOnlyByOtherObjects: Bool = false
     ) -> [SymbolID: LLVMCAPIBindings.LLVMValueRef] {
         var llvmGlobalVariables: [SymbolID: LLVMCAPIBindings.LLVMValueRef] = [:]
         let globalDecls = module.arena.declarations.compactMap { decl -> (slotName: String, global: KIRGlobal)? in
@@ -887,11 +867,11 @@ struct NativeEmitter {
                             bindings.setExternalLinkage(llvmGlobal)
                         }
                     } else {
-                        // Use linkonce_odr so multiple compilation units (e.g. a
-                        // precompiled stdlib .kklib and a consuming module) can each
-                        // contain a tentative definition of the same global; the
-                        // linker keeps one copy and all references resolve to it.
-                        bindings.setLinkOnceODRLinkage(llvmGlobal)
+                        if definitionsUsedOnlyByOtherObjects {
+                            bindings.setWeakODRLinkage(llvmGlobal)
+                        } else {
+                            bindings.setLinkOnceODRLinkage(llvmGlobal)
+                        }
                         if let zero = bindings.constInt(int64Type, value: 0) {
                             bindings.setInitializer(llvmGlobal, value: zero)
                         }
@@ -1020,8 +1000,6 @@ struct NativeEmitter {
         }
 
         let isOptimized = optLevel != .O0
-        // The compile unit must be created so the module's debug info is well-formed,
-        // even though the resulting handle is not retained on DebugInfoContext.
         guard bindings.diBuilderCreateCompileUnit(
             diBuilder,
             lang: Self.dwarfLangC99,

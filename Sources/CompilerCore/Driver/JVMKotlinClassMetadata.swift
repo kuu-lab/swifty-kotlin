@@ -55,9 +55,6 @@ struct JVMKotlinTypeAliasInfo {
     let isProtected: Bool
 }
 
-/// Kotlin's JVM annotation stores a length-prefixed string table followed by
-/// a Class or Package protobuf. Keep the reader independent of the compiler
-/// JAR so reading classpath declarations never runs dependency code.
 extension JVMKotlinClassMetadata {
     static func read(_ annotation: JVMAnnotation) throws -> Self? {
         func value(_ key: String) -> JVMAnnotationValue? {
@@ -78,7 +75,6 @@ extension JVMKotlinClassMetadata {
         let isClass = kind == 1
         let parameters = isClass ? try message.messages(5).map(decoder.typeParameter) : []
         let functions = try message.messages(isClass ? 9 : 3).compactMap { function -> JVMKotlinFunctionInfo? in
-            // Context receivers require an additional JVM argument per receiver.
             guard function.fields[10] == nil, function.fields[11] == nil else { return nil }
             let scope = try function.message(30).map { try JVMKotlinMetadataTypes(names: names, table: $0) } ?? decoder
             let name = try scope.name(function.integer(2))
@@ -230,7 +226,6 @@ private struct JVMKotlinMetadataTypes {
         if let index = message.integer(7) {
             type = .parameter(index, nullable: isNullable, definitelyNotNull: false)
         } else if let index = message.integer(9) {
-            // Some compiler versions encode local parameter references by name.
             type = .named(try name(index), [], nullable: isNullable)
         } else {
             let qualified = try name(message.integer(6) ?? message.integer(12))

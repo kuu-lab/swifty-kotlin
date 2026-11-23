@@ -1,7 +1,4 @@
 extension ControlFlowLowerer {
-    /// Materializes statically-known callable values before they flow through
-    /// a control-flow merge, where one direct-call target can no longer stand
-    /// for every branch.
     func materializeConditionalCallableValue(
         sourceExprID: ExprID,
         value: KIRExprID,

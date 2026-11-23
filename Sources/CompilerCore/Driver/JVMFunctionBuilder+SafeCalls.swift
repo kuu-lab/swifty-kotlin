@@ -3,7 +3,6 @@ extension JVMFunctionBuilder {
     // no kotlin.NumbersKt facade method to call. Match them by the *callee* symbol
     // (not the call-site name, so aliased imports resolve too) and only for the
     // bundled-stdlib declarations, so user/library extensions of the same name win.
-    // Returns whether the bits are raw (toRawBits) or canonicalized (toBits).
     func stdlibBitReinterpretIsRaw(_ callee: SymbolID, args: [CallArgument]) -> Bool? {
         guard args.isEmpty, let symbol = program.sema.symbols.symbol(callee),
               symbol.declSite.map({ context.sourceManager.origin(of: $0.start.file) != .user }) ?? true
@@ -21,10 +20,6 @@ extension JVMFunctionBuilder {
         }
     }
 
-    // Lower a Float/Double bit-reinterpret call to the java.lang.Float/Double
-    // intrinsic, matching how kotlinc inlines the real @InlineOnly actuals. The
-    // primitive float/double type is taken from the callee's receiver signature and
-    // the receiver converted to it, so a boxed receiver is handled uniformly.
     func emitBitReinterpret(callee: SymbolID, receiver: JVMValue, isRaw: Bool, id: ExprID) throws -> JVMValue? {
         guard let signature = program.sema.symbols.functionSignature(for: callee),
               let receiverTypeRef = signature.receiverType else { return nil }
@@ -41,6 +36,7 @@ extension JVMFunctionBuilder {
     }
 
     func memberExpression(_ id: ExprID, receiver: ExprID, name: InternedString, typeArgs: [TypeRefID], args: [CallArgument]) throws -> JVMValue? {
+        if let argument = samConstructorArgument(args, id: id) { return try expression(argument) }
         if context.interner.resolve(name) == "isInitialized", args.isEmpty, let result = try lateinitInitialized(receiver) { return result }
         if let callee = program.sema.bindings.callBinding(for: id)?.chosenCallee,
            let isRaw = stdlibBitReinterpretIsRaw(callee, args: args),
@@ -76,8 +72,6 @@ extension JVMFunctionBuilder {
             else if case let .nameRef(qualifier, _) = arena.expr(receiver), !scopes.contains(where: { $0[qualifier] != nil }),
                     let plan = program.classes.values.first(where: { $0.name == property.getter.owner && $0.isObject }),
                     program.sema.symbols.symbol(plan.symbol)?.name == qualifier {
-                // A qualified delegated property can bind its owner without
-                // attaching a separate value binding to the object qualifier.
                 object = try singleton(plan)
             } else { object = try requireValue(receiver) }
             return try convert(readProperty(property, receiver: object, at: id, special: isSuper(receiver), superReceiver: receiver), to: program.expressionType(id))
@@ -86,7 +80,6 @@ extension JVMFunctionBuilder {
         if let result = try nominalPropertyInvocation(id, receiver: receiver, args: args) { return result.value }
         if let result = try textLibraryCall(args, receiver: receiver, id: id) { return result.value }
         if let result = try inlineCall(args, receiver: receiver, id: id) { return result.value }
-        // Route KCallable.call through reflection before generic vararg binding.
         if member == "call",
            let result = try reflectionMember(receiver, name: member, args: args, id: id) { return result.value }
         if let result = try sourceCall(args, receiver: receiver, id: id) { return result.value }
@@ -154,8 +147,6 @@ extension JVMFunctionBuilder {
     }
 
     func safeMemberExpression(_ id: ExprID, receiver: ExprID, name: InternedString, typeArgs: [TypeRefID], args: [CallArgument], discarded: Bool) throws -> JVMValue? {
-        // Snapshot the receiver before branching. Arguments and the ordinary
-        // member dispatcher execute only on the non-null edge.
         let source = try requireValue(receiver)
         let type = try program.expressionType(id)
         if source.type.referenceName == nil {

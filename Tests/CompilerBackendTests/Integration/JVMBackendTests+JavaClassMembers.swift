@@ -17,6 +17,7 @@ extension JVMBackendTests {
                 public static final String LABEL = "static-label";
                 public static final long BIG = 1234567890123L;
                 public static final boolean ENABLED = true;
+                public static final Boolean BOXED = Boolean.TRUE;
             }
             """,
             "Widget": """
@@ -84,6 +85,8 @@ extension JVMBackendTests {
                 println(Constants.LABEL)
                 println(Constants.BIG)
                 println(Constants.ENABLED)
+                val configured: Boolean = Constants.BOXED
+                println(configured)
 
                 val w = Widget()
                 w.text = "hi"
@@ -112,7 +115,7 @@ extension JVMBackendTests {
             guard result.0 == 0 else { return }
             let output = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path
             let run = try java(["-cp", output + ":" + dependency.path, "HelloKt"])
-            #expect(run.stdout == "1\n0\nstatic-label\n1234567890123\ntrue\nhi\n3\ntrue\ntrue\ntrue\n42\n10\n")
+            #expect(run.stdout == "1\n0\nstatic-label\n1234567890123\ntrue\ntrue\nhi\n3\ntrue\ntrue\ntrue\n42\n10\n")
             #expect(run.stderr.isEmpty)
         }
     }

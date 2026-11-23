@@ -1,8 +1,5 @@
 
 extension BuildASTPhase.ExpressionParser {
-    /// Recognizes a parenthesized function type immediately followed by `::`.
-    /// The scan avoids speculative TypeRefParserCore calls that would leave
-    /// unused type refs on ordinary parenthesized expressions.
     func looksLikeFunctionTypeCallableReferenceReceiver(from startIndex: Int) -> Bool {
         guard startIndex < tokens.endIndex,
               tokens[startIndex].kind == .symbol(.lParen)
@@ -84,9 +81,6 @@ extension BuildASTPhase.ExpressionParser {
             guard let name = path.last else { return nil }
             receiver = astArena.appendExpr(.nameRef(name, range))
         case .functionType:
-            // Function types do not have a classifier name to put in the
-            // receiver expression. The type ref itself carries the receiver
-            // and lets Sema resolve extensions on it.
             receiver = nil
         default:
             return nil
@@ -138,11 +132,6 @@ extension BuildASTPhase.ExpressionParser {
                     index = savedIndex
                     return nil
                 }
-                // Kotlin 1.4+ permits one trailing comma in call-site type
-                // arguments (`id<Int,>(x)`), mirroring
-                // TypeRefParserCore.parseTypeArgRefsPrefix. A doubled comma
-                // (`f<Int,,>`) or an opening comma (`f<,>`) still falls
-                // through to the type parser below and is rejected.
                 if matches(.symbol(.greaterThan)) {
                     _ = consume()
                     return refs

@@ -44,10 +44,7 @@
       "virtualPath": "<kswiftk-jvm>/duration-conversions.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/time/jdk8/DurationConversionsJDK8Kt",
-      "consumerIdentifiers": [
-        "toJavaDuration",
-        "toKotlinDuration"
-      ]
+      "consumerIdentifiers": ["toJavaDuration", "toKotlinDuration"]
     },
     {
       "path": "declarations/Instant.kt",
@@ -59,10 +56,7 @@
       "virtualPath": "<kswiftk-jvm>/instant-conversions.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/time/jdk8/InstantConversionsJDK8Kt",
-      "consumerIdentifiers": [
-        "toJavaInstant",
-        "toKotlinInstant"
-      ]
+      "consumerIdentifiers": ["toJavaInstant", "toKotlinInstant"]
     },
     {
       "path": "declarations/Clock.kt",
@@ -80,9 +74,7 @@
       "virtualPath": "<kswiftk-jvm>/byte-streams.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/io/ByteStreamsKt",
-      "consumerIdentifiers": [
-        "readBytes"
-      ]
+      "consumerIdentifiers": ["readBytes", "reader", "readText"]
     },
     {
       "path": "declarations/UStrings.kt",
@@ -793,6 +785,12 @@
       "path": "declarations/MapHigherOrderFunctions.kt",
       "virtualPath": "<kswiftk-jvm>/map-higher-order-functions.kt",
       "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/MapFilter.kt",
+      "virtualPath": "<kswiftk-jvm>/map-filter.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/MapsKt"
     },
     {
       "path": "declarations/BuilderContracts.kt",

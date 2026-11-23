@@ -1,10 +1,7 @@
 public struct AnnotationNode: Equatable, Codable {
     public let name: String
-    /// Reconstructed Kotlin expressions. Single string literals retain one
-    /// delimiter pair; literal concatenations use an escaped regular literal.
     public let arguments: [String]
     public let useSiteTarget: String?
-    /// Original constructor tokens retain escapes, backticks and lexical scope.
     public let constructionTokens: [Token]?
 
     public var usageID: String? {
@@ -75,8 +72,6 @@ public struct ConstructorDecl: Codable {
     public let valueParams: [ValueParamDecl]
     public let delegationCall: ConstructorDelegationCall?
     public let body: FunctionBody
-    /// Source location of the `constructor` keyword itself — see
-    /// `FunDecl.declarationKeywordRange`.
     public let declarationKeywordRange: SourceRange?
 
     public init(
@@ -100,19 +95,9 @@ public struct ConstructorDecl: Codable {
 
 public struct SuperTypeEntry: Equatable, Codable {
     public let typeRef: TypeRefID
-    /// When present, this supertype (must be an interface) is implemented by
-    /// delegating to the given expression. Absent for non-delegated supertypes.
     public let delegateExpression: ExprID?
-    /// Arguments of the superclass constructor invocation in the class header.
-    /// Empty for interfaces and for `Base()`.
     public let constructorArgs: [CallArgument]
-    /// True when the source wrote the superclass constructor invocation —
-    /// `Base(...)` including `Base()` — rather than a bare `Base` reference.
-    /// Kotlin requires the invocation for class supertypes; interfaces and
-    /// delegated entries list the bare type.
     public let hasConstructorCallSyntax: Bool
-    /// Range of the entry's type portion (`Base` in `Base(x)`); used for
-    /// supertype diagnostics.
     public let range: SourceRange?
 
     public init(
@@ -143,14 +128,8 @@ public struct SuperTypeEntry: Equatable, Codable {
     }
 }
 
-/// Used to guarantee Kotlin's declaration-order execution of property
-/// initializers and `init` blocks.
 public enum ClassBodyInitMember: Equatable, Codable {
-    /// A property initializer; the associated value is the index into
-    /// `ClassDecl.memberProperties`.
     case property(Int)
-    /// An `init { }` block; the associated value is the index into
-    /// `ClassDecl.initBlocks`.
     case initBlock(Int)
 }
 
@@ -164,18 +143,12 @@ public struct ClassDecl: Codable {
     public let primaryConstructorParams: [ValueParamDecl]
     public let primaryConstructorModifiers: Modifiers
     public let primaryConstructorAnnotations: [AnnotationNode]
-    /// Distinguishes `class Foo()` (has primary ctor) from `class Foo` (no primary ctor).
     public let hasPrimaryConstructorSyntax: Bool
     public let superTypeEntries: [SuperTypeEntry]
     public let nestedTypeAliases: [TypeAliasDecl]
     public let enumEntries: [EnumEntryDecl]
     public let initBlocks: [FunctionBody]
-    /// Source range of each `init` keyword, parallel to `initBlocks`.
-    /// kotlinc underlines it for 'members are prohibited in annotation
-    /// classes'; `FunctionBody` ranges point at the `{...}` body instead.
     public let initBlockRanges: [SourceRange]
-    /// Kotlin guarantees that these execute top-to-bottom in the order they
-    /// appear in the class body (spec.md J7).
     public let classBodyInitOrder: [ClassBodyInitMember]
     public let secondaryConstructors: [ConstructorDecl]
     public let memberFunctions: [DeclID]
@@ -183,8 +156,6 @@ public struct ClassDecl: Codable {
     public let nestedClasses: [DeclID]
     public let nestedObjects: [DeclID]
     public let companionObject: DeclID?
-    /// Implementation scope for Kotlin 2.4 companion blocks. Unlike
-    /// `companionObject`, this synthetic object has no source-visible name.
     public let companionBlockObject: DeclID?
 
     public init(
@@ -246,9 +217,6 @@ public struct InterfaceDecl: Codable {
     public let isFunInterface: Bool
     public let typeParams: [TypeParamDecl]
     public let superTypes: [TypeRefID]
-    /// Full supertype entries, mirroring `ClassDecl.superTypeEntries`. Kotlin
-    /// prohibits `by`-delegation on interfaces, but the entries are retained
-    /// so sema can report the `I by d` specifier instead of dropping it.
     public let superTypeEntries: [SuperTypeEntry]
     public let nestedTypeAliases: [TypeAliasDecl]
     public let memberFunctions: [DeclID]
@@ -256,8 +224,6 @@ public struct InterfaceDecl: Codable {
     public let nestedClasses: [DeclID]
     public let nestedObjects: [DeclID]
     public let companionObject: DeclID?
-    /// Implementation scope for Kotlin 2.4 companion blocks. Unlike
-    /// `companionObject`, this synthetic object has no source-visible name.
     public let companionBlockObject: DeclID?
 
     public init(
@@ -379,21 +345,14 @@ public struct ObjectDecl: Codable {
     }
 }
 
-/// AST-layer type names mirror Kotlin syntax keywords (e.g. `fun`),
-/// while semantic/KIR layers use full English names (e.g. `Function`).
 public struct FunDecl: Codable {
     public let range: SourceRange
     public let name: InternedString
     public let modifiers: Modifiers
     public let annotations: [AnnotationNode]
     public let typeParams: [TypeParamDecl]
-    /// Source location of a declaration-level `where` clause, if present.
-    /// The bounds themselves are stored on the declared type parameters.
     public let whereClauseRange: SourceRange?
     public let receiverType: TypeRefID?
-    /// Declaration-level `context(...)` receivers. Names are nil for unnamed
-    /// or `_:` parameters. These stay independent of `receiverType` so a
-    /// member function's class `this` is not overwritten by a context type.
     public let contextReceivers: [ContextReceiverDecl]
     public var contextReceiverNames: [InternedString?] {
         contextReceivers.map(\.name)
@@ -404,17 +363,8 @@ public struct FunDecl: Codable {
     public let isSuspend: Bool
     public let isInline: Bool
     public let isTailrec: Bool
-    /// Marks the compiler-synthesized `main` wrapper for top-level script
-    /// statements. It is not a source-declared callable, so package-scope
-    /// duplicate checks must not compare it against a user-declared `main`.
     public let isScriptEntryPoint: Bool
-    /// Source location of the `override` keyword, if present. kotlinc
-    /// underlines the modifier itself for 'X overrides nothing', which may
-    /// not be the declaration head (e.g. `abstract override`).
     public let overrideKeywordRange: SourceRange?
-    /// Source location of the `fun` keyword itself — the declaration
-    /// introducer past any modifiers/annotations. kotlinc underlines it for
-    /// per-member diagnostics like 'members are prohibited'.
     public let declarationKeywordRange: SourceRange?
 
     public init(
@@ -518,8 +468,6 @@ public enum FunctionBody: Equatable, Codable {
     case expr(ExprID, SourceRange)
     case unit
 
-    /// `fun f() = expr`-style expression bodies are the only bodies where a
-    /// `return` targeting the function is prohibited outright.
     public var isExpressionBody: Bool {
         if case .expr = self { return true }
         return false
@@ -535,7 +483,6 @@ public struct PropertyAccessorDecl: Equatable, Codable {
     public let range: SourceRange
     public let annotations: [AnnotationNode]
     public let kind: PropertyAccessorKind
-    /// Explicit accessor visibility, or nil when it inherits the property's visibility.
     public let visibility: Visibility?
     public let isInline: Bool
     public let parameterName: InternedString?
@@ -564,9 +511,7 @@ public struct PropertyAccessorDecl: Equatable, Codable {
 }
 
 public struct ExplicitBackingField: Codable {
-    /// When `nil`, the type is inferred from the initializer expression.
     public let type: TypeRefID?
-    /// May be omitted when an explicit field type is assigned in an init block.
     public let initializer: ExprID?
 
     public init(type: TypeRefID? = nil, initializer: ExprID? = nil) {
@@ -587,19 +532,13 @@ public struct PropertyDecl: Codable {
     public let getter: PropertyAccessorDecl?
     public let setter: PropertyAccessorDecl?
     public let delegateExpression: ExprID?
-    /// Captured separately so existing
-    /// delegate lowering can reuse the call argument's parsed body.
     public let delegateBody: FunctionBody?
     public let delegateBodyParams: [InternedString]
     public let receiverType: TypeRefID?
     public let contextReceivers: [ContextReceiverDecl]
     public let isSynthesizedPrimaryConstructorProperty: Bool
     public let explicitBackingField: ExplicitBackingField?
-    /// Source location of the `override` keyword, if present — see
-    /// `FunDecl.overrideKeywordRange`.
     public let overrideKeywordRange: SourceRange?
-    /// Source location of the `val`/`var` keyword itself — see
-    /// `FunDecl.declarationKeywordRange`.
     public let declarationKeywordRange: SourceRange?
 
     public var allAccessorsAreInline: Bool {
@@ -688,8 +627,6 @@ public struct TypeAliasDecl: Codable {
     public let annotations: [AnnotationNode]
     public let typeParams: [TypeParamDecl]
     public let underlyingType: TypeRefID?
-    /// Source location of the `typealias` keyword itself — see
-    /// `FunDecl.declarationKeywordRange`.
     public let declarationKeywordRange: SourceRange?
 
     public init(
@@ -716,28 +653,12 @@ public struct EnumEntryDecl: Codable {
     public let name: InternedString
     public let annotations: [AnnotationNode]
     public let constructorArgs: [CallArgument]
-    /// True when the source wrote the superclass-style constructor invocation
-    /// — `A(...)` including `A()` — rather than a bare `A` entry name. The
-    /// argument list alone cannot distinguish `A()` from `A`.
     public let hasConstructorCallSyntax: Bool
-    /// True when the entry carries an anonymous class body — `A { ... }`,
-    /// including an empty `A {}` that member lists alone cannot distinguish
-    /// from a bare `A`.
     public let hasBody: Bool
     public let initBlocks: [FunctionBody]
-    /// Property initializers and init blocks execute in declaration order.
     public let classBodyInitOrder: [ClassBodyInitMember]
-    /// These declarations are kept separate from the enum class members. The
-    /// runtime still represents enum values as ordinals, so the lowering pass
-    /// can synthesize ordinal-based dispatch for overrides without creating a
-    /// second heap-backed representation for enum entries.
     public let memberFunctions: [DeclID]
-    /// Like `memberFunctions`, they are
-    /// owned by the entry field symbol; their values live in the per-entry
-    /// side storage that the enum's lazy initializer fills.
     public let memberProperties: [DeclID]
-    /// Nested classifier declarations belong to the entry scope while the
-    /// entry value itself keeps the enum's ordinal-backed representation.
     public let nestedClasses: [DeclID]
 
     public init(
@@ -883,14 +804,12 @@ public struct ValueParamDecl: Equatable, Codable {
     public let isMutableProperty: Bool
     public let isOverrideProperty: Bool
     public let isOpenProperty: Bool
-    /// `true` when a primary constructor property parameter carries `actual`.
     public let isActualProperty: Bool
     /// Optional so AST
     /// payloads written before this field was introduced retain default visibility.
     public let propertyVisibilityModifiers: Modifiers?
     public let hasDefaultValue: Bool
     public let isVararg: Bool
-    /// Source range of the `vararg` modifier, when present.
     public let varargRange: SourceRange?
     public let isCrossinline: Bool
     public let isNoinline: Bool

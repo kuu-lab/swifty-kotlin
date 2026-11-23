@@ -118,8 +118,6 @@ extension JVMFunctionBuilder {
         if let bound = program.sema.bindings.callableValueCallBinding(for: id),
            let callee = bound.extensionCallableExpr,
            case let .functionType(signature) = program.sema.types.kind(of: bound.functionType) {
-            // Sema's lexical reference preserves the property's dispatch owner;
-            // the call-site receiver belongs only to the returned function.
             let object = try requireValue(receiver), function = try requireValue(callee)
             var values = [object]
             for arg in args { values.append(try requireValue(arg.expr)) }
@@ -179,8 +177,6 @@ extension JVMFunctionBuilder {
         let symbols = Set(visible.values.compactMap(\.symbol))
         var free = Set(CaptureAnalyzer().collectCapturedOuterSymbols(in: body, ast: program.ast, sema: program.sema, outerSymbols: symbols, skipNestedClosures: false))
         free.formUnion(localReferenceCaptureSymbols(in: body))
-        // Receiver-style calls to function locals have no nameRef AST child.
-        // Retain the semantically selected callable, including in nested lambdas.
         if let range = arena.exprRange(body) {
             for (call, binding) in program.sema.bindings.callableValueCalls {
                 guard case let .localValue(symbol) = binding.target, symbols.contains(symbol),
@@ -204,8 +200,6 @@ extension JVMFunctionBuilder {
         for (i, receiver) in contexts.enumerated() { captures.append(("receiver\(i)", receiver.value)) }
         let argumentIndex = captures.count
         for (i, argument) in contextArguments.enumerated() { captures.append(("context\(i)", argument.value)) }
-        // Escaping helpers receive resolved type tokens, so they never execute
-        // an unresolved reified marker after the caller has finished inlining.
         let tokenIndex = captures.count
         let tokenTypes = reifiedCaptureTypes(body)
         for (i, type) in tokenTypes.enumerated() {

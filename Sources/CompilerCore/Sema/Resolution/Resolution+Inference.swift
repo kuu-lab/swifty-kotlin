@@ -73,6 +73,8 @@ extension OverloadResolver {
         range: SourceRange,
         ctx: SemaModule
     ) -> Diagnostic? {
+        guard !ctx.jvmClasspathStubFiles.contains(range.start.file) else { return nil }
+
         func mergedUpperBounds(signatureBounds: [TypeID], symbolBounds: [TypeID]) -> [TypeID] {
             var merged: [TypeID] = []
             merged.reserveCapacity(signatureBounds.count + symbolBounds.count)

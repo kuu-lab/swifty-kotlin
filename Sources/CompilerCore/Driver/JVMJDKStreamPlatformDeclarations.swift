@@ -1,7 +1,6 @@
 import Foundation
 
 extension JVMClasspathIndex {
-    /// Supplies the JDK 8 stream contracts while keeping their implementations in the JDK.
     func injectJDKStreamPlatformDeclarations(into ctx: CompilationContext) throws {
         func reference(_ name: String) -> JVMValueType {
             .reference(name, nullable: false)

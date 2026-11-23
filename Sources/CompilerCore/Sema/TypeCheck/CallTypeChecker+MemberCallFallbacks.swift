@@ -278,9 +278,6 @@ extension CallTypeChecker {
             let secondIsChar = sema.types.makeNonNullable(secondType) == sema.types.charType
                 || secondIsCharLiteral
             if firstIsChar || secondIsChar {
-                // The Char overload takes two Chars. Do not let this generic
-                // result-type fallback swallow an inapplicable mixed overload
-                // such as replace(Char, String) after candidate resolution fails.
                 guard firstType == sema.types.charType,
                       secondType == sema.types.charType
                 else {
@@ -561,12 +558,6 @@ extension CallTypeChecker {
         return finalType
     }
 
-    /// Resolves `placement.alloc<T>()` to the synthetic
-    /// `kotlinx.cinterop.alloc<T : CVariable>(): T` extension when the new
-    /// `NativePlacement` member overloads (`alloc(size, align)`) shadow the
-    /// zero-argument generic form during member lookup.  See
-    /// `inferRegularMemberCall` for why member candidates are not mixed with
-    /// extension candidates by default.
     func tryNativePlacementAllocExtensionFallback(
         _ id: ExprID,
         calleeName: InternedString,
@@ -632,11 +623,6 @@ extension CallTypeChecker {
         return finalType
     }
 
-    /// Resolves `value.readValue()` to the synthetic
-    /// `<T : CStructVar> T.readValue(): CValue<T>` extension when the
-    /// member-first lookup picks up `CPointed.readValue(size, align)` (an
-    /// inherited member that any `CStructVar`-bounded receiver exposes) and
-    /// the resolver rejects it on arity mismatch with no extension fallback.
     func tryNativeCInteropReadValueExtensionFallback(
         _ id: ExprID,
         calleeName: InternedString,
@@ -697,9 +683,6 @@ extension CallTypeChecker {
             else {
                 return false
             }
-            // The synthetic extension's declared receiver is its own type
-            // parameter; reject `CPointed.readValue(size, align)` (concrete
-            // receiver + 2 params) and any other unrelated overload.
             return sema.types.kind(of: recv) == .typeParam(TypeParamType(
                 symbol: signature.typeParameterSymbols[0],
                 nullability: .nonNull

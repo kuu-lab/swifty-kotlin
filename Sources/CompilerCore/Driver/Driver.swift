@@ -35,6 +35,13 @@ public final class CompilerDriver {
         }
     }
 
+    /// Android Java sources compile before Sema against the `-include-runtime`
+    /// jar, whose provider the backend installs when its phases are created.
+    /// Both the full pipeline and `runFrontend` create them up front then.
+    func backendPhasesForJavaSources(_ options: CompilerOptions) -> [CompilerPhase]? {
+        !options.android.javaSources.isEmpty && options.includeJVMRuntime ? backendPhases() : nil
+    }
+
     func runForTesting(options: CompilerOptions) -> (exitCode: Int, diagnostics: [Diagnostic]) {
         runInternal(options: options, printDiagnostics: false)
     }
@@ -98,6 +105,7 @@ public final class CompilerDriver {
             }
         }
 
+        let earlyBackend = backendPhasesForJavaSources(options)
         let syntaxPhases: [CompilerPhase] = [LoadSourcesPhase()]
             + (options.emit.isJVM ? [JVMPreparationPhase()] : []) + [
             LexPhase(),
@@ -124,7 +132,7 @@ public final class CompilerDriver {
             } else if ctx.options.runsImmediately {
                 runExitCode = runImmediately(ctx: ctx)
             } else {
-                let backend = backendPhases()
+                let backend = earlyBackend ?? backendPhases()
                 executePhases(ctx: ctx, phases: backend, incrementalEnabled: false)
             }
         }

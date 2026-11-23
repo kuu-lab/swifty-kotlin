@@ -24,8 +24,6 @@ extension JVMFunctionBuilder {
                     instructions.append(.copy(checked, result)); mark(end)
                     return result
                 }
-                // The shared ABI helper accepts null for official nullable
-                // casts; a non-null Kotlin target checks it at this call site.
                 _ = try jdkCall("java/util/Objects", "requireNonNull", [object.type], object.type, arguments: [object])
                 return try jdkCall("kotlin/jvm/internal/TypeIntrinsics", "as" + collection, [object.type], type, arguments: [object])!
             }

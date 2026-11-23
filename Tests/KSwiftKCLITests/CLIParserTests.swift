@@ -155,6 +155,45 @@ struct CLIParserTests {
         #expect(try CLIParser.parse(args: ["--emit", "apk", "--android-res", "res", "hello.kt"]).android.resourcePath == "res")
     }
 
+    @Test
+    func parsesAndroidDependencyAndManifestOptions() throws {
+        let options = try CLIParser.parse(args: [
+            "--emit", "apk", "Main.kt", "Bridge.java",
+            "--android-dependency", "androidx.core:core:1.13.1",
+            "--android-dependency", "androidx.activity:activity:1.9.3",
+            "--android-library", "libs/local.aar",
+            "--maven-repository", "file:///repo", "--maven-cache", "cache", "--offline",
+            "--android-namespace", "org.example", "--android-application-id", "org.example.debug",
+            "--android-target-sdk", "34", "--android-version-code", "7", "--android-version-name", "1.7",
+            "--android-debuggable",
+        ])
+        #expect(options.inputs == ["Main.kt"])
+        #expect(options.android.javaSources == ["Bridge.java"])
+        #expect(options.android.dependencies == ["androidx.core:core:1.13.1", "androidx.activity:activity:1.9.3"])
+        #expect(options.android.libraries == ["libs/local.aar"])
+        #expect(options.android.mavenRepositories == ["file:///repo"])
+        #expect(options.android.mavenCachePath == "cache")
+        #expect(options.android.offline)
+        #expect(options.android.namespace == "org.example")
+        #expect(options.android.applicationID == "org.example.debug")
+        #expect(options.android.targetSdk == 34)
+        #expect(options.android.versionCode == 7)
+        #expect(options.android.versionName == "1.7")
+        #expect(options.android.debuggable)
+        #expect(throws: CLIParseError.missingValue("--android-dependency requires group:artifact:version")) {
+            try CLIParser.parse(args: ["--emit", "apk", "--android-dependency", "androidx.core:core", "Main.kt"])
+        }
+        // Dependencies and Java sources also work for dex; manifest values need apk.
+        #expect(try CLIParser.parse(args: ["--emit", "dex", "--android-dependency", "g:a:1", "Main.kt", "B.java"])
+            .android.javaSources == ["B.java"])
+        #expect(throws: CLIParseError.androidPackagingRequiresAPK("--android-namespace requires --emit apk")) {
+            try CLIParser.parse(args: ["--emit", "dex", "--android-namespace", "org.example", "Main.kt"])
+        }
+        #expect(throws: CLIParseError.androidOptionsRequireDEXOrAPK(".java input requires --emit dex or apk")) {
+            try CLIParser.parse(args: ["--emit", "jar", "Main.kt", "Bridge.java"])
+        }
+    }
+
     @Test(arguments: ["--test", "-generate-test-runner"])
     func parsesTestRunnerFlag(flag: String) throws {
         let options = try CLIParser.parse(args: [flag, "tests.kt"])

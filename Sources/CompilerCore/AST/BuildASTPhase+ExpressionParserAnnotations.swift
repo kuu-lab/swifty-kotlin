@@ -1,6 +1,4 @@
 extension BuildASTPhase.ExpressionParser {
-    /// Shared by prefix-unary expressions and control-flow bodies, whose
-    /// braces denote blocks unless they contain explicit lambda parameters.
     func parseAnnotatedExpression(_ parseOperand: () -> ExprID?) -> ExprID? {
         let remaining = Array(tokens[index...])
         var next = 0

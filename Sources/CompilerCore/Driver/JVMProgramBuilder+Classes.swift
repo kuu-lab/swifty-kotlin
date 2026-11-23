@@ -227,10 +227,7 @@ extension JVMProgramBuilder {
             if let c = plan.declaration, !plan.isAnnotation, !plan.isObject, !plan.isAnonymous, plan.enumParent == nil {
                 let owner = sema.symbols.symbol(plan.symbol)!
                 for symbol in sema.symbols.lookupAll(fqName: owner.fqName + [context.interner.intern("<init>")]) {
-                    // The bundled collection registry can retain a synthetic
-                    // constructor shell alongside the JVM source declaration.
                     if let entry = sema.symbols.symbol(symbol), entry.declSite == nil, entry.flags.contains(.synthetic) { continue }
-                    // An `expect class` shares the FQ name; its constructors are not emitted.
                     if sema.symbols.symbol(symbol)?.flags.contains(.expectDeclaration) == true
                         || sema.symbols.parentSymbol(for: symbol).flatMap({ sema.symbols.symbol($0) })?.flags.contains(.expectDeclaration) == true { continue }
                     guard let signature = sema.symbols.functionSignature(for: symbol), let site = sema.symbols.symbol(symbol)?.declSite else { throw JVMFrontendError(message: "Missing JVM constructor signature.") }
@@ -314,8 +311,12 @@ extension JVMProgramBuilder {
             guard !exposedField || (hasField && p.delegateExpression == nil) else {
                 throw JVMFrontendError(message: "JVM @JvmField property must have a backing field.", range: p.range)
             }
-            // @JvmField inside any object — including a companion — publishes a
-            // static field on that object, matching kotlinc's layout.
+            let usesPrivateBackingField = hasField && p.modifiers.contains(.private)
+                && p.getter == nil && p.setter == nil && p.delegateExpression == nil
+                && !p.modifiers.contains(.lateinit) && !exposedField
+                && !sema.bindings.callableReferenceBindings.values.contains { reference in
+                    reference.chosenCallee == symbol || sema.symbols.propertySymbol(forAccessor: reference.chosenCallee) == symbol
+                }
             let staticObjectField = exposedField && plan.isObject
             let immutableField = !p.isVar && (!plan.isObject || staticObjectField)
             let propertyAnnotationRecords = try annotationRecords(for: symbol)
@@ -330,6 +331,7 @@ extension JVMProgramBuilder {
             var property = JVMProperty(name: name, type: type, getter: getter, setter: setter, field: field, modifiers: p.modifiers)
             property.isGetterInline = p.modifiers.contains(.inline) || p.getter?.isInline == true
             property.isSetterInline = p.modifiers.contains(.inline) || p.setter?.isInline == true
+            property.usesPrivateBackingField = usesPrivateBackingField
             property.kotlinType = try kotlinType(propertyType)
             property.kotlinReceiver = try extensionReceiverSemantic.map(kotlinType)
             property.genericSignature = try signatureType(propertyType)
@@ -420,8 +422,6 @@ extension JVMProgramBuilder {
             } else {
                 functions += interfaceDefaultForwarders(plan, existing: functions)
             }
-            // Return types participate in JVM descriptors. Covariant overrides
-            // therefore need bridges for calls through a superclass/interface.
             functions += try bridges(plan, functions: functions)
             functions += try collectionDelegationMethods(plan, existing: functions)
             functions += try collectionPropertyAliases(plan, existing: functions)

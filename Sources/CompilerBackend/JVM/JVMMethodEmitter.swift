@@ -10,6 +10,7 @@ struct JVMMethodCode {
     let locals: UInt16
     let frames: Data?
     var exceptions: [(UInt16, UInt16, UInt16, UInt16)] = []
+    var declaredExceptions: [String] = []
     var signature: String? = nil
     var annotations: [JVMAnnotation] = []
     var parameterAnnotations: [[JVMAnnotation]] = []
@@ -47,7 +48,6 @@ final class JVMMethodEmitter {
         if slot > 255 { assembler.code.u1(0xC4); assembler.code.u1(opcode); assembler.code.u2(UInt16(slot)) }
         else { assembler.code.u1(opcode); assembler.code.u1(UInt8(slot)) }
     }
-    /// Offset within the i/l/f/d/a opcode families (iload..aload, istore..astore, ireturn..areturn).
     func familyOffset(_ type: JVMValueType) -> UInt8 {
         switch type.stackType {
         case .long: 1

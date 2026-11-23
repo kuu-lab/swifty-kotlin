@@ -10,11 +10,11 @@ final class JVMCodegenPhase: CompilerPhase {
             throw CompilerPipelineError.outputUnavailable
         }
         do {
-            // Validate and construct all bytes before touching the destination.
             let target = ctx.options.jvmTarget
             let classIndex = JVMClassFile.ClassIndex(program)
             let classFile = try JVMClassFile.emit(program, target: target, javaParameters: ctx.options.javaParameters, classIndex: classIndex)
-            let runtime = ctx.options.emit == .jvmJar && ctx.options.includeJVMRuntime && !ctx.options.stdlibOnly
+            let packagesRuntime = [.jvmJar, .dex, .apk].contains(ctx.options.emit)
+            let runtime = packagesRuntime && ctx.options.includeJVMRuntime && !ctx.options.stdlibOnly
                 ? try runtimeEntries(for: ctx.options)
                 : []
             let runtimePaths = Set(runtime.map(\.0))
@@ -56,20 +56,21 @@ final class JVMCodegenPhase: CompilerPhase {
                 // android.jar/JDK implementations at runtime; their JVM
                 // signatures still bind calls to the framework methods.
                 let stubClassFiles = ctx.jvmImportedClassFileNames
-                let dexClasses = classes.filter { !stubClassFiles.contains($0.0) }
+                let dexClasses = classes.filter { !stubClassFiles.contains($0.0) } + runtime
                 if ctx.options.emit == .dex {
                     try AndroidPackaging.emitDex(
                         options: ctx.options, className: program.internalClassName,
                         classFile: classFile, hasMain: program.hasMain,
                         module: (modulePath, module), classes: dexClasses,
-                        phaseTimer: ctx.phaseTimer
+                        inputs: ctx.androidBuildInputs, phaseTimer: ctx.phaseTimer
                     )
                 } else {
                     try AndroidPackaging.emitAPK(
                         options: ctx.options, className: program.internalClassName,
                         classFile: classFile, hasMain: program.hasMain,
                         module: (modulePath, module), classes: dexClasses + ctx.androidResourceClassFiles,
-                        linkedResources: ctx.androidResourceLink, phaseTimer: ctx.phaseTimer
+                        linkedResources: ctx.androidResourceLink, inputs: ctx.androidBuildInputs,
+                        phaseTimer: ctx.phaseTimer
                     )
                 }
             default:
@@ -85,6 +86,18 @@ final class JVMCodegenPhase: CompilerPhase {
             ctx.diagnostics.error("KSWIFTK-JVM-0002", "Cannot emit JVM output: \(error)", range: nil)
             throw CompilerPipelineError.outputUnavailable
         }
+    }
+
+    /// The `-include-runtime` classes as a jar, for `javac` classpaths.
+    static func runtimeJar(for application: CompilerOptions) throws -> Data {
+        let entries = try JVMCodegenPhase().runtimeEntries(for: application)
+        guard let first = entries.first, first.0.hasSuffix(".class") else {
+            throw JVMEmissionError.runtimeBuildFailed("The JVM runtime has no classes.")
+        }
+        return try JVMJarArchive.emit(
+            className: String(first.0.dropLast(".class".count)), classFile: first.1,
+            hasMain: false, classes: Array(entries.dropFirst())
+        )
     }
 
     private func runtimeEntries(for application: CompilerOptions) throws -> [(String, Data)] {

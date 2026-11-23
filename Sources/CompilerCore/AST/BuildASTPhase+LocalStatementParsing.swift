@@ -100,9 +100,6 @@ extension BuildASTPhase {
         )
     }
 
-    /// `suppressesLocalModifierDiagnostics` is set when the same token group is
-    /// re-parsed as an anonymous-object member prefix, where visibility
-    /// modifiers are legal and handled by the member-property builder.
     static func parseDestructuringDeclarationStatement(
         from statementTokens: [Token],
         interner: StringInterner,
@@ -150,8 +147,6 @@ extension BuildASTPhase {
         )
     }
 
-    /// `(val a, var b) = x` / `[val a, var b] = x`: a statement-initial
-    /// destructuring group whose first entry declares a variable.
     static func isFullFormDestructuringHead(_ tokens: [Token]) -> Bool {
         guard tokens.count > 2,
               tokens[0].kind == .symbol(.lParen) || tokens[0].kind == .symbol(.lBracket)
@@ -270,10 +265,6 @@ extension BuildASTPhase {
         return declExpr
     }
 
-    /// Splits the inside of `( ... )` / `[ ... ]` into entries. Supports the
-    /// Kotlin 2.4 forms `name`, `name = property` and (brackets only) the full
-    /// form `val name` / `var name`. Returns nil for a mixed full form, where
-    /// some entries assign to existing variables.
     private static func parseDestructuringEntries(
         _ innerTokens: [Token],
         interner: StringInterner,
@@ -300,7 +291,6 @@ extension BuildASTPhase {
             case let .backtickedIdentifier(name):
                 .some(name)
             case let .keyword(keyword):
-                // Contextual keywords like `value` are valid identifiers here.
                 .some(interner.intern(keyword.rawValue))
             case let .softKeyword(soft):
                 .some(interner.intern(soft.rawValue))
@@ -359,8 +349,6 @@ extension BuildASTPhase {
         return (names, properties, mutableFlags)
     }
 
-    /// KUU-1407: local variables reject every declaration modifier except
-    /// `lateinit` on `var`s (JVM reports them as compile errors).
     private func validateLocalVariableModifiers(
         _ modifiers: [(name: String, range: SourceRange)],
         isMutable: Bool

@@ -17,6 +17,16 @@ annotation class JvmOverloads
 @kotlin.annotation.Retention(kotlin.annotation.AnnotationRetention.RUNTIME)
 @kotlin.annotation.MustBeDocumented
 annotation class JvmStatic
+@Target(
+    AnnotationTarget.CLASS,
+    AnnotationTarget.FUNCTION,
+    AnnotationTarget.PROPERTY,
+    AnnotationTarget.TYPE
+)
+@Retention(AnnotationRetention.BINARY)
+@MustBeDocumented
+public annotation class JvmSuppressWildcards(val suppress: Boolean = true)
+
 @kotlin.annotation.Target(kotlin.annotation.AnnotationTarget.FUNCTION, kotlin.annotation.AnnotationTarget.PROPERTY_GETTER, kotlin.annotation.AnnotationTarget.PROPERTY_SETTER)
 @kotlin.annotation.Retention(kotlin.annotation.AnnotationRetention.SOURCE)
 @kotlin.annotation.MustBeDocumented

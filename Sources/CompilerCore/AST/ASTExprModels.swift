@@ -120,7 +120,6 @@ public struct WhenBranch: Equatable, Codable {
 public struct CallArgument: Equatable, Codable {
     public let label: InternedString?
     public let isSpread: Bool
-    /// True only for a lambda written outside the call parentheses.
     public let isTrailingLambda: Bool
     public let expr: ExprID
 
@@ -156,14 +155,9 @@ public enum ForDestructuringSyntax: Equatable, Codable {
     case squareBrackets
 }
 
-/// Extra shape of destructuring expressions that the positional `names` list
-/// cannot express (Kotlin 2.4 name-based and full-form declarations).
 public struct DestructuringDeclLayout: Equatable, Codable {
     public var syntax: ForDestructuringSyntax
-    /// Per entry: the property read for `(a = prop)`; nil means "same as the
-    /// variable name" (short form) or positional entry.
     public var properties: [InternedString?]
-    /// Per entry mutability (`[val a, var b]`); empty means the declaration's `isMutable`.
     public var mutableFlags: [Bool]
     public var entryTypeRefs: [Int: TypeRefID]
 
@@ -224,8 +218,6 @@ public enum Expr: Equatable, Codable {
     case objectLiteral(superTypes: [TypeRefID], decl: DeclID?, range: SourceRange)
     case callableRef(receiver: ExprID?, member: InternedString, range: SourceRange)
     case localFunDecl(name: InternedString, receiverType: TypeRefID? = nil, valueParams: [ValueParamDecl], returnType: TypeRefID?, body: FunctionBody, isSuspend: Bool, range: SourceRange, typeParams: [TypeParamDecl] = [], isTailrec: Bool = false)
-    /// Unlike a top-level nominal decl the name is only visible to statements
-    /// after it inside the same block scope, mirroring `localFunDecl`.
     case localNominalDecl(declID: DeclID, range: SourceRange)
     case blockExpr(statements: [ExprID], trailingExpr: ExprID?, range: SourceRange)
     case superRef(interfaceQualifier: InternedString?, label: InternedString?, SourceRange)

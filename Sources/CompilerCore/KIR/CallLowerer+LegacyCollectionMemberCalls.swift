@@ -67,13 +67,8 @@ extension CallLowerer {
         result: KIRExprID,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        // String.isNullOrEmpty/isNullOrBlank are bundled Kotlin source (KSP-401).
         if args.isEmpty {
             let calleeStr = calleeNameStr
-            // A source-backed Collection<T>?.isNullOrEmpty() declaration may
-            // be selected once the Collection surface is bundled from Kotlin
-            // source, but concrete collection receivers still need their
-            // type-specific non-throwing isEmpty bridge here.
             let isSourceBackedCollectionIsNullOrEmpty: Bool = {
                 guard calleeStr == "isNullOrEmpty",
                       let chosenCallee = chosenCalleeForArgumentAdaptation,
@@ -87,9 +82,6 @@ extension CallLowerer {
                 else {
                     return false
                 }
-                // `kotlin.collections.isNullOrEmpty` is overloaded per receiver
-                // (Collection, Map, ...); the bare package+name FQN above can't
-                // tell those apart since extension receivers aren't part of it.
                 // Map's own isNullOrEmpty is also source-backed and must keep
                 // calling through its Kotlin declaration (which owns the
                 // private __kk_map_is_empty helper), so only take the
@@ -249,8 +241,6 @@ extension CallLowerer {
         let hasHOFLambdaArg = args.last.map { ast.arena.expr($0.expr)?.isLambdaOrCallableRef ?? false } ?? false
         let knownNames = KnownCompilerNames(interner: interner)
 
-        // KSP-307: ListWindowChunk public functions are source-backed, but codegen
-        // still lowers their executable path to private runtime bridges.
         do {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
@@ -325,9 +315,6 @@ extension CallLowerer {
                     guard let size = argumentID(forParameter: 0, valueArgumentCount: valueArgumentCount) else {
                         return nil
                     }
-                    // Named arguments can omit `step` while supplying `partialWindows`.
-                    // Select each value by its resolved parameter slot instead of assuming
-                    // that source argument order matches declaration order.
                     let step = argumentID(forParameter: 1, valueArgumentCount: valueArgumentCount) ?? intLiteral(1)
                     let partial = argumentID(forParameter: 2, valueArgumentCount: valueArgumentCount) ?? intLiteral(0)
                     return (size, step, partial)
@@ -346,9 +333,6 @@ extension CallLowerer {
                     guard let windowedArguments = windowedRuntimeValueArguments(valueArgumentCount: valueArgCount) else {
                         return nil
                     }
-                    // `normalizedArgIDs[valueArgCount]` is the transform callable
-                    // in both shapes (unexpanded lambda, or the fnPtr of an
-                    // already-expanded `addCollectionHOFClosureArguments` pair).
                     let (fnPtrExpr, envPtrExpr) = splitErasedTransformBridgeArgument(
                         normalizedArgIDs[valueArgCount],
                         existingEnvPtrID: normalizedArgIDs.count > valueArgCount + 1

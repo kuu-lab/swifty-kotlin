@@ -9,14 +9,6 @@ enum AnnotationParsingSupport {
         let invalidUseSiteTargetRange: SourceRange?
     }
 
-    /// - Parameter typeContext: Pass `true` when parsing an annotation in
-    ///   type position (`val x: @A () -> Unit`, `typealias F = @A (T) -> R`).
-    ///   Mirrors kotlinc's TYPE_CONTEXT rule: a `(` after the annotation name
-    ///   opens the argument list unless the token inside is `val`/`var`, or —
-    ///   only when whitespace or a comment precedes it — its contents mark a
-    ///   type: a matching `)` followed by `->` (function type parameter
-    ///   list), or a function-type `->` inside the parentheses (parenthesized
-    ///   type group such as `@Composable (() -> Unit)?`).
     static func parseAnnotation(
         from tokens: [Token],
         start: Int,
@@ -229,8 +221,6 @@ enum AnnotationParsingSupport {
                 return tokens[lParenIndex].leadingTrivia.isEmpty
             }
         }
-        // An unbalanced `(` cannot start a function type; treat it as the
-        // argument list so diagnostics land on the unclosed annotation.
         return true
     }
 
