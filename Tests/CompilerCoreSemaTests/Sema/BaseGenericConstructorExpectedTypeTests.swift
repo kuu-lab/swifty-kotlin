@@ -312,9 +312,6 @@ struct BaseGenericConstructorExpectedTypeTests {
         #expect(errors.isEmpty, "\(errors)")
     }
 
-    /// KUU-3937: inside a member function the expected type references the
-    /// class's own type parameter, which is also the constructor's inference
-    /// variable symbol. Decomposing `POS<E'> <: PS<E>` must still pin E' := E.
     @Test(arguments: [false, true])
     func memberFunctionExpectedSupertypePinsOwnClassTypeParameter(fromSource: Bool) throws {
         let ctx = try makeTestContext("""
@@ -342,9 +339,6 @@ struct BaseGenericConstructorExpectedTypeTests {
         #expect(classType.args == [.invariant(lexicalParameter)])
     }
 
-    /// Same collision through a constructor parameter that itself mentions the
-    /// class type parameter, matching kotlinx.collections.immutable
-    /// `PersistentOrderedSet.add`.
     @Test func memberFunctionExpectedSupertypePinsParameterUsedInOtherParameter() throws {
         let ctx = try makeTestContext("""
         interface PMap<K, V>
@@ -359,9 +353,6 @@ struct BaseGenericConstructorExpectedTypeTests {
         #expect(errors.isEmpty, "\(errors)")
     }
 
-    /// A lexical parameter nested inside the expected type argument is real
-    /// evidence too, not a self-collision: `POS<E'> <: PS<Wrap<E>>` must bind
-    /// `E' = Wrap<E>`, which the same-symbol pin must not override.
     @Test func memberFunctionExpectedSupertypeKeepsNestedParameterInference() throws {
         let ctx = try makeTestContext("""
         interface PS<E>
@@ -393,8 +384,6 @@ struct BaseGenericConstructorExpectedTypeTests {
         #expect(classType.args == [.invariant(wrappedParameter)])
     }
 
-    /// A different expected type argument is still a real constraint: the
-    /// inferred constructor argument must satisfy it.
     @Test func memberFunctionExpectedSupertypeStillRejectsIncompatibleArgument() throws {
         let ctx = try makeTestContext("""
         interface PS<E>
@@ -407,8 +396,6 @@ struct BaseGenericConstructorExpectedTypeTests {
         #expect(!errors.isEmpty, "Expected POS<String> to be rejected for PS<E>")
     }
 
-    /// Keep focused inference tests cheap; end-to-end diff cases own source
-    /// injection as well, and the exact nested repro also runs both modes here.
     private func makeTestContext(_ source: String, fromSource: Bool = false) throws -> CompilationContext {
         if fromSource { return makeContextFromSource(source) }
         TestStdlibCache.shared.prepare()
