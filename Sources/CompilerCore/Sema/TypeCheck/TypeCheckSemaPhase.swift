@@ -505,7 +505,8 @@ private final class TypeCheckWork: @unchecked Sendable {
         DataFlowSemaPhase().validateInferredMemberVariance(
             ast: driver.ast, symbols: driver.sema.symbols,
             bindings: driver.sema.bindings, types: driver.sema.types,
-            diagnostics: driver.diagnostics, interner: driver.interner
+            diagnostics: driver.diagnostics, interner: driver.interner,
+            sourceManager: driver.sourceManager
         )
         DataFlowSemaPhase().validateInferredOverrideReturnTypes(
             ast: driver.ast, symbols: driver.sema.symbols,
