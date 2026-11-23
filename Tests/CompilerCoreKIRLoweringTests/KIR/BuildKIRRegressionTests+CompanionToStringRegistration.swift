@@ -4,12 +4,6 @@ import Testing
 @testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
-    /// KUU-2935: a companion object that overrides `toString()` must register
-    /// its Any-erased bridge (`kk_object_register_any_to_string`) from the
-    /// eager `__companion_init_*` initializer — the same registration
-    /// `synthesizeObjectInitializer` performs for named objects. Without it,
-    /// `Companion`-typed values stringified through `Any` fall back to
-    /// `<object 0x...>`.
     @Test func companionToStringOverrideRegistersAnyErasedBridge() throws {
         let ctx = makeContextFromSource("""
         object Named {
@@ -35,7 +29,6 @@ extension BuildKIRRegressionTests {
                 return ctx.interner.resolve(callee) == "kk_object_register_any_to_string"
             }
         }
-        // Control: named objects have always emitted the registration.
         let objectInit = try #require(functions.first { function in
             ctx.interner.resolve(function.name).hasPrefix("__object_init_")
         })
