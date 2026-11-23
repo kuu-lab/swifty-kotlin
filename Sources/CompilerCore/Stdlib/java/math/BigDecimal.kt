@@ -105,6 +105,14 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
         return __kk_bignum_compareTo(other)
     }
 
+    public override fun equals(other: Any?): Boolean {
+        if (other !is BigDecimal) return false
+        val that = other as BigDecimal
+        return scale() == that.scale() && compareTo(that) == 0
+    }
+
+    public override fun hashCode(): Int = 31 * unscaledValue().hashCode() + scale()
+
     public fun add(augend: BigDecimal): BigDecimal = __kk_bignum_add(augend)
 
     public fun add(augend: BigDecimal, mathContext: MathContext): BigDecimal =
@@ -402,6 +410,14 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
 
     public operator fun div(other: BigDecimal): BigDecimal =
         divide(other, RoundingMode.HALF_EVEN)
+
+    public operator fun rem(other: BigDecimal): BigDecimal = remainder(other)
+
+    public operator fun unaryMinus(): BigDecimal = negate()
+
+    public operator fun inc(): BigDecimal = add(ONE)
+
+    public operator fun dec(): BigDecimal = subtract(ONE)
 
     public override fun toDouble(): Double = __kk_bignum_toDouble()
 
