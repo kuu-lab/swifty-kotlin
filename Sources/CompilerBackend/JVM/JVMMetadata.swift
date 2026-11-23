@@ -68,7 +68,7 @@ enum JVMMetadata {
         func sourceType(_ t: JVMKotlinType) -> Data {
             var p = Proto()
             switch t {
-            case let .function(parameters, result, receiver, nullable, suspend, context):
+            case let .function(parameters, result, receiver, nullable, suspend, context, _):
                 let inputs = context + [receiver].compactMap { $0 } + parameters
                 if suspend {
                     // Kotlin metadata records the lowered FunctionN shape and

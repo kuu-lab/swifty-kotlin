@@ -396,7 +396,7 @@ public indirect enum JVMKotlinType {
     case named(String, [JVMKotlinTypeArgument], nullable: Bool)
     case parameter(Int, nullable: Bool, definitelyNotNull: Bool)
     case flexible(JVMKotlinType, JVMKotlinType)
-    case function([JVMKotlinType], JVMKotlinType, receiver: JVMKotlinType?, nullable: Bool, isSuspend: Bool = false, context: [JVMKotlinType] = [])
+    case function([JVMKotlinType], JVMKotlinType, receiver: JVMKotlinType?, nullable: Bool, isSuspend: Bool = false, context: [JVMKotlinType] = [], isComposable: Bool = false)
 }
 public struct JVMKotlinTypeArgument {
     public let type: JVMKotlinType?
