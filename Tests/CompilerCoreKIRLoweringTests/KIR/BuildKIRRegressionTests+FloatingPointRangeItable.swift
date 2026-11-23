@@ -5,8 +5,6 @@ import TestStdlibCache
 @testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
-    /// KUU-3347: floating-point range values use an opaque runtime handle, but
-    /// for-in must still honor a user-defined `ClosedRange<Double>.iterator()`.
     @Test
     func customClosedRangeDoubleIteratorDrivesForIn() throws {
         TestStdlibCache.shared.prepare()
@@ -40,12 +38,6 @@ extension BuildKIRRegressionTests {
         )
     }
 
-    /// KUU-3258: `x in r` on an untracked `ClosedFloatingPointRange`/`ClosedRange`
-    /// receiver lowers into the bundled cross-type `contains` extension, whose
-    /// body calls `contains(value.toFloat())` as an unqualified member call on
-    /// the implicit extension receiver. That call must probe the runtime
-    /// floating-point range box before falling through to itable dispatch, or
-    /// the box (which registers no Kotlin itable) traps at lookup time.
     @Test
     func testImplicitRangeReceiverMemberCallProbesBeforeInterfaceDispatch() throws {
         let ctx = makeContextFromSource("""
@@ -73,10 +65,6 @@ extension BuildKIRRegressionTests {
         #expect(body[(dispatchIndex + 1)...].contains { if case .label = $0 { true } else { false } })
     }
 
-    /// KUU-3258: a user class that implements a stdlib range interface without
-    /// overriding `contains`/`isEmpty` must register the interface's compiled
-    /// default bodies (`kk_fn_*` imports) into its itable — the registration
-    /// guard may only skip runtime-bridge and abstract members.
     @Test
     func testClosedRangeInterfaceDefaultsRegisterOnUserImplementation() throws {
         TestStdlibCache.shared.prepare()
@@ -93,8 +81,6 @@ extension BuildKIRRegressionTests {
         #expect(registered.contains("isEmpty"), "registered: \(registered)")
     }
 
-    /// Enum entries never run a constructor, so their itable is populated at
-    /// box time — the same source-backed defaults must register there too.
     @Test
     func testClosedRangeInterfaceDefaultsRegisterOnEnumBox() throws {
         TestStdlibCache.shared.prepare()
@@ -113,8 +99,6 @@ extension BuildKIRRegressionTests {
         #expect(registered.contains("isEmpty"), "registered: \(registered)")
     }
 
-    /// Names of member implementations registered through
-    /// `kk_object_register_itable_method` anywhere in the module.
     private func itableRegisteredMemberNames(
         in module: KIRModule,
         sema: SemaModule,
