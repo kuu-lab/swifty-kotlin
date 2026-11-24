@@ -1498,8 +1498,8 @@ final class ControlFlowTypeChecker {
         if let finallyExpr {
             var finallyLocals = locals
             let pendingReturnEndIndices = finallyReturnScopes.map(\.pendingFinallyReturnStates.count)
-            let finallyType = driver.inferExpr(finallyExpr, ctx: ctx, locals: &finallyLocals, expectedType: nil, isStatementContext: true)
-            let finallyCompletesNormally = finallyType != sema.types.nothingType
+            _ = driver.inferExpr(finallyExpr, ctx: ctx, locals: &finallyLocals, expectedType: nil, isStatementContext: true)
+            let finallyCompletesNormally = !finallyAlwaysJumps(finallyExpr, ast: ctx.ast)
             var finallyInitializedSymbols: Set<SymbolID> = []
             for (name, local) in preTryLocals where !local.isInitialized {
                 if let finalLocal = finallyLocals[name], finalLocal.symbol == local.symbol, finalLocal.isInitialized {
@@ -1553,6 +1553,17 @@ final class ControlFlowTypeChecker {
         let resolvedType = sema.types.lub(branchTypes)
         sema.bindings.bindExprType(id, type: resolvedType)
         return resolvedType
+    }
+
+    private func finallyAlwaysJumps(_ expr: ExprID, ast: ASTModule) -> Bool {
+        switch ast.arena.expr(expr) {
+        case .throwExpr, .returnExpr, .breakExpr, .continueExpr:
+            true
+        case let .blockExpr(statements, trailingExpr, _):
+            (statements + [trailingExpr].compactMap { $0 }).contains { finallyAlwaysJumps($0, ast: ast) }
+        default:
+            false
+        }
     }
 
     private func resolveCatchClauseParameterType(

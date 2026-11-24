@@ -336,5 +336,35 @@ extension JVMBackendTests {
             #expect(result.0 == 0, "\(result.1.map(\.message))")
         }
     }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func contractLambdaReturnKeptWhenFinallyOnlyLooksNonCompletingOnNormalPath(mode: EmitMode) throws {
+        // `token = null` only happens on the normal path, so `token!!` infers
+        // as Nothing there, but the early-return path reaches finally with a
+        // non-null token and still leaves the lambda before `x = 5`.
+        let source = """
+        fun f(input: String) {
+            var x: Int
+            input.takeUnless lit@{
+                var token: String? = input
+                try {
+                    if (it.isEmpty()) return@lit false
+                    token = null
+                } finally {
+                    token!!
+                }
+                x = 5
+                true
+            }
+            println(x)
+        }
+        fun main() { f("hi") }
+        """
+        try withWorkspace { root in
+            let result = try compile(source, root: root, mode: mode)
+            try #require(result.0 != 0, "expected definite-assignment failure")
+            #expect(result.1.contains { $0.message.contains("must be initialized") })
+        }
+    }
 }
 #endif
