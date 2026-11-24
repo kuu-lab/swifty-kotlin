@@ -172,6 +172,12 @@ extension JVMBackendTests {
                 @SerialName("total$")
                 class Dollar(val x: Int)
 
+                const val PREFIX = "otp"
+
+                @Serializable
+                @SerialName("x$PREFIX")
+                class Interpolated(val x: Int)
+
                 @Serializable
                 @SerialName("a\\nb")
                 class Escaped(val x: Int)
@@ -187,6 +193,7 @@ extension JVMBackendTests {
             let entries = try jarEntries(root)
             #expect(entries.contains("Literal$$serializer.class"))
             #expect(entries.contains("Dollar$$serializer.class"))
+            #expect(!entries.contains("Interpolated$$serializer.class"))
             #expect(!entries.contains("Escaped$$serializer.class"))
             #expect(!entries.contains("Backslash$$serializer.class"))
             let code = try jvmTool("javap", ["-p", "-c", "-constants", "-cp", "hello.jar", "Literal$$serializer"], root: root)

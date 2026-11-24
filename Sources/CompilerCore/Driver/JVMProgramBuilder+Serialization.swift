@@ -122,10 +122,7 @@ extension JVMProgramBuilder {
         let scalars = Array(body.unicodeScalars)
         for (index, scalar) in scalars.enumerated() {
             if scalar == "\"" || scalar == "\\" || scalar.value < 0x20 || scalar.value == 0x7F { return .unsupported }
-            if scalar == "$", index + 1 < scalars.count {
-                let next = scalars[index + 1]
-                if next == "{" || next == "_" || next.properties.isAlphabetic { return .unsupported }
-            }
+            if scalar == "$", index + 1 < scalars.count { return .unsupported }
         }
         return .literal(body)
     }
