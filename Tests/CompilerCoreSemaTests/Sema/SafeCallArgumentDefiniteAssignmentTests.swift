@@ -221,5 +221,38 @@ struct SafeCallArgumentDefiniteAssignmentTests {
             }
         }
     }
+
+    @Test
+    func testPossibleAssignmentIsDroppedWhenFinallyAlwaysExitsAfterLambdaReturn() throws {
+        let sources = [
+            """
+            package lambdaReturnThenFinallyExit
+            fun read(s: String?, b: Boolean, c: Boolean, d: Boolean): Int {
+                val x: Int
+                if (b) {
+                    s?.plus(if (c) { x = 5; "a" } else { x = 6; "b" })
+                    try {
+                        run<Int> {
+                            if (d) return@run 1
+                            throw IllegalStateException()
+                        }
+                    } finally {
+                        return 0
+                    }
+                }
+                x = 8
+                return x
+            }
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            for path in paths {
+                let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+                #expect(errors.isEmpty, "\(path): \(errors)")
+            }
+        }
+    }
 }
 #endif
