@@ -366,5 +366,28 @@ extension JVMBackendTests {
             #expect(result.1.contains { $0.message.contains("must be initialized") })
         }
     }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func contractLambdaReturnCancelledByNothingCallInFinallyIsNotACompletionPath(mode: EmitMode) throws {
+        let source = """
+        fun main() {
+            var x: Int
+            "hi".takeUnless lit@{
+                try {
+                    if (it.isEmpty()) return@lit false
+                } finally {
+                    error("boom")
+                }
+                x = 5
+                true
+            }
+            println(x)
+        }
+        """
+        try withWorkspace { root in
+            let result = try compile(source, root: root, mode: mode)
+            #expect(result.0 == 0, "\(result.1.map(\.message))")
+        }
+    }
 }
 #endif

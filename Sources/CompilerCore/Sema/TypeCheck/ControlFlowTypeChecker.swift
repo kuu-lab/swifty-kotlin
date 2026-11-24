@@ -1499,7 +1499,7 @@ final class ControlFlowTypeChecker {
             var finallyLocals = locals
             let pendingReturnEndIndices = finallyReturnScopes.map(\.pendingFinallyReturnStates.count)
             _ = driver.inferExpr(finallyExpr, ctx: ctx, locals: &finallyLocals, expectedType: nil, isStatementContext: true)
-            let finallyCompletesNormally = !finallyAlwaysJumps(finallyExpr, ast: ctx.ast)
+            let finallyCompletesNormally = !finallyAlwaysJumps(finallyExpr, ctx: ctx)
             var finallyInitializedSymbols: Set<SymbolID> = []
             for (name, local) in preTryLocals where !local.isInitialized {
                 if let finalLocal = finallyLocals[name], finalLocal.symbol == local.symbol, finalLocal.isInitialized {
@@ -1555,14 +1555,16 @@ final class ControlFlowTypeChecker {
         return resolvedType
     }
 
-    private func finallyAlwaysJumps(_ expr: ExprID, ast: ASTModule) -> Bool {
-        switch ast.arena.expr(expr) {
+    private func finallyAlwaysJumps(_ expr: ExprID, ctx: TypeInferenceContext) -> Bool {
+        switch ctx.ast.arena.expr(expr) {
         case .throwExpr, .returnExpr, .breakExpr, .continueExpr:
-            true
+            return true
+        case .call, .memberCall:
+            return ctx.sema.bindings.exprType(for: expr) == ctx.sema.types.nothingType
         case let .blockExpr(statements, trailingExpr, _):
-            (statements + [trailingExpr].compactMap { $0 }).contains { finallyAlwaysJumps($0, ast: ast) }
+            return (statements + [trailingExpr].compactMap { $0 }).contains { finallyAlwaysJumps($0, ctx: ctx) }
         default:
-            false
+            return false
         }
     }
 
