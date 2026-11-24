@@ -5,24 +5,36 @@ import Foundation
 /// For each call, the body is copied into a generated class with the markers
 /// resolved to the call's concrete type arguments.
 struct JVMReifiedHost {
-    let name: String
-    var clones: [JVMReifiedClone] = []
-    var cloneNames: [String: String] = [:]
+    var name = ""
+    var clone: JVMReifiedClone?
     var helpers: [JVMFunction] = []
     var helperNames: [String: String] = [:]
+    /// Classes the patches name; non-public ones decide the host's package.
+    var referencedClasses: Set<String> = []
 }
 
 extension JVMProgramBuilder {
-    func reifiedHostName(for owner: String) -> String {
-        "kswiftk/reified/" + context.options.moduleName + "/" + owner.replacingOccurrences(of: "/", with: "$") + "$Reified"
-    }
-
     func reifiedHostClasses() -> [JVMClass] {
-        reifiedHosts.values.sorted { $0.name < $1.name }.map { host in
+        // Type arguments that erase to the same classes produce the same content
+        // and therefore the same class.
+        var seen: Set<String> = []
+        return reifiedHosts.values.sorted { $0.name < $1.name }.filter { seen.insert($0.name).inserted }.map { host in
             var type = rawClass(host.name, access: 0x1031, functions: host.helpers)
-            type.reifiedClones = host.clones
+            type.reifiedClones = host.clone.map { [$0] } ?? []
             return type
         }
+    }
+
+    /// Whether another package can name `className` in a class constant.
+    func isPubliclyAccessible(_ className: String) -> Bool {
+        var name = className
+        while name.hasPrefix("[") { name.removeFirst() }
+        if name.hasPrefix("L"), name.hasSuffix(";") { name = String(name.dropFirst().dropLast()) }
+        if let plan = classes.values.first(where: { $0.name == name }) {
+            return !plan.modifiers.contains(.private) || plan.escapesInline
+        }
+        if let imported = context.jvmImports?.classes[name] { return imported.flags & 1 != 0 }
+        return true
     }
 }
 
@@ -73,27 +85,43 @@ extension JVMFunctionBuilder {
             throw ReifiedUnsupported(message: "Cannot inline the reified classpath function \(display): its body uses \(reason).")
         }
         let key = ([method.owner, method.name, method.descriptor] + resolved.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value.rawValue)" }).joined(separator: "|")
-        let hostName = program.reifiedHostName(for: method.owner)
-        var host = program.reifiedHosts[method.owner] ?? JVMReifiedHost(name: hostName)
         let descriptor = method.isStatic ? method.descriptor : "(L" + method.owner + ";" + method.descriptor.dropFirst()
-        let cloneName: String
-        if let existing = host.cloneNames[key] {
-            cloneName = existing
-        } else {
-            cloneName = method.name + "$reified$" + String(host.clones.count)
-            var patches: [JVMReifiedClone.Patch] = []
-            for site in analysis.sites {
-                patches.append(try reifiedPatch(site, arguments: resolved, host: &host, display: display, id: id))
-            }
-            host.clones.append(JVMReifiedClone(name: cloneName, descriptor: descriptor, body: body, patches: patches))
-            host.cloneNames[key] = cloneName
-        }
-        program.reifiedHosts[method.owner] = host
         let receiver: [JVMValueType] = method.isStatic ? [] : [.reference(method.owner, nullable: false)]
-        return JVMForeignMethod(
-            owner: hostName, name: cloneName, descriptor: descriptor, parameters: receiver + method.parameters,
-            result: method.result, isStatic: true, isInterface: false, isAbstract: false
-        )
+        func target(_ host: String, _ name: String) -> JVMForeignMethod {
+            JVMForeignMethod(
+                owner: host, name: name, descriptor: descriptor, parameters: receiver + method.parameters,
+                result: method.result, isStatic: true, isInterface: false, isAbstract: false
+            )
+        }
+        if let existing = program.reifiedHosts[key], let clone = existing.clone { return target(existing.name, clone.name) }
+
+        var host = JVMReifiedHost()
+        var patches: [JVMReifiedClone.Patch] = []
+        for site in analysis.sites {
+            patches.append(try reifiedPatch(site, arguments: resolved, analysis: analysis, host: &host, display: display, id: id))
+        }
+        // The class is named by its content, so independently built modules that
+        // clone the same body differently cannot shadow one another's class.
+        // A non-public type argument is only nameable from its own package.
+        let packages = Set(host.referencedClasses.filter { !program.isPubliclyAccessible($0) }.map { name -> String in
+            var plain = name
+            while plain.hasPrefix("[") { plain.removeFirst() }
+            if plain.hasPrefix("L"), plain.hasSuffix(";") { plain = String(plain.dropFirst().dropLast()) }
+            return plain.contains("/") ? String(plain[..<plain.lastIndex(of: "/")!]) : ""
+        })
+        guard packages.count <= 1 else {
+            throw ReifiedUnsupported(message: "Cannot inline the reified classpath function \(display): its type arguments are non-public classes of different packages.")
+        }
+        let package = packages.first ?? "kswiftk/reified"
+        let cloneName = method.name + "$reified"
+        let clone = JVMReifiedClone(name: cloneName, descriptor: descriptor, body: body, patches: patches)
+        let fingerprint = StableFNV1a64.hex([method.owner, method.name, method.descriptor, String(describing: patches), String(describing: host.helpers.map(\.instructions))].joined(separator: "\u{1}"))
+        let shortOwner = method.owner.split(separator: "/").last.map(String.init) ?? method.owner
+        host.name = (package.isEmpty ? "" : package + "/") + shortOwner.replacingOccurrences(of: "$", with: "_") + "$Reified$" + fingerprint
+        for index in host.helpers.indices { host.helpers[index].owner = host.name }
+        host.clone = clone
+        program.reifiedHosts[key] = host
+        return target(host.name, cloneName)
     }
 
     private func isConcreteReifiedArgument(_ id: TypeID) -> Bool {
@@ -111,24 +139,37 @@ extension JVMFunctionBuilder {
     }
 
     private func reifiedPatch(
-        _ site: JVMReifiedBody.Site, arguments: [String: TypeID], host: inout JVMReifiedHost, display: String, id: ExprID
+        _ site: JVMReifiedBody.Site, arguments: [String: TypeID], analysis: JVMReifiedBody.Analysis,
+        host: inout JVMReifiedHost, display: String, id: ExprID
     ) throws -> JVMReifiedClone.Patch {
         var identifier = site.identifier
         let markerNullable = identifier.hasSuffix("?")
         if markerNullable { identifier.removeLast() }
+        // `[T` names an array whose element is T (Array<T>, Array<Array<T>> ...).
+        var dimensions = 0
+        while identifier.hasPrefix("[") { identifier.removeFirst(); dimensions += 1 }
         func unsupported(_ detail: String) -> ReifiedUnsupported {
             ReifiedUnsupported(message: "Cannot inline the reified classpath function \(display): \(detail).")
         }
         guard let type = arguments[identifier] else { throw unsupported("type parameter \(identifier) has no concrete type argument") }
-        let nullable = markerNullable || program.sema.types.nullability(of: type) != .nonNull
+        let nullable = markerNullable || (dimensions == 0 && program.sema.types.nullability(of: type) != .nonNull)
         func patch(_ operation: JVMReifiedClone.Operation) -> JVMReifiedClone.Patch {
             JVMReifiedClone.Patch(start: site.start, end: site.end, operation: operation)
         }
         if site.operation == 6, site.placeholderOpcode == 0x01 {
+            guard dimensions == 0 else { throw unsupported("typeOf of an array of a type parameter is not supported") }
+            // The placeholder is `aconst_null`; a stack map frame that merges only
+            // nulls would not accept the KType that replaces it.
+            guard !analysis.code.stackMapHasNull else { throw unsupported("its stack map holds null values, which typeOf cannot replace safely") }
             let helper = try reifiedTypeOfHelper(type, nullable: nullable, host: &host, display: display, id: id)
             return patch(.helperCall(name: helper, descriptor: "()Lkotlin/reflect/KType;", checkcast: nil))
         }
-        let (className, kotlinName) = try reifiedClassName(type, display: display, id: id)
+        var (className, kotlinName) = try reifiedClassName(type, display: display, id: id)
+        for _ in 0..<dimensions {
+            className = className.hasPrefix("[") ? "[" + className : "[L" + className + ";"
+            kotlinName = "kotlin.Array<" + kotlinName + ">"
+        }
+        host.referencedClasses.insert(className)
         switch (site.operation, site.placeholderOpcode) {
         case (0, 0xBD): return patch(.anewarray(className))
         case (1, 0xC0):
@@ -177,7 +218,7 @@ extension JVMFunctionBuilder {
     ) throws -> String {
         if let existing = host.helperNames[key] { return existing }
         let name = "reified$helper$" + String(host.helpers.count)
-        host.helpers.append(try make(host.name, name))
+        host.helpers.append(try make("", name))
         host.helperNames[key] = name
         return name
     }
@@ -216,10 +257,11 @@ extension JVMFunctionBuilder {
         let result = try builder.build(type, nullable: nullable)
         let name = "reified$helper$" + String(host.helpers.count)
         host.helpers.append(program.rawFunction(
-            host.name, name: name, parameters: [], result: Self.kType, access: 0x1009,
+            "", name: name, parameters: [], result: Self.kType, access: 0x1009,
             locals: builder.locals, instructions: builder.instructions + [.returnValue(result)]
         ))
         host.helperNames[key] = name
+        host.referencedClasses.formUnion(builder.referencedClasses)
         return name
     }
 
@@ -230,6 +272,7 @@ extension JVMFunctionBuilder {
         let id: ExprID
         var instructions: [JVMInstruction] = []
         var locals: [JVMValue] = []
+        var referencedClasses: Set<String> = []
         var slot = 0
 
         init(function: JVMFunctionBuilder, display: String, id: ExprID) {
@@ -273,6 +316,7 @@ extension JVMFunctionBuilder {
                 guard let name = boxed.referenceName else {
                     throw ReifiedUnsupported(message: "Cannot inline the reified classpath function \(display): typeOf needs a class type.")
                 }
+                referencedClasses.insert(name)
                 instructions.append(.classLiteral(name, classValue))
             }
             let projectionType: JVMValueType = .reference("kotlin/reflect/KTypeProjection", nullable: false)

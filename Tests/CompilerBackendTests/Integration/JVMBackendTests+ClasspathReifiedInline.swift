@@ -28,6 +28,8 @@ extension JVMBackendTests {
     inline fun <reified T> Any?.extIs(): Boolean = this is T
     inline fun <reified T> forwarded(x: Any?): Boolean = isT<T>(x)
     inline fun <reified T> notUsed(x: Int): Int = x + 1
+    inline fun <reified T> arr2(n: Int): Array<Array<T>?> = arrayOfNulls<Array<T>>(n)
+    inline fun <reified T> castArr(x: Any?): Array<T> = x as Array<T>
     fun plainLambda(): () -> Int = { 1 }
     fun template(x: Int): String = "v=$x"
     class Box { inline fun <reified T> member(x: Any?): Boolean = x is T }
@@ -39,7 +41,11 @@ extension JVMBackendTests {
 
     inline fun <reified T> wrap(x: Any?): Boolean = isT<T>(x)
 
+    private class Secret
+
     fun main() {
+        println(reifiedTypeName<Secret>()); println(isT<Secret>(Secret())); println(isT<Secret>("x"))
+        println(arr2<String>(2)::class.java.simpleName); println(arr2<Int>(1).size); println(castArr<String>(arrayOf("a")).size)
         println(plainLambda()()); println(template(3))
         println(wrap<String>("a")); println(wrap<Int>("a"))
         println(Box().takeIf { true }?.member<String>("a"))
@@ -170,13 +176,22 @@ extension JVMBackendTests {
         try withWorkspace { root in
             let library = try reifiedLibraryJar(root, name: "Unsupported", source: """
             package fixture
+            import kotlin.reflect.typeOf
             inline fun <reified T> lazyName(): () -> String = { T::class.toString() }
+            inline fun <reified T, reified R> pick(f: Boolean): Any? = if (f) typeOf<T>() else typeOf<R>()
             """)
             let lambda = try compile("""
             import fixture.lazyName
             fun main() { println(lazyName<String>()()) }
             """, root: root, mode: .jvmJar, classpath: [library.path])
             #expect(lambda.1.contains { $0.severity == .warning && $0.message.contains("needs class reification") }, "\(lambda.1.map(\.message))")
+
+            // Both typeOf results are merged as null in the stack map, which a KType cannot join.
+            let merged = try compile("""
+            import fixture.pick
+            fun main() { println(pick<String, Int>(true)) }
+            """, root: root, mode: .jvmJar, classpath: [library.path])
+            #expect(merged.1.contains { $0.severity == .warning && $0.message.contains("stack map holds null values") }, "\(merged.1.map(\.message))")
         }
     }
 }

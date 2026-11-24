@@ -148,6 +148,41 @@ public struct JVMRawCode: Sendable {
 
     struct Invalid: Error {}
 
+    /// True when any stack map frame records a `null` stack or local type.
+    public var stackMapHasNull: Bool {
+        guard let table = stackMapTable else { return false }
+        let bytes = [UInt8](table)
+        var offset = 0
+        func u1() -> Int? { guard offset < bytes.count else { return nil }; defer { offset += 1 }; return Int(bytes[offset]) }
+        func u2() -> Int? { guard let high = u1(), let low = u1() else { return nil }; return high << 8 | low }
+        // Returns true for a Null entry, nil on malformed input.
+        func verificationType() -> Bool? {
+            guard let tag = u1() else { return nil }
+            if tag == 7 || tag == 8 { return u2() == nil ? nil : false }
+            return tag == 5
+        }
+        guard let count = u2() else { return true }
+        for _ in 0..<count {
+            guard let type = u1() else { return true }
+            var types = 0
+            switch type {
+            case 0...63: break
+            case 64...127: types = 1
+            case 247: guard u2() != nil else { return true }; types = 1
+            case 248...251: guard u2() != nil else { return true }
+            case 252...254: guard u2() != nil else { return true }; types = type - 251
+            case 255:
+                guard u2() != nil, let locals = u2() else { return true }
+                for _ in 0..<locals { guard let isNull = verificationType() else { return true }; if isNull { return true } }
+                guard let stack = u2() else { return true }
+                for _ in 0..<stack { guard let isNull = verificationType() else { return true }; if isNull { return true } }
+            default: return true
+            }
+            for _ in 0..<types { guard let isNull = verificationType() else { return true }; if isNull { return true } }
+        }
+        return false
+    }
+
     /// Parses the attribute payload that starts at `offset` (after the attribute header).
     static func parse(_ bytes: [UInt8], at start: Int, size: Int, pool: JVMRawConstantPool) throws -> JVMRawCode {
         var offset = start
