@@ -1,7 +1,5 @@
 import Foundation
 
-/// Shell-only shape. Full signatures, layouts, contracts and annotations stay
-/// in the independently addressed body and are never constructed during v3 decode.
 struct CompactMetadataIndexRecord {
     let kind: SymbolKind
     let visibility: Visibility
@@ -48,8 +46,6 @@ struct CompactMetadataIndexRecord {
         }
     }
 
-    /// Compatibility view for tests and legacy callers; the importer uses the
-    /// shell shape directly, without allocating a generic MetadataRecord.
     var record: MetadataRecord {
         MetadataRecord(
             kind: kind, visibility: visibility,
@@ -104,10 +100,6 @@ enum CompactMetadataIndex {
         withUnsafeBytes(of: &littleEndian) { data.append(contentsOf: $0) }
     }
 
-    /// Items per worker chunk when decoding in parallel. Both the string
-    /// table and the fixed-width entry table split along scanned/arithmetic
-    /// boundaries, so chunks stay independent and any malformed item still
-    /// rejects the whole file exactly like the sequential scan did.
     private static let parallelChunkSize = 1024
 
     /// A read-only view of the file bytes shared by decode workers for the
@@ -125,9 +117,6 @@ enum CompactMetadataIndex {
         }
     }
 
-    /// Decodes `[0, itemCount)` in per-core chunks on the global concurrent
-    /// queue, preserving input order. Small tables stay on the calling
-    /// thread — dispatch overhead would exceed the decode work there.
     private static func decodeChunks<T>(
         itemCount: Int,
         decode: @Sendable (Range<Int>) -> [T]?
@@ -140,8 +129,6 @@ enum CompactMetadataIndex {
             return decode(0 ..< itemCount)
         }
         let chunkSize = (itemCount + chunkCount - 1) / chunkCount
-        // Element is the per-chunk array; a chunk that rejects stores nil so
-        // the failure is distinguishable from a chunk that never ran.
         let results = LockedIndexedResults<[T]?>(count: chunkCount)
         DispatchQueue.concurrentPerform(iterations: chunkCount) { chunkIndex in
             let lower = chunkIndex * chunkSize
@@ -182,9 +169,6 @@ enum CompactMetadataIndex {
             else { return nil }
             let stringsEnd = cursor + stringBytes
             let bodyStart = stringsEnd + count * entrySize
-            // Scan string byte ranges without decoding so worker chunks can
-            // decode their slice independently; the table check above already
-            // bounded the whole section.
             var scannedRanges: [Range<Int>] = []
             scannedRanges.reserveCapacity(stringCount)
             for _ in 0 ..< stringCount {
@@ -231,9 +215,6 @@ enum CompactMetadataIndex {
                           offsetValue <= UInt64(bodySize), lengthValue > 0,
                           lengthValue <= UInt64(bodySize) - offsetValue
                     else { return nil }
-                    // Fixed field positions avoid token/key parsing and
-                    // per-field string allocation. Shared IDs also preserve
-                    // Unicode names.
                     let idsStart = base + 32
                     for field in 0 ..< 12 {
                         guard shared.integer(UInt32.self, at: idsStart + field * 4) < strings.count
@@ -275,7 +256,6 @@ enum CompactMetadataIndex {
 }
 
 extension MetadataEncoder {
-    /// Producer-side work replaces every consumer's eager text-index decode.
     package func serializeCompactIndexed(_ records: [MetadataRecord]) -> Data {
         let lines = serialize(records).split(whereSeparator: \.isNewline).dropFirst()
         var body = Data()
@@ -353,7 +333,6 @@ extension MetadataEncoder {
         return result
     }
 
-    /// Cache integrity checks need only the compact shell's inline routing.
     package static func compactInlineKIRMangledNames(in data: Data) -> [String]? {
         guard data.starts(with: CompactMetadataIndex.magic), let file = IndexedMetadataFile(data: data) else { return nil }
         return file.entries.compactMap { entry in

@@ -1,6 +1,4 @@
 extension DataFlowSemaPhase {
-    /// The bundled JVM `kotlin.Comparator` is mapped to `java.util.Comparator`,
-    /// whose generic `compare` parameters are platform types at Kotlin call sites.
     /// Keep user-declared Kotlin interfaces strict by applying this only to the
     /// compiler-owned bundled signature.
     func javaComparatorParameterTypes(

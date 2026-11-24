@@ -6,27 +6,6 @@ extension CoroutineLoweringPass {
     /// Runtime reads it back as `runtimeSuspendInvokeEntryMethodSlot`.
     static let suspendInvokeEntryMethodSlot = Int64(UInt32.max)
 
-    /// Locates `kk_object_register_itable_method` calls that bind a
-    /// `SuspendFunctionN` interface slot to a suspend `invoke` implementation
-    /// and pairs each with the launcher thunk runtime dispatch needs.
-    ///
-    /// A nominal class implementing a suspend function type
-    /// (`class C : suspend () -> T`) constructs through the ordinary object
-    /// path: it is never wrapped in a `RuntimeFunctionValueBox`, so the
-    /// suspend invoke dispatchers (`kk_suspend_function_invoke*` /
-    /// `kk_create_coroutine_unintercepted_*`) cannot reach its invoke state
-    /// machine and the coroutine builders trap. The launcher thunk — the
-    /// `(continuation, outThrown)` entry point a callable box carries in
-    /// `suspendEntryPoint` — is what the runtime needs; it is registered under
-    /// `suspendInvokeEntryMethodSlot` by `appendSuspendObjectEntryRegistration`.
-    ///
-    /// Registration sites pair `kk_object_register_itable_iface(object, typeID,
-    /// slot)` with `kk_object_register_itable_method(object, slot, method,
-    /// fn)`, reusing the same slot expression, so the interface's stable type
-    /// ID recovered from the former keys the latter.
-    ///
-    /// - Returns: method-registration instruction index → the object, the
-    ///   shared interface-slot expression, and the thunk to register.
     func suspendObjectEntryRegistrations(
         in function: KIRFunction,
         symbolByExprRaw: [Int32: SymbolID],
@@ -47,12 +26,6 @@ extension CoroutineLoweringPass {
         let ifaceRegisterCallee = interner.intern("kk_object_register_itable_iface")
         let methodRegisterCallee = interner.intern("kk_object_register_itable_method")
 
-        // Propagate integer literals through `.copy` so the interface
-        // registration's type-ID argument is recoverable even when the literal
-        // reaches the call through a temporary. Mirrors the convergence scheme
-        // in `propagatedSymbolReferences`: an expr raw that receives two
-        // distinct values is marked ambiguous and excluded, which both keeps
-        // the scan sound and guarantees the fixpoint loop terminates.
         var intLiteralByExprRaw: [Int32: Int64] = [:]
         var ambiguousLiteralExprRaws: Set<Int32> = []
         for instruction in function.body {
@@ -136,11 +109,6 @@ extension CoroutineLoweringPass {
         return registrations
     }
 
-    /// Resolves the launcher thunk for the function pointer an itable method
-    /// registration installs. Registrations carry either the implementation
-    /// itself or a `kk_itable_bridge_<iface>_<impl>_<id>` adapter whose middle
-    /// component is the implementation's symbol id; only suspend functions
-    /// lowered by this pass own launcher thunks.
     private func suspendInvokeThunkSymbol(
         forRegisteredSymbol functionSymbol: SymbolID,
         using rewrite: SuspendRewriteContext
@@ -164,9 +132,6 @@ extension CoroutineLoweringPass {
         return rewrite.launcherThunkByOriginalSymbol[SymbolID(rawValue: implementationRaw)]?.symbol
     }
 
-    /// Emits the reserved-slot twin of a `SuspendFunctionN` itable method
-    /// registration: the same `(object, ifaceSlot)` pair, bound to the invoke
-    /// launcher thunk at `suspendInvokeEntryMethodSlot`.
     func appendSuspendObjectEntryRegistration(
         objectExpr: KIRExprID,
         slotExpr: KIRExprID,

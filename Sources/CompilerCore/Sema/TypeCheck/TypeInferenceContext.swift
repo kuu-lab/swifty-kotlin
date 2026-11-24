@@ -1,15 +1,8 @@
-/// Shared by copied contexts so nested returns contribute to their actual target.
 final class LambdaReturnInferenceScope {
     let exprID: ExprID
     let label: InternedString?
     let expectedReturnType: TypeID?
     var returnValueTypes: [ExprID: TypeID] = [:]
-    /// Local state at each `return@label` that completes this lambda, so
-    /// callsInPlace definite-assignment only counts locals initialized on
-    /// every completion path (fall-through included by the caller). Returns
-    /// inside a try body/catch clause of a try-with-finally are not recorded:
-    /// finally runs before the lambda completes, and its effects are not part
-    /// of the recorded locals.
     var returnLocalStates: [LocalBindings] = []
 
     init(exprID: ExprID, label: InternedString?, expectedReturnType: TypeID?) {
@@ -19,7 +12,6 @@ final class LambdaReturnInferenceScope {
     }
 }
 
-/// Shared by copied contexts so loop jumps retain the local state at their target.
 final class LoopControlFlowInferenceScope {
     let label: InternedString?
     var breakLocalStates: [LocalBindings] = []
@@ -43,49 +35,16 @@ struct TypeInferenceContext: CustomStringConvertible {
     let dataFlow: DataFlowAnalyzer
     let interner: StringInterner
     var scope: Scope
-    /// An Elvis branch call may use its peer's type to infer generic return
-    /// arguments without requiring the call result to be a subtype of that type.
     var isElvisBranchExpectedTypeHint = false
-    /// A direct generic call on the Elvis RHS may use the LHS's non-null type
-    /// to fill type variables that its inputs did not determine.
     var elvisRhsCallResultTypeHint: TypeID?
     var elvisRhsCallResultTypeHintExpr: ExprID?
-    /// A failed call may retry once using its arguments' natural types while
-    /// keeping the outer result constraint in overload resolution.
     var allowsLiftedCallExpectedTypeHints = true
-    /// Collection fast paths must check inputs when their result type comes
-    /// from a speculative superclass hint rather than the inputs themselves.
     var validatesLiftedHintCollectionArguments = false
-    /// Direct equality operands have no argument type that can infer a generic
-    /// zero-argument collection factory's element type.
     var collectionFactoryInferenceRequiredForEqualityOperand: ExprID?
-    /// The current call expression is in statement position and its result is
-    /// discarded. This lets generic call inference apply Kotlin's Unit-coercion
-    /// rules without weakening calls whose values are consumed by expressions.
     var isCallResultDiscarded = false
-    /// The surrounding function or lambda body is expected to produce Unit.
-    /// A discarded call may pass Unit to its lambda arguments only in this
-    /// context; ordinary statements in non-Unit functions keep natural types.
     var isUnitCoercionContext = false
-    /// The current expression sits on a conditionally-evaluated path within the
-    /// current locals scope (the conditional tail of a `?.` chain). Effects
-    /// recorded unconditionally into `locals` — such as `x as T` narrowing —
-    /// must not leak to code after the conditional point, so they are
-    /// suppressed while this is set. Cleared when a fresh locals scope starts
-    /// (lambda bodies, `if`/`when` branches), where local narrowing cannot leak.
     var isConditionallyEvaluated = false
-    /// The `isConditionallyEvaluated` value for receiver/callee spine elements
-    /// of the call expression currently being entered — the flag as it was
-    /// before that node raised `isConditionallyEvaluated` for its arguments.
-    /// `a?.b` reads `a` even when `b` is skipped, so spine elements keep the
-    /// conditionality the enclosing call node itself was evaluated under:
-    /// `(x!!)?.f()` still narrows `x`, while `x?.f(y!!.v)` keeps `y!!` on the
-    /// conditional path. Set at each call-expression entry; only meaningful
-    /// until the expression's own `?.` raise, after which non-spine children
-    /// must read `isConditionallyEvaluated` instead.
     var receiverConditionallyEvaluated = false
-    /// Already-checked typed when subjects reused by synthesized is/in conditions.
-    /// Keep initializer bindings intact while conditions see the declared variable type.
     var whenSubjectTypes: [ExprID: TypeID] = [:]
     /// The subject ExprID of the enclosing `when` while one of its branch
     /// conditions is being inferred. The parser reuses that exact ExprID as
@@ -94,14 +53,9 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// synthetic typed local (KUU-3893).
     var whenConditionSubject: ExprID?
     var implicitReceiverType: TypeID?
-    /// Receiver values in lexical order, including shadowed lambda receivers.
     var implicitReceiverStack: [(type: TypeID, symbol: SymbolID)] = []
     var builderInference: BuilderInferenceSession?
-    /// Formal parameters of the surrounding call, not rigid lexical parameters.
     var callableReferenceInferenceParameters: Set<SymbolID> = []
-    /// True while inferring a callable reference directly against a call
-    /// parameter. Keep its source function type visible so call lowering can
-    /// emit a required suspend-conversion adapter.
     var isCallableReferenceArgument = false
     /// The argument expression currently being inferred in a call's argument
     /// position. A bare collection factory (`emptyList()`) *at that exact
@@ -115,52 +69,18 @@ struct TypeInferenceContext: CustomStringConvertible {
     var callArgumentExprBeingInferred: ExprID?
     var loopDepth: Int
     var loopLabelStack: [InternedString]
-    /// Loop targets share jump snapshots across copied branch contexts.
     var loopFlowScopes: [LoopControlFlowInferenceScope] = []
-    /// Loop scopes visible immediately before each enclosing lambda boundary.
-    /// A break/continue may cross these boundaries only when every intervening
-    /// lambda is an argument to an inline parameter that allows non-local jumps.
     var lambdaLoopScopes: [(exprID: ExprID, loopDepth: Int, labels: [InternedString])] = []
-    /// A label written on a lambda that is immediately consumed by a postfix
-    /// suffix (`foo@{ ... }()`) binds to the postfix expression in Kotlin, so it
-    /// is tracked here as visible but not function-denoting.
     var lambdaLabelStack: [(label: InternedString, denotesFunction: Bool)]
     var lambdaReturnScopes: [LambdaReturnInferenceScope] = []
-    /// Number of lambda bodies enclosing the expression currently being inferred.
-    /// An unlabeled return inside such a body is a non-local return and is checked
-    /// against the surrounding named function's return type rather than the
-    /// lambda's predicate/result type.
     var lambdaDepth: Int = 0
-    /// Number of enclosing try bodies/catch clauses whose `finally` has not run
-    /// yet at the expression currently being inferred. A `return@label` inside
-    /// such a region completes the lambda only after `finally` runs, so its
-    /// recorded locals cannot account for finally's effects; callsInPlace
-    /// return-path tracking skips those states and keeps the enclosing lambda's
-    /// fall-through state as the only guarantee (matching pre-tracking behavior).
     var enclosingTryFinallyDepth = 0
-    /// Independent of return targets: initializers cannot inherit suspension.
     var suspensionContext = SuspensionContext()
     var defaultArgumentComposableFunction: SymbolID?
-    /// Return type of the nearest named function body. This remains unchanged
-    /// while entering lambda literals so non-local return values are checked
-    /// against the actual return target.
     var enclosingFunctionReturnType: TypeID?
     var enclosingFunctionSymbol: SymbolID?
-    /// Whether the return target — the nearest named function or accessor,
-    /// which an unlabeled `return` and `return@name` bind to — has an
-    /// `= expression` body *without* an explicitly declared return type.
-    /// Kotlin rejects `return` in that position (`fun f() = return`, including
-    /// `return` inside `if`/`when`/`try` branches of the body), reported as
-    /// KSWIFTK-SEMA-0311; kotlinc only warns when the return crosses an
-    /// inline-lambda boundary, so the diagnostic additionally requires
-    /// `lambdaDepth == 0` at the return site. Each nested named function,
-    /// accessor, constructor, or init block re-derives it for its own target.
     var enclosingFunctionProhibitsExpressionBodyReturn: Bool = false
-    /// Init blocks are not function bodies, so a bare return cannot target the
-    /// function whose declaration lexically contains a local class.
     var returnTargetIsInitBlock: Bool = false
-    /// Unit getters return a value through their reference ABI; ordinary
-    /// Unit functions discard their result.
     var isPropertyGetterReturn: Bool {
         guard let function = enclosingFunctionSymbol else { return false }
         if SyntheticSymbolScheme.decodedPropertyAccessor(function)?.kind == .getter { return true }
@@ -168,48 +88,20 @@ struct TypeInferenceContext: CustomStringConvertible {
         return sema.symbols.extensionPropertyGetterAccessor(for: property) == function
     }
     var enclosingLambdaExprIDs: [ExprID] = []
-    /// When set, the specified block expression exports its local bindings to
-    /// the outer locals map. Used for do-while body-to-condition visibility.
     var exportBlockLocalsForExpr: ExprID?
     var flowState: DataFlowState
     let currentFileID: FileID
     var currentDeclSymbol: SymbolID?
-    /// The direct super receiver synthesized for enum-entry member bodies.
-    /// Entry overrides have the enum instance as `this`, while their implicit
-    /// `super` receiver is the enum class itself.
     var enumEntrySuperContext: (ownerSymbol: SymbolID, type: TypeID)?
-    /// When set, the symbol of the property/val whose initializer expression is
-    /// currently being type-checked. A bare name reference that resolves back to
-    /// this same symbol is a self-referential read before the property has ever
-    /// been initialized (DEBT-SEMA-003), e.g. `val cyclic: List<*> = listOf(cyclic)`.
-    /// Scoped to just the initializer expression — not carried into getter/setter
-    /// bodies, where reading the property's own name is a normal (if recursive)
-    /// property access rather than a use-before-init.
     var initializingPropertySymbol: SymbolID?
-    /// True only while checking the property initializer itself. Nested named
-    /// functions replace `currentDeclSymbol` and retain their own return target.
     var isInPropertyInitializer: Bool {
         initializingPropertySymbol != nil && initializingPropertySymbol == currentDeclSymbol
     }
     var enclosingClassSymbol: SymbolID?
     let visibilityChecker: VisibilityChecker
-    /// `symbol` is the enclosing function's receiver parameter when the entry's
-    /// runtime value is reachable through capture (e.g. the enclosing `this`
-    /// captured into an object literal's fields); `nil` entries participate in
-    /// `this@Label` typing only.
     var outerReceiverTypes: [(label: InternedString, type: TypeID, symbol: SymbolID?)]
-    /// Context receiver types available to `contextOf<A>()` in the current lambda body.
     var contextReceiverTypes: [TypeID] = []
-    /// Context receiver types each enclosing lambda literal introduced,
-    /// keyed by the lambda's expression ID. Kotlin resolves an implicit
-    /// context argument per enclosing-lambda level: the receivers a deeper
-    /// `context(...) { ... }` block supplies are nearer than receivers from
-    /// scopes enclosing that lambda, while `contextReceiverTypes` alone
-    /// cannot order them against `implicitReceiverStack` entries.
     var lambdaContextReceiverTypes: [ExprID: [TypeID]] = [:]
-    /// Supertype constructor arguments run before `this` exists, so the
-    /// enclosing class must not act as an implicit receiver there (it still
-    /// drives visibility checks).
     var excludesEnclosingClassReceiver = false
     /// Receivers kept for capture in supertype constructor arguments that
     /// delegate to their own class. When `inner class Inner : Outer({ ok })`
@@ -220,49 +112,22 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// capturable for explicit `this@Outer.x`. Marking the matching receiver
     /// demotes it below its companion block in the lookup tower.
     var companionDemotedReceiverSymbols: Set<SymbolID> = []
-    /// When true, the current scope is a builder DSL lambda body.
-    /// Used to scope `append`/`add`/`put` fallback resolution.
     var isBuilderLambdaScope: Bool = false
-    /// When true, platform-type warnings for `return` expressions should be suppressed.
-    /// Set for functions whose return type is inferred (not user-declared).
     var suppressPlatformReturnWarning: Bool = false
-    /// The specific builder kind for this scope.
-    /// Used to restrict member function resolution to the correct kind.
     var builderKind: BuilderDSLKind?
-    /// When true, the current scope is a `flow { ... }` builder lambda body.
-    /// Used to resolve unqualified `emit(...)` fallback.
     var isFlowBuilderLambdaScope: Bool = false
     var flowBuilderInference: FlowBuilderInferenceSession?
-    /// When true, the current scope is a coroutine builder lambda body.
-    /// The lambda keeps the existing no-receiver ABI, but unqualified
-    /// `CoroutineScope` extension calls still resolve against the ambient scope.
     var isCoroutineBuilderLambdaScope: Bool = false
-    /// When true, assigning to an immutable member property is treated as
-    /// initialization rather than reassignment. Used for `init {}` and
-    /// constructor bodies.
     var allowsValPropertyInitialization: Bool = false
     let semaCacheContext: SemaCacheContext?
-    /// Mirrors Kotlin's `-Xnew-inference`.
     let useNewInference: Bool
-    /// Mirrors Kotlin's `-Xunrestricted-builder-inference`.
     let useUnrestrictedBuilderInference: Bool
-    /// Mirrors Kotlin's `ProperTypeInferenceConstraintsProcessing`.
     let useProperTypeInferenceConstraintsProcessing: Bool
-    /// Marker annotations accepted through compiler-wide `-opt-in=<fqName>`.
     let globalOptInMarkerNames: [String]
-    /// Opt-ins granted only inside the current accessor body.
     var accessorOptInMarkers: Set<SymbolID> = []
-    /// Only the outer annotation constructor can reuse earlier application checks.
-    /// Nested expressions and constructor-specific markers still need checking.
     var annotationOptInValidation: (owner: SymbolID, range: SourceRange?, markers: Set<SymbolID>)?
-    /// The annotation class already resolved from declaration metadata for the
-    /// synthetic constructor call that replays one annotation application.
     var annotationConstructionTarget: (call: ExprID, annotationClass: SymbolID)?
-    /// Opt-ins retained when local functions replace the current declaration.
     var inheritedOptInMarkers: Set<SymbolID> = []
-    /// When a nested lambda introduces a receiver whose class carries the same
-    /// DslMarker annotation as an outer receiver, the outer receiver is hidden
-    /// from implicit resolution.
     var activeDslMarkerAnnotations: Set<String> = []
     func with(implicitReceiverType newType: TypeID?) -> TypeInferenceContext {
         var copy = self
@@ -275,10 +140,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         return copy
     }
 
-    /// Member-style fallback resolution occasionally needs the file's import
-    /// provenance to disambiguate source-backed aliases that expand to the same
-    /// nominal runtime type. Keep that lookup on the context so callers do not
-    /// duplicate the AST scan.
     var currentASTFile: ASTFile? {
         ast.file(for: currentFileID)
     }
@@ -295,14 +156,9 @@ struct TypeInferenceContext: CustomStringConvertible {
         copy.enclosingLambdaExprIDs.append(exprID)
         copy.suspensionContext.lambdas.append(exprID)
         copy.lambdaLoopScopes.append((exprID: exprID, loopDepth: loopDepth, labels: loopLabelStack))
-        // Lambda-local loops start a fresh scope. Candidate jumps to enclosing
-        // loops are recorded and checked after overload resolution determines
-        // whether each lambda boundary is inline-permitted.
         copy.loopDepth = 0
         copy.loopLabelStack = []
         copy.loopFlowScopes = []
-        // A nested lambda's returns complete before any enclosing `finally`
-        // runs, so try/finally pending state does not cross this boundary.
         copy.enclosingTryFinallyDepth = 0
         return copy
     }
@@ -323,8 +179,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         }
     }
 
-    /// The lambda boundaries a non-local loop jump would cross, or nil when no
-    /// enclosing loop matches the requested target.
     func lambdaPathForEnclosingLoopJump(label: InternedString?) -> [ExprID]? {
         for index in lambdaLoopScopes.indices.reversed() {
             let loopScope = lambdaLoopScopes[index]
@@ -340,10 +194,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         return nil
     }
 
-    /// The function-denoting status of the nearest enclosing label named
-    /// `label`, or nil when no enclosing label matches. The nearest match wins:
-    /// a non-function label (`foo@{ ... }()`) shadows outer same-named labels
-    /// without becoming a valid `return@` target itself.
     func lambdaLabelDenotesFunction(_ label: InternedString) -> Bool? {
         for entry in lambdaLabelStack.reversed() where entry.label == label {
             return entry.denotesFunction
@@ -357,9 +207,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         return copy
     }
 
-    /// Demotes the implicit receiver whose class is `classSymbol` below its
-    /// companion block in member lookup — see
-    /// `companionDemotedReceiverSymbols`.
     func demotingReceiverBelowCompanion(_ classSymbol: SymbolID) -> TypeInferenceContext {
         var copy = self
         copy.companionDemotedReceiverSymbols.insert(classSymbol)
@@ -376,17 +223,10 @@ struct TypeInferenceContext: CustomStringConvertible {
         lambdaLabelDenotesFunction(label) == true
     }
 
-    /// Whether `label` matches an enclosing label that does not denote a
-    /// function — used to phrase `return@label` diagnostics like kotlinc's
-    /// "target label does not denote a function".
     func hasNonFunctionLambdaLabel(_ label: InternedString) -> Bool {
         lambdaLabelDenotesFunction(label) == false
     }
 
-    /// DFA already narrows the immutable `this` local in branch and surviving
-    /// guard paths. Keep bare-name lookup on that same receiver value; outer
-    /// tower entries and ordinary user locals (including escaped `this`) stay
-    /// unchanged. The local receiver type is the established stable flow result.
     func syncingImplicitReceiver(from locals: LocalBindings) -> TypeInferenceContext {
         guard let receiverType = implicitReceiverType,
               let thisLocal = locals[interner.intern("this")],
@@ -492,14 +332,11 @@ struct TypeInferenceContext: CustomStringConvertible {
         return copy
     }
 
-    /// Non-inner nested classes discard enclosing instances, but retain enclosing singleton objects.
     func nestedClassContext(isInner: Bool) -> TypeInferenceContext {
         guard !isInner else { return self }
         return copying(outerReceiverTypes: singletonObjectOuterReceivers)
     }
 
-    /// Singleton object receivers remain accessible from nested class headers,
-    /// even when the nested class has no enclosing instance of its own.
     var singletonObjectOuterReceivers: [(label: InternedString, type: TypeID, symbol: SymbolID?)] {
         outerReceiverTypes.filter { receiver in
             guard receiver.symbol == nil,
@@ -518,9 +355,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         return nil
     }
 
-    /// The receiver parameter symbol attached to a `this@Label` entry, when the
-    /// enclosing `this` is materializable through capture. See
-    /// `outerReceiverTypes`.
     func resolveQualifiedThisReceiverSymbol(label: InternedString) -> SymbolID? {
         for entry in outerReceiverTypes.reversed() where entry.label == label {
             return entry.symbol
@@ -542,12 +376,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         }
     }
 
-    /// Same tower as `implicitReceiverMemberLookupTypes()` but keeps each
-    /// entry's receiver symbol when one exists: the symbol is how capture
-    /// analysis and KIR lowering materialize that exact receiver value
-    /// (e.g. a member extension's receiver parameter captured into a lambda).
-    /// The innermost active receiver has no symbol at this layer — KIR maps it
-    /// to the active implicit receiver expression instead.
     func implicitReceiverMemberLookupEntries() -> [(type: TypeID, symbol: SymbolID?)] {
         var entries: [(type: TypeID, symbol: SymbolID?)] = []
         var seen: Set<TypeID> = []
@@ -644,13 +472,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         return entries
     }
 
-    /// Ordered implicit receiver types for unqualified member lookup, innermost
-    /// first: the active implicit receiver, then enclosing lambda receivers,
-    /// then labeled `this@Label` receivers innermost-out, then the enclosing
-    /// class. A member extension body's `this` is its extension receiver, but
-    /// Kotlin still resolves the dispatch owner's members — including inherited
-    /// ones — through the same implicit receiver tower, so callers must probe
-    /// every entry rather than only `implicitReceiverType`.
     func implicitReceiverMemberLookupTypes() -> [TypeID] {
         var types: [TypeID] = []
         var seen: Set<TypeID> = []
@@ -702,9 +523,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         return types
     }
 
-    /// Returns the enclosing class's companion when it inherits the candidate's
-    /// declaring class. Class bodies expose these members through companion
-    /// shorthand, so calls must use that singleton as their dispatch receiver.
     func inheritedCompanionReceiver(for candidate: SymbolID) -> SymbolID? {
         guard let candidateSymbol = cachedSymbol(candidate),
               candidateSymbol.kind == .function,
@@ -750,9 +568,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         for candidate in candidates {
             guard let symbol = cachedSymbol(candidate) else { continue }
             if isHiddenByDeprecationOrVersionAnnotation(candidate, symbols: sema.symbols) {
-                // Synthetic declarations marked HIDDEN (such as compiler-plugin generated
-                // constructors or methods) must never be visible to Kotlin source calls,
-                // even when no other candidate exists.
                 if symbol.flags.contains(.synthetic) || hasNonHiddenCandidate {
                     continue
                 }
@@ -792,13 +607,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         return sema.symbols.symbol(id)
     }
 
-    /// Instance members of a nominal owner are only meaningful when that
-    /// owner is reachable through the implicit receiver tower. Scope lookup
-    /// can still surface them through an enclosing class's member scope after
-    /// the tower dropped the instance — e.g. inside a companion object or a
-    /// non-inner nested class (KUU-4388). Singleton-object owners stay visible
-    /// unconditionally: their members behave like top-level declarations, and
-    /// enum entries are static members of their enum class.
     func isScopeMemberVisibleFromReceivers(_ symbolID: SymbolID) -> Bool {
         guard let symbol = cachedSymbol(symbolID) else { return true }
         switch symbol.kind {
@@ -842,12 +650,6 @@ struct TypeInferenceContext: CustomStringConvertible {
             }
             companionSeeds.insert(classType.classSymbol)
         }
-        // Companion shorthand inserts the companion's inherited members into
-        // the class scope, so the receiver that actually supplies `symbol`
-        // is a companion object — possibly reached through a class supertype
-        // — that is a nominal subtype of the member's owner. Probe the
-        // companions of every receiver and every lexically enclosing
-        // nominal (KUU-4488).
         var lexical: SymbolID? = enclosingClassSymbol
         while let current = lexical {
             companionSeeds.insert(current)
@@ -908,8 +710,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         }
     }
 
-    /// Resolve within a candidate namespace so bindings of another kind in an
-    /// inner scope do not hide the matching declaration in an outer scope.
     func cachedScopeLookup(
         _ name: InternedString,
         matching predicate: (SymbolID) -> Bool
@@ -937,9 +737,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         }
     }
 
-    /// Expression names cannot inherit nested classifiers from an
-    /// interface, but an outer declaration or explicit import can still bind
-    /// the same name. Return the rejected symbols for the global fallback too.
     func valueScopeLookup(_ name: InternedString) -> (matches: [SymbolID], inheritedInterfaces: Set<SymbolID>) {
         valueScopeLookup(name) { symbolID in
             guard let symbol = cachedSymbol(symbolID) else { return false }
@@ -947,10 +744,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         }
     }
 
-    /// Variant of `valueScopeLookup` that applies `predicate` to each
-    /// candidate so the caller can require a specific binding kind (e.g. only
-    /// declarations that denote a value). Interface-inherited classifiers are
-    /// still rejected and collected regardless of the predicate.
     func valueScopeLookup(
         _ name: InternedString,
         matching predicate: (SymbolID) -> Bool
@@ -998,9 +791,6 @@ struct TypeInferenceContext: CustomStringConvertible {
                 reachedFileScope = true
                 if currentScope is ExplicitImportScope {
                     if !candidates.isEmpty { return (candidates, inheritedInterfaces) }
-                    // Past the explicit-import tier only wildcard and default
-                    // imports remain, which can never outrank an already
-                    // collected file/package match.
                     if !fileLevelMatches.isEmpty { break }
                 } else if fileLevelMatches.isEmpty {
                     fileLevelMatches = candidates
@@ -1027,9 +817,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         guard let symbol = cachedSymbol(id) else {
             return false
         }
-        // A synthetic stand-in yields only to a genuine source declaration:
-        // another synthetic at the same FQName is a distinct stub, not the
-        // declaration it stands in for (KUU-4240).
         let isSyntheticStandIn = symbol.flags.contains(.synthetic)
             && !symbol.flags.contains(.importedLibrary)
         guard symbol.flags.contains(.importedLibrary) || isSyntheticStandIn else {
@@ -1096,10 +883,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         }
     }
 
-    /// True when `expectSymbol` is an `expect` class and a typealias declared
-    /// at the same FQName expands to `otherClassSymbol` — the shape an
-    /// imported signature takes when the alias stands in for the expect's
-    /// actual declaration.
     private func expectClassMatchesTypeAliasTarget(
         expectSymbol: SemanticSymbol?,
         otherClassSymbol: SymbolID
@@ -1123,9 +906,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         }
     }
 
-    /// Erased type equality across the source/imported boundary: nominal types
-    /// compare by FQ name (the shadowing pair has different symbols), type
-    /// parameters by position within each signature.
     private func erasedTypeEqual(
         _ lhs: TypeID,
         in lhsSignature: FunctionSignature,
@@ -1140,11 +920,6 @@ struct TypeInferenceContext: CustomStringConvertible {
             if lhsSymbol?.fqName == rhsSymbol?.fqName {
                 return true
             }
-            // An `expect` class and the bundled typealias standing in for its
-            // actual share the expect's FQName while their expanded class
-            // symbols differ: a vendored-source signature names the expect
-            // decl, the imported twin's serialized signature names the
-            // alias target (KUU-4185).
             return expectClassMatchesTypeAliasTarget(
                 expectSymbol: lhsSymbol, otherClassSymbol: rhsType.classSymbol
             ) || expectClassMatchesTypeAliasTarget(
@@ -1208,8 +983,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         return candidates.contains(actual)
     }
 
-    /// A type carries a DslMarker if it is a class/interface annotated with an
-    /// annotation class that is itself annotated with `@DslMarker`.
     func collectDslMarkerAnnotations(for typeID: TypeID) -> Set<String> {
         let nonNull = sema.types.makeNonNullable(typeID)
         guard let classType = resolveClassType(nonNull, sema: sema) else {
@@ -1260,9 +1033,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         return false
     }
 
-    /// A member symbol is blocked when its owner class/interface carries a
-    /// DslMarker annotation that also applies to the current implicit receiver,
-    /// and the owner is NOT the current implicit receiver itself.
     func isCandidateBlockedByDslMarker(_ candidateID: SymbolID) -> Bool {
         guard !activeDslMarkerAnnotations.isEmpty else {
             return false
@@ -1270,7 +1040,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         guard let parentID = sema.symbols.parentSymbol(for: candidateID) else {
             return false
         }
-        // The parent must be a class, interface, or object to carry DslMarker.
         guard let parentSymbol = sema.symbols.symbol(parentID),
               parentSymbol.kind == .class || parentSymbol.kind == .interface || parentSymbol.kind == .object
         else {
@@ -1291,11 +1060,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         return !activeDslMarkerAnnotations.isDisjoint(with: parentDslMarkers)
     }
 
-    /// Implicit receiver tower entries hidden by the Kotlin DSL marker rule:
-    /// walking innermost to outermost, an entry is hidden when a strictly
-    /// nearer entry carries at least one DslMarker annotation it also
-    /// carries. `implicitReceiverMemberLookupEntries` deduplicates entries
-    /// by `TypeID`, so a type identifies exactly one tower position.
     func dslHiddenImplicitReceiverTypes() -> Set<TypeID> {
         var hidden: Set<TypeID> = []
         var nearerMarkers: Set<String> = []

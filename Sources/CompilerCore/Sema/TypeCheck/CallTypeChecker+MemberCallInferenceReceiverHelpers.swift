@@ -1,10 +1,6 @@
 
-/// Split out from `CallTypeChecker+MemberCallInference.swift` to isolate merge
-/// conflicts between parallel stdlib PRs.
 extension CallTypeChecker {
 
-    /// Callers should fall back to `sema.types.anyType` when the result is nil,
-    /// following the error-resilient design principle (never crash on missing symbols).
     func lookupStdlibSymbol(_ name: String, symbols: SymbolTable, interner: StringInterner) -> SymbolID? {
         // KUU-3084: a short-name lookup can select a different nominal List
         // when a compiled artifact registers same-named declarations in a
@@ -84,10 +80,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Kotlin prefers the extension whose receiver is the most specific type
-    /// when several bundled source extensions have the same name and arity.
-    /// This matters for the Collection/Iterable pairs that coexist in the
-    /// upstream common stdlib (for example `toMutableList` and `plus`).
     func preferMostSpecificMemberReceiverCandidates(
         _ candidates: [SymbolID],
         receiverType: TypeID,
@@ -160,11 +152,6 @@ extension CallTypeChecker {
                     {
                         continue
                     }
-                    // Lambda argument types may have been inferred before a
-                    // generic extension receiver is substituted. A function
-                    // parameter such as `(T) -> Boolean` cannot be compared
-                    // against `(Int) -> Boolean` yet; let overload resolution
-                    // solve T from the receiver and check the lambda then.
                     if sema.types.typeContainsAnyTypeParam(actual)
                         || sema.types.typeContainsAnyTypeParam(expected)
                     {
@@ -177,8 +164,6 @@ extension CallTypeChecker {
                 return true
             })
         }
-        // Provisional argument types can reject every candidate before literal
-        // contextualization. Do not then prune inherited overloads by receiver.
         let specificityCandidates = potentiallyApplicableCandidates
 
         let collectionFQName = [
@@ -193,8 +178,6 @@ extension CallTypeChecker {
         ]
         var remainingCandidates = candidates
         let hasCollectionReceiver = receiverTypes.contains { candidate, receiver in
-            // An inapplicable Collection overload must not hide an Iterable
-            // overload, such as count() competing with count(predicate).
             guard specificityCandidates.contains(candidate) else { return false }
             return driver.helpers.nominalSymbol(of: receiver, types: sema.types)
                 .flatMap { sema.symbols.symbol($0)?.fqName } == collectionFQName
@@ -270,11 +253,6 @@ extension CallTypeChecker {
                     if candidateHasMoreSpecificParam {
                         return false
                     }
-                    // Member functions share one scope regardless of the class
-                    // that declares them, so a nearer member reaching the call
-                    // only through default arguments must not hide an inherited
-                    // member that binds it exactly; that tie-break belongs to
-                    // overload resolution.
                     if isDispatchMemberFunction(candidate, sema: sema),
                        isDispatchMemberFunction(other, sema: sema),
                        !omitsDefaultArguments(candSig, argumentCount: argumentTypes.count),
@@ -316,10 +294,6 @@ extension CallTypeChecker {
         return argumentCount < fixedCount
     }
 
-    /// Prefer a source-backed List.unzip() over the generic Iterable.unzip()
-    /// when the concrete receiver is a List. Both extensions have the same
-    /// callable name and type shape after inference, so receiver nominality
-    /// must decide the overload before the regular resolver sees them.
     func preferListUnzipCandidates(
         _ candidates: [SymbolID],
         receiverType: TypeID,
@@ -370,13 +344,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Prefer the source-backed List.take overload when a concrete List receiver
-    /// also exposes the generic Iterable.take extension.
-    ///
-    /// The regular resolver cannot rank these two extension receivers because
-    /// their value parameter lists are identical. Keep this preference narrowly
-    /// tied to the exact List receiver and source-backed declaration so generic
-    /// Iterable and other receiver families retain their normal overload sets.
     func preferListTakeCandidates(
         _ candidates: [SymbolID],
         receiverType: TypeID,
@@ -413,12 +380,6 @@ extension CallTypeChecker {
         return listTakeCandidates.isEmpty ? candidates : listTakeCandidates
     }
 
-    /// Member extensions declared on the lexical dispatch receiver
-    /// (e.g. a `SelectBuilder<R>` enclosing receiver) participate in calls
-    /// whose call-site receiver is the *extension* receiver: `clause { }`
-    /// inside `select { }` must find the builder's
-    /// `operator fun <Q> SelectClause1<Q>.invoke`. Collects members from the
-    /// full implicit receiver tower, innermost first.
     func collectDispatchReceiverMemberExtensionCandidates(
         named calleeName: InternedString,
         extensionReceiverType: TypeID,
@@ -444,15 +405,6 @@ extension CallTypeChecker {
                     declaredReceiver: declaredReceiver,
                     ctx: ctx
                 )
-                // Inside a receiver-builder lambda the declared receiver can
-                // still mention the outer call's unsolved variables through
-                // the dispatch receiver's arguments (`R<V, E>` seen from
-                // `Scope<E>`). The strict match above accepts such receivers
-                // leniently without recording why — matching the call-site
-                // receiver against the owner-substituted declaration yields
-                // the session constraints (e.g. `E = String`) the postponed
-                // solve needs. They are appended only once a single
-                // candidate survives (KUU-4079).
                 if let constraints = deferredMemberExtensionReceiverConstraints(
                     callSiteReceiver: extensionReceiverType,
                     declaredReceiver: declaredReceiver,
@@ -478,20 +430,11 @@ extension CallTypeChecker {
         return []
     }
 
-    /// Receiver check for the scope fallback that restores synthetic extensions excluded from import scopes.
-    /// Aligns with `Helpers.collectMemberFunctionCandidates`: require `actual <: declared` when possible,
-    /// but keep generics such as `Continuation<T>.intercepted` where `isSubtype(Continuation<Int>, Continuation<T>)`
-    /// is not decided until inference (mirrors the `rangeUntil`/`genericReceiver` escape hatch there).
     func extensionSyntheticFallbackReceiverMatches(
         callSiteReceiver: TypeID,
         declaredReceiver: TypeID,
         sema: SemaModule
     ) -> Bool {
-        // A nullable receiver cannot supply a non-null extension receiver:
-        // Kotlin requires a safe call there, so the call-site nullability
-        // must survive the non-null normalization below (KUU-4495). A
-        // declared receiver type parameter whose bounds admit null still
-        // matches — `T` binds `String?` (KUU-4501).
         guard implicitReceiverEntryNullabilityCompatible(
             callSiteReceiver: callSiteReceiver,
             declaredReceiver: declaredReceiver,
@@ -504,9 +447,6 @@ extension CallTypeChecker {
         if sema.types.isSubtype(actual, declared) {
             return true
         }
-        // `T & Any` is the definitely-non-null view of a type parameter whose
-        // upper bound may be nullable. That value can use the non-null
-        // projection of the bound, while bare `T`/`T?` remain nullable here.
         if case let .intersection(parts) = sema.types.kind(of: actual),
            !sema.types.canHoldNull(callSiteReceiver),
            parts.contains(where: { part in
@@ -523,10 +463,6 @@ extension CallTypeChecker {
         {
             return true
         }
-        // A smart-cast intersection (e.g. `R & List<*>` after
-        // `x != null && x is List<*>`) is a subtype of each of its parts,
-        // so an extension whose declared receiver matches any single part
-        // is applicable to the whole intersection.
         if case let .intersection(parts) = sema.types.kind(of: actual),
            parts.contains(where: {
                extensionSyntheticFallbackReceiverMatches(
@@ -536,11 +472,6 @@ extension CallTypeChecker {
         {
             return true
         }
-        // Builtin nominal shells (notably String's Companion) may be recreated
-        // while bundled source headers are collected.  Their SymbolIDs differ,
-        // but they still denote the same FQName; accept that identity for
-        // non-generic companion receivers so source-backed extensions can be
-        // selected without restoring a synthetic member.
         if case let .classType(actualClass) = sema.types.kind(of: actual),
            case let .classType(declaredClass) = sema.types.kind(of: declared),
            actualClass.args.isEmpty,
@@ -551,12 +482,6 @@ extension CallTypeChecker {
         {
             return true
         }
-        // A type parameter's upper bound is the receiver contract at the call
-        // site. `T : Comparable<T>` therefore matches the source-backed
-        // `Comparable<T>.compareTo` receiver even when the subtype checker
-        // cannot materialize the F-bounded type parameter as a nominal type.
-        // Compare against the original receiver so a nullable bound only admits
-        // a nullable extension, even though the direct check above is non-null.
         if case let .typeParam(actualParam) = sema.types.kind(of: actual),
            sema.symbols.typeParameterUpperBounds(for: actualParam.symbol).contains(where: {
                sema.types.isSubtype($0, declaredReceiver)
@@ -567,7 +492,6 @@ extension CallTypeChecker {
         if case let .typeParam(actualParam) = sema.types.kind(of: actual),
            case let .classType(declaredClass) = sema.types.kind(of: declared),
            sema.symbols.typeParameterUpperBounds(for: actualParam.symbol).contains(where: { bound in
-               // This nominal fallback ignores generic arguments, not nullability.
                guard sema.types.nullabilitySubtype(
                    sema.types.nullability(of: bound),
                    sema.types.nullability(of: declaredReceiver)
@@ -580,9 +504,6 @@ extension CallTypeChecker {
                return boundClass.classSymbol == declaredClass.classSymbol
            })
         {
-            // The type arguments of an F-bounded upper bound and a generic
-            // member receiver may use different declaration-local type
-            // parameter IDs; overload resolution will solve those arguments.
             return true
         }
         if case .typeParam = sema.types.kind(of: declared) {
@@ -606,7 +527,6 @@ extension CallTypeChecker {
                 return false
             }
         }
-        // Required for declared receivers like Array<CPointer<T>?> where the type param is one level deep.
         func containsTypeParam(_ t: TypeID) -> Bool {
             let nonNull = sema.types.makeNonNullable(t)
             if case .typeParam = sema.types.kind(of: nonNull) { return true }
@@ -625,10 +545,6 @@ extension CallTypeChecker {
         if case let .functionType(declaredFn) = sema.types.kind(of: declared),
            case let .functionType(actualFn) = sema.types.kind(of: actual)
         {
-            // Kotlin treats a function receiver as its leading function
-            // parameter. Keep this fallback aligned with function subtyping so
-            // generic extension receivers match both `suspend R.() -> T` and
-            // `suspend (R) -> T` call-site types.
             let declaredParameters = (declaredFn.receiver.map { [$0] } ?? []) + declaredFn.params
             let actualParameters = (actualFn.receiver.map { [$0] } ?? []) + actualFn.params
             if declaredFn.contextReceivers.count == actualFn.contextReceivers.count,
@@ -696,8 +612,6 @@ extension CallTypeChecker {
            actualClass.classSymbol == sema.types.kClassInterfaceSymbol,
            actualClass.args.count == 1
         {
-            // Candidate discovery admits a generic receiver; the resolver
-            // captures its projection before checking value arguments.
             return true
         }
         if case let .kClassType(declaredKClass) = sema.types.kind(of: declared),
@@ -705,9 +619,6 @@ extension CallTypeChecker {
            actualClass.classSymbol == sema.types.kClassInterfaceSymbol,
            actualClass.args.count == 1
         {
-            // Star and in projections retain the nominal KClass representation.
-            // Keep generic extensions in the candidate set; the resolver checks
-            // whether their captured argument can be read or consumed.
             let argument: TypeID
             switch actualClass.args[0] {
             case let .invariant(type), let .out(type): argument = type
@@ -885,10 +796,6 @@ extension CallTypeChecker {
             case "collect", "collectLatest":
                 sema.types.unitType
             case "transform":
-                // Flow.transform emits values through its collector receiver;
-                // the callback itself returns Unit. The lightweight Flow
-                // special case has no receiver-type inference for those
-                // emissions, so keep its output type conservatively erased.
                 sema.types.unitType
             case "catch":
                 sema.types.unitType
@@ -925,10 +832,6 @@ extension CallTypeChecker {
                 {
                     mappedType
                 } else if memberName == "transform" {
-                    // The callback's Unit result is not a Flow element. Values
-                    // emitted by the transform are represented by the runtime
-                    // bridge and remain type-erased until a richer collector
-                    // receiver model is available.
                     sema.types.anyType
                 } else if memberName == "flatMapConcat" || memberName == "flatMapMerge" || memberName == "flatMapLatest",
                           case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(args[lambdaArgIndex].expr)
@@ -1085,10 +988,6 @@ extension CallTypeChecker {
             && symbol.fqName[symbol.fqName.count - 2] == knownNames.io
     }
 
-    /// Used by Reader-targeted special-case lambda inference (STDLIB-IO-FN-040)
-    /// where the `useLines` extension on `kotlin.io.Reader` resolves to the
-    /// synthetic `BufferedReader.useLines` stub registered by
-    /// `registerSyntheticJavaIOStreamStubs`.
     func isBufferedReaderType(
         _ receiverType: TypeID,
         sema: SemaModule,
@@ -1140,10 +1039,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Returns the inferred type when handled, or `nil` to fall through. The
-    /// receiver must be a `nameRef` (typed identifier) that is not currently
-    /// bound as a local — an Int *value* named `Int` shadows the type and falls
-    /// through.
     func tryInferNumericCompanionMemberCall(
         _ id: ExprID,
         receiverID: ExprID,
@@ -1174,10 +1069,6 @@ extension CallTypeChecker {
             return constantType
         }
 
-        // Primitive companion functions are represented as source-backed
-        // top-level functions until primitive Companion types are modeled.
-        // Select a matching overload by its signature rather than by a
-        // function-name or runtime-link special case.
         guard memberStr == "fromBits",
               args.count == 1,
               let receiverType = driver.helpers.resolveBuiltinTypeName(
@@ -1197,9 +1088,6 @@ extension CallTypeChecker {
             return nil
         }
 
-        // Unsuffixed integer literals widen to the parameter type only when
-        // the expression is inferred with an expected type. Numeric companion
-        // fromBits overloads take Long for Double and Int for Float.
         let expectedArgumentType = receiverType == sema.types.doubleType
             ? sema.types.longType
             : sema.types.intType

@@ -1,7 +1,5 @@
 import Foundation
 
-// Char stdlib extension stubs (STDLIB-080) for kotlin.text.
-
 enum SyntheticCharMemberReturnKind {
     case boolean
     case string
@@ -100,10 +98,6 @@ struct SyntheticCharMemberSpec {
 }
 
 private let syntheticCharMemberSpecs: [SyntheticCharMemberSpec] = [
-    // KSP-661: isDigit/isLetter/isLetterOrDigit/isWhitespace/isUpperCase/
-    // isLowerCase/isDefined は bundled Kotlin (kotlin.text.CharPredicates) へ移行済み。
-    // KSP-662: uppercase(Char)/lowercase(Char)/titlecase(Char)/digitToInt(OrNull)/
-    // digitToChar now live in bundled Kotlin (kotlin.text.CharConversions).
     SyntheticCharMemberSpec(
         name: "toInt",
         externalLinkName: "kk_char_toInt",
@@ -124,7 +118,6 @@ private let syntheticCharMemberSpecs: [SyntheticCharMemberSpec] = [
         externalLinkName: "kk_char_toDoubleOrNull",
         returnKind: .nullableDouble
     ),
-    // KSP-663: isSurrogate/isHighSurrogate/isLowSurrogate are now bundled Kotlin.
     SyntheticCharMemberSpec(
         name: "isISOControl",
         externalLinkName: "kk_char_isISOControl",
@@ -135,19 +128,16 @@ private let syntheticCharMemberSpecs: [SyntheticCharMemberSpec] = [
         externalLinkName: "kk_char_isTitleCase",
         returnKind: .boolean
     ),
-    // STDLIB-TEXT-PROP-009: isJavaIdentifierPart
     SyntheticCharMemberSpec(
         name: "isJavaIdentifierPart",
         externalLinkName: "kk_char_isJavaIdentifierPart",
         returnKind: .boolean
     ),
-    // STDLIB-TEXT-PROP-008: isIdentifierIgnorable
     SyntheticCharMemberSpec(
         name: "isIdentifierIgnorable",
         externalLinkName: "kk_char_isIdentifierIgnorable",
         returnKind: .boolean
     ),
-    // STDLIB-TEXT-PROP-010: Char.isJavaIdentifierStart
     SyntheticCharMemberSpec(
         name: "isJavaIdentifierStart",
         externalLinkName: "kk_char_isJavaIdentifierStart",
@@ -262,8 +252,6 @@ extension DataFlowSemaPhase {
             includeEntries: !hasBundledCharCategory
         )
         if !hasBundledCharCategory {
-            // KSP-1416: Keep CharCategory's public Companion nominal available
-            // while its enum entries and members remain synthetic until KSP-1417.
             _ = ensureStringCompanionSymbol(
                 ownerSymbol: charCategorySymbol,
                 symbols: symbols,
@@ -325,7 +313,6 @@ extension DataFlowSemaPhase {
 
         registerSyntheticFunctionStubs(
             [
-                // PARITY-CODEGEN-005: Char.compareTo(Char)
                 SyntheticFunctionStubSpec(
                     name: "compareTo",
                     externalLinkName: "kk_char_compareTo",
@@ -514,8 +501,6 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        // Bundled declarations own enum entries and the standard enum API.
-        // Keep only the nominal anchor needed by the Char.directionality stub.
         if BundledSyntheticStubRegistration.bundledIndex.containsNominal(fqName: enumFQName) {
             return enumType
         }
@@ -571,9 +556,6 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        // KSP-663: Char.Companion surrogate helpers are now bundled Kotlin.
-        // Keep the Char class / companion object symbols so source extensions
-        // on Char.Companion resolve correctly.
         let kotlinPkg = [interner.intern("kotlin")]
         let charSymbol = ensureClassSymbol(
             named: "Char",

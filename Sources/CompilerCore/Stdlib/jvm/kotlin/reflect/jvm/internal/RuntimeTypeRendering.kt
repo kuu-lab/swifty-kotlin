@@ -1,7 +1,5 @@
 package kotlin.reflect.jvm.internal
 
-// Render the logical Kotlin types recorded in metadata, rather than the
-// identity string of the runtime wrapper or an erased JVM return descriptor.
 internal fun renderRuntimeType(metadata: RuntimeMetadata, type: Proto, parameters: List<Proto>): String {
     var name = ""
     if (type.has(6)) name = metadata.string(type.number(6)).replace("/", ".").replace("$", ".")

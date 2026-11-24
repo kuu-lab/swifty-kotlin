@@ -1,16 +1,4 @@
 extension LocalDeclTypeChecker {
-    /// Member `get`/`set` candidates for `receiver[indices]`, plus the
-    /// receiver type the resolved operator dispatches on.
-    ///
-    /// A class-name receiver (`K[i]`, `Outer.K[i]`) denotes the companion
-    /// scope — the same target `K.member` reads resolve through — so
-    /// candidates come from the companion-block object then the source
-    /// `companion object`, in that order, and the class's instance members
-    /// are never candidates (KUU-4012). The selected companion scope type is
-    /// bound back onto `receiverExpr` so lowering dispatches on the
-    /// companion singleton. `allMembers` keeps every probed scope's members
-    /// (not only the selected scope's) for the non-`operator` convention
-    /// diagnostic.
     func indexedOperatorMemberCandidates(
         named name: InternedString,
         receiverExpr: ExprID,
@@ -53,8 +41,6 @@ extension LocalDeclTypeChecker {
         return (selectedScopeType, candidates, allMembers)
     }
 
-    /// Keep lexical priority among applicable operators. A nearer declaration
-    /// that cannot accept the receiver or indices must not hide an outer one.
     func collectIndexedOperatorExtensionCandidates(
         named name: InternedString,
         receiverType: TypeID,
@@ -101,8 +87,6 @@ extension LocalDeclTypeChecker {
         if !scoped.isEmpty { return scoped }
 
         let synthetic = sema.symbols.lookupByShortName(name).filter { candidate in
-            // Imported user extensions require a lexical import. Bundled atomic
-            // extensions retain their dedicated importless fallback below.
             guard let symbol = ctx.cachedSymbol(candidate),
                   symbol.flags.contains(.synthetic),
                   !symbol.flags.contains(.importedLibrary)
@@ -122,10 +106,6 @@ extension LocalDeclTypeChecker {
         ).filter(matches)
     }
 
-    /// Member extensions are declared on an implicit dispatch receiver while
-    /// their extension receiver is the indexed value (for example, a
-    /// `Long.get` declared inside an object used by `with`). Keep this tier
-    /// ahead of package-scope extensions, matching ordinary operator lookup.
     func collectIndexedOperatorMemberExtensionCandidates(
         named name: InternedString,
         receiverType: TypeID,
@@ -181,9 +161,6 @@ extension LocalDeclTypeChecker {
         return []
     }
 
-    /// Returns the implicit dispatch receiver selected for a member-extension
-    /// operator. The active `with` receiver has no symbol here and is supplied
-    /// by the lowering context; outer receivers retain their capture symbol.
     func indexedOperatorDispatchReceiverSymbol(
         for candidate: SymbolID,
         named name: InternedString,

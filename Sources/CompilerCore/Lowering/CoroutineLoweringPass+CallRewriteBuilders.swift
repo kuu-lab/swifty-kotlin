@@ -25,9 +25,6 @@ extension CoroutineLoweringPass {
             return nil
         }
 
-        // The inner-producer search, the bail-out predicates below, and the
-        // nested yieldAll callee lookup all resolve functions in this module,
-        // so index them once instead of re-scanning arena.declarations per query.
         let functionBySymbol: [SymbolID: KIRFunction]
         if replacementCallee == rewrite.sequenceBuilderBuildCoroCallee {
             functionBySymbol = Dictionary(
@@ -327,9 +324,6 @@ extension CoroutineLoweringPass {
             return nil
         }
 
-        // The constructor call may be `(block)`, `(fnPtr, closureRaw)`, or
-        // `(instance, fnPtr[, closureRaw])`. Find the suspend lambda among the
-        // arguments rather than assuming a fixed slot.
         var lambdaIndex: Int?
         var referencedSymbol: SymbolID?
         var loweredTarget: LoweredSuspendFunction?

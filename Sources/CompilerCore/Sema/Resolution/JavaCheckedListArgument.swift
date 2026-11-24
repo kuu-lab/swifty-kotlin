@@ -1,7 +1,4 @@
 extension OverloadResolver {
-    /// Java's List parameter accepts either Kotlin list view, while its type
-    /// argument remains invariant. Model the mapped interface for inference
-    /// without changing the runtime value or relaxing the bundled signature.
     func javaCheckedListCall(
         _ call: CallExpr, symbol: SemanticSymbol, signature: FunctionSignature, ctx: SemaModule
     ) -> CallExpr {

@@ -2,9 +2,6 @@ extension TypeCheckDriver {
     func checkDemandedJVMInlineBodies(
         _ pending: inout [SymbolID: (declaration: DeclID, function: FunDecl, context: TypeInferenceContext)]
     ) {
-        // Work from resolved uses, including callable references. Checking one
-        // body can resolve further inline calls. Remove each body before checking
-        // it so cycles cannot schedule the same function twice.
         while !pending.isEmpty {
             let bindings = sema.bindings
             var demanded: Set<SymbolID> = []

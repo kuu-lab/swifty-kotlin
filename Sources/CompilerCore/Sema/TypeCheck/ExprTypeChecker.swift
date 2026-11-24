@@ -6,10 +6,6 @@ final class ExprTypeChecker {
         self.driver = driver
     }
 
-    /// Whether the receiver/callee spine of `id` contains a `?.` access. The
-    /// members chained after a safe call (`a?.b.c(...)`) only evaluate when the
-    /// chain did not short-circuit, so casts inside their arguments sit on a
-    /// conditionally-evaluated path.
     func exprSpineContainsSafeMemberAccess(_ id: ExprID, ast: ASTModule) -> Bool {
         var currentID = id
         var visited: Set<ExprID> = []
@@ -30,9 +26,6 @@ final class ExprTypeChecker {
         return false
     }
 
-    /// Whether `id` can continue a safe indexed-access chain (`a?.b[i]`,
-    /// `a?.b[i][j]`). Parentheses and `!!` end the chain; member-result and
-    /// element nullability are checked during indexed-access inference.
     func isUnguardedSafeIndexedAccessReceiver(_ id: ExprID, ast: ASTModule) -> Bool {
         guard !ast.arena.isParenthesized(id) else { return false }
         switch ast.arena.expr(id) {
@@ -74,8 +67,6 @@ final class ExprTypeChecker {
             driver.recordGenericCallConsumer(id, type: sema.types.unitType)
         }
 
-        // An Int constant expression (`1 shl 31`) takes a wider integer expected
-        // type the way a plain literal does; its Int value is computed first.
         if let expectedType,
            let widened = inferWidenedIntegerConstantExpression(id, ctx: ctx, locals: &locals, expectedType: expectedType)
         {
@@ -152,8 +143,6 @@ final class ExprTypeChecker {
 
         case let .nameRef(name, nameRange):
             let nameType = inferNameRefExpr(id, name: name, nameRange: nameRange, ctx: ctx, locals: &locals)
-            // `val f: Factory<Widget> = Widget`: a bare class name whose own type does not
-            // satisfy the expected type may still denote its companion object, which does.
             if let expectedType,
                !sema.types.isSubtype(nameType, expectedType),
                let companionType = driver.helpers.retypeClassNameAsCompanionValue(
@@ -299,9 +288,6 @@ final class ExprTypeChecker {
             let lambdaReturnScope = label.flatMap { label in
                 ctx.lambdaReturnScopes.last { $0.label == label }
             }
-            // Bare returns cross the same lambda boundaries as function-name
-            // labeled returns; validate them after call resolution determines
-            // whether every enclosing lambda argument can be inlined.
             let targetsFunction = label.map { label in
                 !ctx.hasLambdaLabel(label)
                     && ctx.enclosingFunctionSymbol.flatMap { sema.symbols.symbol($0)?.name } == label
@@ -356,15 +342,6 @@ final class ExprTypeChecker {
                     range: range
                 )
             }
-            // `return` is not a real expression: it cannot appear in the body
-            // of an expression-body function that lacks an explicit return
-            // type (`fun f() = return`), whether directly or nested in an
-            // `if`/`when`/`try` branch. A `return@label` bound to a lambda
-            // stays legal, as does any `return` in a block body or in an
-            // expression body with a declared return type. kotlinc only
-            // warns (KTLC-288) when the `return` crosses an inline-lambda
-            // boundary, so non-local returns keep the ambient behavior and
-            // the error is limited to `lambdaDepth == 0`.
             if ctx.enclosingFunctionProhibitsExpressionBodyReturn,
                ctx.lambdaDepth == 0,
                label == nil || targetsFunction
@@ -417,10 +394,6 @@ final class ExprTypeChecker {
                 lambdaReturnScope?.returnValueTypes[id] = driver.helpers.retypeClassNameAsCompanionValue(
                     value, currentType: resolved, ast: ast, sema: sema
                 ) ?? resolved
-                // Range expressions keep their runtime representation separate from the
-                // source-level range interface (they infer as the scalar element type),
-                // so `fun f(): IntRange = a..b` skips the nominal subtype check, matching
-                // the local-declaration rule in LocalDeclTypeChecker.
                 let returnsRangeExpr = returnExpectedType.map {
                     driver.helpers.rangeExprMatchesDeclaredElementType(
                         bodyExprID: value,
@@ -447,7 +420,6 @@ final class ExprTypeChecker {
             } else {
                 lambdaReturnScope?.returnValueTypes[id] = sema.types.unitType
                 if let returnExpectedType {
-                    // Bare `return` is equivalent to `return Unit`; check Unit <: expectedType
                     driver.emitSubtypeConstraint(
                         left: sema.types.unitType,
                         right: returnExpectedType,
@@ -509,8 +481,6 @@ final class ExprTypeChecker {
             let type: TypeID
             switch op {
             case .not:
-                // Resolve an overloaded `not()` from the receiver's own type. The
-                // Boolean constraint belongs only to the built-in Boolean `!`.
                 let inferredOperand = driver.inferExpr(operandID, ctx: ctx, locals: &locals)
                 let operandType = sema.types.capturedOperatorReceiverType(
                     of: inferredOperand
@@ -544,9 +514,6 @@ final class ExprTypeChecker {
                 }
                 type = boolType
             case .unaryPlus, .unaryMinus:
-                // Constant-fold unary +/- over an integer literal so that e.g.
-                // `val x: Byte = -1` can resolve to Byte without a full constant
-                // propagation pass.
                 if case let .intLiteral(literalValue, _) = ast.arena.expr(operandID) {
                     let foldedValue = op == .unaryMinus ? -literalValue : literalValue
                     type = intLiteralType(
@@ -555,8 +522,6 @@ final class ExprTypeChecker {
                         defaultType: intType,
                         literalValue: foldedValue
                     )
-                    // Unary plus reuses the operand in KIR, so its binding must
-                    // carry the contextual type used for boxing the result.
                     _ = driver.inferExpr(
                         operandID, ctx: ctx, locals: &locals,
                         expectedType: op == .unaryPlus ? type : nil
@@ -673,9 +638,6 @@ final class ExprTypeChecker {
                       ),
                       inferredArgs.count == targetClass.args.count
             {
-                // A generic supertype can prove explicit target arguments even
-                // when the subject's nominal type is broader than the target.
-                // Star-projected target arguments need no runtime evidence.
                 subjectHasKnownTargetInstantiation = zip(targetClass.args, inferredArgs).allSatisfy { targetArg, inferredArg in
                     switch targetArg {
                     case .star:
@@ -688,8 +650,6 @@ final class ExprTypeChecker {
             } else {
                 subjectHasKnownTargetInstantiation = false
             }
-            // Kotlin permits explicit generic checks when the subject's static
-            // type proves the target instantiation, including through supertypes.
             if hasErasedTypeArguments,
                subjectType != sema.types.errorType,
                targetType != sema.types.errorType,
@@ -757,8 +717,6 @@ final class ExprTypeChecker {
             if isDirectCall, targetType != sema.types.errorType {
                 let checkpoint = sema.diagnostics.checkpoint()
                 var trialLocals = locals
-                // A cast target can supply a missing generic result argument.
-                // Keep ordinary casts between unrelated types admissible.
                 sourceType = driver.inferExpr(exprID, ctx: ctx, locals: &trialLocals)
                 let errors = sema.diagnostics.diagnostics.dropFirst(checkpoint).filter { $0.severity == .error }
                 let inferenceErrors: Set<String> = ["KSWIFTK-SEMA-INFER", "KSWIFTK-TYPE-0001"]
@@ -774,9 +732,6 @@ final class ExprTypeChecker {
             }
             // The cast itself checks the erased value, including a safe cast.
             driver.recordGenericCallConsumer(exprID, type: sema.types.nullableAnyType)
-            // A bare generic cast recovers arguments from the source's known
-            // nominal type, just as a bare `is` check does. Explicit arguments
-            // (including star projections) must keep their declared meaning.
             if case let .classType(targetClass) = sema.types.kind(of: targetType),
                targetClass.args.isEmpty,
                !sema.types.nominalTypeParameterSymbols(for: targetClass.classSymbol).isEmpty,
@@ -799,7 +754,6 @@ final class ExprTypeChecker {
                 targetType
             }
             sema.bindings.bindCastTargetType(id, type: targetType)
-            // Nothing? only contains null, so nullable casts have no erased value to check.
             let isNullToNullableCast = sourceType == sema.types.nullableNothingType
                 && sema.types.nullability(of: targetType) == .nullable
             if let typeRef = ast.arena.typeRef(typeRefID),
@@ -822,11 +776,6 @@ final class ExprTypeChecker {
                     )
                 }
             }
-            // A successful `x as T` narrows later uses of x on the same linear
-            // evaluation path — whether the cast is a standalone statement or
-            // nested in an initializer/receiver position. Casts on a
-            // conditionally-evaluated path (`a?.f(x as T)`) do not prove the
-            // type for following code and must not narrow.
             if !ctx.isConditionallyEvaluated,
                !isSafe,
                let castSubjectExpr = ast.arena.expr(exprID),
@@ -835,14 +784,11 @@ final class ExprTypeChecker {
                driver.helpers.isStableLocalSymbol(castLocal.symbol, sema: sema)
             {
                 let refinedType: TypeID = if sema.types.isSubtype(castLocal.0, targetType) {
-                    castLocal.0 // already a subtype, no need for intersection
+                    castLocal.0
                 } else if targetType == sema.types.anyType {
-                    // A successful cast to Any removes nullability without
-                    // changing the concrete type. Preserve T & Any for type
-                    // parameters, whose bare T may still contain null.
                     sema.types.definitelyNonNullForm(of: castLocal.0)
                 } else if sema.types.isSubtype(targetType, castLocal.0) {
-                    targetType // target is more specific
+                    targetType
                 } else {
                     sema.types.make(.intersection([castLocal.0, targetType]))
                 }
@@ -863,8 +809,6 @@ final class ExprTypeChecker {
                 driver.recordGenericCallConsumer(exprID, type: sema.types.anyType)
             }
             let type = sema.types.definitelyNonNullForm(of: operandType)
-            // The assertion only updates flow facts when it runs. The
-            // shared stable-reference analysis covers both locals and members.
             if !ctx.isConditionallyEvaluated {
                 let base = ctx.flowState.includingMembers(from: locals)
                 let narrowed = ctx.dataFlow.narrowNonNull(
@@ -930,18 +874,12 @@ final class ExprTypeChecker {
             return inferCallableRefExpr(id, receiver: receiver, member: member, range: range, ctx: ctx, locals: &locals, expectedType: expectedType)
 
         case let .blockExpr(statements, trailingExpr, _):
-            // Increment/decrement expressions desugar to a block containing a
-            // synthetic compound assignment. Its write must update outer
-            // locals just like a call-result compound assignment block.
             let containsIncrementDecrementAssignment = statements.contains {
                 ast.arena.isIncrementDecrement($0)
             }
             let preservesOuterDataFlow = ast.arena.isCallResultCompoundAssignmentBlock(id)
                 || containsIncrementDecrementAssignment
             ctx.dataFlow.localStability.analyze(statements + (trailingExpr.map { [$0] } ?? []), ast: ast)
-            // Anonymous functions are blocks around a synthetic local function
-            // and its callable reference. The declaration needs the contextual
-            // type before its body is checked; the reference receives it below.
             let contextualAnonymousFunctionDecl: ExprID? = {
                 guard ast.arena.isAnonymousFunction(id),
                       statements.count == 1,
@@ -953,9 +891,6 @@ final class ExprTypeChecker {
                 }
                 return statement
             }()
-            // Local classifiers must stay in their lexical block, just like
-            // blockLocals. A do-while body uses the loop's shared scope so its
-            // declarations remain visible to the condition.
             let blockCtx = ctx.exportBlockLocalsForExpr == id ? ctx : ctx.copying(
                 scope: BlockScope(parent: ctx.scope, symbols: sema.symbols)
             )
@@ -994,9 +929,6 @@ final class ExprTypeChecker {
                 resultType = sema.types.nothingType
             } else if let trailingExpr {
                 let tailType = driver.inferExpr(trailingExpr, ctx: blockCtx, locals: &blockLocals, expectedType: expectedType, isStatementContext: isStatementContext)
-                // A bare `ClassName` in the value-producing tail position denotes
-                // the companion object, so the block's own value type is the
-                // companion type (KUU-3232).
                 resultType = driver.helpers.retypeClassNameAsCompanionValue(
                     trailingExpr, currentType: tailType, ast: ast, sema: sema
                 ) ?? tailType
@@ -1004,11 +936,8 @@ final class ExprTypeChecker {
                 resultType = sema.types.unitType
             }
             if ctx.exportBlockLocalsForExpr == id {
-                // do-while bodies expose their block locals to the loop condition.
                 locals = blockLocals
             } else {
-                // The receiver temporary needs a private scope, but evaluation of
-                // its LHS/RHS must still update smart casts of existing outer symbols.
                 for (name, outerLocal) in locals {
                     if let blockLocal = blockLocals.binding(named: name, matching: outerLocal.symbol),
                        (preservesOuterDataFlow
@@ -1097,8 +1026,6 @@ final class ExprTypeChecker {
         }
     }
 
-    /// Records a CallBinding so KIR lowering can dispatch to the user-defined
-    /// contains() instead of the generic kk_op_contains runtime stub.
     private func inferContainsCallBinding(
         exprID: ExprID,
         elementExpr: ExprID,
@@ -1144,8 +1071,6 @@ final class ExprTypeChecker {
             ).viableCandidates.isEmpty
         }
 
-        // Nullable range operands must resolve the nullable extension before the
-        // primitive range fast paths erase their nullability.
         let nullableRangeReceiver: TypeID? = {
             guard sema.types.nullability(of: elementType) == .nullable else { return nil }
             if let concrete = driver.callChecker.sourceLevelRangeMemberLookupType(
@@ -1257,10 +1182,6 @@ final class ExprTypeChecker {
             ast: ctx.ast
         )
 
-        // Range expressions carry an Int lowering type until their member call
-        // is resolved. If a user operator extension is in scope, recover the
-        // source-level IntRange receiver before the primitive fast path can
-        // route `in` to the generic runtime helper.
         if let rangeSourceReceiverType = driver.callChecker.sourceLevelRangeMemberLookupType(
             receiverExpr: containerExpr,
             receiverType: containerType,
@@ -1268,9 +1189,6 @@ final class ExprTypeChecker {
             interner: interner
         ),
         membershipRangeKind == .intRange {
-            // A same-element contains member shadows a user extension for the
-            // in operator, just as it does for an explicit member call. Keep
-            // cross-type arguments on the extension overload path below.
             if sema.types.makeNonNullable(elementType) == sema.types.intType {
                 let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
                     named: containsName,
@@ -1407,9 +1325,6 @@ final class ExprTypeChecker {
             }
         }
 
-        // KSP-1290: mirror the IntRange handling above for UIntRange so a
-        // user's cross-type contains extension keeps normal overload
-        // priority over the bundled UByte/UShort/ULong wrappers.
         if let rangeSourceReceiverType = driver.callChecker.sourceLevelRangeMemberLookupType(
             receiverExpr: containerExpr,
             receiverType: containerType,
@@ -1422,9 +1337,6 @@ final class ExprTypeChecker {
             sema: sema,
             interner: interner
         ) == .uintRange {
-            // A same-element contains member shadows a user extension for the
-            // in operator, just as it does for an explicit member call. Keep
-            // cross-type arguments on the extension overload path below.
             if sema.types.makeNonNullable(elementType) == sema.types.uintType {
                 let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
                     named: containsName,
@@ -1561,9 +1473,6 @@ final class ExprTypeChecker {
             }
         }
 
-        // Kotlin gives a bare integer literal the Long context required by
-        // LongRange.contains(Long). An explicitly typed Int remains an Int
-        // and can therefore select a user LongRange.contains(Int) extension.
         if let rangeSourceReceiverType = driver.callChecker.sourceLevelRangeMemberLookupType(
             receiverExpr: containerExpr,
             receiverType: containerType,
@@ -1677,10 +1586,6 @@ final class ExprTypeChecker {
             }
         }
 
-        // ULongRange.contains(ULong) is the actual member selected for a bare
-        // suffixed literal. Re-infer that literal with the member's expected
-        // ULong type so the source-backed UInt widening extension cannot take
-        // precedence merely because the parser initially reports UInt.
         if driver.callChecker.sourceLevelRangeMemberLookupType(
             receiverExpr: containerExpr,
             receiverType: containerType,
@@ -1830,10 +1735,6 @@ final class ExprTypeChecker {
             return true
         }
 
-        // Bundle Kotlin source extension functions such as `List.contains` live at
-        // package scope, so the direct owner+name member lookup above misses them.
-        // Fall back to scope lookup and filter by receiver type, mirroring the
-        // extension-function resolution path in `inferRegularMemberCall`.
         let scopeCandidates = containsExtensionCandidates(receiverType: nonNullContainerType).filter { candidate in
             guard !memberCandidates.contains(candidate),
                   let symbol = sema.symbols.symbol(candidate),
@@ -1852,11 +1753,6 @@ final class ExprTypeChecker {
             )
         }
 
-        // Extension functions are excluded from scope by the scope builder so they
-        // don't shadow top-level calls. Fall back to a direct symbol-table lookup
-        // by short name to find synthetic extension functions (e.g. the
-        // String.contains(regex: Regex) synthetic stub used by the `in` operator).
-        // This mirrors the fallback in `inferRegularMemberCall` for member-style calls.
         let syntheticExtensionCandidates = sema.symbols.lookupByShortName(containsName).filter { candidate in
             guard !memberCandidates.contains(candidate),
                   !scopeCandidates.contains(candidate),
@@ -1941,7 +1837,6 @@ final class ExprTypeChecker {
                ctx: ctx.sema
            ).viableCandidates.isEmpty
         {
-            // Keep the primitive runtime fallback when no custom overload applies.
             return
         }
         let hasViableMember = !ctx.resolver.probeCall(
@@ -1960,10 +1855,6 @@ final class ExprTypeChecker {
         )
 
         guard let chosen = resolved.chosenCallee else {
-            // Primitive arrays retain their scalar runtime membership path.
-            // Only bundled kotlin.<Name> arrays (and fqName-less synthetic
-            // stubs) qualify — a user class that shadows the imported name is
-            // an ordinary nominal (KUU-3615).
             if let (_, symbol) = resolveClassTypeSymbol(nonNullContainerType, sema: sema),
                symbol.fqName.isEmpty
                    || symbol.fqName == [interner.intern("kotlin"), symbol.name],
@@ -2045,13 +1936,8 @@ final class ExprTypeChecker {
                 return false
             }
         }
-        // Non-null primitive operators use dedicated builtin paths. Nullable
-        // primitives can declare applicable operator extensions such as Int?.inc().
         guard !isNonNullablePrimitive || allowedOnPrimitive else { return [] }
 
-        // STDLIB-OP-031: Names that are inherently operator functions in Kotlin
-        // (e.g. equals, compareTo). Overrides of these inherit operator status
-        // even without the explicit `operator` keyword.
         let knownNames = KnownCompilerNames(interner: interner)
 
         var candidates: [SymbolID] = []
@@ -2139,11 +2025,6 @@ final class ExprTypeChecker {
             return candidates
         }
 
-        // A member extension operator's dispatch receiver comes from the
-        // implicit-receiver tower, not from the expression's operand. Search
-        // that member scope before package-scope extensions so an inherited
-        // interface operator keeps the same priority as an ordinary member
-        // extension call.
         let memberExtensionCandidates = allowsImplicitReceiverMemberExtensionOperators
             ? collectImplicitReceiverMemberExtensionOperatorCandidates(
                 names: names,
@@ -2164,10 +2045,6 @@ final class ExprTypeChecker {
         }
 
         for name in names {
-            // Name lookup must advance past a scope whose extensions have
-            // unrelated receivers, while retaining the nearest matching tier.
-            // This also recovers source-backed default imports without making
-            // unimported extensions visible through the global short-name table.
             let scopedCandidates = ctx.scope.lookup(name, matching: { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate),
                       symbol.kind == .function,
@@ -2176,7 +2053,6 @@ final class ExprTypeChecker {
                 else {
                     return false
                 }
-                // Preserve cachedScopeLookup's expect/actual filtering.
                 if symbol.flags.contains(.expectDeclaration),
                    sema.symbols.actualSymbol(for: candidate) != nil {
                     return false
@@ -2197,9 +2073,6 @@ final class ExprTypeChecker {
             }
         }
 
-        // Synthetic extension operators are deliberately omitted from scope
-        // mappings. Recover them by short name only when scoped lookup produced
-        // no receiver-compatible candidate.
         if candidates.isEmpty {
             for name in names {
                 for candidate in sema.symbols.lookupByShortName(name) {
@@ -2224,11 +2097,6 @@ final class ExprTypeChecker {
             }
         }
 
-        // A precompiled extension can provide a concrete operator for the
-        // receiver while the synthetic Comparable<T> interface contributes a
-        // generic fallback. Prefer the exact nominal receiver in that case;
-        // otherwise both candidates are indistinguishable to the overload
-        // solver even though Kotlin selects the concrete extension.
         if candidates.count > 1,
            case let .classType(actualClassType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
         {
@@ -2322,9 +2190,6 @@ final class ExprTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let lhsIsPrimitive = if case .primitive = sema.types.kind(of: operandType) { true } else { false }
-        // kotlinc reports UNSAFE_CALL for any operator call on a nullable
-        // receiver, so failed member-operator resolution on one maps to
-        // SEMA-0026 rather than the generic no-viable-overload diagnostic.
         let operandIsNullableReceiver = sema.types.nullability(of: operandType) == .nullable
             && operandType != sema.types.errorType
         let operatorNames = operatorFunctionNames(for: op, interner: interner)
@@ -2345,11 +2210,6 @@ final class ExprTypeChecker {
         let displayOperatorName = interner.resolve(operatorNames[0])
 
         if !operatorCandidates.isEmpty {
-            // A forward-declared operator member can still carry the header's
-            // inferred-return placeholder. Select by receiver first, infer the
-            // chosen callee's return type, then resolve against the updated
-            // signature — the same pre-pass binary operators already run
-            // (KUU-4479).
             let hasUninferredOperatorReturn = operatorCandidates.contains { candidate in
                 driver.inferredReturnFunctions[candidate] != nil
                     && !driver.checkedInferredReturnFunctions.contains(candidate)
@@ -2442,9 +2302,6 @@ final class ExprTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
-        // unaryMinus/unaryPlus exist only on numeric primitives: Boolean and
-        // Char declare no such member in Kotlin, so `-true`/`+'a'` must not
-        // reach the builtin numeric path below.
         if op == .unaryPlus || op == .unaryMinus,
            case let .primitive(primitive, _) = sema.types.kind(of: operandType),
            primitive == .boolean || primitive == .char
@@ -2474,14 +2331,6 @@ final class ExprTypeChecker {
         return nil
     }
 
-    /// Resolves the type of an unsuffixed integer literal given the expected
-    /// type at its use site. Kotlin widens such literals to `Long`/`Byte`/`Short`
-    /// when that is the expected type (e.g. a value class field declared `Long`
-    /// receiving a plain `1500`); values outside the Int32 range infer `Long`.
-    /// `literalValue` is used to reject out-of-range constants for `Byte`/`Short`.
-    /// Unsigned types are never an expected type here: Kotlin requires the
-    /// `u`/`uL` suffix for UInt/ULong, so a signed literal assigned to them is
-    /// an initializer type mismatch (KUU-3890).
     private func inferWidenedIntegerConstantExpression(
         _ id: ExprID,
         ctx: TypeInferenceContext,
@@ -2497,15 +2346,9 @@ final class ExprTypeChecker {
             expectedType: expectedType, sema: sema, defaultType: sema.types.intType, literalValue: value
         )
         guard widenedType != sema.types.intType else { return nil }
-        // Type the operands normally, then retype the whole expression.
         _ = driver.inferExpr(id, ctx: ctx, locals: &locals, expectedType: nil)
         sema.bindings.bindConstExprValue(id, value: primitive == .long ? .longLiteral(value) : .intLiteral(value))
         sema.bindings.bindExprType(id, type: widenedType)
-        // That nil-context pass leaves a unary operand at its natural type.
-        // Mirror the `.unaryExpr` operand rule the skipped path below runs:
-        // a bare `+literal` operand carries the contextual type (KIR reuses
-        // that binding to box the result). `-literal` and non-literal
-        // operands keep Int semantics the fold depends on.
         if case let .unaryExpr(op, operandID, _) = ctx.ast.arena.expr(id) {
             let operandIsIntLiteral: Bool = if case .intLiteral = ctx.ast.arena.expr(operandID) {
                 true
@@ -2530,8 +2373,6 @@ final class ExprTypeChecker {
         }
         switch primitive {
         case .long: return sema.types.longType
-        // Unsuffixed literals never coerce to unsigned types: Kotlin requires
-        // the `u`/`uL` suffix, so `val x: UInt = 0` is a type mismatch (KUU-3890).
         case .byte: return (literalValue >= -128 && literalValue <= 127) ? sema.types.byteType : inferredType
         case .short: return (literalValue >= -32768 && literalValue <= 32767) ? sema.types.shortType : inferredType
         default: return inferredType
@@ -2547,14 +2388,6 @@ final class ExprTypeChecker {
         return [site]
     }
 
-    /// Severity for an impossible `subject is target` check after
-    /// `isDefinitelyDisjoint` rejected the subject's current (possibly
-    /// flow-narrowed) type. Mirrors kotlinc's two-phase cast checker: the
-    /// subject's *original* type is checked first, so a disjointness that only
-    /// exists because of a smart cast or an assignment narrowing is
-    /// IMPOSSIBLE_IS_CHECK_WARNING for a stable reference — and unreported for
-    /// an unstable one, whose reads kotlinc treats as the declared type.
-    /// Returns nil when no diagnostic should be emitted.
     private func impossibleIsCheckSeverity(
         subjectExpr: ExprID,
         narrowedSubjectType: TypeID,
@@ -2592,10 +2425,6 @@ final class ExprTypeChecker {
         return reference.isStable ? .warning : nil
     }
 
-    /// The declared (un-narrowed) type bound to a `DataFlowReference` symbol:
-    /// `propertyType` covers locals, properties, and synthetic parameters, while
-    /// real value parameters and receiver parameters live on the owning
-    /// function's signature.
     private func declaredIsCheckSubjectType(for symbol: SymbolID, sema: SemaModule) -> TypeID? {
         if let type = sema.symbols.propertyType(for: symbol) {
             return type
@@ -2617,9 +2446,6 @@ final class ExprTypeChecker {
         return nil
     }
 
-    /// Whether a `subject is target` check can never succeed: neither type
-    /// is a subtype of the other and at least one side is a final/value
-    /// type (so no subtype could satisfy both).
     private func isDefinitelyDisjoint(
         subject: TypeID,
         target: TypeID,
@@ -2638,10 +2464,6 @@ final class ExprTypeChecker {
         {
             return false
         }
-        // Generic subject shapes and type parameters defeat the nominal
-        // disjointness argument. A target with only star projections still has
-        // a known runtime classifier, so a final subject can be rejected when
-        // no subtype relation exists.
         if hasImpreciseIsCheckShape(subject, sema: sema)
             || (hasImpreciseIsCheckShape(target, sema: sema)
                 && !hasOnlyStarProjectedClassArguments(target, sema: sema))
@@ -2651,10 +2473,6 @@ final class ExprTypeChecker {
         return isFinalForIsCheck(subject, sema: sema) || isFinalForIsCheck(target, sema: sema)
     }
 
-    /// Kotlin/JVM represents these final Kotlin types as JVM classes that
-    /// implement `java.io.Serializable`; their canonical Sema types are the
-    /// unboxed primitive/String forms, so nominal subtyping alone misses the
-    /// overlap and would incorrectly prove an `is` check impossible.
     private func hasKnownJvmSerializableOverlap(
         subject: TypeID,
         target: TypeID,
@@ -2693,8 +2511,6 @@ final class ExprTypeChecker {
             || isSerializableInterface(subject) && isJvmSerializableBuiltin(target)
     }
 
-    /// A `Number` value may hold any numeric runtime class even when the
-    /// imported `Number` symbol differs from the TypeSystem's cached symbol.
     private func hasKnownJvmNumericOverlap(
         subject: TypeID,
         target: TypeID,
@@ -2743,8 +2559,6 @@ final class ExprTypeChecker {
             || isKotlinNumber(target) && isJvmNumericType(subject)
     }
 
-    /// Kotlin/JVM maps `kotlin.text.StringBuilder` to the platform builder,
-    /// which implements `java.lang.Appendable` outside the Sema hierarchy.
     private func hasKnownJvmAppendableOverlap(
         subject: TypeID,
         target: TypeID,
@@ -2780,9 +2594,6 @@ final class ExprTypeChecker {
             || isAppendable(subject) && isKotlinStringBuilder(target)
     }
 
-    /// Range expressions use their element primitive as the Sema type and carry
-    /// a marker for the runtime range object. Do not treat that representation
-    /// as disjoint from its corresponding range class or progression.
     private func isRangeRepresentationCompatible(
         subjectExpr: ExprID,
         subjectType: TypeID,
@@ -2854,11 +2665,6 @@ final class ExprTypeChecker {
         }
     }
 
-    /// Types whose nominal disjointness cannot be decided reliably: type
-    /// parameters, generic class applications, intersections and function
-    /// types. Flagging those as "always false" would produce false positives
-    /// (e.g. `x: SharedFlow<T> is SubscribedSharedFlow<*>` is a real runtime
-    /// check even though subtype inference cannot relate the two here).
     private func hasImpreciseIsCheckShape(_ type: TypeID, sema: SemaModule) -> Bool {
         switch sema.types.kind(of: type) {
         case .typeParam, .functionType, .intersection:
@@ -2870,8 +2676,6 @@ final class ExprTypeChecker {
         }
     }
 
-    /// A target with only star-projected arguments has a known runtime class
-    /// even though its generic arguments are erased.
     private func hasOnlyStarProjectedClassArguments(_ type: TypeID, sema: SemaModule) -> Bool {
         guard case .classType(let classType) = sema.types.kind(of: type), !classType.args.isEmpty else {
             return false
@@ -2882,11 +2686,6 @@ final class ExprTypeChecker {
         }
     }
 
-    /// Whether `type` is a final (non-extensible) type for `is`-check
-    /// disjointness purposes: primitives, `String`/`Unit`, and closed
-    /// nominal declarations. Interfaces, open/abstract/sealed classes,
-    /// type parameters and erased shapes return `false` so subtypes can
-    /// still satisfy the check.
     private func isFinalForIsCheck(_ type: TypeID, sema: SemaModule) -> Bool {
         switch sema.types.kind(of: type) {
         case .primitive, .stringStruct, .unit:
@@ -2908,9 +2707,6 @@ final class ExprTypeChecker {
         }
     }
 
-    /// Resolves a suffixed unsigned integer literal against an expected unsigned
-    /// type. Kotlin permits constant unsigned literals such as 1u to narrow to
-    /// UByte/UShort (and widen to ULong) at a call site when the value fits.
     private func uintLiteralType(expectedType: TypeID?, sema: SemaModule, literalValue: UInt64) -> TypeID {
         let inferredType = literalValue <= UInt64(UInt32.max)
             ? sema.types.uintType

@@ -5,10 +5,6 @@ import java.nio.charset.Charset
 import java.nio.file.Path
 import java.util.regex.Pattern
 
-/** Scanner over a string or character input. Delimiters are Kotlin regular
- * expressions. Stream-backed scanners read lazily like the JDK — they only
- * consume input as `next*`/`hasNext*` calls require, and never block waiting
- * for data they do not need yet. */
 public class Scanner : AutoCloseable {
     private var source: String
     private var stream: java.io.InputStream? = null
@@ -28,28 +24,23 @@ public class Scanner : AutoCloseable {
         this.source = source
     }
 
-    /** Scanner reading text from `source` (UTF-8). Reads are lazy: the stream
-     * is consumed only as needed, so scanning stops without waiting for EOF. */
     public constructor(source: java.io.InputStream) {
         this.source = ""
         this.stream = source
     }
 
-    /** Scanner reading text from `source` decoded with the named charset. */
     public constructor(source: java.io.InputStream, charsetName: String) {
         this.source = ""
         this.stream = source
         this.charset = java.nio.charset.Charset.forName(charsetName)
     }
 
-    /** Scanner reading text from `source` decoded with the supplied charset. */
     public constructor(source: java.io.InputStream, charset: Charset) {
         this.source = ""
         this.stream = source
         this.charset = charset
     }
 
-    /** Scanner reading all remaining text from `source`. */
     public constructor(source: java.io.Reader) {
         this.source = source.readText()
     }
@@ -79,7 +70,6 @@ public class Scanner : AutoCloseable {
         return this
     }
 
-    /** JVM `delimiter()`: the Pattern this scanner currently delimits on. */
     public fun delimiter(): Pattern = Pattern(delimiter, delimiterText, 0)
 
     public fun useRadix(radix: Int): Scanner {
@@ -166,8 +156,6 @@ public class Scanner : AutoCloseable {
         stream?.close()
     }
 
-    /** Pulls buffered stream data into [source], returning `true` when more
-     * input may still arrive. */
     private fun fill() {
         while (position >= source.length && pump()) {
         }
@@ -204,8 +192,6 @@ public class Scanner : AutoCloseable {
         if (closed) throw IllegalStateException("Scanner is closed")
     }
 
-    // -- lazy stream input -------------------------------------------------
-
     private fun pump(): Boolean {
         val s = stream ?: return false
         if (streamEof) return false
@@ -221,9 +207,6 @@ public class Scanner : AutoCloseable {
         return true
     }
 
-    /** Decodes the maximal complete UTF-8 prefix of [pendingBytes] into
-     * [source]. A trailing incomplete multi-byte sequence is kept pending so
-     * a split character is never corrupted. */
     private fun decodeAvailable(final: Boolean) {
         var complete = pendingBytes.size
         if (!final && complete > 0) {

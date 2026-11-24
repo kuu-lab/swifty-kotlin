@@ -3,10 +3,6 @@ package java.time
 import java.time.format.DateTimeFormatter
 import java.util.Comparator
 
-/**
- * A date-time with an offset from UTC/Greenwich in the ISO-8601 calendar system,
- * such as {@code 2007-12-03T10:15:30+01:00}.
- */
 public class OffsetDateTime private constructor(
     private val dateTime: LocalDateTime,
     public val offset: ZoneOffset,
@@ -60,23 +56,13 @@ public class OffsetDateTime private constructor(
 
     public fun toLocalTime(): LocalTime = dateTime.time
 
-    /** Converts this date-time to the number of seconds from the epoch of 1970-01-01T00:00:00Z. */
     public fun toEpochSecond(): Long =
         dateTime.date.toEpochDay() * javaTimeSecondsPerDay + dateTime.time.secondOfDay - offset.totalSeconds
 
-    /** Converts this date-time to an [Instant]. */
     public fun toInstant(): Instant = Instant.ofEpochSecond(toEpochSecond(), nano.toLong())
 
-    /**
-     * Returns a copy of this [OffsetDateTime] with the specified offset, keeping
-     * the same local date-time.
-     */
     public fun withOffsetSameLocal(newOffset: ZoneOffset): OffsetDateTime = OffsetDateTime(dateTime, newOffset)
 
-    /**
-     * Returns a copy of this [OffsetDateTime] with the specified offset, adjusting
-     * the local date-time so the result represents the same instant.
-     */
     public fun withOffsetSameInstant(newOffset: ZoneOffset): OffsetDateTime {
         if (newOffset == offset) {
             return this
@@ -127,33 +113,17 @@ public class OffsetDateTime private constructor(
 
     public fun format(formatter: DateTimeFormatter): String = formatter.format(this)
 
-    /**
-     * Checks if the instant of this date-time is after that of the specified
-     * date-time, comparing only the instant on the time-line.
-     */
     public fun isAfter(other: OffsetDateTime): Boolean =
         toEpochSecond() > other.toEpochSecond() ||
             (toEpochSecond() == other.toEpochSecond() && nano > other.nano)
 
-    /**
-     * Checks if the instant of this date-time is before that of the specified
-     * date-time, comparing only the instant on the time-line.
-     */
     public fun isBefore(other: OffsetDateTime): Boolean =
         toEpochSecond() < other.toEpochSecond() ||
             (toEpochSecond() == other.toEpochSecond() && nano < other.nano)
 
-    /**
-     * Checks if the instant of this date-time equals that of the specified
-     * date-time, comparing only the instant on the time-line.
-     */
     public fun isEqual(other: OffsetDateTime): Boolean =
         toEpochSecond() == other.toEpochSecond() && nano == other.nano
 
-    /**
-     * Compares this date-time to another by instant on the time-line, falling
-     * back to the local date-time for consistency with [equals].
-     */
     override fun compareTo(other: OffsetDateTime): Int {
         val instantComparison = javaTimeCompareOffsetInstant(this, other)
         if (instantComparison != 0) {
@@ -162,7 +132,6 @@ public class OffsetDateTime private constructor(
         return dateTime.compareTo(other.dateTime)
     }
 
-    /** The comparison is based on the local date-time and the offset. */
     override fun equals(other: Any?): Boolean =
         other is OffsetDateTime && dateTime == other.dateTime && offset == other.offset
 
@@ -171,35 +140,24 @@ public class OffsetDateTime private constructor(
     override fun toString(): String = dateTime.toString() + offset.toString()
 
     public companion object {
-        /** The minimum supported [OffsetDateTime], {@code -999999999-01-01T00:00+18:00}. */
         public val MIN: OffsetDateTime = of(-999_999_999, 1, 1, 0, 0, 0, 0, ZoneOffset.MAX)
 
-        /** The maximum supported [OffsetDateTime], {@code +999999999-12-31T23:59:59.999999999-18:00}. */
         public val MAX: OffsetDateTime = of(999_999_999, 12, 31, 23, 59, 59, 999_999_999, ZoneOffset.MIN)
 
-        /**
-         * Returns a comparator that sorts date-times by instant on the time-line,
-         * falling back to the local date-time when the offsets are equal.
-         */
         public fun timeLineOrder(): Comparator<OffsetDateTime> = Comparator { first, second ->
             javaTimeCompareOffsetInstant(first, second)
         }
 
-        /** Obtains the current date-time from the system clock in the default time-zone. */
         public fun now(): OffsetDateTime = ofInstant(Instant.now(), ZoneId.systemDefault())
 
-        /** Obtains the current date-time from the system clock in the specified time-zone. */
         public fun now(zone: ZoneId): OffsetDateTime = ofInstant(Instant.now(), zone)
 
-        /** Obtains an instance of [OffsetDateTime] from a date, time and offset. */
         public fun of(date: LocalDate, time: LocalTime, offset: ZoneOffset): OffsetDateTime =
             OffsetDateTime(LocalDateTime.of(date, time), offset)
 
-        /** Obtains an instance of [OffsetDateTime] from a date-time and offset. */
         public fun of(dateTime: LocalDateTime, offset: ZoneOffset): OffsetDateTime =
             OffsetDateTime(dateTime, offset)
 
-        /** Obtains an instance of [OffsetDateTime] from the seven fields and an offset. */
         public fun of(
             year: Int,
             month: Int,
@@ -214,7 +172,6 @@ public class OffsetDateTime private constructor(
             offset
         )
 
-        /** Obtains an instance of [OffsetDateTime] from an [Instant] and zone ID. */
         public fun ofInstant(instant: Instant, zone: ZoneId): OffsetDateTime {
             val offset = zone.javaTimeOffsetAt(instant.epochSecond)
             val epochSecond = instant.epochSecond + offset.totalSeconds
@@ -225,10 +182,6 @@ public class OffsetDateTime private constructor(
             return OffsetDateTime(LocalDateTime.of(date, time), offset)
         }
 
-        /**
-         * Obtains an instance of [OffsetDateTime] from a text string such as
-         * {@code 2007-12-03T10:15:30+01:00} or {@code 2007-12-03T10:15:30Z}.
-         */
         public fun parse(text: CharSequence): OffsetDateTime {
             val value = text.toString()
             val separator = value.indexOf('T')
