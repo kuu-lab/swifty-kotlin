@@ -1252,10 +1252,10 @@ final class ControlFlowTypeChecker {
                 locals.joinVariableFacts(from: [thenLocals, elseLocals])
             }
         }
-        if thenType != sema.types.nothingType {
+        if thenType != sema.types.nothingType, canCompleteNormally(thenExpr, ctx: ctx) {
             locals.possiblyAssignedVals.formUnion(thenLocals.possiblyAssignedVals)
         }
-        if elseCompletes {
+        if elseCompletes, elseExpr.map({ canCompleteNormally($0, ctx: ctx) }) ?? true {
             locals.possiblyAssignedVals.formUnion(elseLocals.possiblyAssignedVals)
         }
         for (name, local) in locals where local.isMutable {
