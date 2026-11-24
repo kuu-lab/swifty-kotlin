@@ -5,8 +5,6 @@ extension TypeCheckSemaPhase {
         diagnostics: DiagnosticEngine,
         inlineLambdaArguments: Set<ExprID>
     ) {
-        // Callee identity is available only after overload resolution. Extension
-        // receivers can change between iterations without changing the callee.
         for index in ast.arena.decls.indices {
             guard case let .funDecl(function) = ast.arena.decls[index],
                   function.isTailrec,
@@ -88,10 +86,6 @@ extension TypeCheckSemaPhase {
         }
     }
 
-    /// Reports `onTailCall` for each self-recursive call in a tail position and
-    /// `onNonTailCall` for each self-recursive call outside one — including
-    /// calls inside lambdas and local declarations; the flag distinguishes
-    /// try-region calls for the dedicated kotlinc wording.
     private func collectSelfCalls(
         _ body: FunctionBody,
         functionSymbol: SymbolID,
@@ -127,8 +121,6 @@ extension TypeCheckSemaPhase {
             walk(exprID, isValuePosition: true)
         case let .block(exprIDs, _):
             for (index, exprID) in exprIDs.enumerated() {
-                // The last statement doubles as the implicit result; earlier
-                // statements only count through an explicit `return`.
                 walk(exprID, isValuePosition: index == exprIDs.count - 1)
             }
         }
