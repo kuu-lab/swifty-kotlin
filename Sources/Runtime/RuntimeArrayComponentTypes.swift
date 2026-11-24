@@ -1,8 +1,5 @@
 import Foundation
 
-/// JVM-style reference-array component classifiers. These IDs contain only
-/// type descriptors, never Kotlin handles; GC roots and object identity are
-/// independent. Interning permits recursive arrays without truncating tokens.
 private struct RuntimeArrayComponentType: Hashable {
     let classifier: Int
     let element: Int
@@ -108,16 +105,10 @@ public func __kk_array_component_type(_ classifier: Int, _ element: Int) -> Int 
     runtimeArrayComponentTypes.intern(classifier: classifier, element: element)
 }
 
-/// Whether `id` names a live interned component descriptor.
 func runtimeArrayComponentDescriptorIsValid(_ id: Int) -> Bool {
     runtimeArrayComponentTypes.descriptor(id) != nil
 }
 
-/// `T::class` on a reified type parameter is passed the component descriptor
-/// of T itself. When T resolves to `Array<E>` the KClass identity is E's
-/// descriptor — the descriptor's element slot — so `T::class` and
-/// `Array<E>::class` intern to the same box. A non-array T carries no element
-/// identity: return 0 so the caller falls back to the erased classifier box.
 @_cdecl("__kk_array_component_element")
 public func __kk_array_component_element(_ component: Int) -> Int {
     guard let descriptor = runtimeArrayComponentTypes.descriptor(component) else { return 0 }
@@ -177,8 +168,6 @@ func runtimeArrayComponentIsAssignable(_ source: Int, to target: Int) -> Bool {
         ]
         guard let name = names[sourceBase] else { return false }
         sourceID = runtimeStableNominalTypeID(fqName: "kotlin.\(name)")
-        // Builtin source shells may have no allocation site. Register these
-        // erasure edges independently of whether the array has any elements.
         if sourceBase == 2 {
             runtimeRegisterTypeEdge(childTypeID: sourceID, parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.CharSequence"))
         }
@@ -196,7 +185,6 @@ func runtimeArrayHasAssignableComponent(rawValue: Int, targetComponent: Int) -> 
     guard let array = runtimeArrayBoxExcludingObjects(from: rawValue),
           let target = runtimeArrayComponentTypes.descriptor(targetComponent)
     else { return false }
-    // Missing metadata cannot prove a narrower component from the contents.
     guard let sourceComponent = array.componentType else {
         let targetBase = target.classifier & Int(RuntimeTypeTokenEncoding.baseMask)
         return target.element == 0 && targetBase == Int(RuntimeTypeTokenEncoding.anyBase)
@@ -251,10 +239,6 @@ public func __kk_array_new_same_component(_ sourceRaw: Int, _ size: Int) -> Int 
     return result
 }
 
-/// `Array<*>.isArrayOf<T>()`: the allocation component must be assignable to
-/// T, matching the `as? Array<T>` component check (`kk_array_op_safe_cast`).
-/// Untagged arrays answer false unless T is `Any`, mirroring the cast path's
-/// "missing metadata cannot prove a narrower component" rule.
 @_cdecl("kk_array_is_array_of")
 public func kk_array_is_array_of(_ arrayRaw: Int, _ componentType: Int) -> Int {
     guard runtimeArrayBoxExcludingObjects(from: arrayRaw) != nil else { return 0 }
