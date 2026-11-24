@@ -448,6 +448,7 @@ private func nativeConcurrentReadyFutureHandles(
         return []
     }
     var ready: [Int] = []
+    var readyHandles = Set<Int>()
     for elementRaw in futures {
         guard let futureHandle = nativeConcurrentFutureHandle(from: elementRaw),
               let pointer = UnsafeMutableRawPointer(bitPattern: futureHandle),
@@ -456,7 +457,9 @@ private func nativeConcurrentReadyFutureHandles(
             continue
         }
         if future.isAvailableForConsumption {
-            ready.append(elementRaw)
+            if readyHandles.insert(futureHandle).inserted {
+                ready.append(elementRaw)
+            }
         } else if registered.insert(futureHandle).inserted {
             future.addWaitSignal(signal)
         }
