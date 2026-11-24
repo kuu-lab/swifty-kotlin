@@ -73,8 +73,6 @@ public func __kk_uppercase_locale_flat(
     )
 }
 
-// KSP-413: locale-aware collation stays in the runtime (Foundation/ICU), demoted
-// to `__kk_` so only bundled stdlib source reaches it.
 @_cdecl("__kk_string_compareTo_locale")
 public func __kk_string_compareTo_locale(_ lhsRaw: Int, _ rhsRaw: Int, _ localeRaw: Int) -> Int {
     let lhs = runtimeStringFromRawOrPanic(lhsRaw, caller: #function)
@@ -210,9 +208,6 @@ func runtimeStringReplace(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
     return runtimeMakeStringRaw(runtimeReplacingStringCodeUnits(source, old: oldValue, new: newValue))
 }
 
-// KSP-406: substring / subSequence / slice are bundled Kotlin source
-// (Stdlib/kotlin/text/StringSubstringSlice.kt); no runtime ABI remains.
-
 private func runtimeStringCodePointCount(
     units: [UInt16],
     startIndex: Int,
@@ -295,15 +290,3 @@ public func kk_chararray_concatToString(_ arrRaw: Int) -> Int {
     let units = box.elements.map { UInt16(truncatingIfNeeded: kk_unbox_char($0)) }
     return runtimeMakeStringRaw(runtimeKotlinStringFromUTF16CodeUnits(units))
 }
-
-// KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source
-// (StringTakeDrop.kt); their runtime bridges were removed.
-
-// KSP-404: removePrefix/removeSuffix/removeSurrounding are bundled Kotlin source
-// (StringPrefixSuffix.kt); their runtime bridges were removed.
-
-// KSP-404: startsWith/endsWith are bundled Kotlin source (StringPrefixSuffix.kt);
-// their runtime bridges were removed.
-
-// KSP-408: contains(String)/contains(String, ignoreCase) are bundled Kotlin source
-// (StringIndexOf.kt); their runtime bridges were removed.
