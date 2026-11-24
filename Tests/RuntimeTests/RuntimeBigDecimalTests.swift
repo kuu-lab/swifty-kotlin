@@ -398,5 +398,39 @@ struct RuntimeBigDecimalTests {
         #expect(kk_set_size(set) == 1)
         #expect(kk_set_contains(set, makeBigDecimal("1.10")) != 0)
     }
+
+    @Test
+    func testBigDecimalAnyHashCodeMatchesJvm() {
+        // JVM: BigDecimal("1.10").hashCode() == 31 * 110 + 2 == 3412
+        let a = makeBigDecimal("1.10")
+        let b = makeBigDecimal("1.10")
+        #expect(a != b)
+        #expect(kk_any_hashCode(a, 0) == 3412)
+        #expect(kk_any_hashCode(a, 0) == kk_any_hashCode(b, 0))
+        #expect(kk_any_hashCode(makeBigDecimal("1.1"), 0) == 31 * 11 + 1)
+        #expect(kk_any_hashCode(makeBigDecimal("0"), 0) == 0)
+        #expect(kk_any_hashCode(makeBigDecimal("0.00"), 0) == 2)
+        #expect(kk_any_hashCode(makeBigDecimal("-1.10"), 0) == Int(Int32(truncatingIfNeeded: 31 * -110 + 2)))
+        // Beyond 32 bits: unscaled 2^32 + 5 -> words [1, 5] -> 31 * 1 + 5 = 36 -> 31 * 36 + 0.
+        #expect(kk_any_hashCode(makeBigDecimal("4294967301"), 0) == 31 * 36)
+        // Beyond 64 bits: unscaled 2^64 -> words [1, 0, 0] -> 31 * 31 * 1 = 961 -> 31 * 961 + 0.
+        #expect(kk_any_hashCode(makeBigDecimal("18446744073709551616"), 0) == 31 * 961)
+    }
+
+    @Test
+    func testResultWrappingEqualBigDecimalsDeduplicatesInHashSet() {
+        var thrown = 0
+        let r1 = runtimeResultSuccess(makeBigDecimal("1.10"))
+        let r2 = runtimeResultSuccess(makeBigDecimal("1.10"))
+        #expect(runtimeValuesEqual(r1, r2))
+        #expect(RuntimeElementKey(value: r1).hashValue == RuntimeElementKey(value: r2).hashValue)
+        let array = kk_array_new(2)
+        _ = kk_array_set(array, 0, r1, &thrown)
+        _ = kk_array_set(array, 1, r2, &thrown)
+        #expect(thrown == 0)
+        let set = kk_hash_set_of(array, 2)
+        #expect(kk_set_size(set) == 1)
+        #expect(kk_set_contains(set, runtimeResultSuccess(makeBigDecimal("1.10"))) != 0)
+    }
 }
 #endif

@@ -366,6 +366,11 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         let wrappedValue = resultBox.isSuccess ? resultBox.value : resultBox.exception
         return kk_any_hashCode(wrappedValue, 0)
     }
+    // BigDecimal.hashCode() is 31 * unscaledValue.hashCode() + scale, so equal
+    // values (same unscaled value and scale) hash identically (KUU-4630).
+    if let bigNumberBox = tryCast(pointer, to: RuntimeBigNumberBox.self) {
+        return Int(runtimeBigDecimalJvmHashCode(bigNumberBox.value))
+    }
     if let localeBox = tryCast(pointer, to: RuntimeLocaleBox.self) {
         let value = [localeBox.language, localeBox.country, localeBox.variant]
             .filter { !$0.isEmpty }
