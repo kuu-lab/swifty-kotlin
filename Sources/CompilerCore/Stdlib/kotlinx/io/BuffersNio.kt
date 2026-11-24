@@ -24,14 +24,6 @@ import kotlinx.io.unsafe.UnsafeBufferOperations
 import java.nio.ByteBuffer
 import java.nio.channels.ByteChannel
 
-/**
- * Writes up to [ByteBuffer.remaining] bytes from this buffer to the sink.
- * Return the number of bytes written.
- *
- * @param sink the sink to write data to.
- *
- * @sample kotlinx.io.samples.KotlinxIoSamplesJvm.readWriteByteBuffer
- */
 @OptIn(UnsafeIoApi::class)
 public fun Buffer.readAtMostTo(sink: ByteBuffer): Int {
     if (exhausted()) return -1
@@ -44,13 +36,6 @@ public fun Buffer.readAtMostTo(sink: ByteBuffer): Int {
     return toCopy
 }
 
-/**
- * Reads all data from [source] into this buffer.
- *
- * @return this buffer.
- *
- * @sample kotlinx.io.samples.KotlinxIoSamplesJvm.transferBufferFromByteBuffer
- */
 @IgnorableReturnValue
 @OptIn(UnsafeIoApi::class)
 public fun Buffer.transferFrom(source: ByteBuffer): Buffer {
@@ -68,9 +53,6 @@ public fun Buffer.transferFrom(source: ByteBuffer): Buffer {
     return this
 }
 
-/**
- * Returns a new [ByteChannel] instance representing this buffer.
- */
 public fun Buffer.asByteChannel(): ByteChannel = object : ByteChannel {
     override fun read(sink: ByteBuffer): Int = readAtMostTo(sink)
 
