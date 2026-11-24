@@ -4,7 +4,6 @@
 import Foundation
 import Testing
 
-// STDLIB-COMP-FN-044: minOf(Long, Long) — 2-arg Long overload end-to-end codegen tests.
 @Suite
 struct CodegenBackendMinOfLongEdgeCasesTests {
 
