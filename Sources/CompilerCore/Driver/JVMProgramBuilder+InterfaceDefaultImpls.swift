@@ -324,6 +324,9 @@ extension JVMProgramBuilder {
         }.sorted { $0.rawValue < $1.rawValue }
         let inheritedFromClass = inheritedClassMethodSignatures(plan, includeInterfaceDefaults: false)
         let blocked = inheritedFromClass.union(existing.filter { !$0.isPrivate }.map { $0.reference.name + $0.reference.descriptor })
+        let interfaceSymbolByName = classes.reduce(into: [String: SymbolID]()) { result, entry in
+            if entry.value.isInterface { result[entry.value.name] = entry.key }
+        }
         var selected: [String: (method: JVMForeignMethod, owner: String, symbol: SymbolID, source: Bool)] = [:]
         for symbol in mostSpecific {
             let candidates: [(method: JVMForeignMethod, owner: String, source: Bool)]
@@ -346,7 +349,16 @@ extension JVMProgramBuilder {
                     selected[key] = (candidate.method, candidate.owner, symbol, candidate.source)
                     continue
                 }
-                if interfaceSymbolIsSubtype(symbol, of: prior.symbol) {
+                let declarationSymbol = interfaceSymbolByName[candidate.method.owner]
+                let priorDeclarationSymbol = interfaceSymbolByName[prior.method.owner]
+                let isMoreSpecific: Bool
+                if let declarationSymbol, let priorDeclarationSymbol {
+                    isMoreSpecific = declarationSymbol != priorDeclarationSymbol
+                        && interfaceSymbolIsSubtype(declarationSymbol, of: priorDeclarationSymbol)
+                } else {
+                    isMoreSpecific = interfaceSymbolIsSubtype(symbol, of: prior.symbol)
+                }
+                if isMoreSpecific {
                     selected[key] = (candidate.method, candidate.owner, symbol, candidate.source)
                 }
             }
