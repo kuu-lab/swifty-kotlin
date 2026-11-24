@@ -1531,7 +1531,11 @@ final class JVMClasspathIndex {
                 // source placeholder cannot reference its inaccessible type.
                 return "null!!"
             }
-            guard let typeName = kotlinClassLiteralType(descriptor) else { return nil }
+            guard var typeName = kotlinClassLiteralType(descriptor) else { return nil }
+            if !descriptor.hasPrefix("["), typeName.hasSuffix("<*>") || typeName.hasSuffix(", *>"),
+               let open = typeName.firstIndex(of: "<") {
+                typeName = String(typeName[..<open])
+            }
             return typeName + "::class"
         case let .annotation(annotation):
             return annotationInstanceSource(annotation, depth: depth + 1)
