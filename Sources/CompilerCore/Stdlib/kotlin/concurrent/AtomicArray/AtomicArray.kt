@@ -4,10 +4,6 @@ package kotlin.concurrent
 
 import kotlin.internal.KsSymbolName
 
-/**
- * The runtime owns the atomic storage; these methods provide bounds checks and
- * reuse the reference-array ABI shared with `kotlin.concurrent.atomics`.
- */
 @SinceKotlin("1.9")
 @ExperimentalStdlibApi
 public class AtomicArray<T> private constructor() {
