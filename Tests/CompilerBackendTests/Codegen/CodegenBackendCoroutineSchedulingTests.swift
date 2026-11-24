@@ -4,22 +4,10 @@
 import Foundation
 import Testing
 
-/// End-to-end scheduling behaviour of `runBlocking`.
-///
-/// The expectations below are the real kotlinc/JVM reference output, pinned by
-/// `Scripts/diff_cases/coroutine_yield_fifo_order.kt` and
-/// `Scripts/diff_cases/coroutine_start_modes.kt`. They each end with a blank
-/// line because `assertKotlinOutput` compares raw stdout, which keeps the final
-/// `println`'s newline.
 @Suite
 struct CodegenBackendCoroutineSchedulingTests {
 
 
-    /// `yield()` re-dispatches to the tail of runBlocking's queue, so the
-    /// interleaving is FIFO and identical on every run. Before the fix there
-    /// was no ready queue: resumptions went to the concurrent global dispatch
-    /// pool and their order was decided by thread races, so this program
-    /// printed `A2 B2` and `B2 A2` on different runs of the same binary.
     @Test func testCodegenYieldResumesInFIFOOrder() throws {
         let source = """
         import kotlinx.coroutines.*
@@ -48,9 +36,6 @@ struct CodegenBackendCoroutineSchedulingTests {
         )
     }
 
-    /// `async` owns its nested launch/async children until its body completes.
-    /// The parent runBlocking scope must not finish after the deferred body
-    /// returns while those children still have queued resumptions.
     @Test func testAsyncWaitsForNestedChildrenBeforeCompletion() throws {
         let source = """
         import kotlinx.coroutines.*
@@ -100,10 +85,6 @@ struct CodegenBackendCoroutineSchedulingTests {
         )
     }
 
-    /// `CoroutineStart.UNDISPATCHED` runs the body inline on the calling thread
-    /// until its first suspension, so `undispatched1` precedes `after launch`.
-    /// Every start mode used to reach the lazy launcher, which printed
-    /// `after launch` first and only ran the body at `join()`.
     @Test func testCodegenUndispatchedStartRunsBodyInline() throws {
         let source = """
         import kotlinx.coroutines.*
@@ -132,9 +113,6 @@ struct CodegenBackendCoroutineSchedulingTests {
         )
     }
 
-    /// `CoroutineStart.DEFAULT` schedules the body immediately: a single
-    /// `yield()` is enough to run it, with no `join()`. Under the old
-    /// lazy-for-everything lowering the body had not started at that point.
     @Test func testCodegenDefaultStartRunsWithoutJoin() throws {
         let source = """
         import kotlinx.coroutines.*
