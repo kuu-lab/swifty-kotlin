@@ -1,4 +1,3 @@
-// Private real thread/lock/parking kernels. Public API is bundled Kotlin source.
 private let abi = RuntimeABISectionBuilder("AtomicfuSynchronization")
 
 public extension RuntimeABISpec {
