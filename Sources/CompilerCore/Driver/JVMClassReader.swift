@@ -715,13 +715,20 @@ struct JVMClassReader {
             for index in methods.indices {
                 let method = methods[index]
                 let isSuspend = method.kotlinSuspendFunction != nil
-                guard (metadata.isFileFacade == true && method.isStatic) || Self.hasFunctionTypeDescriptor(method) || !method.isStatic,
+                guard ((metadata.isFileFacade == true || hasValueAdapters) && method.isStatic) || Self.hasFunctionTypeDescriptor(method) || !method.isStatic,
                       let function = functions.first(where: { candidate in
                           if let parameters = candidate.valueOperatorParameterDescriptors {
                               return method.isStatic && method.parameters.count == parameters.count + 1
                                   && method.parameters.first?.descriptor == valueCarrier?.descriptor
                           }
+                          if let parameters = candidate.valueMemberParameterDescriptors {
+                              return candidate.isSuspend == isSuspend && (candidate.jvmName ?? candidate.name) == method.name
+                                  && candidate.descriptor == method.descriptor && method.isStatic
+                                  && method.parameters.count == parameters.count + 1
+                                  && method.parameters.first?.descriptor == valueCarrier?.descriptor
+                          }
                           return candidate.isSuspend == isSuspend
+                              && candidate.valueOperatorParameterDescriptors == nil && candidate.valueMemberParameterDescriptors == nil
                               && (metadata.isFileFacade == true && method.isStatic || Self.hasFunctionTypeDescriptor(method)
                                   || method.composeABI(for: candidate) != nil
                                   || typedFlowMemberNames.contains(method.name) && candidate.descriptor == method.descriptor

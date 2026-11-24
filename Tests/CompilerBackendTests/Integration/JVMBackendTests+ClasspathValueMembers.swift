@@ -32,6 +32,25 @@ extension JVMBackendTests {
             #expect(run.stdout == "24.0\n")
         }
     }
+
+    @Test
+    func resultMemberCallsUseValueClassImplMethods() throws {
+        let stdlib = try ownStdlibLibrary()
+        try withWorkspace { root in
+            let source = """
+            fun main() {
+                val result = Result.success(40 + 2)
+                println(result.getOrThrow())
+                println(result.getOrDefault(0))
+                println(result.exceptionOrNull())
+            }
+            """
+            let (app, exit, diagnostics) = try m22Build(root: root, sources: [("Main.kt", source)], name: "app.jar", classpath: [stdlib.path])
+            try #require(exit == 0, "\(diagnostics.map(\.message))")
+            let run = try java(["-cp", ([app.path] + [stdlib.path]).joined(separator: ":"), "MainKt"])
+            #expect(run.stdout == "42\n42\nnull\n")
+        }
+    }
 }
 
 extension JVMBackendTests {
