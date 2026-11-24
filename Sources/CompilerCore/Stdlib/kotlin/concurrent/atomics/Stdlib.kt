@@ -11,12 +11,6 @@ package kotlin.concurrent.atomics
 
 import kotlin.internal.KsSymbolName
 
-// KSP-1100: these class shells claim the residual runtime-backed synthetic
-// surfaces and replace the atomics -> kotlin.concurrent typealiases; the
-// receiver member migrations remain owned by the per-type sibling tickets.
-// AtomicArray and AtomicNativePtr are declared in their per-type directories
-// (KSP-1109, AtomicNativePtr/Stdlib.kt).
-
 @SinceKotlin("2.1")
 @kotlin.concurrent.atomics.ExperimentalAtomicApi
 public class AtomicBoolean private constructor()
