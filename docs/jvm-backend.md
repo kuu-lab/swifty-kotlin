@@ -405,6 +405,15 @@ Java の参照 signature は platform 型として扱い、推論した公開戻
 メソッドの型引数・annotation による nullability は解釈せず、JVM の erased signature を使う。
 配列 signature は primitive array／Array に対応付ける。classpath にない参照型を含む外部メソッドは公開しない。
 
+外部 Kotlin JAR の `inline fun <reified T>` は bytecode のまま `Intrinsics.reifiedOperationMarker` を呼ぶため、直接呼ぶと実行時に失敗する。
+呼び出しごとに具体型引数を決め、本体をその型に特化した複製として生成クラス（`kswiftk/reified/<owner>$Reified`）へ置く。
+複製は元クラスの定数プールをそのまま引き継ぎ、marker 列（`iconst op; ldc "T"; invokestatic; 後続命令`）を同じ長さの命令＋`nop`へ置き換える。
+このためオフセット・分岐先・StackMapTable は動かない。対応する操作は `new T[]`（0）、`as`（1）、`as?`（2）、`is`（3）、
+`T::class`／`T::class.java`（4）、`typeOf<T>()`（6）。nullable 判定・`as?`・`typeOf` は複製と同じクラスの helper メソッドから呼ぶ。
+メンバー関数は receiver を先頭引数にした static メソッドになる。型引数が未確定（外側の型パラメータ）の呼び出しは従来の直接呼び出しのまま残す。
+mutable collection／関数型の型引数、`needClassReification` を使う lambda・匿名 object、`invokedynamic`、`ENUM_REIFIED` を含む本体は複製せず、警告（KSWIFTK-JVM-REIFIED）を出して従来どおり直接呼び出す（実行時に失敗する）。
+`$default` を使う呼び出しは複製の対象外で、従来どおり直接呼び出す。
+
 ## 匿名 object・data object・inner class・引数（M9）
 
 匿名 object は式を評価するたびにインスタンスを生成する。superclass／interface、独自メソッド・property・init、

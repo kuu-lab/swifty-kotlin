@@ -175,9 +175,10 @@ struct JVMClassReader {
         var annotations: [JVMAnnotation] = []
         var annotationDefault: JVMAnnotationValue?
         var parameterAnnotations: [[JVMAnnotation]] = []
+        var codeRange: (offset: Int, size: Int)?
     }
 
-    private mutating func methodAttributes(parseAnnotations: Bool, parseParameters: Bool) throws -> MethodAttributes {
+    private mutating func methodAttributes(parseAnnotations: Bool, parseParameters: Bool, captureCode: Bool = false) throws -> MethodAttributes {
         var attributes = MethodAttributes()
         let count = try u2()
         for _ in 0..<count {
@@ -188,6 +189,9 @@ struct JVMClassReader {
             if attributeName == "Signature" {
                 guard attributes.signature == nil, size == 2 else { throw Invalid() }
                 attributes.signature = try text(Int(u2()))
+            } else if captureCode, attributeName == "Code" {
+                attributes.codeRange = (offset, Int(size))
+                try skip(Int(size))
             } else if parseAnnotations, attributeName == "AnnotationDefault" {
                 attributes.annotationDefault = try readAnnotationValue(tag: u1())
             } else if parseAnnotations, attributeName == "RuntimeVisibleAnnotations" {
@@ -536,6 +540,7 @@ struct JVMClassReader {
         var hasJvmOverloads = false
         var hasMetroAnnotation = false
         var hasComposableAnnotation = false
+        var hasReifiedMarkerName = false
         // CONSTANT_String may reference a Utf8 entry declared later in the
         // pool; resolve those references once the pool is fully read.
         var pendingStringRefs: [Int: Int] = [:]
@@ -546,6 +551,7 @@ struct JVMClassReader {
                 let string = try readModifiedUTF8(length: length)
                 strings[index] = string
                 if string == "Lkotlin/Metadata;" { hasKotlinMetadata = true }
+                if string == JVMReifiedBody.markerName || string == JVMReifiedBody.needClassReificationName { hasReifiedMarkerName = true }
                 if string == "Lkotlin/jvm/JvmOverloads;" { hasJvmOverloads = true }
                 if string == "Landroidx/compose/runtime/Composable;" { hasComposableAnnotation = true }
                 if !hasMetroAnnotation, string.hasPrefix(JVMMetro.annotationPrefix),
@@ -601,6 +607,7 @@ struct JVMClassReader {
         var metroAccessors: [JVMForeignMethod] = []
         let methodCount = try u2()
         let parseAnnotations = flags & 0x2000 != 0 || hasMetroAnnotation
+        let rawPool = hasReifiedMarkerName ? (try?JVMRawConstantPool.parse(bytes, at: 8).pool) : nil
         for _ in 0..<methodCount {
             let access = try u2(), nameIndex = try u2(), descriptorIndex = try u2()
             let methodName = try text(Int(nameIndex)), descriptor = try text(Int(descriptorIndex))
@@ -623,7 +630,8 @@ struct JVMClassReader {
                 && JVMClasspathIndex.isReifiedHiltViewModel(owner: name, name: methodName, descriptor: descriptor)
             let methodInfo = try methodAttributes(
                 parseAnnotations: parseAnnotations || hasComposableAnnotation || hasJvmOverloads || isKotlinMetadataSynthetic,
-                parseParameters: hasMetroAnnotation
+                parseParameters: hasMetroAnnotation,
+                captureCode: rawPool != nil
             )
             let isMetroAccessor = hasMetroAnnotation && ((methodInfo.annotations.contains { $0.descriptor == JVMMetro.provides } || methodName == "<init>") && access & 0x0002 != 0
                 || access & 0x1009 == 0x1009 && methodName.hasPrefix("access$"))
@@ -650,6 +658,10 @@ struct JVMClassReader {
                 method.annotationDefault = methodInfo.annotationDefault
                 method.parameterAnnotations = methodInfo.parameterAnnotations
                 method.genericSignature = methodInfo.signature
+                if let rawPool, let range = methodInfo.codeRange, access & 0x0400 == 0, methodName != "<init>" {
+                    let body = JVMReifiedBody(classBytes: bytes, codeOffset: range.offset, codeSize: range.size)
+                    if let analysis = try? body.analyze(pool: rawPool), analysis.requiresReification { method.reifiedBody = body }
+                }
                 if isMetroAccessor { metroAccessors.append(method) }
                 else if isSyntheticConstructor { syntheticConstructors.append(method) }
                 else if isDefaultArgumentMethod { defaultArgumentMethods.append(method) }
