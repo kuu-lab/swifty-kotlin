@@ -4,14 +4,6 @@ package kotlin.concurrent
 
 import kotlin.internal.KsSymbolName
 
-// MIGRATION-ATOMIC-ARRAY-002 (KSP-672)
-// kotlin.concurrent.AtomicIntArray / AtomicLongArray are a distinct class family
-// from the kotlin.concurrent.atomics one (see AtomicArrayMigration.kt) but share
-// the same runtime boxes and raw `__kk_atomic_*_array_*` bridges. The public
-// `*At` boundary layer and index bounds checks live here in Kotlin; only the raw
-// synchronized core stays in the runtime. This family exposes the smaller,
-// alias-free surface that the synthetic stubs registered for this package.
-
 @KsSymbolName("__kk_atomic_int_array_load")
 private external fun AtomicIntArray.__kk_load(index: Int): Int
 
