@@ -48,8 +48,6 @@ struct CodegenBackendBug222ObjectToStringTests {
         let output = try runKotlinOutput(source, moduleName: "Bug222ObjectAnyBoundary")
         let lines = output.split(separator: "\n", omittingEmptySubsequences: false)
         #expect(lines.count == 6)
-        // KUU-4455: `println(Plain)` renders the same JVM `Name@hash` identity
-        // as the Any-erased path, not the bare simple name.
         #expect(lines[0].hasPrefix("Plain@"))
         #expect(lines[0] == lines[1])
         #expect(lines[2].hasPrefix("prefix=Plain@"))
