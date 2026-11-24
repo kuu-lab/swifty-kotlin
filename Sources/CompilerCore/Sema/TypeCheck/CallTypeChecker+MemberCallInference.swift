@@ -107,6 +107,24 @@ extension CallTypeChecker {
             memberReceiverType = assertedType
         }
 
+        // `a?.f(<args>)` skips the whole argument evaluation when `a` is null,
+        // so a definite assignment performed inside the arguments (directly,
+        // in a block-valued argument, or through a nested callsInPlace
+        // contract) is only conditional. The receiver is already evaluated
+        // here, so only locals still uninitialized at this point are reverted
+        // once the arguments have been inferred (KUU-4625).
+        let uninitializedBeforeArguments: Set<SymbolID> = safeCall
+            ? Set(locals.compactMap { $0.value.isInitialized ? nil : $0.value.symbol })
+            : []
+        defer {
+            if !uninitializedBeforeArguments.isEmpty {
+                for (name, local) in locals
+                where local.isInitialized && uninitializedBeforeArguments.contains(local.symbol) {
+                    locals[name] = (local.type, local.symbol, local.isMutable, false)
+                }
+            }
+        }
+
         if safeCall {
             let baseState = ctx.flowState.includingMembers(from: locals)
             var narrowedState = ctx.dataFlow.narrowNonNull(
