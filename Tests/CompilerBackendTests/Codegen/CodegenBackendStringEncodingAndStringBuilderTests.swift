@@ -7,7 +7,6 @@ import Testing
 @Suite
 struct CodegenBackendStringEncodingAndStringBuilderTests {
 
-    // TEST-TEXT-021: String encoding, byte array decoding, and StringBuilder clear pure Kotlin operations
     @Test
     func testCodegenStringPureKotlinEncodingAndStringBuilderOperations() throws {
         let source = """
