@@ -169,6 +169,10 @@ extension JVMBackendTests {
                 class Literal(val enabled: Boolean)
 
                 @Serializable
+                @SerialName("total$")
+                class Dollar(val x: Int)
+
+                @Serializable
                 @SerialName("a\\nb")
                 class Escaped(val x: Int)
 
@@ -182,11 +186,14 @@ extension JVMBackendTests {
             try #require(exitCode == 0, "\(diagnostics.map(\.message))")
             let entries = try jarEntries(root)
             #expect(entries.contains("Literal$$serializer.class"))
+            #expect(entries.contains("Dollar$$serializer.class"))
             #expect(!entries.contains("Escaped$$serializer.class"))
             #expect(!entries.contains("Backslash$$serializer.class"))
             let code = try jvmTool("javap", ["-p", "-c", "-constants", "-cp", "hello.jar", "Literal$$serializer"], root: root)
             try #require(code.exitCode == 0, "\(code.stderr)")
             #expect(code.stdout.contains("String value=class"))
+            let dollar = try jvmTool("javap", ["-p", "-c", "-constants", "-cp", "hello.jar", "Dollar$$serializer"], root: root)
+            #expect(dollar.stdout.contains("String total$"))
         }
     }
 

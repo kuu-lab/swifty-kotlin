@@ -119,7 +119,14 @@ extension JVMProgramBuilder {
         }
         guard argument.count >= 2, argument.hasPrefix("\""), argument.hasSuffix("\"") else { return .unsupported }
         let body = String(argument.dropFirst().dropLast())
-        guard !body.unicodeScalars.contains(where: { $0 == "\"" || $0 == "\\" || $0 == "$" || $0.value < 0x20 || $0.value == 0x7F }) else { return .unsupported }
+        let scalars = Array(body.unicodeScalars)
+        for (index, scalar) in scalars.enumerated() {
+            if scalar == "\"" || scalar == "\\" || scalar.value < 0x20 || scalar.value == 0x7F { return .unsupported }
+            if scalar == "$", index + 1 < scalars.count {
+                let next = scalars[index + 1]
+                if next == "{" || next == "_" || next.properties.isAlphabetic { return .unsupported }
+            }
+        }
         return .literal(body)
     }
 
