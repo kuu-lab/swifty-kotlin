@@ -19,7 +19,6 @@ private let runtimeSystemProperties: [String: String] = {
 
     return [
         "java.vm.name": "KSwiftK Native Runtime",
-        // No JVM is hosted; expose the Kotlin compatibility target version.
         "java.version": kotlinVersion,
         "java.class.path": "",
         "sun.java.command": processInfo.arguments.joined(separator: " "),
@@ -112,10 +111,6 @@ private let runtimeSystemLineSeparator: String = {
     "\n"
 #endif
 }()
-
-// The public kotlin.system surface lives in bundled Kotlin source
-// (Sources/CompilerCore/Stdlib/kotlin/system/). Only the OS entry points stay
-// here, demoted to __kk_ so they are reachable from the stdlib layer alone.
 
 @_cdecl("__kk_system_exitProcess")
 public func __kk_system_exitProcess(_ status: Int) -> Never {
@@ -217,7 +212,6 @@ public func __kk_system_envValueAt(_ index: Int) -> Int {
     return runtimeMakeStringRaw(runtimeSystemEnvironmentEntries[index].value)
 }
 
-/// Not monotonic — reads the system real-time clock, which may jump on NTP adjustments.
 @_cdecl("__kk_system_currentTimeMillis")
 public func __kk_system_currentTimeMillis() -> Int {
     Int(Date().timeIntervalSince1970 * 1000)
@@ -230,7 +224,6 @@ public func __kk_system_getTimeMillis() -> Int {
 
 @_cdecl("__kk_system_nanoTime")
 public func __kk_system_nanoTime() -> Int {
-    // 64-bit: Int.max ≈ 292 years of ns — clamping is effectively a no-op.
     Int(clamping: DispatchTime.now().uptimeNanoseconds)
 }
 
