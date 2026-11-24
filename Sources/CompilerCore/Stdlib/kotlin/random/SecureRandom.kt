@@ -2,8 +2,6 @@ package kotlin.random
 
 import kotlin.internal.KsSymbolName
 
-// The runtime opaque handle is passed as `this` to the member bridges.
-
 public class SecureRandom private constructor() {
     public companion object {
         @KsSymbolName("__kk_secure_random_get_instance")
