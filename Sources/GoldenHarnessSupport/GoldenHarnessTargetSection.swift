@@ -1,22 +1,9 @@
 @testable import CompilerCore
 import Foundation
 
-/// Unlike the ordinary `symbol`/`expr` body — which only covers what the
-/// fixture itself declares and references — this section deliberately dumps
-/// the *library-owned* declarations a case claims responsibility for: full
-/// signatures, declared variance, supertypes, typealias underlying types,
-/// annotations, and origin classification. Selection is explicit: a `target`
-/// that matches zero or several symbols fails the case instead of silently
-/// losing coverage, and the render never expands transitively, so the
-/// section's size is bounded by the spec rather than by how much of the
-/// bundled surface the fixture happens to touch.
 enum GoldenHarnessTargetSection {
     static let sectionHeader = "section stdlib-targets"
 
-    /// Origins a `target=` is allowed to pin. Fixture-owned and unresolved
-    /// symbols are rejected: a case must not claim responsibility for its own
-    /// declarations (that is what ordinary `symbol`/`decl` output is for) nor
-    /// for symbols whose origin the classifier could not establish.
     private static let allowedOrigins: Set<GoldenSymbolOrigin> = [
         .bundledSource,
         .stdlibStub,
@@ -35,12 +22,6 @@ enum GoldenHarnessTargetSection {
             sourceManager: sourceManager
         )
 
-        // Index every symbol by its meaning-derived stable key and by the
-        // key's FQName component, so both full-key and bare-FQName targets
-        // resolve against the same namespace `call=`/`ref=` lines print.
-        // Keys always start their bracketed descriptor with `kind=`, so
-        // splitting on "[kind=" keeps bracketed-identifier edge cases in the
-        // FQName component intact.
         var symbolsByKey: [String: [SemanticSymbol]] = [:]
         var keysByFQName: [String: [String]] = [:]
         for symbol in sema.symbols.allSymbols() {
@@ -72,10 +53,6 @@ enum GoldenHarnessTargetSection {
             .map(\.line)
     }
 
-    /// `target` is either a complete meaning key (`fq[kind=…;…]`, the exact
-    /// string a `call=`/`ref=`/`symbol fq=` field prints) or a bare FQName
-    /// (`kotlin.Any`). The bare form must resolve to exactly one symbol —
-    /// overloaded FQNames require the full key.
     private static func resolve(
         _ target: String,
         symbolsByKey: [String: [SemanticSymbol]],
@@ -103,8 +80,6 @@ enum GoldenHarnessTargetSection {
         return symbol
     }
 
-    /// Best-effort near-miss list for the error message so a misspelled or
-    /// under-specified target points the author at real keys.
     private static func candidateKeys(
         for target: String,
         keysByFQName: [String: [String]]
@@ -143,10 +118,6 @@ enum GoldenHarnessTargetSection {
         if let signature = sema.symbols.functionSignature(for: symbol.id) {
             parts.append("sig=\(ctx.renderSignature(signature))")
             if !signature.typeParameterSymbols.isEmpty {
-                // T<declarationIndex> — the same normalization the meaning
-                // keys use. Imported-library type parameters are virtual IDs
-                // with no registered name, so positional tokens are the only
-                // profile-independent spelling.
                 let names = signature.typeParameterSymbols.indices.map { "T\($0)" }
                 parts.append("tparams=[\(names.joined(separator: ","))]")
             }
@@ -210,10 +181,6 @@ enum GoldenHarnessTargetSection {
             parts.append("type=\(ctx.renderType(propertyType))")
         }
 
-        // `@kotlin.Metadata` is the `.kklib` storage encoding blob attached to
-        // every imported declaration — multi-line, embeds positional type IDs,
-        // and is compiler bookkeeping rather than API surface. User-facing
-        // annotations (Deprecated, KsSymbolName link names, …) stay.
         let annotations = sema.symbols.annotations(for: symbol.id)
             .filter { $0.annotationFQName != KnownCompilerAnnotation.metadata.qualifiedName }
         if !annotations.isEmpty {
