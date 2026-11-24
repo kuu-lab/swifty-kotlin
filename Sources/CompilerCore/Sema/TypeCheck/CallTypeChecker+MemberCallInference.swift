@@ -118,10 +118,14 @@ extension CallTypeChecker {
             : []
         defer {
             if !uninitializedBeforeArguments.isEmpty {
+                var reverted: Set<SymbolID> = []
                 for (name, local) in locals
                 where local.isInitialized && uninitializedBeforeArguments.contains(local.symbol) {
                     locals[name] = (local.type, local.symbol, local.isMutable, false)
+                    reverted.insert(local.symbol)
+                    if !local.isMutable { locals.possiblyAssignedVals.insert(local.symbol) }
                 }
+                if !reverted.isEmpty { locals.safeCallArgumentInitializations[id] = reverted }
             }
         }
 

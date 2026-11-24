@@ -7,6 +7,13 @@ struct LocalBindings: ExpressibleByDictionaryLiteral, Sequence {
     var delegatedLocalSymbols: Set<SymbolID> = []
     var variableFacts: [SymbolID: DataFlowValueFacts] = [:]
     var invalidatedVariableFacts: Set<SymbolID> = []
+    /// Local `val`s that a conditionally evaluated safe-call argument may have
+    /// assigned (KUU-4625). They stay uninitialized for reads, but a later
+    /// assignment may still overwrite the value on the evaluated path.
+    var possiblyAssignedVals: Set<SymbolID> = []
+    /// Locals initialized by the arguments of each safe call, keyed by the
+    /// call expression. A non-null result proves the arguments were evaluated.
+    var safeCallArgumentInitializations: [ExprID: Set<SymbolID>] = [:]
     /// Lambda-body scopes retain displaced outer bindings so callsInPlace
     /// collection can still see initialization that a same-name local later shadows.
     var preservesShadowedBindings = false
