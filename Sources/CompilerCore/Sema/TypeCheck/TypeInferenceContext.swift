@@ -1,9 +1,16 @@
+struct LambdaReturnLocalState {
+    var locals: LocalBindings
+    var finallyInitializedSymbols: Set<SymbolID> = []
+}
+
 final class LambdaReturnInferenceScope {
     let exprID: ExprID
     let label: InternedString?
     let expectedReturnType: TypeID?
     var returnValueTypes: [ExprID: TypeID] = [:]
-    var returnLocalStates: [LocalBindings] = []
+    var returnLocalStates: [LambdaReturnLocalState] = []
+    var pendingFinallyReturnStates: [LambdaReturnLocalState] = []
+    var openFinallyRegionCount = 0
 
     init(exprID: ExprID, label: InternedString?, expectedReturnType: TypeID?) {
         self.exprID = exprID
@@ -74,7 +81,6 @@ struct TypeInferenceContext: CustomStringConvertible {
     var lambdaLabelStack: [(label: InternedString, denotesFunction: Bool)]
     var lambdaReturnScopes: [LambdaReturnInferenceScope] = []
     var lambdaDepth: Int = 0
-    var enclosingTryFinallyDepth = 0
     var suspensionContext = SuspensionContext()
     var defaultArgumentComposableFunction: SymbolID?
     var enclosingFunctionReturnType: TypeID?
@@ -159,7 +165,6 @@ struct TypeInferenceContext: CustomStringConvertible {
         copy.loopDepth = 0
         copy.loopLabelStack = []
         copy.loopFlowScopes = []
-        copy.enclosingTryFinallyDepth = 0
         return copy
     }
 

@@ -193,5 +193,95 @@ extension JVMBackendTests {
             }
         }
     }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func contractLambdaReturnInsideTryFinallyRejectsUninitializedRead(mode: EmitMode) throws {
+        // The early return inside try skips the assignment after the
+        // try-with-finally, and finally does not assign x, so stock kotlinc
+        // rejects the read. Compile-only, like the buildList test above.
+        let buildListReturn = """
+        fun main() {
+            var x: Int
+            buildList lit@{
+                try {
+                    if (isEmpty()) return@lit
+                } finally {
+                    println("f")
+                }
+                x = 5
+            }
+            println(x)
+        }
+        """
+        let takeUnlessCatchReturn = """
+        fun main() {
+            var x: Int
+            "hi".takeUnless lit@{
+                try {
+                    println(it)
+                } catch (e: Exception) {
+                    return@lit false
+                } finally {
+                    println("f")
+                }
+                x = 5
+                true
+            }
+            println(x)
+        }
+        """
+        let nestedTryFinallyReturn = """
+        fun main() {
+            var x: Int
+            "hi".takeUnless lit@{
+                try {
+                    try {
+                        if (it.isEmpty()) return@lit false
+                    } finally {
+                        println("inner")
+                    }
+                } finally {
+                    println("outer")
+                }
+                x = 5
+                true
+            }
+            println(x)
+        }
+        """
+        try withWorkspace { root in
+            for source in [buildListReturn, takeUnlessCatchReturn, nestedTryFinallyReturn] {
+                let result = try compile(source, root: root, mode: mode)
+                try #require(result.0 != 0, "expected definite-assignment failure")
+                #expect(result.1.contains { $0.message.contains("must be initialized") })
+            }
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func contractLambdaReturnInsideNestedTryFinallyAcceptsOuterFinallyAssignment(mode: EmitMode) throws {
+        let source = """
+        fun main() {
+            var x: Int
+            "hi".takeUnless lit@{
+                try {
+                    try {
+                        if (it.isEmpty()) return@lit false
+                    } finally {
+                        println("inner")
+                    }
+                } finally {
+                    x = 5
+                }
+                true
+            }
+            println(x)
+        }
+        """
+        try withWorkspace { root in
+            let result = try compile(source, root: root, mode: mode)
+            #expect(result.0 == 0, "\(result.1.map(\.message))")
+        }
+    }
 }
 #endif

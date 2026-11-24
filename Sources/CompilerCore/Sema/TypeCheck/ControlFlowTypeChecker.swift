@@ -1426,8 +1426,10 @@ final class ControlFlowTypeChecker {
             branchCtx.isUnitCoercionContext = false
         }
         branchCtx.isConditionallyEvaluated = false
-        if finallyExpr != nil {
-            branchCtx.enclosingTryFinallyDepth += 1
+        let finallyReturnScopes = finallyExpr == nil ? [] : ctx.lambdaReturnScopes
+        let pendingReturnStartIndices = finallyReturnScopes.map(\.pendingFinallyReturnStates.count)
+        for scope in finallyReturnScopes {
+            scope.openFinallyRegionCount += 1
         }
 
         var tryBodyLocals = preTryLocals
@@ -1487,11 +1489,30 @@ final class ControlFlowTypeChecker {
             }
         }
 
+        for scope in finallyReturnScopes {
+            scope.openFinallyRegionCount -= 1
+        }
+
         mergeNullableBranchAssignments(normalCompletionLocals, sema: sema, locals: &locals)
 
         if let finallyExpr {
             var finallyLocals = locals
             _ = driver.inferExpr(finallyExpr, ctx: ctx, locals: &finallyLocals, expectedType: nil, isStatementContext: true)
+            var finallyInitializedSymbols: Set<SymbolID> = []
+            for (name, local) in preTryLocals where !local.isInitialized {
+                if let finalLocal = finallyLocals[name], finalLocal.symbol == local.symbol, finalLocal.isInitialized {
+                    finallyInitializedSymbols.insert(local.symbol)
+                }
+            }
+            for (scope, startIndex) in zip(finallyReturnScopes, pendingReturnStartIndices) {
+                for index in startIndex ..< scope.pendingFinallyReturnStates.count {
+                    scope.pendingFinallyReturnStates[index].finallyInitializedSymbols.formUnion(finallyInitializedSymbols)
+                }
+                if scope.openFinallyRegionCount == 0 {
+                    scope.returnLocalStates.append(contentsOf: scope.pendingFinallyReturnStates[startIndex...])
+                    scope.pendingFinallyReturnStates.removeSubrange(startIndex...)
+                }
+            }
             locals = finallyLocals
         }
 
