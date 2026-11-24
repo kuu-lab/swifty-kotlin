@@ -18,10 +18,6 @@ public func kk_long_to_uint(_ value: Int) -> Int {
     Int(UInt32(truncatingIfNeeded: value))
 }
 
-/// Identity numeric conversions (`Int.toInt()`, `Byte.toInt()`, `Short.toLong()`, ...)
-/// share one raw register representation, so the conversion returns its operand.
-/// Direct calls lower to a plain copy; this symbol exists for the places that
-/// reach the conversion by name, such as callable references (`Int::toInt`).
 @_cdecl("kk_primitive_identity")
 public func kk_primitive_identity(_ value: Int) -> Int {
     value
@@ -47,8 +43,6 @@ public func kk_int_to_ulong(_ value: Int) -> Int {
 
 @_cdecl("kk_long_to_ulong")
 public func kk_long_to_ulong(_ value: Int) -> Int {
-    // An Any-to-Long cast can retain a Long box. Convert its payload, not
-    // its handle, before the result is treated as an unsigned value.
     kk_unbox_long(value)
 }
 
@@ -90,7 +84,6 @@ public func kk_ubyte_to_byte(_ value: Int) -> Int {
 
 @_cdecl("kk_ubyte_to_short")
 public func kk_ubyte_to_short(_ value: Int) -> Int {
-    // UByte (0..255) always fits in Int16, identity
     value
 }
 
@@ -188,31 +181,26 @@ public func kk_ulong_to_ushort(_ value: Int) -> Int {
 
 @_cdecl("kk_ubyte_to_int")
 public func kk_ubyte_to_int(_ value: Int) -> Int {
-    // UByte is always in valid range for Int
     value
 }
 
 @_cdecl("kk_ushort_to_int")
 public func kk_ushort_to_int(_ value: Int) -> Int {
-    // UShort is always in valid range for Int
     value
 }
 
 @_cdecl("kk_ubyte_to_long")
 public func kk_ubyte_to_long(_ value: Int) -> Int {
-    // UByte is always in valid range for Long
     value
 }
 
 @_cdecl("kk_ushort_to_long")
 public func kk_ushort_to_long(_ value: Int) -> Int {
-    // UShort is always in valid range for Long
     value
 }
 
 @_cdecl("kk_ubyte_to_ushort")
 public func kk_ubyte_to_ushort(_ value: Int) -> Int {
-    // UByte (0-255) always fits in UShort (0-65535), identity
     value
 }
 
@@ -233,25 +221,21 @@ public func kk_short_to_ubyte(_ value: Int) -> Int {
 
 @_cdecl("kk_ubyte_to_uint")
 public func kk_ubyte_to_uint(_ value: Int) -> Int {
-    // UByte is always in valid range for UInt
     value
 }
 
 @_cdecl("kk_ushort_to_uint")
 public func kk_ushort_to_uint(_ value: Int) -> Int {
-    // UShort is always in valid range for UInt
     value
 }
 
 @_cdecl("kk_ubyte_to_ulong")
 public func kk_ubyte_to_ulong(_ value: Int) -> Int {
-    // UByte is always in valid range for ULong
     value
 }
 
 @_cdecl("kk_ushort_to_ulong")
 public func kk_ushort_to_ulong(_ value: Int) -> Int {
-    // UShort is always in valid range for ULong
     value
 }
 
