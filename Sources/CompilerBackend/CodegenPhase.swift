@@ -300,6 +300,7 @@ public final class CodegenPhase: CompilerPhase {
             moduleName: ctx.options.moduleName,
             phaseTimer: ctx.phaseTimer,
             parallelJobs: parallelJobs,
+            maxInstructionsPerObjectPartition: ctx.options.codegenPartitionInstructions,
             session: session ?? LLVMBackendSession()
         )
     }
