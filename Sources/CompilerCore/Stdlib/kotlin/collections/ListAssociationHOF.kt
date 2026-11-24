@@ -2,13 +2,6 @@
 
 package kotlin.collections
 
-// MIGRATION-COL-004
-// List association / grouping / indexing / side-effect / unzip HOFs migrated to Kotlin source.
-// Migration source: Sources/Runtime/RuntimeCollectionHOF.swift
-//
-// These implementations reuse the List indexing path (this[i] / size) and the
-// MutableMap / MutableList factory bridges in CollectionFactories.kt.
-
 public inline fun <T, K, V> List<T>.associate(transform: (T) -> Pair<K, V>): Map<K, V> {
     val result = mutableMapOf<K, V>()
     var i = 0
