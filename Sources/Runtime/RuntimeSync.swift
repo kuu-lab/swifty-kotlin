@@ -5,12 +5,9 @@ import Darwin
 import Glibc
 #endif
 
-/// A non-reentrant mutual exclusion lock with FIFO waiter ordering.
 final class RuntimeMutexHandle: @unchecked Sendable {
     private let lock = NSLock()
     private var isHeld = false
-    /// Owner token recorded by `lock(owner)`/`tryLock` (`0` = anonymous lock).
-    /// `null` reaching the ABI as `runtimeNullSentinelInt` is normalized to 0.
     private var owner: Int = 0
     private enum Waiter {
         case blocking(DispatchSemaphore, owner: Int)
@@ -41,17 +38,12 @@ final class RuntimeMutexHandle: @unchecked Sendable {
         return true
     }
 
-    /// `tryLock` outcome: acquired, busy (held or waiters queued), or held
-    /// by `owner` itself — upstream throws IllegalStateException on the
-    /// same-owner path instead of reporting a plain miss.
     enum TryLockOutcome {
         case acquired
         case busy
         case alreadyLockedByOwner
     }
 
-    /// Owner-aware `tryLock`: records `owner` on success so `unlock(owner)`
-    /// and `holdsLock(owner)` see the acquirer, exactly like `lock(owner)`.
     func tryLock(owner: Int) -> TryLockOutcome {
         lock.lock()
         defer { lock.unlock() }
@@ -69,26 +61,14 @@ final class RuntimeMutexHandle: @unchecked Sendable {
         return .acquired
     }
 
-    /// Used by `__kk_lock_withLock` which runs on a regular (non-coroutine) thread.
     func lockBlocking() {
         _ = lockSync(continuation: 0)
     }
 
-    /// Acquire the lock synchronously (non-suspend path).
-    /// If the lock is free, acquires immediately and returns 0.
-    /// If the lock is held and `continuation != 0`, enqueues the coroutine
-    /// waiter and returns the coroutine suspended sentinel.
-    /// If the lock is held and `continuation == 0`, the caller is treated as a
-    /// blocking waiter and sleeps until ownership transfers.
     func lockSync(continuation: Int) -> Int {
         lockSync(continuation: continuation, owner: 0, outThrown: nil)
     }
 
-    /// On acquisition the owner token is recorded so `unlock(owner)` can
-    /// validate it. When the mutex is already held by the same `owner`, this
-    /// writes an `IllegalStateException` into `outThrown` and returns 0,
-    /// matching kotlinx.coroutines `lock(owner)` which fails fast instead of
-    /// deadlocking on same-owner re-acquisition.
     func lockSync(continuation: Int, owner: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int {
         lock.lock()
         if !isHeld && waiters.isEmpty {
@@ -127,16 +107,11 @@ final class RuntimeMutexHandle: @unchecked Sendable {
         return result
     }
 
-    /// Returns `0` on success. Unlocking a mutex that is not held returns an
-    /// `IllegalStateException` handle, matching kotlinx.coroutines `Mutex.unlock`.
     @discardableResult
     func unlock() -> Int {
         unlock(expectedOwner: 0)
     }
 
-    /// When `expectedOwner != 0` the recorded owner must match (upstream
-    /// compares by identity); on mismatch the lock stays held and an
-    /// `IllegalStateException` handle is returned.
     @discardableResult
     func unlock(expectedOwner: Int) -> Int {
         lock.lock()
@@ -155,7 +130,6 @@ final class RuntimeMutexHandle: @unchecked Sendable {
             switch waiter {
             case let .blocking(sema, owner):
                 waiterOwner = owner
-                // Keep isHeld = true — ownership transfers to the blocking waiter.
                 self.owner = waiterOwner
                 lock.unlock()
                 sema.signal()
@@ -165,7 +139,6 @@ final class RuntimeMutexHandle: @unchecked Sendable {
                     continue
                 }
                 waiterOwner = owner
-                // Keep the mutex held — ownership transfers to the resumed waiter.
                 self.owner = waiterOwner
                 lock.unlock()
                 continuation.resume(value: 0) { [self] in
@@ -181,7 +154,6 @@ final class RuntimeMutexHandle: @unchecked Sendable {
     }
 }
 
-/// `release()` returns a permit and resumes one waiter (FIFO order).
 final class RuntimeSemaphoreHandle: @unchecked Sendable {
     private let lock = NSLock()
     private let maxPermits: Int
@@ -214,12 +186,6 @@ final class RuntimeSemaphoreHandle: @unchecked Sendable {
         return false
     }
 
-    /// Acquire a permit synchronously (non-suspend path).
-    /// If a permit is free, acquires immediately and returns 0.
-    /// If none are available and `continuation != 0`, enqueues the coroutine
-    /// waiter and returns the coroutine suspended sentinel.
-    /// If none are available and `continuation == 0`, the caller is treated as
-    /// a blocking waiter and sleeps until a permit transfers to it.
     func acquireSync(continuation: Int) -> Int {
         lock.lock()
         if permits > 0 {
@@ -243,16 +209,12 @@ final class RuntimeSemaphoreHandle: @unchecked Sendable {
         return Int(bitPattern: kk_coroutine_suspended())
     }
 
-    /// Returns `0` on success. Releasing more permits than `maxPermits`
-    /// returns an `IllegalStateException` handle, matching kotlinx.coroutines
-    /// `Semaphore.release`.
     @discardableResult
     func release() -> Int {
         lock.lock()
         while let waiter = waiters.dequeue() {
             switch waiter {
             case let .blocking(sema):
-                // Permit transfers directly to the blocking waiter.
                 lock.unlock()
                 sema.signal()
                 return 0
@@ -260,7 +222,6 @@ final class RuntimeSemaphoreHandle: @unchecked Sendable {
                 if runtimeSyncContinuationIsCancelled(continuation) {
                     continue
                 }
-                // Permit transfers directly to the resumed waiter.
                 lock.unlock()
                 runtimeSyncResume(continuation)
                 return 0
@@ -331,16 +292,10 @@ public func kk_mutex_unlock(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int
     }
 }
 
-/// Normalizes an `Any?` owner token crossing the ABI: Kotlin `null` may
-/// arrive as 0 or the `runtimeNullSentinelInt` placeholder; both mean
-/// "no owner" and disable the identity check, matching kotlinx.coroutines.
 private func runtimeMutexNormalizeOwner(_ owner: Int) -> Int {
     owner == runtimeNullSentinelInt ? 0 : owner
 }
 
-// The lock bridge mirrors kk_mutex_lock's blocking/continuation ABI plus a
-// trailing outThrown slot; a mutex already held by the same owner reports an
-// IllegalStateException instead of deadlocking.
 @_cdecl("__kk_mutex_lock_owner")
 public func __kk_mutex_lock_owner(
     _ handle: Int,
@@ -389,9 +344,6 @@ public func __kk_mutex_tryLock(_ handle: Int) -> Int {
     return mutex.tryLock() ? 1 : 0
 }
 
-/// `Mutex.tryLock(owner)` bridge: records `owner` on acquisition so
-/// `unlock(owner)`/`holdsLock(owner)` apply; a mutex already held by the
-/// same owner reports IllegalStateException like `lock(owner)` does.
 @_cdecl("__kk_mutex_tryLock_owner")
 public func __kk_mutex_tryLock_owner(
     _ handle: Int,
@@ -462,8 +414,6 @@ public func __kk_mutex_isLocked(_ handle: Int) -> Int {
     return mutex.isLocked ? 1 : 0
 }
 
-// KUU-1659: Mutex.holdsLock(owner) observes the current owner token by
-// identity, under the same lock as isHeld, without changing either value.
 @_cdecl("__kk_mutex_holdsLock")
 public func __kk_mutex_holdsLock(_ handle: Int, _ owner: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
@@ -525,15 +475,6 @@ public func __kk_semaphore_availablePermits(_ handle: Int) -> Int {
     return semaphore.availablePermits
 }
 
-// KSP-677: kk_mutex_withLock and kk_semaphore_withPermit are removed. The
-// public helpers Mutex.withLock / Semaphore.withPermit are Kotlin source
-// (Stdlib/kotlinx/coroutines/sync/Sync.kt) composing the c-soft kernel
-// primitives lock()/unlock() and acquire()/release().
-
-/// `Lock.withLock` is Kotlin source (KSP-677, Stdlib/kotlin/concurrent/Lock.kt)
-/// delegating to this demoted bridge, so the action arrives split into a
-/// function pointer / closure environment pair with an `outThrown`
-/// out-parameter, matching the general closure-taking bridge ABI.
 @_cdecl("__kk_lock_withLock")
 public func kk_lock_bridge_withLock(
     _ handle: Int,
