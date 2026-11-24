@@ -4,7 +4,6 @@ import CompilerCore
 
 extension NativeEmitter {
 
-    /// One partition worker's emitted LLVM module plus the context that owns it.
     typealias PartitionModule = (
         context: LLVMCAPIBindings.LLVMContextRef,
         module: LLVMCAPIBindings.LLVMModuleRef
@@ -25,12 +24,6 @@ extension NativeEmitter {
             && symbols?.hasLazySymbolMaterialization != true
     }
 
-    /// Emits function bodies in contiguous partitions of the symbol-sorted
-    /// emittable list. Each partition builds a private LLVM context + module
-    /// (LLVM contexts must not be shared between threads), emits its chunk,
-    /// then the partition modules merge into `llvmModule` in partition order
-    /// via LLVMLinkModules2.
-    ///
     /// Per-partition private globals (e.g. `str_lit_*` string literals) can
     /// collide by name; LLVM renames them when modules merge. Because the
     /// merge order is fixed, the resulting module — and therefore the object
@@ -83,8 +76,6 @@ extension NativeEmitter {
                 }
             }
         } catch {
-            // Dispose partitions that were never merged; merged contexts are
-            // retained above and freed here since the module stays unreturned.
             input.disposeUnmergedPartitions(using: bindings)
             for partitionContext in retainedContexts {
                 bindings.disposeContext(partitionContext)
@@ -94,9 +85,6 @@ extension NativeEmitter {
         return retainedContexts
     }
 
-    /// Emits a library as a primary globals/metadata object plus one
-    /// independently compiled object file per function partition, running both
-    /// IR construction and LLVM machine-code emission in parallel across cores.
     func emitPartitionedObjects(
         outputObjectsDir: String,
         moduleName: String
@@ -190,7 +178,8 @@ extension NativeEmitter {
         var globalVariables = declareGlobals(
             llvmModule: llvmModule,
             int64Type: int64Type,
-            emitDefinitions: true
+            emitDefinitions: true,
+            definitionsUsedOnlyByOtherObjects: true
         )
         ensureImportedGlobalReferences(
             module: module,
@@ -226,10 +215,6 @@ extension NativeEmitter {
         }
     }
 
-    /// Emits one partition's functions into a private context/module. The
-    /// module gets extern declarations for every global and function (matching
-    /// the primary module's declarations) plus definitions for the chunk's own
-    /// functions; merging upgrades those declarations in the primary module.
     private func emitFunctionPartitionModule(
         functions: ArraySlice<(KIRFunction, String)>,
         runtimeCallbackRawABISymbols: Set<SymbolID>
@@ -370,15 +355,12 @@ extension NativeEmitter {
             return try slot.get()
         }
 
-        /// Marks a partition's module consumed by LLVMLinkModules2 so cleanup
-        /// passes never dispose it a second time.
         func clearPartition(at index: Int) {
             lock.lock()
             slots[index] = nil
             lock.unlock()
         }
 
-        /// Disposes module+context for every partition not consumed by a merge.
         func disposeUnmergedPartitions(using bindings: LLVMCAPIBindings) {
             lock.lock()
             let remaining = slots

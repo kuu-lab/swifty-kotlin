@@ -106,9 +106,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Describes the symbol a top-level declaration introduces, without touching
-    /// the symbol table. Shared by the forward-declaration pass and `collectHeader`
-    /// so both agree on kind/visibility/flags.
     func topLevelDeclarationDescriptor(
         for decl: Decl
     ) -> (kind: SymbolKind, name: InternedString, range: SourceRange?, visibility: Visibility, flags: SymbolFlags)? {
@@ -312,18 +309,6 @@ extension DataFlowSemaPhase {
         fqName: [InternedString],
         interner: StringInterner
     ) -> Bool {
-        // A shell reused without restoring its declSite stays non-source-backed
-        // (`isSourceBackedSymbol` returns false): that is the remaining
-        // compiler/metadata compatibility contract for nominals whose call
-        // lowering, export, or member binding still assumes the pre-migration
-        // shell. Golden dumping no longer reads declSite -- symbol origin is
-        // classified from the tracked source file ID instead -- so unlisted
-        // FQNames keep nil declSite only until their compiler-side paths are
-        // migrated off the shell. Listed FQNames were migrated deliberately:
-        // KSP-683 needs the Duration nominals source-backed for their
-        // value-class and enum metadata, and KSP-1083 applies the same staged
-        // source-shell treatment to the kotlin.concurrent atomic nominals
-        // while their constructors and members remain residual.
         return KnownCompilerNames(interner: interner).reusableSyntheticSourceBackedFQNames.contains(fqName)
     }
 

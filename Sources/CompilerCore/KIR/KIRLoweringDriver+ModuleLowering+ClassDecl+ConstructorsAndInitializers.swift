@@ -1,7 +1,3 @@
-/// Runtime `KCallable.visibility` ordinal (PUBLIC=0, PROTECTED=1,
-/// INTERNAL=2, PRIVATE=3) — the order `__kk_kcallable_get_metadata`
-/// member 2 and `RuntimeCallableRefMetadata.visibility` already use
-/// (KUU-4423).
 private func runtimeKCallableVisibilityOrdinal(_ visibility: Visibility) -> Int64 {
     switch visibility {
     case .public: return 0
@@ -90,8 +86,6 @@ extension KIRLoweringDriver {
         return decls
     }
 
-    /// The semantic signature records vararg element types; constructor bodies
-    /// and synthetic reflection wrappers receive one packed array instead.
     func constructorParameterStorageType(
         at index: Int,
         signature: FunctionSignature,
@@ -194,9 +188,6 @@ extension KIRLoweringDriver {
         }
         let pluginCtorInfo = sema.pluginGeneratedConstructors[ctorSymbol]
         if pluginCtorInfo != nil || !isSecondary {
-            // Plugin-generated constructors delegate `super()` with no
-            // arguments — the class header's supertype arguments belong to
-            // the primary constructor's delegation only.
             emitSuperConstructorDelegation(
                 classDecl: classDecl, ctorSymbol: ctorSymbol, ownerSymbol: ownerSymbol,
                 shared: shared, body: &body,
@@ -209,9 +200,6 @@ extension KIRLoweringDriver {
                     shared: shared,
                     body: &body
                 )
-                // Enum entries are ordinal-backed and initialized inside
-                // $enumEnsureInit$; their delegate handles are stored there by
-                // emitEnumEntryConstructorInitialization instead.
                 if sema.symbols.symbol(ownerSymbol)?.kind != .enumClass {
                     emitClassDelegationInitializers(
                         ownerSymbol: ownerSymbol,
@@ -282,9 +270,6 @@ extension KIRLoweringDriver {
     ) {
         let sema = shared.sema
         let arena = shared.arena
-        // Enum entries use the runtime ordinal box initialized by enum entry
-        // lowering. They do not call the source Enum(name, ordinal) constructor
-        // through the ordinary object constructor ABI.
         guard sema.symbols.symbol(ownerSymbol)?.kind != .enumClass else {
             return
         }
@@ -446,10 +431,6 @@ extension KIRLoweringDriver {
             && sema.symbols.functionSignature(for: superCtorSymbol)?.parameterTypes.isEmpty == true
     }
 
-    /// Initializes a Kotlin Throwable subclass whose `super(...)` target is a
-    /// runtime factory (see `isRuntimeThrowableSuperConstructor`). The factory
-    /// is called with the normalized arguments (named arguments reordered like
-    /// any call site), and the message / cause of the box it returns are copied
     /// onto `receiver`. Copying instead of mapping parameters by hand keeps the
     /// factory's own semantics, e.g. `Exception(cause)` deriving its message
     /// from `cause.toString()`.
@@ -506,8 +487,6 @@ extension KIRLoweringDriver {
         }
 
         guard callLowerer.isRuntimeFactoryConstructor(superCtorSymbol, sema: sema) else {
-            // `Throwable()`'s bare allocator: only the message slot needs a
-            // defined (null) value.
             let messageID = arena.appendExpr(.null, type: nullableStringType)
             body.append(.constValue(result: messageID, value: .null))
             _ = emitHelperCall(
@@ -570,8 +549,6 @@ extension KIRLoweringDriver {
         let sema = shared.sema
         let arena = shared.arena
 
-        // Only primary-constructor properties represent constructor storage.
-        // A member extension may reuse their name but is not initialized here.
         let propertySymbolsByName: [InternedString: SymbolID] = Dictionary(
             classDecl.memberProperties.compactMap { declID -> (InternedString, SymbolID)? in
                 guard let symbol = sema.bindings.declSymbols[declID],
@@ -615,8 +592,6 @@ extension KIRLoweringDriver {
             )
             let parameterExpr = arena.appendExpr(.symbolRef(parameterSymbol), type: storageType)
             body.append(.constValue(result: parameterExpr, value: .symbolRef(parameterSymbol)))
-            // Source-backed constructor storage already has the public Array
-            // representation. Storing this handle preserves callBy/default identity.
             let propertyValue = parameterExpr
 
             let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
@@ -700,9 +675,6 @@ extension KIRLoweringDriver {
             }
             let delegateValue = lowerExpr(delegateExpr, shared: shared, emit: &body)
 
-            // Enum values are ordinal-backed: the delegate handle lives in a
-            // per-entry global slot populated by $enumEnsureInit$, matching
-            // how ordinary enum stored properties are kept.
             if let slotSymbol = ctx.enumEntryStorageSlots[fieldSymbol] {
                 let slotType = sema.symbols.propertyType(for: fieldSymbol) ?? sema.types.anyType
                 let slotRef = arena.appendExpr(.symbolRef(slotSymbol), type: slotType)
@@ -789,9 +761,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    /// Emits property initializers and `init { }` blocks in the order they
-    /// appear in the class body, matching Kotlin's guaranteed top-to-bottom
-    /// initialization semantics.
     func emitClassBodyInitializers(
         classDecl: ClassDecl,
         shared: KIRLoweringSharedContext,
@@ -888,8 +857,6 @@ extension KIRLoweringDriver {
             return
         }
 
-        // A `lateinit` without an initializer emits nothing here: its null
-        // sentinel is seeded at constructor entry (`emitLateinitFieldSentinels`).
         guard let initExpr = prop.initializer else { return }
         let targetSymbol = sema.symbols.backingFieldSymbol(for: propSymbol) ?? propSymbol
         let propType = sema.symbols.propertyType(for: propSymbol) ?? sema.types.anyType
@@ -946,8 +913,6 @@ extension KIRLoweringDriver {
         )
     }
 
-    /// Emitted at constructor entry, ahead of the superclass constructor call
-    /// (see `KIRLoweringDriver+LateinitSentinel.swift`).
     private func emitLateinitFieldSentinels(
         classDecl: ClassDecl,
         shared: KIRLoweringSharedContext,
@@ -993,13 +958,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    /// Class instance properties live inside the heap-allocated object, not in
-    /// a module-global slot, so the write must go through `kk_array_set` at
-    /// the property's computed field offset (the same mechanism reads use in
-    /// `tryLowerStoredMemberPropertyRead`) — mirroring how primary-constructor
-    /// property parameters are stored in `emitPrimaryConstructorPropertyInitializers`.
-    /// Falls back to a direct symbol copy when no constructor receiver or
-    /// layout is available (e.g. if ever invoked outside a constructor body).
     private func emitFieldStore(
         propSymbol: SymbolID,
         targetSymbol: SymbolID,
@@ -1010,8 +968,6 @@ extension KIRLoweringDriver {
     ) {
         let sema = shared.sema
         let arena = shared.arena
-        // Enum entries are ordinal-backed: while the enum's lazy initializer
-        // constructs an entry, its stored properties go to per-entry globals.
         if let slotSymbol = ctx.enumEntryStorageSlots[propSymbol] {
             let slotRef = arena.appendExpr(.symbolRef(slotSymbol), type: valueType)
             body.append(.constValue(result: slotRef, value: .symbolRef(slotSymbol)))
@@ -1075,17 +1031,11 @@ extension KIRLoweringDriver {
                     body: &body
                 )
             } else if !classDecl.hasPrimaryConstructorSyntax {
-                // No explicit delegation and no primary constructor to route
-                // through: the superclass constructor is invoked implicitly.
                 emitSuperConstructorDelegation(
                     classDecl: classDecl, ctorSymbol: ctorSymbol, ownerSymbol: ownerSymbol,
                     shared: shared, body: &body
                 )
             }
-            // A class without a primary constructor runs its property
-            // initializers and `init` blocks inside every secondary
-            // constructor that reaches the superclass directly; constructors
-            // delegating to `this(...)` inherit them from the target instead.
             if secondaryCtor.delegationCall?.kind != .this {
                 emitClassBodyInitializers(
                     classDecl: classDecl, shared: shared, body: &body
@@ -1105,9 +1055,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    /// Used by `ObjectLiteralLowerer` for object-expression members —
-    /// there is no constructor to run inside, so it is invoked inline at the
-    /// construction site with the object literal as the implicit receiver.
     func emitDelegatePropertyInitializer(
         propertyDecl: PropertyDecl,
         propSymbol: SymbolID,
@@ -1151,9 +1098,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    /// Initializes a member property using the compiler's special `lazy`
-    /// implementation. Other stdlib delegates are lowered as ordinary source
-    /// expressions, just like custom property delegates.
     private func emitLazyDelegatePropertyInitializer(
         propertyDecl: PropertyDecl,
         propSymbol: SymbolID,
@@ -1270,14 +1214,6 @@ extension KIRLoweringDriver {
         return provideDelegateResult
     }
 
-    /// Synthesizes the per-nominal reflection initializer: it creates the
-    /// interned KClass box for the owner, registers constructor handles when
-    /// the owner declares `<init>` symbols (classes), then registers member
-    /// handles via `emitMemberReflectionRegistration`. `object` and
-    /// `interface` declarations declare no constructors, so only the member
-    /// half applies to them — which is what lets
-    /// `O::class.memberProperties`/`I::class.members` see their declarations
-    /// (KUU-4065).
     func synthesizeNominalReflectionInitializer(
         ownerSymbol: SymbolID,
         ownerName: InternedString,
@@ -1426,9 +1362,6 @@ extension KIRLoweringDriver {
                 result: nil,
                 canThrow: false
             ))
-            // KUU-4423: `KConstructor.visibility` reads the callable
-            // metadata ordinal — the constructor box seeds PUBLIC by
-            // default, so pin the declared Kotlin visibility here.
             let kotlinVisibilityOrdinal = runtimeKCallableVisibilityOrdinal(
                 constructorInfo?.visibility ?? .public
             )
@@ -1449,10 +1382,6 @@ extension KIRLoweringDriver {
                 ))
             }
 
-            // KUU-4374: pin the JVM-style `fun `<init>`(P): C` text on the
-            // constructor handle — `KClass.primaryConstructor`/`constructors`
-            // return these bare RuntimeKConstructorBox objects, which would
-            // otherwise render `<object 0x…>`.
             let ctorFunctionType = sema.types.make(.functionType(FunctionType(
                 contextReceivers: signature.contextReceiverTypes,
                 receiver: signature.receiverType,
@@ -1514,8 +1443,6 @@ extension KIRLoweringDriver {
             let callableSymbol: SymbolID
             let callableName: InternedString
             if canGenerateInvocation {
-                // Reuse normal constructor lowering so the bridge allocates the
-                // instance and enters its body with the reflected arguments.
                 callableSymbol = ctx.allocateSyntheticGeneratedSymbol()
                 callableName = interner.intern("__kconstructor_callable_\(ctorSymbol.rawValue)")
                 let callableParams = signature.parameterTypes.enumerated().map { index, _ in
@@ -1658,8 +1585,6 @@ extension KIRLoweringDriver {
     }
 
 
-    /// Called from `synthesizeNominalReflectionInitializer` so that
-    /// `KClass.members` returns real handles rather than count-sized placeholders.
     func emitMemberReflectionRegistration(
         ownerSymbol: SymbolID,
         kclassExpr: KIRExprID,
@@ -1688,12 +1613,6 @@ extension KIRLoweringDriver {
                 interner: interner
             )
             guard !childSym.flags.contains(.synthetic) || isDataClassComponent || isDataClassCopy else { continue }
-            // KUU-4064: member extensions (`val String.x` / `fun String.f()`
-            // declared inside a class) register into the same member list so
-            // `members` keeps listing them, but are flagged so the JVM-shaped
-            // `member*`/`declaredMember*` queries exclude them and only the
-            // `memberExtension*`/`declaredMemberExtension*` accessors surface
-            // them.
             let memberRegisterCallee = interner.intern(
                 childSym.flags.contains(.memberExtension)
                     ? "__kk_kclass_register_member_extension"
@@ -1818,10 +1737,6 @@ extension KIRLoweringDriver {
                         memberCallableMetadataRegistered = true
                     }
                 }
-                // KUU-4423: `KCallable.visibility` on member handles reads
-                // the ordinal pinned here — member handles that skipped the
-                // callable-metadata registration above carry no metadata for
-                // the getter to consult, and the box field covers both cases.
                 let fnVisibilityOrdinal = runtimeKCallableVisibilityOrdinal(childSym.visibility)
                 let fnVisibilityExpr = arena.appendExpr(.intLiteral(fnVisibilityOrdinal), type: intType)
                 body.append(.constValue(result: fnVisibilityExpr, value: .intLiteral(fnVisibilityOrdinal)))
@@ -1853,10 +1768,6 @@ extension KIRLoweringDriver {
                         canThrow: false
                     ))
                 }
-                // KUU-3947: `KClass.members`/`memberFunctions` handles are
-                // bare RuntimeKFunctionBox objects — pin the same
-                // `fun pkg.Owner.name(P): R` text callable references get so
-                // they do not render `<object 0x…>`.
                 let memberFunctionType = sema.types.make(.functionType(FunctionType(
                     contextReceivers: signature.contextReceiverTypes,
                     receiver: signature.receiverType,
@@ -1879,14 +1790,6 @@ extension KIRLoweringDriver {
                     interner: interner,
                     instructions: &body.instructions
                 )
-                // KUU-3806: record the same equality identity a `C::foo`
-                // unbound callable reference carries, so a handle from
-                // `C::class.functions`/`members` compares equal to it. The
-                // member handle is always unbound, so its identity arity
-                // counts the dispatch receiver the reference exposes as a
-                // parameter (matching `emitCallableRefTypeTag`'s arity) and
-                // its capture list is empty — a bound `c::foo` keeps its
-                // receiver capture and stays unequal.
                 let identityArity = Int64(
                     (signature.receiverType == nil ? 0 : 1)
                         + signature.contextReceiverTypes.count
@@ -1921,11 +1824,6 @@ extension KIRLoweringDriver {
                 let propTypeInterned = interner.intern(propTypeName)
                 let propTypeExpr = arena.appendExpr(.stringLiteral(propTypeInterned), type: intType)
                 body.append(.constValue(result: propTypeExpr, value: .stringLiteral(propTypeInterned)))
-                // KUU-4030: the member reflection handle answers `is`/`as?`
-                // as the unbound `KPropertyN`/`KMutablePropertyN` its
-                // receivers imply — arity 1 for an ordinary member, 2 for a
-                // member extension — so a `var` member is a KMutableProperty
-                // like on the JVM.
                 let memberPropertyGetterContextParameterCount: Int64 =
                     Int64(sema.symbols.extensionPropertyGetterAccessor(for: childID)
                         .flatMap { sema.symbols.functionSignature(for: $0) }?
@@ -2009,8 +1907,6 @@ extension KIRLoweringDriver {
                         instructions: &body.instructions
                     )
                 }
-                // KUU-4423: same visibility pin as the function branch —
-                // member property stubs carry no callable metadata.
                 let propVisibilityOrdinal = runtimeKCallableVisibilityOrdinal(childSym.visibility)
                 let propVisibilityExpr = arena.appendExpr(.intLiteral(propVisibilityOrdinal), type: intType)
                 body.append(.constValue(result: propVisibilityExpr, value: .intLiteral(propVisibilityOrdinal)))
@@ -2020,9 +1916,6 @@ extension KIRLoweringDriver {
                     result: nil,
                     canThrow: false
                 ))
-                // KUU-4423: pin a real KType for `returnType` — the stub's
-                // string descriptor fallback loses the classifier the same
-                // way bare function handles did.
                 if let propTypeID = sema.symbols.propertyType(for: childID) {
                     let propReturnTypeKType = lowerKTypeExpr(
                         for: propTypeID,
@@ -2038,10 +1931,6 @@ extension KIRLoweringDriver {
                         canThrow: false
                     ))
                 }
-                // KUU-3947: the memberProperties handle is a bare
-                // RuntimeKPropertyStub — pin the JVM-style
-                // `val pkg.Owner.name: kotlin.T` text so it renders like a
-                // real KProperty rather than an unqualified stub signature.
                 if let propTypeID = sema.symbols.propertyType(for: childID) {
                     lambdaLowerer.emitFunctionDescription(
                         value: kpropResult,
@@ -2060,14 +1949,6 @@ extension KIRLoweringDriver {
                         instructions: &body.instructions
                     )
                 }
-                // KUU-3806: a `C::bar` unbound property reference keys its
-                // equality identity on the property's getter accessor symbol.
-                // Register the same target on the `C::class.memberProperties`
-                // handle so the two compare equal. The member handle reflects
-                // as an unbound `KProperty1` (arity 1) — a member extension
-                // property adds its extension receiver (KProperty2, arity 2)
-                // — while a bound `c::bar` keeps its receiver capture and
-                // stays unequal.
                 if let accessor = propertyReferenceAccessor {
                     let getterExpr = arena.appendExpr(.symbolRef(accessor.getterSymbol), type: intType)
                     body.append(.constValue(result: getterExpr, value: .symbolRef(accessor.getterSymbol)))

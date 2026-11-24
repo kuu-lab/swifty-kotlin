@@ -38,7 +38,6 @@ final class JvmStaticLoweringPass: LoweringPass {
         var wrappersByOriginal: [SymbolID: WrapperInfo] = [:]
         var newDecls: [KIRDecl] = []
 
-        // Snapshot declarations so we only inspect original functions.
         let originalDecls = arena.declarations
         for decl in originalDecls {
             guard case let .function(function) = decl else {

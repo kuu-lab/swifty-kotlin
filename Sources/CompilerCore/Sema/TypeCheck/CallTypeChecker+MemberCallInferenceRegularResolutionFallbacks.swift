@@ -7,9 +7,6 @@ enum DefinitelyNullReceiverMemberProbe {
 }
 
 extension CallTypeChecker {
-    /// `resolved` is updated in place when a nested-argument retry clears the
-    /// diagnostic.
-    /// Returns nil when no diagnostic was pending or a retry succeeded.
     func handleRegularMemberResolutionDiagnostic(
         _ request: MemberCallInferenceRequest,
         candidates: [SymbolID],
@@ -44,9 +41,6 @@ extension CallTypeChecker {
                ),
                !(receiverQualifierIsTypeAlias(receiverID: request.receiverID, ctx: request.ctx)
                    && request.sema.symbols.symbol(staticMember.symbol)?.kind == .object),
-               // An explicit `()` on a nested `object` is a function invocation,
-               // not a value read — fall through so `invoke` can dispatch
-               // (KUU-3662).
                !(request.ctx.ast.arena.isExplicitCall(request.id)
                    && request.sema.symbols.symbol(staticMember.symbol)?.kind == .object)
             {
@@ -193,9 +187,6 @@ extension CallTypeChecker {
             ) {
                 resolved = retried
             }
-            // KUU-946: an inapplicable member must not shadow same-named
-            // extensions — retry against the extension candidate set before
-            // reporting the member failure.
             if resolved.diagnostic != nil,
                let fallbackType = tryBindShadowedExtensionCallFallback(
                    request,
@@ -216,20 +207,6 @@ extension CallTypeChecker {
                    isClassNameReceiver: isClassNameReceiver, locals: &locals
                ) { return propertyType }
             if resolved.diagnostic != nil {
-                // When flow typing proves the receiver is `Nothing?` (e.g.
-                // `x = null` inside a `?.`-call lambda), kotlinc reports
-                // UNSAFE_CALL whenever the same call would resolve against
-                // `Nothing`'s non-null counterpart. `Nothing` is a subtype of
-                // every declared receiver, so surviving candidates only fail
-                // because of the nullability — re-resolve them against the
-                // stripped receiver and remap the diagnostic to SEMA-0026
-                // (KUU-3957). Plain `T?` receivers encode a rejected smart
-                // cast (captured or unstable writes), which KSwiftK reports
-                // as SEMA-0002 or SEMA-0022 instead of kotlinc's
-                // SMARTCAST_IMPOSSIBLE — a generic receiver otherwise leaks
-                // the solver's TYPE-0001 constraint failure where a
-                // non-generic receiver reports "no viable overload"
-                // (KUU-4062).
                 let nullableReceiverProbeResolves: Bool = {
                     let receiverIsNullableNothing = lookupReceiverType == request.sema.types.nullableNothingType
                     guard !request.safeCall,
@@ -265,10 +242,6 @@ extension CallTypeChecker {
                     if probe.chosenCallee != nil {
                         return true
                     }
-                    // A `Nothing` call-site receiver is a subtype of every
-                    // declared receiver, so all surviving candidates become
-                    // viable at once and resolution reports ambiguity — the
-                    // receiver's nullability is still what blocked the call.
                     return probe.diagnostic?.code == "KSWIFTK-SEMA-0003"
                 }()
                 let nullableReceiverConstraintFailure: Bool = {
@@ -481,10 +454,6 @@ extension CallTypeChecker {
         return sema.symbols.propertyType(for: local.symbol)
     }
 
-    /// An unavailable bundled extension must not change resolution, but it can
-    /// explain why an otherwise visible member overload is not a viable call.
-    /// Keep that distinction in the diagnostic without making the extension a
-    /// candidate when its package has not been imported.
     private func hasApplicableUnimportedBundledExtension(
         _ request: MemberCallInferenceRequest,
         receiverType: TypeID,
@@ -623,9 +592,6 @@ extension CallTypeChecker {
                ),
                !(receiverQualifierIsTypeAlias(receiverID: request.receiverID, ctx: request.ctx)
                    && request.sema.symbols.symbol(staticMember.symbol)?.kind == .object),
-               // An explicit `()` on a nested `object` is a function invocation,
-               // not a value read — fall through so `invoke` can dispatch
-               // (KUU-3662).
                !(request.ctx.ast.arena.isExplicitCall(request.id)
                    && request.sema.symbols.symbol(staticMember.symbol)?.kind == .object)
             {
@@ -668,9 +634,6 @@ extension CallTypeChecker {
             ) {
                 return fallbackType
             }
-            // KUU-946: members that produced no viable callee must not shadow
-            // same-named extensions — retry against the extension candidate
-            // set before reporting the member failure.
             if let fallbackType = tryBindShadowedExtensionCallFallback(
                 request,
                 receiverType: receiverType,
@@ -716,10 +679,6 @@ extension CallTypeChecker {
             request.ctx.sema.diagnostics.error("KSWIFTK-SEMA-0024", "Unresolved member function '\(request.interner.resolve(request.calleeName))'.", range: request.range)
             return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
         }
-        // A member-style call that resolved to a local extension function is
-        // a lexical reference to that declaration. Record the identifier
-        // binding the callable-value path used to keep on `request.id` so
-        // capture analysis and identifier lookups see the resolved local.
         if request.sema.symbols.symbol(chosen)?.flags.contains(.localFunction) == true {
             request.sema.bindings.bindIdentifier(request.id, symbol: chosen)
         }
@@ -790,8 +749,6 @@ extension CallTypeChecker {
             )
             return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
         }
-        // Preserve the overload-resolved receivers for member calls. KIR should
-        // not have to rediscover them from generic context parameter types.
         let selectedContextReceiverSymbols = contextParameterReceiverSymbols(
             for: chosen,
             substitution: resolved.substitutedTypeArguments,
@@ -847,8 +804,6 @@ extension CallTypeChecker {
                 return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
             }
 
-            // For projected types, merge the solver's substitution with the
-            // variance projection (projection overrides receiver type params).
             let typeVarBySymbol = request.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
             // An inner constructor captures the projected outer argument in
             // its result type. Replacing that capture with the readable upper
@@ -913,10 +868,6 @@ extension CallTypeChecker {
             dispatchReceiverSymbol: selectedDispatchReceiverSymbol,
             contextParameterReceiverSymbols: selectedContextReceiverSymbols
         )
-        // STDLIB-592 definite assignment: `x.let { ... }` / `x.apply { ... }` /
-        // `x.also { ... }` / `x.run { ... }` resolve as ordinary member calls
-        // through this path, so their `callsInPlace` contracts must be applied
-        // here too (not just for the unqualified-call path in CallTypeChecker.swift).
         applyContractEffects(
             id: request.id,
             chosen: chosen,

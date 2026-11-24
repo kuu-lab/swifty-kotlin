@@ -1,6 +1,5 @@
 import Foundation
 
-/// Used to decide bundled-stdlib-specific behavior without parsing paths.
 public enum SourceOrigin: String, Equatable, Sendable, Codable {
     case user
     case bundledStdlib

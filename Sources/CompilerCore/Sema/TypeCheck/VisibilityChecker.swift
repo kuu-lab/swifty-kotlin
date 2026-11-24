@@ -40,6 +40,9 @@ struct VisibilityChecker {
             }
             return declarationFileID == accessFileID
         }
+        if symbol.kind == .function || symbol.kind == .constructor {
+            symbols.loadDeferredFunctionSignature(for: symbol.id)
+        }
         if let package = symbols.jvmPackageAccess[symbol.id],
            symbols.jvmFilePackages[accessFileID] != package {
             return false
@@ -165,6 +168,9 @@ struct VisibilityChecker {
     }
 
     func isPublicAPI(_ symbol: SemanticSymbol, allowProtected: Bool = true) -> Bool {
+        if symbol.kind == .function || symbol.kind == .constructor {
+            symbols.loadDeferredFunctionSignature(for: symbol.id)
+        }
         if symbols.jvmPackageAccess[symbol.id] != nil { return false }
         if symbol.flags.contains(.constructorVisibilityInherited),
            let parent = symbols.parentSymbol(for: symbol.id),

@@ -102,19 +102,11 @@ extension LLVMCAPIBindings {
 
     static func load(environment: [String: String] = ProcessInfo.processInfo.environment) -> LLVMCAPIBindings? {
         for candidate in candidateLibraryPaths(environment: environment) {
-            // Verify ownership, permissions, and the canonical path of the
-            // file and every ancestor directory before `dlopen`; a candidate
-            // another local user can tamper with is skipped rather than loaded.
             let libraryPath: String
             switch TrustedFileSystem.inspectLoadableFile(candidate) {
             case .trusted(let resolvedPath):
                 libraryPath = resolvedPath
             case .rejected(let component, let reason):
-                // A candidate that exists but fails the trust check is worth
-                // naming — otherwise an all-candidates-rejected failure
-                // surfaces only as "bindings could not be loaded". Missing
-                // paths are expected for install layouts the machine does not
-                // have, so they stay silent.
                 if reason != .missing {
                     FileHandle.standardError.write(Data(
                         "kswiftc: skipping LLVM library candidate \(candidate): \(component) \(reason.diagnosticDetail)\n".utf8

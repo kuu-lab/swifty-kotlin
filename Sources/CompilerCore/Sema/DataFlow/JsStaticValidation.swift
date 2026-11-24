@@ -1,7 +1,5 @@
 import Foundation
 
-/// Validates Kotlin/JS `@JsStatic` source compatibility and preserves its
-/// member intent without emitting JavaScript static entries.
 extension DataFlowSemaPhase {
     func validateJsStaticDeclarations(
         ast: ASTModule,

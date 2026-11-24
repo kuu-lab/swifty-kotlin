@@ -24,9 +24,6 @@ extension NativeEmitter.FunctionEmissionContext {
         )
     }
 
-    // Shadow roots currently preserve scalar handles. Flat String aggregates,
-    // native callbacks and safepoint publication still need explicit
-    // treatment before retained runtime boxes can be swept.
     func emitGCShadowPush() {
         guard let callee = declareExternalFunction(
             named: "kk_gc_shadow_push", argumentCount: 0, appendThrownChannel: false
@@ -159,20 +156,6 @@ extension NativeEmitter.FunctionEmissionContext {
         let deadOnLabelEntry: [[KIRExprID]]
     }
 
-    /// KUU-3778: the set-based iterative dataflow cost `O(iterations ×
-    /// instructions × |live|)` with hashing and allocation — dominant on
-    /// inline-expanded bodies (a 29k-instruction `main` spent ~85% of `emit`
-    /// inside this one analysis). The same analysis is computed here as a
-    /// basic-block fixpoint over dense bitsets plus a single backward
-    /// expansion walk per block:
-    ///   * gen/kill per block — O(instructions) sparse updates once;
-    ///   * worklist fixpoint over blocks — O(visits × blocks × tracked/64)
-    ///     word operations on ~an order of magnitude fewer points;
-    ///   * one backward walk per block — each instruction pays only its own
-    ///     sparse use/def bits, and the dead lists reduce to membership
-    ///     checks (e.g. `deadAfter = (uses ∪ defs) − liveOut`).
-    /// Outputs are identical: bit indices follow the ascending `rawValue`
-    /// order the `sorted` calls produced.
     func computeFunctionLivenessAnalysis() -> FunctionLivenessAnalysis {
         let body = function.body
         let count = body.count
@@ -197,8 +180,6 @@ extension NativeEmitter.FunctionEmissionContext {
             )
         }
 
-        // Assign bit indices in ascending rawValue order so set-bit scans
-        // yield the same sorted order the Set version's `sorted` produced.
         let trackedByRawValue = tracked.sorted { $0.rawValue < $1.rawValue }
         var bitIndexByRawValue: [Int32: Int] = [:]
         bitIndexByRawValue.reserveCapacity(trackedByRawValue.count)
@@ -247,12 +228,6 @@ extension NativeEmitter.FunctionEmissionContext {
             }
         }
 
-        // Split the body into basic blocks. A block starts at a label, at the
-        // first instruction, or right after a branch/terminator. The fixpoint
-        // then iterates over blocks — O(blocks × tracked/64) word operations
-        // per sweep instead of O(instructions × tracked/64) — and a single
-        // backward walk per block expands the per-instruction results using
-        // only sparse per-instruction updates.
         var blockOf = [Int](repeating: 0, count: count)
         var blockStart: [Int] = []
         blockStart.reserveCapacity(count / 8 + 1)
@@ -284,8 +259,6 @@ extension NativeEmitter.FunctionEmissionContext {
             blockEnd[block] = (block + 1 < blockCount ? blockStart[block + 1] : count) - 1
         }
 
-        // Block CFG: edges come from each block's last instruction only
-        // (everything else inside a block is linear fallthrough).
         var blockSuccs = Array(repeating: [Int](), count: blockCount)
         var blockPreds = Array(repeating: [Int](), count: blockCount)
         for block in 0 ..< blockCount {
@@ -302,7 +275,6 @@ extension NativeEmitter.FunctionEmissionContext {
             }
         }
 
-        // Per-block gen/kill: gen = upward-exposed uses, kill = all defs.
         var gen = [UInt64](repeating: 0, count: blockCount * wordCount)
         var kill = [UInt64](repeating: 0, count: blockCount * wordCount)
         var seen = [UInt64](repeating: 0, count: wordCount)
@@ -328,17 +300,11 @@ extension NativeEmitter.FunctionEmissionContext {
             }
         }
 
-        // Worklist fixpoint over blocks: liveOut[b] = ∪ liveIn[succ],
-        // liveIn[b] = gen[b] ∪ (liveOut[b] − kill[b]). Same monotone
-        // equations as the per-instruction version, so it converges to the
-        // identical fixpoint at block boundaries.
         var liveIn = [UInt64](repeating: 0, count: blockCount * wordCount)
         var liveOut = [UInt64](repeating: 0, count: blockCount * wordCount)
         var worklist: [Int] = []
         worklist.reserveCapacity(blockCount)
         var inWorklist = [Bool](repeating: false, count: blockCount)
-        // Seeded in forward order so popLast visits blocks back-to-front —
-        // matching the information flow direction of a backward dataflow.
         for block in 0 ..< blockCount {
             worklist.append(block)
             inWorklist[block] = true
@@ -383,8 +349,6 @@ extension NativeEmitter.FunctionEmissionContext {
             bits[bit >> 6] & (UInt64(1) << UInt64(bit & 63)) != 0
         }
 
-        /// Set-bit scan of `bits` in ascending rawValue order — identical to
-        /// the old `subtracting(...).sorted` result.
         func emitSetBits(_ bits: [UInt64]) -> [KIRExprID] {
             var dead: [KIRExprID] = []
             for word in 0 ..< wordCount {
@@ -404,13 +368,6 @@ extension NativeEmitter.FunctionEmissionContext {
         var current = [UInt64](repeating: 0, count: wordCount)
         var incoming = [UInt64](repeating: 0, count: wordCount)
 
-        // One backward walk per block. `current` tracks the live-out bitset
-        // of the instruction under the cursor; per-instruction updates only
-        // touch the instruction's own sparse use/def bits. Algebraically the
-        // dead lists reduce to sparse membership tests:
-        //   deadAfter  = (uses ∪ defs) − liveOut[i]
-        //   deadOnFallthrough = (uses ∪ defs ∪ liveOut[block]) − liveIn[next block]
-        //   deadOnLabelEntry  = ∪p (uses[p] ∪ defs[p] ∪ liveOut[pred block]) − liveIn[block]
         for block in 0 ..< blockCount {
             let base = block * wordCount
             for word in 0 ..< wordCount {
@@ -421,8 +378,6 @@ extension NativeEmitter.FunctionEmissionContext {
                 switch body[index] {
                 case .constValue, .binary, .unary, .nullAssert, .call, .virtualCall,
                      .copy, .storeGlobal, .loadGlobal:
-                    // dead = (uses ∪ defs) − liveOut[i]: sparse membership
-                    // check, deduplicated and ascending like the old Set path.
                     var bits: [Int] = []
                     for bit in useBits[index] where !bitIsSet(current, bit) {
                         bits.append(bit)
@@ -442,8 +397,6 @@ extension NativeEmitter.FunctionEmissionContext {
                         deadAfterInstruction[index] = dead
                     }
                 case .jumpIfEqual, .jumpIfNotNull, .returnIfEqual:
-                    // Branch instructions always end a block, so index + 1 is
-                    // the next block's head (or out of bounds).
                     if index + 1 < count {
                         let nextBase = (block + 1) * wordCount
                         for word in 0 ..< wordCount {
@@ -486,7 +439,6 @@ extension NativeEmitter.FunctionEmissionContext {
                 default:
                     break
                 }
-                // Propagate live values back: liveIn[i] = uses[i] ∪ (liveOut[i] − defs[i]).
                 for bit in defBits[index] {
                     current[bit >> 6] &= ~(UInt64(1) << UInt64(bit & 63))
                 }

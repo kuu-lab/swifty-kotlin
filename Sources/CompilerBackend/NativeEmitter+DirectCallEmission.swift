@@ -336,9 +336,6 @@ extension NativeEmitter.FunctionEmissionContext {
         qualifiedSuperType: SymbolID?,
         instructionIndex: Int
     ) {
-        // super calls always use direct dispatch – when virtual dispatch
-        // is introduced the isSuperCall flag will bypass vtable lookup.
-        // qualifiedSuperType provides additional context for super<Interface> calls
         _ = (isSuperCall, qualifiedSuperType)
         guard !bindings.hasTerminator(currentBlock) else {
             return
@@ -432,11 +429,6 @@ extension NativeEmitter.FunctionEmissionContext {
             return
         }
 
-        // CORO-001: kk_channel_receive returns status out-of-band; payload via outValue.
-        // KUU-1404: terminal statuses (closed/cancelled) are converted to
-        // Kotlin throwables inside the runtime and reported through the
-        // outThrown channel, so the call now appends a thrown slot like
-        // every other throwing runtime entry point.
         if calleeName == "kk_channel_receive" {
             let outValueSlot = stringAggregateBridge.buildEntrySlot(name: "channel_out_value_\(instructionIndex)")
             if let outValueSlot {
@@ -591,7 +583,6 @@ extension NativeEmitter.FunctionEmissionContext {
             }
             return
         }
-        // Default stubs can forward boxed callbacks without passing through CallLowerer's expansion.
         if !isInternalCall,
            let spec = NativeEmitter.runtimeABIFunctionByName[effectiveExternalName]
         {
@@ -693,8 +684,6 @@ extension NativeEmitter.FunctionEmissionContext {
         let callReceiverOffset: Int = effectiveSymbol.flatMap {
             guard let signature = symbols?.functionSignature(for: $0) else { return nil }
             if let sourceExternalCallSignature {
-                // Externally declared signatures flatten receivers and context
-                // parameters before their value parameters.
                 return max(0, sourceExternalCallSignature.parameters.count - signature.parameterTypes.count)
             }
             return sourceReceiverTypes(for: $0, signature: signature).count + signature.contextParameterTypes.count
@@ -709,8 +698,6 @@ extension NativeEmitter.FunctionEmissionContext {
                 if callVarargFlags.indices.contains(varargIndex),
                    callVarargFlags[varargIndex]
                 {
-                    // A normalized vararg is carried as an erased array/list
-                    // handle even though metadata records its element type.
                     return argumentValue
                 }
                 if isRuntimeCallbackRawABIInternalCall {

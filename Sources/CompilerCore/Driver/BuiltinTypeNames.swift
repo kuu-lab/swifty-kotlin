@@ -1,5 +1,3 @@
-/// Use this instead of comparing `interner.resolve(x) == "Int"` etc.
-/// Comparison becomes `x == builtinNames.int` which is Int32 == Int32.
 struct BuiltinTypeNames {
     let int: InternedString
     let long: InternedString

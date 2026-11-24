@@ -60,19 +60,12 @@ extension DataFlowSemaPhase {
     struct LoadedKlibModule {
         let module: KlibModule
         let ir: KlibIrModule
-        /// Every registered declaration keyed by its file-local signature
-        /// entry, plus the *synthetic* accessor IDs assigned to serialized
-        /// property getters/setters (they are emitted as KIR functions but
-        /// are not real `SymbolTable` entries — mirroring source lowering).
         let symbolBySignature: [KlibSignatureKey: SymbolID]
         let symbolByPublicSignature: [KlibPublicSignature: SymbolID]
 
         var uniqueName: String { module.uniqueName }
     }
 
-    /// Parses the `klib<fileIndex>_<signatureIndex>` mangled names that
-    /// `KlibRecordMaterializer` stamps on every record back into signature
-    /// keys.
     static func klibSignatureKey(fromMangledName mangledName: String) -> KlibSignatureKey? {
         guard mangledName.hasPrefix("klib") else { return nil }
         let parts = mangledName.dropFirst(4).split(separator: "_")
@@ -83,19 +76,6 @@ extension DataFlowSemaPhase {
         return KlibSignatureKey(fileIndex: fileIndex, signatureIndex: signatureIndex)
     }
 
-    /// Applies the property back-links that KIR lowering and member-access
-    /// lowering rely on:
-    ///
-    /// * `backingFieldSymbol` links the property to its serialized backing
-    ///   field record so layout synthesis keys the slot by the field symbol
-    ///   and member reads/writes resolve the field offset.
-    /// * `propertyHasCustomGetter` routes every read through the serialized
-    ///   getter — correct for both stored properties (the serialized default
-    ///   getter is a plain `getField`) and computed ones.
-    /// * Serialized getter/setter signatures map to the synthetic accessor
-    ///   symbols (`propertyAccessorSymbol(for:kind:)`) that source lowering
-    ///   uses for accessor calls and vtable slots, so call sites and emitted
-    ///   bodies share one key space.
     func finalizeKlibModule(
         module: KlibModule,
         ir: KlibIrModule,
@@ -132,8 +112,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Run after imported signatures have been bound, before source calls are
-    /// resolved. Finalizing the raw IR keys happens earlier than that binding.
     func inheritKlibDefaultArguments(module: LoadedKlibModule, symbols: SymbolTable) {
         let ir = module.ir
         let symbolBySignature = module.symbolBySignature
@@ -207,9 +185,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Returns the `.klib`s ordered so dependencies come first. `depends` names
-    /// producer `unique_name`s; the special `stdlib` entry resolves to the
-    /// bundled/precompiled standard library rather than another `.klib` on
     /// the search path. Module-init order follows this ordering, so a
     /// dependency's top-level initializers and singleton allocations run
     /// before the dependent's.
@@ -222,12 +197,10 @@ extension DataFlowSemaPhase {
         for klib in klibs where byName[klib.uniqueName] == nil {
             byName[klib.uniqueName] = klib
         }
-        var state: [String: Int] = [:] // 1 = on DFS stack, 2 = emitted
+        var state: [String: Int] = [:]
         var ordered: [KlibModule] = []
         func visit(_ klib: KlibModule) {
             let name = klib.uniqueName
-            // Kotlin forbids circular library dependencies; a defensive cycle
-            // check stops recursion and keeps the first-seen order.
             guard state[name] == nil else { return }
             state[name] = 1
             for dependency in klib.manifest.depends where !dependency.isEmpty {

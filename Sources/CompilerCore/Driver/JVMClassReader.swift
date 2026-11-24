@@ -894,11 +894,15 @@ struct JVMClassReader {
                 guard let getter = methods.first(where: {
                     !$0.isProtected && $0.name == property.getterName && $0.descriptor == property.getterDescriptor && $0.result != .unit
                 }) else { continue }
+                // Kotlin metadata keeps @get:JvmSynthetic properties callable from Kotlin unless HIDDEN-deprecated.
+                let isHiddenByDeprecation = Self.isHiddenByDeprecation(propertyGetter: getter, methods: methods)
+                let isJvmSyntheticPropertyGetter = property.isSourceVisible && getter.isSynthetic && !isHiddenByDeprecation
                 if isKotlinObject && getter.isStatic && getter.parameters.isEmpty {
                     // Kotlin objects may expose a property's accessor only as @JvmStatic.
                     info.kotlinStaticProperties[property.name] = (getter, property.isNullable)
                 } else if let sourceType = property.sourceType,
                           (name.hasSuffix("$Companion") || getter.name.contains("-")
+                              || isJvmSyntheticPropertyGetter
                               || isKotlinObject && property.isSourceVisible && !property.isVar
                               || hasReadOnlyMapSupertype && !property.isVar && ["keys", "values", "entries"].contains(property.name)
                               || flags & 0x0200 != 0 && getter.isAbstract && !property.isVar && property.isSourceVisible
@@ -918,6 +922,12 @@ struct JVMClassReader {
             }
         }
         return info
+    }
+
+    private static func isHiddenByDeprecation(propertyGetter getter: JVMForeignMethod, methods: [JVMForeignMethod]) -> Bool {
+        getter.isHiddenByDeprecation || methods.contains {
+            $0.name == getter.name + "$annotations" && $0.isHiddenByDeprecation
+        }
     }
 
     private static func hasSuspendDescriptor(_ method: JVMForeignMethod) -> Bool {

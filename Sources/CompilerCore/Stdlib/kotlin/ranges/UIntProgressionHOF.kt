@@ -6,8 +6,6 @@ import kotlin.internal.KsSymbolName
 import kotlin.native.NoInline
 import kotlin.random.Random
 
-// MIGRATION-RANGE-002: UIntProgression higher-order functions, moved verbatim from RangeHOF.kt.
-
 private fun uintProgressionDescription(progression: UIntProgression): String {
     val step = progression.step
     return if (step > 0) {

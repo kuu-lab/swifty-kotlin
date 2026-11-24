@@ -197,7 +197,10 @@ extension JVMClasspathIndex {
             """, 0x0001, "java/lang/Object", [
                 method("java/io/File", "<init>", [.string], .reference("java/io/File", nullable: false)),
                 method("java/io/File", "<init>", [.string, .string], .reference("java/io/File", nullable: false)),
+                method("java/io/File", "<init>", [.reference("java/io/File", nullable: true), .string], .reference("java/io/File", nullable: false)),
                 method("java/io/File", "getPath", [], .string),
+                method("java/io/File", "getAbsolutePath", [], .string),
+                method("java/io/File", "mkdirs", [], .boolean),
             ]),
             ("java/lang/IllegalAccessError", """
             package java.lang

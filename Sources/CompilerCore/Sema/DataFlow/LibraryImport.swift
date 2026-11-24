@@ -18,29 +18,13 @@ extension DataFlowSemaPhase {
 
     struct LibraryImportDeferredWork {
         let pendingSupertypeEdges: [(subtype: SymbolID, superFQName: [InternedString])]
-        /// Snapshot of the bindings registered during the import pass itself.
-        /// Only read when no lazy loader state exists (legacy eager import).
         private let importTimeBindings: [ImportedLibraryBinding]
         let lazyLoaderState: ImportedLibraryLazyLoaderState?
-        /// The stdlib artifact's module name, already interned and validated
-        /// against its manifest.json by the loop below. Callers that need to
-        /// filter symbols by stdlib-module membership (e.g.
-        /// `mergeImportedStdlibSymbolsIntoBundledIndex`) should use this
-        /// instead of re-reading and re-parsing manifest.json themselves: a
-        /// second independent read has no diagnostic on failure and is
-        /// redundant with the validation already performed here.
         let stdlibModuleName: InternedString?
         let stdlibHasPrecomputedSyntheticStubs: Bool
-        /// Compact member keys retained independently of the request-local
-        /// on-demand index provider.
         let stdlibMemberKeys: Set<BundledMemberKey>?
-        /// Finalized resolver maps used to rebuild a per-request inline-KIR
-        /// parse context from a persistent import snapshot.
         let importedExternalLinkNames: [String: SymbolID]
         let importedSymbolsByFQName: [String: SymbolID]
-        /// Kotlin `.klib` modules discovered on the search path: manifest
-        /// parsed and version-gated, container and decoded IR kept open for
-        /// the body materialization that runs during KIR lowering.
         let klibModules: [LoadedKlibModule]
         init(
             pendingSupertypeEdges: [(subtype: SymbolID, superFQName: [InternedString])],
@@ -64,31 +48,17 @@ extension DataFlowSemaPhase {
             self.importedSymbolsByFQName = importedSymbolsByFQName
         }
 
-        /// Every binding registered so far — on-demand index providers keep
-        /// appending shells that post-import lookups drain, so the live list
-        /// on the loader state wins over the import-time snapshot.
         var importedBindings: [ImportedLibraryBinding] {
             lazyLoaderState?.allImportedBindings ?? importTimeBindings
         }
     }
 
-    /// The inline-function sink is connected to `SemaModule` after the import
-    /// phase constructs it.
     final class ImportedLibraryLazyLoaderState {
         var importedInlineFunctions: ImportedInlineFunctionStore
         var descriptorSink: ((SymbolID, ImportedInlineFunctionStore.Descriptor) -> Void)?
         var bundledIndex: BundledDeclarationIndex = .empty
-        /// Indexed inline bodies kept unparsed past materialization. They are
-        /// resolved on demand once lowering knows which callees the module
-        /// actually calls — materializing a symbol for a signature query must
-        /// not read its `.kir` file.
         var pendingInlineBindings: [SymbolID: ImportedLibraryBinding] = [:]
-        /// Pending symbols grouped by simple name, consulted only by
-        /// symbol-unresolved `.call` sites that resolve through the name
-        /// fallback.
         var pendingInlineSymbolsByName: [InternedString: [SymbolID]] = [:]
-        /// Populated by `loadImportedLibrarySymbols`; resolves pending bodies
-        /// for callees demanded by the module. Forwarded onto `SemaModule`.
         var resolveDemandedInlineBodies: ((KIRModule) -> Void)?
         /// Lazy materialization can apply a nominal layout before the
         /// synthetic bootstrap stubs it references (e.g. `MutableMap.put`)
@@ -99,14 +69,7 @@ extension DataFlowSemaPhase {
         var pendingLayoutRetries: [ImportedLibraryBinding] = []
         var indexedBindingsBySymbol: [SymbolID: ImportedLibraryBinding] = [:]
         var preloadedPropertiesByOwner: [SymbolID: [ImportedLibraryBinding]] = [:]
-        /// Every binding registered so far — index providers keep appending
-        /// shells that post-import lookups drain, so this lives on the loader
-        /// state rather than in the returned value-type `LibraryImportDeferredWork`.
         var allImportedBindings: [ImportedLibraryBinding] = []
-        /// The stdlib artifact's compact-index source, when it loaded as a v3
-        /// on-demand index. `mergeImportedStdlibSymbolsIntoBundledIndex` reads
-        /// its member keys straight from the index instead of materializing
-        /// every imported stdlib shell.
         var stdlibIndexSource: IndexedLibrarySource?
         var stdlibMemberIndex: PrecomputedBundledMemberIndex?
 
@@ -164,9 +127,6 @@ extension DataFlowSemaPhase {
             discoverLibraryDirectories(searchPaths: options.effectiveLibrarySearchPaths)
         }
         var pendingSupertypeEdges: [(subtype: SymbolID, superFQName: [InternedString])] = []
-        /// Bindings live on the loader state: index providers keep registering
-        /// after the tail pass, and the returned `LibraryImportDeferredWork`
-        /// exposes the live list rather than this pass's snapshot.
         /// The library that claimed each symbol, as a user-facing origin
         /// label (module name, or metadata path when unnamed) and the
         /// metadata path that identifies it. `SymbolTable.define` merges a
@@ -181,10 +141,6 @@ extension DataFlowSemaPhase {
         var sourceArrayComponentABIByMetadataPath: [String: Bool] = [:]
         var precomputedReflectionRecordsByMetadataPath: [String: Bool] = [:]
         var shadowedDuplicateRecords: [(record: ImportedLibrarySymbolRecord, symbol: SymbolID)] = []
-        /// FQ names of records that were shadowed — the duplicates
-        /// themselves plus the member records hidden underneath them — so
-        /// deeper declarations (nested classes, enum entries, parameters of
-        /// shadowed callables) shadow transitively.
         var shadowedDeclOrigins: [[InternedString]: String] = [:]
         /// Member records shadowed with their owner. They never receive a
         /// symbol, but their external link names still resolve — against the
@@ -192,36 +148,16 @@ extension DataFlowSemaPhase {
         /// winning library may exist — so bodies in the losing library that
         /// call the member dispatch consistently.
         var shadowedMemberRecords: [ImportedLibrarySymbolRecord] = []
-        /// Producer link name → consumer symbol for every record that owns a
-        /// symbol. Populated at registration (eager tail or index-provider
-        /// drain), so the resolver always sees the freshest map.
         var externalLinkNameToSymbol: [String: SymbolID] = [:]
         var importedSymbolByFQName: [String: SymbolID] = [:]
-        /// Getter links of duplicate-merged property records: they resolve
-        /// through the merged symbol's accessor, which exists only once the
-        /// winning binding has been applied.
         var shadowedGetterLinks: [String: SymbolID] = [:]
-        /// Link names of owner-shadowed member records. They resolve lazily
-        /// through the same-FQName counterpart, which may register long after
-        /// the shadowed record was seen (or never — loser-only members stay
-        /// unmapped exactly as the eager pass left them).
         enum ShadowedLinkKind { case symbol, defaultStub, propertyGetter }
         var shadowedLinkFallbacks: [String: (fqName: [InternedString], kind: ShadowedLinkKind)] = [:]
-        /// Symbols registered through an index provider rather than the eager
-        /// shell loops — tail passes that must only cover eagerly-registered
-        /// bindings key off this set.
         var providerRegisteredSymbols: Set<SymbolID> = []
         var indexedSources: [IndexedLibrarySource] = []
         var stdlibIndexSource: IndexedLibrarySource?
-        /// Phantom type-parameter bookkeeping (BUG-KSP-1217). These maps grow
-        /// incrementally inside `appendImportedBinding` because index-provider
-        /// entries keep registering after the tail pass runs; the resolver
-        /// below additionally asks each provider for records still pending.
         var functionBindingCountByFQName: [[InternedString]: Int] = [:]
         var typeParameterBindingSymbolsByOwnerFQName: [[InternedString]: [SymbolID]] = [:]
-        /// Member machinery (parameters, backing fields, locals, labels):
-        /// hidden silently with its owner — these records encode part of a
-        /// callable, not a declaration a consumer names directly.
         func isShadowedMemberMachinery(_ kind: SymbolKind) -> Bool {
             switch kind {
             case .valueParameter, .typeParameter, .backingField, .local, .label:
@@ -269,8 +205,6 @@ extension DataFlowSemaPhase {
         }
         let lazyLoaderState = ImportedLibraryLazyLoaderState(importedInlineFunctions: importedInlineFunctions)
         var klibModules: [LoadedKlibModule] = []
-        /// Every `.klib` that passed manifest gating — including ones whose
-        /// IR failed to decode — so `depends` checks see the full set.
         var recognizedKlibs: [KlibModule] = []
         var stdlibArtifactLoaded = false
         var stdlibModuleName: InternedString?
@@ -478,9 +412,6 @@ extension DataFlowSemaPhase {
             }
             if record.kind == .property || record.kind == .field,
                record.propertyReceiverTypeSignature?.isEmpty == false {
-                // The compact index already proves this member needs an
-                // extension receiver; decode will restore its type. Record the
-                // fact so `hasExtensionPropertyReceiver` answers shells too.
                 symbols.markImportedExtensionReceiverProperty(symbol)
             }
             let binding = ImportedLibraryBinding(
@@ -775,9 +706,6 @@ extension DataFlowSemaPhase {
                             hasCompleteInitializerInfo: entry.hasCompleteInitializerInfo,
                             moduleFQN: libraryModuleFQN
                         ) else { return nil }
-                        // A record merged onto an earlier library's symbol or
-                        // shadowed by it owns no new binding; the shadowed-
-                        // record fallbacks recorded above carry its links.
                         guard boundSymbolOrigins[symbol]?.metadataPath == metadataPath else {
                             return symbol
                         }
@@ -821,9 +749,6 @@ extension DataFlowSemaPhase {
                         {
                             symbols.setCompanionObjectSymbol(companionSymbol, for: symbol)
                         }
-                        // On-demand claims run the same registration fixups as
-                        // the batch tail: initializer stubs come from compact
-                        // index links, not from decoding the owner body.
                         if isNominalLayoutTargetSymbol(shell.kind) {
                             self.applyImportedInitializerShells(
                                 record: shell,
@@ -977,8 +902,6 @@ extension DataFlowSemaPhase {
                 endTime: DispatchTime.now().uptimeNanoseconds
             )
         }
-        // Import-time registration is done; later drains may see every
-        // library's index in search-path order.
         symbols.importDrainEpoch = .max
         // Tail passes iterate a snapshot: lookups inside them can still drain
         // pending entries, and appending during iteration would be a mutation
@@ -1054,9 +977,6 @@ extension DataFlowSemaPhase {
             if let linkName = record.externalLinkName, !linkName.isEmpty {
                 symbols.setExternalLinkName(linkName, for: binding.symbol)
             }
-            // Deferred bodies call the stub by its artifact link name; the
-            // record's stub link is a compact-index fact, so restore it here
-            // instead of waiting for the binding's lazy metadata apply.
             if let linkName = record.defaultStubExternalLinkName, !linkName.isEmpty {
                 symbols.setExternalLinkName(
                     linkName,
@@ -1078,10 +998,6 @@ extension DataFlowSemaPhase {
         }
         endImportTailSubPhase("importTailRouting", startedAt: tailRoutingStartedAt)
 
-        // Initializer stubs are pure compact-index facts (a link name per
-        // nominal). Creating their shells here — companion edges restored
-        // above — lets KIR lowering enumerate the calls without materializing
-        // any owner body.
         let tailInitializerShellsStartedAt = startImportTailSubPhase()
         for binding in importedBindings where isNominalLayoutTargetSymbol(binding.record.kind) {
             applyImportedInitializerShells(
@@ -1322,9 +1238,6 @@ extension DataFlowSemaPhase {
                             )
                         }
                     }
-                    // KUU-2673: dedup/patch work deferred by
-                    // `deferUntilAfterImportedShellMaterializes` reads the
-                    // record applied above.
                     symbols.drainPendingShellWorkAfterMaterialization(for: symbol)
                 }
             }
@@ -1344,8 +1257,6 @@ extension DataFlowSemaPhase {
                 )
             }
         } else {
-            // Legacy metadata has already been fully decoded. Preserve its
-            // eager import behavior and the existing cache/test contract.
             for binding in importedBindings where !preloadedGetterBindingSymbols.contains(binding.symbol) {
                 applyImportedBinding(
                     binding,
@@ -1428,10 +1339,6 @@ extension DataFlowSemaPhase {
 
         let tailEnumSynthesisStartedAt = startImportTailSubPhase()
         if lazyMetadataEnabled {
-            // Enum class-name APIs are structural shells, not declaration
-            // bodies. Register them from the compact records so `Enum.entries`
-            // can resolve before a body query, while keeping ordinary members
-            // lazy. Stdlib enum APIs are supplied by the bundled source pass.
             let importedEnumBindings = eagerlyRegisteredBindings.filter {
                 !$0.isStdlibArtifact && $0.record.kind == .enumClass
             }
@@ -1707,7 +1614,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // Resolve companion object references so ClassName.member() shorthand works.
         for binding in work.importedBindings where isNominalLayoutTargetSymbol(binding.record.kind) {
             if let companionFQName = binding.record.companionObjectFQName,
                let companionSymbol = symbols.lookupAll(fqName: companionFQName)
@@ -1737,7 +1643,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // P5-78: resolve sealed subclass FQ names to SymbolIDs for cross-module exhaustiveness
         for binding in work.importedBindings where binding.record.isSealedClass && !binding.record.sealedSubclassFQNames.isEmpty {
             let resolvedSubclasses: [SymbolID] = binding.record.sealedSubclassFQNames.compactMap { subFQName in
                 symbols.lookupAll(fqName: subFQName)
@@ -1755,12 +1660,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // Imported enum classes have no AST declarations, so the per-decl enum
-        // member synthesis in HeaderCollection never runs for them. Register
-        // the implicit enum API (name/ordinal, values(), valueOf(_:), entries)
-        // here so it resolves on the artifact path as well. Lowering reuses
-        // these symbols when it synthesizes their KIR bodies
-        // (DataEnumSealedSynthesisPass looks them up by FQ name and owner).
         applyImportedEnumSyntheticMembers(
             work: work,
             symbols: symbols,
@@ -1770,12 +1669,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Registers the implicit enum members that HeaderCollection normally
-    /// creates from an enum declaration for enums that only exist as imported
-    /// library records. Mirrors `collectSyntheticEnumEntryProperties`,
-    /// `collectSyntheticEnumValuesMember`, and
-    /// `collectSyntheticEnumCompanionMembers`, including the source-path flag
-    /// set so golden rendering matches between the two paths.
     private func applyImportedEnumSyntheticMembers(
         work: LibraryImportDeferredWork,
         symbols: SymbolTable,
@@ -1828,9 +1721,6 @@ extension DataFlowSemaPhase {
                 symbols.setPropertyType(memberType, for: propertySymbol)
             }
 
-            // Mirror `collectSyntheticEnumValuesMember`: skip `values` when a
-            // source-backed declaration already owns the class-name API for
-            // this enum (for example `RequiresOptIn.Level.values()`).
             let valuesName = interner.intern("values")
             let valuesFQName = enumFQName + [valuesName]
             if !bundledIndex.contains(ownerFQName: enumFQName, name: valuesName, arity: 0),
@@ -1981,10 +1871,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Normalizes imported member signatures after synthetic bundled anchors
-    /// have been registered. Those anchors may provide the consumer's actual
-    /// owner type-parameter symbols, which are not available during the
-    /// initial library-record pass.
     func normalizeImportedLibraryMemberSignatures(
         _ work: LibraryImportDeferredWork,
         symbols: SymbolTable,
@@ -2137,9 +2023,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Property getter links are preloaded before lazy owner callbacks are
-    /// installed. Complete their owner parameter prefix after owner metadata
-    /// becomes available, just as for imported member function signatures.
     private func normalizeImportedExtensionPropertyAccessors(
         _ binding: ImportedLibraryBinding,
         symbols: SymbolTable,
@@ -2196,8 +2079,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Restores the generic shape of an imported nominal type: its own type
-    /// parameters (with declared variance) and the type arguments it passes to
     /// each generic supertype. Without them a `class Sub<T> : Base<T>` read back
     /// from metadata behaves like a raw type, so `Sub<Int>` neither lifts to
     /// `Base<Int>` nor substitutes `T` in its members' signatures.
@@ -2308,8 +2189,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Returns `nil` when there is nothing to rewrite (no registered
-    /// parameters, no self signature, or both spellings already agree).
     private func importedSyntheticToRegisteredTypeParameters(
         record: ImportedLibrarySymbolRecord,
         registeredSymbols: [SymbolID],
@@ -2338,8 +2217,6 @@ extension DataFlowSemaPhase {
         return mapping.isEmpty ? nil : mapping
     }
 
-    /// Synthesizes function symbols for precompiled object/companion initializers
-    /// discovered in library metadata so that consumers can call them before user `main`.
     private func applyImportedObjectAndCompanionInitializerSymbols(
         work: LibraryImportDeferredWork,
         symbols: SymbolTable,
@@ -2357,11 +2234,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Synthesizes the extern-linked initializer stubs a nominal's compact
-    /// index announces (`object/companion/enum-static` initializers). On-demand
-    /// owner registration invokes this before downstream passes inspect the
-    /// init calls from symbol maps without decoding owner bodies. The decode
-    /// path may call it again and each `IfKnown` guard keeps that idempotent.
     func applyImportedInitializerShells(
         record: ImportedLibrarySymbolRecord,
         symbol ownerSymbol: SymbolID,
@@ -2450,8 +2322,6 @@ extension DataFlowSemaPhase {
             symbols.setCompanionObjectInitializerSymbol(initSymbol, for: ownerSymbol)
         }
 
-        // Import the precompiled enum static initializer link so the consumer
-        // can call it before `main`, ensuring enum entry globals are initialized.
         if record.kind == .enumClass,
            let enumStaticInitLink = record.enumStaticInitLinkName,
            !enumStaticInitLink.isEmpty,
@@ -2478,11 +2348,6 @@ extension DataFlowSemaPhase {
     }
 }
 
-/// Process-local cache of imported-library baselines that have no request-local
-/// lazy providers. The CLI daemon serializes requests, so snapshots are replaced
-/// atomically and each request receives copy-on-write storage plus a private
-/// interner branch. Compact-index imports stay request-local to preserve symbol
-/// registration order; their decoded files are cached separately.
 public enum KklibSemaSession {
     nonisolated(unsafe) public static var isEnabled = false
     nonisolated(unsafe) private static var storedSnapshot: CachedSemaImportSnapshot?

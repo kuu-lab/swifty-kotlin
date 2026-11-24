@@ -1,10 +1,6 @@
 import RuntimeABI
 
 extension CallLowerer {
-    /// True when the constructor's runtime ABI entry point is a factory that
-    /// allocates and returns an object handle (e.g. built-in exception
-    /// `kk_*_exception_new_message`). Such constructors must not receive an
-    /// implicit `this` allocated by `kk_object_new`.
     func isRuntimeFactoryConstructor(
         _ symbolID: SymbolID,
         sema: SemaModule
@@ -35,11 +31,6 @@ extension CallLowerer {
         }
     }
 
-    /// A `String` parameter may be lowered as a single pointer/handle or as a
-    /// flat 4-word aggregate (`data`, `length`, `byteCount`, `hash`) depending on
-    /// the ABI entry point; the backend has its own tables for the latter, so
-    /// this helper recognises the flat-string pattern so `String` factory
-    /// constructors are not mistaken for normal `this`-accepting constructors.
     private func abiParametersMatchFactorySignature(
         _ abiParameters: [RuntimeABIParameter],
         _ signature: FunctionSignature,
@@ -48,9 +39,6 @@ extension CallLowerer {
         var abiIndex = 0
         for parameterType in signature.parameterTypes {
             guard abiIndex < abiParameters.count else { return false }
-            // Function-valued constructor parameters are expanded to a raw
-            // function pointer and closure handle before reaching a runtime
-            // factory bridge (for example DeepRecursiveFunction's block).
             if case .functionType = sema.types.kind(of: sema.types.makeNonNullable(parameterType)) {
                 guard abiIndex + 1 < abiParameters.count,
                       abiParameters[abiIndex].type == .intptr,

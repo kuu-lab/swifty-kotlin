@@ -1,13 +1,3 @@
-/// Sequence overloads that already match by arity are resolved from the bundled
-/// declarations in `StringWindowChunkTransform.kt`; skipped-default
-/// trailing-lambda forms (`windowed(2) { }` / `windowedSequence(2) { }`) go
-/// through this binder so `it` is typed as `CharSequence` before overload
-/// resolution.
-///
-/// The windowed list transform overload still uses a uniquely named bundled
-/// function because the KIR lowering layer has legacy by-name dispatch for
-/// `windowed`. The public `chunked` overload has a normal bundled declaration
-/// and is resolved by the ordinary source-backed call path.
 extension CallTypeChecker {
     func tryBindStringWindowedTransform(
         _ id: ExprID,
@@ -23,12 +13,6 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let callee = interner.resolve(calleeName)
-        // kotlinc: windowed/windowedSequence(size, step = 1, partialWindows = false, transform).
-        // A trailing lambda binds to `transform` while skipped defaults are
-        // filled from the source signature — same shape as List/Sequence
-        // `canMatchViaTrailingLambda`. Requiring args.count == 4 made
-        // `windowed(2) { ... }` / `windowedSequence(2) { ... }` miss this
-        // overload entirely (`it` never bound).
         guard (2...4).contains(args.count),
               callee == "windowed" || callee == "windowedSequence",
               isSyntheticStringLikeType(receiverType, sema: sema)

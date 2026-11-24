@@ -12,6 +12,17 @@ import kotlin.jvm.internal.__jvmSingletonList
 import kotlin.jvm.internal.__jvmArrayList
 import kotlin.random.Random
 
+public fun <T> MutableList<T>.reverse() {
+    var left = 0
+    var right = size - 1
+    while (left < right) {
+        val value = this[left]
+        this[left] = this[right]
+        this[right] = value
+        left++
+        right--
+    }
+}
 
 public fun <T : Comparable<T>> MutableList<T>.sort() {
     if (size > 1) __jvmSortList(this)
@@ -580,6 +591,24 @@ public fun <T> MutableCollection<in T>.addAll(elements: kotlin.sequences.Sequenc
     for (element in elements) if (this.add(element)) changed = true
     return changed
 }
+public fun <T> MutableList<T>.removeAll(predicate: (T) -> Boolean): Boolean {
+    val list: MutableList<T> = this
+    if (this !is java.util.RandomAccess) return (this as MutableIterable<T>).removeAll(predicate)
+    val originalSize = size
+    var writeIndex = 0
+    for (readIndex in 0 until originalSize) {
+        val element = list[readIndex]
+        if (!predicate(element)) {
+            if (writeIndex != readIndex) list[writeIndex] = element
+            writeIndex++
+        }
+    }
+    if (writeIndex == originalSize) return false
+    var index = originalSize - 1
+    while (index >= writeIndex) removeAt(index--)
+    return true
+}
+
 public fun <T> MutableIterable<T>.removeAll(predicate: (T) -> Boolean): Boolean {
     val iterator = iterator()
     var changed = false
@@ -665,24 +694,6 @@ public fun <T> Iterable<T>.indexOf(element: T): Int {
 }
 public fun <T : Comparable<T>> List<T?>.binarySearch(element: T?, fromIndex: Int = 0, toIndex: Int = size): Int {
     return binarySearch(fromIndex, toIndex) { compareValues(it, element) }
-}
-
-public fun <T> List<T>.binarySearch(
-    fromIndex: Int = 0, toIndex: Int = size, comparison: (T) -> Int
-): Int {
-    if (fromIndex > toIndex) throw IllegalArgumentException("fromIndex ($fromIndex) is greater than toIndex ($toIndex).")
-    if (fromIndex < 0) throw IndexOutOfBoundsException("fromIndex ($fromIndex) is less than zero.")
-    if (toIndex > size) throw IndexOutOfBoundsException("toIndex ($toIndex) is greater than size ($size).")
-    var low = fromIndex
-    var high = toIndex - 1
-    while (low <= high) {
-        val middle = (low + high) ushr 1
-        val order = comparison(this[middle])
-        if (order < 0) low = middle + 1
-        else if (order > 0) high = middle - 1
-        else return middle
-    }
-    return -low - 1
 }
 
 public fun <T> List<T>.binarySearch(

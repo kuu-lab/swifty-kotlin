@@ -1080,6 +1080,58 @@ struct LinkPhaseIntegrationTests {
     }
 
     @Test
+    func testOptimizedPartitionedExecutableKeepsGlobalSlotsReferencedOnlyByPartitions() throws {
+        // The primary globals object has no function bodies, so at -O2 nothing
+        // in that module references the global slots it defines.
+        let source = """
+        var counter = 40
+        fun helperValue(): Int = counter
+        fun main() {
+            counter += 2
+            var result = helperValue()
+            if (result != 42) {
+                result = -1
+            }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let outputPath = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            defer { try? FileManager.default.removeItem(atPath: outputPath) }
+            let options = CompilerOptions(
+                moduleName: "OptimizedPartitionedExecutable",
+                inputs: [path],
+                outputPath: outputPath,
+                emit: .executable,
+                target: defaultTargetTriple(),
+                optLevel: .O2,
+                frontendFlags: ["jobs=2", "codegen-parallel"],
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            let ctx = CompilationContext(
+                options: options,
+                sourceManager: SourceManager(),
+                diagnostics: DiagnosticEngine(),
+                interner: StringInterner()
+            )
+
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+
+            #expect(ctx.generatedObjectPaths.count > 1)
+
+            assertLinkSucceeds(ctx)
+
+            #expect(FileManager.default.fileExists(atPath: outputPath))
+            let result = try CommandRunner.run(executable: outputPath, arguments: [])
+            #expect(result.exitCode == 0)
+        }
+    }
+
+    @Test
     func testExecutableStringFormatHandlesBoxedScalarsInRuntimeObjects() throws {
         let source = """
         fun main() {

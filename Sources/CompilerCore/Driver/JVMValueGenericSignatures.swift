@@ -1,6 +1,5 @@
 import Foundation
 
-/// Split a sequence of JVMS field signatures without splitting nested arguments.
 private func valueSignatureTypes(_ signature: String) -> [String] {
     let characters = Array(signature)
     var types: [String] = [], index = 0
@@ -22,7 +21,6 @@ private func valueSignatureTypes(_ signature: String) -> [String] {
     return types
 }
 
-/// Preserve source type variables and underlying type arguments in ABI adapters.
 func adaptedValueSignature(_ function: JVMFunction, reference: JVMFunctionReference, receiverOffset: Int,
                            values: [String: (underlying: String, input: String, parameters: [String])]) -> String? {
     guard let signature = function.genericSignature, let open = signature.firstIndex(of: "("), let close = signature.firstIndex(of: ")") else { return nil }
@@ -35,7 +33,6 @@ func adaptedValueSignature(_ function: JVMFunction, reference: JVMFunctionRefere
         var result = input ? info.input : info.underlying
         if let start = source.firstIndex(of: "<"), let end = source.lastIndex(of: ">") {
             let arguments = valueSignatureTypes(String(source[source.index(after: start)..<end]))
-            // Replace complete type-variable tokens simultaneously, including nested uses.
             var substitutions: [String: String] = [:]
             for (parameter, argument) in zip(info.parameters, arguments) {
                 let unprojected = argument.first == "+" || argument.first == "-" ? String(argument.dropFirst()) : argument

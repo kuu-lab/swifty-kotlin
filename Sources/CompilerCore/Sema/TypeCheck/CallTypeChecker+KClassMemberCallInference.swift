@@ -1,14 +1,3 @@
-/// Inference for the KClass-receiver member-call expressions that remain
-/// compiler special cases after KSP-496:
-/// - `T::class.java / .js / .javaClass` platform interop properties, and
-/// - `T::class.findAssociatedObject<A>()`, which take
-///   a reified type argument this compiler only supports via a small
-///   compiler-side allowlist (like `typeOf<T>()`).
-///
-/// `simpleName`/`qualifiedName`/`isInstance`/`cast`/`safeCast`/the 12 boolean
-/// class-kind flags now resolve as ordinary Kotlin extension declarations
-/// (Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt)
-/// through normal overload resolution.
 extension CallTypeChecker {
     func tryInferClassRefMemberCall(
         _ id: ExprID,
@@ -258,8 +247,6 @@ extension CallTypeChecker {
             else { return false }
             return signature.receiverType != nil && signature.parameterTypes.isEmpty
         }) {
-            // Generic source-backed extension properties are represented as
-            // zero-argument functions, including the native KClass.java view.
             sema.bindings.bindIdentifier(id, symbol: functionSymbol)
             sema.bindings.bindCall(
                 id,
@@ -321,8 +308,6 @@ extension CallTypeChecker {
         return returnType
     }
 
-    /// Native KClass boxes have no source itable; preserve the source property's
-    /// generic contract while binding the dedicated KClass representation.
     private func bindKClassNativeProperty(
         _ id: ExprID, name: InternedString, argument: TypeID,
         sema: SemaModule, interner: StringInterner

@@ -1,9 +1,6 @@
 import Foundation
 
 final class CallLowerer {
-    /// Bitmask of object slot indices holding a data class's primary-constructor properties.
-    /// Returns nil when the layout is unknown or a slot does not fit in the mask, in which case
-    /// the runtime keeps comparing every stored slot.
     static func dataClassFieldSlotMask(owner ownerSymbol: SymbolID, sema: SemaModule) -> Int64? {
         guard sema.symbols.symbol(ownerSymbol) != nil,
               let fieldOffsets = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets
@@ -69,9 +66,6 @@ final class CallLowerer {
         return propertyDeclIDsBySymbol[propertySymbol]
     }
 
-    /// Kotlin permits a direct lambda argument to use a label-free return to
-    /// leave the caller only for function-type parameters of inline functions
-    /// that are neither `crossinline` nor `noinline`.
     func allowsNonLocalReturn(
         argumentExpr: ExprID,
         argumentIndex: Int,
@@ -96,8 +90,6 @@ final class CallLowerer {
         guard case .functionType = sema.types.kind(of: sema.types.makeNonNullable(parameterType)) else {
             return false
         }
-        // Older synthetic/imported signatures may not carry the parallel flag
-        // array. Preserve their historical behavior conservatively.
         guard signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex) else {
             return true
         }

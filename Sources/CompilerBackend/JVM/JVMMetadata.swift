@@ -1,9 +1,6 @@
 import Foundation
 import CompilerCore
 
-/// Kotlin metadata 2.0 file facades and classes for the JVM subset.
-/// Field numbers follow Kotlin's metadata.proto, jvm_metadata.proto and
-/// jvm_module.proto. Explicit JVM signatures avoid inferred ABI mappings.
 enum JVMMetadata {
     struct Proto {
         var bytes = Data()

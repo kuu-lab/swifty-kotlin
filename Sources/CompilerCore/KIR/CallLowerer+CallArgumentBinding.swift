@@ -23,8 +23,6 @@ extension CallLowerer {
             let concreteType = index < callBinding.substitutedTypeArguments.count
                 ? callBinding.substitutedTypeArguments[index]
                 : sema.types.anyType
-            // Nested inline calls must forward the enclosing reified token;
-            // a type parameter has no concrete nominal token to encode yet.
             var forwardedParameter: TypeParamType?
             var tokenType = concreteType
             switch sema.types.kind(of: concreteType) {
@@ -66,10 +64,6 @@ extension CallLowerer {
                     arguments.append(tokenExpr)
                 }
                 if carriesComponent {
-                    // KUU-4022: the slot carries the substituted type's full
-                    // KType, so `typeOf<U>` inside the callee keeps its type
-                    // arguments; a forwarded reified parameter reuses the
-                    // enclosing function's captured box.
                     arguments.append(driver.lowerKTypeExpr(
                         for: componentType, sema: sema, arena: arena,
                         interner: interner, instructions: &instructions
@@ -85,7 +79,6 @@ extension CallLowerer {
             instructions.append(.constValue(result: tokenExpr, value: .intLiteral(encodedToken)))
             arguments.append(tokenExpr)
             if carriesComponent {
-                // See above: this hidden argument is the substitution's KType.
                 arguments.append(driver.lowerKTypeExpr(
                     for: componentType, sema: sema, arena: arena,
                     interner: interner, instructions: &instructions
@@ -290,11 +283,6 @@ extension CallLowerer {
         )
     }
 
-    /// Source-level extension functions and extension-property getters declared
-    /// for `nonNullReceiverType`. Sema resolves those against the narrowed
-    /// receiver, but a receiver whose static type stays nullable (a mutable
-    /// local keeps its declared type across a null check) leaves no call
-    /// binding behind, and only the bare source name would reach codegen.
     private func extensionCandidates(
         named calleeName: InternedString,
         nonNullReceiverType: TypeID,

@@ -1,5 +1,3 @@
-/// Translates one file-local AST into the module namespace. Negative sentinel
-/// IDs stay invalid; source locations, declaration order and literal data stay intact.
 struct ASTIDRemapper {
     let declOffset: Int32
     let exprOffset: Int32

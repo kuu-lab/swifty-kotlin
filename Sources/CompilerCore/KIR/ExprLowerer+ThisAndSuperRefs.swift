@@ -85,15 +85,6 @@ extension ExprLowerer {
         {
             return receiverExprID
         }
-        // BUG-inner-outer: `this@Outer` from within an inner class's
-        // body resolves (Sema binds this `.thisRef` expression's own
-        // type to Outer's) to an *enclosing* class, not the active
-        // implicit receiver (Inner's own `this`) the fallback below
-        // would otherwise silently return. Member extensions use their
-        // dispatch receiver as the `$outer` chain's starting point instead
-        // of the active extension receiver. This is a no-op when the target
-        // is the current class; lambda/object-literal captures use the
-        // `qualifiedThisReceiverExprID` lookup above.
         if label != nil,
            let implicitReceiverExprID = driver.ctx.activeImplicitReceiverExprID(),
            let thisRefType = sema.bindings.exprTypes[exprID],

@@ -3,11 +3,6 @@ struct ContextualCallableReferenceBinding {
     let typeArguments: [TypeID]
     let parameterMapping: [Int: Int]
     let requiresAdapter: Bool
-    /// The reference's bound signature differs from the callee's public
-    /// callable signature (arity, scalar-packed varargs, or bound context
-    /// receivers). On the JVM such references materialize as adapted
-    /// function objects that do not implement KCallable; wrappers that only
-    /// repackage the call ABI (erased or reified inputs) keep it.
     let isSignatureAdapted: Bool
     let boundContextParameterTypes: [TypeID]
     let defaultArgumentOwner: SymbolID?
@@ -65,11 +60,6 @@ extension TypeCheckHelpers {
         return .localValue(symbol)
     }
 
-    /// A bound member's signature is declared in terms of its owner's type
-    /// parameters (`Transformer<A, B>.apply: (A) -> B`), so they are
-    /// substituted with the receiver's type arguments
-    /// (`Transformer<Int, Int>` -> `(Int) -> Int`) before the function type
-    /// is built.
     func callableFunctionType(
         for signature: FunctionSignature,
         bindReceiver: Bool,
@@ -83,9 +73,6 @@ extension TypeCheckHelpers {
     ) -> TypeID {
         var params = signature.parameterTypes
         var returnType = signature.returnType
-        // A top-level generic extension's own type parameters are inferred
-        // from the explicit receiver, even when the surrounding expected
-        // function type still contains the caller's type parameters.
         if specializeGenericReceiver,
            let boundReceiver, let declaredReceiver = signature.receiverType,
            !signature.typeParameterSymbols.isEmpty
@@ -162,9 +149,6 @@ extension TypeCheckHelpers {
            let outerOwner = sema.symbols.parentSymbol(for: innerClass),
            !sema.types.enclosingTypeParameterSymbols(for: innerClass).isEmpty
         {
-            // `Outer<Concrete>::Inner` uses the outer class as its unbound
-            // receiver. Specialize captured outer parameters from that type;
-            // the inner class itself is not a supertype of this receiver.
             func specializeCapturedOuterParameters(_ type: TypeID) -> TypeID {
                 resolveMemberPropertyType(
                     type,
@@ -179,8 +163,6 @@ extension TypeCheckHelpers {
         if packVarargs, let interner {
             for index in params.indices where signature.valueParameterIsVararg.indices.contains(index)
                 && signature.valueParameterIsVararg[index] {
-                // Erasure follows the declaration even when a generic receiver
-                // specializes its type parameter to a primitive value.
                 params[index] = primitiveVarargArrayType(
                     elementType: signature.parameterTypes[index], sema: sema, interner: interner
                 ) ?? referenceVarargArrayType(elementType: params[index], sema: sema, interner: interner)
@@ -217,8 +199,6 @@ extension TypeCheckHelpers {
         )))
     }
 
-    /// Expression-contextual: a stored function value with a non-Unit result
-    /// keeps its original type.
     func unitCoercedCallableReferenceType(
         _ callableType: TypeID,
         expectedFunctionType: TypeID,
@@ -361,8 +341,6 @@ extension TypeCheckHelpers {
         return rewrite(expectedFunctionType, matching: callableFunctionType)
     }
 
-    /// Match a suspend expectation against the reference's ordinary signature
-    /// before materializing its contextual adapter.
     func suspendConvertedCallableReferenceExpectedType(
         _ callableType: TypeID,
         expectedFunctionType: TypeID,
@@ -389,15 +367,6 @@ extension TypeCheckHelpers {
         )))
     }
 
-    /// Member functions record `extensionReceiverType ?? ownerType` as
-    /// `signature.receiverType` (MemberHeaderCollection), so a non-nil receiver
-    /// whose nominal differs from the function's own parent symbol is an
-    /// extension receiver.
-    /// Top-level extensions (package/nil parent) count unconditionally:
-    /// Kotlin resolves them only through `Type::ext`/`obj::ext` forms and
-    /// rejects a bare `::name` reference, while member-extensions are
-    /// unreferenceable in every `::` form ("member and an extension at the
-    /// same time").
     func declaresExtensionReceiver(_ symbolID: SymbolID, sema: SemaModule, interner: StringInterner) -> Bool {
         guard let signature = sema.symbols.functionSignature(for: symbolID),
               let receiverType = signature.receiverType
@@ -406,7 +375,6 @@ extension TypeCheckHelpers {
               let parent = sema.symbols.symbol(parentID),
               parent.kind != .package
         else { return true }
-        // Receiver attachment does not change a top-level extension's package FQ name.
         if let symbol = sema.symbols.symbol(symbolID),
            symbol.flags.contains(.extensionMemberAlias)
                || Array(symbol.fqName.dropLast()) != parent.fqName
@@ -449,13 +417,8 @@ extension TypeCheckHelpers {
         guard !sorted.isEmpty else {
             return nil
         }
-        // Deferred contextual binding is only meaningful for a single
-        // candidate: with several references the enclosing call's solver
-        // cannot tell which one it should verify.
         let deferredInferenceParameters = sorted.count == 1 ? enclosingInferenceParameters : []
         guard let expectedType else {
-            // Without a contextual type, declaration order cannot disambiguate
-            // overloaded callable references.
             return sorted.count == 1 ? sorted[0] : nil
         }
 
@@ -468,8 +431,6 @@ extension TypeCheckHelpers {
         }
         guard let expectedFunctionType else {
             guard let expectedCallableReferenceReturnType else {
-                // A non-callable expected type (for example Any?) does not
-                // select one member of an overload set.
                 return sorted.count == 1 ? sorted[0] : nil
             }
             let matching = sorted.filter { symbolID in
@@ -494,8 +455,6 @@ extension TypeCheckHelpers {
         guard case let .functionType(expectedFunction) = sema.types.kind(of: expectedFunctionType) else {
             return nil
         }
-        // A generic HOF's output (e.g. R in T.let) is inferred from the
-        // reference, but its specialized inputs already select an overload.
         let matchingExpectedType = sema.types.typeContainsAnyTypeParam(expectedFunction.returnType)
             ? sema.types.make(.functionType(FunctionType(
                 contextReceivers: expectedFunction.contextReceivers,
@@ -528,8 +487,6 @@ extension TypeCheckHelpers {
                 ) != nil
             }
         }
-        // Preserve matches against rigid outer parameters and structured
-        // return types before relaxing an output still awaiting call inference.
         let contextualMatches = matches(expectedFunctionType)
         let matching = contextualMatches.isEmpty && matchingExpectedType != expectedFunctionType
             ? matches(matchingExpectedType) : contextualMatches
@@ -556,14 +513,9 @@ extension TypeCheckHelpers {
         }) ?? matching.first {
             return matched
         }
-        // A unique reference can supply an otherwise unknown input type to
-        // call inference. Multiple incompatible references must not be fixed
-        // by declaration order, nor may a concrete signature mismatch succeed.
         let hasUnresolvedInput = expectedFunction.params.contains {
             sema.types.typeContainsAnyTypeParam($0)
         } || (expectedFunction.receiver.map { sema.types.typeContainsAnyTypeParam($0) } ?? false)
-        // A single reified target still needs its contextual specialization
-        // check so incompatible shapes retain the dedicated inference diagnostic.
         let singleReifiedTarget = sorted.count == 1 && sorted.first.flatMap {
             sema.symbols.functionSignature(for: $0)
         }.map { !$0.reifiedTypeParameterIndices.isEmpty } == true
@@ -620,10 +572,6 @@ extension TypeCheckHelpers {
             return nil
         }
 
-        // An explicit outer type receiver can determine type variables owned
-        // by the enclosing call. Apply that evidence to its expected function
-        // type before solving the inner constructor's own class parameters;
-        // lexical type parameters remain rigid.
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(Array(inferenceParameters))
         var substitution: [TypeVarID: TypeID] = [:]
         for (expectedArgument, actualArgument) in zip(expectedOwnerArguments, actualOwnerArguments) {
@@ -735,15 +683,6 @@ extension TypeCheckHelpers {
                 isAnonymousExtension = false
             }
             let receiverOffset = !bindReceiver && (unboundReceiverType != nil || signature.receiverType != nil) && !isAnonymousExtension ? 1 : 0
-            // A contextual expectation (`context(C) () -> R`) accepts a
-            // reference whose *invocation-order* inputs pair positionally:
-            // the expected context receivers consume the candidate's leading
-            // inputs, which may be context receivers of their own
-            // (`::read`), the unbound receiver (`C::describe`), or leading
-            // value parameters (`C::prop` as `(C) -> R`) — KUU-3170. Count
-            // every expected input, minus candidate context receivers that
-            // fill leading positions themselves or are bound from the
-            // surrounding scope when the expectation has no context slots.
             let expectedInputCount = expected.contextReceivers.count
                 + (expected.receiver == nil ? 0 : 1) + expected.params.count
             let ambientlyBoundContextCount = expected.contextReceivers.isEmpty
@@ -837,10 +776,6 @@ extension TypeCheckHelpers {
                         default:
                             continue
                         }
-                        // A contravariant reference from an erased parameter to
-                        // a primitive input needs a wrapper so the input is
-                        // boxed before the referenced function receives it. Keep
-                        // callee type parameters until inference has used them.
                         requiresErasedPrimitiveInputAdapter = true
                     }
                 }
@@ -978,8 +913,6 @@ extension TypeCheckHelpers {
                       !(expectedInputs + expected.contextReceivers).contains(where: {
                           types.typeContainsTypeParam($0, symbol: postponedReturnTypeParameter)
                       }) else { return nil }
-                // Only the caller's direct return leaf is postponed. Preserve all
-                // known shape/input constraints and do not invent return evidence.
                 constraints = zip(expectedInputs + expected.contextReceivers,
                                   actualInputs + actual.contextReceivers).flatMap {
                     resolver.decomposeSubtypeConstraint(
@@ -1030,9 +963,6 @@ extension TypeCheckHelpers {
             // lexical T; subtype T <: T alone supplies no solver substitution.
             if let boundReceiver, let owner = sema.symbols.parentSymbol(for: boundReceiver.symbol) {
                 if isInnerConstructor(boundReceiver.symbol) {
-                    // An inner constructor captures its enclosing class parameters.
-                    // Fix them from the lexical outer instance before solving the
-                    // remaining constructor parameters against the expected shape.
                     let capturedParameters = types.enclosingTypeParameterSymbols(for: owner)
                     let capturedArguments = types.implicitInnerClassEnclosingArgs(
                         for: owner, enclosingInstanceTypes: [boundReceiver.receiverType]
@@ -1081,10 +1011,6 @@ extension TypeCheckHelpers {
                )),
                let ownerArguments = types.liftedNominalSupertypeArgs(from: receiver, to: outerOwner)
             {
-                // The unbound receiver of `Outer<T>::Inner` fixes the
-                // constructor's captured outer type parameters. Seed those
-                // variables so contextual inference only solves the inner
-                // class's own parameters from the expected return type.
                 for (parameter, argument) in zip(
                     types.enclosingTypeParameterSymbols(for: innerClass), ownerArguments
                 ) {
@@ -1139,7 +1065,6 @@ extension TypeCheckHelpers {
                 constraints: constraints,
                 typeSystem: types
             )
-            // Dependent bounds can infer another parameter, e.g. C : List<T>.
             for _ in 0 ..< signature.typeParameterSymbols.count {
                 guard solution.isSuccess else { return nil }
                 var added = false
@@ -1196,9 +1121,6 @@ extension TypeCheckHelpers {
                 else {
                     return specializedType
                 }
-                // Keep the caller's unresolved input variables visible to its
-                // overload solver, while retaining this reference's inferred
-                // result type so output inference still has evidence.
                 return types.make(.functionType(FunctionType(
                     contextReceivers: expected.contextReceivers,
                     receiver: expected.receiver,
@@ -1243,13 +1165,6 @@ extension TypeCheckHelpers {
                 defaultArgumentOwner: defaultArgumentOwner
             )
         }
-        /// Last resort for an expected type whose inference parameters the
-        /// enclosing call has not solved yet: report the reference at its
-        /// declared upper bounds instead of rejecting it here. The call's
-        /// own solver then checks the reported function type against the
-        /// parameter type, so an actually incompatible reference still
-        /// fails — just at the call site rather than inside target
-        /// selection (KUU-4467).
         func deferredToEnclosingInference(
             shape: CallableReferenceFunctionShape
         ) -> ContextualCallableReferenceBinding? {
@@ -1327,12 +1242,6 @@ extension TypeCheckHelpers {
             let specializedType = types.substituteTypeParameters(
                 in: inferredType, substitution: substitution, typeVarBySymbol: typeVars
             )
-            // The deferred type still has to name a compatible result: an
-            // expected `() -> Ex<...>` cannot be served by `() -> NotEx<...>`
-            // no matter how the enclosing call's parameters are solved.
-            // Compare the nominal result classes so unrelated references
-            // keep failing here; argument-level compatibility remains the
-            // call solver's job.
             if let expectedFunctionType,
                case let .functionType(expectedFunction) = types.kind(of: expectedFunctionType),
                case let .functionType(specializedFunction) = types.kind(of: specializedType),
@@ -1435,14 +1344,6 @@ extension TypeCheckHelpers {
         return sema.types.isSubtype(actualType, comparison)
     }
 
-    /// KUU-3170: a `context(A...) (params...) -> R` expectation is
-    /// assignment-compatible with a callable reference whose leading
-    /// invocation-order inputs are `A...` even when they sit in receiver or
-    /// value-parameter positions rather than context slots (`C::describe`
-    /// for `context(C) () -> String`, `C::prop` as `(C) -> String`). The
-    /// strict subtype check keeps context receivers distinct, so this
-    /// flattens a function type's `contextReceivers + receiver + params`
-    /// into a single parameter list for a positional comparison.
     func contextFlattenedFunctionType(_ type: TypeID, sema: SemaModule) -> TypeID {
         guard case let .functionType(function) = sema.types.kind(of: type),
               !function.contextReceivers.isEmpty

@@ -1,6 +1,4 @@
 extension JVMProgramBuilder {
-    /// Java 8 has no nestmates. Keep private declarations private while giving
-    /// generated nested classes synthetic access paths in their owning class.
     func lowerNominalAccess(_ input: JVMProgram) throws -> JVMProgram {
         var program = input, additions: [String: [JVMFunction]] = [:], bridges: [String: JVMFunctionReference] = [:]
         let all = [program.internalClassName: program.functions].merging(Dictionary(uniqueKeysWithValues: program.classes.map { ($0.name, $0.functions) }), uniquingKeysWith: { $1 })

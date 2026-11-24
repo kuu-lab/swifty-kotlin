@@ -1,7 +1,6 @@
 import Foundation
 
 extension JVMFunctionBuilder {
-    /// Adapt the selected function shape without changing the target's public ABI.
     func adaptedReference(_ id: ExprID, symbol: SymbolID, receiver: ExprID?, unbound: Bool) throws -> JVMValue {
         guard let binding = program.sema.bindings.callableReferenceBinding(for: id), let function = functionType(id),
               let signature = program.sema.symbols.functionSignature(for: symbol),

@@ -14,10 +14,6 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
-        // A source-backed primitive array factory with a normalized spread
-        // argument already has the complete array value. Preserve that value
-        // directly instead of treating it as one nested element or passing it
-        // through the source body's List-shaped vararg representation.
         if arguments.count == 1,
            isSourceBackedPrimitiveArrayFactory(symbol, sema: ctx.sema, interner: ctx.interner),
            let sema = ctx.sema,
@@ -61,10 +57,6 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
 
-        // Source-backed collection iterator bindings may already carry the
-        // specialized runtime link instead of the source member name. Record
-        // that result so subsequent generic Iterator.hasNext()/next() calls
-        // can retain the list-specific ABI path.
         if callee == lookup.kkListIteratorName, arguments.count == 1 {
             if let result { state.listIteratorExprIDs.insert(result.rawValue) }
             loweredBody.append(.call(callee: callee, arguments: arguments, result: result, canThrow: false, thrownResult: thrownResult))
@@ -107,7 +99,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 loweredBody.append(.call(callee: lookup.kkMapIteratorName, arguments: arguments, result: result, canThrow: false))
                 return true
             }
-            // iterator {} result is already an iterator; pass through
             if state.iteratorBuilderExprIDs.contains(argID.rawValue) {
                 if let result {
                     state.iteratorBuilderExprIDs.insert(result.rawValue)
@@ -125,10 +116,6 @@ extension CollectionLiteralConstructionLoweringPass {
             }
         }
 
-        // Source-backed collection shells can bind Iterator.hasNext directly,
-        // which emits the generic kk_iterator_hasNext callee. The iterator
-        // result is still recognized as a concrete list iterator above, so
-        // preserve the specialized runtime path for both spellings.
         if (callee == lookup.kkRangeHasNextName || callee == ctx.interner.intern("kk_iterator_hasNext")), arguments.count == 1 {
             let argID = arguments[0]
             if state.listIteratorExprIDs.contains(argID.rawValue) {
@@ -139,7 +126,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 loweredBody.append(.call(callee: lookup.kkMapIteratorHasNextName, arguments: arguments, result: result, canThrow: false))
                 return true
             }
-            // Builder producers can throw from hasNext as well as next.
             if state.iteratorBuilderExprIDs.contains(argID.rawValue) {
                 loweredBody.append(.call(
                     callee: lookup.kkIteratorBuilderHasNextName,
@@ -283,9 +269,6 @@ extension CollectionLiteralConstructionLoweringPass {
         )
     }
 
-    /// When the result expression has a non-null primitive type, appends an
-    /// unboxing call so that the loop variable holds a raw primitive value
-    /// rather than a boxed heap pointer.
     private func appendListIteratorNextWithUnboxing(
         callee: InternedString,
         arguments: [KIRExprID],

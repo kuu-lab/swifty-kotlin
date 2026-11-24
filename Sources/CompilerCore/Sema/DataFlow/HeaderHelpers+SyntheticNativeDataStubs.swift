@@ -21,8 +21,6 @@ extension DataFlowSemaPhase {
         else {
             return
         }
-        // KUU-2673: patch the contract once the imported shell materializes
-        // instead of decoding it eagerly to read its signature.
         if symbols.deferUntilAfterImportedShellMaterializes(functionSymbol, work: { [self] in
             patchSourceBackedNativeUnhandledExceptionHookContract(
                 symbols: symbols,
@@ -169,8 +167,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // KSP-1191: Runtime.kt now owns this surface. Keep the synthetic
-        // registration only for configurations without the bundled source.
         guard !BundledSyntheticStubRegistration.bundledIndex.contains(
             ownerFQName: nativePkg,
             name: interner.intern("getUnhandledExceptionHook"),
