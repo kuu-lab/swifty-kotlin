@@ -1497,16 +1497,24 @@ final class ControlFlowTypeChecker {
 
         if let finallyExpr {
             var finallyLocals = locals
-            _ = driver.inferExpr(finallyExpr, ctx: ctx, locals: &finallyLocals, expectedType: nil, isStatementContext: true)
+            let pendingReturnEndIndices = finallyReturnScopes.map(\.pendingFinallyReturnStates.count)
+            let finallyType = driver.inferExpr(finallyExpr, ctx: ctx, locals: &finallyLocals, expectedType: nil, isStatementContext: true)
+            let finallyCompletesNormally = finallyType != sema.types.nothingType
             var finallyInitializedSymbols: Set<SymbolID> = []
             for (name, local) in preTryLocals where !local.isInitialized {
                 if let finalLocal = finallyLocals[name], finalLocal.symbol == local.symbol, finalLocal.isInitialized {
                     finallyInitializedSymbols.insert(local.symbol)
                 }
             }
-            for (scope, startIndex) in zip(finallyReturnScopes, pendingReturnStartIndices) {
-                for index in startIndex ..< scope.pendingFinallyReturnStates.count {
-                    scope.pendingFinallyReturnStates[index].finallyInitializedSymbols.formUnion(finallyInitializedSymbols)
+            for (scopeIndex, scope) in finallyReturnScopes.enumerated() {
+                let startIndex = pendingReturnStartIndices[scopeIndex]
+                let endIndex = pendingReturnEndIndices[scopeIndex]
+                if finallyCompletesNormally {
+                    for index in startIndex ..< endIndex {
+                        scope.pendingFinallyReturnStates[index].finallyInitializedSymbols.formUnion(finallyInitializedSymbols)
+                    }
+                } else {
+                    scope.pendingFinallyReturnStates.removeSubrange(startIndex ..< endIndex)
                 }
                 if scope.openFinallyRegionCount == 0 {
                     scope.returnLocalStates.append(contentsOf: scope.pendingFinallyReturnStates[startIndex...])

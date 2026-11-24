@@ -283,5 +283,58 @@ extension JVMBackendTests {
             #expect(result.0 == 0, "\(result.1.map(\.message))")
         }
     }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func contractLambdaReturnInFinallyIsNotCreditedWithThatFinallyAssignment(mode: EmitMode) throws {
+        // The return inside the inner finally's inline lambda leaves the
+        // outer lambda before the inner finally's later assignment runs.
+        let source = """
+        fun main() {
+            var x: Int
+            "hi".takeUnless lit@{
+                try {
+                    try {
+                        println(it)
+                    } finally {
+                        "a".let { if (it.isEmpty()) return@lit false }
+                        x = 5
+                    }
+                } finally {
+                    println("cleanup")
+                }
+                true
+            }
+            println(x)
+        }
+        """
+        try withWorkspace { root in
+            let result = try compile(source, root: root, mode: mode)
+            try #require(result.0 != 0, "expected definite-assignment failure")
+            #expect(result.1.contains { $0.message.contains("must be initialized") })
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func contractLambdaReturnCancelledByThrowingFinallyIsNotACompletionPath(mode: EmitMode) throws {
+        let source = """
+        fun main() {
+            var x: Int
+            "hi".takeUnless lit@{
+                try {
+                    if (it.isEmpty()) return@lit false
+                } finally {
+                    throw IllegalStateException("boom")
+                }
+                x = 5
+                true
+            }
+            println(x)
+        }
+        """
+        try withWorkspace { root in
+            let result = try compile(source, root: root, mode: mode)
+            #expect(result.0 == 0, "\(result.1.map(\.message))")
+        }
+    }
 }
 #endif
