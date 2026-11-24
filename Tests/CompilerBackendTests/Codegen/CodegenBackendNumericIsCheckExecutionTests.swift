@@ -1,9 +1,3 @@
-// Regression coverage for kk_op_is/kk_op_cast/kk_op_safe_cast when the checked
-// value's runtime representation is an unboxed numeric/char primitive rather
-// than a heap-boxed pointer. Prior to the fix, these callees could not
-// distinguish Int/UInt/ULong/Long/Double/Float/Char from each other once
-// unboxed (all reinterpret the same 64-bit word), so `is`/`as`/`as?`/`when`
-// against a mismatched numeric type incorrectly reported a match.
 #if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
@@ -43,10 +37,6 @@ struct CodegenBackendNumericIsCheckExecutionTests {
 
     @Test
     func testCodegenIsCheckDistinguishesConcretePrimitiveTypesWithoutAny() throws {
-        // No `Any` involved at all: the checked value's own declared type is
-        // already a concrete primitive, but its KIR representation can still be
-        // an unboxed literal/alias, so this must be checked independently of
-        // the Any-boxing boundary.
         let source = """
         fun main() {
             val x: Int = 5
