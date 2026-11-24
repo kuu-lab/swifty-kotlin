@@ -610,6 +610,9 @@ final class JVMFunctionBuilder {
     func jump(_ label: Int) { instructions.append(.jump(label)); terminated = true }
     func lookup(_ name: InternedString) throws -> Local {
         for scope in scopes.reversed() { if let local = scope[name] { return local } }
+        if program.hasUnsupportedSerializableClass(named: name) {
+            throw fail("The JVM backend does not generate a serializer for @Serializable class \(context.interner.resolve(name)); it supports non-generic classes whose serializable properties are all primary constructor properties of Boolean, Byte, Short, Char, Int, Long, Float, Double or String (nullable allowed) with literal defaults.")
+        }
         throw fail("JVM local variable is not in scope: \(context.interner.resolve(name)).")
     }
     func requireValue(_ id: ExprID) throws -> JVMValue {
