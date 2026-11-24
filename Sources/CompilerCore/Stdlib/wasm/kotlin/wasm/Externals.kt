@@ -15,35 +15,20 @@
 
 package kotlin.wasm
 
-/**
- * Base type of every JavaScript value passed across the interop boundary.
- * Corresponds to the WasmGC `externref` type.
- */
 public interface JsAny
 
-/**
- * A reference to a Kotlin object exported to JavaScript
- * (`externref` holding an `anyref` internally).
- */
 public interface JsReference<T : Any> : JsAny
 
-/** JavaScript `Array` view. */
 public interface JsArray<T : JsAny?> : JsAny
 
-/** JavaScript `Function`. */
 public interface JsFunction : JsAny
 
-/** JavaScript `Error`. */
 public interface JsError : JsAny
 
-/** JavaScript `String` primitive. */
 public interface JsString : JsAny
 
-/** JavaScript `Number` primitive. */
 public interface JsNumber : JsAny
 
-/** JavaScript `Boolean` primitive. */
 public interface JsBoolean : JsAny
 
-/** JavaScript `BigInt` primitive. */
 public interface JsBigInt : JsAny
