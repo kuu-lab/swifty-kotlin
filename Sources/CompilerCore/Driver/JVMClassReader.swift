@@ -718,7 +718,9 @@ struct JVMClassReader {
                 guard ((metadata.isFileFacade == true || hasValueAdapters) && method.isStatic) || Self.hasFunctionTypeDescriptor(method) || !method.isStatic,
                       let function = functions.first(where: { candidate in
                           if let parameters = candidate.valueOperatorParameterDescriptors {
-                              return method.isStatic && method.parameters.count == parameters.count + 1
+                              return candidate.isSuspend == isSuspend && (candidate.jvmName ?? candidate.name) == method.name
+                                  && candidate.descriptor == method.descriptor && method.isStatic
+                                  && method.parameters.count == parameters.count + 1
                                   && method.parameters.first?.descriptor == valueCarrier?.descriptor
                           }
                           if let parameters = candidate.valueMemberParameterDescriptors {
