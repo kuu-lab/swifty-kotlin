@@ -60,6 +60,23 @@ struct RuntimeNativeConcurrentTopLevelTests {
     }
 
     @Test
+    func waitForMultipleFuturesAcceptsBoxedValueClassElements() throws {
+        let pending = kk_future_new()
+        let ready = kk_future_new()
+        _ = kk_future_complete(ready, 9)
+        let futureTypeID = Int(runtimeStableNominalTypeID(fqName: "kotlin.native.concurrent.Future"))
+        let boxedPending = kk_tag_value_class_box(kk_box_int(pending), futureTypeID)
+        let boxedReady = kk_tag_value_class_box(kk_box_int(ready), futureTypeID)
+        let futures = registerRuntimeObject(RuntimeListBox(elements: [boxedPending, boxedReady]))
+
+        let result = __kk_native_concurrent_wait_for_multiple_futures(futures, 25)
+        let pointer = try #require(UnsafeMutableRawPointer(bitPattern: result))
+        let set = try #require(tryCast(pointer, to: RuntimeSetBox.self))
+
+        #expect(set.elements == [boxedReady])
+    }
+
+    @Test
     func workerLifecycleBridgesTerminateAndWait() {
         let name = registerRuntimeObject(RuntimeStringBox("top-level-worker"))
         let worker = __kk_native_concurrent_start_worker(1, name)

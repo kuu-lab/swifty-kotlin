@@ -413,6 +413,29 @@ public func __kk_native_concurrent_execute_impl(
     return returnedFuture
 }
 
+/// Erased `Collection<Future<T>>` elements can be value-class boxes around the
+/// raw future handle. Normalize both representations to the handle used for
+/// state/wait registration while preserving the collection's element value in
+/// the returned set.
+private func nativeConcurrentFutureHandle(from elementRaw: Int) -> Int? {
+    if let pointer = UnsafeMutableRawPointer(bitPattern: elementRaw),
+       tryCast(pointer, to: RuntimeFutureBox.self) != nil
+    {
+        return elementRaw
+    }
+    guard let typeID = runtimeValueClassTypeID(rawValue: elementRaw) else {
+        return nil
+    }
+    let payload = kk_value_class_unbox(elementRaw, Int(typeID))
+    guard payload != elementRaw,
+          let pointer = UnsafeMutableRawPointer(bitPattern: payload),
+          tryCast(pointer, to: RuntimeFutureBox.self) != nil
+    else {
+        return nil
+    }
+    return payload
+}
+
 /// Returns the handles of futures ready for consumption, and registers
 /// `signal` on every still-pending future not already in `registered` so that
 /// the next `kk_future_complete` wakes the waiter for a re-scan.
@@ -425,14 +448,15 @@ private func nativeConcurrentReadyFutureHandles(
         return []
     }
     var ready: [Int] = []
-    for futureHandle in futures {
-        guard let pointer = UnsafeMutableRawPointer(bitPattern: futureHandle),
+    for elementRaw in futures {
+        guard let futureHandle = nativeConcurrentFutureHandle(from: elementRaw),
+              let pointer = UnsafeMutableRawPointer(bitPattern: futureHandle),
               let future = tryCast(pointer, to: RuntimeFutureBox.self)
         else {
             continue
         }
         if future.isAvailableForConsumption {
-            ready.append(futureHandle)
+            ready.append(elementRaw)
         } else if registered.insert(futureHandle).inserted {
             future.addWaitSignal(signal)
         }
