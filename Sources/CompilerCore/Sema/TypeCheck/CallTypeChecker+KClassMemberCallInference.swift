@@ -134,7 +134,7 @@ extension CallTypeChecker {
         } else {
             nativeArgumentType = kClassArgumentType
         }
-        if calleeName == interner.intern("isInstance"), args.count == 1 {
+        if calleeName == interner.intern("isInstance"), args.count == 1, sema.types.nullability(of: receiverType) == .nonNull {
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             let isInvariantKClass: Bool
             if case .kClassType = sema.types.kind(of: nonNullReceiverType) {

@@ -176,8 +176,6 @@ extension JVMFunctionBuilder {
             javaName = "getAndSet"; parameters = [index, element]; result = element
         case "compareAndSetAt":
             javaName = "compareAndSet"; parameters = [index, element, element]; result = .boolean
-        case "compareAndExchangeAt":
-            javaName = "compareAndExchange"; parameters = [index, element, element]; result = element
         case "fetchAndAddAt":
             javaName = "getAndAdd"; parameters = [index, element]; result = element
         case "addAndFetchAt":
