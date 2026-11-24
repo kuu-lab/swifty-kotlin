@@ -2,7 +2,6 @@
 
 package java.util
 
-/** Java-compatible facade over the bundled Kotlin Base64 codecs. */
 public class Base64 private constructor() {
     public class Encoder internal constructor(
         private val codec: kotlin.io.encoding.Base64

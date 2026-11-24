@@ -266,8 +266,8 @@ extension JVMProgramBuilder {
             let name = context.interner.resolve(p.name)
             let mappedPropertyType = plan.isAnnotation ? try annotationElementType(self.type(propertyType)) : try self.type(propertyType)
             let type = nominalRangeResultType(for: symbol, mapped: mappedPropertyType) ?? mappedPropertyType
-            let backingFieldSemanticType = sema.symbols.backingFieldSymbol(for: symbol)
-                .flatMap { sema.symbols.propertyType(for: $0) } ?? propertyType
+            let backingFieldSemanticType = p.explicitBackingField == nil ? propertyType : (sema.symbols.backingFieldSymbol(for: symbol)
+                .flatMap { sema.symbols.propertyType(for: $0) } ?? propertyType)
             let mappedBackingFieldType = try self.type(backingFieldSemanticType)
             let backingFieldType = nominalRangeResultType(for: symbol, mapped: mappedBackingFieldType)
                 ?? mappedBackingFieldType

@@ -84,11 +84,6 @@ extension CallTypeChecker {
             let receiverForCheck = request.safeCall
                 ? request.sema.types.makeNonNullable(lookupReceiverType)
                 : lookupReceiverType
-            // kotlinc exposes six compareTo overloads on each signed primitive
-            // receiver, so `i.compareTo(TODO())` is ambiguous there. KSwiftK
-            // binds the single Comparable<T> member instead and must report the
-            // ambiguity itself (KUU-4351). Unsigned primitives keep their
-            // unique resolution, matching kotlinc.
             if request.calleeName == request.knownNames.compareTo,
                case .nothing(.nonNull) = request.sema.types.kind(of: argTypes[0]),
                receiverForCheck == byteType || receiverForCheck == shortType
@@ -103,10 +98,6 @@ extension CallTypeChecker {
                 request.sema.bindings.bindExprType(request.id, type: request.sema.types.errorType)
                 return request.sema.types.errorType
             }
-            // Range expressions use their scalar element type as the lowering
-            // type. Keep them out of the numeric fast path so range extensions
-            // such as Iterable.plus/minus can be resolved from the source-level
-            // range receiver instead.
             let isRangeReceiver = ["plus", "minus"].contains(request.interner.resolve(request.calleeName))
                 && (MemberRuntimeDispatch.rangeReceiverKind(
                     receiverExpr: request.receiverID,
@@ -120,8 +111,6 @@ extension CallTypeChecker {
                 && (receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == byteType || receiverForCheck == shortType)
             let isShiftReceiver = receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType
             let isBitwiseReceiver = isShiftReceiver || receiverForCheck == ubyteType || receiverForCheck == ushortType
-            // In Kotlin stdlib, small unsigned types promote to UInt for most
-            // arithmetic (plus/minus/times/div/rem). `mod` returns the RHS type.
             let isSmallUnsigned = { (t: TypeID) -> Bool in t == ubyteType || t == ushortType }
             let isUnsignedInteger = { (t: TypeID) -> Bool in
                 t == uintType || t == ulongType || isSmallUnsigned(t)
@@ -132,24 +121,12 @@ extension CallTypeChecker {
             let isFloating = { (t: TypeID) -> Bool in
                 t == floatType || t == doubleType
             }
-            // KUU-4015: a non-null `Nothing` operand is a subtype of every
-            // parameter type, so kotlinc applies its overload most-specific
-            // rules (integer/float widening priority) and accepts calls whose
-            // winner is unique — `x.mod(TODO())`, `u.floorDiv(TODO())`,
-            // `c.plus(TODO())`, `x.and(TODO())`. Ambiguous winners such as
-            // `x.plus(TODO())` or `c.minus(TODO())` still fall through to
-            // normal resolution and are rejected there, matching kotlinc.
             let isNonNullNothingOperand = {
                 if case .nothing(.nonNull) = request.sema.types.kind(of: rawRhsType) {
                     return true
                 }
                 return false
             }()
-            // KUU-4351: operator `compareTo` calls take the member-call path
-            // too, but a non-null `Nothing` argument makes every primitive
-            // overload applicable and kotlinc reports the signed and
-            // floating-point sets as ambiguous. Char and the unsigned types
-            // keep a unique winner and fall through to normal resolution.
             if request.calleeName == request.knownNames.compareTo,
                isNonNullNothingOperand,
                receiverForCheck == byteType || receiverForCheck == shortType
@@ -189,12 +166,6 @@ extension CallTypeChecker {
                     return true
                 }
             }
-            // Kotlin's unsigned arithmetic members (plus/minus/times/div/rem)
-            // only take unsigned operands — e.g. UInt.plus(UByte/UShort/UInt/
-            // ULong). Signed, floating-point, or nullable operands have no
-            // overload, so such calls must fall through to normal resolution
-            // instead of being bound here (KUU-3936). A non-null Nothing
-            // argument (`u.plus(TODO())`) still typechecks, matching kotlinc.
             let unsignedOperandResultType = { (operand: TypeID) -> TypeID? in
                 if isUnsignedInteger(operand) {
                     receiverForCheck == ulongType || operand == ulongType ? ulongType : uintType
@@ -225,15 +196,11 @@ extension CallTypeChecker {
                 || receiverForCheck == charType
             switch request.interner.resolve(request.calleeName) {
             case "plus":
-                // Collection plus(element) must reach overload resolution instead of
-                // being mistaken for primitive arithmetic based only on the RHS type.
                 let resultType: TypeID? = if !isNumericReceiver {
                     nil
                 } else if receiverForCheck == charType && rawRhsType == intType {
                     charType
                 } else if receiverForCheck == charType && isNonNullNothingOperand {
-                    // Char.plus(Int) is the only member overload and beats the
-                    // Char.plus(String) extension, so a Nothing operand resolves.
                     charType
                 } else if receiverForCheck == charType && request.sema.types.isString(rawRhsType) {
                     driver.exprChecker.collectScopedOperatorExtensionCandidates(
@@ -244,8 +211,6 @@ extension CallTypeChecker {
                 } else if isUnsignedInteger(receiverForCheck) {
                     unsignedOperandResultType(rawRhsType)
                 } else if isUnsignedInteger(rawRhsType) {
-                    // Signed/floating receivers have no unsigned-operand
-                    // overload either (`x.plus(1u)` fails in kotlinc).
                     nil
                 } else if receiverForCheck == doubleType || rawRhsType == doubleType {
                     doubleType
@@ -266,7 +231,6 @@ extension CallTypeChecker {
                     return finalType
                 }
             case "minus":
-                // Collection minus(element) must reach overload resolution just like plus(element).
                 let resultType: TypeID? = if !isNumericReceiver {
                     nil
                 } else if receiverForCheck == charType && rawRhsType == charType {
@@ -297,7 +261,6 @@ extension CallTypeChecker {
                     return finalType
                 }
             case "times", "div", "rem":
-                // times/div/rem: small unsigned types promote to UInt (Kotlin stdlib)
                 let resultType: TypeID? = if rejectsArithmeticOperand(rawRhsType) {
                     nil
                 } else if isUnsignedInteger(receiverForCheck) {
@@ -338,9 +301,6 @@ extension CallTypeChecker {
                     )
                 }
                 let resultType: TypeID? = if isNonNullNothingOperand {
-                    // KUU-4015: same most-specific winner as mod — the
-                    // Int/UInt-parameter overload — except Long/ULong
-                    // receivers keep their wider floorDiv result type.
                     if isSignedInteger(receiverForCheck) {
                         receiverForCheck == longType ? longType : intType
                     } else if isUnsignedInteger(receiverForCheck) {
@@ -361,14 +321,7 @@ extension CallTypeChecker {
                     return finalType
                 }
             case "mod":
-                // mod overloads return the divisor type for integer overloads and
-                // use normal Float/Double widening for floating operands.
                 let resultType: TypeID? = if isNonNullNothingOperand {
-                    // KUU-4015: every mod overload is applicable; the
-                    // most-specific winner is the Int-parameter overload for
-                    // signed receivers (Int result), the UInt-parameter
-                    // overload for unsigned receivers (UInt result), and the
-                    // Double-parameter overload for floating receivers.
                     if isSignedInteger(receiverForCheck) {
                         intType
                     } else if isUnsignedInteger(receiverForCheck) {
@@ -393,8 +346,6 @@ extension CallTypeChecker {
                     return finalType
                 }
             case "and", "or", "xor":
-                // KUU-4015: each bitwise op has a single receiver-typed
-                // overload, so a Nothing operand resolves to the receiver type.
                 if isBitwiseReceiver,
                    rawRhsType == receiverForCheck || isNonNullNothingOperand
                 {
@@ -404,8 +355,6 @@ extension CallTypeChecker {
                     return finalType
                 }
             case "shl", "shr":
-                // KUU-4015: shifts take a single Int bitCount parameter, so a
-                // Nothing operand resolves to the receiver type.
                 if isShiftReceiver,
                    rawRhsType == intType || isNonNullNothingOperand
                 {
@@ -414,9 +363,6 @@ extension CallTypeChecker {
                     return finalType
                 }
             case "ushr":
-                // Unsigned integers only expose shl/shr; ushr is signed-only.
-                // KUU-4015: the single Int bitCount parameter also accepts a
-                // Nothing operand.
                 if (receiverForCheck == intType || receiverForCheck == longType),
                    rawRhsType == intType || isNonNullNothingOperand
                 {
@@ -429,23 +375,6 @@ extension CallTypeChecker {
             }
         }
 
-        // STDLIB-NUM-130 / KSP-638 / KSP-647: floating-point precision and bit helpers
-        // (isNaN / isInfinite / isFinite / toBits / toRawBits) are declared by bundled
-        // Kotlin source. Their internal __kk_* bridges are ordinary source declarations,
-        // so they must flow through normal extension resolution instead of a primitive
-        // name-based fast path. ulp / nextUp / nextDown remain runtime-backed synthetic
-        // functions until their respective migrations.
-
-        // Unsigned coercion (UByte/UShort/UInt/ULong) is handled by bundled Kotlin source
-        // (RangeCoercion.kt); no primitive fast-path is needed.
-
-        // KSP-642: Int/Long rotateLeft / rotateRight resolve through the bundled Kotlin
-        // declarations in `Stdlib/kotlin/Numbers.kt`, so no special inference is needed.
-
-        // Primitive member function: Int/Long/Byte/Short.toString() → String
-        // (STDLIB-306). Int/Long.toString(radix: Int) is bundled Kotlin source
-        // (Stdlib/kotlin/text/StringNumberConversions.kt, KSP-717) and resolves
-        // through normal extension-function overload resolution below instead.
         if request.calleeName == request.knownNames.toString,
            request.args.isEmpty
         {
@@ -473,18 +402,8 @@ extension CallTypeChecker {
         case .primitive:
             true
         case .typeParam:
-            // All type parameters have an implicit upper bound of Any? in Kotlin,
-            // so Any methods (toString, hashCode, equals) are always available on
-            // type parameter receivers (STDLIB-GEN-055).
             true
         case .nothing(.nonNull):
-            // `Nothing` is a subtype of every Kotlin type including `Any`, so its
-            // member scope is `Any`'s and `toString`/`hashCode`/`equals` are the
-            // single valid candidates. A safe call unwraps a `Nothing?` receiver
-            // to non-null `Nothing`; resolving to `Any`'s member here (instead of
-            // collecting unrelated `toString` extensions that the bottom type is
-            // nominally a subtype of) matches kotlinc for `null?.toString()`
-            // (KUU-3146). Non-safe `Nothing` receivers keep ordinary resolution.
             request.safeCall
         default:
             anyFallbackReceiverType == request.sema.types.anyType || anyFallbackReceiverType == request.sema.types.nullableAnyType

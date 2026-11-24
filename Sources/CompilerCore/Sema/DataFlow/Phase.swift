@@ -675,6 +675,7 @@ final class DataFlowSemaPhase: CompilerPhase {
             )
         }
         canonicalizeDeclarationAnnotations(ast: ast, bindings: bindings, symbols: symbols, types: types, interner: ctx.interner)
+        sema.jvmClasspathStubFiles = Set(ctx.jvmImports?.sourceClasses.keys.map { $0 } ?? [])
         withSubPhaseTiming("compilerPluginTransforms", timer: ctx.phaseTimer) {
             runCompilerPluginTransforms(
                 ast: ast, symbols: symbols, types: types, bindings: bindings,
@@ -737,8 +738,7 @@ final class DataFlowSemaPhase: CompilerPhase {
                 interner: ctx.interner
             )
         }
-        let precompiledFiles = Set(ctx.jvmImports?.sourceClasses.keys.map { $0 } ?? [])
-        sema.jvmClasspathStubFiles = precompiledFiles
+        let precompiledFiles = sema.jvmClasspathStubFiles
         withSubPhaseTiming("validateTypeParameterUpperBounds", timer: ctx.phaseTimer) {
             validateTypeParameterUpperBounds(
                 symbols: symbols, types: types, interner: ctx.interner, diagnostics: ctx.diagnostics,

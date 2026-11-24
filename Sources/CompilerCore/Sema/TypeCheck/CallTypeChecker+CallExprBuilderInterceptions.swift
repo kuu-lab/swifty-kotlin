@@ -324,8 +324,6 @@ extension CallTypeChecker {
                 params: [],
                 returnType: expectedType ?? sema.types.nullableAnyType
             )))
-            // Lambda literals need the MemScope implicit receiver in scope;
-            // declared function-typed values only need the expected type.
             let blockArgExpr = args[0].expr
             let lambdaCtx = isLambdaLiteralArg(blockArgExpr, ast: ast)
                 ? ctx.with(implicitReceiverType: memScopeType)
@@ -334,8 +332,6 @@ extension CallTypeChecker {
                 blockArgExpr, ctx: lambdaCtx, locals: &locals,
                 expectedType: lambdaExpectedType
             )
-            // Non-function arguments fall through to normal resolution so the
-            // standard diagnostics path reports the mismatch.
             if case let .functionType(fnType) = sema.types.kind(of: lambdaType) {
                 let returnType = fnType.returnType
                 let refinedReturnType: TypeID = {

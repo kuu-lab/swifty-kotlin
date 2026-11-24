@@ -2,7 +2,6 @@ package java.util.prefs
 
 import java.util.Base64
 
-/** An in-memory preferences tree for APIs that expect java.util.prefs.Preferences. */
 public class Preferences private constructor(
     private val nodeName: String,
     private val userNode: Boolean,

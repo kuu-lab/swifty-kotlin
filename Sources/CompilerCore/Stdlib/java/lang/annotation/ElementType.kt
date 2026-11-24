@@ -1,7 +1,5 @@
 package java.lang.annotation
 
-/** JDK `java.lang.annotation.ElementType` — the declaration contexts an
- * annotation type may target. */
 public enum class ElementType {
     TYPE,
     FIELD,

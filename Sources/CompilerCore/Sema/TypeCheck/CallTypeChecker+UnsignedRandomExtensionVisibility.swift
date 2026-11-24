@@ -1,6 +1,4 @@
 extension CallTypeChecker {
-    /// Unsigned random APIs are package extensions outside Kotlin's default imports.
-    /// Global short-name recovery must preserve the importing file's alias and scope.
     func isUnsignedRandomExtensionVisible(
         _ symbol: SemanticSymbol,
         named calleeName: InternedString,
