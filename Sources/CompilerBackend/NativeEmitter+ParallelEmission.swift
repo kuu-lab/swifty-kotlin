@@ -120,6 +120,14 @@ extension NativeEmitter {
             + partitions(of: startupIndices, workers: 1).map { ($0, OptimizationLevel.O0) }
         let buckets = plan.map { partition in partition.0.map { emittableFunctions[$0] } }
         let partitionCount = buckets.count
+        if ProcessInfo.processInfo.environment["KSWIFTK_DEBUG_PARTITION_TIMING"] == "1" {
+            let weights = emittableFunctions.map { (max($0.0.body.count, 1), $0.1) }
+            let total = weights.reduce(0) { $0 + $1.0 }
+            let top = weights.sorted { $0.0 > $1.0 }.prefix(8).map { "\($0.0):\($0.1.prefix(60))" }
+            FileHandle.standardError.write(Data(
+                "KSWIFTK_PARTITION_PLAN functions=\(emittableFunctions.count) startup=\(startupIndices.count) weight=\(total) partitions=\(partitionCount) workers=\(workerCount) top=\(top)\n".utf8
+            ))
+        }
 
         let primaryRelPath = "objects/\(moduleName)_0.o"
         let primaryOutPath = outputObjectsDir + "/\(moduleName)_0.o"
@@ -462,11 +470,14 @@ extension NativeEmitter {
         }
 
         func runPartitionWorker(at index: Int) {
+            let debugStart = Date()
+            var debugIRSeconds = 0.0
             do {
                 let partition = try emitter.emitFunctionPartitionModule(
                     functions: ArraySlice(buckets[index]),
                     runtimeCallbackRawABISymbols: runtimeCallbackRawABISymbols
                 )
+                debugIRSeconds = Date().timeIntervalSince(debugStart)
                 defer {
                     emitter.bindings.disposeModule(partition.module)
                     emitter.bindings.disposeContext(partition.context)
@@ -478,6 +489,14 @@ extension NativeEmitter {
                 )
             } catch {
                 recordError(error)
+            }
+            if ProcessInfo.processInfo.environment["KSWIFTK_DEBUG_PARTITION_TIMING"] == "1" {
+                let weight = buckets[index].reduce(0) { $0 + max($1.0.body.count, 1) }
+                let line = String(
+                    format: "KSWIFTK_PARTITION index=%d opt=%d functions=%d weight=%d ir=%.1fs total=%.1fs\n",
+                    index, optimizationLevels[index].rawValue, buckets[index].count, weight, debugIRSeconds, Date().timeIntervalSince(debugStart)
+                )
+                FileHandle.standardError.write(Data(line.utf8))
             }
         }
 

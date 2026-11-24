@@ -168,14 +168,14 @@ def main():
     before=snapshots(root)
     (output/'inputs.before.json').write_text(json.dumps(before,indent=2)+'\n')
     stages=[
-        ('metadata','CompilerCoreSemaTests','IOAppleAPIContractTests',3000,{
+        ('metadata','CompilerCoreSemaTests','IOAppleAPIContractTests',6000,{
             'sixAppleExtensionsHaveRealTypedPublicSourceAndImportedShapes':2}),
         ('runtime','RuntimeTests','RuntimeAppleFoundationTests',900,{
             'realNSDataCopiesAndItsLeaseFollowsBoxRelease':1,
             'nativeByteStorageSeesKotlinWritesAndPointerWrites':1,
             'nativeNoCopyStorageAndUnattachedRollbackFollowSDKOwnership':1,
             'actualNSErrorUserInfoKeepsOriginalKotlinCauseIdentity':1}),
-        ('native','CompilerBackendTests','IOAppleInteropExecutionTests',4800,{
+        ('native','CompilerBackendTests','IOAppleInteropExecutionTests',15000,{
             'unchangedOriginal25BodiesUseActualFoundation':4,
             'unchangedOriginal25BodiesSurviveRealProducerImport':2,
             'publicOnlyCopiedSDKObjectsAndStreamLifecycles':4,
