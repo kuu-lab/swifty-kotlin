@@ -79,7 +79,7 @@ struct JVMSerializationPlan {
     }
 
     var allMask: Int32 {
-        elements.isEmpty ? 0 : (elements.count == 32 ? -1 : (Int32(1) << Int32(elements.count)) - 1)
+        elements.count >= 32 ? -1 : Int32(bitPattern: (UInt32(1) << UInt32(elements.count)) &- 1)
     }
 }
 
@@ -102,14 +102,25 @@ extension JVMProgramBuilder {
         symbol.fqName.map(context.interner.resolve).joined(separator: ".")
     }
 
-    private func serialNameOverride(_ annotations: [MetadataAnnotationRecord]) -> String? {
-        guard let annotation = annotations.first(where: { $0.annotationFQName == KnownCompilerAnnotation.serializationSerialName.qualifiedName }),
-              let argument = annotation.arguments.first else { return nil }
-        let trimmed = argument.trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: "value=", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count >= 2, trimmed.hasPrefix("\""), trimmed.hasSuffix("\"") else { return nil }
-        return String(trimmed.dropFirst().dropLast())
+    private enum SerialNameOverride {
+        case absent
+        case literal(String)
+        case unsupported
+    }
+
+    private func serialNameOverride(_ annotations: [MetadataAnnotationRecord]) -> SerialNameOverride {
+        guard let annotation = annotations.first(where: { $0.annotationFQName == KnownCompilerAnnotation.serializationSerialName.qualifiedName }) else { return .absent }
+        guard annotation.arguments.count == 1 else { return .unsupported }
+        var argument = annotation.arguments[0].trimmingCharacters(in: .whitespacesAndNewlines)
+        if argument.hasPrefix("value") {
+            let rest = argument.dropFirst("value".count).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard rest.hasPrefix("=") else { return .unsupported }
+            argument = rest.dropFirst().trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard argument.count >= 2, argument.hasPrefix("\""), argument.hasSuffix("\"") else { return .unsupported }
+        let body = String(argument.dropFirst().dropLast())
+        guard !body.unicodeScalars.contains(where: { $0 == "\"" || $0 == "\\" || $0 == "$" || $0.value < 0x20 || $0.value == 0x7F }) else { return .unsupported }
+        return .literal(body)
     }
 
     private func hasUnsupportedSerializationAnnotation(_ annotations: [MetadataAnnotationRecord]) -> Bool {
@@ -150,41 +161,40 @@ extension JVMProgramBuilder {
         case .nullLiteral:
             return nullable ? JVMSerialDefault.null : nil
         case let .boolLiteral(value, _):
-            return kind == .boolean && !nullable ? .constant(.boolean(value)) : nil
+            return kind == .boolean ? .constant(.boolean(value)) : nil
         case let .stringLiteral(value, _):
-            return kind == .string && !nullable ? .constant(.string(context.interner.resolve(value))) : nil
+            return kind == .string ? .constant(.string(context.interner.resolve(value))) : nil
         case let .charLiteral(value, _):
-            return kind == .char && !nullable ? Int32(exactly: value).map { JVMSerialDefault.constant(.int($0)) } : nil
+            return kind == .char ? Int32(exactly: value).map { JVMSerialDefault.constant(.int($0)) } : nil
         case let .intLiteral(value, _):
-            return numericDefault(value, kind: kind, nullable: nullable)
+            return numericDefault(value, kind: kind)
         case let .unaryExpr(.unaryMinus, operand, _):
             guard let inner = ast.arena.expr(operand) else { return nil }
             switch inner {
             case let .intLiteral(value, _):
-                return numericDefault(-value, kind: kind, nullable: nullable)
+                return numericDefault(-value, kind: kind)
             case let .longLiteral(value, _):
-                return kind == .long && !nullable ? .constant(.long(-value)) : nil
+                return kind == .long ? .constant(.long(-value)) : nil
             case let .doubleLiteral(value, _):
-                return kind == .double && !nullable ? .constant(.double(-value)) : nil
+                return kind == .double ? .constant(.double(-value)) : nil
             case let .floatLiteral(value, _):
-                return kind == .float && !nullable ? .constant(.float(-Float(value))) : nil
+                return kind == .float ? .constant(.float(-Float(value))) : nil
             default:
                 return nil
             }
         case let .longLiteral(value, _):
-            return kind == .long && !nullable ? .constant(.long(value)) : nil
+            return kind == .long ? .constant(.long(value)) : nil
         case let .doubleLiteral(value, _):
-            return kind == .double && !nullable ? .constant(.double(value)) : nil
+            return kind == .double ? .constant(.double(value)) : nil
         case let .floatLiteral(value, _):
-            if kind == .float && !nullable { return .constant(.float(Float(value))) }
+            if kind == .float { return .constant(.float(Float(value))) }
             return nil
         default:
             return nil
         }
     }
 
-    private func numericDefault(_ value: Int64, kind: JVMSerialKind, nullable: Bool) -> JVMSerialDefault? {
-        guard !nullable else { return nil }
+    private func numericDefault(_ value: Int64, kind: JVMSerialKind) -> JVMSerialDefault? {
         switch kind {
         case .int, .short, .byte: return Int32(exactly: value).map { JVMSerialDefault.constant(.int($0)) }
         case .long: return .constant(.long(value))
@@ -244,9 +254,15 @@ extension JVMProgramBuilder {
                 guard let literal = serialDefault(parameter.defaultValue, kind: kind, nullable: nullable) else { return nil }
                 defaultValue = literal
             }
+            var serialName = name
+            switch serialNameOverride(symbols.annotations(for: property.symbol)) {
+            case .absent: break
+            case let .literal(value): serialName = value
+            case .unsupported: return nil
+            }
             elements.append(JVMSerialElement(
                 propertyName: name,
-                serialName: property.serialName,
+                serialName: serialName,
                 kind: kind,
                 isNullable: nullable,
                 defaultValue: defaultValue
@@ -254,8 +270,15 @@ extension JVMProgramBuilder {
         }
         guard elements.count == propertiesByName.count else { return nil }
 
+        var classSerialName = serialFQName(classSymbol)
+        switch serialNameOverride(classAnnotations) {
+        case .absent: break
+        case let .literal(value): classSerialName = value
+        case .unsupported: return nil
+        }
+
         return JVMSerializationPlan(
-            serialName: serialNameOverride(classAnnotations) ?? serialFQName(classSymbol),
+            serialName: classSerialName,
             elements: elements,
             serializerSymbol: serializerSymbol,
             companionSymbol: companionSymbol,
@@ -505,8 +528,8 @@ extension JVMProgramBuilder {
                     let null = try b.constant(.null, field.type)
                     b.instructions.append(.referenceCompare(.notEqual, current, null, differs))
                 case let .constant(constant):
-                    if element.kind == .string {
-                        let literal = try b.constant(constant, .string)
+                    if element.kind == .string || element.isNullable {
+                        let literal = try b.constant(constant, element.kind.primitive)
                         let equal = try serialCall(
                             b,
                             "java/util/Objects",

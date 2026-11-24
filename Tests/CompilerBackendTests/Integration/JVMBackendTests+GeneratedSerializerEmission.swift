@@ -7,6 +7,12 @@ extension JVMBackendTests {
     private func serializationStubClasspath(_ root: URL) throws -> String {
         let sources = [
             "kotlinx/serialization/KSerializer.java": "package kotlinx.serialization; public interface KSerializer<T> {}",
+            "kotlinx/serialization/SerialName.java": """
+            package kotlinx.serialization;
+            import java.lang.annotation.*;
+            @Retention(RetentionPolicy.RUNTIME)
+            public @interface SerialName { String value(); }
+            """,
             "kotlinx/serialization/Serializable.java": """
             package kotlinx.serialization;
             import java.lang.annotation.*;
@@ -128,6 +134,77 @@ extension JVMBackendTests {
             let companion = try members(root, of: "Holder$Companion")
             #expect(companion.contains("serializer()"))
             #expect(companion.contains("getLimit()"))
+        }
+    }
+
+    @Test
+    func serializableClassWithThirtyOnePropertiesCompiles() throws {
+        try withWorkspace { root in
+            let stubs = try serializationStubClasspath(root)
+            let parameters = (0..<31).map { "val p\($0): Int" }.joined(separator: ", ")
+            let source = """
+                import kotlinx.serialization.Serializable
+
+                @Serializable
+                class Wide(\(parameters))
+
+                fun main() { println("compiled") }
+                """
+            let (exitCode, diagnostics) = try compile(source, root: root, mode: .jvmJar, classpath: [stubs])
+            try #require(exitCode == 0, "\(diagnostics.map(\.message))")
+            #expect(try jarEntries(root).contains("Wide$$serializer.class"))
+        }
+    }
+
+    @Test
+    func classSerialNamesKeepLiteralTextAndRejectEscapedNames() throws {
+        try withWorkspace { root in
+            let stubs = try serializationStubClasspath(root)
+            let source = """
+                import kotlinx.serialization.SerialName
+                import kotlinx.serialization.Serializable
+
+                @Serializable
+                @SerialName("value=class")
+                class Literal(val enabled: Boolean)
+
+                @Serializable
+                @SerialName("a\\nb")
+                class Escaped(val x: Int)
+
+                @Serializable
+                @SerialName("a\\\\b")
+                class Backslash(val x: Int)
+
+                fun main() { println("compiled") }
+                """
+            let (exitCode, diagnostics) = try compile(source, root: root, mode: .jvmJar, classpath: [stubs])
+            try #require(exitCode == 0, "\(diagnostics.map(\.message))")
+            let entries = try jarEntries(root)
+            #expect(entries.contains("Literal$$serializer.class"))
+            #expect(!entries.contains("Escaped$$serializer.class"))
+            #expect(!entries.contains("Backslash$$serializer.class"))
+            let code = try jvmTool("javap", ["-p", "-c", "-constants", "-cp", "hello.jar", "Literal$$serializer"], root: root)
+            try #require(code.exitCode == 0, "\(code.stderr)")
+            #expect(code.stdout.contains("String value=class"))
+        }
+    }
+
+    @Test
+    func nullablePropertiesWithNonNullLiteralDefaultsGetGeneratedSerializer() throws {
+        try withWorkspace { root in
+            let stubs = try serializationStubClasspath(root)
+            let source = """
+                import kotlinx.serialization.Serializable
+
+                @Serializable
+                class Defaults(val label: String? = "local", val count: Int? = 5, val flag: Boolean? = null)
+
+                fun main() { println("compiled") }
+                """
+            let (exitCode, diagnostics) = try compile(source, root: root, mode: .jvmJar, classpath: [stubs])
+            try #require(exitCode == 0, "\(diagnostics.map(\.message))")
+            #expect(try jarEntries(root).contains("Defaults$$serializer.class"))
         }
     }
 

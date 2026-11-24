@@ -31,7 +31,17 @@ extension JVMBackendTests {
                     val limit: Int? = null,
                 )
 
+                @Serializable
+                class Tagged(
+                    @SerialName("value=on") val on: Boolean,
+                    val label: String? = "local",
+                    val count: Int? = 5,
+                )
+
                 fun main() {
+                    println(Json.encodeToString(Tagged.serializer(), Tagged(true)))
+                    println(Json.encodeToString(Tagged.serializer(), Tagged(false, null, 6)))
+                    println(Json.encodeToString(Tagged.serializer(), Json.decodeFromString(Tagged.serializer(), "{\\"value=on\\":true}")))
                     println(Json.encodeToString(MediawikiData.serializer(), MediawikiData("enwiki")))
                     println(Json.encodeToString(MediawikiData.serializer(), MediawikiData()))
                     println(Json.decodeFromString(MediawikiData.serializer(), "{\\"database\\":\\"x\\"}").database)
@@ -55,6 +65,9 @@ extension JVMBackendTests {
             let classpath = ([root.appendingPathComponent("hello.jar").path] + serializationRuntimeClasspath).joined(separator: ":")
             let result = try java(["-cp", classpath, "HelloKt"])
             #expect(result.stdout == """
+                {"value=on":true}
+                {"value=on":false,"label":null,"count":6}
+                {"value=on":true}
                 {"database":"enwiki"}
                 {}
                 x
