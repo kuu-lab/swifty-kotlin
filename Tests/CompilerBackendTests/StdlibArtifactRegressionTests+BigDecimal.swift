@@ -313,6 +313,79 @@ extension StdlibArtifactRegressionTests {
             )
         }
     }
+
+    /// Nullable `BigDecimal?` `==`/`!=` must apply `BigDecimal.equals` semantics
+    /// (same scale and value), not runtime reference identity.
+    @Test(arguments: [0, 2])
+    func testNullableBigDecimalEqualityThroughFreshStdlibArtifact(optLevelRawValue: Int) throws {
+        let optLevel = try #require(OptimizationLevel(rawValue: optLevelRawValue))
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        import java.math.BigDecimal
+
+        fun sameValue(a: BigDecimal?, b: BigDecimal?): Boolean = a == b
+        fun differentValue(a: BigDecimal?, b: BigDecimal?): Boolean = a != b
+
+        fun main() {
+            val x = BigDecimal("1.10")
+            val y = BigDecimal("1.10")
+            val z = BigDecimal("1.1")
+            val w = BigDecimal("1.100")
+            println(sameValue(x, y))
+            println(sameValue(x, z))
+            println(sameValue(x, w))
+            println(sameValue(x, null))
+            println(sameValue(null, null))
+            println(sameValue(BigDecimal("-1.10"), BigDecimal("-1.10")))
+            println(differentValue(x, y))
+            println(differentValue(x, z))
+            println(differentValue(x, null))
+            println(differentValue(null, null))
+            val p: BigDecimal? = BigDecimal("2.50")
+            val q: BigDecimal? = BigDecimal("2.50")
+            println(p == q)
+            println(p != q)
+        }
+        """
+        let expected = """
+        true
+        false
+        false
+        false
+        true
+        true
+        false
+        true
+        true
+        false
+        true
+        false
+
+        """
+
+        try withTemporaryFile(contents: source) { inputPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: outputBase) }
+            let context = try runCodegenPipeline(
+                inputPath: inputPath,
+                moduleName: "NullableBigDecimalEquality_\(optLevel.rawValue)",
+                outputPath: outputBase,
+                optLevel: optLevel,
+                allowDefaultStdlibLibrary: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try assertNoDiagnosticErrors(context)
+            try LinkPhase().run(context)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "\(optLevel): \(result.stderr)")
+            #expect(result.stderr.isEmpty, "\(optLevel): \(result.stderr)")
+            #expect(
+                result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == expected,
+                "Unexpected output at \(optLevel): \(String(reflecting: result.stdout))"
+            )
+        }
+    }
 }
 
 private func bigDecimalZeroContext(

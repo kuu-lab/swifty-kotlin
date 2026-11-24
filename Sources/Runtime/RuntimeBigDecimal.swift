@@ -219,6 +219,21 @@ func runtimeCanonicalDecimalString(_ source: String) throws -> String {
     try runtimeFormatBigDecimal(runtimeBigDecimalParts(source))
 }
 
+/// `BigDecimal.equals` semantics on canonical decimal texts: identical scale
+/// and the same signed value. Structural equality (`==`/`!=` on nullable
+/// `BigDecimal` operands) bypasses the Kotlin `equals` override, so it applies
+/// this check directly to the stored canonical strings.
+func runtimeBigDecimalCanonicalEquals(_ lhs: String, _ rhs: String) -> Bool {
+    guard let lhsParts = try? runtimeBigDecimalParts(lhs),
+          let rhsParts = try? runtimeBigDecimalParts(rhs),
+          lhsParts.scale == rhsParts.scale,
+          lhsParts.negative == rhsParts.negative
+    else {
+        return false
+    }
+    return lhsParts.digits == rhsParts.digits
+}
+
 private func runtimeBigDecimalFromIntegerText(_ value: Int64, outThrown: UnsafeMutablePointer<Int>?) -> Int {
     return runtimeThrowingBridge(outThrown) {
         do {
