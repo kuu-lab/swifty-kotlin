@@ -1252,10 +1252,10 @@ final class ControlFlowTypeChecker {
                 locals.joinVariableFacts(from: [thenLocals, elseLocals])
             }
         }
-        if thenType != sema.types.nothingType, canCompleteNormally(thenExpr, ctx: ctx) {
+        if thenType != sema.types.nothingType, branchMayReachJoin(thenExpr, ctx: ctx) {
             locals.possiblyAssignedVals.formUnion(thenLocals.possiblyAssignedVals)
         }
-        if elseCompletes, elseExpr.map({ canCompleteNormally($0, ctx: ctx) }) ?? true {
+        if elseCompletes, elseExpr.map({ branchMayReachJoin($0, ctx: ctx) }) ?? true {
             locals.possiblyAssignedVals.formUnion(elseLocals.possiblyAssignedVals)
         }
         for (name, local) in locals where local.isMutable {
@@ -1277,6 +1277,18 @@ final class ControlFlowTypeChecker {
         }
         sema.bindings.bindExprType(id, type: resolvedType)
         return resolvedType
+    }
+
+    func branchMayReachJoin(_ branch: ExprID, ctx: TypeInferenceContext) -> Bool {
+        if canCompleteNormally(branch, ctx: ctx) { return true }
+        guard let branchRange = ctx.ast.arena.exprRange(branch) else { return true }
+        return ctx.sema.bindings.lambdaReturnTargets.keys.contains { returnID in
+            guard let range = ctx.ast.arena.exprRange(returnID),
+                  range.start.file == branchRange.start.file
+            else { return false }
+            return range.start.offset >= branchRange.start.offset
+                && range.end.offset <= branchRange.end.offset
+        }
     }
 
     func joinedInitializedLocalType(

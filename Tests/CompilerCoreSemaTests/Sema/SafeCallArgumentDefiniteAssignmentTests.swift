@@ -193,5 +193,33 @@ struct SafeCallArgumentDefiniteAssignmentTests {
             }
         }
     }
+
+    @Test
+    func testPossibleAssignmentSurvivesBranchWithLabeledReturnToInlineLambda() throws {
+        let sources = [
+            """
+            package labeledReturnBranch
+            fun read(s: String?, b: Boolean, c: Boolean, d: Boolean): Int {
+                val x: Int
+                if (b) {
+                    s?.plus(if (c) { x = 5; "a" } else { x = 6; "b" })
+                    run<Int> {
+                        if (d) return@run 1
+                        throw IllegalStateException()
+                    }
+                }
+                x = 8
+                return x
+            }
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            for path in paths {
+                assertHasDiagnostic("KSWIFTK-SEMA-0014", in: diagnosticsForPath(path, in: ctx))
+            }
+        }
+    }
 }
 #endif
