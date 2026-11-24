@@ -7,7 +7,6 @@ import Testing
 
 @Suite
 struct CodegenBackendTypeParameterNullCastTests {
-    /// KUU-3349: The cast failure must cross the generic call and be catchable.
     @Test
     func definitelyNotNullArgumentMakesGenericNullCastThrow() throws {
         let source = """
