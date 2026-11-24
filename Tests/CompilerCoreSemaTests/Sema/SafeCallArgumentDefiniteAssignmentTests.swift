@@ -119,5 +119,53 @@ struct SafeCallArgumentDefiniteAssignmentTests {
             }
         }
     }
+
+    @Test
+    func testElvisNothingFallbackAfterSafeCallChainKeepsEarlierArgumentAssignmentDefinite() throws {
+        let sources = [
+            """
+            package elvisChain
+            fun read(s: String?): Int {
+                var x: Int
+                s?.plus(run { x = 5; "a" })?.length ?: return 0
+                return x
+            }
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            for path in paths {
+                let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+                #expect(errors.isEmpty, "\(path): \(errors)")
+            }
+        }
+    }
+
+    @Test
+    func testPossibleAssignmentSurvivesBlockAndBranchJoin() throws {
+        let sources = [
+            """
+            package branchJoin
+            fun read(s: String?, b: Boolean, c: Boolean): Int {
+                val x: Int
+                if (b) {
+                    s?.plus(if (c) { x = 5; "a" } else { x = 6; "b" })
+                } else {
+                    x = 7
+                }
+                x = 8
+                return x
+            }
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            for path in paths {
+                assertHasDiagnostic("KSWIFTK-SEMA-0014", in: diagnosticsForPath(path, in: ctx))
+            }
+        }
+    }
 }
 #endif
