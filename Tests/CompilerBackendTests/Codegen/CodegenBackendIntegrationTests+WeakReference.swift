@@ -5,13 +5,6 @@ import Testing
 
 @Suite
 struct CodegenBackendWeakReferenceTests {
-    // KSP-1255: WeakReference(referred: T)'s constructor bridges straight to
-    // the kk_weak_ref_create runtime factory (see CallLowerer's
-    // isRuntimeFactoryConstructor). get() after clear() must observe the
-    // referent as gone: the runtime's "no referent" sentinel is Any-erased
-    // (kk_weak_ref_get returns runtimeNullSentinelInt, not bare 0), and a
-    // regression here previously round-tripped back to Kotlin as a boxed
-    // non-null Int(0) instead of null.
     @Test
     func testCodegenWeakReferenceGetReflectsClear() throws {
         let source = """
@@ -38,10 +31,6 @@ struct CodegenBackendWeakReferenceTests {
         )
     }
 
-    // KUU-3626: ordinary `kk_object_new` instances participate in mark/sweep,
-    // and generated Kotlin frames publish the references live across calls.
-    // The helper's `Foo` frame has returned before System.gc(), so its weak
-    // referent must clear while a separate live local remains usable.
     @Test
     func testCodegenWeakReferenceClearsReturnedOrdinaryObjectAfterGC() throws {
         let source = """
@@ -75,13 +64,6 @@ struct CodegenBackendWeakReferenceTests {
         )
     }
 
-    // KUU-1363: `WeakReference.value` is `get() = this.get()` in bundled
-    // kotlin/native/ref/Weak.kt. The frontend used to truncate the accessor's
-    // `= expr` body at the `get(` member call, so the compiled getter returned
-    // the WeakReference box itself instead of the referent. This test runs the
-    // public contract end to end: value/get return the referent before
-    // clear(), null after it, on both parameterized and star-projected
-    // references, and clearing one reference must not affect another.
     // (Member calls on a WeakReference<*>-typed reference hit an unrelated
     // kklib-route bound-check gap, so the star-projected handle only reads
     // `value`; the shared box is cleared through `second`.)
@@ -117,8 +99,6 @@ struct CodegenBackendWeakReferenceTests {
         )
     }
 
-    // KUU-1467: A runtime-materialized String must round-trip through both
-    // WeakReference accessors, and clear() must drop that same referent.
     @Test
     func testCodegenWeakReferencePreservesRuntimeStringReferent() throws {
         let source = """
@@ -149,10 +129,6 @@ struct CodegenBackendWeakReferenceTests {
         )
     }
 
-    // KUU-1666: immediate primitive words are live values, and the class
-    // member keeps `.value` typed as T? while the legacy extension import
-    // remains available. Exercise both source injection and a freshly built
-    // precompiled stdlib artifact.
     @Test(arguments: [false, true])
     func testCodegenWeakReferenceImmediateAndTypedReferents(
         allowDefaultStdlibLibrary: Bool
