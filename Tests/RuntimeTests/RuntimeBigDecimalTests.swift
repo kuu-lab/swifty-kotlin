@@ -362,5 +362,41 @@ struct RuntimeBigDecimalTests {
         #expect(kk_number_to_primitive(value, 0, 5) == __kk_bignum_toByte(value))
         #expect(kk_number_to_primitive(value, 0, 6) == kk_int_to_char(__kk_bignum_toInt(value)))
     }
+
+    private func makeBigDecimal(_ text: String) -> Int {
+        var thrown = 0
+        let raw = withFlatString(text) { data, length, byteCount, hash in
+            __kk_string_toBigDecimal_flat(data, length, byteCount, hash, &thrown)
+        }
+        #expect(thrown == 0)
+        return raw
+    }
+
+    /// KUU-4630: erased equality/hash must follow `BigDecimal.equals`
+    /// (value and scale), not reference identity.
+    @Test
+    func testBigDecimalErasedEqualityAndHashUseValueAndScale() {
+        let a = makeBigDecimal("1.10")
+        let b = makeBigDecimal("1.10")
+        let c = makeBigDecimal("1.1")
+        #expect(a != b)
+        #expect(runtimeValuesEqual(a, b))
+        #expect(runtimeLookupValuesEqual(a, b))
+        #expect(!runtimeValuesEqual(a, c))
+        #expect(!runtimeValuesEqual(a, runtimeString("1.10")))
+        #expect(!runtimeValuesEqual(runtimeString("1.10"), a))
+        #expect(RuntimeElementKey(value: a) == RuntimeElementKey(value: b))
+        #expect(RuntimeElementKey(value: a) != RuntimeElementKey(value: c))
+        #expect(RuntimeElementKey(value: a).hashValue == RuntimeElementKey(value: b).hashValue)
+
+        var thrown = 0
+        let array = kk_array_new(2)
+        _ = kk_array_set(array, 0, a, &thrown)
+        _ = kk_array_set(array, 1, b, &thrown)
+        #expect(thrown == 0)
+        let set = kk_hash_set_of(array, 2)
+        #expect(kk_set_size(set) == 1)
+        #expect(kk_set_contains(set, makeBigDecimal("1.10")) != 0)
+    }
 }
 #endif

@@ -300,6 +300,16 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     guard let lhsPtr, let rhsPtr else {
         return lhs == rhs
     }
+    // BigDecimal handles are `RuntimeBigNumberBox` values, not RuntimeObjectBox.
+    // `value` is the canonical JDK-style string (unscaled value + scale), so
+    // string equality matches `BigDecimal.equals` (1.10 != 1.1) (KUU-4630).
+    if let lhsBig = tryCast(lhsPtr, to: RuntimeBigNumberBox.self) {
+        guard let rhsBig = tryCast(rhsPtr, to: RuntimeBigNumberBox.self) else { return false }
+        return lhsBig.kind == rhsBig.kind && lhsBig.value == rhsBig.value
+    }
+    if tryCast(rhsPtr, to: RuntimeBigNumberBox.self) != nil {
+        return false
+    }
     // Result uses a dedicated runtime box rather than RuntimeObjectBox. Keep
     // its value-class equality semantics on erased Any paths, matching the
     // wrapped-value hashCode handling in RuntimeNumericCompat.

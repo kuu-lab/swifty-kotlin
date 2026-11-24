@@ -121,6 +121,12 @@ func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int =
         }
         return
     }
+    // Must agree with `runtimeNonNullValuesEqual`'s BigDecimal branch (KUU-4630).
+    if let bigNumber = tryCast(pointer, to: RuntimeBigNumberBox.self) {
+        hasher.combine(19)
+        hasher.combine(bigNumber.value)
+        return
+    }
     if runtimeIsUnitBox(value) {
         hasher.combine(13)
         return
