@@ -20,19 +20,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 // env) pair suspend function values use at the ABI boundary, and the
 // runtime invokes it with the minted TestScope bound as the receiver.
 
-/**
- * Mirror of the upstream `TestResult`: the actual type used on the JVM is
- * `Unit`, so this is a `Unit` alias here.
- */
 public typealias TestResult = Unit
 
-/**
- * Delays in the test scope use virtual time, and remaining scheduled child
- * work is advanced before this function returns. [timeout] is enforced in
- * real time: when it elapses, the test scope and its child coroutines are
- * cancelled and this function fails by throwing an
- * `UncompletedCoroutinesError` (an [AssertionError] subtype).
- */
 @ExperimentalCoroutinesApi
 @KsSymbolName("kk_test_run_blocking")
 public external fun runTest(
