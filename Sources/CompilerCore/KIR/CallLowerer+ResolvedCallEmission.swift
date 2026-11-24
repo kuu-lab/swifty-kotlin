@@ -236,6 +236,18 @@ extension CallLowerer {
                 ? sema.types.nullableAnyType
                 : (boundType ?? sema.types.anyType)
         )
+        // Compiler-generated lambdas/local functions use the compiler ABI
+        // (including the hidden thrown channel), so route them through their
+        // lowered symbol directly instead of Swift closure helpers.
+        let callableInvokeCallee: InternedString? = if loweredCallable == nil {
+            runtimeCallableInvokeCallee(
+                callableValueCallBinding: callableValueCallBinding,
+                sema: sema,
+                interner: interner
+            )
+        } else {
+            nil
+        }
         var callableArguments = loweredArgIDs
         if loweredCallable != nil,
            let binding = callableValueCallBinding,
@@ -267,6 +279,50 @@ extension CallLowerer {
                 default:
                     break
                 }
+            }
+        } else if callableInvokeCallee != nil,
+                  let binding = callableValueCallBinding,
+                  case let .functionType(functionType) = sema.types.kind(
+                      of: sema.types.makeNonNullable(binding.functionType)
+                  ),
+                  functionType.receiver == nil,
+                  functionType.contextReceivers.isEmpty,
+                  functionType.params.count == callableArguments.count
+        {
+            // Erased FunctionN.invoke slots are Any-typed, so non-null
+            // primitive parameters must be boxed with the non-null callee;
+            // otherwise sentinel-bit values (for example -0.0) reach the
+            // adapter as null.
+            for index in callableArguments.indices {
+                let parameterIndex = binding.parameterMapping[index] ?? index
+                guard functionType.params.indices.contains(parameterIndex) else {
+                    continue
+                }
+                let parameterType = functionType.params[parameterIndex]
+                guard case let .primitive(parameterPrimitive, .nonNull) = sema.types.kind(of: parameterType) else {
+                    continue
+                }
+                let sourceType = arena.exprType(callableArguments[index])
+                let boxSourceType: TypeID = if let sourceType,
+                                                case let .primitive(sourcePrimitive, .nonNull) = sema.types.kind(of: sourceType),
+                                                sourcePrimitive == parameterPrimitive
+                {
+                    sourceType
+                } else {
+                    parameterType
+                }
+                callableArguments[index] = boxValueForAnySlot(
+                    callableArguments[index],
+                    sourceType: boxSourceType,
+                    types: sema.types,
+                    symbols: sema.symbols,
+                    interner: interner,
+                    arena: arena,
+                    resultType: sema.types.anyType,
+                    requireNonNull: true,
+                    sema: sema,
+                    into: &instructions
+                )
             }
         }
         let callNormalized: NormalizedCallResult
@@ -336,18 +392,6 @@ extension CallLowerer {
         }
         var implicitReceiverDispatch: (receiver: KIRExprID, kind: KIRDispatchKind)?
         var implicitReceiverRuntimeCallee: InternedString?
-        // Compiler-generated lambdas/local functions use the compiler ABI
-        // (including the hidden thrown channel), so route them through their
-        // lowered symbol directly instead of Swift closure helpers.
-        let callableInvokeCallee: InternedString? = if loweredCallable == nil {
-            runtimeCallableInvokeCallee(
-                callableValueCallBinding: callableValueCallBinding,
-                sema: sema,
-                interner: interner
-            )
-        } else {
-            nil
-        }
         let isAtomicFactory = chosen.map {
             isAtomicScalarConstructor($0, sema: sema, knownNames: knownNames)
         } ?? false
