@@ -169,6 +169,83 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
+    @Test(arguments: [0, 2])
+    func testBigDecimalRemUnaryMinusIncDecOperatorsThroughFreshStdlibArtifact(optLevelRawValue: Int) throws {
+        let optLevel = try #require(OptimizationLevel(rawValue: optLevelRawValue))
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        import java.math.BigDecimal
+
+        var stored = BigDecimal("1.0")
+
+        fun main() {
+            val a = BigDecimal("1.10")
+            val b = BigDecimal("2.2")
+            println(a % b)
+            println(BigDecimal("7.5") % BigDecimal("2"))
+            println(-a)
+            var x = BigDecimal("1.0")
+            println(x++)
+            println(x)
+            println(++x)
+            println(x--)
+            println(--x)
+            println(stored++)
+            println(++stored)
+            println(stored--)
+            println(stored)
+            println(a == BigDecimal("1.10"))
+            println(a == BigDecimal("1.1"))
+            println(a.equals("1.10"))
+            println(a.hashCode())
+            println(BigDecimal("-1.10").hashCode())
+        }
+        """
+        let expected = """
+        1.10
+        1.5
+        -1.10
+        1.0
+        2.0
+        3.0
+        3.0
+        1.0
+        1.0
+        3.0
+        3.0
+        2.0
+        true
+        false
+        false
+        3412
+        -3408
+
+        """
+
+        try withTemporaryFile(contents: source) { inputPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: outputBase) }
+            let context = try runCodegenPipeline(
+                inputPath: inputPath,
+                moduleName: "BigDecimalOperators_\(optLevel.rawValue)",
+                outputPath: outputBase,
+                optLevel: optLevel,
+                allowDefaultStdlibLibrary: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try assertNoDiagnosticErrors(context)
+            try LinkPhase().run(context)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "\(optLevel): \(result.stderr)")
+            #expect(result.stderr.isEmpty, "\(optLevel): \(result.stderr)")
+            #expect(
+                result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == expected,
+                "Unexpected output at \(optLevel): \(String(reflecting: result.stdout))"
+            )
+        }
+    }
+
     /// KUU-3367: the public Double constructor preserves Java's exact binary-to-decimal value.
     @Test(arguments: [0, 2])
     func testBigDecimalDoubleConstructorThroughFreshStdlibArtifact(optLevelRawValue: Int) throws {
