@@ -163,6 +163,7 @@ extension JVMFunctionBuilder {
         case "java/util/concurrent/atomic/AtomicLongArray": element = .long
         default: return nil
         }
+        if context.interner.resolve(name) == "compareAndExchangeAt", context.options.jvmTarget == .java8 { return nil }
         let index: JVMValueType = .int
         let javaName: String
         let parameters: [JVMValueType]
@@ -176,6 +177,8 @@ extension JVMFunctionBuilder {
             javaName = "getAndSet"; parameters = [index, element]; result = element
         case "compareAndSetAt":
             javaName = "compareAndSet"; parameters = [index, element, element]; result = .boolean
+        case "compareAndExchangeAt":
+            javaName = "compareAndExchange"; parameters = [index, element, element]; result = element
         case "fetchAndAddAt":
             javaName = "getAndAdd"; parameters = [index, element]; result = element
         case "addAndFetchAt":
