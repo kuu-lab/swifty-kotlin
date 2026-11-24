@@ -287,6 +287,8 @@ extension CallLowerer {
                   ),
                   functionType.receiver == nil,
                   functionType.contextReceivers.isEmpty,
+                  !functionType.isSuspend,
+                  functionType.params.count <= 6,
                   functionType.params.count == callableArguments.count
         {
             // Erased FunctionN.invoke slots are Any-typed, so non-null
