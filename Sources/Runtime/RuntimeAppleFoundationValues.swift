@@ -6,11 +6,6 @@ import CoreFoundation
 import Glibc
 #endif
 
-// Value-type Foundation bridges: NSDate/NSDateFormatter/NSTimeZone/NSLocale/
-// NSUserDefaults/NSUUID plus NSLog and the NSThread convenience entry points.
-// Every native object lives in a RuntimeForeignResourceLease exactly like the
-// stream/run-loop/thread resources in RuntimeAppleFoundationBindings.swift.
-
 #if canImport(Darwin)
 
 /// Bit 62 tags foreign-resource tokens that travel through heterogeneous
@@ -52,15 +47,10 @@ private func runtimeFoundationUUID(_ handle: Int) -> NSUUID? {
     runtimeForeignResource(handle, as: NSUUID.self)
 }
 
-/// NSDate methods that take a counterpart date accept the Swift `Date`
-/// overlay; the lease always stores the `NSDate` class cluster object.
 private func runtimeFoundationCounterpartDate(_ handle: Int) -> Date? {
     runtimeFoundationNSDate(handle).map { $0 as Date }
 }
 
-/// `Any?` -> property-list value. The outer optional is nil for Kotlin null
-/// AND for unsupported values; `runtimeFoundationPlistIsSupported` separates
-/// them so setters can throw instead of silently dropping.
 private func runtimeFoundationKotlinToPlist(_ raw: Int) -> Any?? {
     if raw == runtimeNullSentinelInt { return .some(nil) }
     if let string = runtimeStringFromRaw(raw) { return string }
@@ -70,8 +60,6 @@ private func runtimeFoundationKotlinToPlist(_ raw: Int) -> Any?? {
     if let box = tryCast(pointer, to: RuntimeIntBox.self) { return box.value }
     if let box = tryCast(pointer, to: RuntimeLongBox.self) { return box.value }
     if let box = tryCast(pointer, to: RuntimeULongBox.self) {
-        // box.value holds the raw 64-bit pattern as Int; non-negative means
-        // the ULong fits in Int64, negative means it exceeds Int64.max.
         return box.value >= 0 ? box.value : Double(UInt64(bitPattern: Int64(box.value)))
     }
     if let box = tryCast(pointer, to: RuntimeFloatBox.self) { return box.value }
@@ -104,18 +92,12 @@ private func runtimeFoundationKotlinToPlist(_ raw: Int) -> Any?? {
         }
         return dictionary
     }
-    // A Kotlin NSObject facade (NSDate/NSData/NSURL/…) resolves to the real
-    // Foundation object through its foreign-resource lease.
     if let object = runtimeForeignResourceForOwner(raw, as: NSObject.self) {
         return object
     }
     return nil
 }
 
-/// Property-list object -> Kotlin `Any?` raw. Foundation objects other than
-/// the plist scalars/collections travel as tagged foreign-resource tokens;
-/// `__foundation_object_probe`/`__wrapFoundation` unwrap them on the Kotlin
-/// side.
 private func runtimeFoundationPlistToKotlin(_ object: Any?) -> Int {
     guard let object else { return runtimeNullSentinelInt }
     if let string = object as? String { return runtimeMakeStringRaw(string) }
@@ -153,7 +135,6 @@ private func runtimeFoundationPlistToKotlin(_ object: Any?) -> Int {
         }
         return registerRuntimeObject(RuntimeMapBox(keys: keys, values: values))
     }
-    // Plist null round-trips as Kotlin null rather than an opaque facade.
     if object is NSNull { return runtimeNullSentinelInt }
     if let object = object as? NSObject {
         return kk_box_long(runtimeFoundationTaggedToken(runtimeForeignResourceCreate(object)))
@@ -178,7 +159,6 @@ private func runtimeFoundationMapRaw(_ dictionary: [String: Any]?) -> Int {
     return registerRuntimeObject(RuntimeMapBox(keys: keys, values: values))
 }
 
-/// Kotlin `Map<Any?, Any?>` raw -> `[String: Any]` plist dictionary.
 private func runtimeFoundationKotlinMapToPlist(_ raw: Int) -> [String: Any]? {
     guard let map = runtimeMapBox(from: raw) else { return nil }
     var dictionary: [String: Any] = [:]
@@ -193,8 +173,6 @@ private func runtimeFoundationKotlinMapToPlist(_ raw: Int) -> [String: Any]? {
     return dictionary
 }
 #endif
-
-// MARK: - NSDate
 
 @_cdecl("__kk_foundation_date_now")
 public func __kk_foundation_date_now(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
@@ -394,8 +372,6 @@ public func __kk_foundation_date_factory_since(_ seconds: Int, _ since: Int, _ o
     }
 }
 
-// MARK: - NSDateFormatter
-
 @_cdecl("__kk_foundation_date_formatter_create")
 public func __kk_foundation_date_formatter_create(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
@@ -460,7 +436,6 @@ public func __kk_foundation_date_formatter_style(_ handle: Int, _ kind: Int, _ o
     }
 }
 
-/// DateFormatter.Style/Behavior rawValue is UInt on the modern SDK overlays.
 private func runtimeFoundationFormatterStyleRaw(_ raw: Int) -> UInt {
     UInt(truncatingIfNeeded: raw)
 }
@@ -519,8 +494,6 @@ public func __kk_foundation_date_formatter_set_bool(_ handle: Int, _ kind: Int, 
 }
 
 /// kind: 0 = locale (NSLocale token), 1 = timeZone (NSTimeZone token).
-/// Untagged tokens: the Kotlin side knows the static type, so no plist
-/// integer can be confused with the result.
 @_cdecl("__kk_foundation_date_formatter_object")
 public func __kk_foundation_date_formatter_object(_ handle: Int, _ kind: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
@@ -654,8 +627,6 @@ public func __kk_foundation_date_formatter_format_from_template(_ template: Int,
     }
 }
 
-// MARK: - NSTimeZone
-
 @_cdecl("__kk_foundation_timezone_create_name")
 public func __kk_foundation_timezone_create_name(_ name: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
@@ -691,9 +662,6 @@ public func __kk_foundation_timezone_abbreviation(_ handle: Int, _ outThrown: Un
         guard let zone = runtimeFoundationTimeZone(handle) else {
             try throwFoundationFailure("Invalid NSTimeZone")
         }
-        // NSTimeZone exposes no no-argument abbreviation in Swift; the
-        // date-parameterized form at the current date is the same value KN's
-        // `abbreviation` property reports.
         return zone.abbreviation(for: Date()).map(runtimeMakeStringRaw) ?? runtimeNullSentinelInt
         #else
         try throwFoundationFailure("Apple Foundation requires Darwin")
@@ -764,8 +732,6 @@ public func __kk_foundation_timezone_is_equal(_ handle: Int, _ other: Int, _ out
 public func __kk_foundation_timezone_local(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
         #if canImport(Darwin)
-        // NSTimeZone.local/system vend the TimeZone struct overlay; `as
-        // NSTimeZone` performs the toll-free bridge to the class cluster object.
         return runtimeForeignResourceCreate(NSTimeZone.local as NSTimeZone)
         #else
         try throwFoundationFailure("Apple Foundation requires Darwin")
@@ -818,15 +784,12 @@ public func __kk_foundation_timezone_with_abbreviation(_ abbreviation: Int, _ ou
 public func __kk_foundation_timezone_for_seconds_from_gmt(_ seconds: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
         #if canImport(Darwin)
-        // init(forSecondsFromGMT:) is non-failable on the modern SDK.
         return runtimeForeignResourceCreate(NSTimeZone(forSecondsFromGMT: seconds))
         #else
         try throwFoundationFailure("Apple Foundation requires Darwin")
         #endif
     }
 }
-
-// MARK: - NSLocale
 
 @_cdecl("__kk_foundation_locale_create_identifier")
 public func __kk_foundation_locale_create_identifier(_ identifier: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
@@ -863,8 +826,6 @@ public func __kk_foundation_locale_language_code(_ handle: Int, _ outThrown: Uns
         guard let locale = runtimeFoundationLocale(handle) else {
             try throwFoundationFailure("Invalid NSLocale")
         }
-        // NSLocale.languageCode is nonnull on the modern SDK (empty string when
-        // absent); countryCode stays optional.
         return runtimeMakeStringRaw(locale.languageCode)
         #else
         try throwFoundationFailure("Apple Foundation requires Darwin")
@@ -890,8 +851,6 @@ public func __kk_foundation_locale_country_code(_ handle: Int, _ outThrown: Unsa
 public func __kk_foundation_locale_current(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
         #if canImport(Darwin)
-        // NSLocale.current/autoupdatingCurrent vend the Locale struct overlay;
-        // `as NSLocale` performs the same toll-free bridge Date uses for NSDate.
         return runtimeForeignResourceCreate(NSLocale.current as NSLocale)
         #else
         try throwFoundationFailure("Apple Foundation requires Darwin")
@@ -923,8 +882,6 @@ public func __kk_foundation_locale_with_identifier(_ identifier: Int, _ outThrow
         #endif
     }
 }
-
-// MARK: - NSUserDefaults
 
 @_cdecl("__kk_foundation_defaults_standard")
 public func __kk_foundation_defaults_standard(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
@@ -1283,8 +1240,6 @@ public func __kk_foundation_defaults_object_is_forced_for_key(_ handle: Int, _ k
     }
 }
 
-// MARK: - NSUUID
-
 @_cdecl("__kk_foundation_uuid_create")
 public func __kk_foundation_uuid_create(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
@@ -1309,8 +1264,6 @@ public func __kk_foundation_uuid_string(_ handle: Int, _ outThrown: UnsafeMutabl
         #endif
     }
 }
-
-// MARK: - NSThread conveniences
 
 @_cdecl("__kk_foundation_thread_callstack")
 public func __kk_foundation_thread_callstack(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
@@ -1347,12 +1300,6 @@ public func __kk_foundation_thread_sleep(_ seconds: Int, _ outThrown: UnsafeMuta
     }
 }
 
-// MARK: - NSLog
-
-/// Renders one NSLog vararg for the `%@`/`%s` family. Foundation objects
-/// stored behind Kotlin facades render through their real `description`;
-/// everything else uses the shared Any printer so strings, numbers, lists and
-/// maps match `println` output.
 private func runtimeFoundationNSLogObject(_ raw: Int) -> String {
     if raw == runtimeNullSentinelInt { return "null" }
     if let object = runtimeForeignResourceForOwner(raw, as: NSObject.self) {
@@ -1366,8 +1313,6 @@ private func runtimeFoundationNSLogString(_ raw: Int) -> String {
     return runtimeFoundationNSLogObject(raw)
 }
 
-/// Integer argument for `%d`-family conversions; unboxes every integral
-/// Kotlin box and treats null/missing as 0 like printf does for nil objects.
 private func runtimeFoundationNSLogInteger(_ raw: Int) -> Int64 {
     guard raw != runtimeNullSentinelInt,
           let pointer = UnsafeMutableRawPointer(bitPattern: raw),
@@ -1408,34 +1353,26 @@ private func runtimeFoundationNSLogUnichar(_ raw: Int) -> unichar {
     return unichar(runtimeFoundationNSLogInteger(raw))
 }
 
-/// Parses one printf conversion starting at `index` (which points at '%')
-/// and appends the rendered argument to `output`. Returns the index just
-/// past the conversion, or nil when the spec is unsupported/truncated.
 private func runtimeFoundationNSLogRenderSpec(
     _ format: String, from start: String.Index, arguments: [Int], nextArgument: inout Int,
     output: inout String
 ) -> String.Index? {
     var index = format.index(after: start)
     guard index < format.endIndex else { return nil }
-    // Flags.
     while index < format.endIndex {
         let c = format[index]
         guard c == "-" || c == "+" || c == " " || c == "#" || c == "0" else { break }
         index = format.index(after: index)
     }
-    // Field width.
     while index < format.endIndex, format[index].isNumber {
         index = format.index(after: index)
     }
-    // Precision.
     if index < format.endIndex, format[index] == "." {
         index = format.index(after: index)
         while index < format.endIndex, format[index].isNumber {
             index = format.index(after: index)
         }
     }
-    // Length modifiers are advisory; the Kotlin-side values are already
-    // boxed, so only the conversion family matters.
     while index < format.endIndex {
         let c = format[index]
         guard c == "h" || c == "l" || c == "L" || c == "j" || c == "z" || c == "t" || c == "q" else { break }
@@ -1444,7 +1381,6 @@ private func runtimeFoundationNSLogRenderSpec(
     guard index < format.endIndex else { return nil }
     let conversion = format[index]
     index = format.index(after: index)
-    // '%%' emits a literal percent and never consumes a vararg.
     if conversion == "%" {
         output.append("%")
         return index
@@ -1478,7 +1414,6 @@ private func runtimeFoundationNSLogRenderSpec(
     case "@":
         output.append(runtimeFoundationNSLogObject(raw))
     default:
-        // Unknown conversion: emit it literally rather than dropping input.
         output.append("%")
         output.append(conversion)
         nextArgument -= 1
@@ -1507,7 +1442,6 @@ public func __kk_foundation_nslog(_ format: Int, _ arguments: Int, _ outThrown: 
             guard let next = runtimeFoundationNSLogRenderSpec(
                 format, from: index, arguments: argumentRaws, nextArgument: &nextArgument, output: &output
             ) else {
-                // Truncated spec at end of format: emit the '%' literally.
                 output.append("%")
                 index = format.index(after: index)
                 continue
@@ -1523,8 +1457,6 @@ public func __kk_foundation_nslog(_ format: Int, _ arguments: Int, _ outThrown: 
         #endif
     }
 }
-
-// MARK: - NSObject description / foreign-token probe
 
 @_cdecl("__kk_foundation_object_description")
 public func __kk_foundation_object_description(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
