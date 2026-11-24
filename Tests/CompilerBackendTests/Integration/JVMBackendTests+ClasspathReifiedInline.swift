@@ -171,6 +171,32 @@ extension JVMBackendTests {
         }
     }
 
+    /// Two library versions that differ only in their body must not share a
+    /// generated class name, or the first one on the class path would win.
+    @Test
+    func classpathReifiedClassNamesDifferBetweenLibraryVersions() throws {
+        try withWorkspace { root in
+            func build(_ version: Int) throws -> Set<String> {
+                let directory = root.appendingPathComponent("v\(version)")
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                let library = try reifiedLibraryJar(directory, name: "Score", source: """
+                package fixture
+                inline fun <reified T> score(x: Any?): Int = if (x is T) \(version * 10) else 0
+                """)
+                let compiled = try compile("""
+                import fixture.score
+                fun main() { println(score<String>("x")) }
+                """, root: directory, mode: .jvmJar, classpath: [library.path])
+                try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
+                let listing = try jvmTool("unzip", ["-Z1", "hello.jar"], root: directory)
+                return Set(listing.stdout.split(separator: "\n").map(String.init).filter { $0.contains("$Reified$") })
+            }
+            let first = try build(1), second = try build(2)
+            #expect(!first.isEmpty && !second.isEmpty)
+            #expect(first.isDisjoint(with: second), "\(first) \(second)")
+        }
+    }
+
     @Test
     func classpathReifiedBodiesWithUnsupportedShapesWarn() throws {
         try withWorkspace { root in

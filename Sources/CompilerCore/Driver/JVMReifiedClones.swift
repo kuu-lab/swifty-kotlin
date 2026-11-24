@@ -115,7 +115,13 @@ extension JVMFunctionBuilder {
         let package = packages.first ?? "kswiftk/reified"
         let cloneName = method.name + "$reified"
         let clone = JVMReifiedClone(name: cloneName, descriptor: descriptor, body: body, patches: patches)
-        let fingerprint = StableFNV1a64.hex([method.owner, method.name, method.descriptor, String(describing: patches), String(describing: host.helpers.map(\.instructions))].joined(separator: "\u{1}"))
+        // The copied code and constant pool come from the library class, so its
+        // bytes are part of the identity: two library versions never share a class.
+        var hasher = StableFNV1a64.Hasher()
+        hasher.update(bytes: [method.owner, method.name, method.descriptor, String(describing: patches), String(describing: host.helpers.map(\.instructions))].joined(separator: "\u{1}").utf8)
+        hasher.update(bytes: body.classBytes)
+        hasher.update(bytes: withUnsafeBytes(of: body.codeOffset) { Array($0) })
+        let fingerprint = hasher.hexString()
         let shortOwner = method.owner.split(separator: "/").last.map(String.init) ?? method.owner
         host.name = (package.isEmpty ? "" : package + "/") + shortOwner.replacingOccurrences(of: "$", with: "_") + "$Reified$" + fingerprint
         for index in host.helpers.indices { host.helpers[index].owner = host.name }
