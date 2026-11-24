@@ -43,12 +43,16 @@ extension JVMBackendTests {
                 println(result.getOrThrow())
                 println(result.getOrDefault(0))
                 println(result.exceptionOrNull())
+                val getOrThrow = result::getOrThrow
+                println(getOrThrow())
+                val exceptionOrNull = result::exceptionOrNull
+                println(exceptionOrNull())
             }
             """
             let (app, exit, diagnostics) = try m22Build(root: root, sources: [("Main.kt", source)], name: "app.jar", classpath: [stdlib.path])
             try #require(exit == 0, "\(diagnostics.map(\.message))")
             let run = try java(["-cp", ([app.path] + [stdlib.path]).joined(separator: ":"), "MainKt"])
-            #expect(run.stdout == "42\n42\nnull\n")
+            #expect(run.stdout == "42\n42\nnull\n42\nnull\n")
         }
     }
 }
