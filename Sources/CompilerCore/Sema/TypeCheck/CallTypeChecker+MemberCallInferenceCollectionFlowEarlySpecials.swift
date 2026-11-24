@@ -474,7 +474,10 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                         )
                 } else {
                     bindBundledIterableSourceFunction(
-                        typeArguments: [filterType], enforceTypeParameterCount: true, allowNominalIterableReceiver: true
+                        typeArguments: [filterType],
+                        enforceTypeParameterCount: true,
+                        allowNominalIterableReceiver: true,
+                        allowCollectionReceiver: true
                     )
                 }
                 let ownerFQName = isSequenceReceiver
