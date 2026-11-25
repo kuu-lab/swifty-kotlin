@@ -1117,9 +1117,14 @@ extension JVMFunctionBuilder {
             )
         }()
         // Concrete JDK maps (LinkedHashMap, HashMap, TreeMap, ...) are not
-        // java/lang/Iterable either, so they need the same entrySet loop.
+        // java/lang/Iterable either, so they need the same entrySet loop,
+        // unless Sema picked a user-declared iterator() operator for the loop.
         let isJDKMap: Bool = {
             guard let referenceName = source.type.referenceName else { return false }
+            if let iteratorCallee = loopBinding?.iteratorCall?.chosenCallee,
+               program.sema.symbols.symbol(iteratorCallee)?.fqName.first != context.interner.intern("kotlin") {
+                return false
+            }
             if referenceName == "java/util/Map" { return true }
             guard referenceName.hasPrefix("java/util/"),
                   let mapSymbol = program.sema.symbols.lookup(fqName: ["kotlin", "collections", "Map"].map(context.interner.intern)),

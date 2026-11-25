@@ -21,5 +21,23 @@ extension JVMBackendTests {
             """, expected: "b=2\na=1\nb2\na1\nx:1\ny25\nz26\n", mode: .jvmJar, root: root)
         }
     }
+
+    // The entrySet loop must not replace a user-declared iterator() operator
+    // that Sema selected for the concrete map type.
+    @Test
+    func forLoopOverConcreteJDKMapKeepsUserIteratorOperator() throws {
+        try withWorkspace { root in
+            try runRuntimeParity("""
+            operator fun java.util.LinkedHashMap<String, Int>.iterator(): Iterator<String> =
+                listOf("x", "y", "z").iterator()
+
+            fun main() {
+                val empty = linkedMapOf<String, Int>()
+                for (item in empty) println(item)
+                for (item in linkedMapOf("a" to 1)) println(item)
+            }
+            """, expected: "x\ny\nz\nx\ny\nz\n", mode: .jvmJar, root: root)
+        }
+    }
 }
 #endif
