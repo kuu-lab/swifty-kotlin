@@ -3,11 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// `StdlibDelegateKind.detect` is the single source of truth both KIR lowering
-/// (`MemberLowerer`) and Sema (`DeclTypeChecker.typeCheckDelegate`) rely on to
-/// recognize the stdlib delegate factories. These cases pin down the exact,
-/// per-AST-node-shape matching rules so a future change can't silently make
-/// one caller more (or less) permissive than the other.
 @Suite
 struct StdlibDelegateKindDetectionTests {
     private func module(_ arena: ASTArena) -> ASTModule {
@@ -31,8 +26,6 @@ struct StdlibDelegateKindDetectionTests {
     }
 
     @Test func testBareNameRefObservableIsCustomNotObservable() {
-        // Unlike `lazy`, `Delegates.observable` is never referenced as a bare
-        // identifier — a bare `observable` name must not be exempted.
         let arena = ASTArena()
         let interner = StringInterner()
         let exprID = arena.appendExpr(.nameRef(interner.intern("observable"), makeRange()))
@@ -77,8 +70,6 @@ struct StdlibDelegateKindDetectionTests {
     }
 
     @Test func testMemberCallNamedLazyIsCustomNotLazy() {
-        // A user-defined member function that merely happens to be named
-        // "lazy" (e.g. `someObject.lazy()`) is not the stdlib factory.
         let arena = ASTArena()
         let interner = StringInterner()
         let receiver = arena.appendExpr(.nameRef(interner.intern("someObject"), makeRange()))
@@ -116,8 +107,6 @@ struct StdlibDelegateKindDetectionTests {
     }
 
     @Test func testCallOfMemberCallNamedLazyIsCustomNotLazy() {
-        // `foo.lazy()` wrapped in an extra call node must still not match
-        // `lazy` — only member calls named observable/vetoable/notNull do.
         let arena = ASTArena()
         let interner = StringInterner()
         let receiver = arena.appendExpr(.nameRef(interner.intern("someObject"), makeRange()))
