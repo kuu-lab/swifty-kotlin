@@ -48,9 +48,6 @@ extension BundledStdlibExecutionTests {
 
     @Test(arguments: [false, true])
     func testKtorOwnedSourceDiscard(allowDefaultStdlibLibrary: Bool) throws {
-        // kotlinx-io 0.9.1 has no discard API. This is the extension supplied by
-        // ktor's io.ktor.utils.io.core.ByteReadPacket.kt. Cross-package import
-        // resolution is covered by KtorIOCoverageSourceTests.
         try compileAndRunKotlin(
             """
             import kotlinx.io.*
