@@ -113,7 +113,6 @@ struct ClosureMutationSmartCastTests {
     }
 
     private func makeNullableCaptureContext(_ source: String) -> CompilationContext {
-        // These regressions use only user declarations and primitive types.
         let path = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kt").path
         let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
         _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
