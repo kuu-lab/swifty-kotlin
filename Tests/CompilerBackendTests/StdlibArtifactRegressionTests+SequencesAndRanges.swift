@@ -6,8 +6,6 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
-    /// KUU-1301: chunked transforms escape into nested sequence/iterator objects.
-    /// Exercise both source injection and imported stdlib callback ABIs.
     @Test(arguments: [false, true])
     func testSequenceChunkedTransformCaptures(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try testStdlibArtifactPath() : nil
@@ -55,9 +53,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// A direct range expression can retain its primitive element type in
-    /// Sema. Its source-backed members still receive a runtime range box,
-    /// which has no Kotlin vtable.
     @Test
     func testLongRangeExpressionIteratorThroughPrecompiledStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -102,10 +97,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// STDLIB-ARTIFACT-010: `emptySequence()` must resolve to the source-backed
-    /// stdlib factory (not a runtime `RuntimeSequenceBox`) so that `withIndex()`
-    /// and other source-implemented `Sequence` extensions can call `source.iterator()`
-    /// through normal virtual dispatch.
     @Test
     func testEmptySequenceWithIndexSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -136,10 +127,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// STDLIB-ARTIFACT-012: `Array.asSequence()` must lower to the runtime
-    /// `kk_array_asSequence` bridge through the shared stdlib artifact so that
-    /// downstream `Sequence.filterIsInstance`/`toList` operate on the array
-    /// elements instead of silently producing an empty list.
     @Test
     func testArrayAsSequenceFilterIsInstanceSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -176,13 +163,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// STDLIB-ARTIFACT-017: source-implemented `Sequence` HOFs (`flatMap`,
-    /// `flatMapIndexed`) dispatch `Sequence.iterator()` on runtime-backed
-    /// collections (`List`) returned by their lambdas. Runtime-backed
-    /// collection boxes must advertise the `Sequence` itable so the generated
-    /// interface dispatch resolves even when the type checker picks the
-    /// `Sequence` overload for an `Iterable`/`List` result. `String.lineSequence()`
-    /// also relies on `RuntimeSequenceBox`/`RuntimeSequenceIteratorBox` itables.
     @Test
     func testSequenceFlatMapAndLineSequenceSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -219,14 +199,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// STDLIB-ARTIFACT-021: `Sequence<T>.reduce`'s bundled source body iterated
-    /// its receiver with a direct `for (elem in this)` loop. Through the shared
-    /// stdlib artifact, that loop silently ran zero times (the receiver's
-    /// `Iterator` itable dispatch does not round-trip through the artifact),
-    /// so `reduce` always threw "Empty sequence can't be reduced." even for a
-    /// non-empty sequence. `fold`/`scan` were unaffected because their bodies
-    /// materialize the receiver via `toList()` first. Rewrote `reduce` to do
-    /// the same.
     @Test
     func testSequenceReduceSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -263,10 +235,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KSP-1022: an imported non-inline range iterator must not be redirected
-    /// by InlineLoweringPass to the same-named MutableMap inline extension.
-    /// The name fallback is only valid when the call has no known semantic
-    /// symbol; artifact consumers otherwise lose the receiver-specific binding.
     @Test
     func testRangeHOFDoesNotUseSameNamedMutableMapIteratorFromArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -302,15 +270,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// `UIntProgression.fromClosedRange` / `downTo` / `step` lower to runtime
-    /// factories, so the returned handle never passes `kk_object_new` and never
-    /// received the constructor-site `kk_object_register_vtable_method`
-    /// registrations. Once `UIntRange : UIntProgression` made the progression
-    /// open, dispatch on its source-backed `toString`/`equals`/`hashCode` went
-    /// through `kk_vtable_lookup` and trapped. The lowering now registers the
-    /// nominal vtable implementations on range factory boxes, which also makes
-    /// `UIntRange` overrides win when a range handle is viewed through the
-    /// progression base type.
     @Test
     func testUIntProgressionOpenMembersDispatchOnFactoryBox() throws {
         let artifactPath = try Self.buildStdlibArtifact()
