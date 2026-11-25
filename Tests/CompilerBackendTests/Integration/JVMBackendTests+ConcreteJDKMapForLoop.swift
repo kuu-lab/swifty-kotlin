@@ -31,12 +31,18 @@ extension JVMBackendTests {
             operator fun java.util.LinkedHashMap<String, Int>.iterator(): Iterator<String> =
                 listOf("x", "y", "z").iterator()
 
+            operator fun java.util.HashMap<String, Int>.iterator(): Iterator<Int> =
+                listOf(10, 20).iterator()
+
             fun main() {
                 val empty = linkedMapOf<String, Int>()
                 for (item in empty) println(item)
                 for (item in linkedMapOf("a" to 1)) println(item)
+                var total = 0
+                for (number in hashMapOf("k" to 1)) total += number
+                println(total)
             }
-            """, expected: "x\ny\nz\nx\ny\nz\n", mode: .jvmJar, root: root)
+            """, expected: "x\ny\nz\nx\ny\nz\n30\n", mode: .jvmJar, root: root)
         }
     }
 }
