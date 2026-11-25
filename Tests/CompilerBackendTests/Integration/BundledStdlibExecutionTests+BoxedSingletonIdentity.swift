@@ -1,9 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// KUU-2957: boxed singletons must keep JVM identity semantics —
-    /// `===`/`==` across Any/Any? boundaries for Unit, Boolean, Char,
-    // enum entries, and JVM-cached primitives.
     @Test(arguments: [true, false])
     func testBoxedUnitIdentity(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
@@ -136,10 +133,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-3224: a raw enum ordinal passed to an erased `Any`/`Any?`
-    /// (or nullable enum) extension receiver must be boxed first. Without the
-    /// box, `is` checks and entry equality inside the body never match, so a
-    /// nested `when` on the smart-cast value falls through to the outer `else`.
     @Test(arguments: [true, false])
     func testEnumBoxingAtErasedExtensionReceivers(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
