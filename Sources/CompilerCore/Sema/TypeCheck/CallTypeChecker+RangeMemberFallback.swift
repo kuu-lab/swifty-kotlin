@@ -998,7 +998,13 @@ extension CallTypeChecker {
                 if calleeName == knownNames.fold || calleeName == knownNames.foldIndexed {
                     expectedType = nil
                 } else if calleeName == knownNames.windowed {
-                    expectedType = (index == 1 ? sema.types.intType : (index == 2 ? sema.types.booleanType : nil))
+                    let windowedParameterIndex: Int = {
+                        guard let label = arg.label else { return index }
+                        if interner.resolve(label) == "step" { return 1 }
+                        if interner.resolve(label) == "partialWindows" { return 2 }
+                        return index
+                    }()
+                    expectedType = (windowedParameterIndex == 1 ? sema.types.intType : (windowedParameterIndex == 2 ? sema.types.booleanType : nil))
                 } else if calleeName == knownNames.chunked || calleeName == knownNames.take || calleeName == knownNames.drop {
                     expectedType = sema.types.intType
                 } else {
@@ -1018,9 +1024,23 @@ extension CallTypeChecker {
             substitutions[typeVar] = concreteR
         }
 
+        // Named arguments (e.g. `windowed(4, partialWindows = false)`) must map
+        // to their declared parameter, not to their source position; otherwise
+        // the omitted defaults (`step`) are mis-detected and the value lands in
+        // the wrong parameter.
         var parameterMapping: [Int: Int] = [:]
-        for index in args.indices {
-            parameterMapping[index] = index
+        var nextPositionalParameter = 0
+        for (index, arg) in args.enumerated() {
+            if let label = arg.label,
+               let namedIndex = signature.valueParameterSymbols.firstIndex(where: {
+                   sema.symbols.symbol($0)?.name == label
+               })
+            {
+                parameterMapping[index] = namedIndex
+            } else {
+                parameterMapping[index] = nextPositionalParameter
+                nextPositionalParameter += 1
+            }
         }
 
         let resolved = ResolvedCall(
