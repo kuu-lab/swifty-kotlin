@@ -174,9 +174,6 @@ struct CallableReferenceParsingTests {
         #expect(!arena.exprs.contains { if case .callableRef = $0 { true } else { false } })
     }
 
-    /// After the failed `::` inside an argument list, the argument-list
-    /// recovery also reports `KSWIFTK-PARSE-0022` (Expected an argument), so
-    /// these sources yield two diagnostics with PARSE-0014 first.
     @Test(arguments: ["consume(::)", "consume(::, 1)"])
     func missingMemberInsideArgumentListReportsOnce(_ source: String) throws {
         let lexed = lex(source)
@@ -189,7 +186,6 @@ struct CallableReferenceParsingTests {
         )
         _ = parser.parse()
 
-        // The slot already reported PARSE-0014, so no redundant PARSE-0022 (#11205).
         let diagnostic = try #require(lexed.diagnostics.diagnostics.first)
         #expect(diagnostic.code == "KSWIFTK-PARSE-0014")
         #expect(lexed.diagnostics.diagnostics.count == 1)
@@ -277,9 +273,6 @@ struct CallableReferenceParsingTests {
         })
     }
 
-    /// KUU-3184: `expr::name(args)` is reserved syntax in Kotlin; the parser
-    /// must reject a call suffix directly on a callable reference, while a
-    /// parenthesized reference `(expr::name)(args)` stays legal.
     @Test(arguments: [
         "x::f()", "x::f(1, 2)", "::f()", "a.b::c(0)", "x::f()()",
     ])
@@ -320,13 +313,6 @@ struct CallableReferenceParsingTests {
         #expect(parser.current() == nil)
     }
 
-    /// KUU-1376 / KUU-2086: `T::class.findAssociatedObject<A>()` hung the
-    /// parser. After a consumed `::class`, the `<` suffix re-matched the
-    /// already-folded `::` in `tryParseCallableReferenceTypeReceiver`, rewound
-    /// `index`, and the postfix loop re-parsed `.member<` forever. A `::`
-    /// behind the cursor is already consumed, so the `<A>` must fall through
-    /// to ordinary member type arguments. KUU-2086's corpus cases also use
-    /// instance and literal receivers.
     @Test(arguments: [
         "Tgt::class.findAssociatedObject<AOK>()",
         "Foo::class.findAssociatedObject<Associated1>()",
@@ -374,8 +360,6 @@ struct CallableReferenceParsingTests {
         #expect(classMember == className)
     }
 
-    /// KUU-1376 (sibling path): an infix `<` after `T::class` hit the same
-    /// rewind loop through the top-level `<` branch of parsePostfixSuffixes.
     @Test
     func infixLessThanAfterCallableReferenceDoesNotRewind() throws {
         let lexed = lex("A::class < B::class")
