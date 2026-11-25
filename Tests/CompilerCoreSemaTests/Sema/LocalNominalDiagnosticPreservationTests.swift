@@ -110,6 +110,134 @@ struct LocalNominalDiagnosticPreservationTests {
 
         _ = try semaContext(from: source, expecting: [], includeStdlib: false)
     }
+
+    @Test
+    func testObjectLiteralInferredMemberPropertiesAreFinalBeforeMemberBodies() throws {
+        let source = """
+        package objectliteralinferred
+
+        interface IntCursor {
+            fun hasNext(): Boolean
+            fun next(): Int
+        }
+
+        interface CursorSource {
+            fun cursor(): IntCursor
+        }
+
+        class NumberBox(private val source: CursorSource) {
+            fun cursor(): IntCursor = object : IntCursor {
+                private val cursor = source.cursor()
+                private var index = 0
+
+                override fun hasNext(): Boolean = cursor.hasNext() && index < 3
+
+                override fun next(): Int {
+                    if (index < 0) return -1
+                    val result = cursor.next() + index
+                    index++
+                    return result
+                }
+            }
+        }
+        """
+
+        _ = try semaContext(from: source, expecting: [], includeStdlib: false)
+    }
+
+    @Test
+    func testObjectLiteralLateinitPropertyIsValidated() throws {
+        let source = """
+        package objectliterallateinit
+
+        interface IntCursor {
+            fun hasNext(): Boolean
+        }
+
+        class Box {
+            fun cursor(): IntCursor = object : IntCursor {
+                lateinit var value: String = "ready"
+                override fun hasNext(): Boolean = true
+            }
+        }
+        """
+
+        _ = try semaContext(
+            from: source,
+            expecting: [.error("KSWIFTK-SEMA-LATEINIT", containing: "must not have an initializer")],
+            includeStdlib: false
+        )
+    }
+
+    @Test
+    func testObjectLiteralTypedGetterReadsLaterLazyProperty() throws {
+        let source = """
+        package objectliteraltypedlazy
+
+        interface HasValue {
+            fun get(): String
+        }
+
+        class C {
+            fun box(): HasValue = object : HasValue {
+                val value: String get() = text
+                val text by lazy { "OK" }
+                override fun get(): String = value
+            }
+        }
+        """
+
+        _ = try semaContext(from: source, expecting: [], includeStdlib: true)
+    }
+
+    @Test
+    func testObjectLiteralTypedGetterReadsLaterExtensionProperty() throws {
+        let source = """
+        package objectliteraltypedextension
+
+        interface HasTag {
+            fun get(): String
+        }
+
+        class C {
+            fun box(): HasTag = object : HasTag {
+                val value: String get() = "x".tag
+                val String.tag get() = "OK"
+                override fun get(): String = value
+            }
+        }
+        """
+
+        _ = try semaContext(from: source, expecting: [], includeStdlib: true)
+    }
+
+    @Test
+    func testObjectLiteralNestedInnerClassReusesSymbolsAcrossRecheck() throws {
+        let source = """
+        package objectliteralnestedrecheck
+
+        class Generic<T>(val t: T) {
+            fun foo(): T {
+                val o1 = object {
+                    inner class InnerLocal1 {
+                        val captured = t
+                        fun bar(): T {
+                            val o2 = object {
+                                inner class InnerLocal2 {
+                                    fun baz(): T = captured
+                                }
+                            }
+                            return o2.InnerLocal2().baz()
+                        }
+                    }
+                }
+                return o1.InnerLocal1().bar()
+            }
+        }
+        """
+
+        _ = try semaContext(from: source, expecting: [])
+    }
 }
 
 #endif

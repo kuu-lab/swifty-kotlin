@@ -1,9 +1,6 @@
 
 extension ControlFlowLowerer {
 
-    /// Restricts BUG-198 to the signed range/progression classes and direct
-    /// signed range expressions. Unsigned and floating-point ranges, OpenEndRange,
-    /// custom classes, and interface-typed values keep their existing lowering.
     func isBuiltInSignedRange(
         iterableExpr: ExprID,
         iterableType: TypeID,
@@ -12,8 +9,6 @@ extension ControlFlowLowerer {
         interner: StringInterner
     ) -> Bool {
         let nonNullType = sema.types.makeNonNullable(iterableType)
-        // The legacy expression type is Int for floating-point range handles.
-        // Exclude their marker before classifying that scalar as a signed range.
         if sema.bindings.isFloatingPointRangeExpr(iterableExpr)
             || sema.bindings.isUIntRangeExpr(iterableExpr)
             || sema.bindings.isULongRangeExpr(iterableExpr)
@@ -101,20 +96,10 @@ extension ControlFlowLowerer {
         let typeVarBySymbol: [SymbolID: TypeVarID]
     }
 
-    /// Returns true when the class symbol is one of the built-in Range / Progression
-    /// classes in `kotlin.ranges` that now provide bundled Kotlin `iterator()`
-    /// operators. These synthetic classes are allowed to resolve a custom iterator
-    /// so that `for-in` over a range is lowered through `.iterator()` instead of
-    /// the legacy `__kk_range_iterator` runtime path.
     func isRangeLikeClass(_ classSymbol: SemanticSymbol, interner: StringInterner) -> Bool {
         KnownCompilerNames(interner: interner).isRangeLikeSymbol(classSymbol)
     }
 
-    /// Looks for a non-synthetic bundled `operator fun Receiver.<name>()` extension
-    /// (no value parameters) declared in the same package as the receiver's class.
-    /// This is how KSP-312's `RangeIterators.kt` and KSP-678's `Channels.kt`
-    /// iterator-layer operators are discovered for `for-in` lowering, since
-    /// extension operators are not found through class-hierarchy member lookup.
     private func resolveBundledOperatorExtension(
         named name: InternedString,
         receiverType: TypeID,
@@ -201,14 +186,6 @@ extension ControlFlowLowerer {
         return nil
     }
 
-    /// KSP-452: a direct range expression (`for (i in 1..10)`, `downTo`, `until`,
-    /// `step`) is typed as its element primitive plus a semantic range marker
-    /// rather than as `kotlin.ranges.IntRange`, so the class-based lookup in
-    /// `resolveCustomIteratorOperator` cannot see the bundled `iterator()`
-    /// operator. Resolve it against the nominal range class instead, so a direct
-    /// range loop uses the same `.iterator()` chain as a range held in an
-    /// `IntRange` / `LongRange` / `CharRange` / `UIntRange` / `ULongRange` typed
-    /// value.
     func resolveDirectRangeIteratorOperator(
         iterableExpr: ExprID,
         iterableType: TypeID,
@@ -275,9 +252,6 @@ extension ControlFlowLowerer {
             )))
             return sema.types.isSubtype(nonNullType, charSequenceType)
         }()
-        // Only resolve for user-defined class types and bundled Range/Progression,
-        // Channel, or source Sequence/Iterator classes whose `iterator()` operators
-        // are now supplied by Kotlin source.
         let classSymbol = resolveClassTypeSymbol(nonNullType, sema: sema)?.1
         guard isCharSequenceLike || {
             guard let classSymbol else { return false }
@@ -289,9 +263,6 @@ extension ControlFlowLowerer {
         }() else {
             return nil
         }
-        // KSP-441: Allow synthetic Sequence/Iterator symbols to resolve source `iterator()`.
-        // Range-like types still fall through to the dedicated range intrinsics when
-        // they have no operator iterator() candidate.
 
         let helpers = TypeCheckHelpers()
         let iteratorName = interner.intern("iterator")
@@ -312,10 +283,6 @@ extension ControlFlowLowerer {
             return true
         }
 
-        // Built-in Range/Progression and Channel classes expose their `iterator()`
-        // as a bundled Kotlin extension rather than as a class member, so
-        // `collectMemberFunctionCandidates` will not find it through
-        // class-hierarchy lookup.
         var bundledIteratorMatch: BundledOperatorExtensionMatch?
         if iteratorCandidates.isEmpty,
            let match = resolveBundledOperatorExtension(
@@ -341,9 +308,6 @@ extension ControlFlowLowerer {
             typeVarBySymbol: bundledIteratorMatch?.typeVarBySymbol ?? [:]
         )
 
-        // Resolve hasNext() and next() on the iterator type. These may be real
-        // members (e.g. kotlin.collections.Iterator) or bundled Kotlin extension
-        // operators (e.g. the Channel iterator layer in Channels.kt).
         let hasNextName = interner.intern("hasNext")
         var hasNextCandidates = helpers.collectMemberFunctionCandidates(
             named: hasNextName,

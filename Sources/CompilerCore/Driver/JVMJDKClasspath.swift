@@ -1,8 +1,5 @@
 import Foundation
 
-/// Materializes the imported packages from the active JDK runtime image as
-/// lazy classpath entries. The JVM class reader consumes ordinary class files;
-/// `jimage` is the JDK-supported way to expose them from `lib/modules`.
 struct JVMJDKClasspath {
     struct ClassFile: Codable {
         let path: String
@@ -20,7 +17,10 @@ struct JVMJDKClasspath {
               FileManager.default.isExecutableFile(atPath: jimage.path)
         else { return empty }
 
-        var packages: Set<String> = ["java/lang"]
+        // java.lang is always needed; java.math is required by the injected
+        // Kotlin BigDecimal operator declarations even when user code does not
+        // import java.math itself.
+        var packages: Set<String> = ["java/lang", "java/math"]
         var recursivePackages: Set<String> = []
         var requiredLazyClassNames: Set<String> = []
         for file in ctx.sourceManager.fileIDs()
@@ -44,14 +44,13 @@ struct JVMJDKClasspath {
                 }
                 if importedPackages.contains("java/util/concurrent") {
                     recursivePackages.insert("java/util/concurrent")
+                    packages.insert("java/util")
                 }
             }
         }
 
         var patterns = packages.sorted().map { "glob:**/\($0)/*.class" }
             + recursivePackages.sorted().map { "glob:**/\($0)/**/*.class" }
-        // These two signatures complete JDK interface hierarchies commonly
-        // reached from java.lang.Iterable and java.nio.file.DirectoryStream.
         patterns += ["glob:**/java/util/Iterator.class", "glob:**/java/io/Closeable.class"]
         let classFiles = try JVMJDKClasspathCache.load(image: image, jimage: jimage, patterns: patterns) {
             if let classFiles = JVMJDKImageReader.read(image: image, jimage: jimage, patterns: patterns) {
@@ -101,11 +100,18 @@ struct JVMJDKClasspath {
         JVMJDKClasspath(classFiles: [], requiredLazyClassNames: [])
     }
 
-    private static func importedPaths(in source: String) -> Set<String> {
+    // Kotlin identifiers may be backtick-escaped (mandatory for keyword
+    // segments such as `annotation` in `javax.`annotation`.processing.Generated`).
+    // The reference scan must see through the escapes; captures are normalized
+    // by packagePaths(for:) which strips the backticks.
+    private static let pathSegmentPattern = "(?:[A-Za-z_][A-Za-z0-9_]*|`[^`\\n]+`)"
+    private static let dottedPathPattern = pathSegmentPattern + "(?:\\." + pathSegmentPattern + ")*"
+
+    static func importedPaths(in source: String) -> Set<String> {
         let range = NSRange(source.startIndex..., in: source)
         var paths: Set<String> = []
         let importPattern = try! NSRegularExpression(
-            pattern: #"(?m)^[ \t]*import[ \t]+([A-Za-z_][A-Za-z0-9_.]*(?:\.\*)?)(?:[ \t]+as[ \t]+[A-Za-z_][A-Za-z0-9_]*)?[ \t]*(?://.*)?$"#
+            pattern: "(?m)^[ \\t]*import[ \\t]+(" + dottedPathPattern + "(?:\\.\\*)?)(?:[ \\t]+as[ \\t]+" + pathSegmentPattern + ")?[ \\t]*(?://.*)?$"
         )
         for match in importPattern.matches(in: source, range: range) {
             if let matchRange = Range(match.range(at: 1), in: source) {
@@ -114,7 +120,7 @@ struct JVMJDKClasspath {
         }
 
         let packagePattern = try! NSRegularExpression(
-            pattern: #"(?m)^[ \t]*package[ \t]+([A-Za-z_][A-Za-z0-9_.]*)"#
+            pattern: "(?m)^[ \\t]*package[ \\t]+(" + dottedPathPattern + ")"
         )
         for match in packagePattern.matches(in: source, range: range) {
             if let matchRange = Range(match.range(at: 1), in: source) {
@@ -123,7 +129,7 @@ struct JVMJDKClasspath {
         }
 
         let qualifiedNamePattern = try! NSRegularExpression(
-            pattern: #"\b(?:java|javax)\.[A-Za-z_][A-Za-z0-9_.]*"#
+            pattern: "\\b(?:java|javax)\\." + dottedPathPattern
         )
         for match in qualifiedNamePattern.matches(in: source, range: range) {
             if let matchRange = Range(match.range, in: source) {

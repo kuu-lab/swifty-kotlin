@@ -66,6 +66,65 @@ struct ForwardObjectPropertyInferenceTests {
         }
     }
 
+    @Test
+    func objectLiteralGetterReadsLaterInferredLazyProperty() throws {
+        let source = """
+        interface Lazy<out T> {
+            operator fun getValue(thisRef: Any?, property: Any?): T
+        }
+        class LazyImpl<T>(private val value: T) : Lazy<T> {
+            override fun getValue(thisRef: Any?, property: Any?): T = value
+        }
+        fun <T> lazy(initializer: () -> T): Lazy<T> = LazyImpl(initializer())
+
+        fun demo(): Int = object {
+            val first get() = later
+            val later by lazy { 41 }
+        }.first
+        """
+        try expectNoErrors(sources: [source])
+    }
+
+    @Test
+    func objectLiteralLazyPrecheckWaitsForExplicitMemberReceiver() throws {
+        let source = """
+        interface Lazy<out T> {
+            operator fun getValue(thisRef: Any?, property: Any?): T
+        }
+        class LazyImpl<T>(private val value: T) : Lazy<T> {
+            override fun getValue(thisRef: Any?, property: Any?): T = value
+        }
+        fun <T> lazy(initializer: () -> T): Lazy<T> = LazyImpl(initializer())
+
+        fun demo(): Int = object {
+            val base get() = if (true) 41 else 42
+            val result by lazy { this.base }
+        }.result
+        """
+        try expectNoErrors(sources: [source])
+    }
+
+    @Test
+    func objectLiteralLazyPrecheckValidatesDelegateArguments() throws {
+        let source = """
+        interface Lazy<out T> {
+            operator fun getValue(thisRef: Any?, property: Any?): T
+        }
+        class LazyImpl<T>(private val value: T) : Lazy<T> {
+            override fun getValue(thisRef: Any?, property: Any?): T = value
+        }
+        enum class LazyThreadSafetyMode { NONE, SYNCHRONIZED }
+        fun <T> lazy(initializer: () -> T): Lazy<T> = LazyImpl(initializer())
+        fun <T> lazy(mode: LazyThreadSafetyMode, initializer: () -> T): Lazy<T> = LazyImpl(initializer())
+
+        fun demo(): Int = object {
+            val mode get() = if (true) LazyThreadSafetyMode.NONE else LazyThreadSafetyMode.SYNCHRONIZED
+            val result by lazy(mode = mode) { 41 }
+        }.result
+        """
+        try expectNoErrors(sources: [source])
+    }
+
     private func expectNoErrors(sources: [String]) throws {
         try withTemporaryFiles(contents: sources) { paths in
             let context = makeCompilationContext(inputs: paths, includeStdlib: false)

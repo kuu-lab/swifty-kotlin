@@ -12,14 +12,9 @@ import Glibc
 import CoreGraphics
 #endif
 
-/// Input stream boxes that carry a fully-typed Kotlin throwable for the next
-/// `outThrown` report. `RuntimeSocketInputStreamBox` uses this to surface
-/// `SocketTimeoutException`/`SocketException` rather than a plain IOException.
 protocol RuntimeInputStreamThrowableCarrier {
     var pendingReadThrowable: Int { get }
 }
-
-// MARK: - URLConnection box
 
 private final class RuntimeURLConnectionBox {
     let spec: String
@@ -207,14 +202,16 @@ public func __kk_net_url_connection_connect(
     _ boxRaw: Int, _ headersRaw: Int, _ connectTimeoutMs: Int, _ readTimeoutMs: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) {
-    guard let box = javaNetURLConnection(boxRaw) else { return }
-    _ = javaNetPerformConnect(
-        box,
-        serializedHeaders: javaNetURLString(headersRaw) ?? "",
-        connectTimeoutMs: connectTimeoutMs,
-        readTimeoutMs: readTimeoutMs,
-        outThrown: outThrown
-    )
+    runtimeThrowingBridge(outThrown) {
+        guard let box = javaNetURLConnection(boxRaw) else { return }
+        _ = javaNetPerformConnect(
+            box,
+            serializedHeaders: javaNetURLString(headersRaw) ?? "",
+            connectTimeoutMs: connectTimeoutMs,
+            readTimeoutMs: readTimeoutMs,
+            outThrown: outThrown
+        )
+    }
 }
 
 @_cdecl("__kk_net_url_connection_input_stream")
@@ -326,8 +323,6 @@ public func __kk_net_url_connection_response_message(_ boxRaw: Int) -> Int {
 public func __kk_net_url_connection_disconnect(_ boxRaw: Int) {
     javaNetURLConnection(boxRaw)?.connected = false
 }
-
-// MARK: - AWT: headless detection and pointer location
 
 private func runtimeIsHeadless() -> Bool {
     if let env = ProcessInfo.processInfo.environment["KSWIFTK_HEADLESS"] {

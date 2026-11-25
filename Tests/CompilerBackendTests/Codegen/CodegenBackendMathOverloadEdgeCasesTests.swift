@@ -47,12 +47,10 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             let calls = extractCalleesWithArgumentCounts(from: body, interner: ctx.interner)
             try expectDeclaredRuntimeCalls(in: body, ctx: ctx)
 
-            // Property accessors in the artifact use the mangled JVM-style
+            // Property accessors in the artifact are called by their JVM-style
             // `get` entry name rather than the Kotlin property name.  The
             // source has ten math property reads, each with one receiver.
-            let artifactAccessors = calls.filter {
-                $0.0.hasPrefix(RuntimeABISpec.compilerGeneratedLinkNamePrefix + "get_") && $0.1 == 1
-            }
+            let artifactAccessors = calls.filter { $0.0 == "get" && $0.1 == 1 }
             #expect(
                 artifactAccessors.count == 10,
                 "Expected ten imported math property accessors, got \(calls)"

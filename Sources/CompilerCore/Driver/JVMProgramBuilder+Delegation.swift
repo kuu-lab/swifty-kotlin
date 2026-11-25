@@ -3,7 +3,7 @@ import Foundation
 extension JVMProgramBuilder {
     func prepareDelegateInterfaces() throws {
         for symbol in sema.symbols.allSymbols() where symbol.kind == .function {
-            guard let parent = sema.symbols.parentSymbol(for: symbol.id), let name = try? className(parent), ["kotlin/properties/ReadOnlyProperty", "kotlin/properties/ReadWriteProperty", "kotlin/Lazy"].contains(name), let sig = sema.symbols.functionSignature(for: symbol.id) else { continue }
+            guard let parent = sema.symbols.parentSymbol(for: symbol.id), let name = try? className(parent), ["kotlin/properties/ReadOnlyProperty", "kotlin/properties/ReadWriteProperty", "kotlin/properties/PropertyDelegateProvider", "kotlin/Lazy"].contains(name), let sig = sema.symbols.functionSignature(for: symbol.id) else { continue }
             let params = try sig.parameterTypes.map(type), result = try type(sig.returnType)
             methods[symbol.id] = JVMForeignMethod(owner: name, name: context.interner.resolve(symbol.name), descriptor: "(" + params.map(\.descriptor).joined() + ")" + result.descriptor, parameters: params, result: result, isStatic: false, isInterface: true, isAbstract: true)
         }
@@ -43,21 +43,16 @@ extension JVMProgramBuilder {
                 plan.delegateFields.append((symbol, expr, field))
             }
         }
-        // Interface declarations are all registered before forwarding symbols.
         for plan in classes.values.sorted(by: { $0.name < $1.name }) {
             for symbol in sema.symbols.classDelegationForwardingMethodSymbols(forClass: plan.symbol) {
                 guard let info = sema.symbols.classDelegationForwardingMethodInfo(for: symbol) else { throw JVMFrontendError(message: "Missing JVM delegated interface method binding.") }
                 let target = methods[info.interfaceMethodSymbol] ?? collectionInterfaceMethods[info.interfaceMethodSymbol] ?? context.jvmImports?.method(for: info.interfaceMethodSymbol)
                 if target == nil, let member = sema.symbols.symbol(info.interfaceMethodSymbol), member.flags.contains(.synthetic),
                    let parent = sema.symbols.parentSymbol(for: member.id), (try? className(parent))?.hasPrefix("kotlin/collections/") == true {
-                    // Native bootstrap lookup shims (for example random) are
-                    // extensions rather than members of the JVM interface.
                     continue
                 }
                 guard let target, let field = plan.delegateFields.first(where: { $0.0 == info.fieldSymbol })?.2, let sig = sema.symbols.functionSignature(for: symbol) else { throw JVMFrontendError(message: "Unsupported JVM delegated interface method.") }
                 if target.owner == "java/util/Map", context.interner.resolve(sema.symbols.symbol(info.interfaceMethodSymbol)!.name) == "set" {
-                    // Kotlin's indexed assignment shares Map.put's physical
-                    // entry point and discards its return value at the call site.
                     methods[symbol] = target
                     continue
                 }
@@ -110,8 +105,6 @@ extension JVMProgramBuilder {
             if let original = sema.symbols.functionSignature(for: symbol) { f.parameterNames = original.valueParameterSymbols.enumerated().map { sema.symbols.symbol($0.element).map { context.interner.resolve($0.name) } ?? "p\($0.offset)" } }
             if JVMClasspathIndex.collectionNames.values.contains(target.owner) {
                 if let signature = f.genericSignature, let end = signature.lastIndex(of: ")") {
-                    // JVM collection returns use invariant Java type arguments;
-                    // declaration-site Kotlin covariance stays in metadata.
                     f.genericSignature = String(signature[...end]) + signature[signature.index(after: end)...].replacingOccurrences(of: "+", with: "")
                 }
                 if ["containsAll", "removeAll", "retainAll"].contains(target.name) {

@@ -1,4 +1,3 @@
-// SDK dispatch / memory representation / GC ownership only; public IO logic is Kotlin.
 private let abi = RuntimeABISectionBuilder("AppleFoundation")
 
 public extension RuntimeABISpec {

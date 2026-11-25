@@ -37,7 +37,6 @@ extension JVMProgramBuilder {
             let jvmName: String
             if case .unsignedArray? = extensionReceiver,
                ["kotlin/collections/ArraysKt", "kotlin/collections/unsigned/UArraysKt"].contains(owner) {
-                // Kotlin's array facades hash the receiver and parameters, excluding the return type.
                 let hashArguments = params.map(valueClassMangleElement).joined()
                 jvmName = explicitName ?? name + "-" + JVMNameHash.suffix(hashArguments)
             } else if params.contains(where: { $0.unsignedName != nil }) {
@@ -94,7 +93,6 @@ extension JVMProgramBuilder {
                         && receiverType != nil
                         && receiverType?.unsignedName == nil
                     if arrayContentToString {
-                        // The official Kotlin wrapper is private and inline-only on the JVM.
                         owner = "java/util/Arrays"
                     }
                     if path.contains("m21-") { owner = "kotlin/sequences/SequencesKt" }
@@ -274,9 +272,6 @@ extension JVMProgramBuilder {
                 try visit(file.topLevelDecls, path: path)
             }
             if path == "<kswiftk-jvm>/string-constructors.kt" {
-                // Top-level `String(...)` shims lower directly to the matching
-                // java.lang.String <init> descriptors instead of a kotlin
-                // facade method.
                 for id in file.topLevelDecls {
                     guard case let .funDecl(declaration) = ast.arena.decl(id),
                           context.interner.resolve(declaration.name) == "String",
@@ -286,8 +281,6 @@ extension JVMProgramBuilder {
                 }
             }
             if path == "<kswiftk-jvm>/charsets.kt" {
-                // kotlin.text.Charsets members are JDK StandardCharsets static
-                // fields, not a kotlin object instance.
                 for id in file.topLevelDecls {
                     guard case let .objectDecl(declaration) = ast.arena.decl(id),
                           context.interner.resolve(declaration.name) == "Charsets" else { continue }
@@ -354,13 +347,37 @@ extension JVMFunctionBuilder {
                   values.count == 1 else { return nil }
             let arguments = [try convert(receiver, to: receiverType), try convert(values[0], to: receiverType)]
             return try jdkCall("java/lang/Math", "copySign", [receiverType, receiverType], receiverType, arguments: arguments, resolved: resultType)
+        case "abs":
+            guard values.count == 1, entry.method.parameters.count == 1,
+                  entry.method.result == entry.method.parameters[0],
+                  [.int, .long, .float, .double].contains(entry.method.parameters[0]) else { return nil }
+            return try jdkCall("java/lang/Math", "abs", entry.method.parameters, entry.method.result, arguments: values, resolved: resultType)
+        case "min", "max":
+            guard values.count == 2, entry.method.parameters.count == 2,
+                  entry.method.parameters[0] == entry.method.parameters[1],
+                  entry.method.result == entry.method.parameters[0],
+                  [.int, .long, .float, .double].contains(entry.method.parameters[0]) else { return nil }
+            return try jdkCall("java/lang/Math", name, entry.method.parameters, entry.method.result, arguments: values, resolved: resultType)
+        case "sqrt":
+            guard values.count == 1 else { return nil }
+            if entry.method.result == .float {
+                let argument = try convert(values[0], to: .double)
+                guard let result = try jdkCall("java/lang/Math", "sqrt", [.double], .double, arguments: [argument]) else { return nil }
+                return try convert(result, to: .float)
+            }
+            return try jdkCall("java/lang/Math", "sqrt", entry.method.parameters, entry.method.result, arguments: values, resolved: resultType)
+        case "pow":
+            guard let receiver, values.count == 1, entry.method.result.unsignedName == nil else { return nil }
+            let base = try convert(receiver, to: .double)
+            let exponent = try convert(values[0], to: .double)
+            guard let result = try jdkCall("java/lang/Math", "pow", [.double, .double], .double, arguments: [base, exponent]) else { return nil }
+            return try convert(result, to: entry.method.result)
         default:
             return nil
         }
     }
 
     func textMatchComponent(_ object: JVMValue, index: Int) throws -> JVMValue {
-        // Destructured.componentN is private @InlineOnly in the official stdlib.
         let list = try jdkCall("kotlin/text/MatchResult$Destructured", "toList", [], .reference("java/util/List", nullable: false), receiver: object)!
         return try jdkCall("java/util/List", "get", [.int], .reference("java/lang/Object", nullable: true), receiver: list, arguments: [constant(.int(Int32(index)), .int)], interface: true, resolved: .string)!
     }
@@ -396,6 +413,21 @@ extension JVMFunctionBuilder {
             instructions.append(.getStatic(JVMField(owner: "kotlin/time/DurationUnit", name: context.interner.resolve(fqName[4]).uppercased(), type: unitType, access: 0x4019), unit))
             return try jdkCall("kotlin/time/DurationKt", "toDuration", [source.type, unitType], .long, arguments: [source, unit], resolved: program.expressionType(id))
         }
+        // kotlin.math.absoluteValue is @InlineOnly in kotlin-stdlib, so its facade
+        // getter is private. Lower it to java.lang.Math.abs like the abs() function.
+        if let fqName = program.sema.symbols.symbol(symbol)?.fqName, fqName.count == 3,
+           context.interner.resolve(fqName[0]) == "kotlin",
+           context.interner.resolve(fqName[1]) == "math",
+           context.interner.resolve(fqName[2]) == "absoluteValue",
+           let source = try receiver.map(requireValue) ?? implicitExtensionReceiver(id) {
+            let resultType = try program.expressionType(id)
+            let carrier = source.type.numericCarrier ?? source.type
+            guard [.int, .long, .float, .double].contains(carrier),
+                  carrier.unsignedName == nil, resultType.unsignedName == nil else { return nil }
+            let argument = try convert(source, to: carrier)
+            guard let absValue = try jdkCall("java/lang/Math", "abs", [carrier], carrier, arguments: [argument]) else { return nil }
+            return try convert(absValue, to: resultType)
+        }
         if let field = program.textLibraryFields[symbol] {
             let loaded = try value(field.type)
             instructions.append(.getStatic(field, loaded))
@@ -410,7 +442,43 @@ extension JVMFunctionBuilder {
             if context.interner.resolve(property.name) == "length" { return size }
             let result = try value(.int); instructions.append(.binary(.subtract, size, try constant(.int(1), .int), result)); return result
         }
+        if let declaration = program.sema.bindings.declSymbols.first(where: { $0.value == symbol })?.key,
+           case let .propertyDecl(property) = arena.decl(declaration), property.modifiers.contains(.const),
+           let site = program.sema.symbols.symbol(symbol)?.declSite,
+           context.sourceManager.path(of: site.start.file).hasPrefix("<kswiftk-jvm-import>/"),
+           let initializer = property.initializer,
+           case let .constant(literal) = try program.annotationConstant(initializer) {
+            return try constant(literal, program.expressionType(id))
+        }
         guard let method = program.textLibraryProperties[symbol] ?? context.jvmImports?.importedTopLevelGetters[symbol] else { return nil }
+        if method.annotations.contains(where: { $0.descriptor == "Landroidx/compose/runtime/Composable;" }) {
+            guard let composer = activeComposer else { throw fail("JVM @Composable property getters require an active Composer.", id) }
+            guard activeRegions.isEmpty else { throw fail("JVM @Composable calls are unsupported inside a try expression.", id) }
+            let maskCount = method.parameters.reversed().prefix(while: { $0 == .int }).count
+            let composerIndex = method.parameters.count - maskCount - 1
+            guard maskCount > 0, composerIndex >= 0, composerIndex <= 1 else {
+                throw fail("Unsupported JVM composable property getter signature.", id)
+            }
+            guard method.parameters[composerIndex].referenceName == JVMCompose.composer else {
+                throw fail("Unsupported JVM composable property getter signature.", id)
+            }
+            var prefix: [JVMValue] = []
+            if composerIndex == 1 {
+                guard let receiverValue = try receiver.map(requireValue) ?? implicitExtensionReceiver(id) else {
+                    throw fail("Missing JVM extension property receiver.", id)
+                }
+                prefix.append(try convert(receiverValue, to: method.parameters[0]))
+            }
+            let unchanged = try constant(.int(0), .int)
+            var hidden = [composer]
+            hidden.append(contentsOf: repeatElement(unchanged, count: maskCount))
+            let resultType = try program.expressionType(id)
+            let result = try value(foreignResultType(method.result, resolved: resultType))
+            try beginComposeGroup(composer, key: composeCallKey(at: id))
+            instructions.append(.foreignCall(method, receiver: nil, arguments: prefix + hidden, result: result))
+            _ = try jdkCall(JVMCompose.composer, JVMCompose.end, [], .unit, receiver: composer, interface: true)
+            return try convert(result, to: resultType)
+        }
         if method.isStatic {
             if method.parameters.isEmpty {
                 return try jdkCall(method.owner, method.name, [], method.result, resolved: program.expressionType(id))
@@ -435,6 +503,11 @@ extension JVMFunctionBuilder {
         guard let binding = program.sema.bindings.callBinding(for: id),
               program.inlineDeclarations[binding.chosenCallee] == nil,
               let entry = program.textLibraryMethods[binding.chosenCallee] else { return nil }
+        if let isRaw = stdlibBitReinterpretIsRaw(binding.chosenCallee, args: args),
+           let receiver = try receiverValue ?? receiver.map(requireValue) ?? implicitExtensionReceiver(id),
+           let emitted = try emitBitReinterpret(callee: binding.chosenCallee, receiver: receiver, isRaw: isRaw, id: id) {
+            return JVMIntrinsicResult(value: emitted)
+        }
         let method = entry.method
         if method.owner == "java/lang/Comparable", method.name == "compareTo", let receiver,
            case .memberCall = arena.expr(id), case let .nameRef(name, _) = arena.expr(receiver),
@@ -449,7 +522,6 @@ extension JVMFunctionBuilder {
            (evaluatedOperands[receiver]?.type ?? (try? program.expressionType(receiver)))?.numericCarrier != nil {
             return try scalarMember(receiver, name: "compareTo", args: args, id: id)
         }
-        // The intrinsic path preserves the collection factories' concrete types and singleton identity.
         if entry.adaptation == "collectionFactory", ["kotlin/collections/CollectionsKt", "kotlin/collections/SetsKt", "kotlin/collections/MapsKt"].contains(method.owner),
            ["listOf", "mutableListOf", "setOf", "mutableSetOf", "emptyList", "emptySet", "mutableMapOf", "mapOf", "emptyMap"].contains(method.name),
            args.allSatisfy({ !$0.isSpread && $0.label == nil }) { return nil }
@@ -489,7 +561,6 @@ extension JVMFunctionBuilder {
         if entry.adaptation == "regexExtension" {
             var actual = Array(values.dropFirst()), params = Array(parameters.dropFirst())
             if ordered.masks.contains(where: { $0 != 0 }) {
-                // Text extension wrappers default only their final limit to zero.
                 actual[actual.count - 1] = try constant(.int(0), .int)
             }
             actual.insert(object!, at: 0); params.insert(.reference("java/lang/CharSequence", nullable: false), at: 0)

@@ -75,7 +75,7 @@ extension JVMProgramBuilder {
         !modifiers.contains(.abstract) && (modifiers.contains(.final) || modifiers.intersection([.open, .override]).isEmpty)
     }
     func functionReference(_ function: FunDecl, symbol: SymbolID, member: Bool, allowComposable: Bool = false) throws -> JVMFunctionReference {
-        let allowed: Modifiers = member ? [.public, .private, .internal, .protected, .open, .final, .abstract, .override, .inline, .tailrec, .suspend, .operator, .infix] : [.public, .private, .internal, .inline, .tailrec, .suspend, .operator, .infix]
+        let allowed: Modifiers = member ? [.actual, .public, .private, .internal, .protected, .open, .final, .abstract, .override, .inline, .tailrec, .suspend, .operator, .infix] : [.actual, .public, .private, .internal, .inline, .tailrec, .suspend, .operator, .infix]
         guard function.modifiers.subtracting(allowed).isEmpty,
               let signature = sema.symbols.functionSignature(for: symbol) else { throw JVMFrontendError(message: "Unsupported JVM M5 function declaration.", range: function.range) }
         guard function.contextReceivers.count == signature.contextParameterTypes.count,
@@ -227,9 +227,9 @@ extension JVMProgramBuilder {
             if let c = plan.declaration, !plan.isAnnotation, !plan.isObject, !plan.isAnonymous, plan.enumParent == nil {
                 let owner = sema.symbols.symbol(plan.symbol)!
                 for symbol in sema.symbols.lookupAll(fqName: owner.fqName + [context.interner.intern("<init>")]) {
-                    // The bundled collection registry can retain a synthetic
-                    // constructor shell alongside the JVM source declaration.
                     if let entry = sema.symbols.symbol(symbol), entry.declSite == nil, entry.flags.contains(.synthetic) { continue }
+                    if sema.symbols.symbol(symbol)?.flags.contains(.expectDeclaration) == true
+                        || sema.symbols.parentSymbol(for: symbol).flatMap({ sema.symbols.symbol($0) })?.flags.contains(.expectDeclaration) == true { continue }
                     guard let signature = sema.symbols.functionSignature(for: symbol), let site = sema.symbols.symbol(symbol)?.declSite else { throw JVMFrontendError(message: "Missing JVM constructor signature.") }
                     let primary = site == c.range
                     let declaration: ConstructorDecl
@@ -237,7 +237,7 @@ extension JVMProgramBuilder {
                     else if let secondary = c.secondaryConstructors.first(where: { $0.range == site }) { declaration = secondary }
                     else { throw JVMFrontendError(message: "Missing JVM secondary constructor.") }
                     sourceParameters[symbol] = declaration.valueParams
-                    guard declaration.modifiers.subtracting([.public, .protected, .internal, .private]).isEmpty else { throw JVMFrontendError(message: "Unsupported JVM constructor modifiers.") }
+                    guard declaration.modifiers.subtracting([.actual, .public, .protected, .internal, .private]).isEmpty else { throw JVMFrontendError(message: "Unsupported JVM constructor modifiers.") }
                     try validateSignature(signature, instance: true)
                     let valueParameters = try signature.parameterTypes.enumerated().map { index, parameter -> JVMValueType in
                         guard declaration.valueParams.indices.contains(index), declaration.valueParams[index].isVararg else { return try parameterType(parameter) }
@@ -257,9 +257,8 @@ extension JVMProgramBuilder {
             guard case let .propertyDecl(p) = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id), let propertyType = sema.symbols.propertyType(for: symbol),
                   (p.typeParams.isEmpty || plan.isFacade && p.receiverType != nil), p.contextReceivers.isEmpty,
                   p.explicitBackingField == nil,
-                  p.modifiers.subtracting([.public, .private, .protected, .internal, .open, .final, .abstract, .override, .lateinit, .const, .inline]).isEmpty,
-                  p.getter?.isInline != true, p.setter?.isInline != true,
-                  p.getter?.annotations.isEmpty ?? true, p.setter?.annotations.isEmpty ?? true else { throw JVMFrontendError(message: "Unsupported JVM property declaration.") }
+                  p.modifiers.subtracting([.actual, .public, .private, .protected, .internal, .open, .final, .abstract, .override, .lateinit, .const, .inline]).isEmpty,
+                  p.getter?.isInline != true, p.setter?.isInline != true else { throw JVMFrontendError(message: "Unsupported JVM property declaration.") }
             guard !sema.composableFunctions.contains(symbol) else {
                 throw JVMFrontendError(message: "JVM @Composable property accessors are unsupported.", range: p.range)
             }
@@ -267,8 +266,8 @@ extension JVMProgramBuilder {
             let name = context.interner.resolve(p.name)
             let mappedPropertyType = plan.isAnnotation ? try annotationElementType(self.type(propertyType)) : try self.type(propertyType)
             let type = nominalRangeResultType(for: symbol, mapped: mappedPropertyType) ?? mappedPropertyType
-            let backingFieldSemanticType = sema.symbols.backingFieldSymbol(for: symbol)
-                .flatMap { sema.symbols.propertyType(for: $0) } ?? propertyType
+            let backingFieldSemanticType = p.explicitBackingField == nil ? propertyType : (sema.symbols.backingFieldSymbol(for: symbol)
+                .flatMap { sema.symbols.propertyType(for: $0) } ?? propertyType)
             let mappedBackingFieldType = try self.type(backingFieldSemanticType)
             let backingFieldType = nominalRangeResultType(for: symbol, mapped: mappedBackingFieldType)
                 ?? mappedBackingFieldType
@@ -312,14 +311,27 @@ extension JVMProgramBuilder {
             guard !exposedField || (hasField && p.delegateExpression == nil) else {
                 throw JVMFrontendError(message: "JVM @JvmField property must have a backing field.", range: p.range)
             }
-            // @JvmField inside any object — including a companion — publishes a
-            // static field on that object, matching kotlinc's layout.
+            let usesPrivateBackingField = hasField && p.modifiers.contains(.private)
+                && p.getter == nil && p.setter == nil && p.delegateExpression == nil
+                && !p.modifiers.contains(.lateinit) && !exposedField
+                && !sema.bindings.callableReferenceBindings.values.contains { reference in
+                    reference.chosenCallee == symbol || sema.symbols.propertySymbol(forAccessor: reference.chosenCallee) == symbol
+                }
             let staticObjectField = exposedField && plan.isObject
             let immutableField = !p.isVar && (!plan.isObject || staticObjectField)
-            let field = hasField && p.delegateExpression == nil ? JVMField(owner: plan.name, name: name, type: backingFieldType, access: (p.modifiers.contains(.lateinit) || exposedField ? self.access(fieldModifiers) : 2) | (plan.isFacade || staticObjectField ? 8 : 0) | (immutableField ? 16 : 0)) : nil
+            let propertyAnnotationRecords = try annotationRecords(for: symbol)
+            let fieldAnnotations = propertyAnnotationRecords.filter { $0.useSiteTarget == nil || $0.useSiteTarget == "field" }
+            let hasVolatileField = fieldAnnotations.contains { $0.annotationFQName == "kotlin.jvm.Volatile" }
+            if hasVolatileField && !p.isVar {
+                throw JVMFrontendError(message: "'@Volatile' annotation cannot be used on immutable properties.", range: p.range)
+            }
+            let fieldFlagAccess: UInt16 = (hasVolatileField ? 0x40 : 0)
+                | (fieldAnnotations.contains { $0.annotationFQName == "kotlin.jvm.Transient" } ? 0x80 : 0)
+            let field = hasField && p.delegateExpression == nil ? JVMField(owner: plan.name, name: name, type: backingFieldType, access: (p.modifiers.contains(.lateinit) || exposedField ? self.access(fieldModifiers) : 2) | (plan.isFacade || staticObjectField ? 8 : 0) | (immutableField ? 16 : 0) | fieldFlagAccess) : nil
             var property = JVMProperty(name: name, type: type, getter: getter, setter: setter, field: field, modifiers: p.modifiers)
             property.isGetterInline = p.modifiers.contains(.inline) || p.getter?.isInline == true
             property.isSetterInline = p.modifiers.contains(.inline) || p.setter?.isInline == true
+            property.usesPrivateBackingField = usesPrivateBackingField
             property.kotlinType = try kotlinType(propertyType)
             property.kotlinReceiver = try extensionReceiverSemantic.map(kotlinType)
             property.genericSignature = try signatureType(propertyType)
@@ -330,7 +342,11 @@ extension JVMProgramBuilder {
             if p.delegateExpression != nil {
                 let storage = sema.symbols.delegateStorageSymbol(for: symbol) ?? SymbolID(rawValue: -(symbol.rawValue + 50000))
                 guard let semantic = sema.symbols.delegateProvideDelegateSymbol(for: symbol).flatMap({ sema.symbols.functionSignature(for: $0)?.returnType }) ?? sema.symbols.propertyType(for: storage) ?? p.delegateExpression.flatMap({ sema.bindings.exprType(for: $0) }) else { throw JVMFrontendError(message: "Missing JVM delegate storage type.", range: p.range) }
-                var delegateField = JVMField(owner: plan.name, name: name + "$delegate", type: try self.type(semantic), access: 2 | (plan.isObject ? 0 : 16) | (plan.isFacade ? 8 : 0))
+                if propertyAnnotationRecords.contains(where: { $0.annotationFQName == "kotlin.jvm.Volatile" && $0.useSiteTarget == "delegate" }) {
+                    throw JVMFrontendError(message: "'@Volatile' annotation cannot be used on delegated properties.", range: p.range)
+                }
+                let delegateTransient = propertyAnnotationRecords.contains { $0.annotationFQName == "kotlin.jvm.Transient" && $0.useSiteTarget == "delegate" }
+                var delegateField = JVMField(owner: plan.name, name: name + "$delegate", type: try self.type(semantic), access: 2 | (plan.isObject ? 0 : 16) | (plan.isFacade ? 8 : 0) | (delegateTransient ? 0x80 : 0))
                 delegateField.annotations = try annotations(for: symbol, target: "delegate")
                 property.delegateField = delegateField
                 property.delegateSymbol = symbol
@@ -355,7 +371,12 @@ extension JVMProgramBuilder {
     }
     func emitClasses() throws -> [JVMClass] {
         var results: [JVMClass] = [], emitted: Set<SymbolID> = []
-        while let plan = classes.values.filter({ !emitted.contains($0.symbol) && (!$0.isAnonymous || $0.anonymousSuper != nil) }).sorted(by: { ($0.isAnonymous ? 1 : 0, $0.name) < ($1.isAnonymous ? 1 : 0, $1.name) }).first {
+        // `classes` is fixed by prepareClasses, but anonymous object plans only
+        // become eligible while their enclosing bodies are emitted, so re-check
+        // eligibility against this pre-sorted order on every pass instead of
+        // re-sorting all plans each time.
+        let orderedPlans = classes.values.sorted { ($0.isAnonymous ? 1 : 0, $0.name) < ($1.isAnonymous ? 1 : 0, $1.name) }
+        while let plan = orderedPlans.first(where: { !emitted.contains($0.symbol) && (!$0.isAnonymous || $0.anonymousSuper != nil) }) {
             emitted.insert(plan.symbol)
             var functions: [JVMFunction] = []
             for (declaration, method) in plan.methods {
@@ -373,8 +394,8 @@ extension JVMProgramBuilder {
                 functions.append(function)
                 functions += try jvmOverloads(function, declaration: declaration, symbol: symbol, owner: plan)
             }
-            for (_, declaration, property) in plan.properties {
-                functions += try emitAccessors(plan, declaration, property)
+            for (propertyID, declaration, property) in plan.properties {
+                functions += try emitAccessors(plan, propertyID, declaration, property)
             }
             if plan.isObject { functions.append(try emitObjectConstructor(plan)) }
             if plan.isAnonymous { functions.append(try emitAnonymousConstructor(plan)) }
@@ -401,8 +422,6 @@ extension JVMProgramBuilder {
             } else {
                 functions += interfaceDefaultForwarders(plan, existing: functions)
             }
-            // Return types participate in JVM descriptors. Covariant overrides
-            // therefore need bridges for calls through a superclass/interface.
             functions += try bridges(plan, functions: functions)
             functions += try collectionDelegationMethods(plan, existing: functions)
             functions += try collectionPropertyAliases(plan, existing: functions)

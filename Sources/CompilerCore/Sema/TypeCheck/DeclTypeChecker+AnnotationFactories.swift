@@ -8,8 +8,6 @@ extension DeclTypeChecker {
         typeCheckAnnotationFactories(annotations, symbol: symbol, ctx: ctx)
     }
 
-    /// Resolve construction in the declaration's lexical context, after headers.
-    /// The producer owns the body, including private types and default values.
     func typeCheckAnnotationFactories(
         _ annotations: [AnnotationNode], symbol: SymbolID, ctx: TypeInferenceContext
     ) {
@@ -28,7 +26,6 @@ extension DeclTypeChecker {
                   let first = tokens.first, let last = tokens.last
             else { continue }
 
-            // Header-only compiler annotations do not have a callable constructor.
             let annotationFQName = sema.symbols.symbol(annotationSymbol)?.fqName ?? []
             let annotationFQNameText = annotationFQName.map(ctx.interner.resolve).joined(separator: ".")
             let constructors = sema.symbols.lookupAll(fqName: annotationFQName + [ctx.interner.intern("<init>")])
@@ -55,19 +52,18 @@ extension DeclTypeChecker {
             }
             if hasDedicatedJSArgumentValidation { continue }
 
-            if !tokens.contains(where: { $0.kind == .symbol(.lParen) }) {
+            if AnnotationParsingSupport.constructionArgumentListStart(in: tokens, name: annotation.name) == nil {
                 tokens.append(Token(kind: .symbol(.lParen), range: last.range))
                 tokens.append(Token(kind: .symbol(.rParen), range: last.range))
             }
-            // A fully qualified classifier is already resolved by the header
-            // pass. Replay it through a local alias so package components are
-            // not reinterpreted as ordinary expressions. Keep the source name
-            // in that alias for diagnostics, and leave simple names unchanged.
             let constructionScope: Scope
             if annotation.name.contains(".") {
                 let alias = ctx.interner.intern(annotation.name)
-                guard let argumentStart = tokens.firstIndex(where: { $0.kind == .symbol(.lParen) }) else { continue }
-                tokens.replaceSubrange(0..<argumentStart, with: [Token(kind: .identifier(alias), range: first.range)])
+                let replacementEnd = min(
+                    AnnotationParsingSupport.qualifiedNameTokenCount(for: annotation.name),
+                    tokens.count
+                )
+                tokens.replaceSubrange(0..<replacementEnd, with: [Token(kind: .identifier(alias), range: first.range)])
                 let scope = BaseScope(parent: ctx.scope, symbols: sema.symbols)
                 scope.insertWithAlias(annotationSymbol, asName: alias)
                 constructionScope = scope
@@ -142,10 +138,16 @@ extension DeclTypeChecker {
         ctx: TypeInferenceContext
     ) -> ExprID? {
         let arguments: [CallArgument]
+        let typeArgs: [TypeRefID]
         let range: SourceRange
         switch ctx.ast.arena.expr(expression) {
-        case let .call(_, _, arguments_, range_), let .memberCall(_, _, _, arguments_, range_):
+        case let .call(_, typeArgs_, arguments_, range_):
             arguments = arguments_
+            typeArgs = typeArgs_
+            range = range_
+        case let .memberCall(_, _, typeArgs_, arguments_, range_):
+            arguments = arguments_
+            typeArgs = typeArgs_
             range = range_
         default:
             return nil
@@ -153,7 +155,7 @@ extension DeclTypeChecker {
         guard let annotationName = ctx.sema.symbols.symbol(annotationClass)?.name else { return nil }
         let callee = ctx.ast.arena.appendExpr(.nameRef(annotationName, range))
         let construction = ctx.ast.arena.appendExpr(.call(
-            callee: callee, typeArgs: [], args: arguments, range: range
+            callee: callee, typeArgs: typeArgs, args: arguments, range: range
         ))
         return construction
     }
@@ -163,7 +165,6 @@ extension DeclTypeChecker {
     }
 
     func validatePendingAnnotationConstants() {
-        // Forward const initializer bindings are available only after all bodies.
         for (expression, ctx, isDefault) in pendingAnnotationConstants {
             guard !isAnnotationConstant(expression, ctx: ctx, depth: 0) else { continue }
             ctx.sema.diagnostics.error(

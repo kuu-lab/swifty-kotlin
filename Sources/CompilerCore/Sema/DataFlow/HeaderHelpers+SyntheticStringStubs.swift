@@ -3,13 +3,11 @@ extension DataFlowSemaPhase {
     func registerSyntheticStringStubs(
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner
+        interner: StringInterner,
+        isJVMTarget: Bool = false
     ) {
         _ = ensureKotlinTextPackage(symbols: symbols, interner: interner)
         let kotlinRootPkg = ensurePackage(path: ["kotlin"], symbols: symbols, interner: interner)
-        // String is a compiler/runtime nominal shell. The bundled source owns
-        // CharSequence whenever it is available; the fallback keeps bootstrap
-        // contexts that intentionally omit bundled stdlib headers functional.
         let charSequenceSymbol = symbols.lookup(
             fqName: kotlinRootPkg + [interner.intern("CharSequence")]
         ) ?? ensureInterfaceSymbol(
@@ -23,14 +21,27 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(kotlinRootPkgSymbol, for: charSequenceSymbol)
         }
         let context: SyntheticStringStubContext = (symbols, types, interner, charSequenceSymbol)
-        let stringClassSymbol = registerSyntheticStringEncodingStubs(context: context)
-        // String itself remains a compiler/runtime nominal shell, so retain a
-        // Companion anchor for the source-backed extensions in StringFormat.kt.
+        let stringClassSymbol = registerSyntheticStringEncodingStubs(
+            context: context,
+            includeJavaMathBigDecimal: !isJVMTarget
+        )
         _ = ensureStringCompanionSymbol(
             ownerSymbol: stringClassSymbol,
             symbols: symbols,
             interner: interner
         )
+        // `String.Companion.format` is synthesized only for the JVM backend, whose
+        // lowering emits `java/lang/String.format`. Native/Wasm resolve it from the
+        // bundled `StringFormat.kt` extension instead, so registering a body-less
+        // member here would shadow that working implementation.
+        if isJVMTarget {
+            registerStringCompanionFormatMembers(
+                symbols: symbols,
+                types: types,
+                interner: interner,
+                stringClassSymbol: stringClassSymbol
+            )
+        }
     }
     private func ensureKotlinTextPackage(
         symbols: SymbolTable,

@@ -42,9 +42,6 @@ extension OverloadResolver {
                 continue
             }
             let resolved = substitution[typeVar]
-            // A type variable is "uninferred" when it was either never
-            // included in the substitution (no constraints at all) or the
-            // solver explicitly set it to errorType.
             guard resolved == nil || resolved == typeSystem.errorType else {
                 continue
             }
@@ -73,6 +70,8 @@ extension OverloadResolver {
         range: SourceRange,
         ctx: SemaModule
     ) -> Diagnostic? {
+        guard !ctx.jvmClasspathStubFiles.contains(range.start.file) else { return nil }
+
         func mergedUpperBounds(signatureBounds: [TypeID], symbolBounds: [TypeID]) -> [TypeID] {
             var merged: [TypeID] = []
             merged.reserveCapacity(signatureBounds.count + symbolBounds.count)

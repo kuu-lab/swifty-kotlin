@@ -138,6 +138,153 @@ struct StdlibArtifactCacheTests {
         #expect(fm.fileExists(atPath: missingBlob))
     }
 
+    /// A blob replaced by a symlink that resolves outside the artifact must be
+    /// rejected. The `lstat` fast path defers symlinks to the strict containment
+    /// check, which is the only guard against an escaping link.
+    @Test
+    func cachedArtifactInlineKIRBlobSymlinkEscapeIsRebuilt() throws {
+        let fm = FileManager.default
+        let cacheDirectory = makeTemporaryCacheDirectory()
+        defer { try? fm.removeItem(at: cacheDirectory) }
+        let target = TargetTriple.hostDefault()
+        var buildCount = 0
+
+        let artifactPath = try StdlibArtifactCache.resolveOrBuildCached(
+            target: target,
+            cacheDirectory: cacheDirectory
+        ) { outputBase in
+            buildCount += 1
+            return try Self.writeFakeArtifact(
+                at: outputBase,
+                target: target,
+                inlineMangledNames: ["alpha_inline"]
+            )
+        }
+        #expect(buildCount == 1)
+
+        // Point the blob at a regular file that lives outside the artifact.
+        let outsideFile = cacheDirectory
+            .appendingPathComponent("outside-\(UUID().uuidString).bin")
+        try Data("outside".utf8).write(to: outsideFile)
+        defer { try? fm.removeItem(at: outsideFile) }
+
+        let blobPath = artifactPath + "/inline-kir/"
+            + MetadataEncoder.inlineKIRFileName(for: "alpha_inline")
+        try fm.removeItem(atPath: blobPath)
+        try fm.createSymbolicLink(atPath: blobPath, withDestinationPath: outsideFile.path)
+
+        let rebuilt = try StdlibArtifactCache.resolveOrBuildCached(
+            target: target,
+            cacheDirectory: cacheDirectory
+        ) { outputBase in
+            buildCount += 1
+            return try Self.writeFakeArtifact(
+                at: outputBase,
+                target: target,
+                inlineMangledNames: ["alpha_inline"]
+            )
+        }
+
+        #expect(buildCount == 2)
+        #expect(rebuilt == artifactPath)
+        // The rebuild restored a real blob, not the escaping symlink.
+        #expect((try? fm.destinationOfSymbolicLink(atPath: blobPath)) == nil)
+    }
+
+    /// A blob that is a symlink staying inside the artifact still resolves to a
+    /// contained regular file, so the strict check accepts it and no rebuild
+    /// happens. This pins the fallback so it neither over- nor under-rejects.
+    @Test
+    func cachedArtifactInlineKIRBlobInternalSymlinkStaysValid() throws {
+        let fm = FileManager.default
+        let cacheDirectory = makeTemporaryCacheDirectory()
+        defer { try? fm.removeItem(at: cacheDirectory) }
+        let target = TargetTriple.hostDefault()
+        var buildCount = 0
+
+        let artifactPath = try StdlibArtifactCache.resolveOrBuildCached(
+            target: target,
+            cacheDirectory: cacheDirectory
+        ) { outputBase in
+            buildCount += 1
+            return try Self.writeFakeArtifact(
+                at: outputBase,
+                target: target,
+                inlineMangledNames: ["alpha_inline"]
+            )
+        }
+        #expect(buildCount == 1)
+
+        // Redirect the blob at the artifact's own object file, which is a
+        // regular file inside the artifact root.
+        let blobPath = artifactPath + "/inline-kir/"
+            + MetadataEncoder.inlineKIRFileName(for: "alpha_inline")
+        try fm.removeItem(atPath: blobPath)
+        try fm.createSymbolicLink(
+            atPath: blobPath,
+            withDestinationPath: "../objects/KSwiftKStdlib_0.o"
+        )
+
+        let resolved = try StdlibArtifactCache.resolveOrBuildCached(
+            target: target,
+            cacheDirectory: cacheDirectory
+        ) { outputBase in
+            buildCount += 1
+            return try Self.writeFakeArtifact(
+                at: outputBase,
+                target: target,
+                inlineMangledNames: ["alpha_inline"]
+            )
+        }
+
+        #expect(buildCount == 1)
+        #expect(resolved == artifactPath)
+    }
+
+    /// A blob path occupied by a non-regular file (here a directory) is not a
+    /// valid inline-KIR blob and must trigger a rebuild.
+    @Test
+    func cachedArtifactInlineKIRBlobNonRegularFileIsRebuilt() throws {
+        let fm = FileManager.default
+        let cacheDirectory = makeTemporaryCacheDirectory()
+        defer { try? fm.removeItem(at: cacheDirectory) }
+        let target = TargetTriple.hostDefault()
+        var buildCount = 0
+
+        let artifactPath = try StdlibArtifactCache.resolveOrBuildCached(
+            target: target,
+            cacheDirectory: cacheDirectory
+        ) { outputBase in
+            buildCount += 1
+            return try Self.writeFakeArtifact(
+                at: outputBase,
+                target: target,
+                inlineMangledNames: ["alpha_inline"]
+            )
+        }
+        #expect(buildCount == 1)
+
+        let blobPath = artifactPath + "/inline-kir/"
+            + MetadataEncoder.inlineKIRFileName(for: "alpha_inline")
+        try fm.removeItem(atPath: blobPath)
+        try fm.createDirectory(atPath: blobPath, withIntermediateDirectories: true)
+
+        let rebuilt = try StdlibArtifactCache.resolveOrBuildCached(
+            target: target,
+            cacheDirectory: cacheDirectory
+        ) { outputBase in
+            buildCount += 1
+            return try Self.writeFakeArtifact(
+                at: outputBase,
+                target: target,
+                inlineMangledNames: ["alpha_inline"]
+            )
+        }
+
+        #expect(buildCount == 2)
+        #expect(rebuilt == artifactPath)
+    }
+
     /// Compilers with different fingerprints must never replace one another's
     /// artifact paths, because a compile can load inline KIR after resolution.
     @Test

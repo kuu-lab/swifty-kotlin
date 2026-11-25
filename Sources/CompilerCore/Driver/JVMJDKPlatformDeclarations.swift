@@ -197,7 +197,10 @@ extension JVMClasspathIndex {
             """, 0x0001, "java/lang/Object", [
                 method("java/io/File", "<init>", [.string], .reference("java/io/File", nullable: false)),
                 method("java/io/File", "<init>", [.string, .string], .reference("java/io/File", nullable: false)),
+                method("java/io/File", "<init>", [.reference("java/io/File", nullable: true), .string], .reference("java/io/File", nullable: false)),
                 method("java/io/File", "getPath", [], .string),
+                method("java/io/File", "getAbsolutePath", [], .string),
+                method("java/io/File", "mkdirs", [], .boolean),
             ]),
             ("java/lang/IllegalAccessError", """
             package java.lang
@@ -213,8 +216,8 @@ extension JVMClasspathIndex {
                 companion object {
                     const val MAX_VALUE: Int = 2147483647
                     const val MIN_VALUE: Int = -2147483647 - 1
-                    external fun parseInt(value: String): Int
-                    external fun parseInt(value: String, radix: Int): Int
+                    external fun parseInt(value: kotlin.String): Int
+                    external fun parseInt(value: kotlin.String, radix: Int): Int
                 }
             }
             """, 0x0011, "java/lang/Number", [
@@ -227,17 +230,37 @@ extension JVMClasspathIndex {
                 companion object {
                     external fun isDigit(value: Char): Boolean
                     external fun isDigit(value: Int): Boolean
+                    external fun toUpperCase(value: Char): Char
+                    external fun toUpperCase(value: Int): Int
                 }
             }
             """, 0x0011, "java/lang/Object", [
                 method("java/lang/Character", "isDigit", [.char], .boolean, staticMember: true),
                 method("java/lang/Character", "isDigit", [.int], .boolean, staticMember: true),
+                method("java/lang/Character", "toUpperCase", [.char], .char, staticMember: true),
+                method("java/lang/Character", "toUpperCase", [.int], .int, staticMember: true),
             ]),
             ("java/util/Arrays", arraysSource, 0x0031, "java/lang/Object", arraysMethods),
             ("java/util/function/ToIntFunction", """
             package java.util.function
             fun interface ToIntFunction<T> { fun applyAsInt(value: T): Int }
             """, 0x0601, "java/lang/Object", [method("java/util/function/ToIntFunction", "applyAsInt", [object], .int, interface: true)]),
+            ("java/lang/Runnable", """
+            package java.lang
+            fun interface Runnable {
+                fun run()
+            }
+            """, 0x0601, "java/lang/Object", [
+                method("java/lang/Runnable", "run", [], .unit, interface: true),
+            ]),
+            ("java/util/concurrent/Callable", """
+            package java.util.concurrent
+            fun interface Callable<V> {
+                fun call(): V
+            }
+            """, 0x0601, "java/lang/Object", [
+                method("java/util/concurrent/Callable", "call", [], object, interface: true),
+            ]),
             ("java/util/Comparator", """
             package java.util
             fun interface Comparator<T> {
@@ -346,6 +369,24 @@ extension JVMClasspathIndex {
                 method("java/util/SortedSet", "headSet", [object], .reference("java/util/SortedSet", nullable: false), interface: true),
                 method("java/util/SortedSet", "tailSet", [object], .reference("java/util/SortedSet", nullable: false), interface: true),
                 method("java/util/SortedSet", "subSet", [object, object], .reference("java/util/SortedSet", nullable: false), interface: true),
+            ]),
+            ("java/util/Queue", """
+            package java.util
+            interface Queue<E> : kotlin.collections.MutableCollection<E> {
+                override operator fun iterator(): kotlin.collections.MutableIterator<E>
+                fun offer(element: E): Boolean
+                fun poll(): E?
+                fun element(): E
+                fun peek(): E?
+                fun remove(): E
+            }
+            """, 0x0601, "java/lang/Object", [
+                method("java/util/Queue", "iterator", [], .reference("java/util/Iterator", nullable: false), interface: true),
+                method("java/util/Queue", "offer", [object], .boolean, interface: true),
+                method("java/util/Queue", "poll", [], object, interface: true),
+                method("java/util/Queue", "element", [], object, interface: true),
+                method("java/util/Queue", "peek", [], object, interface: true),
+                method("java/util/Queue", "remove", [], object, interface: true),
             ]),
             ("java/lang/Void", """
             package java.lang
@@ -491,6 +532,15 @@ extension JVMClasspathIndex {
                 constructor(msg: String?): super(msg)
             }
             """, 0x0001, "java/lang/IllegalArgumentException", [method("java/security/InvalidParameterException", "<init>", [], .reference("java/security/InvalidParameterException", nullable: false)), method("java/security/InvalidParameterException", "<init>", [.reference("java/lang/String", nullable: true)], .reference("java/security/InvalidParameterException", nullable: false))]),
+            ("java/io/InputStreamReader", """
+            package java.io
+            open class InputStreamReader(input: InputStream, charset: java.nio.charset.Charset): Reader() {
+                override fun read(buffer: CharArray, offset: Int, length: Int): Int = 0
+            }
+            """, 0x0001, "java/io/Reader", [
+                method("java/io/InputStreamReader", "<init>", [.reference("java/io/InputStream", nullable: false), .reference("java/nio/charset/Charset", nullable: false)], .reference("java/io/InputStreamReader", nullable: false)),
+                method("java/io/InputStreamReader", "read", [.reference("[C", nullable: false), .int, .int], .int),
+            ]),
             ("java/nio/charset/Charset", """
             package java.nio.charset
             abstract class Charset {
@@ -731,6 +781,48 @@ extension JVMClasspathIndex {
         if let file = ctx.sourceManager.fileIDs().first(where: { ctx.sourceManager.path(of: $0) == comparatorPath }),
            let info = classes["java/util/Comparator"] {
             sourceClasses[file] = info
+        }
+    }
+
+    func bindJDKFileMembers(in ctx: CompilationContext, sema: SemaModule) throws {
+        guard let file = classes["java/io/File"] else { return }
+        let path = ["java", "io", "File"].map(ctx.interner.intern)
+        for name in ["<init>", "mkdirs"] {
+            for symbol in sema.symbols.lookupAll(fqName: path + [ctx.interner.intern(name)]) {
+                guard sema.symbols.symbol(symbol)?.declSite == nil,
+                      let signature = sema.symbols.functionSignature(for: symbol) else { continue }
+                let parameters = try signature.parameterTypes.map { try Self.type($0, sema: sema, ctx: ctx).descriptor }
+                let result = name == "<init>" ? "V" : "Z"
+                let descriptor = "(" + parameters.joined() + ")" + result
+                methods[symbol] = file.methods.first { $0.name == name && $0.descriptor == descriptor }
+            }
+        }
+        let inputStream = "java/io/InputStream"
+        let inputPath = ["java", "io", "InputStream"].map(ctx.interner.intern)
+        for name in ["available", "read"] {
+            for symbol in sema.symbols.lookupAll(fqName: inputPath + [ctx.interner.intern(name)]) {
+                guard sema.symbols.symbol(symbol)?.declSite == nil,
+                      let signature = sema.symbols.functionSignature(for: symbol) else { continue }
+                let parameters = try signature.parameterTypes.map { try Self.type($0, sema: sema, ctx: ctx) }
+                let descriptor = "(" + parameters.map(\.descriptor).joined() + ")I"
+                guard ["()I", "([B)I", "([BII)I"].contains(descriptor) else { continue }
+                methods[symbol] = JVMForeignMethod(owner: inputStream, name: name, descriptor: descriptor,
+                                                   parameters: parameters, result: .int, isStatic: false,
+                                                   isInterface: false, isAbstract: false)
+            }
+        }
+        for owner in ["java/io/OutputStream", "java/io/FileOutputStream", "java/io/Closeable", inputStream] {
+            let names = owner.hasSuffix("OutputStream") ? ["flush", "close"] : ["close"]
+            let path = owner.split(separator: "/").map { ctx.interner.intern(String($0)) }
+            for name in names {
+                for symbol in sema.symbols.lookupAll(fqName: path + [ctx.interner.intern(name)]) {
+                    guard sema.symbols.symbol(symbol)?.declSite == nil,
+                          sema.symbols.functionSignature(for: symbol)?.parameterTypes.isEmpty == true else { continue }
+                    methods[symbol] = JVMForeignMethod(owner: owner, name: name, descriptor: "()V", parameters: [],
+                                                       result: .unit, isStatic: false, isInterface: owner == "java/io/Closeable",
+                                                       isAbstract: owner == "java/io/Closeable")
+                }
+            }
         }
     }
 }

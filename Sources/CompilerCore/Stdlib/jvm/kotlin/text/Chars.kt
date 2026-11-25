@@ -9,6 +9,12 @@ import kotlin.jvm.internal.__jvmIsDigit
 import kotlin.jvm.internal.__jvmIsLowerCase
 import kotlin.jvm.internal.__jvmIsUpperCase
 
+@kotlin.internal.InlineOnly
+public inline operator fun Char.inc(): Char = (this.code + 1).toChar()
+
+@kotlin.internal.InlineOnly
+public inline operator fun Char.dec(): Char = (this.code - 1).toChar()
+
 public fun Char.isDigit(): Boolean = __jvmIsDigit(this)
 
 public fun Char.isLowerCase(): Boolean = __jvmIsLowerCase(this)

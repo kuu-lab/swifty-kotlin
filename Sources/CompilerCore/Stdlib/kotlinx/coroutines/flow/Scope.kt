@@ -14,10 +14,6 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.produce
 
-// `produceIn` delegates to the `produce(capacity) { }` channel builder on the
-// given scope; the launch still attaches the producer job to the ambient scope
-// rather than `scope`'s job, the same limitation `CoroutineScope.produce` has.
-
 public fun <T> Flow<T>.launchIn(scope: CoroutineScope): Job {
     val source = this
     return scope.launch {

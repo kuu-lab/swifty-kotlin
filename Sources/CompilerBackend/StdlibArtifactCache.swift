@@ -7,7 +7,6 @@ import Darwin
 import Glibc
 #endif
 
-/// The `KSWIFTK_STDLIB_CACHE_DIR` override of the user's standard caches
 /// directory is intended for sandboxes and test isolation. Each target, bundled-source hash, and
 /// compiler fingerprint gets its own cache path, so another worktree cannot
 /// replace an artifact after a compiler has resolved its path. An advisory
@@ -96,14 +95,10 @@ public enum StdlibArtifactCache {
         }
     }
 
-    /// The cache path
-    /// includes the bundled-source hash and compiler fingerprint, so each
-    /// distinct build has an independent artifact that remains stable after
     /// this method returns. The builder receives a private output-base path
     /// and must return the `.kklib` directory it produced there; it is injected
     /// so tests can exercise the locking, staging, and recovery paths without
     /// paying for a real stdlib build.
-    ///
     /// Recovery contract: a build that is killed or fails midway can only
     /// leave its own uniquely-named staging tree behind — never a partially
     /// published `KSwiftKStdlib.kklib` — and a cached artifact that fails
@@ -250,8 +245,6 @@ public enum StdlibArtifactCache {
                 .appendingPathComponent(artifactFileName))
             append(binDirectory.appendingPathComponent("KSwiftK_CompilerCore.bundle/Contents/Resources", isDirectory: true)
                 .appendingPathComponent(artifactFileName))
-            // Keep the target-only resource bundle spelling used by older
-            // SwiftPM/Xcode layouts as a compatibility candidate.
             append(binDirectory.appendingPathComponent("CompilerCore_CompilerCore.resources", isDirectory: true)
                 .appendingPathComponent(artifactFileName))
             append(prefixDirectory.appendingPathComponent("lib/kswiftk/stdlib", isDirectory: true)
@@ -287,10 +280,6 @@ public enum StdlibArtifactCache {
             .appendingPathComponent(profile.artifactFileName, isDirectory: true)
     }
 
-    /// A leftover staging tree from a build interrupted more than this long
-    /// ago can no longer be written by a live builder, so it is safe to
-    /// reclaim. A successful build finishes in minutes; this is deliberately
-    /// far above that.
     private static let staleStagingAge: TimeInterval = 3600
 
     /// Called while the cache lock is held, so only trees too old to belong to
@@ -377,7 +366,6 @@ public enum StdlibArtifactCache {
         guard manifest["target"] as? String == targetString else {
             return .invalid("manifest target does not match \(targetString)")
         }
-        // A manifest without `stdlibProfile` predates profiles and is `full`.
         let declaredProfile = (manifest["stdlibProfile"] as? String).flatMap { StdlibProfile(rawValue: $0) } ?? .full
         guard declaredProfile == profile else {
             return .invalid("manifest stdlibProfile '\(declaredProfile.rawValue)' does not match requested '\(profile.rawValue)'")
@@ -450,8 +438,6 @@ public enum StdlibArtifactCache {
             }
         }
 
-        // Optional thin-LTO bitcode (KUU-2814). Artifacts built before the key
-        // existed simply lack it; one that declares bitcode must still carry it.
         if let bitcode = manifest["bitcode"] as? [String] {
             for bitcodePath in bitcode {
                 guard let bitcodeURL = CompilerFileSystem.containedURL(relativePath: bitcodePath, under: rootURL),
@@ -483,8 +469,43 @@ public enum StdlibArtifactCache {
             }
             inlineNames = inlineKIRMangledNames(metadataText: metadataText)
         }
+        // Inline-KIR blob validation. Two invariants make the fast path safe:
+        //  - `MetadataEncoder.inlineKIRFileName` always yields a single path
+        //    component (a safe-ASCII mangled name or a decimal FNV hash, with a
+        //    ".kirbin" suffix) — never a separator or a bare "..".
+        //  - `inlineURL` was already resolved and containment-checked above, so
+        //    `inlineDirPath` cannot escape the artifact.
+        // A regular file (`lstat` reports S_IFREG, i.e. not a symlink) at
+        // `inlineDirPath/<fileName>` is therefore guaranteed to be contained and
+        // regular — exactly what the strict check below would conclude — so it
+        // can be accepted with one `lstat` instead of a per-blob `containedURL`
+        // walk that resolves symlinks on every component (~2k times per compile).
+        // Every ambiguous case — a symlink (which may resolve outside the
+        // artifact), a non-regular file, a missing blob, or a defensive filename
+        // containing "/" — falls through to the strict `containedURL` +
+        // `isRegularFile` check, preserving the original containment and
+        // regular-file validation unchanged.
+        let inlineDirPath = inlineURL.path
         for mangledName in inlineNames {
-            let blobRelativePath = inlineKIRDir + "/" + MetadataEncoder.inlineKIRFileName(for: mangledName)
+            let fileName = MetadataEncoder.inlineKIRFileName(for: mangledName)
+            let blobPath = inlineDirPath + "/" + fileName
+            var info = stat()
+            if !fileName.contains("/"),
+               blobPath.withCString({ lstat($0, &info) }) == 0
+            {
+                let fileType = info.st_mode & S_IFMT
+                if fileType == S_IFREG { continue }
+                if fileType != S_IFLNK {
+                    return .invalid(
+                        "inline KIR blob for '\(mangledName)' is missing or is not a regular file"
+                    )
+                }
+            } else if !fileName.contains("/"), !fileManager.fileExists(atPath: blobPath) {
+                return .invalid(
+                    "inline KIR blob for '\(mangledName)' is missing or is not a regular file"
+                )
+            }
+            let blobRelativePath = inlineKIRDir + "/" + fileName
             guard let blobURL = CompilerFileSystem.containedURL(relativePath: blobRelativePath, under: rootURL),
                   CompilerFileSystem.isRegularFile(at: blobURL)
             else {
@@ -497,10 +518,6 @@ public enum StdlibArtifactCache {
         return .valid
     }
 
-    /// Mangled names of every metadata record marked `inline=1` — i.e. every
-    /// inline-KIR blob a consumer may demand. Works on both the indexed (v2)
-    /// metadata layout, where each index line is prefixed by
-    /// "<offset>\t<length>\t", and the legacy line-per-record layout.
     private static func inlineKIRMangledNames(metadataText: String) -> Set<String> {
         var names: Set<String> = []
         for rawLine in metadataText.split(separator: "\n") {
@@ -575,7 +592,6 @@ public enum StdlibArtifactCache {
     }
 }
 
-/// Shared stdlib-only compiler pipeline used by the CLI cache and test cache.
 public enum StdlibArtifactBuilder {
     public enum Error: Swift.Error, CustomStringConvertible {
         case diagnostics(String)

@@ -31,7 +31,10 @@ jobs:
   build-debug-tests:
     name: Build debug Swift test bundle once
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # A cold SwiftPM cache costs up to ~32 min to build, ~15 min to warm the
+    # candidate stdlib, and ~15 min for the candidate-only cases (~9 s each),
+    # so 60 min cancelled the job before the candidate-only step finished.
+    timeout-minutes: 90
     outputs:
       bundle: ${{ steps.package.outputs.bundle }}
     env:
@@ -1137,11 +1140,13 @@ jobs:
           test -d .build
           mkdir -p "$SWIFT_CAS_PATH"
       - name: Run dead-code audit
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p "$RUNNER_TEMP/nightly-audits/dead-code"
           bash Scripts/dead_code_audit.sh \
-            --output-dir "$RUNNER_TEMP/nightly-audits/dead-code" \
-            --verbose | tee "$RUNNER_TEMP/nightly-audits/dead-code-summary.txt"
+            --self-test \
+            --output-dir "$RUNNER_TEMP/nightly-audits/dead-code" | tee "$RUNNER_TEMP/nightly-audits/dead-code-summary.txt"
       - name: Run fiction audit
         env:
           DUMP_SURFACE: "1"
@@ -1165,12 +1170,17 @@ jobs:
             cat "$RUNNER_TEMP/nightly-audits/fiction-audit.txt"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+      # always(): a failed audit (e.g. the dead-code self-test) still leaves
+      # its candidate lists under nightly-audits/; upload them for diagnosis.
+      # Keep master's healthy-run guard: a successful job with no audit files
+      # is still an error, while an already-failed job only warns.
       - name: Upload audit artifacts
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: nightly-audits-${{ github.run_id }}
           path: ${{ runner.temp }}/nightly-audits
-          if-no-files-found: error
+          if-no-files-found: ${{ job.status == 'success' && 'error' || 'warn' }}
           retention-days: 30
 
   kotlinx-io-reference:

@@ -1,7 +1,5 @@
 
 extension BuildASTPhase.ExpressionParser {
-    /// Kotlin spec: lambdas get the callee name as their implicit label for
-    /// `return@label`.
     private func calleeNameForImplicitLabel(_ exprID: ExprID) -> InternedString? {
         guard let expr = astArena.expr(exprID) else { return nil }
         switch expr {
@@ -65,10 +63,6 @@ extension BuildASTPhase.ExpressionParser {
         return parsePostfixSuffixes(expr, receiverStartIndex: receiverStartIndex)
     }
 
-    /// Call-argument lambdas re-enter here so that Kotlin's
-    /// `{ ... }(...)` direct-invocation form parses: a `lambdaLiteral` is a
-    /// `primaryExpression` and takes the same `postfixUnarySuffix` chain as
-    /// any other primary.
     private func parsePostfixSuffixes(_ initialExpr: ExprID, receiverStartIndex: Int) -> ExprID {
         var expr = initialExpr
         while true {
@@ -370,13 +364,6 @@ extension BuildASTPhase.ExpressionParser {
                 if let argument = parseCallArgument(implicitLambdaLabel: implicitLambdaLabel) {
                     args.append(argument)
                 } else if matches(.symbol(.comma)) || index > argumentStart {
-                    // An argument slot with no expression (`f(,1)`, `f(1,,2)`,
-                    // `f(,)`), or a label/spread consumed without an expression
-                    // (`f(x = ,1)`, `f(x = )`, `f(*)`). Only a trailing comma
-                    // after a real argument is legal (Kotlin 1.4+).
-                    // A slot whose expression already diagnosed itself (e.g.
-                    // `f(::)` reporting PARSE-0014 after consuming `::`) is not
-                    // "missing", so skip the redundant report.
                     if (diagnostics?.diagnostics.count ?? 0) == diagnosticsBefore {
                         diagnostics?.error(
                             "KSWIFTK-PARSE-0022",
@@ -405,10 +392,6 @@ extension BuildASTPhase.ExpressionParser {
         return args
     }
 
-    /// Consumes the `)` that closes a call's argument list. When the token
-    /// stream ends before a `)` (e.g. `{ f(g(it) }`, where the enclosing
-    /// lambda body ends first), reports the missing `)`; a stray non-`)` token
-    /// after an argument is already reported by `parseCallArguments`.
     func consumeCallArgumentsClose(open: Token) -> Token? {
         if let close = consumeIf(.symbol(.rParen)) {
             return close
@@ -436,7 +419,6 @@ extension BuildASTPhase.ExpressionParser {
             _ = consume()
         }
 
-        // Kotlin places the spread operator after the optional argument label.
         if matches(.symbol(.star)) {
             _ = consume()
             isSpread = true
@@ -446,10 +428,6 @@ extension BuildASTPhase.ExpressionParser {
         if matches(.symbol(.lBrace)) {
             let lambdaStart = index
             if let lambda = parseLambdaLiteral(label: implicitLambdaLabel) {
-                // A lambda literal is a primary expression: `foo({ 42 }())`
-                // invokes the literal directly, and `foo({ 5 }() + { 6 }())`
-                // continues into an infix expression — both postfix and infix
-                // chains must keep going past the closing `}`.
                 expr = parseInfixOperators(
                     lhs: parsePostfixSuffixes(lambda, receiverStartIndex: lambdaStart),
                     minPrecedence: 0

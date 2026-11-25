@@ -33,8 +33,6 @@ extension DeclTypeChecker {
             }
             if tracksInferredProperty {
                 driver.checkingInferredProperties.remove(symbol)
-                // A type-only run leaves accessor bodies for the source-order
-                // pass, so the declaration must not count as fully prechecked.
                 if checkAccessorBodies,
                    !hasNewErrors,
                    !driver.deferredInferredProperties.contains(symbol),
@@ -145,7 +143,6 @@ extension DeclTypeChecker {
             ctx: classCtx
         )
         if let companionDeclID = classDecl.companionObject {
-            // Infer both sides first: companion bodies may use inferred instance members.
             let diagnosticSnapshot = diagnostics.count
             let nominalDeclsCheckedBefore = driver.localNominalDeclChecks.count
             inferClassLikeMemberTypes(
@@ -202,7 +199,7 @@ extension DeclTypeChecker {
             extraLocals: baseLocals,
             outerReceiversToKeep: classDecl.isInner ? ctx.outerReceiverTypes : ctx.singletonObjectOuterReceivers
         )
-        let explicitSuperclassSymbol = explicitClassSuperclassSymbol(classDecl, ctx: classCtx)
+        let superclassSymbol = constructorSuperclassSymbol(classDecl, ctx: classCtx)
         typeCheckSecondaryConstructors(
             classDecl.secondaryConstructors,
             ctx: classCtx,
@@ -210,7 +207,7 @@ extension DeclTypeChecker {
             diagnostics: diagnostics,
             ownerSymbol: symbol,
             hasPrimaryConstructor: classDecl.hasPrimaryConstructorSyntax,
-            explicitSuperclassSymbol: explicitSuperclassSymbol,
+            superclassSymbol: superclassSymbol,
             baseLocals: baseLocals
         )
         typeCheckClassDelegation(
@@ -227,10 +224,6 @@ extension DeclTypeChecker {
         )
     }
 
-    /// Type-checks functions declared in enum entry bodies with the enum type as
-    /// their receiver. The runtime representation is still the enum ordinal;
-    /// the separate entry scope only keeps these implementations out of normal
-    /// enum-member lookup until the ordinal dispatch helper is selected.
     private func typeCheckEnumEntryMemberBodies(
         _ classDecl: ClassDecl,
         enumSymbol: SymbolID,
@@ -406,16 +399,6 @@ extension DeclTypeChecker {
             diagnostics: diagnostics
         )
 
-        // Superclass constructor arguments are evaluated in the enclosing
-        // declaration scope, so visit them before lowering can emit the
-        // constructor call. This also records constant-property bindings for
-        // expressions such as `Base64(STANDARD_ALPHABET, 0)`.
-        // They run before this object is initialized, so `this` and the
-        // enclosing instance's members stay out of scope; only enclosing
-        // singleton objects (and other kept outer receivers) remain —
-        // `object Inner : Base(this.foo())` inside `object Outer` resolves
-        // `this` to Outer, while the same expression inside a class is
-        // rejected (KUU-3595).
         var superclassArgumentLocals: LocalBindings = [:]
         bindObjectSuperConstructorCall(
             objectDecl,
@@ -439,10 +422,6 @@ extension DeclTypeChecker {
         typeCheckInitBlocks(objectDecl.initBlocks, ctx: objectCtx)
     }
 
-    /// Records the full call binding under the object symbol, so KIR
-    /// lowering can apply the same named-argument / default normalization as
-    /// for a class header's `super(...)` call
-    /// (`typeCheckPrimaryConstructorSuperDelegation`).
     func bindObjectSuperConstructorCall(
         _ objectDecl: ObjectDecl,
         symbol: SymbolID,
@@ -450,10 +429,6 @@ extension DeclTypeChecker {
         locals: inout LocalBindings
     ) {
         let sema = ctx.sema
-        // Expect objects never run a supertype constructor themselves —
-        // initialization belongs to the matching actual declaration, so a
-        // bare `Base` supertype must not be resolved as a `Base()` call
-        // (KUU-4337).
         guard sema.symbols.symbol(symbol)?.flags.contains(.expectDeclaration) != true else { return }
         guard let superclassSymbol = superclassSymbol(of: symbol, sema: sema),
               let superclassInfo = sema.symbols.symbol(superclassSymbol)
@@ -616,9 +591,6 @@ extension DeclTypeChecker {
                     diagnostics: diagnostics
                 )
                 if needsMemberPropertyRecheck(property, nestedClasses: nestedClasses) {
-                    // Keep speculative diagnostics for properties that can
-                    // depend on inferred nested member returns until their
-                    // bodies have been checked.
                     diagnostics.truncate(to: diagnosticSnapshot)
                     driver.markLocalNominalRechecks(since: nominalDeclsCheckedBefore)
                 }
@@ -668,8 +640,6 @@ extension DeclTypeChecker {
             diagnostics: diagnostics
         )
 
-        // Infer companion types before the authoritative function pass;
-        // companion bodies can in turn depend on those function return types.
         let diagnosticSnapshot = diagnostics.count
         let nominalDeclsCheckedBefore = driver.localNominalDeclChecks.count
         for declID in nestedObjects {
@@ -692,8 +662,6 @@ extension DeclTypeChecker {
         diagnostics.truncate(to: diagnosticSnapshot)
         driver.markLocalNominalRechecks(since: nominalDeclsCheckedBefore)
 
-        // Nested types can also expose inferred companion properties. Resolve
-        // them before enclosing functions see the header's `Any?` placeholder.
         for declID in nestedClasses {
             typeCheckNestedClassDecl(
                 declID: declID,
@@ -704,10 +672,6 @@ extension DeclTypeChecker {
             )
         }
 
-        // Recheck properties after nested classes publish inferred member
-        // return types. Initializers and delegates can use those returns to
-        // determine their own types, including the effective delegate returned
-        // by provideDelegate.
         for declID in memberProperties {
             guard case let .propertyDecl(property)? = ast.arena.decl(declID),
                   needsMemberPropertyRecheck(property, nestedClasses: nestedClasses),
@@ -791,7 +755,6 @@ extension DeclTypeChecker {
         else { return }
         switch decl {
         case let .classDecl(classDecl):
-            // Non-inner nested classes do not capture instances, while singleton objects remain lexical receivers.
             let nestedCtx = ctx.nestedClassContext(isInner: classDecl.isInner)
             typeCheckClassDecl(
                 classDecl,
@@ -813,6 +776,45 @@ extension DeclTypeChecker {
         default:
             break
         }
+    }
+
+    private func enclosingClassifierScopeForObject(
+        ownerSymbol: SymbolID,
+        ctx: TypeInferenceContext
+    ) -> Scope? {
+        let sema = ctx.sema
+        guard let owner = sema.symbols.symbol(ownerSymbol), owner.kind == .object,
+              let parentSymbol = sema.symbols.parentSymbol(for: ownerSymbol),
+              let parent = sema.symbols.symbol(parentSymbol),
+              [.class, .interface, .enumClass, .annotationClass].contains(parent.kind),
+              let enclosingScope = ctx.scope as? ClassMemberScope,
+              enclosingScope.owner == parentSymbol,
+              let outerParent = enclosingScope.parent
+        else { return nil }
+        let classifiers = ClassMemberScope(
+            parent: outerParent,
+            symbols: sema.symbols,
+            ownerSymbol: parentSymbol,
+            thisType: nil
+        )
+        if parent.kind == .enumClass {
+            let valuesName = ctx.interner.intern("values")
+            for valuesSymbol in sema.symbols.lookupAll(fqName: parent.fqName + [valuesName]) {
+                guard let values = sema.symbols.symbol(valuesSymbol),
+                      values.kind == .function,
+                      values.flags.contains([.synthetic, .static]),
+                      sema.symbols.parentSymbol(for: valuesSymbol) == parentSymbol
+                else {
+                    continue
+                }
+                classifiers.insert(valuesSymbol)
+            }
+            for child in sema.symbols.declaredChildren(of: parentSymbol) {
+                guard let childInfo = sema.symbols.symbol(child), childInfo.kind == .field else { continue }
+                classifiers.insert(child)
+            }
+        }
+        return classifiers
     }
 
     func buildClassMemberScope(
@@ -887,10 +889,7 @@ extension DeclTypeChecker {
             return ownScope
         }
 
-        // A class inherits the unqualified companion shorthand of its class
-        // supertypes. Keep each superclass in its own scope so the nearest
-        // companion wins while lookup continues through the rest of the chain.
-        var companionScopeParent: Scope = ctx.scope
+        var companionScopeParent: Scope = enclosingClassifierScopeForObject(ownerSymbol: ownerSymbol, ctx: ctx) ?? ctx.scope
         if let owner = sema.symbols.symbol(ownerSymbol), owner.kind == .class || owner.kind == .object {
             var inheritedClassSymbols: [SymbolID] = []
             var classQueue = sema.symbols.directSupertypes(for: ownerSymbol).filter {
@@ -923,10 +922,6 @@ extension DeclTypeChecker {
             thisType: ownerType
         )
 
-        // Property initializers (and accessors) are checked directly in this
-        // scope rather than a function scope, so the class's own type
-        // parameters must be visible for explicit type arguments such as
-        // `val items = mutableListOf<T>()` to resolve.
         for typeParameterSymbol in sema.types.nominalTypeParameterSymbols(for: ownerSymbol) {
             classScope.insert(typeParameterSymbol)
         }
@@ -937,17 +932,12 @@ extension DeclTypeChecker {
             }
         }
 
-        // Class delegation forwarders are synthetic symbols, not AST members,
-        // but must be visible to unqualified calls in the delegating class body.
         for forwardingSymbol in sema.symbols.classDelegationForwardingMethodSymbols(forClass: ownerSymbol)
             + sema.symbols.classDelegationForwardingPropertySymbols(forClass: ownerSymbol)
         {
             classScope.insert(forwardingSymbol)
         }
 
-        // Inner classes declared in a supertype are inherited members, so
-        // `Inner(...)` resolves without qualification in a derived class.
-        // Own declarations shadow inherited ones of the same name.
         var ownNames: Set<InternedString> = []
         for declID in nestedClasses + nestedObjects {
             if let symbol = sema.bindings.declSymbols[declID],
@@ -977,16 +967,9 @@ extension DeclTypeChecker {
             superQueue.append(contentsOf: sema.symbols.directSupertypes(for: superSymbol))
         }
 
-        // Enum entries are not in memberFunctions/memberProperties/nested*,
-        // but they must be visible without qualification inside the enum class
-        // and inside its companion object (e.g. `A` in `companion object { fun pick(): D = A }`).
         if let owner = sema.symbols.symbol(ownerSymbol),
            owner.kind == .enumClass
         {
-            // `values()` is a synthetic static member rather than an AST
-            // declaration. Header collection inserts it into its class scope,
-            // so preserve it when rebuilding the scope used for member bodies
-            // and companion initializers.
             let valuesName = ctx.interner.intern("values")
             for valuesSymbol in sema.symbols.lookupAll(fqName: owner.fqName + [valuesName]) {
                 guard let values = sema.symbols.symbol(valuesSymbol),
@@ -1011,9 +994,6 @@ extension DeclTypeChecker {
         return classScope
     }
 
-    /// Resolves and type-checks each enum entry's constructor call. Without
-    /// this the expressions are never visited by Sema, and lowering cannot
-    /// use the selected constructor or its argument-to-parameter mapping.
     private func typeCheckEnumEntryConstructorArguments(
         _ classDecl: ClassDecl,
         symbol: SymbolID,
@@ -1048,10 +1028,6 @@ extension DeclTypeChecker {
 
             typeCheckAnnotationFactories(entry.annotations, symbol: entrySymbol, ctx: ctx)
 
-            // Enum entry arguments are constructor calls in the enum's lexical
-            // scope. Use the same candidate preparation, overload selection,
-            // literal adaptation, and contextual lambda inference as an
-            // ordinary constructor call, then retain its exact mapping for KIR.
             var delegation = companionHeaderDelegationContext(
                 superclassSymbol: symbol,
                 ctx: argCtx,

@@ -1,5 +1,4 @@
 extension CallLowerer {
-    /// Lowers `typeOf<T>()` calls to `kk_typeof(typeToken, nameHint, argsRaw, isNullable)`.
     func lowerTypeOfCallExpr(
         _ exprID: ExprID,
         calleeExpr: ExprID,
@@ -49,8 +48,6 @@ extension CallLowerer {
         return result
     }
 
-    /// This mirrors `ObjectLiteralLowerer.registerKClassMetadata` but is used
-    /// for regular class constructor invocations.
     func emitKClassMetadataRegistration(
         objectSymbol: SymbolID,
         typeID: Int64,
@@ -103,7 +100,6 @@ extension CallLowerer {
         if symbol.kind == .object { flags |= 1 << 4 }
         if symbol.kind == .enumClass { flags |= 1 << 5 }
         if symbol.kind == .annotationClass { flags |= 1 << 6 }
-        // Reflection reports Kotlin modality, not the internal inheritance flags.
         let isSealed = symbol.flags.contains(.sealedType)
         let isAbstract = !isSealed && (symbol.kind == .interface || symbol.kind == .annotationClass || symbol.flags.contains(.abstractType))
         if isAbstract { flags |= 1 << 7 }

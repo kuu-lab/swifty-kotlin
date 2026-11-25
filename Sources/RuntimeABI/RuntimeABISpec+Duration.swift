@@ -16,13 +16,8 @@ public extension RuntimeABISpec {
         abi.th("kk_duration_zero"),
         abi.th("kk_duration_toDuration_long", "value unitOrdinal"),
         abi.th("kk_duration_plus", "lhsRaw rhsRaw"),
-        // `_boxed` variants serve the synthetic-stub path and return boxed
-        // TimeMark object handles; the plain `__kk_time_source_*` entries
-        // below return raw nanoseconds for bundled Kotlin `ValueTimeMark`.
         abi.nt("__kk_time_source_mark_now_boxed", "receiver"),
         abi.nt("__kk_time_source_monotonic_mark_now_boxed", "receiver"),
-        // KSP-648: TimeMark operations live in kotlin/time/TimeMark.kt; only the
-        // reading bridges remain native.
         abi.nt("__kk_time_mark_now_reading_nanos"),
         abi.nt("__kk_time_source_mark_now", "receiver"),
         abi.nt("__kk_time_source_monotonic_mark_now", "receiver"),

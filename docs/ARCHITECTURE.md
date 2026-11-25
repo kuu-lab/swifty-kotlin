@@ -24,6 +24,7 @@
 Package.swift
  +-- RuntimeABI           (target)      Runtime ABI 契約と extern view の共有境界
  +-- RuntimeCAtomics      (target)      Runtime が使う C11 atomic shim
+ +-- CSHA256              (target)      CompilerCore の debug ビルド用 SHA-256 C 実装（content fingerprint）
  +-- CSQLite              (systemLibrary) Runtime/JDBC が使う SQLite C API
  +-- CompilerCore         (library)     フロントエンド (Lex〜Lowering / JVM frontend)、LLVM 非依存
  +-- CompilerBackend      (library)     バックエンド (Native/Wasm Codegen + Link、JVM classfile/JAR/DEX/APK)、LLVM 依存は Native のみ
@@ -42,7 +43,7 @@ Package.swift
 ```text
 KSwiftKCLI           --> CompilerCore, CompilerBackend
                          CompilerBackend --> CompilerCore, RuntimeABI
-                         CompilerCore    --> RuntimeABI
+                         CompilerCore    --> RuntimeABI, CSHA256
 KSwiftLSPCLI         --> LSPServer, CompilerCore, CompilerBackend
                          LSPServer       --> CompilerCore
 GoldenHarnessWorker  --> GoldenHarnessSupport --> CompilerCore
@@ -111,7 +112,7 @@ LoadSources
 | `Lowering/` | KIR 脱糖パス群 | `LoweringPhase.swift` (パス登録) + 各 `*LoweringPass.swift`。実行順は §9 参照 | for/when/property のデシュガー修正、新 lowering pass 追加 |
 | `Sema/NameMangler.swift` | マングリング | `NameMangler` | シンボル名マングリング修正 |
 | `Driver/` | パイプライン制御 + frontend/JVM 分岐 + 横断インフラ | `Driver.swift`, `CompilationContext.swift`, `Diagnostics.swift`, `Phases.swift`, `FrontendPhases.swift`, `SourceManager.swift`, `SourceLocation.swift`, `CommandRunner.swift`, `PhaseTimer.swift`, `IncrementalCompilationCache.swift`, `DependencyGraph.swift`, `FileFingerprint.swift`, `JVMFrontendPhase.swift`, `JVMSourceValidationPhase.swift`, `JVMClasspath*.swift`, `JVMProgramBuilder*.swift`, `BundledStdlib.swift`, `StdlibProfile.swift` | 新フェーズ追加、診断メッセージ修正、JVM classpath/frontend、インクリメンタルビルド |
-| `Stdlib/` | Kotlin stdlib ソース（リソース） | `kotlin/**`, `kotlinx/**`, `java/**`, `platform/**`, `kswiftk/**` に加え、JVM 用 `jvm/**`、wasm target 用 `wasm/**`（詳細は [`stdlib-pipeline.md`](stdlib-pipeline.md) / [`jvm-backend.md`](jvm-backend.md) / [`wasm-support-plan.md`](wasm-support-plan.md)）。native source injection は `jvm/` を除外し、`wasm/` は wasm target 時のみ注入（`Driver/BundledStdlib.swift`） | stdlib 拡張関数の追加・修正 |
+| `Stdlib/` | Kotlin stdlib ソース（リソース） | `kotlin/**`, `kotlinx/**`, `java/**`, `platform/**`, `kswiftk/**` に加え、JVM 用 `jvm/**`、wasm target 用 `wasm/**`（詳細は [`stdlib-pipeline.md`](stdlib-pipeline.md) / [`jvm-backend.md`](jvm-backend.md)）。native source injection は `jvm/` を除外し、`wasm/` は wasm target 時のみ注入（`Driver/BundledStdlib.swift`） | stdlib 拡張関数の追加・修正 |
 
 ### `Sources/CompilerBackend/` (Native/Wasm/JVM backends)
 
@@ -129,7 +130,7 @@ LoadSources
 | `CodegenRuntimeSupport.swift` (+`+RuntimeObjects`) | ランタイムサポート関数 |
 | `CodegenSymbolSupport.swift` | シンボルサポート |
 | `JVM/` (`JVMCodegenPhase.swift`, `JVMClassFile.swift`, `JVMConstantPool.swift`, `JVMMethodEmitter.swift`, `JVMJarArchive.swift`, `AndroidPackaging.swift` ほか) | JVM backend。typed `JVMProgram` から `.class` / `.jar` を生成し、`dex` / `apk` は Android SDK build-tools で後処理 | JVM classfile/JAR/DEX/APK 出力、Android packaging |
-| `Wasm/` (`WasmModule.swift`, `WasmEmitter.swift`, `WasmEmitter+Function.swift`, `WasmEmitter+Runtime.swift`) | wasm バックエンド（LLVM 非依存の自前バイナリエンコーダ + KIR→wasm エミッタ）。`--target wasm32-wasi` で `.wasm` を生成（計画は [`wasm-support-plan.md`](wasm-support-plan.md)） | wasm モジュール出力 |
+| `Wasm/` (`WasmModule.swift`, `WasmEmitter.swift`, `WasmEmitter+Function.swift`, `WasmEmitter+Runtime.swift`) | wasm バックエンド（LLVM 非依存の自前バイナリエンコーダ + KIR→wasm エミッタ）。`--target wasm32-wasi` で `.wasm` を生成 | wasm モジュール出力 |
 | `StdlibArtifactCache.swift` | 実行ファイル生成時に使う stdlib `.kklib` の生成・探索（パッケージ同梱を優先、無ければユーザーキャッシュに生成） |
 
 ### `Sources/KSwiftKCLI/`
@@ -428,7 +429,7 @@ CI は 2 つの workflow に分かれる。`.github/workflows/ci.yml` は PR と
 | ジョブ | 内容 |
 |---|---|
 | `repository-checks` | Action pin 検証、`TODO.md` タスク ID 重複、fuzzer キーワード、テスト並列度設定、npm ci 限定チェック、Kotlin compiler archive 検証ポリシー、`jscpd --config .jscpd-ci.json`（閾値超過で失敗） |
-| `swift-checks` | 2 レーンの matrix（`Build all targets` / `Run SmokeTests`）。両方 `Scripts/build_swift_tests.sh` でテストバンドルをビルドし、SmokeTests 側だけ `KSWIFTK_CI_SMOKE_ONLY=1` と `SWIFT_SMOKE_FILTER` で `CompilerCoreTests.SmokeTests` を実行する |
+| `swift-checks` | 単一ジョブ `Build all targets`。`Scripts/build_swift_tests.sh` で全ターゲットのテストバンドルをビルドするだけで、テストは実行しない（`SmokeTests` は PR ゲートから外れ、nightly の `verify-core` shard 1 で実行する） |
 | `ci-gate` | 上記全ジョブの成功を集約する。ジョブを増減しても ruleset の変更は不要 |
 
 `nightly-full.yml`:
@@ -455,7 +456,7 @@ macOS runner 上での検証は `nightly-full.yml` の `kotlinx-io-reference`（
 - [`setup-self-hosted`](../.github/actions/setup-self-hosted/action.yml) — Linux / macOS ランナーの共通準備
 - [`setup-swift`](../.github/actions/setup-swift/action.yml) — 指定バージョン（6.3）の Swift ツールチェーンを用意し、バージョン一致を検証
 - [`setup-llvm`](../.github/actions/setup-llvm/action.yml) — `llvm-dev` を導入し `llvm-config` から `KSWIFTK_LLVM_DYLIB` 等を導出（`verify-self-hosted` のみ）
-- [`setup-swiftpm-cache`](../.github/actions/setup-swiftpm-cache/action.yml) — `.build` を actions/cache から復元。`swift-checks`（ci.yml）と `build-debug-tests` / `build-release-kswiftc`（nightly-full.yml）が `save: "false"`（restore-only）で使用。全ターゲット用は `fast`、SmokeTests 用は `fast-smoke` のキーを使う
+- [`setup-swiftpm-cache`](../.github/actions/setup-swiftpm-cache/action.yml) — `.build` を actions/cache から復元。`swift-checks`（ci.yml）と `build-debug-tests` / `build-release-kswiftc`（nightly-full.yml）が `save: "false"`（restore-only）で使用し、バリアントごとに `fast` / `release-kswiftc` のキーを使う
 
 `setup-llvm` で LLVM を明示的に導入するのは `verify-self-hosted` と `mutation-fuzzer`（`kotlinx-io-apple-candidate` は brew の LLVM を `KSWIFTK_LLVM_DYLIB` に設定する）。`verify-diff` / `verify-jvm-diff` / `verify-wasm` は `setup-llvm` を使わず、release `kswiftc` が実行時に `KSWIFTK_LLVM_DYLIB` または既定候補パスから `libLLVM` を `dlopen` する（§2。WASM エミッタは LLVM 非依存）。
 
@@ -612,7 +613,7 @@ Kotlin/Native (および共通 IR) が生成する `.klib` も `-I` のサーチ
 フロントエンドフェーズ (Lex, Parse, BuildAST) はファイル単位で並列実行可能:
 
 - `-Xfrontend jobs=N` で並列度を指定（未指定時は `min(コア数, 8)`、`jobs=1` で直列に戻せる）
-- `DispatchQueue.concurrentPerform` で並列化し、`DispatchSemaphore` / `DispatchGroup` で並列度を制御（`Driver/FrontendPhases.swift`）
+- 並列化は `DispatchQueue.concurrentPerform` のみで行う（`DispatchSemaphore` / `DispatchGroup` は使わない）。Lex/Parse はファイルごとに反復し、BuildAST は `min(jobs, ファイル数)` 個の反復を各 worker が stride で分担する（`Driver/FrontendPhases.swift`）
 - 並列実行後は `FileID` 順でソートし決定性を保証
 - 診断メッセージも `sortBySourceLocation()` でソース位置順に安定化
 - Sema の独立 body/準備ワーカーは `frontendJobs > 1` のとき既定で有効（`-Xfrontend sema-serial` で直列に戻せる。`-Xfrontend sema-parallel` は互換のため残す）

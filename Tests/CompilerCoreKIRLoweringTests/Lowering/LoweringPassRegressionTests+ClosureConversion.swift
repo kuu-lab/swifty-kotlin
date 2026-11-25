@@ -559,7 +559,7 @@ extension LoweringPassRegressionTests {
     }
 
     @Test
-    func testClosureConversionSkipsThrowingLambdaCalls() throws {
+    func testClosureConversionConvertsThrowingLambdaCalls() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
@@ -626,15 +626,43 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
+        let sema = makeSemaModule(types: types).ctx
         let ctx = makeKIRContext(
             moduleName: "ThrowingLambdaTest",
-            interner: interner
+            interner: interner,
+            sema: sema
         )
 
-        #expect(!pass.shouldRun(module: module, ctx: ctx))
+        // A pre-ABI `canThrow` bit is not proof the lambda cannot throw: source
+        // calls acquire thrown channels later in ABI lowering, and function-value
+        // adapters need the closure-object path regardless. The pass must still
+        // convert so stored lambdas do not keep the flat capture ABI.
+        #expect(pass.shouldRun(module: module, ctx: ctx))
         try pass.run(module: module, ctx: ctx)
 
-        #expect(Set(findAllKIRFunctions(in: module).map(\.symbol)) == Set([lambdaSym, mainSym]))
+        let invokeWrapper = try closureWrapper(for: lambdaSym, in: module)
+        let invokeWrapperName = interner.resolve(invokeWrapper.name)
+        let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "Expected lowered main function.")
+        let callees = extractCallees(from: loweredMain.body, interner: interner)
+        #expect(callees.contains(RuntimeCall.objectNew.name),
+            "Expected closure object allocation via kk_object_new")
+        #expect(callees.contains(RuntimeCall.arraySet.name),
+            "Expected capture storage via kk_array_set")
+        #expect(callees.contains(invokeWrapperName),
+            "Expected invoke wrapper \(invokeWrapperName) to be called")
+        #expect(!callees.contains(interner.resolve(lambdaName)),
+            "Expected direct lambda call to be replaced by closure invoke")
+
+        // The rewritten call keeps the caller's thrown channel: the wrapper
+        // propagates the lambda's exception to this thrownResult slot.
+        let rewrittenCall = try #require(loweredMain.body.first {
+            if case let .call(_, callee, _, _, _, _, _, _) = $0 { return callee == invokeWrapper.name }
+            return false
+        })
+        if case let .call(_, _, _, _, canThrow, rewrittenThrown, _, _) = rewrittenCall {
+            #expect(canThrow)
+            #expect(rewrittenThrown == thrownSlot)
+        }
     }
 
     // MARK: - CLSR-001: Multiple capture tests

@@ -81,7 +81,6 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
         } else {
             mutator.depth -= 1
             if mutator.suspendedAt.last == mutator.depth {
-                // Return from a managed callback into an outer blocking call.
                 mutator.parked = true
                 condition.broadcast()
             } else {

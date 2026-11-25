@@ -1,6 +1,4 @@
 extension CallLowerer {
-    /// A user-declared `contextOf()` resolves to its own symbol and must keep
-    /// normal call lowering instead of being replaced by a context receiver.
     private func isStdlibContextOfCall(
         _ exprID: ExprID,
         sema: SemaModule,
@@ -14,8 +12,6 @@ extension CallLowerer {
         return resolved.fqName == KnownCompilerNames(interner: interner).kotlinContextOfFQName
     }
 
-    /// `kotlin.assert` resolved through Sema (either overload). A user-declared
-    /// `assert` in another package keeps normal call lowering.
     private func isStdlibAssertCall(
         _ exprID: ExprID,
         sema: SemaModule,
@@ -77,9 +73,6 @@ extension CallLowerer {
             )
         }
 
-        // KUU-4431: `isArrayOf<T>()` spelled without a receiver inside an
-        // `Array<*>` scope (`with(arr) { isArrayOf<Int>() }`) resolves to the
-        // same bundled intrinsic as the member-call spelling.
         if let callBinding = sema.bindings.callBindings[exprID],
            let calleeSymbol = sema.symbols.symbol(callBinding.chosenCallee),
            calleeSymbol.fqName == KnownCompilerNames(interner: interner).kotlinIsArrayOfFQName
@@ -110,8 +103,6 @@ extension CallLowerer {
             ]
             let receiver = receiverCandidates.compactMap({ $0 }).first(where: suppliesArrayReceiver)
             if let receiver {
-                // See the member-call site: kotlinc's non-inline reified
-                // `isArrayOf` observes only the type parameter's upper bound.
                 let componentToken = runtimeArrayComponentTypeExpr(
                     for: callBinding.substitutedTypeArguments.first ?? sema.types.anyType,
                     useReifiedToken: false,
@@ -134,10 +125,6 @@ extension CallLowerer {
             }
         }
 
-        // `G<Int>.member` wraps `G<Int>` in a marked `.call`; Sema binds its
-        // qualifier's nominal symbol instead of a call binding. The qualifier
-        // is a namespace reference, never a real call — emit the same
-        // class-symbol value a bare `Outer` produces for `Outer.Inner()`.
         if ast.arena.isTypeQualifierCall(exprID),
            let qualifierSymbol = sema.bindings.identifierSymbol(for: exprID)
         {
@@ -522,8 +509,6 @@ extension CallLowerer {
             )
         }
         let knownNames = KnownCompilerNames(interner: interner)
-        // buildList, buildSet, and buildMap are fully Kotlinized (KSP-622, KSP-623)
-        // and no longer use builder-DSL runtime lowering.
         if let loweredToList = tryLowerCollectionToListCall(
             sourceCalleeName: sourceCalleeName,
             args: args,
@@ -572,10 +557,6 @@ extension CallLowerer {
             }
             return loweredCollectionFactory
         }
-        // Numeric conversions take no value parameters, so a resolved callee
-        // that consumes the single argument (e.g. an implicit-receiver
-        // `toInt(radix)` inside a `String` extension) is a real call, not a
-        // conversion of that argument.
         let chosenConsumesArgument = chosen
             .flatMap { sema.symbols.functionSignature(for: $0) }
             .map { $0.parameterTypes.count == args.count } ?? false
@@ -615,8 +596,6 @@ extension CallLowerer {
         )
     }
 
-    /// Nil for interface-typed results (those dispatch through the itable, not
-    /// the class vtable).
     private func collectionFactoryResultClassSymbol(
         result: KIRExprID,
         boundType: TypeID?,
@@ -661,8 +640,6 @@ extension CallLowerer {
             case interner.intern("LongRange"):
                 interner.intern("__kk_long_range_toList")
             case interner.intern("ULongRange"):
-                // KSP-1524: ULongRange.toList() is bundled source; preserve
-                // the selected Kotlin declaration instead of a removed bridge.
                 nil
             case interner.intern("CharRange"), interner.intern("CharProgression"):
                 interner.intern("__kk_char_range_toList")
@@ -697,14 +674,7 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         let rawReceiverType = sema.types.makeNonNullable(sema.bindings.exprTypes[argumentExpr] ?? sema.types.anyType)
-        // A smartcast intersection (`Interface & Char`) keeps the primitive
-        // as one part; resolve to it so the conversion table sees the
-        // concrete primitive receiver type.
         let receiverType = smartcastNarrowedPrimitiveType(of: rawReceiverType, sema: sema) ?? rawReceiverType
-        // The argument can still carry its erased/boxed representation
-        // while the bound type names a non-null primitive; materialize the
-        // raw value so conversion callees and the identity path consume
-        // the primitive payload, not the box handle.
         let conversionArgumentID = materializePrimitiveValue(
             loweredArgumentID, toType: receiverType, sema: sema,
             arena: arena, instructions: &instructions

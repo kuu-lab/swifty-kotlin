@@ -29,7 +29,6 @@ extension CallLowerer {
                sema.symbols.accessorOwnerProperty(for: chosen) == nil,
                sema.symbols.parentSymbol(for: chosen).flatMap(sema.symbols.symbol)?.kind != .property
             {
-                // A same-named extension function is not the endpoint property.
                 return nil
             }
             if (calleeName == startName || calleeName == endInclusiveName || calleeName == endExclusiveName),
@@ -134,12 +133,9 @@ extension CallLowerer {
                 }()
             let isLongRange = nonNullReceiverType == sema.types.longType
             if isRangeLikeReceiver && !isExplicitProgressionSourceCall && !isULongRangeSourceEndProperty {
-                // KSP-1524: range first/last values are raw bits at this ABI
-                // boundary, so ULong can use the shared getter as well.
                 let runtimeGetter: InternedString? = switch calleeName {
                 case startName:
                     interner.intern("__kk_range_first")
-                // `endInclusive` is the `ClosedRange` property name; `end` is the legacy alias.
                 case endName, endInclusiveName:
                     interner.intern("__kk_range_last")
                 case endExclusiveName:

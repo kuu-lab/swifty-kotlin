@@ -1,8 +1,6 @@
 @testable import CompilerCore
 import Foundation
 
-/// Golden dumps are intended to run in a dedicated worker process.
-
 enum GoldenHarnessDumpError: Error, CustomStringConvertible {
     case missingSourceFile
     case missingSyntaxTree
@@ -25,23 +23,6 @@ enum GoldenHarnessDumpError: Error, CustomStringConvertible {
     }
 }
 
-/// Which contract `dumpSema` renders the ordinary `symbol`/`expr`/`decl`
-/// body under (RF-GOLDEN-007).
-///
-/// `.current` is the committed format: `symbol` rows for every referenced
-/// symbol whose `declSite` sits inside the case file, and `call=`/`ref=`/
-/// `type=` spelled with the RF-GOLDEN-010 implementation-topology key.
-///
-/// `.fixtureOwned` is the fixture-scoped format: `symbol` rows keep only
-/// declarations the RF-GOLDEN-002 origin classifier proves fixture-owned —
-/// `.unknown` stays surfaced rather than silently folded into external
-/// coverage — and `call=`/`ref=`/`type=`/`sig=`/`targs=` spell the
-/// RF-GOLDEN-006 public declaration reference. The `section stdlib-targets`
-/// block (RF-GOLDEN-011) renders identically under both contracts; the split
-/// between ordinary and dedicated output happens at render time from
-/// ownership and the spec's target list, never by post-processing strings.
-/// RF-GOLDEN-008 made `.fixtureOwned` the default contract after maintainer
-/// review; `.current` remains selectable only for tests comparing formats.
 enum GoldenSemaRenderingContract {
     case current
     case fixtureOwned
@@ -183,7 +164,6 @@ enum GoldenHarnessDump {
             contract: renderingContract
         )
 
-        // Render body lines first to track referenced symbols
         var bodyLines: [String] = []
 
         if let file = ast.file(for: sourceFileID) {
@@ -240,18 +220,12 @@ enum GoldenHarnessDump {
 
         var outputLines = symbolLines + bodyLines + diagnosticLines
         if let caseSpec, !caseSpec.targets.isEmpty {
-            // RF-GOLDEN-011: dedicated target section — the stdlib surface a
-            // case claims responsibility for, kept out of the ordinary
-            // symbol/expr body so fixtures stop snapshotting the surface
-            // implicitly. Resolution failures throw before anything is
-            // emitted, so UPDATE_GOLDEN never writes a truncated section.
             outputLines.append(GoldenHarnessTargetSection.sectionHeader)
             outputLines.append(contentsOf: try GoldenHarnessTargetSection.render(
                 targets: caseSpec.targets,
                 ctx: ctx,
                 sema: sema,
-                sourceManager: sourceManager,
-                interner: interner
+                sourceManager: sourceManager
             ))
         }
         return outputLines.joined(separator: "\n") + "\n"
@@ -273,9 +247,6 @@ enum GoldenHarnessDump {
             .compactMap { diagnostic -> (LineColumn, String)? in
                 guard let range = diagnostic.primaryRange, range.start.file == sourceFileID else { return nil }
                 let position = sourceManager.lineColumn(of: range.start)
-                // Secondary ranges (e.g. expected-type origin, ambiguous
-                // overload candidates) are pinned for same-file positions only;
-                // library-side sites stay out of the fixture-facing dump.
                 let secondaryPositions = diagnostic.secondaryRanges
                     .filter { $0.start.file == sourceFileID }
                     .map { sourceManager.lineColumn(of: $0.start) }
@@ -402,7 +373,6 @@ enum GoldenHarnessDump {
             try runFrontend(ctx)
             try SemaPhase().run(ctx)
         } catch {
-            // Compilation errors are expected for diagnostic test cases.
         }
         let json = ctx.diagnostics.renderJSON(ctx.sourceManager)
         let normalized = json.replacingOccurrences(

@@ -1,11 +1,6 @@
 import Foundation
 import Dispatch
 
-/// Cache key for `declaredSupertypeInstanceTypes` fresh-start calls
-/// (KUU-4013). The transitive supertype-instance closure only depends on the
-/// owner, the requesting context's package/imports, and the symbol-table
-/// shape — captured by the monotonic symbol count, which any registration or
-/// lazy materialization bumps — so a same-key hit replays identical work.
 struct HeaderSupertypeClosureKey: Hashable {
     struct ImportKey: Hashable {
         var path: [InternedString]
@@ -25,8 +20,6 @@ final class DataFlowSemaPhase: CompilerPhase {
 
     private let capturesImportedStdlibSnapshot: Bool
 
-    /// KUU-4013: memoized transitive supertype-instance closures keyed by
-    /// ``HeaderSupertypeClosureKey``, plus the set of closures still being
     /// computed. Resolving a written supertype clause can re-enter the same
     /// owner closure through unqualified-name recovery; the in-progress set
     /// turns that cyclic descent into an empty contribution instead of an
@@ -54,13 +47,12 @@ final class DataFlowSemaPhase: CompilerPhase {
         let types = cachedImportSnapshot?.makeTypes(symbols: symbols) ?? TypeSystem()
         types.symbolTable = symbols
         let bindings = BindingTable()
+        if ctx.options.emit.isJVM {
+            symbols.jvmFilePackages = Dictionary(uniqueKeysWithValues: ast.files.map { ($0.fileID, $0.packageFQName) })
+        }
 
         // Build the bundled declaration index from AST before synthetic registration,
         // but keep bundled SymbolTable header collection after synthetic type foundations.
-        // Computed before SemaModule construction so it can be passed into the
-        // initializer directly (see SemaModule.bundledIndex) rather than set
-        // via a later mutation, matching the existing importedInlineFunctions
-        // constructor-parameter convention.
         var bundledIndex = withSubPhaseTiming("buildBundledIndex", timer: ctx.phaseTimer) {
             BundledDeclarationIndex.build(
                 ast: ast,
@@ -139,13 +131,9 @@ final class DataFlowSemaPhase: CompilerPhase {
         // the real symbols, so these passes simply find nothing to do.
         var predeclaredEarlyHeaders: [DeclID: SymbolID] = [:]
         withSubPhaseTiming("predeclareBundledHeaders", timer: ctx.phaseTimer) {
-            // JVM intrinsic nominals own their headers before residual
-            // registration, just as source-backed Native stdlib types do.
             if ctx.options.emit.isJVM {
                 for file in ast.sortedFiles {
                     let isPlatform = ctx.sourceManager.path(of: file.fileID).hasPrefix("<kswiftk-jvm>/")
-                    // The residual coroutine registry reuses real classpath
-                    // nominals when their headers are already available.
                     let isImportedCoroutine = ctx.jvmImports?.sourceClasses[file.fileID]?.name.hasPrefix("kotlinx/coroutines/") == true
                     guard isPlatform || isImportedCoroutine else { continue }
                     if let scope = fileScopes[file.fileID.rawValue] {
@@ -185,7 +173,6 @@ final class DataFlowSemaPhase: CompilerPhase {
             interner: ctx.interner
         )
 
-        // Anchor real JVM runtime nominals before optional synthetic fallbacks.
         if ctx.options.emit.isJVM && ctx.options.stdlibOnly {
             sema.isJVMStdlibBuild = true
             let coroutinesPackage = ["kotlin", "coroutines"].map(ctx.interner.intern)
@@ -195,7 +182,6 @@ final class DataFlowSemaPhase: CompilerPhase {
             for file in ast.sortedFiles where ctx.sourceManager.origin(of: file.fileID) == .user {
                 guard let scope = fileScopes[file.fileID.rawValue] else { continue }
                 predeclareNominalTypeHeaders(file: file, ast: ast, symbols: symbols, scope: scope, sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics, interner: ctx.interner, into: &predeclaredEarlyHeaders)
-                // The residual registries reuse these source-backed nested types.
                 guard file.packageFQName == coroutinesPackage || file.packageFQName == timePackage else { continue }
                 let name = file.packageFQName == coroutinesPackage ? contextName : timeSourceName
                 for declaration in file.topLevelDecls {
@@ -225,7 +211,8 @@ final class DataFlowSemaPhase: CompilerPhase {
                     types: types,
                     interner: ctx.interner,
                     bundledIndex: bundledIndex,
-                    projectsCoroutineContextIsActive: ctx.jvmImports?.projectsCoroutineContextIsActive == true
+                    projectsCoroutineContextIsActive: ctx.jvmImports?.projectsCoroutineContextIsActive == true,
+                    isJVMTarget: ctx.options.emit.isJVM
                 )
             }
         }
@@ -301,8 +288,6 @@ final class DataFlowSemaPhase: CompilerPhase {
             interner: ctx.interner,
             bundledIndex: bundledIndex
         )
-        // The residual MutableSet Array overload needs complete owner headers.
-        // Iterable/Sequence addAll use the bundled MutableCollection extensions.
         let kotlinCollectionsPackage = [
             ctx.interner.intern("kotlin"),
             ctx.interner.intern("collections"),
@@ -322,7 +307,6 @@ final class DataFlowSemaPhase: CompilerPhase {
             types: types,
             interner: ctx.interner
         )
-        // KSP-1333: same covariant List contract for KTypeParameter.upperBounds.
         patchKTypeParameterUpperBoundsType(
             symbols: symbols,
             types: types,
@@ -372,9 +356,6 @@ final class DataFlowSemaPhase: CompilerPhase {
             types: types,
             interner: ctx.interner
         )
-        // ARCH-021: body type checking and later KIR lowering must use the
-        // same exact compiler-owned SymbolIDs. Resolve after all headers and
-        // validation-created symbols are present, but before body analysis.
         sema.wellKnownSymbols = WellKnownSymbols(
             symbols: symbols,
             interner: ctx.interner,
@@ -460,9 +441,6 @@ final class DataFlowSemaPhase: CompilerPhase {
         return (importedInlineFunctions, deferredWork)
     }
 
-    /// Merges the stdlib artifact's imported symbols into `bundledIndex` so
-    /// synthetic stub registration can see they are already covered (see
-    /// `BundledSyntheticStubRegistration`'s callers). `stdlibModuleName` is
     /// resolved and validated once, in `loadImportedLibrarySymbols`, from
     /// manifest.json; take it from there rather than re-reading and
     /// re-parsing that file here. A second, independent read had no
@@ -546,9 +524,6 @@ final class DataFlowSemaPhase: CompilerPhase {
         let moduleSymbols = symbols.symbols(inModule: stdlibModuleName).sorted { $0.rawValue < $1.rawValue }
         for id in moduleSymbols {
             guard let symbol = symbols.symbol(id), symbol.flags.contains(.importedLibrary) else { continue }
-            // `memberKey` answers arity/receiver-owner from the compact
-            // `ImportedMemberIndexShape` when the symbol is an unmaterialized
-            // lazy shell, so this scan does not decode declaration bodies.
             guard let key = BundledDeclarationIndex.memberKey(
                 for: symbol, symbolID: symbol.id, symbols: symbols, types: types, interner: interner
             ) else { continue }
@@ -568,10 +543,6 @@ final class DataFlowSemaPhase: CompilerPhase {
             guard symbol.kind == .function else { continue }
             let receiverSymbol: SymbolID
             if let shape = symbols.importedMemberIndexShape(for: symbol.id) {
-                // Lazy shells carry the receiver's nominal FQ name in the
-                // compact index, so the parent edge is restored without
-                // materializing the callable signature. Most functions have
-                // no extension receiver and need no parent fixup at all.
                 guard let receiverFQName = shape.receiverOwnerFQName,
                       let owner = nominalSymbol(for: receiverFQName) else { continue }
                 receiverSymbol = owner
@@ -636,8 +607,14 @@ final class DataFlowSemaPhase: CompilerPhase {
                 interner: ctx.interner, into: &predeclared
             )
         }
-        // Alias right-hand sides can reference nested types before their owners'
-        // signatures are collected, including owners in later input files.
+        if let imports = ctx.jvmImports {
+            for (declaration, symbol) in predeclared {
+                guard let file = ast.arena.decl(declaration)?.range.start.file,
+                      let info = imports.sourceClasses[file], info.flags & 1 == 0,
+                      let package = symbols.jvmFilePackages[file] else { continue }
+                symbols.setJVMPackageAccess(package, for: symbol)
+            }
+        }
         for file in orderedFiles {
             guard let fileScope = fileScopes[file.fileID.rawValue] else { continue }
             for declID in file.topLevelDecls {
@@ -649,7 +626,6 @@ final class DataFlowSemaPhase: CompilerPhase {
                 )
             }
         }
-        // Numeric subtype and least-upper-bound checks use the canonical kotlin.Number symbol.
         resolveNumberClassSymbol(
             symbols: symbols,
             types: types,
@@ -661,8 +637,6 @@ final class DataFlowSemaPhase: CompilerPhase {
             interner: ctx.interner
         )
 
-        // Type aliases are collected before the remaining headers so that their
-        // underlying type is available to signatures that mention the alias.
         for collectsTypeAliases in [true, false] {
             for (file, prepared) in zip(orderedFiles, preparedHeaders) {
                 guard let fileScope = fileScopes[file.fileID.rawValue] else { continue }
@@ -701,6 +675,7 @@ final class DataFlowSemaPhase: CompilerPhase {
             )
         }
         canonicalizeDeclarationAnnotations(ast: ast, bindings: bindings, symbols: symbols, types: types, interner: ctx.interner)
+        sema.jvmClasspathStubFiles = Set(ctx.jvmImports?.sourceClasses.keys.map { $0 } ?? [])
         withSubPhaseTiming("compilerPluginTransforms", timer: ctx.phaseTimer) {
             runCompilerPluginTransforms(
                 ast: ast, symbols: symbols, types: types, bindings: bindings,
@@ -720,7 +695,8 @@ final class DataFlowSemaPhase: CompilerPhase {
                 bindings: bindings,
                 types: types,
                 interner: ctx.interner,
-                diagnostics: ctx.diagnostics
+                diagnostics: ctx.diagnostics,
+                includeInterfaceValueClassMembers: !ctx.options.emit.isJVM
             )
         }
         withSubPhaseTiming("registerChannelSendChannelSubtype", timer: ctx.phaseTimer) {
@@ -762,9 +738,11 @@ final class DataFlowSemaPhase: CompilerPhase {
                 interner: ctx.interner
             )
         }
+        let precompiledFiles = sema.jvmClasspathStubFiles
         withSubPhaseTiming("validateTypeParameterUpperBounds", timer: ctx.phaseTimer) {
             validateTypeParameterUpperBounds(
-                symbols: symbols, types: types, interner: ctx.interner, diagnostics: ctx.diagnostics
+                symbols: symbols, types: types, interner: ctx.interner, diagnostics: ctx.diagnostics,
+                precompiledFiles: precompiledFiles
             )
         }
         withSubPhaseTiming("validateTypeAliasCycles", timer: ctx.phaseTimer) {
@@ -785,6 +763,7 @@ final class DataFlowSemaPhase: CompilerPhase {
             )
         }
         if ctx.options.emit.isJVM {
+            registerJVMFileMembers(symbols: symbols, types: types, interner: ctx.interner)
             do { try ctx.jvmImports?.bind(in: ctx, sema: sema) }
             catch { ctx.diagnostics.error("KSWIFTK-JVM-0003", "Cannot bind JVM classpath: \(error)", range: nil) }
         }
@@ -802,14 +781,12 @@ final class DataFlowSemaPhase: CompilerPhase {
                 importedFiles: ctx.jvmImports?.declarationFiles ?? []
             )
         }
-        withSubPhaseTiming("validateOpenFinalOverride", timer: ctx.phaseTimer) {
-            validateOpenFinalOverride(
-                ast: ast, symbols: symbols, bindings: bindings, types: types,
-                diagnostics: ctx.diagnostics, interner: ctx.interner,
-                compilationModuleName: ctx.options.moduleName,
-                importedFiles: ctx.jvmImports?.declarationFiles ?? []
-            )
-        }
+        // Expect/actual links must exist before override validation: the
+        // covariance checks compare return types across the expect/actual
+        // boundary (e.g. Okio's `expect class Buffer` overriding
+        // `fun emit(): BufferedSink` with `emit(): Buffer`), and the
+        // nominal-subtype walk only bridges those symbols through the links
+        // this phase establishes.
         withSubPhaseTiming("validateExpectActualMatching", timer: ctx.phaseTimer) {
             validateExpectActualMatching(
                 ast: ast,
@@ -819,6 +796,14 @@ final class DataFlowSemaPhase: CompilerPhase {
                 interner: ctx.interner,
                 commonModuleMode: ctx.options.isCommonModule,
                 deferredInferredTypePairs: &ctx.deferredExpectActualTypePairs
+            )
+        }
+        withSubPhaseTiming("validateOpenFinalOverride", timer: ctx.phaseTimer) {
+            validateOpenFinalOverride(
+                ast: ast, symbols: symbols, bindings: bindings, types: types,
+                diagnostics: ctx.diagnostics, interner: ctx.interner,
+                compilationModuleName: ctx.options.moduleName,
+                importedFiles: ctx.jvmImports?.declarationFiles ?? []
             )
         }
         withSubPhaseTiming("validateAnnotationTargets", timer: ctx.phaseTimer) {
@@ -915,7 +900,6 @@ final class DataFlowSemaPhase: CompilerPhase {
             )
         }
         withSubPhaseTiming("attachCompilerMetadataAnnotations", timer: ctx.phaseTimer) {
-            // Imported JVM declarations supply types only. JVM output writes its own classfile metadata.
             let importedJVMFiles = ctx.jvmImports.map { Set($0.sourceClasses.keys) } ?? []
             attachCompilerMetadataAnnotations(
                 symbols: symbols,

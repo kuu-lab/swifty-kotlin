@@ -18,8 +18,6 @@ extension LambdaLowerer {
         driver.ctx.setLocalValue(receiver, for: symbol)
     }
 
-    /// Must run after the receiver parameter and capture bindings have been
-    /// installed as the implicit receiver.
     func registerLambdaReceiverValue(lambdaExprID: ExprID, hasReceiverParam: Bool) {
         guard hasReceiverParam,
               let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
@@ -44,8 +42,6 @@ extension LambdaLowerer {
         )
     }
 
-    /// Closure param for single-param lambdas passed to C HOFs (filter, map, etc.).
-    /// Runtime expects (closureRaw, elem, outThrown); this receives closureRaw.
     func syntheticLambdaClosureParamSymbol(lambdaExprID: ExprID) -> SymbolID {
         syntheticLambdaParamSymbol(lambdaExprID: lambdaExprID, paramIndex: -1)
     }
@@ -104,9 +100,6 @@ extension LambdaLowerer {
     }
 
     private func typeForValueParameterSymbol(_ symbol: SymbolID, sema: SemaModule) -> TypeID? {
-        // `valueParameterOwner` maps a parameter symbol to the callable whose
-        // signature listed it, so the owner lookup is O(1) rather than a scan
-        // of every function/constructor signature in the module.
         guard let ownerSymbol = sema.symbols.valueParameterOwner(for: symbol) else {
             return nil
         }
@@ -116,9 +109,6 @@ extension LambdaLowerer {
         {
             return signature.parameterTypes[index]
         }
-        // The recorded owner's stored signature no longer lists the parameter
-        // (it was rewritten after the index entry was made), so another
-        // signature may still claim it — fall back to the module-wide scan.
         let kinds: [SymbolKind] = [.function, .constructor]
         for kind in kinds {
             for candidateID in sema.symbols.symbols(ofKind: kind) {
@@ -213,23 +203,6 @@ extension LambdaLowerer {
         return classType.classSymbol
     }
 
-    /// True when `symbol` is an ordinary `class` declaration — i.e.
-    /// something whose instances a plain `this` receiver capture is known to
-    /// work correctly for.
-    ///
-    /// Deliberately narrower than "has instances a `this` could refer to"
-    /// (which would also include `.interface`/`.object`/`.enumClass`):
-    ///
-    /// - `.object` (a genuine singleton owner — companion object or plain
-    ///   `object`) is excluded *by design*, not merely restricted pending a
-    ///   fix: Kotlin guarantees exactly one instance for these, so
-    ///   `ensurePropertyReferenceAccessor` (see
-    ///   LambdaLowerer+PropertyReferenceLowering.swift) reads/writes a
-    ///   single module-level global slot instead of a per-instance field —
-    ///   there is no receiver for a capture to usefully carry. See
-    ///   `lowerCallableRefExpr`'s `isSingletonOwnedPropertyRef` check, which
-    ///   handles this case (for both bare and explicit-receiver forms)
-    ///   ahead of this function.
     /// - `.enumClass` is excluded too, but for the opposite reason: unlike
     ///   `.object`, an enum class has multiple instances (one per entry), so
     ///   a property declared directly in its own body is a genuine
@@ -237,15 +210,6 @@ extension LambdaLowerer {
     ///   testing that treating it like `.object` (no capture, global-slot
     ///   accessor) silently reads back `0` for every entry instead of each
     ///   entry's own value. Whether making it capture-eligible *would* work
-    ///   correctly (the way `.class` does) was not verified this round —
-    ///   left excluded/untouched rather than risked. A property declared
-    ///   inside one specific *entry's own body* (`A { val x = 5 }`) might be
-    ///   a distinct, safely includable case — its owner could plausibly be
-    ///   that entry's own synthesized subclass rather than `.enumClass`
-    ///   itself — but this could not be verified either: referencing an
-    ///   entry with a body at all (`EnumClass.ENTRY`) hits a separate,
-    ///   pre-existing, unrelated bug (see the
-    ///   `enum_edge_cases.kt` entry).
     /// - `.interface` is excluded because interface-owned properties have no
     ///   storage of their own (always dispatched through whichever class
     ///   implements them) — this capture path doesn't handle that case yet.
@@ -341,7 +305,6 @@ extension LambdaLowerer {
         return expandingLocalFunctionCaptures(lexicalCaptures, sema: sema, arena: arena)
     }
 
-    /// Forward a named local function's environment across the lambda boundary.
     /// Capturing its function pointer alone loses the extra parameters used by
     /// direct calls, including recursive calls from a nested lambda.
     private func expandingLocalFunctionCaptures(_ symbols: [SymbolID], sema: SemaModule, arena: KIRArena) -> [SymbolID] {
@@ -438,16 +401,9 @@ extension LambdaLowerer {
             {
                 memberOwner = parentID
             } else if symbol.kind == .property {
-                // Enum-entry body properties are parented by the entry field
-                // in Sema, but their implicit receiver is the enum value.
                 memberOwner = parentID.flatMap {
                     driver.callLowerer.enumClassOwnerSymbol(forEntryField: $0, sema: sema)
                 }
-                    // A package-level extension property has no member owner,
-                    // but the tower entry it bound to is the receiver a
-                    // receiver-typed lambda must capture — treat the declared
-                    // extension receiver's nominal as its effective owner
-                    // (KUU-3914).
                     ?? sema.symbols.extensionPropertyReceiverType(for: symbolID).flatMap {
                         nominalSymbol(for: sema.types.makeNonNullable($0), types: sema.types)
                     }
@@ -537,14 +493,9 @@ extension LambdaLowerer {
         case let .callableRef(receiver, _, _):
             return receiver.map(check) ?? false
         case let .localFunDecl(_, receiverType, valueParams, _, body, _, _, _, _):
-            // Nested extensions supply their own implicit receiver. Their lexical
-            // value captures are handled by collectBoundIdentifierSymbols.
             if excludingLocalExtensionBodies, receiverType != nil {
                 return false
             }
-            // Parameter default expressions evaluate in the lifted function's
-            // scope: an implicit member read there captures the enclosing
-            // receiver just like a body read (KUU-3182).
             if valueParams.contains(where: { $0.defaultValue.map(check) ?? false }) {
                 return true
             }
@@ -565,8 +516,6 @@ extension LambdaLowerer {
             else {
                 return false
             }
-            // Captured properties are read while constructing the object, so
-            // their owners must survive an intervening receiver lambda.
             if let objectSymbol = sema.bindings.declSymbol(for: declID),
                sema.bindings.objectLiteralCaptureSymbols(for: objectSymbol).contains(where: { symbol in
                    guard sema.symbols.symbol(symbol)?.kind == .property,
@@ -587,8 +536,6 @@ extension LambdaLowerer {
             if objectLiteralInlineInitializerRootExprs(objectDecl, ast: ast).contains(where: check) {
                 return true
             }
-            // KSP-CAP-018: see the accessor-body note in
-            // `collectBoundIdentifierSymbols`.
             return objectLiteralAccessorRootExprs(objectDecl, ast: ast).contains { check($0) }
         default:
             return false
@@ -617,8 +564,6 @@ extension LambdaLowerer {
         return false
     }
 
-    /// An unqualified `compute()` whose callee is a member function is `this.compute()`,
-    /// so the enclosing implicit receiver has to be captured by the lambda.
     private func callResolvesToImplicitReceiverMember(_ callExprID: ExprID, sema: SemaModule) -> Bool {
         guard let chosenCallee = sema.bindings.callBinding(for: callExprID)?.chosenCallee,
               let signature = sema.symbols.functionSignature(for: chosenCallee)
@@ -859,11 +804,6 @@ extension LambdaLowerer {
                 return outerValue
             }
         }
-        // KSP-CAP-001: object-literal member functions may capture an
-        // immutable stored property of their enclosing class. The enclosing
-        // receiver is still active while the object is constructed, so copy
-        // the property's value into the literal's capture field before the
-        // receiver switches to the literal itself.
         if let semanticSymbol = sema.symbols.symbol(symbol),
            semanticSymbol.kind == .property,
            !semanticSymbol.flags.contains(.mutable),
@@ -907,11 +847,6 @@ extension LambdaLowerer {
             ))
             return valueExpr
         }
-        // KUU-2955: `symbol` may be a captured local (or receiver-owned
-        // value) of an enclosing local nominal, reachable only through the
-        // active receiver's `$outer` chain — e.g. `inner class D` whose
-        // member `copyOuter()` constructs `C()` must source `C`'s captured
-        // fields from `this@D.$outer`, not from a live local slot.
         if let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
            let outerValue = resolveOuterChainValue(
                from: receiverExprID,

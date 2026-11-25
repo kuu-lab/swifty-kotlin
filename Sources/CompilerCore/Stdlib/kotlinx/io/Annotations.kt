@@ -6,7 +6,6 @@
  */
 package kotlinx.io
 
-/** Marks declarations that require care because misuse can corrupt or lose data. */
 @MustBeDocumented
 @Retention(AnnotationRetention.BINARY)
 @RequiresOptIn(
@@ -16,7 +15,6 @@ package kotlinx.io
 )
 public annotation class DelicateIoApi
 
-/** Marks internal IO declarations that may change without notice. */
 @MustBeDocumented
 @Retention(AnnotationRetention.BINARY)
 @RequiresOptIn(
@@ -28,7 +26,6 @@ public annotation class DelicateIoApi
 )
 public annotation class InternalIoApi
 
-/** Marks IO APIs whose invalid arguments may corrupt data or behave unpredictably. */
 @Retention(AnnotationRetention.BINARY)
 @RequiresOptIn(
     level = RequiresOptIn.Level.WARNING,

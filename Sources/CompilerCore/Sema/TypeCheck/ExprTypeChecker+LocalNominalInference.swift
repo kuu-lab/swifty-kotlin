@@ -36,10 +36,6 @@ extension ExprTypeChecker {
             )
             sema.symbols.insertFlags(.localDeclSynthetic, for: objectSymbol)
             let objectType = objectLiteralType(for: objectSymbol, sema: sema)
-            // A named `object`'s name is both a type name and the singleton
-            // value name, so it registers in the lexical scope as well —
-            // `val x: Local` resolves, while `Local` in expression position
-            // hits `locals` first and yields the objectType value.
             ctx.scope.insert(objectSymbol)
             locals[objectDecl.name] = (objectType, objectSymbol, false, true)
             sema.bindings.bindIdentifier(id, symbol: objectSymbol)
@@ -98,8 +94,6 @@ extension ExprTypeChecker {
                 ctx: ctx
             )
             sema.symbols.insertFlags(.localDeclSynthetic, for: aliasSymbol)
-            // Insert at check time so the alias is visible only to statements
-            // that follow its declaration in the same block.
             ctx.scope.insert(aliasSymbol)
             sema.bindings.bindIdentifier(id, symbol: aliasSymbol)
             sema.bindings.bindExprType(id, type: sema.types.unitType)
@@ -111,10 +105,6 @@ extension ExprTypeChecker {
         }
     }
 
-    /// Local typealiases are checked on demand like local nominals: the alias
-    /// symbol is defined under a per-expression FQ prefix, its own type
-    /// parameters and RHS resolve through the enclosing lexical scope, and the
-    /// statement expression itself yields Unit (KUU-3840).
     private func ensureLocalTypeAliasSymbol(
         declID: DeclID,
         typeAliasDecl: TypeAliasDecl,
@@ -123,8 +113,9 @@ extension ExprTypeChecker {
     ) -> SymbolID {
         let sema = ctx.sema
 
+        let pendingRecheck = driver.pendingLocalNominalRechecks.remove(declID) != nil
         if let existing = sema.bindings.declSymbols[declID],
-           driver.pendingLocalNominalRechecks.remove(declID) == nil
+           !pendingRecheck
         {
             return existing
         }
@@ -133,15 +124,20 @@ extension ExprTypeChecker {
         }
 
         let aliasFQName = fqNamePrefix + [typeAliasDecl.name]
-        let aliasSymbol = sema.symbols.define(
-            kind: .typeAlias,
-            name: typeAliasDecl.name,
-            fqName: aliasFQName,
-            declSite: typeAliasDecl.range,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        sema.bindings.bindDecl(declID, symbol: aliasSymbol)
+        let aliasSymbol: SymbolID
+        if let existing = sema.bindings.declSymbols[declID] {
+            aliasSymbol = existing
+        } else {
+            aliasSymbol = sema.symbols.define(
+                kind: .typeAlias,
+                name: typeAliasDecl.name,
+                fqName: aliasFQName,
+                declSite: typeAliasDecl.range,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            sema.bindings.bindDecl(declID, symbol: aliasSymbol)
+        }
         sema.symbols.setSourceFileID(ctx.currentFileID, for: aliasSymbol)
 
         resolveLocalTypeAliasUnderlying(
@@ -154,10 +150,6 @@ extension ExprTypeChecker {
         return aliasSymbol
     }
 
-    /// A local class's nested typealiases are collected with the local class's
-    /// member scope as the lexical parent: the RHS can spell the class itself,
-    /// sibling members, enclosing local classifiers, and outer type parameters
-    /// (KUU-3840).
     private func collectLocalNestedTypeAliases(
         _ aliases: [TypeAliasDecl],
         ownerFQName: [InternedString],
@@ -188,8 +180,6 @@ extension ExprTypeChecker {
         }
     }
 
-    /// Registers the alias's own type parameters, then resolves the right-hand
-    /// type through a scope that layers them over `lexicalScope`.
     private func resolveLocalTypeAliasUnderlying(
         _ typeAliasDecl: TypeAliasDecl,
         aliasSymbol: SymbolID,
@@ -209,9 +199,6 @@ extension ExprTypeChecker {
             interner: interner,
             diagnostics: sema.diagnostics
         )
-        // The alias's own type parameters outrank outer bindings while its
-        // RHS still resolves every other name through the enclosing scope
-        // (local classifiers, outer type parameters, member-scope symbols).
         let aliasScope = BlockScope(parent: lexicalScope, symbols: sema.symbols)
         for typeParameterSymbol in localTypeParameters.values {
             aliasScope.insert(typeParameterSymbol)
@@ -239,8 +226,6 @@ extension ExprTypeChecker {
         }
     }
 
-    /// The nominal is discovered too late for `synthesizeNominalLayouts`,
-    /// so it builds its own.
     private func ensureLocalClassSymbol(
         declID: DeclID,
         classDecl: ClassDecl,
@@ -252,8 +237,9 @@ extension ExprTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
 
+        let pendingRecheck = driver.pendingLocalNominalRechecks.remove(declID) != nil
         if let existing = sema.bindings.declSymbols[declID],
-           driver.pendingLocalNominalRechecks.remove(declID) == nil
+           !pendingRecheck
         {
             return existing
         }
@@ -264,9 +250,6 @@ extension ExprTypeChecker {
         let outerLocalsSnapshot = locals
         let outerSymbols = Set(outerLocalsSnapshot.values.map(\.symbol))
 
-        // Same as `ensureObjectLiteralSymbol`: an outer local can also be
-        // reached through the enclosing class receiver, so stored properties
-        // of that receiver (and its class supertypes) join the capture set.
         var outerReceiverOwners: Set<SymbolID> = []
         var pendingOuterReceiverOwners: [SymbolID] = []
         if let enclosingClassSymbol = ctx.enclosingClassSymbol {
@@ -298,8 +281,6 @@ extension ExprTypeChecker {
                 return symbol.id
             }
         )
-        // Same as the object path: `this@Outer` receiver symbols captured by
-        // the enclosing literal are reachable here too.
         let captureOuterSymbols = outerSymbols
             .union(outerReceiverPropertySymbols)
             .union(ctx.outerReceiverTypes.compactMap(\.symbol))
@@ -311,26 +292,26 @@ extension ExprTypeChecker {
         let classFQName = fqNamePrefix + [classDecl.name]
         var classFlags: SymbolFlags = [.synthetic]
         classFlags.formUnion(SymbolFlags(modifiers: classDecl.modifiers))
-        // Abstract and sealed classes are implicitly open, matching the
-        // flags assigned to class declarations during header collection.
         if classDecl.modifiers.contains(.abstract) {
             classFlags.insert(.openType)
         }
         if classDecl.modifiers.contains(.sealed) {
             classFlags.formUnion([.abstractType, .openType])
         }
-        let classSymbol = sema.symbols.define(
-            kind: .class,
-            name: classDecl.name,
-            fqName: classFQName,
-            declSite: classDecl.range,
-            visibility: .private,
-            flags: classFlags
-        )
-        sema.bindings.bindDecl(declID, symbol: classSymbol)
-        // A local class declared inside a class shares that class's lexical
-        // private scope. Keep the relationship in the symbol graph so member
-        // bodies can access private outer properties and setters.
+        let classSymbol: SymbolID
+        if let existing = sema.bindings.declSymbols[declID] {
+            classSymbol = existing
+        } else {
+            classSymbol = sema.symbols.define(
+                kind: .class,
+                name: classDecl.name,
+                fqName: classFQName,
+                declSite: classDecl.range,
+                visibility: .private,
+                flags: classFlags
+            )
+            sema.bindings.bindDecl(declID, symbol: classSymbol)
+        }
         if let enclosingClassSymbol = ctx.enclosingClassSymbol {
             sema.symbols.setParentSymbol(enclosingClassSymbol, for: classSymbol)
         }
@@ -378,16 +359,10 @@ extension ExprTypeChecker {
             ownerSymbol: classSymbol,
             thisType: classType
         )
-        // Class type parameters and the class itself are visible in headers
-        // and members without escaping into the enclosing lexical scope.
         classScope.insert(classSymbol)
         for typeParameterSymbol in typeParameterResult.symbols {
             classScope.insert(typeParameterSymbol)
         }
-        // Nested typealiases inside a local class get the same treatment a
-        // function-local alias gets: defined on demand with the class's
-        // member scope as the lexical parent, then linked into the symbol
-        // graph so member lookups find them (KUU-3840).
         collectLocalNestedTypeAliases(
             classDecl.nestedTypeAliases,
             ownerFQName: classFQName,
@@ -395,18 +370,63 @@ extension ExprTypeChecker {
             ownerScope: classScope,
             ctx: ctx
         )
-        let classCtx = ctx.withoutSuspensionContext().withOuterReceiver(
-            label: classDecl.name,
-            type: classType
-        ).copying(
-            scope: classScope,
-            implicitReceiverType: classType,
-            enclosingClassSymbol: classSymbol
-        )
+        // A function-local nominal captures the enclosing function's receiver
+        // *value*. The enclosing class's outer-receiver entry normally carries
+        // the class symbol — a `this@Class` label placeholder — which cannot
+        // root the smart-cast flow reference, because those are keyed by the
+        // receiver value symbol (`receiverParameterSymbol(for:)`). Resolve that
+        // entry to the enclosing function's receiver parameter so stable
+        // property smart casts on the captured `this` survive into the local
+        // nominal's member bodies (KUU-4605).
+        //
+        // Only rewrite when `receiverParameterSymbol(for:)` denotes the
+        // enclosing class instance. That holds for a plain member function —
+        // including when the local class sits inside a lambda that has its own
+        // receiver, because a lambda does not change `enclosingFunctionSymbol`
+        // — whose declared receiver type is the enclosing class. It does NOT
+        // hold for a member *extension* function (its `this` is the extension
+        // receiver, e.g. `String`, not the `this@Outer` dispatch receiver) or
+        // for a receiver-less local function (which has no `this` at all, so
+        // `receiverParameterSymbol(for:)` would name a non-existent receiver
+        // and the instance would not be captured). Rewriting there would bind
+        // the outer entry to the wrong value, so skip it. Default to skipping:
+        // only a concrete class receiver type matching the enclosing class
+        // proves the receiver parameter is the captured instance.
+        var memberOuterReceiverTypes = ctx.outerReceiverTypes
+        if let enclosingFunctionSymbol = ctx.enclosingFunctionSymbol,
+           let enclosingClassSymbol = ctx.enclosingClassSymbol
+        {
+            var receiverIsEnclosingClassInstance = false
+            if let signature = sema.symbols.functionSignature(for: enclosingFunctionSymbol),
+               let receiverType = signature.receiverType,
+               case let .classType(receiverClass) = sema.types.kind(of: receiverType)
+            {
+                receiverIsEnclosingClassInstance = receiverClass.classSymbol == enclosingClassSymbol
+            }
+            if receiverIsEnclosingClassInstance {
+                let receiverValueSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: enclosingFunctionSymbol)
+                for index in memberOuterReceiverTypes.indices {
+                    let entry = memberOuterReceiverTypes[index]
+                    guard entry.symbol == enclosingClassSymbol,
+                          case let .classType(entryClassType) = sema.types.kind(of: entry.type),
+                          entryClassType.classSymbol == enclosingClassSymbol
+                    else {
+                        continue
+                    }
+                    memberOuterReceiverTypes[index].symbol = receiverValueSymbol
+                }
+            }
+        }
+        let classCtx = ctx.copying(outerReceiverTypes: memberOuterReceiverTypes)
+            .withoutSuspensionContext().withOuterReceiver(
+                label: classDecl.name,
+                type: classType
+            ).copying(
+                scope: classScope,
+                implicitReceiverType: classType,
+                enclosingClassSymbol: classSymbol
+            )
 
-        // Enclosing nominal scopes (innermost → outermost) for the
-        // inner-class supertype receiver check below and the deferred
-        // annotation-target bookkeeping further down.
         var lexicalEnclosingFQNames: [[InternedString]] = []
         var lexicalScope: Scope? = ctx.scope
         while let scope = lexicalScope as? BaseScope {
@@ -417,9 +437,6 @@ extension ExprTypeChecker {
             lexicalScope = scope.parent
         }
 
-        // The implicit receivers a local class may capture: the enclosing
-        // `this` (including an extension receiver), `this@Outer` chain
-        // entries, and receivers pushed by builder lambdas.
         var lexicalReceiverSymbols = Set(ctx.outerReceiverTypes.compactMap(\.symbol))
         lexicalReceiverSymbols.formUnion(ctx.implicitReceiverStack.map(\.symbol))
         if let implicitReceiverType = ctx.implicitReceiverType,
@@ -437,12 +454,6 @@ extension ExprTypeChecker {
         var directSuperTypeArgs: [SymbolID: [TypeArg]] = [:]
         var directSuperTypes: [TypeID] = []
         for entry in classDecl.superTypeEntries {
-            // A local class without a primary constructor cannot initialize
-            // supertypes in its header either — its secondary constructors
-            // delegate via `super(...)` (kotlinc: "supertype initialization
-            // is impossible without a primary constructor"). The check is
-            // syntactic, so it fires even when the supertype is unresolved
-            // (KUU-4132).
             if entry.hasConstructorCallSyntax,
                !classDecl.hasPrimaryConstructorSyntax,
                !classDecl.secondaryConstructors.isEmpty,
@@ -463,10 +474,6 @@ extension ExprTypeChecker {
                 diagnostics: ctx.sema.diagnostics,
                 usageRange: entry.range ?? classDecl.range
             )
-            // A function-type delegation specifier (`class C : suspend () -> T`
-            // inside a function) resolves to a structural `.functionType`;
-            // lift it to the nominal SuspendFunctionN / FunctionN interface
-            // the named-declaration path records (KUU-3838, KUU-3875).
             let resolvedNominal = driver.helpers.nominalFunctionInterfaceSupertype(
                 for: resolved,
                 owner: classSymbol,
@@ -495,7 +502,6 @@ extension ExprTypeChecker {
                         range: entry.range ?? classDecl.range
                     )
                 }
-                // Interfaces have no constructor to invoke (KUU-4132).
                 if entry.hasConstructorCallSyntax,
                    !declIsBundledStdlib,
                    sema.symbols.symbol(classType.classSymbol)?.kind == .interface
@@ -507,11 +513,6 @@ extension ExprTypeChecker {
                     )
                 }
                 directSuperSymbols.append(classType.classSymbol)
-                // Keep the qualifier's arguments as well: `Outer<Int>.I`
-                // stores `Int` in `enclosingTypeArgs`, and the inner
-                // constructor needs it to bind `V` during super-delegation
-                // resolution (KUU-3859). `classType(for:)` splits the flat
-                // list back into enclosing + own arguments.
                 directSuperTypeArgs[classType.classSymbol] = sema.types
                     .allTypeArguments(for: classType)
                 DataFlowSemaPhase().validateInnerClassSupertypeReceiver(
@@ -575,13 +576,6 @@ extension ExprTypeChecker {
         var constructorSymbols: [SymbolID] = []
         let dataFlow = DataFlowSemaPhase()
         for header in constructorHeaders {
-            // Same rule as header collection (`HeaderCollection+CollectHeader`):
-            // an unannotated constructor inherits the class's visibility, here
-            // the `.private` assigned to the local class symbol above — but
-            // through `constructorVisibilityInherited`, which delegates the
-            // access check back to the class so `C()` still works inside the
-            // enclosing declaration. An explicit `private constructor` keeps
-            // its own `.private`, scoped to the class body (KUU-3880).
             let ctorVisibilityDetail = dataFlow.constructorVisibilityDetail(
                 explicitModifiers: header.modifiers,
                 classKind: .class,
@@ -592,14 +586,25 @@ extension ExprTypeChecker {
             if ctorVisibilityDetail.isInheritedFromOwner {
                 ctorFlags.insert(.constructorVisibilityInherited)
             }
-            let ctorSymbol = sema.symbols.define(
-                kind: .constructor,
-                name: initName,
-                fqName: classFQName + [initName],
-                declSite: header.range,
-                visibility: ctorVisibilityDetail.visibility,
-                flags: ctorFlags
-            )
+            let ctorFQName = classFQName + [initName]
+            let ctorSymbol: SymbolID
+            if let existingCtor = sema.symbols.lookupAll(fqName: ctorFQName).first(where: { id in
+                guard let sym = sema.symbols.symbol(id) else { return false }
+                return sym.kind == .constructor
+                    && sema.symbols.parentSymbol(for: id) == classSymbol
+                    && sym.declSite == header.range
+            }) {
+                ctorSymbol = existingCtor
+            } else {
+                ctorSymbol = sema.symbols.define(
+                    kind: .constructor,
+                    name: initName,
+                    fqName: ctorFQName,
+                    declSite: header.range,
+                    visibility: ctorVisibilityDetail.visibility,
+                    flags: ctorFlags
+                )
+            }
             constructorSymbols.append(ctorSymbol)
             sema.symbols.setParentSymbol(classSymbol, for: ctorSymbol)
             var paramTypes: [TypeID] = []
@@ -704,13 +709,26 @@ extension ExprTypeChecker {
         for propertySymbol in propertySymbolsByDecl.values {
             classScope.insert(propertySymbol)
         }
-        if let compilationContext = driver.compilationContext {
+        let uncollectedNestedClasses = classDecl.nestedClasses.filter { sema.bindings.declSymbols[$0] == nil }
+        let uncollectedNestedObjects = classDecl.nestedObjects.filter { sema.bindings.declSymbols[$0] == nil }
+        for nestedDeclID in classDecl.nestedClasses + classDecl.nestedObjects {
+            if let existingNested = sema.bindings.declSymbols[nestedDeclID] {
+                classScope.insert(existingNested)
+            }
+        }
+        var nestedLocalTypeParameters = enclosingTypeParameters
+        for (name, sym) in typeParameterResult.localMap {
+            nestedLocalTypeParameters[name] = sym
+        }
+        if let compilationContext = driver.compilationContext,
+           !uncollectedNestedClasses.isEmpty || !uncollectedNestedObjects.isEmpty
+        {
             DataFlowSemaPhase().collectMemberHeaders(
                 members: MemberDeclarations(
                     functions: [],
                     properties: [],
-                    nestedClasses: classDecl.nestedClasses,
-                    nestedObjects: classDecl.nestedObjects
+                    nestedClasses: uncollectedNestedClasses,
+                    nestedObjects: uncollectedNestedObjects
                 ),
                 owner: OwnerContext(fqName: classFQName, symbol: classSymbol, type: classType),
                 sourceFileID: ctx.currentFileID,
@@ -721,13 +739,11 @@ extension ExprTypeChecker {
                 bindings: sema.bindings,
                 scope: classScope,
                 diagnostics: sema.diagnostics,
-                interner: interner
+                interner: interner,
+                classTypeParameterSymbols: typeParameterResult.symbols,
+                classLocalTypeParameters: nestedLocalTypeParameters
             )
         }
-        // Synthetic local owners do not encode lexical nesting in their FQ
-        // names. Preserve every surrounding class, including other locals.
-        // `lexicalEnclosingFQNames` is computed above for the supertype
-        // receiver check.
         let lexicalLocalNominalScopes = outerLocalsSnapshot.values
             .sorted(by: { $0.symbol.rawValue < $1.symbol.rawValue })
             .compactMap { binding -> [InternedString]? in
@@ -747,12 +763,12 @@ extension ExprTypeChecker {
         nestedEnclosingClassScopes.append(contentsOf: lexicalLocalNominalScopes)
         nestedEnclosingClassScopes.append(classFQName)
         if sourceFile != nil {
-            for nestedDeclID in classDecl.nestedClasses + classDecl.nestedObjects {
+            for nestedDeclID in uncollectedNestedClasses + uncollectedNestedObjects {
                 DataFlowSemaPhase().bindInheritanceEdges(
                     declID: nestedDeclID,
                     currentPackage: sourceFile?.packageFQName ?? [],
                     imports: sourceFile?.imports ?? [],
-                    enclosingTypeParameters: [:],
+                    enclosingTypeParameters: nestedLocalTypeParameters,
                     enclosingClassScopes: nestedEnclosingClassScopes,
                     ast: ast,
                     symbols: sema.symbols,
@@ -789,17 +805,19 @@ extension ExprTypeChecker {
             objectScope: classScope,
             ctx: classCtx
         )
-        inheritance.synthesizeDelegationForwardingForClass(
-            range: classDecl.range,
-            memberFunctions: classDecl.memberFunctions,
-            memberProperties: classDecl.memberProperties,
-            classSymbol: classSymbol,
-            classFQName: classFQName,
-            symbols: sema.symbols,
-            bindings: sema.bindings,
-            types: sema.types,
-            interner: interner
-        )
+        if !pendingRecheck {
+            inheritance.synthesizeDelegationForwardingForClass(
+                range: classDecl.range,
+                memberFunctions: classDecl.memberFunctions,
+                memberProperties: classDecl.memberProperties,
+                classSymbol: classSymbol,
+                classFQName: classFQName,
+                symbols: sema.symbols,
+                bindings: sema.bindings,
+                types: sema.types,
+                interner: interner
+            )
+        }
         for forwardingSymbol in sema.symbols.classDelegationForwardingMethodSymbols(forClass: classSymbol)
             + sema.symbols.classDelegationForwardingPropertySymbols(forClass: classSymbol)
         {
@@ -819,9 +837,6 @@ extension ExprTypeChecker {
                 requireDataTypeFlag: true, symbols: sema.symbols, types: sema.types,
                 scope: classScope, interner: interner
             )
-            // Local declarations are discovered during body inference, after
-            // the module-wide post-inheritance pass. Their superclass edges
-            // are already bound here, so collect the generated override now.
             dataFlow.collectSyntheticToString(
                 ownerSymbol: classSymbol,
                 ownerFQName: classFQName,
@@ -831,6 +846,24 @@ extension ExprTypeChecker {
                 types: sema.types,
                 scope: classScope,
                 interner: interner
+            )
+        }
+        if driver.compilationContext?.options.emit.isJVM != true,
+           sema.symbols.symbol(classSymbol)?.flags.contains(.valueType) == true,
+           sema.symbols.valueClassImplementsInterface(classSymbol)
+        {
+            let dataFlow = DataFlowSemaPhase()
+            dataFlow.collectSyntheticHashCode(
+                ownerSymbol: classSymbol,
+                ownerFQName: classFQName, ownerType: classType,
+                requireDataTypeFlag: false, symbols: sema.symbols, types: sema.types,
+                scope: classScope, interner: interner
+            )
+            dataFlow.collectSyntheticEquals(
+                ownerSymbol: classSymbol,
+                ownerFQName: classFQName, ownerType: classType,
+                requireDataTypeFlag: false, symbols: sema.symbols, types: sema.types,
+                scope: classScope, interner: interner
             )
         }
         for ctorSymbol in constructorSymbols {
@@ -854,9 +887,6 @@ extension ExprTypeChecker {
             )
         }
 
-        // Constructor-parameter locals shadow outer locals of the same name
-        // (Kotlin scopes header params inside `<init>`/init blocks/
-        // initializers), so merge outer first, ctor params on top.
         let primaryCtorLocals = outerLocalsSnapshot
             .merging(
                 driver.declChecker.primaryConstructorParameterLocals(classDecl: classDecl, ctx: classCtx)
@@ -903,13 +933,6 @@ extension ExprTypeChecker {
             baseLocals: outerLocalsSnapshot
         )
 
-        // Unlike an object literal (KSP-CAP-018), a local class's superclass
-        // constructor arguments are evaluated inside `<init>`, so they infer
-        // against ctor-param + captured locals. The enclosing receiver tower
-        // (`ctx`, not `classCtx` — that already holds `this@<local class>`)
-        // stays visible so `class Y : C(x)` can resolve `x` on the captured
-        // outer `this`; `excludingEnclosingClassReceiver` inside the
-        // delegation path still hides the local class's own `this`.
         driver.declChecker.typeCheckPrimaryConstructorSuperDelegation(
             classDecl,
             symbol: classSymbol,
@@ -938,7 +961,7 @@ extension ExprTypeChecker {
             accessorBaseLocals: outerLocalsSnapshot,
             ctx: ctx
         )
-        let explicitSuperclassSymbol = driver.declChecker.explicitClassSuperclassSymbol(classDecl, ctx: classCtx)
+        let superclassSymbol = driver.declChecker.constructorSuperclassSymbol(classDecl, ctx: classCtx)
         driver.declChecker.typeCheckSecondaryConstructors(
             classDecl.secondaryConstructors,
             ctx: classCtx,
@@ -946,7 +969,7 @@ extension ExprTypeChecker {
             diagnostics: ctx.sema.diagnostics,
             ownerSymbol: classSymbol,
             hasPrimaryConstructor: hasPrimaryConstructor,
-            explicitSuperclassSymbol: explicitSuperclassSymbol,
+            superclassSymbol: superclassSymbol,
             baseLocals: outerLocalsSnapshot
         )
         driver.declChecker.typeCheckInitBlocks(
@@ -993,10 +1016,6 @@ extension ExprTypeChecker {
                 skipNestedClosures: false
             ))
         }
-        // Every initializer-side root of a local class (property
-        // initializers, `init {}` blocks, superclass ctor args) lowers inside
-        // `<init>`, so outer-local references there need capture fields —
-        // unlike an object literal where they run inline.
         capturedSymbols.formUnion(collectLocalNominalCaptureSymbols(
             memberProperties: classDecl.memberProperties,
             includePropertyInitializers: true,
@@ -1008,10 +1027,17 @@ extension ExprTypeChecker {
             ast: ast,
             sema: sema
         ))
+        // Nested inner-class member bodies resolve outer receivers through the
+        // rewritten `memberOuterReceiverTypes` (see above), so the capture
+        // candidate set must include those receiver value symbols as well as the
+        // original tower symbols; otherwise a receiver referenced only from a
+        // nested inner class would be dropped (KUU-4605).
         capturedSymbols.formUnion(collectNestedInnerClassCaptures(
             classDecl.nestedClasses,
             outerReceiverSymbols: Set(
-                ctx.outerReceiverTypes.compactMap(\.symbol) + ctx.implicitReceiverStack.map(\.symbol)
+                ctx.outerReceiverTypes.compactMap(\.symbol)
+                    + memberOuterReceiverTypes.compactMap(\.symbol)
+                    + ctx.implicitReceiverStack.map(\.symbol)
             ),
             superConstructorCaptureSymbols: captureOuterSymbols,
             ast: ast,
@@ -1170,9 +1196,6 @@ extension ExprTypeChecker {
                 ast: ast,
                 sema: sema
             ))
-            // A local class must retain enclosing locals referenced by a
-            // nested inner class's super-constructor arguments. Other nested
-            // member roots keep the existing receiver-only capture behavior.
             let superConstructorExprRoots = nestedClass.superTypeEntries.flatMap(\.constructorArgs).map(\.expr)
                 + nestedClass.secondaryConstructors.flatMap { constructor -> [ExprID] in
                     guard let delegationCall = constructor.delegationCall,

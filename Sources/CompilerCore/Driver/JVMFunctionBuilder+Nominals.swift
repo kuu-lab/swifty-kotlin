@@ -58,6 +58,12 @@ extension JVMFunctionBuilder {
     func nominalValue(_ id: ExprID) throws -> JVMValue? {
         if let scalar = try scalarConstant(id) { return scalar }
         guard let symbol = program.sema.bindings.identifierSymbol(for: id) else { return nil }
+        if let unitClassSymbol = program.sema.types.unitClassSymbol, symbol == unitClassSymbol {
+            program.functionArities.insert(0)
+            let type: JVMValueType = .reference("kotlin/Unit", nullable: false), result = try value(type)
+            instructions.append(.getStatic(JVMField(owner: "kotlin/Unit", name: "INSTANCE", type: type, access: 0x19), result))
+            return result
+        }
         if let entry = program.sema.symbols.symbol(symbol) {
             let fqName = entry.fqName
             let knownNames = KnownCompilerNames(interner: context.interner)
@@ -164,6 +170,44 @@ extension JVMFunctionBuilder {
             let result = name == "entries" ? program.enumEntriesField(plan).type : (name == "values" ? program.enumValuesField(plan).type : .reference(plan.name, nullable: false))
             return JVMIntrinsicResult(value: try jdkCall(plan.name, name == "entries" ? "getEntries" : name, params, result, arguments: args.map { try requireValue($0.expr) }))
         }
+        if let symbol = receiverSymbol,
+           enumPlan == nil,
+           program.sema.symbols.symbol(symbol)?.kind == .enumClass,
+           ["values", "valueOf", "entries"].contains(name)
+        {
+            let sema = program.sema
+            let selected = sema.bindings.identifierSymbol(for: id) ?? sema.bindings.callBinding(for: id)?.chosenCallee
+            let syntheticEnumMember: Bool
+            if name == "entries" {
+                let propertyID = selected.flatMap { sema.symbols.propertySymbol(forAccessor: $0) ?? $0 }
+                let property = propertyID.flatMap { sema.symbols.symbol($0) }
+                syntheticEnumMember = property?.kind == .property
+                    && property?.flags.contains(.synthetic) == true
+                    && property?.flags.contains(.static) == true
+            } else {
+                let callee = sema.bindings.callBinding(for: id)?.chosenCallee
+                let expectedArity = name == "valueOf" ? 1 : 0
+                syntheticEnumMember = callee.flatMap({ sema.symbols.symbol($0) })?.flags.contains(.synthetic) == true
+                    && callee.flatMap({ sema.symbols.functionSignature(for: $0) })?.parameterTypes.count == expectedArity
+            }
+            guard syntheticEnumMember else { return nil }
+            let params: [JVMValueType] = name == "valueOf" ? [.string] : []
+            guard args.count == params.count, args.allSatisfy({ $0.label == nil && !$0.isSpread }) else { throw fail("Unsupported JVM enum static call.", id) }
+            let owner = try program.className(symbol)
+            if name == "entries" {
+                let declaresGetEntries = context.jvmImports?.classes[owner]?.methods.contains {
+                    $0.name == "getEntries" && $0.isStatic && $0.descriptor == "()Lkotlin/enums/EnumEntries;"
+                } ?? false
+                guard declaresGetEntries else { return nil }
+            }
+            let enumType = JVMValueType.reference(owner, nullable: false)
+            let result: JVMValueType = switch name {
+            case "entries": .reference("kotlin/enums/EnumEntries", nullable: false)
+            case "values": .reference("[L" + owner + ";", nullable: false)
+            default: enumType
+            }
+            return JVMIntrinsicResult(value: try jdkCall(owner, name == "entries" ? "getEntries" : name, params, result, arguments: args.map { try requireValue($0.expr) }, resolved: program.expressionType(id)))
+        }
         if let plan = enumPlan, plan.isEnum, name == "serializer", args.isEmpty {
             let serializerSymbol = program.sema.serializationClasses[plan.symbol]?.companionSerializerMethod
             let isStaticEnumSerializer = serializerSymbol.map {
@@ -202,6 +246,9 @@ extension JVMFunctionBuilder {
     ) throws {
         for (i, name) in names.enumerated() {
             guard let name else { continue }
+            let declaredStorage = try program.sema.bindings.typedForDestructuringEntry(for: id, index: i).map {
+                try localStorageType($0.declared)
+            }
             let symbol = program.sema.bindings.destructuringComponentCallee(for: id, index: i)
             let method = symbol.flatMap {
                 program.methods[$0] ?? context.jvmImports?.method(for: $0) ?? program.textLibraryMethods[$0]?.method
@@ -222,21 +269,28 @@ extension JVMFunctionBuilder {
                 let objectType: JVMValueType = .reference("java/lang/Object", nullable: true)
                 let erased: JVMValueType
                 let resolved: JVMValueType
-                if i == 0 { erased = .int; resolved = .int }
-                else {
-                    switch type.args[0] {
-                    case let .invariant(argument), let .out(argument), let .in(argument): resolved = try program.type(argument)
-                    case .star: resolved = objectType
-                    }
+                if i == 0 {
+                    erased = .int
+                    resolved = .int
+                } else {
                     erased = objectType
+                    if let declaredStorage {
+                        resolved = declaredStorage
+                    } else {
+                        switch type.args[0] {
+                        case let .invariant(argument), let .out(argument), let .in(argument): resolved = try program.type(argument)
+                        case .star: resolved = objectType
+                        }
+                    }
                 }
                 result = try jdkCall("kotlin/collections/IndexedValue", "component\(i + 1)", [], erased, receiver: indexedValue, resolved: resolved)!
             } else { throw fail("JVM destructuring requires registered components.", id) }
-            var local = Local(value: result, mutable: mutable)
+            let stored = try declaredStorage.map { try convert(result, to: $0) } ?? result
+            var local = Local(value: stored, mutable: mutable)
             if mutable {
-                let cell = try value(.reference("[" + result.type.descriptor, nullable: false))
-                instructions.append(.newArray(result.type, count: try constant(.int(1), .int), result: cell))
-                instructions.append(.arraySet(cell, try constant(.int(0), .int), result)); local.cell = cell
+                let cell = try value(.reference("[" + stored.type.descriptor, nullable: false))
+                instructions.append(.newArray(stored.type, count: try constant(.int(1), .int), result: cell))
+                instructions.append(.arraySet(cell, try constant(.int(0), .int), stored)); local.cell = cell
             }
             scopes[scopes.count - 1][name] = local
         }

@@ -125,8 +125,6 @@ extension ExprTypeChecker {
                 }
                 switch symbol.kind {
                 case .object:
-                    // Singleton values must be introduced by lexical/package
-                    // scope or imports, not the global classifier short-name index.
                     return false
                 case .class, .interface, .enumClass, .annotationClass, .typeAlias:
                     // A nested classifier's simple name is only visible
@@ -153,17 +151,7 @@ extension ExprTypeChecker {
             }
         }
 
-        // Implicit receiver member lookup walks the whole receiver tower
-        // (extension receiver, enclosing lambda receivers, `this@Owner`
-        // dispatch receivers, enclosing class) — a member extension body's
-        // `this` is the extension receiver, but the dispatch owner's members,
-        // inherited ones included, still resolve unqualified.
         var implicitReceiverLookupEntries = ctx.implicitReceiverMemberLookupEntries()
-        // Flow analysis narrows a declaration's stable `this` local in branches
-        // and after early returns. Put that receiver first for member and
-        // extension lookup. Match the declaration's receiver: object
-        // initializers retain an outer `this` local while their active receiver
-        // is the new object.
         if let receiverType = ctx.implicitReceiverType,
            let declaration = ctx.currentDeclSymbol,
            let thisLocal = locals[knownNames.thisName],
@@ -188,10 +176,6 @@ extension ExprTypeChecker {
         }
         if !implicitReceiverLookupEntries.isEmpty {
             var memberType: TypeID?
-            // A member found on a nullable implicit receiver is unsafe: it
-            // loses to a non-null member on any outer receiver, and when it
-            // is the only member-scope match it reports UNSAFE_CALL like
-            // kotlinc (KUU-4504).
             var sawUnsafeReceiverMember = false
             for (index, receiver) in implicitReceiverLookupEntries.enumerated() {
                 memberType = resolveImplicitReceiverMember(
@@ -249,15 +233,6 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
-        // An unqualified extension property resolves against the whole
-        // implicit-receiver tower, not only the innermost receiver: a
-        // receiver-typed lambda (`buildString { ... }`) pushes its own
-        // receiver in front, but an extension on an enclosing `this` stays
-        // applicable unqualified (KUU-3914). For each extension candidate,
-        // find the innermost tower entry whose type satisfies the declared
-        // receiver; only candidates at the earliest matching level survive —
-        // a nearer receiver's extension shadows same-named extensions on
-        // outer entries.
         var extensionPropertyMatchedEntries: [SymbolID: (index: Int, type: TypeID, symbol: SymbolID?)] = [:]
         var extensionPropertyReceiverSubstitutions: [SymbolID: (typeVarBySymbol: [SymbolID: TypeVarID], substitution: [TypeVarID: TypeID])] = [:]
         for candidate in candidates {
@@ -265,12 +240,6 @@ extension ExprTypeChecker {
                 continue
             }
             for (index, entry) in implicitReceiverLookupEntries.enumerated() {
-                // The receiver predicate is the same lenient one extension
-                // *function* candidates get: it keeps generic receivers such
-                // as `Atomic<V>` viable for a declared `Atomic<T>` receiver.
-                // The substitution solve below is what proves the match —
-                // it instantiates the property's own type parameters and
-                // rejects arguments that violate their upper bounds.
                 guard driver.callChecker.extensionSyntheticFallbackReceiverMatches(
                     callSiteReceiver: entry.type,
                     declaredReceiver: declaredReceiver,
@@ -302,8 +271,6 @@ extension ExprTypeChecker {
             guard let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: candidate.id) else {
                 return false
             }
-            // An import qualified by the singleton binds its receiver too.
-            // Package imports of the same extension still require a receiver.
             if case let .classType(receiverClass) = sema.types.kind(of: declaredReceiver),
                let receiver = sema.symbols.symbol(receiverClass.classSymbol),
                receiver.kind == .object,
@@ -321,9 +288,6 @@ extension ExprTypeChecker {
                 return false
             }
             guard let originalReceiverType = ctx.implicitReceiverType else {
-                // Package-scope extension properties remain in import scopes
-                // so `receiver.property` can resolve them, but a bare name in
-                // a receiver-free context must not bind as a global property.
                 return implicitReceiverLookupEntries.isEmpty
             }
             let receiverType = implicitReceiverLookupEntries.first?.type ?? originalReceiverType
@@ -360,8 +324,6 @@ extension ExprTypeChecker {
                 else {
                     continue
                 }
-                // A nearer nullable receiver's member wins the tower but is
-                // an unsafe read without `?.` (KUU-4501).
                 if sema.types.nullability(of: receiver.type) == .nullable {
                     ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0026",
@@ -400,10 +362,6 @@ extension ExprTypeChecker {
             } else if let staticMember = driver.helpers.lookupStaticPropertyInEnclosingClassScope(
                 named: name, ctx: ctx
             ) {
-                // Same classifier static scope as `resolveImplicitReceiverMember`:
-                // `.static` members stay invisible to instance receivers but an
-                // unqualified reference inside the class body resolves them
-                // (KUU-3891).
                 sema.bindings.bindIdentifier(id, symbol: staticMember.symbol)
                 sema.bindings.markImplicitReceiverMember(id, name: name)
                 driver.helpers.checkDeprecation(
@@ -424,10 +382,6 @@ extension ExprTypeChecker {
             } else if let firstInvisible = invisibleSyms.first {
                 driver.helpers.emitVisibilityError(for: firstInvisible, name: interner.resolve(name), range: nameRange, diagnostics: ctx.sema.diagnostics)
             } else if name == knownNames.field {
-                // Kotlin's `field` identifier is only valid inside property
-                // getter/setter bodies where it refers to the backing field.
-                // Emit a targeted diagnostic instead of the generic
-                // "Unresolved reference" error.
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-FIELD",
                     "'field' can only be used inside a property getter or setter body.",
@@ -436,10 +390,6 @@ extension ExprTypeChecker {
             } else if let privateMember = driver.helpers.inaccessiblePrivateImplicitReceiverMember(
                 named: name, ctx: ctx
             ) {
-                // Inherited `private` members never enter member lookup (they
-                // are not inherited), but the member still exists — report it
-                // as inaccessible rather than unresolved, matching kotlinc
-                // (KUU-3766).
                 driver.helpers.emitVisibilityError(
                     for: privateMember,
                     name: interner.resolve(name),
@@ -449,9 +399,6 @@ extension ExprTypeChecker {
             } else if let privateClassifier = driver.helpers.inaccessiblePrivateNestedClassifier(
                 named: name, ctx: ctx
             ) {
-                // A `private` nested classifier on a supertype is likewise not
-                // inherited — report it as inaccessible rather than
-                // unresolved, matching kotlinc (KUU-3798).
                 driver.helpers.emitVisibilityError(
                     for: privateClassifier,
                     name: interner.resolve(name),
@@ -470,7 +417,6 @@ extension ExprTypeChecker {
         }
         let enumEntryCandidates = Set(candidates.compactMap { candidate -> SymbolID? in
             guard sema.symbols.enumOwnerSymbol(for: candidate) != nil else { return nil }
-            // Linked expect/actual declarations denote the same entry.
             return sema.symbols.actualSymbol(for: candidate.id) ?? candidate.id
         })
         if enumEntryCandidates.count > 1 {
@@ -490,8 +436,6 @@ extension ExprTypeChecker {
                 false
             }
         }) ?? candidates.first
-        // A typealias naming an object (or a class with a companion) is
-        // transparent in value/qualifier position: rebind to the target.
         let preferredCandidate = preferredCandidate0.flatMap {
             expandTypeAliasValueTarget($0, sema: sema)
         } ?? preferredCandidate0
@@ -526,13 +470,6 @@ extension ExprTypeChecker {
                 } else if let match = extensionPropertyMatchedEntries[preferredCandidate.id],
                           match.index == earliestExtensionMatchIndex
                 {
-                    // The extension bound to an enclosing receiver-tower
-                    // entry (e.g. `this@authority` inside a `buildString`
-                    // lambda). Record that receiver type and — when the
-                    // entry carries a materializable receiver symbol — the
-                    // captured `this`, so KIR lowering calls the getter on
-                    // the enclosing receiver instead of the lambda's own
-                    // (KUU-3914).
                     sema.bindings.markImplicitReceiverMember(id, name: name, receiverType: match.type)
                     if let receiverSymbol = match.symbol {
                         sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: receiverSymbol)
@@ -575,8 +512,6 @@ extension ExprTypeChecker {
                     diagnostics: ctx.sema.diagnostics
                 )
             }
-            // DEBT-SEMA-003: a property's initializer referencing the property's
-            // own symbol reads it before it has ever been assigned a value.
             if let initializingPropertySymbol = ctx.initializingPropertySymbol,
                preferredCandidate.id == initializingPropertySymbol
             {
@@ -604,9 +539,6 @@ extension ExprTypeChecker {
                 typeVarBySymbol: receiverSubstitution.typeVarBySymbol
             )
         }
-        // Bind the declaration type before consulting flow facts. A top-level
-        // stable property is not represented in `locals`, but its stable
-        // reference still has a narrowed type inside the current branch.
         sema.bindings.bindExprType(id, type: declaredResolvedType)
         let resolvedType: TypeID = if let preferredCandidate,
            preferredCandidate.kind == .property,
@@ -620,8 +552,6 @@ extension ExprTypeChecker {
         } else {
             declaredResolvedType
         }
-        // Propagate compile-time constant value for `const val` references
-        // so downstream passes can fold without re-querying the symbol table.
         if let preferredCandidate, preferredCandidate.flags.contains(.constValue),
            let constKind = sema.symbols.constValueExprKind(for: preferredCandidate.id)
         {
@@ -660,11 +590,6 @@ extension ExprTypeChecker {
     ) -> TypeID? {
         let knownNames = KnownCompilerNames(interner: interner)
         let resolvedName = interner.resolve(name)
-        // Kotlin's member scope of `T?` still surfaces `T`'s members as
-        // unsafe-call candidates: a bare read has no `?.` marker, so the hit
-        // is unsafe. A safe member on an outer receiver still outranks it —
-        // remember the hit and let the caller keep walking the tower; only a
-        // sole unsafe match reports UNSAFE_CALL (KUU-4501, KUU-4504).
         let receiverIsNullable = sema.types.nullability(of: receiverType) == .nullable
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
         var implicitMemberType: TypeID?
@@ -684,9 +609,6 @@ extension ExprTypeChecker {
         }
         if implicitMemberType == nil,
            var result = driver.helpers.lookupMemberProperty(named: name, receiverType: nonNullReceiver, sema: sema),
-           // An inaccessible member does not shadow an outer receiver's
-           // accessible same-named member: implicit-receiver towers skip it
-           // and keep walking outward (KUU-4335).
            sema.symbols.symbol(result.symbol).map({
                ctx.visibilityChecker.isAccessible(
                    $0, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol
@@ -697,10 +619,6 @@ extension ExprTypeChecker {
                 sawUnsafeMember = true
                 return nil
             }
-            // An expression-bodied function inferred ahead of source order
-            // can still see a member property's header `Any?` placeholder.
-            // Resolve it on demand like lexical-scope property reads do in
-            // `resolveTypeForCandidate` (KUU-3944).
             if driver.pendingPropertyTypes.contains(result.symbol) {
                 driver.resolveInferredPropertyType(for: result.symbol)
                 if !driver.pendingPropertyTypes.contains(result.symbol),
@@ -774,23 +692,15 @@ extension ExprTypeChecker {
                 if let parentID = sema.symbols.parentSymbol(for: candidate),
                    let parent = sema.symbols.symbol(parentID)
                 {
-                    // Getter/setter helpers share their property's name; they
-                    // are not callable member candidates.
                     if parent.kind == .property {
                         return false
                     }
-                    // A genuine member is declared under its nominal owner;
-                    // a package-level extension keeps its package FQName even
-                    // when member lookup attaches it to the nominal.
                     if parent.kind != .package,
                        symbol.fqName == parent.fqName + [symbol.name]
                     {
                         return false
                     }
                 }
-                // Only bundled stdlib declarations (bundled sources, or the
-                // imported stdlib artifact merged into the index) model
-                // extension properties as zero-argument functions.
                 guard let memberKey = BundledDeclarationIndex.memberKey(
                     for: symbol,
                     symbolID: candidate,
@@ -902,12 +812,6 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: memberType)
             return memberType
         }
-        // Kotlin interleaves each enclosing classifier's static scope into
-        // the implicit-receiver tower: a `.static` member (the enum class's
-        // synthetic `entries` stub) is invisible to `lookupMemberProperty`,
-        // but an unqualified reference inside the class body still resolves
-        // it — after this receiver's instance members, before outer
-        // receivers' members and unresolved diagnostics (KUU-3891).
         if let staticMember = driver.helpers.lookupStaticPropertyInClassScope(
             named: name, receiverType: nonNullReceiver, ctx: ctx
         ) {
@@ -927,11 +831,6 @@ extension ExprTypeChecker {
             return staticMember.type
         }
         if emitDiagnosticOnFailure, !sawUnsafeMember {
-            // Inherited `private` members never enter member lookup (they are
-            // not inherited), but the member still exists — report it as
-            // inaccessible rather than unresolved, matching kotlinc
-            // (KUU-3766). A `private` nested classifier on a supertype is not
-            // inherited either and gets the same treatment (KUU-3798).
             if let privateMember = driver.helpers.inaccessiblePrivateImplicitReceiverMember(
                 named: name, ctx: ctx
             ) {
@@ -987,16 +886,6 @@ extension ExprTypeChecker {
         return nil
     }
 
-    /// Instantiate an extension property's own type parameters from the
-    /// implicit-receiver tower entry supplying it: `val <T> Atomic<T>.v`
-    /// read unqualified on an `Atomic<V>` receiver binds `T := V`, matching
-    /// the explicit `this.v` getter result (KUU-4340). The caller's receiver
-    /// predicate is deliberately lenient for generic receivers — the same
-    /// escape hatch extension *function* candidates get — so this solve is
-    /// what actually proves the match: every type parameter the property
-    /// declares must be determined by the receiver, and each solved argument
-    /// must satisfy its declared upper bound. Returns nil when the property
-    /// cannot be read through `receiverType` at all.
     private func extensionPropertyReceiverTypeSubstitution(
         for property: SymbolID,
         declaredReceiver: TypeID,
@@ -1010,9 +899,6 @@ extension ExprTypeChecker {
         else {
             return ([:], [:])
         }
-        // Class-owned type parameters stay rigid: they are bound by the
-        // dispatch receiver, not by the extension receiver, and remain
-        // meaningful type variables inside the owning class body.
         let ownTypeParameterSymbols = Array(
             signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)
         )
@@ -1035,12 +921,6 @@ extension ExprTypeChecker {
         guard solution.isSuccess else {
             return nil
         }
-        // Every property-owned type parameter must be determined by the
-        // receiver: an unsolved one would leak the declaration's type
-        // parameter into the read type. Solved arguments must also satisfy
-        // their declared upper bounds — the lenient receiver predicate
-        // admits same-class receivers whose arguments only unify through
-        // this inference (`Atomic<String>` vs `Atomic<T : Number>`).
         for (index, symbol) in ownTypeParameterSymbols.enumerated() {
             let signatureIndex = signature.classTypeParameterCount + index
             guard signatureIndex < signature.typeParameterUpperBoundsList.count,
@@ -1064,6 +944,15 @@ extension ExprTypeChecker {
     }
 
     func resolveTypeForCandidate(_ symbol: SemanticSymbol, sema: SemaModule) -> TypeID? {
+        if symbol.kind == .object {
+            if symbol.id == sema.types.unitClassSymbol {
+                return sema.types.unitType
+            }
+            if let objectType = sema.symbols.propertyType(for: symbol.id) {
+                return objectType
+            }
+            return sema.types.make(.classType(ClassType(classSymbol: symbol.id, args: [], nullability: .nonNull)))
+        }
         if let signature = sema.symbols.functionSignature(for: symbol.id) {
             return signature.returnType
         }
@@ -1075,23 +964,6 @@ extension ExprTypeChecker {
                 sema: sema
             )
         }
-        // Objects are singletons – always resolve to their nominal type so
-        // that `ObjectName.member()` works.
-        if symbol.kind == .object {
-            // Unit keeps its builtin value representation while retaining a
-            // source-backed object symbol for member dispatch.
-            if symbol.id == sema.types.unitClassSymbol {
-                return sema.types.unitType
-            }
-            if let objectType = sema.symbols.propertyType(for: symbol.id) {
-                return objectType
-            }
-            return sema.types.make(.classType(ClassType(classSymbol: symbol.id, args: [], nullability: .nonNull)))
-        }
-        // For class/interface/enum symbols, only resolve to nominal type when
-        // they have a companion object so that `ClassName.companionMember()`
-        // can resolve.  Without a companion, keep the previous anyType
-        // fallback so that `ClassName.instanceMethod()` correctly errors.
         if symbol.kind == .class || symbol.kind == .interface || symbol.kind == .enumClass,
            sema.symbols.companionObjectSymbol(for: symbol.id) != nil
         {

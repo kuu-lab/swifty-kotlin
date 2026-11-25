@@ -1,11 +1,7 @@
 
 extension TypeCheckHelpers {
-    /// Maximum depth for recursive typealias expansion to prevent infinite loops.
     static let maxAliasExpansionDepth = 32
 
-    /// Resolve an expect class or its actual typealias to the nominal type used
-    /// by platform member lookup. The source-facing expression keeps its
-    /// declared expect type; only the lookup view follows the actual link.
     func actualImplementationType(of typeID: TypeID, sema: SemaModule) -> TypeID? {
         guard case let .classType(classType) = sema.types.kind(of: typeID),
               let symbol = sema.symbols.symbol(classType.classSymbol)

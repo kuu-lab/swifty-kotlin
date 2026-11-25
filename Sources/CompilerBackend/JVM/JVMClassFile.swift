@@ -1,14 +1,12 @@
 import Foundation
 import CompilerCore
 
-/// JVM classfile output with verifier frames for the typed JVM CFG.
 enum JVMClassFile {
     static func emit(_ program: JVMProgram, target: JVMTarget = .java8, javaParameters: Bool = false, classIndex: ClassIndex) throws -> Data {
         let pool = JVMConstantPool()
         guard program.functions.count < 65_535 else { throw JVMEmissionError.limit("JVM class exceeds the method-count limit.") }
         var methods = try program.functions.map { try emitMethod($0, owner: program.internalClassName, javaParameters: javaParameters, pool: pool) }
         let launcherDescriptor = JVMProgram.launcherDescriptor
-        // A declared main(String[]) already occupies the launcher signature.
         let hasArrayMain = program.functions.contains {
             $0.reference.name == "main" && $0.reference.descriptor == launcherDescriptor
         }
@@ -37,6 +35,7 @@ enum JVMClassFile {
         var method = try JVMMethodEmitter(function: function, owner: owner, pool: pool).emit()
         method.annotations = function.annotations; method.parameterAnnotations = function.parameterAnnotations
         method.typeParameters = function.typeParameters
+        method.declaredExceptions = function.declaredExceptions
         method.isDeprecated = function.isDeprecated
         method.annotationDefault = function.annotationDefault
         // Each descriptor parameter gets one entry, regardless of its local slot width.
@@ -48,6 +47,15 @@ enum JVMClassFile {
     }
     private static func methodAttributes(_ method: JVMMethodCode, pool: JVMConstantPool) throws -> [(UInt16, Data)] {
         var attributes = try JVMAnnotations.methodAttributes(method, pool: pool)
+        if !method.declaredExceptions.isEmpty {
+            guard let count = UInt16(exactly: method.declaredExceptions.count) else {
+                throw JVMEmissionError.limit("JVM Exceptions count exceeds the classfile limit.")
+            }
+            var data = JVMBytes()
+            data.u2(count)
+            for exception in method.declaredExceptions { data.u2(try pool.classInfo(exception)) }
+            attributes.append((try pool.utf8("Exceptions"), data.data))
+        }
         guard !method.javaParameters.isEmpty else { return attributes }
         guard let count = UInt8(exactly: method.javaParameters.count) else {
             throw JVMEmissionError.limit("JVM MethodParameters count exceeds the classfile limit.")

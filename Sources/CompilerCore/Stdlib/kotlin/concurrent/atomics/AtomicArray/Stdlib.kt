@@ -8,11 +8,6 @@
 
 package kotlin.concurrent.atomics
 
-/**
- * The allocation stays in the runtime box via `kk_atomic_ref_array_new`; the
- * elements are then copied in one `storeAt` at a time (the array may hold
- * nullable slots even when [T] is non-nullable at the call site).
- */
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
 public fun <T> AtomicArray(array: Array<T>): AtomicArray<T> {

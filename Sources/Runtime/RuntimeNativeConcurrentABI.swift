@@ -16,8 +16,6 @@ private final class WorkerIDCounter: @unchecked Sendable {
     }
 }
 
-/// Per-worker ID registry.  Maps the raw pointer address of a `RuntimeWorkerBox`
-/// to its assigned monotonic ID so that repeated calls return a stable value.
 private let workerIDRegistry = WorkerIDRegistry()
 
 private final class WorkerIDRegistry: @unchecked Sendable {
@@ -37,11 +35,6 @@ private final class WorkerIDRegistry: @unchecked Sendable {
 
 }
 
-/// Registry of live workers backing `Worker.Companion.activeWorkers` and
-/// `Worker.Companion.fromCPointer`. Maps each worker's stable ID (assigned by
-/// `workerIDRegistry`) to its runtime handle so the public surface hands back
-/// the same `Worker` identity `kk_worker_new` produced. Entries are added when
-/// a worker box materializes and removed on `requestTermination`.
 private let activeWorkerRegistry = ActiveWorkerRegistry()
 
 private final class ActiveWorkerRegistry: @unchecked Sendable {
@@ -75,7 +68,6 @@ private final class ActiveWorkerRegistry: @unchecked Sendable {
         return candidate
     }
 
-    /// Live worker handles ordered by worker ID for a deterministic list.
     func activeHandles() -> [Int] {
         lock.lock()
         let entries = handleByID.sorted { $0.key < $1.key }
@@ -113,7 +105,6 @@ func resetActiveWorkerRegistry() {
     resetMainWorkerHandle()
 }
 
-/// Called by every entry point that materializes a `RuntimeWorkerBox`.
 func registerActiveWorker(handle: Int) {
     guard let pointer = UnsafeMutableRawPointer(bitPattern: handle) else { return }
     let workerID = workerIDRegistry.id(for: UInt(bitPattern: pointer))
@@ -126,7 +117,6 @@ func unregisterActiveWorker(handle: Int) {
     activeWorkerRegistry.unregister(id: workerID)
 }
 
-/// - Returns: A positive integer (≥ 1) that is stable across calls, or −1 for an invalid handle.
 @_cdecl("kk_worker_id")
 public func kk_worker_id(_ workerHandle: Int) -> Int {
     guard workerHandle != 0,
@@ -141,9 +131,6 @@ public func kk_worker_id(_ workerHandle: Int) -> Int {
 }
 
 
-/// A Future is a single-assignment promise: one producer calls `complete`,
-/// after which any number of consumers may call `result` (blocking until ready)
-/// or `consume` (one-shot retrieval that nulls out the stored value).
 private final class RuntimeFutureRootStorage {}
 
 final class RuntimeFutureBox: @unchecked Sendable {
@@ -153,13 +140,8 @@ final class RuntimeFutureBox: @unchecked Sendable {
     private var _ready: Bool = false
     private var _consumed: Bool = false
     private var nativeReadRetainsPayload = false
-    /// Semaphores of threads blocked on this future: one per `blockUntilReady`
-    /// caller and one shared signal per `wait_for_multiple_futures` call.
-    /// `complete` signals each once, then clears the list.
     private var waitSignals: [DispatchSemaphore] = []
 
-    /// Blocks until the future is ready or `timeoutNs` elapses.  The caller
-    /// parks on its own semaphore instead of polling `_ready`.
     func blockUntilReady(timeoutNs: Int = 5_000_000_000) {
         let signal = DispatchSemaphore(value: 0)
         lock.lock()
@@ -192,8 +174,6 @@ final class RuntimeFutureBox: @unchecked Sendable {
         waitSignals.append(signal)
     }
 
-    /// Removes `signal` if it is still registered (no-op after `complete`
-    /// cleared the list).
     func removeWaitSignal(_ signal: DispatchSemaphore) {
         lock.lock()
         defer { lock.unlock() }
@@ -203,7 +183,7 @@ final class RuntimeFutureBox: @unchecked Sendable {
     func complete(valueRaw: Int) {
         lock.lock()
         defer { lock.unlock() }
-        guard !_ready else { return } // single-assignment
+        guard !_ready else { return }
         runtimeStorage.withGCLock { state in
             _resultRaw = valueRaw
             let storageID = ObjectIdentifier(gcRootStorage)
@@ -271,8 +251,6 @@ final class RuntimeFutureBox: @unchecked Sendable {
                !nativeReadRetainsPayload {
                 state.retainedFutureHeapFields.removeValue(forKey: ObjectIdentifier(gcRootStorage))
             }
-            // Native callers without a shadow frame need an explicit root
-            // contract. Conservatively retain the result while the Future is live.
         }
         return v
     }
@@ -334,7 +312,6 @@ public func kk_future_result(_ futureHandle: Int) -> Int {
     return box.result()
 }
 
-/// Second call returns 0.
 @_cdecl("kk_future_consume")
 public func kk_future_consume(_ futureHandle: Int) -> Int {
     guard let box = resolveRuntimeHandle(futureHandle, as: RuntimeFutureBox.self) else { return 0 }
@@ -342,8 +319,6 @@ public func kk_future_consume(_ futureHandle: Int) -> Int {
 }
 
 
-/// The modern memory manager no longer detaches object graphs. Keep the raw
-/// managed reference as the opaque NativePtr token consumed by attach.
 @_cdecl("__kk_native_concurrent_detach_object_graph")
 public func __kk_native_concurrent_detach_object_graph(_ modeRaw: Int, _ valueRaw: Int) -> Int {
     _ = modeRaw
@@ -413,9 +388,6 @@ public func __kk_native_concurrent_execute_impl(
     return returnedFuture
 }
 
-/// Returns the handles of futures ready for consumption, and registers
-/// `signal` on every still-pending future not already in `registered` so that
-/// the next `kk_future_complete` wakes the waiter for a re-scan.
 private func nativeConcurrentReadyFutureHandles(
     _ futuresHandle: Int,
     signal: DispatchSemaphore,
@@ -448,8 +420,6 @@ public func __kk_native_concurrent_wait_for_multiple_futures(
     let deadline = timeoutMillis >= 0
         ? DispatchTime.now() + .milliseconds(timeoutMillis)
         : nil
-    // One signal shared by every pending future in the set: `complete` wakes
-    // this wait exactly once per completion, and each wakeup re-scans.
     let signal = DispatchSemaphore(value: 0)
     var registered = Set<Int>()
     defer {
@@ -484,7 +454,6 @@ public func __kk_native_concurrent_wait_for_multiple_futures(
     }
 }
 
-/// Starts a worker without exposing the adjacent Worker.Companion API surface.
 @_cdecl("__kk_native_concurrent_start_worker")
 public func __kk_native_concurrent_start_worker(_ errorReportingRaw: Int, _ nameRaw: Int) -> Int {
     _ = errorReportingRaw
@@ -511,27 +480,17 @@ public func __kk_native_concurrent_wait_worker_termination(_ workerHandle: Int) 
     return 0
 }
 
-/// Backs both `WorkerBoundReference.worker` (KSP-1253) and the public
-/// `Worker.Companion.current` surface (KSP-1251).
 @_cdecl("__kk_native_concurrent_current_worker")
 public func __kk_native_concurrent_current_worker() -> Int {
     runtimeCurrentWorkerHandle()
 }
 
-/// Backs `Worker.Companion.activeWorkers` (KSP-1251). The calling thread's
-/// worker is resolved first so the lazily materialized main worker is always
-/// listed, matching the upstream contract that `activeWorkers` covers the
-/// current worker.
 @_cdecl("__kk_native_concurrent_active_workers")
 public func __kk_native_concurrent_active_workers() -> Int {
     _ = runtimeCurrentWorkerHandle()
     return registerRuntimeObject(RuntimeListBox(elements: activeWorkerRegistry.activeHandles()))
 }
 
-/// Resolves a `COpaquePointer` produced by `kk_worker_as_cpointer` (whose
-/// address is the worker's stable ID) back into the live worker handle.
-/// Backs `Worker.Companion.fromCPointer` (KSP-1251). Returns 0 for invalid
-/// pointers or IDs of workers that already terminated.
 @_cdecl("__kk_native_concurrent_worker_from_cpointer")
 public func __kk_native_concurrent_worker_from_cpointer(_ pointerHandle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: pointerHandle) else {
@@ -553,9 +512,7 @@ public func __kk_native_concurrent_worker_from_cpointer(_ pointerHandle: Int) ->
 //   SAFE   = 0  — freeze the object before transfer; enforce immutability
 //   UNSAFE = 1  — skip freeze; caller takes responsibility for thread safety
 
-/// - Returns: the original `objectRaw` handle, or 0 for a null handle.
 @discardableResult
-// DEAD-CDECL-TEST-HOOK: CONCURRENCY-TRANSFER - Runtime tests exercise object transfer ownership.
 @_cdecl("kk_transfer_object")
 public func kk_transfer_object(_ objectRaw: Int, _ modeRaw: Int) -> Int {
     guard objectRaw != 0 else {
@@ -608,7 +565,6 @@ public func kk_worker_platform_thread_id(_ workerHandle: Int) -> Int {
     return Int(truncatingIfNeeded: worker.platformThreadID())
 }
 
-/// Return a COpaquePointer whose address is the Worker's stable ID.
 @_cdecl("kk_worker_as_cpointer")
 public func kk_worker_as_cpointer(_ workerHandle: Int) -> Int {
     let workerID = kk_worker_id(workerHandle)
@@ -651,11 +607,6 @@ public func kk_worker_execute_after(
     guard afterMicroseconds >= 0 else {
         return 0
     }
-    // `fnPtr`/`closureRaw` could in principle arrive as a
-    // `kk_function_create_0`-wrapped function-value handle rather than a raw
-    // (fnPtr, closureRaw) pair — see `resolveFunctionValuePair`. Resolve on
-    // the calling thread so the deferred closure below only ever captures a
-    // raw pair.
     let resolved = resolveFunctionValuePair(fnPtr: fnPtr, closureRaw: closureRaw)
     // A compiled Kotlin closure body always follows the standard
     // KKClosureThunkEntryPoint convention — (closureRaw, outThrown) -> Int,
@@ -673,8 +624,6 @@ public func kk_worker_execute_after(
         : .now()
     let submitted = worker.executeAfter(deadline: deadline) {
         defer { queuedRoots.finish() }
-        // Fire-and-forget: executeAfter's Kotlin signature returns Unit with
-        // no Future, so there is nothing to report a thrown exception to.
         kk_gc_shadow_push()
         defer { runtimePopNativeGCShadowFrame(0, 0) }
         var thrown = 0

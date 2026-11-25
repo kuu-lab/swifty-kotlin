@@ -16,6 +16,11 @@ extension JVMFunctionBuilder {
         let receiver = try convert(source, to: .reference("java/lang/Object", nullable: false))
         return try jdkCall("java/lang/Object", "getClass", [], .reference("java/lang/Class", nullable: false), receiver: receiver)!
     }
+    func runtimeJavaClass(_ value: JVMValue) throws -> JVMValue? {
+        let receiver = try convert(value, to: .reference("java/lang/Object", nullable: false))
+        return try jdkCall("java/lang/Object", "getClass", [], .reference("java/lang/Class", nullable: false), receiver: receiver)
+    }
+
     func javaClass(_ type: JVMValueType) throws -> JVMValue {
         let result = try value(.reference("java/lang/Class", nullable: false))
         let wrappers: [JVMValueType: String] = [.byte: "Byte", .short: "Short", .char: "Character", .int: "Integer", .long: "Long", .float: "Float", .double: "Double", .boolean: "Boolean", .unit: "Void"]
@@ -86,14 +91,12 @@ extension JVMFunctionBuilder {
                 return try adaptedReference(id, symbol: symbol, receiver: receiver, unbound: unbound)
             }
         }
-        // Source-backed inline declarations also retain an ordinary runtime
-        // entry for references, independently of call-site body expansion.
         let sourceBacked = program.inlineDeclarations[symbol] != nil ? program.textLibraryMethods[symbol] : nil
         let method = program.methods[symbol] ?? context.jvmImports?.method(for: symbol) ?? sourceBacked?.method
         let ref = program.references[symbol]
         guard method != nil || ref != nil else { throw fail("Unsupported JVM callable reference target.", id) }
         let constructor = method?.isConstructor == true
-        let isExtension = program.extensionSymbols.contains(symbol) || sourceBacked?.extensionReceiver != nil
+        let isExtension = program.extensionSymbols.contains(symbol) || context.jvmImports?.extensionSymbols.contains(symbol) == true || sourceBacked?.extensionReceiver != nil
         let ownerName = ref?.owner ?? method!.owner
         let staticTarget = ref != nil || method?.isStatic == true
         let bound = !unbound && !constructor && (!staticTarget || isExtension) ? try receiver.map(requireValue) ?? instance(id) : nil
@@ -224,8 +227,6 @@ extension JVMFunctionBuilder {
             return JVMIntrinsicResult(value: try jdkCall(ownerName, name, [.reference("java/lang/Class", nullable: false)], .reference("java/lang/annotation/Annotation", nullable: true), receiver: requireValue(receiverID), arguments: [requireValue(args[0].expr)], resolved: program.expressionType(id)))
         }
         if isClass, name == "java", args.isEmpty {
-            // A class reference already has a JVM Class token. Only a
-            // standalone KClass value needs the Kotlin reflection wrapper.
             if case let .callableRef(receiver, member, _) = arena.expr(receiverID),
                context.interner.resolve(member) == "class" {
                 return JVMIntrinsicResult(value: try javaClassForClassReference(receiverID, receiver: receiver))
@@ -233,8 +234,7 @@ extension JVMFunctionBuilder {
             return JVMIntrinsicResult(value: try jdkCall("kotlin/jvm/JvmClassMappingKt", "getJavaClass", [sourceType], .reference("java/lang/Class", nullable: false), arguments: [requireValue(receiverID)]))
         }
         if name == "javaClass", args.isEmpty {
-            let receiver = try convert(requireValue(receiverID), to: .reference("java/lang/Object", nullable: false))
-            return JVMIntrinsicResult(value: try jdkCall("java/lang/Object", "getClass", [], .reference("java/lang/Class", nullable: false), receiver: receiver))
+            return JVMIntrinsicResult(value: try runtimeJavaClass(requireValue(receiverID)))
         }
         if ownerName == "java/lang/Class", name == "kotlin", args.isEmpty { return JVMIntrinsicResult(value: try jdkCall("kotlin/jvm/JvmClassMappingKt", "getKotlinClass", [sourceType], .reference("kotlin/reflect/KClass", nullable: false), arguments: [requireValue(receiverID)])) }
         if isClass && ["memberProperties", "memberFunctions", "createInstance"].contains(name) {
@@ -282,6 +282,11 @@ extension JVMFunctionBuilder {
             return JVMIntrinsicResult(value: try jdkCall(ownerName, name, [object], .boolean, receiver: receiver, arguments: [requireValue(args[0].expr)], interface: isClass))
         }
         if !arena.isExplicitCall(id), args.isEmpty {
+            if ownerName == "java/lang/Class", name == "enumConstants" {
+                let result: JVMValueType = .reference("[Ljava/lang/Object;", nullable: true)
+                return JVMIntrinsicResult(value: try jdkCall(ownerName, "getEnumConstants", [], result,
+                    receiver: receiver, resolved: program.expressionType(id)))
+            }
             if let propertyOwner, name == "getter", ["kotlin/reflect/KProperty0", "kotlin/reflect/KMutableProperty0"].contains(propertyOwner) {
                 let type = JVMValueType.reference("kotlin/reflect/KProperty0", nullable: false)
                 let getter = JVMValueType.reference("kotlin/reflect/KProperty0$Getter", nullable: false)

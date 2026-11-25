@@ -1,10 +1,5 @@
 import Foundation
 
-// Stable nominal IDs for runtime-backed kotlin.reflect values.
-//
-// The compiler's nominal type tokens use the same FNV-1a-derived IDs. Keeping
-// the IDs in one runtime-owned table lets reflection handles participate in
-// `is`/`as` checks without depending on allocation order.
 let kCallableRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KCallable")
 let kFunctionRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KFunction")
 let kConstructorRuntimeTypeID = runtimeStableNominalTypeID(fqName: "kotlin.reflect.KConstructor")
@@ -28,9 +23,6 @@ let kSuspendFunctionArityRuntimeTypeIDs: [Int64] = (0 ... 22).map {
     runtimeStableNominalTypeID(fqName: "kotlin.reflect.KSuspendFunction\($0)")
 }
 
-/// Whether `typeID` is the nominal payload of an arity-specific KFunctionN or
-/// KSuspendFunctionN token. Values carrying a KFunction identity satisfy every
-/// such payload (see the JVM erasure note above).
 func runtimeIsKFunctionArityTypeID(_ typeID: Int64) -> Bool {
     kFunctionArityRuntimeTypeIDs.contains(typeID)
         || kSuspendFunctionArityRuntimeTypeIDs.contains(typeID)
@@ -84,7 +76,6 @@ private let runtimeKCallableNameGetter: @convention(c) (
     UnsafeMutablePointer<Int>?
 ) -> Int = { arg0, arg1, arg2 in
     if !runtimeKCallableIsReceiver(arg0), runtimeKCallableIsReceiver(arg1) {
-        // Flat String-aggregate convention: arg0 is the caller's sret buffer.
         arg2?.pointee = 0
         let nameRaw = __kk_kcallable_get_name(arg1)
         var length = 0
@@ -100,7 +91,6 @@ private let runtimeKCallableNameGetter: @convention(c) (
         }
         return arg0
     }
-    // Erased Int convention: arg0 = receiver, arg1 = outThrown.
     UnsafeMutablePointer<Int>(bitPattern: arg1)?.pointee = 0
     return __kk_kcallable_get_name(arg0)
 }
@@ -108,8 +98,9 @@ private let runtimeKCallableNameGetter: @convention(c) (
 private let runtimeKCallableReturnTypeGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
     raw,
     outThrown in
-    outThrown?.pointee = 0
-    return __kk_kcallable_get_return_type(raw)
+    runtimeThrowingBridge(outThrown) {
+        return __kk_kcallable_get_return_type(raw)
+    }
 }
 
 private let runtimeKProperty1Get: @convention(c) (
@@ -126,14 +117,14 @@ private let runtimeKProperty1GetDelegate: @convention(c) (
     Int,
     UnsafeMutablePointer<Int>?
 ) -> Int = { raw, _, outThrown in
-    outThrown?.pointee = 0
-    guard let property = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self) else {
-        return runtimeNullSentinelInt
+    runtimeThrowingBridge(outThrown) {
+        guard let property = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self) else {
+            return runtimeNullSentinelInt
+        }
+        return property.delegateRaw != 0 ? property.delegateRaw : runtimeNullSentinelInt
     }
-    return property.delegateRaw != 0 ? property.delegateRaw : runtimeNullSentinelInt
 }
 
-/// Installs the member-property methods on the unbound KProperty1 interface.
 func runtimeRegisterKProperty1ItableIfNeeded(rawValue: Int, typeID: Int64) {
     guard typeID == kProperty1RuntimeTypeID || typeID == kMutableProperty1RuntimeTypeID else { return }
     let interfaceSlot = 1
@@ -149,9 +140,6 @@ func runtimeRegisterKProperty1ItableIfNeeded(rawValue: Int, typeID: Int64) {
     )
 }
 
-/// Registers runtime reflection values for KCallable's source-backed property
-/// getters. User implementations and these runtime values then share interface
-/// dispatch, while the bridge getters preserve the metadata-backed behavior.
 func runtimeRegisterKCallableItableIfNeeded(rawValue: Int, typeID: Int64) {
     let callableTypeIDs: Set<Int64> = Set(
         [
@@ -207,9 +195,6 @@ func runtimeRegisterKCallableItableIfNeeded(rawValue: Int, typeID: Int64) {
 
 private let reflectionRuntimeTypeMetadataEdges: [(Int64, Int64)] = {
     var edges: [(Int64, Int64)] = [
-        // Source-declared supertypes (Stdlib/kotlin/reflect): KCallable, KClass,
-        // and KType extend KAnnotatedElement; KClass extends KDeclarationContainer;
-        // KFunction extends kotlin.Function.
         (kCallableRuntimeTypeID, kAnnotatedElementRuntimeTypeID),
         (kTypeRuntimeTypeID, kAnnotatedElementRuntimeTypeID),
         (kFunctionRuntimeTypeID, kCallableRuntimeTypeID),
@@ -232,9 +217,6 @@ private let reflectionRuntimeTypeMetadataEdges: [(Int64, Int64)] = {
         (kTypeRuntimeTypeID, kClassifierRuntimeTypeID),
         (kTypeParameterRuntimeTypeID, kClassifierRuntimeTypeID),
     ]
-    // The bundled declarations mirror the synthesized hierarchies:
-    // KFunctionN : KFunction<R>, FunctionN<P..., R> and
-    // KSuspendFunctionN : KFunction<R>, SuspendFunctionN<P..., R>.
     for arity in 0 ... 22 {
         edges.append((kFunctionArityRuntimeTypeIDs[arity], kFunctionRuntimeTypeID))
         edges.append((
@@ -250,9 +232,6 @@ private let reflectionRuntimeTypeMetadataEdges: [(Int64, Int64)] = {
     return edges
 }()
 
-/// Registers the reflection hierarchy before a handle is tagged. The edges are
-/// static, so they are inserted once; the flag is cleared with `typeParents`
-/// when test isolation resets metadata, which triggers re-registration.
 @inline(__always)
 func registerReflectionRuntimeTypeMetadata() {
     runtimeStorage.withMetadataLock { state in

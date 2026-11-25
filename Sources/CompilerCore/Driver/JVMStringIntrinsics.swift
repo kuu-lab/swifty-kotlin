@@ -202,8 +202,6 @@ extension JVMFunctionBuilder {
                     let snapshot = try jdkCall("java/util/Arrays", "copyOf", [erased, .int], erased, arguments: [input, textLength(input)], resolved: array)!
                     variadic.append((snapshot, true))
                 } else { variadic.append((input, spread)) }
-                // Later named arguments must observe the completed copy, even
-                // for a single primitive spread or a named array argument.
                 if i == lastVararg { supplied[index] = try textVararg(variadic, element: parameter.type) }
             } else {
                 guard !arg.isSpread, supplied[index] == nil else { throw fail("Duplicate JVM text argument.", id) }

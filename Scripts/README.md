@@ -17,6 +17,8 @@
 | `loc_report.sh` | – | Refactoring guard metrics as TSV (LoC by directory, `kk_` literals, TODO/FIXME counts) |
 | `dead_code_audit.sh` | – | Audit `@_cdecl kk_*` runtime symbols unreachable from the compiler |
 | `benchmark_stdlib_hof.sh` | – | Runtime micro-benchmark harness over `benchmark_cases/` (median wall-clock per case) |
+| `benchmark_preflight.py` | – | Preflight A/B `kswiftc` pairs: matched build config plus successful non-empty compile output |
+| `test_benchmark_preflight.sh` | ✓ | Regression test for benchmark preflight config and output guards |
 | `test_all.sh` | ✓ | Run every `Scripts/test_*.sh` regression test and summarize; new `test_*.sh` files are picked up automatically |
 | `check_todo_ids.sh` | ✓ | Detect duplicate task IDs in `TODO.md` |
 | `check_mutation_fuzzer_keywords.sh` | ✓ | Verify `mutate_diff_cases.py`'s `IDENTIFIER_KEYWORDS` matches the lexer's `Keyword` enum |
@@ -700,19 +702,38 @@ their reason codes are tracked in `docs/dead-code-audit.md`):
 bash Scripts/dead_code_audit.sh --verbose
 ```
 
-The `Quarterly Audits` workflow runs this audit with the fiction audit on the
-first day of January, April, July, and October. Its summary and the intermediate
-audit files are retained as a 90-day GitHub Actions artifact.
+The `Nightly Full Verification` workflow (`.github/workflows/nightly-full.yml`)
+runs this audit together with the fiction audit every night on `master`
+(04:00 JST), and when dispatched manually on any ref. Its summary and the
+intermediate audit files are retained as a 30-day GitHub Actions artifact
+(`nightly-audits-<run id>`). To run the same CI lane against a branch before
+merging, dispatch it with `gh workflow run nightly-full.yml --ref <branch>`;
+the command above is the local equivalent.
 
 ## Ktor build probe
 
 `ktor_build.sh` sparse-clones pinned snapshots of Ktor's core `common` source
 sets (`ktor-io`, `ktor-utils`, `ktor-http`) and their kotlinx-io dependency
 into a cache dir outside the repo, compiles each with `kswiftc --emit
-library`, and writes a per-module TSV of diagnostic-code counts (see
-`docs/ktor-build-status.md` for the current gap inventory). It is a
+library`, and writes a per-module TSV of diagnostic-code counts. It is a
 diagnostic probe, not a CI-wired regression test — a module failing to
 compile is expected until the remaining gaps close.
+
+A warm cache checkout is re-pointed to the requested `KTOR_TAG` /
+`KOTLINX_IO_TAG` before compiling: a requested tag whose commit already
+matches HEAD is reused without network access (several tags on one commit
+all count, so offline warm-cache runs keep working); anything else is
+fetched on demand — branch requests always re-fetch so they track remote
+advances, and win over a same-named tag — and it is a hard failure, leaving
+the cache untouched, when the requested revision cannot be fetched and the
+cache is not already at it, or when the cache has local changes. Any
+revision change also drops previously compiled `.kklib` module artifacts,
+and the output dir records which source revisions produced them, so
+`--module` runs never link dependencies built from older sources — even
+when `KTOR_BUILD_CACHE_DIR` points at a different checkout sharing the same
+output dir. `--no-fetch` keeps its explicit reuse-whatever-is-cached
+semantics. `Scripts/test_ktor_build_revision.sh` covers this behavior and
+is picked up by `Scripts/test_all.sh`.
 
 ```bash
 bash Scripts/ktor_build.sh                  # fetch + compile all modules

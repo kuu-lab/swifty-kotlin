@@ -33,10 +33,11 @@ extension JVMFunctionBuilder {
         }
         if op == .rangeTo {
             if let symbol = program.sema.bindings.callBinding(for: id)?.chosenCallee,
-               program.inlineDeclarations[symbol] != nil || program.references[symbol] != nil || program.methods[symbol] != nil {
+               program.inlineDeclarations[symbol] != nil || program.references[symbol] != nil || program.methods[symbol] != nil || program.textLibraryMethods[symbol] != nil {
                 let args = [CallArgument(expr: rhs)]
                 if let call = try inlineCall(args, receiver: lhs, id: id)
-                    ?? sourceCall(args, receiver: lhs, id: id) { return call.value }
+                    ?? sourceCall(args, receiver: lhs, id: id)
+                    ?? textLibraryCall(args, receiver: lhs, id: id) { return call.value }
             }
             let lower = try requireValue(lhs), upper = try requireValue(rhs)
             if lower.type == .double, upper.type == .double {
@@ -155,8 +156,10 @@ extension JVMFunctionBuilder {
         }
         let left = try requireValue(lhs)
         if op == .elvis {
-            let type = try program.expressionType(id), result = try value(type), fallback = label(), end = label()
-            guard left.type.referenceName != nil else { throw fail("JVM elvis requires a nullable reference or boxed primitive.", id) }
+            let type = try program.expressionType(id)
+            // An unboxed value cannot take the null edge.
+            guard left.type.referenceName != nil else { return try convert(left, to: type) }
+            let result = try value(type), fallback = label(), end = label()
             let null = try constant(.null, .reference("java/lang/Object", nullable: true)), check = try value(.boolean)
             instructions.append(.referenceCompare(.notEqual, left, null, check)); instructions.append(.jumpIfFalse(check, fallback))
             instructions.append(.copy(try convert(left, to: type), result)); jump(end)
@@ -189,6 +192,16 @@ extension JVMFunctionBuilder {
             return try concatenate(left, right)
         }
         let right = try requireValue(rhs)
+        if op == .add, (try? program.expressionType(id).referenceName) == "kotlin/coroutines/CoroutineContext",
+           let contextSymbol = program.sema.symbols.lookup(fqName: ["kotlin", "coroutines", "CoroutineContext"].map(context.interner.intern)),
+           let leftType = program.sema.bindings.exprType(for: lhs),
+           let rightType = program.sema.bindings.exprType(for: rhs),
+           program.sema.types.isSubtype(leftType, program.sema.types.make(.classType(ClassType(classSymbol: contextSymbol)))),
+           program.sema.types.isSubtype(rightType, program.sema.types.make(.classType(ClassType(classSymbol: contextSymbol)))) {
+            let contextType = JVMValueType.reference("kotlin/coroutines/CoroutineContext", nullable: false)
+            return try jdkCall("kotlin/coroutines/CoroutineContext", "plus", [contextType], contextType,
+                               receiver: convert(left, to: contextType), arguments: [right], interface: true)
+        }
         if ordering, left.type.isText, right.type.isText {
             let compared = try jdkCall("java/lang/String", "compareTo", [.string], .int, receiver: convert(left, to: .string), arguments: [right])!
             let result = try value(.boolean); instructions.append(.binary(op, compared, try constant(.int(0), .int), result)); return result
@@ -257,6 +270,9 @@ extension JVMFunctionBuilder {
             let a = try convert(left, to: any), b = try convert(right, to: any), result = try value(.boolean)
             instructions.append(.binary(op, a, b, result)); return result
         }
+        guard left.type.numericCarrier != nil, right.type.numericCarrier != nil else {
+            throw fail("JVM arithmetic/comparison requires numeric operands (\(left.type.descriptor), \(right.type.descriptor)).", id)
+        }
         let promoted = try numericType(left.type, right.type)
         // Arithmetic uses operand width before a contextual result widening.
         // Char comparisons retain Char, while Char subtraction produces Int.
@@ -268,8 +284,7 @@ extension JVMFunctionBuilder {
     }
 
     func conditional(_ id: ExprID, _ condition: ExprID, _ thenExpr: ExprID, _ elseExpr: ExprID?, discarded: Bool = false) throws -> JVMValue? {
-        let check = try requireValue(condition)
-        guard check.type == .boolean else { throw fail("JVM if condition must be Boolean.", id) }
+        let check = try convert(requireValue(condition), to: .boolean)
         let type = try program.expressionType(id)
         let result = discarded || type == .unit ? nil : try value(type)
         let alternate = label(), end = label()
@@ -314,7 +329,7 @@ extension JVMFunctionBuilder {
             return
         }
         let range: (BinaryOp, ExprID, ExprID)? = switch arena.expr(iterable) {
-        case let .binary(op, from, to, _) where [BinaryOp.rangeTo, .rangeUntil, .downTo].contains(op):
+        case let .binary(op, from, to, _) where [BinaryOp.rangeTo, .rangeUntil, .downTo].contains(op) && program.sema.bindings.isRangeExpr(iterable):
             (op, from, to)
         case let .memberCall(receiver, callee, _, args, _)
             where context.interner.resolve(callee) == "until" && args.count == 1 &&

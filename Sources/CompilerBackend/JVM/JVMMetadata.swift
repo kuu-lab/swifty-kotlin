@@ -1,9 +1,6 @@
 import Foundation
 import CompilerCore
 
-/// Kotlin metadata 2.0 file facades and classes for the JVM subset.
-/// Field numbers follow Kotlin's metadata.proto, jvm_metadata.proto and
-/// jvm_module.proto. Explicit JVM signatures avoid inferred ABI mappings.
 enum JVMMetadata {
     struct Proto {
         var bytes = Data()
@@ -284,7 +281,9 @@ enum JVMMetadata {
             if !declaration.kotlinSupertypes.isEmpty { for t in declaration.kotlinSupertypes { package.data(6, sourceType(t)) } }
             else { for parent in [declaration.superclass] + declaration.interfaces { package.data(6, type(.reference(parent, nullable: false))) } }
             let accessorNames = Set(declaration.properties.flatMap { [$0.getter.name + $0.getter.descriptor] + ($0.setter.map { [$0.name + $0.descriptor] } ?? []) })
-            for member in declaration.functions + [declaration.annotationConstructor].compactMap({ $0 }) where !member.isMetadataHidden && (member.access ?? 0) & 0x1000 == 0 && member.reference.name != "<clinit>" {
+            // isJvmSynthetic keeps user @JvmSynthetic functions in metadata despite ACC_SYNTHETIC,
+            // but compiler-generated impl bridges (hidden originals) stay excluded via isSynthetic.
+            for member in declaration.functions + [declaration.annotationConstructor].compactMap({ $0 }) where !member.isMetadataHidden && ((member.access ?? 0) & 0x1000 == 0 || (member.isJvmSynthetic && !member.isSynthetic)) && member.reference.name != "<clinit>" {
                 if member.isConstructor || member.isValueConstructor {
                     if member.isSynthetic { continue }
                     var proto = Proto()

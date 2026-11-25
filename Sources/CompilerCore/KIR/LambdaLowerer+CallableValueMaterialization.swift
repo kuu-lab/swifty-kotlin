@@ -12,7 +12,6 @@ extension LambdaLowerer {
         let functionTypePayload = arity | (functionType.isSuspend ? 0x100 : 0)
         let payloadExpr = arena.appendExpr(.intLiteral(functionTypePayload), type: sema.types.intType)
         instructions.append(.constValue(result: payloadExpr, value: .intLiteral(functionTypePayload)))
-        // Preserve the raw symbol and capture ABI for inline/HOF/coroutine lowering.
         instructions.append(.call(
             callee: interner.intern("kk_function_value_tag_arity"),
             arguments: [callableExpr, payloadExpr],
@@ -34,7 +33,6 @@ extension LambdaLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         if let exprID, functionType.receiver != nil, !functionType.isSuspend {
-            // Generic receiver callbacks already use the callee's erased return ABI.
             guard lambdaReturnType == functionType.returnType else { return nil }
             let callable = arena.appendExpr(.symbolRef(lambdaSymbol), type: sema.types.make(.functionType(functionType)))
             instructions.append(.constValue(result: callable, value: .symbolRef(lambdaSymbol)))
@@ -55,9 +53,6 @@ extension LambdaLowerer {
                 instructions: &instructions
             )
         }
-        // Suspend values count the receiver as the first invocation argument.
-        // Context receivers are leading runtime invocation inputs for a
-        // context-function value, before its extension receiver and parameters.
         let invocationTypes = functionType.contextReceivers
             + (functionType.receiver.map { [$0] } ?? [])
             + functionType.params
@@ -87,11 +82,19 @@ extension LambdaLowerer {
             symbol: driver.ctx.allocateSyntheticGeneratedSymbol(),
             type: sema.types.intType
         )
+        // The erased invoke ABI hands the adapter raw argument slots, so a
+        // non-null primitive/enum parameter must be declared as `Any` here —
+        // the same boundary HOFAdapter draws — or the `.copy` into the
+        // checkcast operand below would box the raw bits first and the
+        // ClassCastException Kotlin/JVM's invoke bridge performs could never
+        // fire (stored_primitive_lambda_checkcast).
         let valueParams: [KIRParameter] = invocationTypes.enumerated().map { index, type in
-            KIRParameter(
+            let usesErasedSlot = driver.callLowerer.isNonNullValueRepresentationType(type, sema: sema)
+                || driver.callLowerer.isNonNullEnumType(type, sema: sema)
+            return KIRParameter(
                 symbol: exprID.map { syntheticLambdaParamSymbol(lambdaExprID: $0, paramIndex: 100 + index) }
                     ?? driver.ctx.allocateSyntheticGeneratedSymbol(),
-                type: type
+                type: usesErasedSlot ? sema.types.anyType : type
             )
         }
 
@@ -99,9 +102,6 @@ extension LambdaLowerer {
         let closureExpr = arena.appendExpr(.symbolRef(closureParam.symbol), type: closureParam.type)
         body.append(.constValue(result: closureExpr, value: .symbolRef(closureParam.symbol)))
 
-        // The thrown slot and the adapter's single rethrow exit are created
-        // up front so erased-argument checkcasts can share them with the
-        // inner lambda call.
         let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType)
         let continueLabel = driver.ctx.makeLoopLabel()
         let rethrowLabel = driver.ctx.makeLoopLabel()
@@ -126,11 +126,12 @@ extension LambdaLowerer {
             callArguments.append(normalizedLoadedExpr)
         }
 
-        for param in valueParams {
+        for (paramIndex, param) in valueParams.enumerated() {
+            let declaredParamType = invocationTypes[paramIndex]
             let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
             body.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
             var forwardedExpr = paramExpr
-            if let checkType = kirCheckableCastErasure(of: param.type, sema: sema),
+            if let checkType = kirCheckableCastErasure(of: declaredParamType, sema: sema),
                kirErasedBoundaryCheckable(checkType, sema: sema) {
                 // KUU-3535: the erased invoke ABI hands this bridge the raw
                 // argument bits. Checkcast against the declared parameter
@@ -147,7 +148,7 @@ extension LambdaLowerer {
                     arena: arena,
                     instructions: &body
                 )
-                let checked = arena.appendTemporary(type: param.type)
+                let checked = arena.appendTemporary(type: declaredParamType)
                 body.append(.call(
                     callee: interner.intern("kk_op_cast"),
                     arguments: [erasedOperand, typeToken],
@@ -160,7 +161,7 @@ extension LambdaLowerer {
             }
             let normalizedParamExpr = normalizeHOFPrimitiveParameter(
                 forwardedExpr,
-                type: param.type,
+                type: declaredParamType,
                 sema: sema,
                 arena: arena,
                 interner: interner,

@@ -1,27 +1,16 @@
 import Foundation
 
 struct JVMKotlinClassMetadata {
-    let kind: Int
     let classFlags: Int
     let companion: String?
     let typeParameters: [JVMTypeParameter]
-    let constructors: [JVMKotlinConstructorInfo]
     let functions: [JVMKotlinFunctionInfo]
     let properties: [JVMKotlinPropertyInfo]
+    let typeAliases: [JVMKotlinTypeAliasInfo]
+    let isPackage: Bool
 
     private var classKind: Int { (classFlags >> 6) & 7 }
-    var isObject: Bool { classKind == 5 || isCompanion }
     var isCompanion: Bool { classKind == 6 }
-    var isFileFacade: Bool { kind == 2 || kind == 5 }
-}
-
-struct JVMKotlinConstructorInfo {
-    let descriptor: String?
-    let flags: Int
-    let parameters: [JVMKotlinParameterInfo]
-
-    var isPublic: Bool { (flags >> 1) & 7 == 3 }
-    var isProtected: Bool { (flags >> 1) & 7 == 2 }
 }
 
 struct JVMKotlinFunctionInfo {
@@ -50,21 +39,22 @@ struct JVMKotlinParameterInfo {
 }
 
 struct JVMKotlinPropertyInfo {
-    let name: String
-    let type: JVMKotlinType
     let flags: Int
     let getter: String?
     let setter: String?
 
-    var isPublic: Bool { (flags >> 1) & 7 == 3 }
-    var isProtected: Bool { (flags >> 1) & 7 == 2 }
     var isAbstract: Bool { (flags >> 4) & 3 == 2 }
-    var isMutable: Bool { flags & 256 != 0 && setter != nil }
 }
 
-/// Kotlin's JVM annotation stores a length-prefixed string table followed by
-/// a Class or Package protobuf. Keep the reader independent of the compiler
-/// JAR so reading classpath declarations never runs dependency code.
+struct JVMKotlinTypeAliasInfo {
+    let name: String
+    let typeParameters: [JVMTypeParameter]
+    let underlyingType: JVMKotlinType?
+    let expandedType: JVMKotlinType?
+    let isPublic: Bool
+    let isProtected: Bool
+}
+
 extension JVMKotlinClassMetadata {
     static func read(_ annotation: JVMAnnotation) throws -> Self? {
         func value(_ key: String) -> JVMAnnotationValue? {
@@ -84,13 +74,7 @@ extension JVMKotlinClassMetadata {
         let decoder = try JVMKotlinMetadataTypes(names: names, table: message.message(30))
         let isClass = kind == 1
         let parameters = isClass ? try message.messages(5).map(decoder.typeParameter) : []
-        let constructors: [JVMKotlinConstructorInfo] = isClass ? try message.messages(8).map { constructor in
-            let descriptor = try constructor.message(100)?.integer(2).map(decoder.name)
-            return JVMKotlinConstructorInfo(descriptor: descriptor, flags: constructor.integer(1) ?? 6,
-                parameters: try constructor.messages(2).map(decoder.parameter))
-        } : []
         let functions = try message.messages(isClass ? 9 : 3).compactMap { function -> JVMKotlinFunctionInfo? in
-            // Context receivers require an additional JVM argument per receiver.
             guard function.fields[10] == nil, function.fields[11] == nil else { return nil }
             let scope = try function.message(30).map { try JVMKotlinMetadataTypes(names: names, table: $0) } ?? decoder
             let name = try scope.name(function.integer(2))
@@ -112,13 +96,27 @@ extension JVMKotlinClassMetadata {
             let getter = try signature?.message(3)?.integer(1).map(decoder.name)
             let setter = try signature?.message(4)?.integer(1).map(decoder.name)
             let flags = property.integer(11) ?? property.integer(1).map { ($0 & 63) | (($0 >> 8) << 6) } ?? 518
-            return JVMKotlinPropertyInfo(name: try decoder.name(property.integer(2)),
-                type: try decoder.requiredType(property, field: 3, indexField: 9), flags: flags,
-                getter: getter, setter: setter)
+            return JVMKotlinPropertyInfo(flags: flags, getter: getter, setter: setter)
         }
-        return Self(kind: kind, classFlags: isClass ? message.integer(1) ?? 6 : 0,
+        let typeAliases = try message.messages(isClass ? 11 : 5).compactMap { alias -> JVMKotlinTypeAliasInfo? in
+            let name = try decoder.name(alias.integer(2))
+            guard JVMProgramBuilder.isIdentifier(name) else { return nil }
+            let typeParameters = try alias.messages(3).map(decoder.typeParameter)
+            let underlyingType = try decoder.type(alias, field: 4, indexField: 5)
+            let expandedType = try decoder.type(alias, field: 6, indexField: 7)
+            guard underlyingType != nil || expandedType != nil else { return nil }
+            let flags = alias.integer(1) ?? 6
+            return JVMKotlinTypeAliasInfo(
+                name: name, typeParameters: typeParameters,
+                underlyingType: underlyingType, expandedType: expandedType,
+                isPublic: (flags >> 1) & 7 == 3,
+                isProtected: (flags >> 1) & 7 == 2
+            )
+        }
+        return Self(classFlags: isClass ? message.integer(1) ?? 6 : 0,
                     companion: isClass ? try message.integer(4).map(decoder.name) : nil,
-                    typeParameters: parameters, constructors: constructors, functions: functions, properties: properties)
+                    typeParameters: parameters, functions: functions, properties: properties,
+                    typeAliases: typeAliases, isPackage: !isClass)
     }
 
     private static func decode(_ strings: [String]) -> [UInt8] {
@@ -228,7 +226,6 @@ private struct JVMKotlinMetadataTypes {
         if let index = message.integer(7) {
             type = .parameter(index, nullable: isNullable, definitelyNotNull: false)
         } else if let index = message.integer(9) {
-            // Some compiler versions encode local parameter references by name.
             type = .named(try name(index), [], nullable: isNullable)
         } else {
             let qualified = try name(message.integer(6) ?? message.integer(12))

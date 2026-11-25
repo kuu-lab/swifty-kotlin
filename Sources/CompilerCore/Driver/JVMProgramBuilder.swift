@@ -5,8 +5,9 @@ final class JVMProgramBuilder {
     let ast: ASTModule
     let sema: SemaModule
     var classes: [SymbolID: JVMClassPlan] = [:]
-    var methods: [SymbolID: JVMForeignMethod] = [:]
-    var collectionInterfaceMethods: [SymbolID: JVMForeignMethod] = [:]
+    var methodTablesVersion = 0
+    var methods: [SymbolID: JVMForeignMethod] = [:] { didSet { methodTablesVersion &+= 1 } }
+    var collectionInterfaceMethods: [SymbolID: JVMForeignMethod] = [:] { didSet { methodTablesVersion &+= 1 } }
     var properties: [SymbolID: JVMProperty] = [:]
     var foreignInterfaceDefaultMethodsCache: [SymbolID: [String: (method: JVMForeignMethod, owner: String)]] = [:]
     var facadeName = ""
@@ -16,6 +17,7 @@ final class JVMProgramBuilder {
     var localFunctions: [SymbolID: JVMLocalFunctionPlan] = [:]
     var syntheticFunctions: [String: [JVMFunction]] = [:]
     var closureClasses: [JVMClass] = []
+    private var _exprRangeIndex: [FileID: [(start: Int, end: Int, expr: ExprID)]]?
     var metroFactoryFields: [SymbolID: JVMField] = [:]
     var metroClasses: [JVMClass] = []
     var functionArities: Set<Int> = []
@@ -26,7 +28,6 @@ final class JVMProgramBuilder {
     var inlineDeclarations: [SymbolID: FunDecl] = [:]
     var sourceParameters: [SymbolID: [ValueParamDecl]] = [:]
     var sourceDeclarations: [SymbolID: FunDecl] = [:]
-    // Sema has finished binding declarations before JVM emission begins.
     lazy var declarationIDsBySymbol: [SymbolID: [DeclID]] = {
         sema.bindings.declSymbols.reduce(into: [:]) { result, binding in
             result[binding.value, default: []].append(binding.key)
@@ -34,11 +35,38 @@ final class JVMProgramBuilder {
     }()
     var sourceRangeResultSymbols: Set<SymbolID> = []
     var inlineTypeArguments: [SymbolID: TypeID] = [:]
-    var textLibraryMethods: [SymbolID: JVMTextLibraryMethod] = [:]
+    var textLibraryMethods: [SymbolID: JVMTextLibraryMethod] = [:] { didSet { methodTablesVersion &+= 1 } }
     var textLibraryProperties: [SymbolID: JVMForeignMethod] = [:]
     var textLibraryFields: [SymbolID: JVMField] = [:]
     let platformOperations: [String: JVMPlatformOperation]
     var rawAnnotationConstructions: [String: ExprID] = [:]
+
+    private var methodsByOwnerCache: [String: [SymbolID]]?
+    private var foreignMethodsByOwnerCache: [String: [JVMForeignMethod]]?
+    private var methodOwnerCacheVersion = -1
+
+    func methodSymbolsOwned(by owner: String) -> [SymbolID] {
+        rebuildMethodOwnerCachesIfNeeded()
+        return methodsByOwnerCache?[owner] ?? []
+    }
+
+    func foreignMethodsOwned(by owner: String) -> [JVMForeignMethod] {
+        rebuildMethodOwnerCachesIfNeeded()
+        return foreignMethodsByOwnerCache?[owner] ?? []
+    }
+
+    private func rebuildMethodOwnerCachesIfNeeded() {
+        guard methodOwnerCacheVersion != methodTablesVersion else { return }
+        var bySymbol: [String: [SymbolID]] = [:]
+        for (symbol, method) in methods { bySymbol[method.owner, default: []].append(symbol) }
+        methodsByOwnerCache = bySymbol
+        var byMethod: [String: [JVMForeignMethod]] = [:]
+        for method in methods.values { byMethod[method.owner, default: []].append(method) }
+        for method in collectionInterfaceMethods.values { byMethod[method.owner, default: []].append(method) }
+        for entry in textLibraryMethods.values { byMethod[entry.method.owner, default: []].append(entry.method) }
+        foreignMethodsByOwnerCache = byMethod
+        methodOwnerCacheVersion = methodTablesVersion
+    }
 
     init(context: CompilationContext) throws {
         guard let ast = context.ast, let sema = context.sema else {
@@ -48,9 +76,43 @@ final class JVMProgramBuilder {
         self.platformOperations = context.options.stdlibOnly ? try JVMStdlibCatalog.platformOperations() : [:]
     }
 
-    /// Consumer compiles without an explicit JVM classpath keep the legacy
-    /// long facade ABI used for the official runtime; explicit stdlib jars use
-    /// the real value-class ABI.
+    /// Expressions whose source range lies within `range`, found through a
+    /// per-file start-offset index built once. Per-lambda capture analysis runs
+    /// for every closure, so rescanning the whole expression arena each time is
+    /// quadratic in module size.
+    func exprIDs(in range: SourceRange) -> [ExprID] {
+        let index = expressionRangeIndex()
+        guard let entries = index[range.start.file] else { return [] }
+        var lo = 0, hi = entries.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if entries[mid].start < range.start.offset { lo = mid + 1 } else { hi = mid }
+        }
+        var result: [ExprID] = []
+        var i = lo
+        while i < entries.count, entries[i].start <= range.end.offset {
+            if entries[i].end <= range.end.offset { result.append(entries[i].expr) }
+            i += 1
+        }
+        return result
+    }
+
+    private func expressionRangeIndex() -> [FileID: [(start: Int, end: Int, expr: ExprID)]] {
+        if let index = _exprRangeIndex { return index }
+        var grouped: [FileID: [(start: Int, end: Int, expr: ExprID)]] = [:]
+        let arena = ast.arena
+        for i in arena.exprs.indices {
+            let id = ExprID(rawValue: Int32(i))
+            guard let r = arena.exprRange(id) else { continue }
+            grouped[r.start.file, default: []].append((r.start.offset, r.end.offset, id))
+        }
+        var index: [FileID: [(start: Int, end: Int, expr: ExprID)]] = [:]
+        index.reserveCapacity(grouped.count)
+        for (file, entries) in grouped { index[file] = entries.sorted { $0.start < $1.start } }
+        _exprRangeIndex = index
+        return index
+    }
+
     func usesLegacyDurationLongMapping() -> Bool {
         !context.options.stdlibOnly && context.options.jvmClasspath.isEmpty
     }
@@ -67,8 +129,7 @@ final class JVMProgramBuilder {
         return try JVMClasspathIndex.type(actual, sema: sema, ctx: context)
     }
     func parameterType(_ id: TypeID) throws -> JVMValueType {
-        let value = try type(id)
-        return value == .unit ? .reference("kotlin/Unit", nullable: false) : value
+        try type(id).withBoxedUnit
     }
     func hasSourceRangeOperator(_ id: ExprID) -> Bool {
         if let symbol = sema.bindings.callBinding(for: id)?.chosenCallee,
@@ -98,13 +159,8 @@ final class JVMProgramBuilder {
         let mapped = try self.type(type)
         if mapped == .int, sema.bindings.isFloatingPointRangeExpr(id),
            !sema.bindings.isOpenFloatingPointRangeExpr(id) {
-            // Sema keeps floating-point ranges on its scalar range marker;
-            // JVM values use the common ClosedFloatingPointRange interface.
             return .reference("kotlin/ranges/ClosedFloatingPointRange", nullable: false)
         }
-        // Primitive range expressions carry their scalar element type in exprTypes,
-        // but the JVM materializes a nominal range object. A source-backed rangeTo
-        // may return another declared type, so preserve its resolved result type.
         if sema.bindings.isRangeExpr(id), mapped.referenceName == nil {
             if hasSourceRangeOperator(id),
                let callee = sema.bindings.callBinding(for: id)?.chosenCallee,
@@ -125,9 +181,6 @@ final class JVMProgramBuilder {
         return mapped
     }
 
-    /// A function whose body is a range expression carries the scalar range
-    /// marker as its Sema return type; its JVM signature must name the nominal
-    /// range class the body actually materializes.
     func nominalRangeResultType(for symbol: SymbolID, mapped: JVMValueType) -> JVMValueType? {
         guard mapped.referenceName == nil, sema.bindings.isRangeSymbol(symbol) else { return nil }
         if sema.bindings.isCharRangeSymbol(symbol) {
@@ -151,7 +204,6 @@ final class JVMProgramBuilder {
         return bytes.dropFirst().allSatisfy { start($0) || (48...57).contains($0) }
     }
 
-    /// Kotlin class names may use Unicode identifier scalars in JVM internal names.
     static func isJvmClassIdentifier(_ value: String) -> Bool {
         let scalars = value.unicodeScalars
         guard let first = scalars.first,
@@ -159,7 +211,6 @@ final class JVMProgramBuilder {
         return scalars.dropFirst().allSatisfy { $0.value == 0x5F || $0.properties.isIDContinue }
     }
 
-    /// Checks the JVMS unqualified-name restrictions for user-defined methods.
     static func isUnqualifiedJvmMethodName(_ value: String) -> Bool {
         guard !value.isEmpty else { return false }
         for scalar in value.unicodeScalars {
@@ -182,8 +233,7 @@ final class JVMProgramBuilder {
             throw JVMFrontendError(message: "JVM M6 requires ASCII identifiers for the source filename and package.")
         }
         var facade = String(stem.prefix(1)).uppercased() + stem.dropFirst() + "Kt"
-        // Other file annotations have independent Sema effects. Resolve only
-        // possible JvmName spellings here and keep unsupported aliases strict.
+        let jvmNameFQName = ["kotlin", "jvm", "JvmName"].map(context.interner.intern)
         var jvmNameSpellings: Set<String> = ["kotlin.jvm.JvmName", "JvmName"]
         for imported in file.imports {
             let importPath = imported.path.map(context.interner.resolve).joined(separator: ".")
@@ -207,15 +257,19 @@ final class JVMProgramBuilder {
             }
         }
         let jvmNameAnnotations = file.annotations.filter { annotation in
-            jvmNameSpellings.contains(annotation.name)
+            guard let sema = context.sema,
+                  let symbol = resolveAnnotationSymbol(
+                      named: annotation.name, in: file, symbols: sema.symbols, interner: context.interner,
+                      types: sema.types, allowGlobalShortNameFallback: false
+                  )
+            else { return annotation.name == "kotlin.jvm.JvmName" }
+            return sema.symbols.symbol(symbol)?.fqName == jvmNameFQName
         }
         guard jvmNameAnnotations.count <= 1 else {
             throw JVMFrontendError(message: "JVM supports one @file:kotlin.jvm.JvmName annotation.")
         }
         if let annotation = jvmNameAnnotations.first {
-            guard annotation.useSiteTarget == "file",
-                  annotation.name == "kotlin.jvm.JvmName" || annotation.name == "JvmName",
-                  annotation.arguments.count == 1,
+            guard annotation.useSiteTarget == "file", annotation.arguments.count == 1,
                   let raw = annotation.arguments.first?.components(separatedBy: "=").last?.trimmingCharacters(in: .whitespacesAndNewlines),
                   let data = ("[" + raw + "]").data(using: .utf8), let names = try? JSONSerialization.jsonObject(with: data) as? [String],
                   names.count == 1, isIdentifier(names[0]) else {
@@ -253,13 +307,31 @@ final class JVMProgramBuilder {
         return array.args == [.invariant(string)] || array.args == [.out(string)]
     }
 
+    private func isExpectDeclaration(_ id: DeclID) -> Bool {
+        switch ast.arena.decl(id) {
+        case let .funDecl(declaration): declaration.modifiers.contains(.expect)
+        case let .propertyDecl(declaration): declaration.modifiers.contains(.expect)
+        case let .classDecl(declaration): declaration.modifiers.contains(.expect)
+        case let .interfaceDecl(declaration): declaration.modifiers.contains(.expect)
+        case let .objectDecl(declaration): declaration.modifiers.contains(.expect)
+        case let .typeAliasDecl(declaration): declaration.modifiers.contains(.expect)
+        default: false
+        }
+    }
+
     func build() throws -> JVMProgram {
         func isComputedExtension(_ property: PropertyDecl) -> Bool {
             property.receiverType != nil && property.initializer == nil
                 && property.delegateExpression == nil && property.explicitBackingField == nil
         }
 
-        let files = ast.files.filter { context.sourceManager.origin(of: $0.fileID) == .user }
+        let files = ast.files.filter { context.sourceManager.origin(of: $0.fileID) == .user }.map { file in
+            ASTFile(
+                fileID: file.fileID, packageFQName: file.packageFQName, imports: file.imports,
+                topLevelDecls: file.topLevelDecls.filter { !isExpectDeclaration($0) },
+                scriptBody: file.scriptBody, annotations: file.annotations, range: file.range
+            )
+        }
         guard !files.isEmpty else { throw JVMFrontendError(message: "JVM compilation requires source files.") }
         let names = try files.map { try Self.fileIdentity(for: $0, context: context) }
         let sourceGroups = Dictionary(grouping: files.indices, by: { names[$0].0 })
@@ -348,7 +420,7 @@ final class JVMProgramBuilder {
             }
             var facadeFunctions: [JVMFunction] = []
             if let plan = facadePlan {
-                for (_, declaration, property) in plan.properties { facadeFunctions += try emitAccessors(plan, declaration, property) }
+                for (propertyID, declaration, property) in plan.properties { facadeFunctions += try emitAccessors(plan, propertyID, declaration, property) }
                 if plan.properties.contains(where: { !isComputedExtension($0.1) }) {
                     let b = try nominalBuilder(plan, name: "<clinit>", staticBody: true)
                     for (symbol, field) in plan.propertyTokens.sorted(by: { $0.value.name < $1.value.name }) {
@@ -397,7 +469,6 @@ final class JVMProgramBuilder {
             }
             facades = merged
         }
-        // The manifest and launcher belong to the file containing main.
         if let main = facades.firstIndex(where: \.hasMain), main != 0 { facades.swapAt(0, main) }
         facadeName = facades[0].internalClassName
         var emittedClasses = try emitClasses()
@@ -676,7 +747,6 @@ final class JVMFunctionBuilder {
         if isStaticBody { function.access = 0x1009; function.isSynthetic = true }
         function.isSuspend = declaration.isSuspend || isSuspendBody
         function.isInline = declaration.isInline
-        // Sema includes modifiers inherited by overrides in the symbol flags.
         let semanticFlags = functionSymbol.flatMap { program.sema.symbols.symbol($0)?.flags }
         function.isOperator = declaration.modifiers.contains(.operator) || semanticFlags?.contains(.operatorFunction) == true
         function.isInfix = declaration.modifiers.contains(.infix) || semanticFlags?.contains(.infixFunction) == true
@@ -686,7 +756,6 @@ final class JVMFunctionBuilder {
         function.parameterDefaultFlags = declaration.valueParams.map(\.hasDefaultValue)
         function.parameterInlineFlags = declaration.valueParams.map { $0.isCrossinline || $0.isNoinline ? 8 : 0 }
         if activeComposer != nil && declaration.valueParams.contains(where: \.hasDefaultValue) {
-            // Omitted non-null parameters arrive as null placeholders.
             function.checksParameters = false
         }
         function.handlers = handlers
@@ -698,13 +767,10 @@ final class JVMFunctionBuilder {
         if declaration.modifiers.contains(.abstract) || (owner?.isInterface == true && declaration.body == .unit) { return finish(abstract: true) }
         if let mask = try beginComposableBody() {
             let inputs = declaration.valueParams.map { scopes[0][$0.name]!.value }
-            // Compose defaults may call composables. Evaluate them within the
-            // callee's composition with only earlier parameters in scope.
             scopes[0].removeAll()
             try program.applyDefaults(self, parameters: declaration.valueParams, inputs: inputs, masks: [mask])
         }
         try prepareTailrec()
-        // A function body may shadow a parameter, as ordinary nested blocks do.
         scopes.append([:])
         switch declaration.body {
         case let .block(statements, _):
@@ -734,7 +800,6 @@ final class JVMFunctionBuilder {
         guard let expr = arena.expr(id) else { throw fail("Missing JVM expression.", id) }
         switch expr {
         case let .inExpr(lhs, rhs, _), let .notInExpr(lhs, rhs, _):
-            // Operator expansion evaluates the container before its element.
             let container = try requireValue(rhs), element = try requireValue(lhs)
             let saved = evaluatedOperands
             evaluatedOperands[rhs] = container; evaluatedOperands[lhs] = element
@@ -776,10 +841,21 @@ final class JVMFunctionBuilder {
         case let .stringTemplate(parts, _): return try constantFoldedText(id) ?? stringTemplate(parts)
         case let .stringLiteral(s, _): return try constant(.string(context.interner.resolve(s)), .string)
         case .thisRef, .superRef:
-            if case .thisRef = expr, let symbol = program.sema.bindings.identifierSymbol(for: id), let receiver = contextualReceivers[symbol] { return try convert(receiver, to: program.expressionType(id)) }
-            if case .thisRef = expr, let extensionValue { return try convert(extensionValue, to: program.expressionType(id)) }
+            if case let .superRef(_, label, _) = expr, label != nil,
+               let symbol = program.sema.bindings.identifierSymbol(for: id), let owner,
+               symbol != owner.symbol,
+               symbol != SyntheticSymbolScheme.receiverParameterSymbol(for: owner.symbol)
+            {
+                throw fail("Unsupported JVM labeled super call to an outer class.", id)
+            }
+            if case .thisRef = expr {
+                let bound = program.sema.bindings.identifierSymbol(for: id).flatMap { contextualReceivers[$0] }
+                if let receiver = bound ?? extensionValue {
+                    return try convert(receiver, to: program.expressionType(id).withBoxedUnit)
+                }
+            }
             guard !beforeDelegation, let thisValue else { throw fail("JVM this/super requires an initialized instance.", id) }
-            if case .thisRef = expr { return try convert(thisValue, to: program.expressionType(id)) }
+            if case .thisRef = expr { return try convert(thisValue, to: program.expressionType(id).withBoxedUnit) }
             return thisValue
         case let .nameRef(name, _):
             if let composer = try readCurrentComposer(id) { return composer }
@@ -842,7 +918,6 @@ final class JVMFunctionBuilder {
                 guard let type = semanticType else { throw fail("Missing JVM local type binding.", id) }
                 declaredType = try localStorageType(type)
             } else if let semanticType, case .functionType = program.sema.types.kind(of: semanticType) {
-                // Distinct generated callable classes share their inferred function storage.
                 declaredType = try localStorageType(semanticType)
             } else { declaredType = nil }
             let initial = try initializer.map { try requireValue($0) }
@@ -853,14 +928,9 @@ final class JVMFunctionBuilder {
             binding.symbol = symbol
             if !mutable, local.type.referenceName == "java/lang/Comparable",
                let initial, initial.type.isNumeric {
-                // Retain the evaluated primitive behind this immutable box.
-                // Closure helpers deliberately reconstruct locals without it.
                 binding.numericBoxingOrigin = initial
             }
             binding.deferredInitialization = initial == nil && !mutable
-            // Sema owns definite assignment, including mutually exclusive val
-            // writes. Deferred callback initialization needs the same shared
-            // storage as a mutable captured local.
             if mutable || (initializer == nil && symbol.map { program.sema.bindings.isContractCallsInPlaceInitializedSymbol($0) } == true) {
                 let element = try binding.symbol.flatMap { program.sema.bindings.capturedLocalType(for: $0) }.map { try erasedLocalStorageType($0) } ?? local.type
                 let cell = try value(.reference("[" + element.descriptor, nullable: false)), count = try constant(.int(1), .int), index = try constant(.int(0), .int)
@@ -899,6 +969,12 @@ final class JVMFunctionBuilder {
                     }
                     return nil
                 }
+                if arena.isIncrementDecrement(id), op == .plusAssign || op == .minusAssign,
+                   let result = try resolvedIncrementDecrementValue(receiver: left, id: id, expectedResult: field.type) {
+                    let converted = try convert(result, to: field.type)
+                    instructions.append(property.getter.isStatic ? .putStatic(field, converted) : .putField(field, thisValue!, converted))
+                    return arena.incrementDecrementReturnsValue(id) ? converted : nil
+                }
                 let right = try compoundOperand(rhs, target: field.type)
                 if terminated { return nil }
                 guard try permitsCompound(left.type, right.type) else { throw fail("Unsupported JVM backing field conversion.", id) }
@@ -921,6 +997,13 @@ final class JVMFunctionBuilder {
                     try writeLocal(local, convert(result, to: local.value.type))
                 }
                 return nil
+            }
+            if arena.isIncrementDecrement(id), op == .plusAssign || op == .minusAssign,
+               let result = try resolvedIncrementDecrementValue(receiver: old, id: id, expectedResult: local.value.type) {
+                guard local.mutable else { throw fail("Cannot reassign JVM val.", id) }
+                let converted = try convert(result, to: local.value.type)
+                try writeLocal(local, converted)
+                return arena.incrementDecrementReturnsValue(id) ? converted : nil
             }
             guard local.mutable, local.value.type.isNumeric || local.value.type.isText else { throw fail("JVM compound assignment requires a mutable numeric local.", id) }
             let rawRight = try compoundOperand(rhs, target: old.type)
@@ -951,10 +1034,7 @@ final class JVMFunctionBuilder {
             let type = try program.expressionType(id), operand = try convert(source, to: type)
             let result = try value(type); instructions.append(.unary(op, operand, result)); return result
         case let .call(callee, _, args, _):
-            if program.sema.bindings.callBinding(for: id) == nil, args.count == 1,
-               let target = program.sema.bindings.samInterfaceType(for: args[0].expr), target == program.sema.bindings.exprType(for: id) {
-                return try expression(args[0].expr)
-            }
+            if let argument = samConstructorArgument(args, id: id) { return try expression(argument) }
             if program.sema.bindings.stdlibSpecialCallKinds[id] == .arrayConstructor {
                 return try arrayConstructor(args, id: id)
             }
@@ -996,6 +1076,28 @@ final class JVMFunctionBuilder {
             instructions.append(.print(argument, newline: name == "println")); return nil
         case let .memberAssign(receiver, _, rhs, _):
             guard let property = propertyBinding(id) else { throw fail("Missing JVM property assignment binding.", id) }
+            let object = try property.getter.isStatic && property.getter.parameters.isEmpty
+                ? constant(.null, .reference("java/lang/Object", nullable: true))
+                : requireValue(receiver)
+            let result = try requireValue(rhs)
+            try writeProperty(property, receiver: object, value: result, at: id, initializing: reference.name == "<init>" || initializingObject, special: isSuper(receiver), superReceiver: receiver)
+            return nil
+        case let .safeMemberAssign(receiver, _, rhs, _):
+            guard let property = propertyBinding(id) else {
+                throw fail("Missing JVM safe property assignment binding.", id)
+            }
+            let source = try requireValue(receiver)
+            let end = label()
+            if source.type.referenceName != nil {
+                let present = try value(.boolean)
+                instructions.append(.referenceCompare(.notEqual, source, try constant(.null, source.type), present))
+                instructions.append(.jumpIfFalse(present, end))
+            }
+            if let result = try expression(rhs), !terminated {
+                try writeProperty(property, receiver: source, value: result, at: id)
+            }
+            mark(end)
+            return nil
             let object = try property.getter.isStatic && property.getter.parameters.isEmpty
                 ? constant(.null, .reference("java/lang/Object", nullable: true))
                 : requireValue(receiver)
@@ -1045,7 +1147,6 @@ final class JVMFunctionBuilder {
             let start = self.label(), test = self.label(), exit = self.label()
             scopes.append([:]); defer { scopes.removeLast() }
             mark(start); loops.append(LoopFrame(label: label, exit: exit, next: test, allocationDepth: pendingAllocations.count))
-            // Kotlin keeps do-body declarations visible in its condition.
             if case let .blockExpr(statements, trailing, _) = arena.expr(body) {
                 for statement in statements where !terminated { _ = try expression(statement, discarded: true) }
                 if let trailing, !terminated { _ = try expression(trailing, discarded: true) }
@@ -1061,8 +1162,6 @@ final class JVMFunctionBuilder {
                 guard let check, check.type == .boolean else { throw fail("JVM do-while condition must be Boolean.", id) }
                 instructions.append(.jumpIfFalse(check, exit)); jump(start); mark(exit)
             } else if instructions.contains(where: { if case let .jump(target) = $0 { return target == exit }; return false }) {
-                // A break in the body can still reach the exit when evaluating
-                // the condition returns or throws on the other path.
                 mark(exit)
             }
             return nil
@@ -1115,7 +1214,6 @@ final class JVMFunctionBuilder {
                 if !terminated { instructions.append(.returnValue(result)) }
             }
             terminated = true; return nil
-        default: throw fail("Expression is outside the JVM M6 subset.", id)
         }
     }
 }
@@ -1130,14 +1228,15 @@ extension JVMFunctionBuilder {
         if let receiver, receiver.type.referenceName == nil { object = try convert(receiver, to: .reference("java/lang/Object", nullable: false)) }
         if method.isConstructor {
             object = try value(method.result)
+            // NEW triggers the owner's <clinit> (companion initialization);
+            // kotlinc runs it before evaluating constructor arguments. Force it
+            // eagerly here and keep the allocation itself after the arguments.
+            instructions.append(.initializeClass(method.owner))
         }
         var values: [JVMValue] = []
         for (index, pair) in zip(args, method.parameters).enumerated() {
             let (arg, type) = pair
             var source = try requireValue(arg.expr)
-            // Imported static methods are represented by companion stubs.
-            // Retain the resolved nominal target even if their SAM adaptation
-            // was inferred through the ordinary member-call path.
             if source.type.referenceName?.hasPrefix("kotlin/jvm/functions/Function") == true,
                let binding = program.sema.bindings.callBinding(for: id),
                let signature = program.sema.symbols.functionSignature(for: binding.chosenCallee),

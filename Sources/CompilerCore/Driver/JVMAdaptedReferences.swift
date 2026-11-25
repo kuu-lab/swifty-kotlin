@@ -1,7 +1,6 @@
 import Foundation
 
 extension JVMFunctionBuilder {
-    /// Adapt the selected function shape without changing the target's public ABI.
     func adaptedReference(_ id: ExprID, symbol: SymbolID, receiver: ExprID?, unbound: Bool) throws -> JVMValue {
         guard let binding = program.sema.bindings.callableReferenceBinding(for: id), let function = functionType(id),
               let signature = program.sema.symbols.functionSignature(for: symbol),
@@ -10,7 +9,7 @@ extension JVMFunctionBuilder {
         }
         let method = program.methods[symbol] ?? context.jvmImports?.method(for: symbol), ref = program.references[symbol]
         guard method != nil || ref != nil else { throw fail("Missing JVM adapted reference target.", id) }
-        let constructor = method?.isConstructor == true, extensionMember = program.extensionSymbols.contains(symbol)
+        let constructor = method?.isConstructor == true, extensionMember = program.extensionSymbols.contains(symbol) || context.jvmImports?.extensionSymbols.contains(symbol) == true
         let member = method?.isStatic == false && !constructor
         let plan = method.flatMap { m in program.classes.values.first { $0.name == m.owner } }
         let innerConstructor = constructor && plan?.isInner == true

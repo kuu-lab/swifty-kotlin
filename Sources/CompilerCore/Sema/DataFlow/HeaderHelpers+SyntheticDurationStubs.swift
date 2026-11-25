@@ -1,11 +1,3 @@
-/// Synthetic anchors retained for kotlin.time.Duration's nominal shell and
-/// DurationUnit enum fallback compatibility surface.
-///
-/// KSP-1542: The __kk_duration_parse* runtime bridges are declared directly
-/// in Stdlib/kotlin/time/Duration.kt using @KsSymbolName. No synthetic function
-/// stubs remain here; this file only registers nominal shells for DurationUnit,
-/// Duration, and Companion as residual compiler anchors (bucket: (c)).
-
 extension DataFlowSemaPhase {
     func registerSyntheticDurationStubs(
         symbols: SymbolTable,
@@ -16,9 +8,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-TIME-STABLE-008: DurationUnit enum anchor ---
-        // The enum entries are declared by bundled DurationUnit.kt. Keep only
-        // the nominal shell here so source collection can reuse it.
         _ = ensureSyntheticDurationUnitEnumClass(
             in: kotlinTimePkg,
             symbols: symbols,

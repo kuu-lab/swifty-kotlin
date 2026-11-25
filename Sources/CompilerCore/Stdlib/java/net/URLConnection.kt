@@ -4,10 +4,6 @@ import java.io.InputStream
 import java.io.OutputStream
 import kotlin.internal.KsSymbolName
 
-/** Native source-backed `java.net.URLConnection`. Request headers, timeouts,
- * and I/O flags are configured before [connect]; the runtime performs the
- * actual fetch for `http`/`https`/`file` URLs and caches the response for
- * `getInputStream`/header accessors, matching the JDK lazy-connect contract. */
 public open class URLConnection {
     public val url: URL
     internal var handle: Long
@@ -105,8 +101,6 @@ public open class URLConnection {
 
     public var ifModifiedSince: Long = 0
 
-    /** Response content bytes as an object — for the compatibility surface the
-     * body text itself, matching `getInputStream` content. */
     public open fun getContent(): Any? {
         ensureConnected()
         return netUrlConnectionBodyText(handle)
@@ -173,7 +167,6 @@ public open class URLConnection {
     override fun toString(): String = "URLConnection:${url.toExternalForm()}"
 }
 
-/** `HttpURLConnection` — adds request-method and response-status support. */
 public open class HttpURLConnection : URLConnection {
     private var method = "GET"
     private var chunkLength = -1

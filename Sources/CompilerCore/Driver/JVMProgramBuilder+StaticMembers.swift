@@ -23,6 +23,12 @@ extension JVMProgramBuilder {
             result.access = access(declaration.modifiers, final: !plan.isInterface) | 0x0008
             result.isSynthetic = false
             result.isMetadataHidden = true
+            if sema.symbols.annotations(for: symbol).contains(where: {
+                KnownCompilerAnnotation.jvmSynthetic.matches($0.annotationFQName)
+            }) {
+                result.access = (result.access ?? 0) | 0x1000
+                result.isJvmSynthetic = true
+            }
             result.checksParameters = false
             return result
         }

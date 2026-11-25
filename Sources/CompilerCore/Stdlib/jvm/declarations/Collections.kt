@@ -36,7 +36,7 @@ interface List<out E>: Collection<E> {
     fun listIterator(index: Int): ListIterator<E>
     fun subList(fromIndex: Int, toIndex: Int): List<E>
 }
-interface MutableCollection<E>: Collection<E> {
+interface MutableCollection<E>: Collection<E>, MutableIterable<E> {
     fun add(element: E): Boolean
     fun addAll(elements: Collection<out E>): Boolean
     fun remove(element: E): Boolean

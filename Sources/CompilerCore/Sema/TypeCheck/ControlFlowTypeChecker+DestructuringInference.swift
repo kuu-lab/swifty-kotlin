@@ -13,10 +13,6 @@ extension ControlFlowTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
 
-        // Declaration annotations BuildAST forwarded onto this expression
-        // (KUU-4284) grant their `@OptIn` markers over the initializer and
-        // the component/property resolution below — the same scoping a local
-        // val/var declaration gets (see LocalDeclTypeChecker).
         let declAnnotationRecords = driver.helpers.localDeclarationAnnotationRecords(for: id, ctx: ctx)
         let declOptInMarkers = driver.helpers.optInMarkers(
             from: declAnnotationRecords,
@@ -32,10 +28,6 @@ extension ControlFlowTypeChecker {
             layout.syntax == .parentheses
                 && (sema.nameBasedDestructuringMode == .complete
                     || layout.properties.contains { $0 != nil }
-                    // The full form `(val a, var b) = x` is inherently name-based:
-                    // its entries declare val/var, so it has no positional reading
-                    // and needs no feature flag — the same treatment `a = prop`
-                    // entries already get.
                     || !layout.mutableFlags.isEmpty)
         } ?? false
 
@@ -94,10 +86,6 @@ extension ControlFlowTypeChecker {
             if let candidate = candidates.first,
                let signature = sema.symbols.functionSignature(for: candidate)
             {
-                // Substitute the receiver's class type arguments into the raw return
-                // type so that e.g. Pair<List<T>,List<T>>.component1() yields List<T>
-                // rather than the generic parameter A.  Fixes STDLIB-021-BUG-01 where
-                // `.size` access on destructured partition() results failed to lower.
                 componentType = specializeComponentReturnType(
                     signature.returnType,
                     receiverType: rhsType,
@@ -106,8 +94,6 @@ extension ControlFlowTypeChecker {
                 )
                 sema.bindings.bindDestructuringComponentCallee(id, index: index, symbol: candidate)
             } else {
-                // Fallback: componentN declared as an operator extension rather than
-                // a member (e.g. the bundled `MatchResult.Destructured.componentN`).
                 let scopeCandidates = componentOperatorExtensionCandidates(
                     named: componentName,
                     receiverType: rhsType,
@@ -124,8 +110,6 @@ extension ControlFlowTypeChecker {
                     )
                     sema.bindings.bindDestructuringComponentCallee(id, index: index, symbol: candidate)
                 } else if allComponentMembers.contains(where: { driver.helpers.isNonOperatorConventionFunction($0, sema: sema) }) {
-                    // A member `componentN` without `operator` cannot serve
-                    // destructuring (kotlinc: 'operator' modifier is required).
                     ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0432",
                         "'operator' modifier is required on 'component\(componentIndex)' in '\(driver.helpers.conventionReceiverDisplayName(rhsType, sema: sema, interner: interner))'.",
@@ -193,45 +177,64 @@ extension ControlFlowTypeChecker {
         let usesNameBasedDestructuring = syntax == .parentheses
             && (sema.nameBasedDestructuringMode == .complete
                 || layout?.properties.contains { $0 != nil } == true
-                // The full form `for ((val a) in it)` is inherently name-based:
-                // its entries declare val, so it has no positional reading and
-                // needs no feature flag — the same treatment `a = prop`
-                // entries already get. (Same condition as
-                // `inferDestructuringDeclExpr`; see KUU-3835.)
                 || layout?.mutableFlags.isEmpty == false)
 
         var bodyLocals = locals
 
+        func bindEntry(_ name: InternedString?, index: Int, componentType: TypeID, sourceName: String) {
+            let declaredType = layout.flatMap { $0.entryTypeRefs[index] }.map {
+                driver.helpers.resolveTypeRef(
+                    $0, ast: ctx.ast, sema: sema, interner: interner,
+                    scope: ctx.scope, diagnostics: sema.diagnostics, inferenceContext: ctx, usageRange: range
+                )
+            }
+            if let declaredType, componentType != sema.types.errorType, declaredType != sema.types.errorType {
+                let actual = sema.types.displayName(of: componentType, symbols: sema.symbols, interner: interner)
+                let expected = sema.types.displayName(of: declaredType, symbols: sema.symbols, interner: interner)
+                driver.emitSubtypeConstraint(
+                    left: componentType, right: declaredType,
+                    range: ctx.ast.arena.exprRange(iterableExpr) ?? range, solver: ConstraintSolver(),
+                    sema: sema, diagnostics: sema.diagnostics,
+                    diagnosticCode: "KSWIFTK-SEMA-0468",
+                    failureMessage: "Initializer type mismatch: '\(sourceName)' returns '\(actual)', but '\(expected)' is expected."
+                )
+            }
+            guard let name else { return }
+            if let declaredType {
+                sema.bindings.bindTypedForDestructuringEntry(id, index: index, component: componentType, declared: declaredType)
+            }
+            let symbol = sema.symbols.define(
+                kind: .local,
+                name: name,
+                fqName: [interner.intern("__for_destructuring_\(id.rawValue)"), name],
+                declSite: range,
+                visibility: .private,
+                flags: []
+            )
+            let localType = declaredType ?? componentType
+            sema.symbols.setPropertyType(localType, for: symbol)
+            bodyLocals[name] = (localType, symbol, false, true)
+        }
+
         for (index, name) in names.enumerated() {
             if usesNameBasedDestructuring {
                 guard let name else { continue }
+                let propertyName = layout.flatMap {
+                    $0.properties.indices.contains(index) ? $0.properties[index] : nil
+                } ?? name
                 let property: (type: TypeID, binding: DestructuringPropertyBinding?)
                 if elementType == sema.types.errorType {
                     property = (sema.types.errorType, nil)
                 } else {
                     property = inferNameBasedForDestructuringProperty(
-                        layout.flatMap { layout in
-                            layout.properties.indices.contains(index) ? layout.properties[index] : nil
-                        } ?? name,
+                        propertyName,
                         loopExpr: id,
                         receiverType: elementType,
                         range: range,
                         ctx: ctx
                     )
                 }
-                let symbol = sema.symbols.define(
-                    kind: .local,
-                    name: name,
-                    fqName: [
-                        interner.intern("__for_destructuring_\(id.rawValue)"),
-                        name,
-                    ],
-                    declSite: range,
-                    visibility: .private,
-                    flags: []
-                )
-                sema.symbols.setPropertyType(property.type, for: symbol)
-                bodyLocals[name] = (property.type, symbol, false, true)
+                bindEntry(name, index: index, componentType: property.type, sourceName: interner.resolve(propertyName))
                 if let binding = property.binding {
                     sema.bindings.bindDestructuringProperty(id, index: index, binding: binding)
                 }
@@ -284,23 +287,7 @@ extension ControlFlowTypeChecker {
                 componentType = sema.types.errorType
             }
 
-            guard let name else {
-                continue
-            }
-
-            let symbol = sema.symbols.define(
-                kind: .local,
-                name: name,
-                fqName: [
-                    interner.intern("__for_destructuring_\(id.rawValue)"),
-                    name,
-                ],
-                declSite: range,
-                visibility: .private,
-                flags: []
-            )
-            sema.symbols.setPropertyType(componentType, for: symbol)
-            bodyLocals[name] = (componentType, symbol, false, true)
+            bindEntry(name, index: index, componentType: componentType, sourceName: "component\(componentIndex)()")
         }
 
         var newLabelStack = ctx.loopLabelStack
@@ -433,11 +420,6 @@ extension ControlFlowTypeChecker {
         }
     }
 
-    /// `componentN` functions declared as extensions on `receiverType` (member
-    /// lookup only finds them when they are declared inside the class). Scope
-    /// lookup goes first so imported operator extensions win; the short-name
-    /// sweep then recovers extensions that are visible without an import, such
-    /// as the bundled `MatchResult.Destructured.componentN`.
     func componentOperatorExtensionCandidates(
         named componentName: InternedString,
         receiverType: TypeID,
@@ -479,9 +461,6 @@ extension ControlFlowTypeChecker {
         return sema.types.make(.intersection(bounds))
     }
 
-    /// Needed so that member accesses on the destructured variables (e.g. `.size`)
-    /// resolve to the correct concrete type rather than to the raw type parameter.
-    /// Fixes STDLIB-021-BUG-01.
     private func specializeComponentReturnType(
         _ rawReturn: TypeID,
         receiverType: TypeID,
@@ -520,9 +499,6 @@ extension ControlFlowTypeChecker {
             return typeParam.symbol
         }
 
-        // Inherited members such as Map.Entry.key are declared on a supertype, so
-        // lift the concrete receiver arguments through the nominal inheritance edge
-        // before building the substitution.
         let declaredReceiver: (args: [TypeArg], paramSymbols: [SymbolID?])? = {
             guard let receiverType = signature.receiverType,
                   case let .classType(receiverClassType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
@@ -538,11 +514,6 @@ extension ControlFlowTypeChecker {
         }()
         let receiverArgs = declaredReceiver?.args ?? classType.args
         let declaredParamSymbols = declaredReceiver?.paramSymbols ?? []
-        // Fallback for the rare shape where the declared receiver's type argument
-        // isn't a bare type-parameter reference (so `typeParamSymbol` found
-        // nothing): fall back to the receiver class's own nominal parameters,
-        // which is what this substitution relied on before extension componentN
-        // declarations existed.
         let classOwnParamSymbols = sema.types.nominalTypeParameterSymbols(for: classType.classSymbol)
 
         var substitution: [TypeVarID: TypeID] = [:]

@@ -10,11 +10,6 @@ extension BuildASTPhase {
         .class, .object, .interface, .fun, .val, .var, .typealias, .enum, .package, .import,
     ]
 
-    /// Tracking bracket depth avoids treating keywords inside annotation arguments
-    /// (e.g. `::class` in `@file:OptIn(...::class)`) as declaration introducers.
-    /// `skippingIfPrecededBy` rejects a match whose immediately preceding token
-    /// satisfies it (e.g. `::` before `class`, to skip class-literal
-    /// expressions like `Foo::class`).
     func firstTopLevelKeywordIndex(
         in tokens: [Token],
         matching keywords: Set<Keyword>,
@@ -111,8 +106,6 @@ extension BuildASTPhase {
         )
     }
 
-    /// The two extractors below share one walk instead of each re-scanning the
-    /// header independently.
     private struct PrimaryConstructorHeaderScan {
         var annotations: [AnnotationNode] = []
         var modifiers: Modifiers = []
@@ -484,9 +477,6 @@ extension BuildASTPhase {
         )
     }
 
-    /// Delegate lowering consumes `delegateBody`, so it must point at the same
-    /// AST body that Sema checks as the call argument rather than a separately
-    /// parsed copy.
     private func delegateLambda(
         from delegateExpr: ExprID,
         astArena: ASTArena
@@ -518,10 +508,6 @@ extension BuildASTPhase {
         return (params, .expr(bodyExprID, range))
     }
 
-    /// Re-parses a delegate property's trailing-lambda block from its tokens so
-    /// that a declared parameter list (`{ prop, old, new -> ... }`) is preserved.
-    /// Returns `nil` for parameterless lambdas, which the CST statement nodes
-    /// already describe correctly.
     private func delegateLambdaFromBlockTokens(
         blockNodeID: NodeID,
         in arena: SyntaxArena,
@@ -640,8 +626,6 @@ extension BuildASTPhase {
             || token.kind == .symbol(.semicolon)
     }
 
-    /// Modifier keywords are valid names once the declaration introducer has
-    /// established that this is a name position.
     private func firstDeclarationName(
         in tokens: ArraySlice<Token>, interner: StringInterner
     ) -> InternedString? {
@@ -668,8 +652,6 @@ extension BuildASTPhase {
     ) -> [ValueParamDecl] {
         let tokens = collectTokens(from: nodeID, in: arena)
         let nodeKind = arena.node(nodeID).kind
-        // `diagnoseRepeats: false`: the declaration maker already reported
-        // repeated modifiers for this node.
         let nodeModifiers = declarationModifiers(
             from: nodeID, in: arena, diagnoseRepeats: false
         )
@@ -798,8 +780,6 @@ extension BuildASTPhase {
             if kind == .symbol(.at), let annotation = AnnotationParsingSupport.parseAnnotation(
                 from: tokens, start: scanIndex, interner: interner, allowUseSiteTarget: true
             ) {
-                // Skip the whole annotation, including comparison expressions
-                // and an annotation whose alias itself is named `constructor`.
                 scanIndex = annotation.nextIndex
                 continue
             }
@@ -844,8 +824,6 @@ extension BuildASTPhase {
             return
         }
 
-        // Parse leading annotations (e.g. @field:FieldMark, @Deprecated("msg"))
-        // and skip past them so their colons are not confused with the name:type colon.
         var parsedAnnotations: [AnnotationNode] = []
         var annotationScanIndex = 0
         while annotationScanIndex < withoutDefault.count,
@@ -899,12 +877,6 @@ extension BuildASTPhase {
             return
         }
 
-        // A modifier keyword (`inner`, `sealed`, `vararg`, `override`, ...) is only
-        // acting as a modifier when something else follows it in the name slot; when
-        // it's the rightmost candidate before the colon, it IS the parameter name
-        // (Kotlin modifier keywords are valid plain identifiers outside modifier
-        // position). `lastIndex(where:)` already finds that rightmost candidate, so
-        // no separate keyword-exclusion pass is needed here.
         guard let nameIndex = nameSearchTokens.lastIndex(where: { token in
             internedIdentifier(from: token, interner: interner) != nil
         }) else {
@@ -951,8 +923,6 @@ extension BuildASTPhase {
                 )
             }
         } else {
-            // Anonymous function literals may leave parameter types implicit;
-            // Sema infers them from the expected function type.
             if !allowsImplicitParameterTypes {
                 diagnostics?.error(
                     "KSWIFTK-PARSE-0020",
@@ -973,7 +943,7 @@ extension BuildASTPhase {
         }
         var candidateModifiers: Modifiers = []
         var modifierEntries: [(element: Modifiers.Element, name: String, range: SourceRange)] = []
-        for token in modifierPrefixTokens {
+        for token in Self.tokensOutsideAnnotationArguments(modifierPrefixTokens) {
             if token.kind == .keyword(.val) || token.kind == .keyword(.var) {
                 diagnoseValVarParameterKeyword(token, site: site)
                 continue
@@ -1039,16 +1009,11 @@ extension BuildASTPhase {
         ))
     }
 
-    /// Modifiers a primary-constructor `val`/`var` parameter can legally carry;
-    /// they describe the synthesized property rather than the parameter itself.
     private static let constructorPropertyLegalParameterModifiers: Modifiers = [
         .public, .private, .internal, .protected, .open, .final, .override,
         .actual, .external, .lateinit, .const,
     ]
 
-    /// Modifier pairs kotlinc reports as conflicts on a value parameter — the
-    /// union of the declaration-level conflict tables plus the parameter-only
-    /// `noinline`/`crossinline` and `value`/`inline` pairs.
     private static let valueParameterConflictPairs: [(Modifiers.Element, Modifiers.Element)] = [
         (.private, .public), (.private, .internal), (.private, .protected),
         (.public, .internal), (.public, .protected), (.internal, .protected),
@@ -1080,12 +1045,6 @@ extension BuildASTPhase {
         )
     }
 
-    /// kotlinc's per-modifier parameter diagnostics: `noinline`/`crossinline`
-    /// are parameter-legal but restricted to inline functions (reported once at
-    /// the first such modifier); a modifier the site accepts reports a conflict
-    /// against the first-declared conflicting partner in either direction,
-    /// while an inapplicable modifier reports `not applicable` unless an
-    /// earlier partner claims it first.
     func diagnoseParameterModifierDiagnostics(
         _ entries: [(element: Modifiers.Element, name: String, range: SourceRange)],
         site: ValueParameterSite,
@@ -1163,6 +1122,22 @@ extension BuildASTPhase {
                 }
             }
         }
+    }
+
+    /// The modifier prefix of a parameter also holds its annotations, whose
+    /// argument lists are expressions: in `@SerialName(value = "id")` the
+    /// `value` is a named argument, not the `value` modifier.
+    static func tokensOutsideAnnotationArguments<S: Sequence>(_ tokens: S) -> [Token] where S.Element == Token {
+        var depth = 0
+        var result: [Token] = []
+        for token in tokens {
+            switch token.kind {
+            case .symbol(.lParen): depth += 1
+            case .symbol(.rParen): depth = max(0, depth - 1)
+            default: if depth == 0 { result.append(token) }
+            }
+        }
+        return result
     }
 
     private func emitParameterModifierConflict(_ name: String, partner: String, range: SourceRange) {

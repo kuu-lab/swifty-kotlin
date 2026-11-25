@@ -34,7 +34,7 @@ fun typeOf(type: java.lang.Class<*>, first: KTypeProjection, second: KTypeProjec
 fun typeOf(type: java.lang.Class<*>, vararg arguments: KTypeProjection): KType =
     RuntimeClassType(type, false, arguments.toList())
 
-fun nullableTypeOf(type: java.lang.Class<*>): KType = RuntimeClassType(type, true)
+fun nullableTypeOf(type: java.lang.Class<*>): KType = RuntimeClassType(type, true, emptyList())
 
 fun nullableTypeOf(type: java.lang.Class<*>, argument: KTypeProjection): KType =
     RuntimeClassType(type, true, listOf(argument))

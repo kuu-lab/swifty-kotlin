@@ -9,14 +9,68 @@ import CompilerCore
 
 extension LLVMCAPIBindings {
     static func loadUsable(
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        diagnose: (String) -> Void = writeStandardError
     ) -> LLVMCAPIBindings? {
-        guard let bindings = load(environment: environment),
-              bindings.smokeTestContextLifecycle()
-        else {
-            return nil
+        if case .rejected(let diagnostic) = libraryOverride(environment: environment) {
+            diagnose(diagnostic)
         }
-        return bindings
+        return firstUsable(
+            candidates: candidateLibraryPaths(environment: environment),
+            bind: { load(candidates: [$0]) },
+            isUsable: { $0.smokeTestContextLifecycle() },
+            diagnose: diagnose
+        )
+    }
+
+    static func firstUsable<Bindings>(
+        candidates: [String],
+        bind: (String) -> Bindings?,
+        isUsable: (Bindings) -> Bool,
+        diagnose: (String) -> Void
+    ) -> Bindings? {
+        for candidate in candidates {
+            guard let bindings = bind(candidate) else {
+                continue
+            }
+            if isUsable(bindings) {
+                return bindings
+            }
+            diagnose(smokeTestFailedDiagnostic(libraryPath: candidate))
+        }
+        return nil
+    }
+
+    static func smokeTestFailedDiagnostic(libraryPath: String) -> String {
+        "kswiftc: skipping LLVM library candidate \(libraryPath): LLVMContextCreate returned null\n"
+    }
+
+    static func writeStandardError(_ message: String) {
+        FileHandle.standardError.write(Data(message.utf8))
+    }
+
+    enum LibraryOverride: Equatable {
+        case unset
+        case accepted(path: String)
+        case rejected(diagnostic: String)
+    }
+
+    static func libraryOverride(environment: [String: String]) -> LibraryOverride {
+        guard let override = environment["KSWIFTK_LLVM_DYLIB"], !override.isEmpty else {
+            return .unset
+        }
+        guard override.hasPrefix("/") else {
+            return .rejected(diagnostic: overrideRejectedDiagnostic(override, reason: "path is not absolute"))
+        }
+        let resolved = URL(fileURLWithPath: override).standardized.path
+        guard FileManager.default.fileExists(atPath: resolved) else {
+            return .rejected(diagnostic: overrideRejectedDiagnostic(resolved, reason: "file does not exist"))
+        }
+        return .accepted(path: resolved)
+    }
+
+    private static func overrideRejectedDiagnostic(_ path: String, reason: String) -> String {
+        "kswiftc: skipping LLVM library candidate \(path) from KSWIFTK_LLVM_DYLIB: \(reason)\n"
     }
 
     /// Every entry is a canonical absolute path inside a well-known install
@@ -28,12 +82,8 @@ extension LLVMCAPIBindings {
     /// must name an absolute path and is still verified before `dlopen`.
     static func candidateLibraryPaths(environment: [String: String] = ProcessInfo.processInfo.environment) -> [String] {
         var candidates: [String] = []
-        if let override = environment["KSWIFTK_LLVM_DYLIB"], !override.isEmpty,
-           override.hasPrefix("/") {
-            let resolved = URL(fileURLWithPath: override).standardized.path
-            if FileManager.default.fileExists(atPath: resolved) {
-                candidates.append(resolved)
-            }
+        if case .accepted(let path) = libraryOverride(environment: environment) {
+            candidates.append(path)
         }
         let commonLibraryNames = [
             "libLLVM.dylib",
@@ -101,20 +151,16 @@ extension LLVMCAPIBindings {
     }
 
     static func load(environment: [String: String] = ProcessInfo.processInfo.environment) -> LLVMCAPIBindings? {
-        for candidate in candidateLibraryPaths(environment: environment) {
-            // Verify ownership, permissions, and the canonical path of the
-            // file and every ancestor directory before `dlopen`; a candidate
-            // another local user can tamper with is skipped rather than loaded.
+        load(candidates: candidateLibraryPaths(environment: environment))
+    }
+
+    static func load(candidates: [String]) -> LLVMCAPIBindings? {
+        for candidate in candidates {
             let libraryPath: String
             switch TrustedFileSystem.inspectLoadableFile(candidate) {
             case .trusted(let resolvedPath):
                 libraryPath = resolvedPath
             case .rejected(let component, let reason):
-                // A candidate that exists but fails the trust check is worth
-                // naming — otherwise an all-candidates-rejected failure
-                // surfaces only as "bindings could not be loaded". Missing
-                // paths are expected for install layouts the machine does not
-                // have, so they stay silent.
                 if reason != .missing {
                     FileHandle.standardError.write(Data(
                         "kswiftc: skipping LLVM library candidate \(candidate): \(component) \(reason.diagnosticDetail)\n".utf8

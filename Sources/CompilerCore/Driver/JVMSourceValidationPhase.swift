@@ -1,7 +1,5 @@
 import Foundation
 
-/// Audits the supported source grammar before Sema. BuildAST deliberately
-/// tolerates/discards some tokens; JVM must never silently compile that loss.
 final class JVMSourceValidationPhase: CompilerPhase {
     static let name = "JVMSourceValidation"
 
@@ -21,6 +19,7 @@ private struct JVMSourceGrammar {
     let context: CompilationContext
     var index = 0
     var inDelegationHeader = false
+    var whenBranchBodyDepth = 0
     struct Unsupported: Error {}
 
     var kind: TokenKind { tokens[min(index, tokens.count - 1)].kind }
@@ -104,6 +103,12 @@ private struct JVMSourceGrammar {
         try require(.symbol(.at)); try name()
         if take(.symbol(.colon)) { try name() }
         while take(.symbol(.dot)) { try name() }
+        if kind == .symbol(.lessThan) {
+            guard let typeArgumentsEnd = AnnotationParsingSupport.endOfTypeArguments(in: tokens, at: index) else {
+                throw Unsupported()
+            }
+            index = typeArgumentsEnd
+        }
         if take(.symbol(.lParen)) {
             var depth = 1
             while depth > 0 {
@@ -155,19 +160,31 @@ private struct JVMSourceGrammar {
         }
     }
     mutating func modifiers() {
-        while [.public, .private, .internal, .protected, .open, .final, .abstract, .override, .inline, .tailrec, .suspend, .sealed, .data, .enum, .companion, .inner, .operator, .infix, .lateinit, .annotation, .value, .const].contains(where: { kind == .keyword($0) }) {
+        while [.public, .private, .internal, .protected, .open, .final, .abstract, .override, .inline, .tailrec, .suspend, .sealed, .data, .enum, .companion, .inner, .operator, .infix, .lateinit, .annotation, .value, .const, .expect, .actual].contains(where: { kind == .keyword($0) }) {
             // "value" is also a valid parameter/property name.
             if kind == .keyword(.value), tokens[min(index + 1, tokens.count - 1)].kind != .keyword(.class) { break }
             index += 1
+        }
+    }
+    mutating func parameterPrefix(properties: Bool) throws {
+        while kind == .symbol(.at) { try annotation() }
+        guard properties else {
+            while take(.keyword(.noinline)) || take(.keyword(.crossinline)) || take(.keyword(.vararg)) {}
+            return
+        }
+        while true {
+            let before = index
+            while take(.keyword(.noinline)) || take(.keyword(.crossinline)) || take(.keyword(.vararg)) {}
+            modifiers()
+            if take(.keyword(.val)) || take(.keyword(.var)) { break }
+            guard index != before else { break }
         }
     }
     mutating func parameters(properties: Bool = false, requireTypes: Bool = true, allowDefaults: Bool = true) throws {
         try require(.symbol(.lParen))
         if !take(.symbol(.rParen)) {
             repeat {
-                while kind == .symbol(.at) { try annotation() }
-                while take(.keyword(.noinline)) || take(.keyword(.crossinline)) || take(.keyword(.vararg)) {}
-                if properties { modifiers(); _ = take(.keyword(.val)) || take(.keyword(.var)) }
+                try parameterPrefix(properties: properties)
                 try name()
                 if requireTypes { try require(.symbol(.colon)); try type() }
                 else if take(.symbol(.colon)) { try type() }
@@ -240,22 +257,25 @@ private struct JVMSourceGrammar {
         }
         let isEnum = tokens[declarationStart..<index].contains { $0.kind == .keyword(.enum) }
         let isCompanion = tokens[declarationStart..<index].contains { $0.kind == .keyword(.companion) }
+        let isExpect = tokens[declarationStart..<index].contains { $0.kind == .keyword(.expect) }
         if take(.keyword(.typealias)) {
             try name(); try typeParameters(); try require(.symbol(.assign)); try type(); return
         }
         if kind == .keyword(.fun), tokens[min(index + 1, tokens.count - 1)].kind != .keyword(.interface) {
             index += 1
             try typeParameters()
-            // Parse either a function name or a receiver type followed by its name.
             let start = index
-            do { try type(); guard kind == .symbol(.lParen) else { throw Unsupported() } }
-            catch { index = start; try name() }
+            do {
+                while kind == .symbol(.at) { try annotation() }
+                try type()
+                guard kind == .symbol(.lParen) else { throw Unsupported() }
+            } catch { index = start; try name() }
             try parameters()
             if take(.symbol(.colon)) { try type() }
             try whereConstraints()
             if take(.symbol(.assign)) { try expression() }
             else if kind == .symbol(.lBrace) { try block() }
-            else if !member { throw Unsupported() }
+            else if !member && !isExpect { throw Unsupported() }
         } else if kind == .keyword(.class) || kind == .keyword(.interface) || kind == .keyword(.fun) || kind == .keyword(.object) {
             _ = take(.keyword(.fun))
             let isInterface = take(.keyword(.interface))
@@ -312,6 +332,7 @@ private struct JVMSourceGrammar {
                 }
                 if take(.softKeyword(.get)) {
                     try parameters()
+                    if take(.symbol(.colon)) { try type() }
                 } else if take(.softKeyword(.set)) {
                     if take(.symbol(.lParen)) {
                         try name()
@@ -348,7 +369,10 @@ private struct JVMSourceGrammar {
     }
     mutating func body(allowNewlines: Bool = false) throws {
         while kind == .symbol(.at) { try annotation() }
-        if kind == .symbol(.lBrace) { try block() } else { try statement(allowNewlines: allowNewlines) }
+        if kind == .symbol(.lBrace) {
+            var probe = self
+            if probe.scanLambdaSignature() { try lambda() } else { try block() }
+        } else { try statement(allowNewlines: allowNewlines) }
     }
     mutating func condition() throws {
         try require(.symbol(.lParen)); try expression(allowNewlines: true); try require(.symbol(.rParen))
@@ -392,18 +416,18 @@ private struct JVMSourceGrammar {
         } else if take(.keyword(.for)) {
             try require(.symbol(.lParen))
             if take(.symbol(.lParen)) {
-                repeat { try name() } while take(.symbol(.comma))
+                repeat { try loopVariable() } while take(.symbol(.comma)) && kind != .symbol(.rParen)
                 try require(.symbol(.rParen))
             } else {
-                try name()
+                try loopVariable()
             }
             try require(.keyword(.in))
             try expression(allowNewlines: true); try require(.symbol(.rParen)); try body()
         } else if take(.keyword(.return)) {
-            if take(.symbol(.at)) { try name() }
+            if !newlineBeforeCurrent(), take(.symbol(.at)) { try name() }
             if kind != .symbol(.rBrace), kind != .symbol(.semicolon), !newlineBeforeCurrent() { try expression() }
         } else if take(.keyword(.break)) || take(.keyword(.continue)) {
-            if take(.symbol(.at)) { try name() }
+            if !newlineBeforeCurrent(), take(.symbol(.at)) { try name() }
             return
         } else {
             try expression(allowNewlines: allowNewlines)
@@ -411,6 +435,10 @@ private struct JVMSourceGrammar {
                 index += 1; try expression(allowNewlines: allowNewlines)
             }
         }
+    }
+    mutating func loopVariable() throws {
+        try name()
+        if take(.symbol(.colon)) { try type() }
     }
     mutating func startsClassDeclaration() -> Bool {
         let start = index
@@ -453,24 +481,31 @@ private struct JVMSourceGrammar {
         }
     }
     mutating func lambda() throws {
-        try require(.symbol(.lBrace))
-        let start = index
-        do {
-            if !take(.symbol(.arrow)) {
-                repeat {
-                    if take(.symbol(.lParen)) {
-                        repeat { try name() } while take(.symbol(.comma))
-                        try require(.symbol(.rParen))
-                    } else { try name() }
-                    if take(.symbol(.colon)) { try type() }
-                } while take(.symbol(.comma))
-                try require(.symbol(.arrow))
-            }
-        } catch { index = start }
+        if !scanLambdaSignature() { try require(.symbol(.lBrace)) }
         semicolons()
         while !take(.symbol(.rBrace)) {
             guard kind != .eof else { throw Unsupported() }
             try statement(); try separator(); semicolons()
+        }
+    }
+
+    mutating func scanLambdaSignature() -> Bool {
+        let entry = index
+        guard take(.symbol(.lBrace)) else { return false }
+        if take(.symbol(.arrow)) { return true }
+        do {
+            repeat {
+                if take(.symbol(.lParen)) {
+                    repeat { try name() } while take(.symbol(.comma))
+                    try require(.symbol(.rParen))
+                } else { try name() }
+                if take(.symbol(.colon)) { try type() }
+            } while take(.symbol(.comma))
+            guard take(.symbol(.arrow)) else { throw Unsupported() }
+            return true
+        } catch {
+            index = entry
+            return false
         }
     }
     mutating func anonymousFunction() throws {
@@ -494,12 +529,12 @@ private struct JVMSourceGrammar {
     mutating func primary(allowNewlines: Bool = false) throws {
         while kind == .symbol(.at) { try annotation() }
         if take(.keyword(.return)) {
-            if take(.symbol(.at)) { try name() }
+            if !newlineBeforeCurrent(), take(.symbol(.at)) { try name() }
             if kind != .templateExprEnd, kind != .symbol(.rBrace), kind != .symbol(.semicolon), !newlineBeforeCurrent() { try expression() }
             return
         }
         if take(.keyword(.break)) || take(.keyword(.continue)) {
-            if take(.symbol(.at)) { try name() }
+            if !newlineBeforeCurrent(), take(.symbol(.at)) { try name() }
             return
         }
         if take(.keyword(.throw)) { try expression(); return }
@@ -515,9 +550,7 @@ private struct JVMSourceGrammar {
             }
             if take(.keyword(.finally)) { handled = true; try block() }
             guard handled else { throw Unsupported() }
-            return
-        }
-        if take(.keyword(.when)) {
+        } else if take(.keyword(.when)) {
             let hasSubject = kind == .symbol(.lParen)
             if hasSubject {
                 try require(.symbol(.lParen))
@@ -540,14 +573,19 @@ private struct JVMSourceGrammar {
                     } while take(.symbol(.comma))
                     if take(.keyword(.if)) { try expression(allowNewlines: true) }
                 }
-                // A when-branch body ends at the newline: the next line begins
-                // another branch's conditions, so newline mode is not inherited
-                // here even inside parentheses.
-                try require(.symbol(.arrow)); try body(); try separator(); semicolons()
+                try require(.symbol(.arrow))
+                whenBranchBodyDepth += 1
+                try body()
+                whenBranchBodyDepth -= 1
+                semicolons()
             }
         } else if take(.keyword(.if)) {
             try condition(); try body(allowNewlines: allowNewlines)
-            if take(.keyword(.else)) { try body(allowNewlines: allowNewlines) }
+            let elseStartsWhenBranch = whenBranchBodyDepth > 0
+                && kind == .keyword(.else)
+                && index + 1 < tokens.count
+                && tokens[index + 1].kind == .symbol(.arrow)
+            if !elseStartsWhenBranch, take(.keyword(.else)) { try body(allowNewlines: allowNewlines) }
         } else if [.plus, .minus, .bang, .plusPlus, .minusMinus].contains(where: { kind == .symbol($0) }) {
             index += 1; try primary(allowNewlines: allowNewlines); return
         } else if take(.symbol(.doubleColon)) { try name()
@@ -557,9 +595,10 @@ private struct JVMSourceGrammar {
             try declaration(member: false)
         } else if take(.keyword(.super)) {
             if take(.symbol(.lessThan)) { try type(nullable: false); try require(.symbol(.greaterThan)) }
+            if !newlineBeforeCurrent(), take(.symbol(.at)) { try name() }
         } else { switch kind {
         case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .charLiteral, .floatLiteral, .doubleLiteral, .keyword(.true), .keyword(.false), .keyword(.null): index += 1
-        case .keyword(.this): index += 1; if take(.symbol(.at)) { try name() }
+        case .keyword(.this): index += 1; if !newlineBeforeCurrent(), take(.symbol(.at)) { try name() }
         case .identifier, .backtickedIdentifier, .softKeyword, .keyword(.value): try name()
         case .stringQuote, .rawStringQuote, .multiDollarStringQuote, .multiDollarRawStringQuote:
             let quote = kind

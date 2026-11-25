@@ -17,14 +17,11 @@ import Foundation
 /// underneath that drain then tries to join the very produce job whose burst
 /// owns the parked emitter.
 final class RuntimeBurstJobStack: @unchecked Sendable {
-    static let shared = RuntimeBurstJobStack()
-
     private static let pthreadKey = makePthreadKey()
 
     private let lock = NSLock()
     private var jobs: [RuntimeJobHandle?] = []
 
-    /// The calling thread's stack, created on first burst.
     static var current: RuntimeBurstJobStack {
         if let existing = pthread_getspecific(pthreadKey) {
             return Unmanaged<RuntimeBurstJobStack>.fromOpaque(existing).takeUnretainedValue()
@@ -34,8 +31,6 @@ final class RuntimeBurstJobStack: @unchecked Sendable {
         return stack
     }
 
-    /// The calling thread's stack if a burst has already run on it, without
-    /// allocating one for threads that only ever join.
     private static var existing: RuntimeBurstJobStack? {
         guard let raw = pthread_getspecific(pthreadKey) else { return nil }
         return Unmanaged<RuntimeBurstJobStack>.fromOpaque(raw).takeUnretainedValue()
@@ -53,9 +48,6 @@ final class RuntimeBurstJobStack: @unchecked Sendable {
         lock.unlock()
     }
 
-    /// True when `job` has a burst executing on the calling thread, meaning
-    /// its completion depends on the current stack unwinding and no amount of
-    /// event-loop draining can finish it.
     static func isBurstingOnCurrentThread(_ job: RuntimeJobHandle) -> Bool {
         guard let stack = existing else { return false }
         return stack.contains(job)

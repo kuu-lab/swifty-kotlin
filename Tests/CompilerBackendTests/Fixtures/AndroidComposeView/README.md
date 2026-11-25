@@ -3,10 +3,13 @@
 `MainActivity.kt` を kswiftc でコンパイルする。Material 3 の `OutlinedTextField` と
 `Button` でタスクを追加し、Compose Foundation の `LazyColumn` に表示する。入力と
 タスク一覧は `mutableStateOf` で保持し、追加時に入力欄を空にして一覧を再コンポジションする。
-Gradle は AndroidX Compose 1.7.8 と Compose Material 3 1.3.2 を取得し、APK の Kotlin 標準ライブラリは
-`kswiftc --stdlib-only` でこのリポジトリから生成する。
 
-Android SDK 36.1、Build Tools 36.1.0、Gradle 9.8、JDK、Python 3 を用意し、リポジトリのルートで実行する。
+kswiftc が AndroidX Compose 1.7.8 と Compose Material 3 1.3.2 の依存閉包（約 50 モジュール）を
+Google Maven / Maven Central から解決する。そのうえでライブラリのリソースと manifest をマージし、
+dex 化・署名まで行う。Gradle は使わない。APK には `-include-runtime` で
+このリポジトリの Kotlin 標準ライブラリを同梱する。
+
+Android SDK 36.1、Build Tools 36.1.0、JDK を用意し、リポジトリのルートで実行する。
 起動すると100件のサンプルタスクを読み込む。**New task** に入力して **Add task** を
 押すと、先頭に入力したタスクが追加されて件数が101件になる。一覧を縦にスクロールできる。
 

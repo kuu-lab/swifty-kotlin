@@ -6,15 +6,13 @@ public func makeBackendPhases() -> [CompilerPhase] {
 }
 
 public func makeBackendPhases(keepLLVMContextAlive: Bool) -> [CompilerPhase] {
+    // The frontend compiles Android Java sources before Sema and needs the
+    // runtime jar the backend builds for `-include-runtime`.
+    AndroidBuildInputs.runtimeJarProvider = { try JVMCodegenPhase.runtimeJar(for: $0) }
     let session = LLVMBackendSession(keepContextAlive: keepLLVMContextAlive)
     return [CodegenPhase(session: session), LinkPhase(session: session)]
 }
 
-/// Starts resolving the runtime link inputs on a background thread so they
-/// are ready (or in flight) by the time Link needs them. Only fires when the
-/// verified manifest already exists, so it can never start a runtime build for
-/// a compilation that may still fail. The result is single-use and consumed by
-/// `LinkPhase`, which falls back to a normal resolve on any miss or error.
 public func prefetchBackendLinkInputs(for options: CompilerOptions) {
     guard options.emit == .executable, !options.target.isWasm else { return }
     RuntimeLinkInputPrefetch.shared.start(target: options.target, configuration: .release)
@@ -59,8 +57,6 @@ final class RuntimeLinkInputPrefetch: @unchecked Sendable {
         }
     }
 
-    /// Waits for an in-flight prefetch and consumes its result; nil when none
-    /// was started for this target/configuration or it did not produce inputs.
     func take(target: TargetTriple, configuration: RuntimeBuildConfiguration) -> Inputs? {
         condition.lock()
         defer { condition.unlock() }
@@ -78,11 +74,6 @@ final class RuntimeLinkInputPrefetch: @unchecked Sendable {
     }
 }
 
-/// Link-affecting inputs only the backend can see, folded into the
-/// incremental build-configuration hash for executable emission: the
-/// packaged runtime objects (their cache key binds the Runtime sources, so
-/// a rebuilt runtime invalidates cached executables) and the linker plan
-/// identity (toolchain resolution, Xcode selection, driver arguments).
 /// Read-only by design — it must never trigger a runtime build.
 public func incrementalEnvironmentFingerprint(for options: CompilerOptions) -> [String] {
     guard options.emit == .executable else { return [] }
@@ -100,8 +91,6 @@ public func incrementalEnvironmentFingerprint(for options: CompilerOptions) -> [
             manifestURL: manifestURL
         )
         if objects.isEmpty {
-            // Manifest absent or objects missing: the link would rebuild them,
-            // and the rebuilt tree gets a different signature anyway.
             parts.append("runtimeObjects=absent")
         } else {
             for path in objects.sorted() {

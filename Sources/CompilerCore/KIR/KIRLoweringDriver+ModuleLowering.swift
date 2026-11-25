@@ -47,20 +47,18 @@ extension KIRLoweringDriver {
             sema: sema
         ))
 
-        // Using a single array ensures Kotlin's strict declaration-order initialization guarantee.
         var allTopLevelInitInstructions: KIRLoweringEmitContext = []
 
-        // Maps delegated property symbol → delegate storage symbol (e.g. `$delegate_`).
-        // We store the delegate handle into this storage symbol in main, and load it
-        // at use-sites when rewriting getValue calls.
         var delegateStorageSymbolByPropertySymbol: [SymbolID: SymbolID] = [:]
 
         var skippedBundledFiles: [ASTFile] = []
+        for file in ast.sortedFiles where shouldSkipBundledFileForOutput(file, compilationCtx: compilationCtx) {
+            skippedBundledFiles.append(file)
+        }
+        markSkippedBundledObjectLazyInitsOmitted(skippedFiles: skippedBundledFiles, shared: shared)
+        let skippedBundledFileIDs = Set(skippedBundledFiles.map { $0.fileID.rawValue })
         for file in ast.sortedFiles {
-            if shouldSkipBundledFileForOutput(file, compilationCtx: compilationCtx) {
-                skippedBundledFiles.append(file)
-                continue
-            }
+            guard !skippedBundledFileIDs.contains(file.fileID.rawValue) else { continue }
             let declIDs = lowerTopLevelDecls(
                 file: file,
                 shared: shared,
@@ -71,10 +69,6 @@ extension KIRLoweringDriver {
             files.append(KIRFile(fileID: file.fileID, decls: declIDs))
         }
 
-        // Synthetic companion anchors restored from the bundled library have
-        // no source declaration in this module to allocate their singleton.
-        // Materialize any referenced anchor, just as source-backed companions
-        // allocate their singleton during declaration lowering.
         let syntheticCompanionDecls = synthesizeReferencedSyntheticCompanions(shared: shared)
         if !syntheticCompanionDecls.isEmpty, let firstFile = files.first {
             files[0] = KIRFile(fileID: firstFile.fileID, decls: firstFile.decls + syntheticCompanionDecls)
@@ -94,11 +88,6 @@ extension KIRLoweringDriver {
             compilationCtx: compilationCtx
         )
 
-        // KUU-3675: compiler-synthetic and initializer-less imported
-        // companion objects (e.g. `kotlin.String.Companion`) have no source
-        // declaration and no artifact initializer, so nothing ever populated
-        // their root slots. Synthesize eager handles for them before the
-        // companion-initializer call list is built.
         let uninitializedCompanionDeclIDs = synthesizeUninitializedCompanionHandles(
             shared: shared
         )
@@ -149,12 +138,6 @@ extension KIRLoweringDriver {
             contentsOf: allTopLevelInitInstructions
         )
 
-        // A library has no `main` to receive its stored top-level property
-        // initializers. Keep them as a callable entry point in the artifact;
-        // importing modules call it before their own property initializers.
-        // Object/companion initializers are imported separately, so this
-        // entry point contains reflection registration and the library's own
-        // property writes.
         if case .library = compilationCtx.options.emit,
            !allTopLevelInitInstructions.isEmpty || !ctx.allReflectionInitializers().isEmpty {
             let symbol = ctx.allocateSyntheticGeneratedSymbol()
@@ -283,6 +266,68 @@ extension KIRLoweringDriver {
         }
     }
 
+    private func markSkippedBundledObjectLazyInitsOmitted(
+        skippedFiles: [ASTFile],
+        shared: KIRLoweringSharedContext
+    ) {
+        guard !skippedFiles.isEmpty else { return }
+        let ast = shared.ast
+        let sema = shared.sema
+
+        func markObject(_ declID: DeclID) {
+            guard let symbol = sema.bindings.declSymbols[declID] else { return }
+            ctx.markObjectLazyInitOmitted(for: symbol)
+        }
+
+        func walk(_ declID: DeclID) {
+            guard let decl = ast.arena.decl(declID) else { return }
+            switch decl {
+            case let .objectDecl(objectDecl):
+                markObject(declID)
+                for nestedID in objectDecl.nestedClasses + objectDecl.nestedObjects {
+                    walk(nestedID)
+                }
+            case let .classDecl(classDecl):
+                var nestedIDs = classDecl.nestedClasses + classDecl.nestedObjects
+                if let companionID = classDecl.companionObject {
+                    nestedIDs.append(companionID)
+                }
+                if let companionBlockID = classDecl.companionBlockObject {
+                    nestedIDs.append(companionBlockID)
+                }
+                for entry in classDecl.enumEntries {
+                    nestedIDs.append(contentsOf: entry.nestedClasses)
+                }
+                for nestedID in nestedIDs {
+                    walk(nestedID)
+                }
+            case let .interfaceDecl(interfaceDecl):
+                var nestedIDs = interfaceDecl.nestedClasses + interfaceDecl.nestedObjects
+                if let companionID = interfaceDecl.companionObject {
+                    nestedIDs.append(companionID)
+                }
+                if let companionBlockID = interfaceDecl.companionBlockObject {
+                    nestedIDs.append(companionBlockID)
+                }
+                for nestedID in nestedIDs {
+                    walk(nestedID)
+                }
+            case let .enumEntryDecl(entry):
+                for nestedID in entry.nestedClasses {
+                    walk(nestedID)
+                }
+            default:
+                break
+            }
+        }
+
+        for file in skippedFiles {
+            for declID in file.topLevelDecls {
+                walk(declID)
+            }
+        }
+    }
+
     func shouldSkipBundledFileForOutput(
         _ file: ASTFile,
         compilationCtx: CompilationContext
@@ -291,8 +336,6 @@ extension KIRLoweringDriver {
             return false
         }
 
-        // When emitting a dedicated stdlib .kklib, the bundled/residual source
-        // bodies must be lowered into objects and inline-KIR artifacts.
         if compilationCtx.options.stdlibOnly {
             return false
         }
@@ -341,7 +384,6 @@ extension KIRLoweringDriver {
 
             switch decl {
             case let .classDecl(classDecl):
-                // The actual enum owns the runtime slots and reflection wrappers.
                 if sema.symbols.symbol(symbol)?.kind == .enumClass,
                    sema.symbols.symbol(symbol)?.flags.contains(.expectDeclaration) == true
                 {
@@ -407,10 +449,6 @@ extension KIRLoweringDriver {
         if let companionDeclID = interfaceDecl.companionObject {
             ifaceNestedObjects.append(companionDeclID)
         }
-        // BUG-274: register the companion's lazy-init entry before lowering
-        // this interface's own (default-body) member functions, which can
-        // reference the companion -- see the matching comment in
-        // `lowerTopLevelClassDecl`.
         var declIDs = synthesizeCompanionInitializerIfNeeded(
             companionDeclID: interfaceDecl.companionObject,
             ownerSymbol: symbol,
@@ -428,8 +466,6 @@ extension KIRLoweringDriver {
         let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: directMembers)))
         declIDs.append(kirID)
         declIDs.append(contentsOf: allDecls)
-        // Interfaces declare no `<init>` symbols, so this emits the
-        // member-registration half only (KUU-4065).
         declIDs.append(contentsOf: synthesizeNominalReflectionInitializer(
             ownerSymbol: symbol,
             ownerName: interfaceDecl.name,
@@ -473,8 +509,6 @@ extension KIRLoweringDriver {
         var declIDs = [kirID]
         declIDs.append(contentsOf: allDecls)
         declIDs.append(contentsOf: forwardingDecls)
-        // Objects declare no `<init>` symbols, so this emits the
-        // member-registration half only (KUU-4065).
         declIDs.append(contentsOf: synthesizeNominalReflectionInitializer(
             ownerSymbol: symbol,
             ownerName: objectDecl.name,
@@ -523,8 +557,6 @@ extension KIRLoweringDriver {
         where symbolInfo.kind == .property || symbolInfo.kind == .field || symbolInfo.kind == .backingField
         {
             let symbol = symbolInfo.id
-            // Most imported properties have accessor links, not external
-            // global initializers. Reject them before querying semantic types.
             guard let externalLinkName = sema.symbols.externalLinkNameIfKnown(for: symbol),
                   !externalLinkName.isEmpty,
                   !existingGlobals.contains(symbol)
@@ -532,9 +564,6 @@ extension KIRLoweringDriver {
             let parentKind = sema.symbols.parentSymbolIfKnown(for: symbol).flatMap {
                 sema.symbols.symbol($0)?.kind
             }
-            // Compact indexes mark extension receivers at registration; only
-            // a pending shell on an older index needs the decoded receiver
-            // type to reach the same answer.
             guard parentKind == nil || parentKind == .package || parentKind == .object,
                   sema.symbols.backingFieldSymbol(for: symbol) == nil,
                   !sema.symbols.hasExtensionPropertyReceiver(symbol),
@@ -613,9 +642,6 @@ extension KIRLoweringDriver {
         // with a null receiver in the consuming module.
         for symbol in importedSymbols {
             guard sema.symbols.mayHaveImportedInitializers(for: symbol.id) else { continue }
-            // Complete indexes (v3) synthesized the initializer shells at
-            // registration; anything older can only be discovered by decoding
-            // the body record, which is exactly what the forcing getters do.
             let forceDecode = sema.symbols.importedInitializerInfoIsIncomplete(for: symbol.id)
             switch symbol.kind {
             case .object:

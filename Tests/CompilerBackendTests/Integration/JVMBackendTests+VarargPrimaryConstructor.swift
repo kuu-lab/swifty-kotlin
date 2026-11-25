@@ -60,5 +60,42 @@ extension JVMBackendTests {
             #expect(arrayControlSignature.stdout.contains("public FixedBox(int[]);"))
         }
     }
+
+    @Test
+    func privateVarargPropertyPrimaryConstructorMatchesKotlinc() throws {
+        try withWorkspace { root in
+            let source = """
+            class Button
+            class TextInputLayout
+            class NonEmptyValidator(private val actionButton: Button, private vararg val textInputs: TextInputLayout) {
+                val count: Int get() = textInputs.size
+            }
+            fun main() {
+                println(NonEmptyValidator(Button(), TextInputLayout()).count)
+                println(NonEmptyValidator(Button(), TextInputLayout(), TextInputLayout()).count)
+                println(NonEmptyValidator(Button()).count)
+            }
+            """
+            let result = try compile(source, root: root, mode: .jvmJar, includeJVMRuntime: true)
+            try #require(result.0 == 0, "\(result.1.map(\.message))")
+
+            let appJar = root.appendingPathComponent("hello.jar")
+            let candidate = try java(["-jar", appJar.path])
+            #expect(candidate.exitCode == 0, "\(candidate.stderr)")
+            #expect(candidate.stderr.isEmpty)
+
+            let referenceBuild = try jvmTool("kotlinc", ["hello.kt", "-include-runtime", "-d", "reference.jar"], root: root)
+            try #require(referenceBuild.exitCode == 0, "\(referenceBuild.stderr)")
+            let reference = try java(["-jar", root.appendingPathComponent("reference.jar").path])
+            #expect(reference.exitCode == 0, "\(reference.stderr)")
+            #expect(reference.stderr.isEmpty)
+            #expect(candidate.stdout == reference.stdout)
+            #expect(candidate.stdout == "1\n2\n0\n")
+
+            let signature = try javap(["-p", "-s", "-classpath", appJar.path, "NonEmptyValidator"])
+            #expect(signature.stdout.contains("public NonEmptyValidator(Button, TextInputLayout...);"))
+            #expect(signature.stdout.contains("descriptor: (LButton;[LTextInputLayout;)V"))
+        }
+    }
 }
 #endif

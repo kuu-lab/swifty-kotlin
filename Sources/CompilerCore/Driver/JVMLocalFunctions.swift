@@ -11,8 +11,6 @@ extension JVMFunctionBuilder {
         for scope in scopes {
             for (name, local) in scope {
                 if let outer = visible[name], let symbol = outer.symbol, symbol != local.symbol {
-                    // Keep shadowed bindings addressable by semantic identity for
-                    // environments required by an indirectly called local function.
                     let hidden = context.interner.intern("\0jvmCapturedLocal:" + String(symbol.rawValue))
                     visible[hidden] = outer
                 }
@@ -25,11 +23,8 @@ extension JVMFunctionBuilder {
     func localReferenceCaptureSymbols(in body: ExprID) -> Set<SymbolID> {
         guard let range = arena.exprRange(body) else { return [] }
         var captured: Set<SymbolID> = []
-        for i in arena.exprs.indices {
-            let expression = ExprID(rawValue: Int32(i))
-            guard let site = arena.exprRange(expression), site.start.file == range.start.file,
-                  site.start.offset >= range.start.offset, site.end.offset <= range.end.offset,
-                  let symbol = program.sema.bindings.callableReferenceBinding(for: expression)?.chosenCallee ?? program.sema.bindings.callBinding(for: expression)?.chosenCallee ?? program.sema.bindings.identifierSymbol(for: expression),
+        for expression in program.exprIDs(in: range) {
+            guard let symbol = program.sema.bindings.callableReferenceBinding(for: expression)?.chosenCallee ?? program.sema.bindings.callBinding(for: expression)?.chosenCallee ?? program.sema.bindings.identifierSymbol(for: expression),
                   program.sema.symbols.symbol(symbol)?.flags.contains(.localFunction) == true else { continue }
             captured.formUnion(program.sema.bindings.localFunctionCaptureSymbols(for: symbol))
             captured.formUnion(program.localFunctions[symbol]?.captures.compactMap { $0.local?.symbol } ?? [])

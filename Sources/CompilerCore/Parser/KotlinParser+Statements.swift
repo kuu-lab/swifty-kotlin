@@ -25,7 +25,6 @@ extension KotlinParser {
                 closed = true
                 break
             }
-            // A contextual keyword followed by @ starts a label, not a declaration.
             if isLabelStart {
                 children.append(.node(parseStatement(inBlock: true)))
                 atBlockStart = false
@@ -280,7 +279,6 @@ extension KotlinParser {
             range.append(arena.node(subjectGroup).range)
         }
 
-        // Parse body as a structured when block so branch conditions remain explicit in CST.
         if case .symbol(.lBrace) = stream.peek().kind {
             let body = parseWhenBody(inBlock: inBlock)
             children.append(.node(body))
@@ -580,8 +578,6 @@ extension KotlinParser {
     private func consumedTokensEndWithWhenSubject(_ children: [SyntaxChild]) -> Bool {
         var parenDepth = 0
         for child in children.reversed() {
-            // Nodes are opaque balanced groups (blocks, balanced parens):
-            // their inner parens cannot affect the depth at this level.
             guard case let .token(tokenID) = child, let token = arena.token(tokenID) else {
                 continue
             }
@@ -593,9 +589,6 @@ extension KotlinParser {
                 if parenDepth < 0 { return false }
             default:
                 if parenDepth == 0 {
-                    // The first top-level token looking back: `when` means
-                    // the trailing `)` closed a `when (…)` subject, or `when`
-                    // directly precedes the brace (`when {`).
                     return token.kind == .keyword(.when)
                 }
             }
@@ -776,7 +769,6 @@ extension KotlinParser {
         }
     }
 
-    /// Keeps the trailing `while (...)` condition outside of the body node.
     func appendDoWhileBody(into children: inout [SyntaxChild], range: inout RangeAccumulator) {
         if case .symbol(.lBrace) = stream.peek().kind {
             let block = parseBlock()
@@ -934,8 +926,6 @@ extension KotlinParser {
         case overBudget
     }
 
-    /// Memoized for every prefix token visited so expression-tail recovery
-    /// does not rescan each suffix of a long chain.
     func declarationPrefixVerdict(at offset: Int) -> DeclarationPrefixVerdict {
         if stream.peek(offset).kind.isLabelName,
            stream.peek(offset + 1).kind == .symbol(.at) {
@@ -952,8 +942,6 @@ extension KotlinParser {
         var sawValueModifier = false
         while true {
             guard consumeDeclarationLookaheadWork(&work, at: cursor) else {
-                // Treat an over-budget prefix as a recovery boundary. The outer
-                // parser then consumes it iteratively through normal recovery.
                 cacheGenuineDeclarationLookahead(true, for: prefixIndices)
                 return .overBudget
             }
@@ -1025,8 +1013,6 @@ extension KotlinParser {
             } else {
                 cacheGenuineDeclarationLookahead(result, for: prefixIndices)
             }
-            // The terminal keyword remains a declaration start on its own,
-            // even when this modifier prefix does not belong to it.
             genuineDeclarationLookahead[stream.index + cursor] = startsDeclaration
             return result ? .declaration : .notDeclaration
         }
@@ -1042,8 +1028,6 @@ extension KotlinParser {
         case overBudget
     }
 
-    /// Bound annotation lookahead before scanning arguments, and preserve the
-    /// same declaration synchronization points as parseBalancedGroup.
     private func annotationPrefixEnd(from offset: Int, work: inout Int) -> AnnotationPrefixEnd {
         var cursor = offset + 1
         if isAnnotationUseSiteTarget(stream.peek(cursor)),
@@ -1057,6 +1041,13 @@ extension KotlinParser {
         while stream.peek(cursor).kind == .symbol(.dot), isIdentifierLike(stream.peek(cursor + 1).kind) {
             guard consumeDeclarationLookaheadWork(&work, at: cursor) else { return .overBudget }
             cursor += 2
+        }
+        if stream.peek(cursor).kind == .symbol(.lessThan) {
+            let typeArgumentsEnd = offsetPastTypeArguments(from: cursor)
+            while cursor < typeArgumentsEnd {
+                guard consumeDeclarationLookaheadWork(&work, at: cursor) else { return .overBudget }
+                cursor += 1
+            }
         }
         guard stream.peek(cursor).kind == .symbol(.lParen) else { return .complete(cursor) }
         var closingSymbols: [Symbol] = [.rParen]
@@ -1123,8 +1114,41 @@ extension KotlinParser {
         return index
     }
 
-    /// Defers to `startsGenuineDeclaration` lookahead only for ambiguous modifier /
-    /// `context` prefixes, trusting the caller's own check otherwise.
+    func offsetPastTypeArguments(from offset: Int) -> Int {
+        var angleDepth = 0
+        var parenDepth = 0
+        var bracketDepth = 0
+        var braceDepth = 0
+        var templateDepth = 0
+        var index = offset
+        while true {
+            let kind = stream.peek(index).kind
+            if kind == .eof { break }
+            let inExpressionGroup = parenDepth > 0 || bracketDepth > 0 || braceDepth > 0 || templateDepth > 0
+            if !inExpressionGroup {
+                if kind == .symbol(.lessThan) {
+                    angleDepth += 1
+                } else if kind == .symbol(.greaterThan) {
+                    angleDepth -= 1
+                    if angleDepth == 0 { return index + 1 }
+                }
+            }
+            switch kind {
+            case .symbol(.lParen): parenDepth += 1
+            case .symbol(.rParen): parenDepth = max(0, parenDepth - 1)
+            case .symbol(.lBracket): bracketDepth += 1
+            case .symbol(.rBracket): bracketDepth = max(0, bracketDepth - 1)
+            case .symbol(.lBrace): braceDepth += 1
+            case .symbol(.rBrace): braceDepth = max(0, braceDepth - 1)
+            case .templateExprStart: templateDepth += 1
+            case .templateExprEnd: templateDepth = max(0, templateDepth - 1)
+            default: break
+            }
+            index += 1
+        }
+        return index
+    }
+
     private func isGenuineDeclarationBoundary(_ token: Token) -> Bool {
         let isAnonymousFunction = isAnonymousFunctionExpressionStart()
         guard isAmbiguousDeclarationPrefix(token) || isAnonymousFunction else {
@@ -1139,12 +1163,9 @@ extension KotlinParser {
         case .keyword(.in):
             return true
         case .symbol(.bang):
-            // `!in` and `!is` are the only infix operators that start with `!`.
             let next = stream.peek(1).kind
             return next == .keyword(.in) || next == .keyword(.is)
         case .symbol(.bangBang):
-            // `!!` is the not-null postfix operator; it can only apply to the
-            // trailing-lambda call here, never start a statement.
             return true
         case .identifier, .backtickedIdentifier:
             return canStartInfixCallArgument(stream.peek(1).kind)
@@ -1197,7 +1218,6 @@ extension KotlinParser {
             let token = stream.peek()
             let atTopLevel = depth.isTopLevel
                 && depth.template == 0
-            // A same-line `field:` clause belongs to the property, not its declared type.
             if allowsPropertyDelegation, atTopLevel, depth.angle == 0, !sawAssignment,
                isExplicitBackingFieldStart(token),
                lastConsumedToken?.kind != .symbol(.dot),
@@ -1258,9 +1278,6 @@ extension KotlinParser {
             {
                 break
             }
-            // An annotation preceding an operand is part of the expression,
-            // including newlines after '=' or between prefixes and operands.
-            // Genuine annotated declarations remain recovery boundaries.
             if atTopLevel, token.kind == .symbol(.at), !startsGenuineDeclaration(at: 0) {
                 var work = 0
                 if case let .complete(end) = annotationPrefixEnd(from: 0, work: &work) {
@@ -1303,12 +1320,6 @@ extension KotlinParser {
                 children.append(.node(blockID))
                 range.append(arena.node(blockID).range)
                 progress = true
-                // Continue when the block is followed by a continuation keyword of
-                // a multi-block expression: `try { } catch { } finally { }` and
-                // `if (c) { } else { }` / `else if (c) { } else { }` — or by a
-                // symbol that cannot end an expression on its own (`+`, `.`,
-                // `?.`, ...), meaning this trailing-lambda call is only part of
-                // a larger expression (e.g. `f() { ... } + g() { ... }`).
                 let nextAfterBlock = stream.peek()
                 if sawTryKeyword {
                     if case .keyword(.catch) = nextAfterBlock.kind { continue }
@@ -1335,9 +1346,6 @@ extension KotlinParser {
                 {
                     continue
                 }
-                // A trailing-lambda call can be the receiver of an infix or
-                // membership operator. Keep the operator and its operand in
-                // the same expression-bodied declaration.
                 if isTrailingLambdaOperatorContinuation(nextAfterBlock) {
                     continue
                 }
@@ -1362,33 +1370,15 @@ extension KotlinParser {
                 if stillGrouped {
                     continue
                 }
-                // A line ending in `=` or in a binary operator continues onto the
-                // next line, so that expression bodies like
-                // `= \n try { ... } catch { ... }` or `= 1 +\n    2` are captured
-                // in the same declaration node.
                 if ParserBoundaryPolicy.continuesExpressionAfterNewline(token.kind)
                     || (allowsFunctionWhereClause && !sawAssignment && token.kind == .softKeyword(.where))
                 {
-                    // But stop if the next line starts a new declaration
-                    // (modifier keyword, declaration keyword, context-parameter
-                    // prefix, or annotation) — not merely a modifier / `context`
-                    // prefix that is actually introducing an expression
-                    // (`suspend { ... }`, `context(...) { ... }`).
                     let nextToken = stream.peek()
                     if startsGenuineDeclaration(at: 0), !isObjectExpressionStart(nextToken) {
                         break
                     }
                     continue
                 }
-                // A line that starts with `.member` / `?.` / `?:` / `&&` / `||`
-                // (or `else` / `catch` / `finally`) can only continue the
-                // expression body, as can the line after an infix operator
-                // name (`a or\n    (b)`) or after an `if (...)` condition whose
-                // branch body starts on the next line.
-                // In a class header, a supertype colon may also follow the
-                // implicit constructor on the next line. A delegation `by` may
-                // begin a line while scanning that supertype list or a property
-                // declaration that has not already introduced an initializer.
                 if ParserBoundaryPolicy.continuesExpressionBeforeNewline(stream.peek().kind)
                     || (allowsDeclarationAssignment && !sawAssignment && stream.peek().kind == .symbol(.assign))
                     || (allowsPropertyDelegation && !sawAssignment && stream.peek().kind == .softKeyword(.by))

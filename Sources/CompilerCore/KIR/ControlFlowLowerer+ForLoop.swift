@@ -116,15 +116,7 @@ extension ControlFlowLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        // KSP-678: `for (v in channel)` lowers through the bundled Kotlin
-        // `Channel<T>.iterator()` operator (Channels.kt) via the custom-iterator
-        // path below, the same way ranges do, instead of a channel-specific
-        // structural lowering.
         let iterableType = sema.bindings.exprTypes[iterableExpr] ?? sema.types.anyType
-        // ARCH-012: IntRange has a fixed positive step of one, so a proven
-        // closed Int range can use an i64 induction variable without changing
-        // the progression iterator semantics. Keep the BUG-198 runtime path
-        // below for Long/Char/progression and other signed range shapes.
         if isBuiltInIntRange(
             iterableExpr: iterableExpr,
             iterableType: iterableType,
@@ -145,13 +137,6 @@ extension ControlFlowLowerer {
                 instructions: &instructions
             )
         }
-        // BUG-198: Keep the KSP-452 source iterator as the semantic contract, but
-        // use a direct runtime loop for the closed signed ranges that the compiler
-        // can prove are built-in. The generic iterator path allocates a source
-        // iterator object and pays two levels of dispatch on every element. This
-        // fast path is deliberately restricted to compiler-marked built-in range
-        // expressions and nominal range classes, so custom operators and
-        // interface-typed iterables retain their semantics.
         if isBuiltInSignedRange(
             iterableExpr: iterableExpr,
             iterableType: iterableType,
@@ -297,8 +282,6 @@ extension ControlFlowLowerer {
             defaultNextCallee = interner.intern("__kk_range_next")
         }
 
-        // Preserve the iterator() return type so hasNext()/next() can resolve
-        // source-backed Iterator dispatch from the lowered temporary.
         let iteratorID = arena.appendTemporary(
             type: customIterator?.iteratorType ?? sema.types.anyType
         )
@@ -409,13 +392,6 @@ extension ControlFlowLowerer {
         return unit
     }
 
-    /// ARCH-012: Restrict the LLVM induction-variable loop to the exact
-    /// IntRange contract. A direct `..` expression is proven either by the
-    /// legacy scalar range-handle convention (Int element type plus a
-    /// semantic range marker) or by the nominal `IntRange` class type that
-    /// the bundled `kotlin.ranges.rangeTo` returns — the same nominal type a
-    /// value held in an IntRange variable carries. `until`, `downTo`,
-    /// `step`, Long/Char ranges, and unsigned ranges keep their iterator path.
     private func isBuiltInIntRange(
         iterableExpr: ExprID,
         iterableType: TypeID,
@@ -436,8 +412,6 @@ extension ControlFlowLowerer {
         }
 
         if nonNullType == sema.types.intType {
-            // Scalar range-handle convention: only a direct `..` expression is
-            // a proven Int range.
             guard case let .binary(op, _, _, _) = ast.arena.expr(iterableExpr), op == .rangeTo else {
                 return false
             }
@@ -445,10 +419,6 @@ extension ControlFlowLowerer {
                 || ControlFlowTypeChecker.isRangeExpression(iterableExpr, ast: ast)
         }
 
-        // Source-backed typing: `a..b` resolves to kotlin.ranges.rangeTo and
-        // carries the nominal IntRange class type, so a direct `..` expression
-        // reaches the same nominal check as a value held in an IntRange
-        // variable.
         guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema),
               isRangeLikeClass(symbol, interner: interner)
         else {
@@ -457,17 +427,6 @@ extension ControlFlowLowerer {
         return symbol.name == KnownCompilerNames(interner: interner).intRange
     }
 
-    /// True when a direct `a..b` expression may feed its operands straight
-    /// into the induction loop instead of materializing the range object.
-    /// The scalar range-handle convention already proves the bounds are Int,
-    /// so only the nominal `IntRange` form needs extra checks: both operands
-    /// must be Int-typed (mixed-width overloads such as `Byte.rangeTo(Int)`
-    /// widen inside the source body, which only runs when the range is
-    /// materialized), and the resolved `rangeTo` must be the bundled
-    /// `kotlin.ranges` overload or the legacy range intrinsic — a
-    /// user-declared `rangeTo` returning `IntRange` computes its own bounds,
-    /// so its call is emitted and the loop bounds are read back from the
-    /// materialized range.
     private func canLowerRangeToOperandsDirectly(
         exprID: ExprID,
         lhs: ExprID,
@@ -533,8 +492,6 @@ extension ControlFlowLowerer {
                sema: sema,
                interner: interner
            ) {
-            // A direct `Int..Int` expression has no observable range object
-            // between evaluating its operands and entering the loop.
             firstID = driver.lowerExpr(
                 lhs,
                 ast: ast,
@@ -601,8 +558,6 @@ extension ControlFlowLowerer {
         instructions.append(.constValue(result: falseID, value: .boolLiteral(false)))
         instructions.append(.jumpIfEqual(lhs: hasMoreSlot, rhs: falseID, target: breakLabel))
 
-        // Compiler-internal aliases are lowered by NativeEmitter to LLVM
-        // icmp/add instructions and are never emitted as runtime calls.
         let hasMoreID = arena.appendTemporary(type: boolType)
         instructions.append(.call(
             callee: interner.intern("__kk_int_range_induction_le"),
@@ -620,8 +575,6 @@ extension ControlFlowLowerer {
         let elementID = arena.appendTemporary(type: loopVarType)
         instructions.append(.copy(from: currentSlot, to: elementID))
 
-        // Do not increment after the final element. This is the same
-        // monotonicity/overflow guard as IntProgressionIterator.next().
         instructions.append(.jumpIfEqual(lhs: currentSlot, rhs: lastSnapshotID, target: lastValueLabel))
         let oneID = arena.appendExpr(.intLiteral(1), type: intType)
         instructions.append(.constValue(result: oneID, value: .intLiteral(1)))
@@ -669,9 +622,6 @@ extension ControlFlowLowerer {
         return unit
     }
 
-    /// The runtime implementation follows the monotonicity and overflow behavior
-    /// of `RangeIterators.kt` without exposing that fast path to explicit
-    /// `range.iterator()` calls or dynamically typed iterables.
     private func lowerBuiltInSignedRangeForExpr(
         _ exprID: ExprID,
         iterableExpr: ExprID,
@@ -761,10 +711,6 @@ extension ControlFlowLowerer {
         return unit
     }
 
-    /// DEBT-KIR-005: Lowers `for (x in array)` to an index-based loop
-    /// rather than the range-iterator intrinsics used by lowerForExpr's
-    /// general path, since arrays have no real `iterator()` member for Sema
-    /// to bind (see the DEBT-KIR-005 comment at the lowerForExpr call site).
     /// The index is advanced before the body runs (mirroring how the
     /// iterator-based loop's next() call both reads and advances ahead of
     /// the body) so that `continue` — which jumps back to continueLabel —
@@ -895,16 +841,6 @@ extension ControlFlowLowerer {
         return unit
     }
 
-    /// BUG-167: True when `for (x in type)` must resolve `iterator()`
-    /// dynamically because neither `bindLoopIterationOperators` nor
-    /// `resolveCustomIteratorOperator` can bind it: the `kotlin.collections`
-    /// iterable interfaces (whose `iterator()` is only a synthetic stub), and
-    /// source-declared classes implementing `Iterable` whose `iterator()`
-    /// override carries no `.operatorFunction` flag of its own (it inherits
-    /// `operator` from the interface declaration). Types that do bind an
-    /// iterator — and the concrete runtime-backed collections, which the
-    /// collection-literal pass rewrites to their own iterator intrinsics —
-    /// never reach here.
     private func usesDynamicIteratorDispatch(
         _ type: TypeID,
         sema: SemaModule,
@@ -929,11 +865,6 @@ extension ControlFlowLowerer {
         }
         guard let (classType, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema),
               !symbol.flags.contains(.synthetic),
-              // KSP-697: List (and other migrated collection shells) are now
-              // Kotlin source-backed, so their class symbol no longer carries
-              // `.synthetic`. Without this check they would be mistaken for an
-              // arbitrary non-synthetic Iterable-implementing class and lose the
-              // dedicated kk_list_iterator_next fast path below.
               !KnownCompilerNames(interner: interner).isCollectionLikeSymbol(symbol),
               resolveCustomIteratorOperator(
                   iterableType: nonNullType,
@@ -955,10 +886,6 @@ extension ControlFlowLowerer {
         .contains(iterableSymbol)
     }
 
-    /// The throwing Iterable bridge keeps iterator acquisition lazy and
-    /// preserves source exceptions for the enclosing Kotlin try/catch.
-    /// `hasNext()`/`next()` go through the generic `kk_iterator_*` intrinsics,
-    /// which handle every iterator representation.
     private func lowerDynamicIteratorForExpr(
         _ exprID: ExprID,
         iterableExpr: ExprID,
@@ -1116,7 +1043,6 @@ extension ControlFlowLowerer {
             )
             iteratorID = iteratorTemp
         } else {
-            // The iterable value is itself an Iterator; no iterator() call is needed.
             iteratorID = iterableID
         }
         let listIteratorFastPath = concreteListIteratorFastPath(
@@ -1185,10 +1111,6 @@ extension ControlFlowLowerer {
             interner: interner,
             instructions: &instructions
         )
-        // The erased Iterator<T>.next ABI may return a boxed Int for Byte and
-        // Short elements, or a boxed enum ordinal. Normalize it before the
-        // loop body uses the typed value; kk_unbox_int also accepts an
-        // already-raw scalar.
         let loopElementID: KIRExprID
         if let loopClaimType {
             let tokenType = sema.types.make(.primitive(.int, .nonNull))
@@ -1333,13 +1255,9 @@ extension ControlFlowLowerer {
             sema: sema,
             interner: interner
         )
-        // BUG-167: `__kk_range_*` only understands range and list iterators, so a
-        // dynamically resolved `iterator()` needs the generic intrinsics.
         let dynamicIterator = customIterator == nil
             && usesDynamicIteratorDispatch(iterableType, sema: sema, interner: interner)
 
-        // Preserve the iterator() return type so hasNext()/next() can resolve
-        // source-backed Iterator dispatch from the lowered temporary.
         let iteratorID = arena.appendTemporary(
             type: customIterator?.iteratorType ?? sema.types.anyType
         )
@@ -1428,10 +1346,6 @@ extension ControlFlowLowerer {
         ) ?? sema.types.anyType
         let nonNullElementType = sema.types.makeNonNullable(elementType)
 
-        // The map iterator yields keys, so for destructuring we need special
-        // handling: component1 = key (from next), component2 = kk_map_get(map, key).
-        // HashMap and LinkedHashMap are concrete MutableMap subtypes, so use the
-        // shared map path for them too.
         let isMapIteration: Bool = {
             guard let (_, sym) = resolveClassTypeSymbol(iterableType, sema: sema),
                   KnownCompilerNames(interner: interner).isMapLikeSymbol(sym)
@@ -1454,7 +1368,8 @@ extension ControlFlowLowerer {
             let propertyBinding = syntax == .parentheses
                 ? sema.bindings.destructuringProperty(for: exprID, index: index)
                 : nil
-            let componentType = propertyBinding?.type
+            let typedEntry = sema.bindings.typedForDestructuringEntry(for: exprID, index: index)
+            let componentType = typedEntry?.component ?? propertyBinding?.type
                 ?? candidates.first.flatMap { sema.symbols.propertyType(for: $0) }
                 ?? sema.types.anyType
             let componentResult = arena.appendTemporary(type: componentType)
@@ -1518,7 +1433,11 @@ extension ControlFlowLowerer {
 
             if let symbol = candidates.first {
                 previousValues.append((symbol, driver.ctx.localValue(for: symbol)))
-                driver.ctx.setLocalValue(componentResult, for: symbol)
+                let local = convertForDestructuringLocal(
+                    componentResult, from: componentType, to: typedEntry?.declared,
+                    arena: arena, instructions: &instructions
+                )
+                driver.ctx.setLocalValue(local, for: symbol)
             }
         }
 
@@ -1590,7 +1509,6 @@ extension ControlFlowLowerer {
             )
             iteratorID = iteratorTemp
         } else {
-            // The iterable value is itself an Iterator; no iterator() call is needed.
             iteratorID = iterableID
         }
         let listIteratorFastPath = concreteListIteratorFastPath(
@@ -1650,7 +1568,8 @@ extension ControlFlowLowerer {
             let propertyBinding = syntax == .parentheses
                 ? sema.bindings.destructuringProperty(for: exprID, index: index)
                 : nil
-            let componentType = propertyBinding?.type
+            let typedEntry = sema.bindings.typedForDestructuringEntry(for: exprID, index: index)
+            let componentType = typedEntry?.component ?? propertyBinding?.type
                 ?? candidates.first.flatMap { sema.symbols.propertyType(for: $0) }
                 ?? sema.types.anyType
             let componentResult = arena.appendTemporary(type: componentType)
@@ -1693,7 +1612,11 @@ extension ControlFlowLowerer {
 
             if let symbol = candidates.first {
                 previousValues.append((symbol, driver.ctx.localValue(for: symbol)))
-                driver.ctx.setLocalValue(componentResult, for: symbol)
+                let local = convertForDestructuringLocal(
+                    componentResult, from: componentType, to: typedEntry?.declared,
+                    arena: arena, instructions: &instructions
+                )
+                driver.ctx.setLocalValue(local, for: symbol)
             }
         }
 
@@ -1723,5 +1646,18 @@ extension ControlFlowLowerer {
         let unit = arena.appendExpr(.unit, type: sema.types.unitType)
         instructions.append(.constValue(result: unit, value: .unit))
         return unit
+    }
+
+    private func convertForDestructuringLocal(
+        _ component: KIRExprID,
+        from componentType: TypeID,
+        to declaredType: TypeID?,
+        arena: KIRArena,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        guard let declaredType, declaredType != componentType else { return component }
+        let local = arena.appendTemporary(type: declaredType)
+        instructions.append(.copy(from: component, to: local))
+        return local
     }
 }

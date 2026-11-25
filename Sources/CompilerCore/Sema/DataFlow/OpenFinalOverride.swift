@@ -1,12 +1,5 @@
 import Foundation
 
-// CLASS-005: Validate open/final/override modifier constraints.
-// In Kotlin, classes are final by default. Subclassing a non-open
-// (non-abstract, non-sealed, non-interface) class is an error.
-// Overriding a final member is an error. Hiding a parent member
-// without the `override` modifier is an error.
-
-/// Lightweight context to avoid passing many parameters.
 struct OpenFinalOverrideContext {
     let ast: ASTModule
     let symbols: SymbolTable
@@ -15,17 +8,9 @@ struct OpenFinalOverrideContext {
     let diagnostics: DiagnosticEngine
     let interner: StringInterner
     let compilationModuleFQN: InternedString
-    /// Reverse of `bindings.declSymbols`, used to tell whether an inherited
-    /// member's type came from inference (its declaration carries no
-    /// annotation) or was spelled explicitly.
     let declBySymbol: [SymbolID: DeclID]
 }
 
-/// Selects which inherited members participate in an override type check.
-/// Checks that ran during the header pass must skip parents whose type was
-/// still an inference placeholder (`.explicitOnly`); the deferred pass then
-/// re-checks exactly those pairs (`.inferredOnly`) once the inferred parent
-/// types are published.
 private enum OFOParentTypeFilter {
     case all
     case explicitOnly
@@ -63,9 +48,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Expression-body overrides have placeholder return types during the
-    /// header pass. Validate their covariance after type checking publishes the
-    /// inferred signatures.
     func validateInferredOverrideReturnTypes(
         ast: ASTModule,
         symbols: SymbolTable,
@@ -181,9 +163,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// `override fun f(): T` members checked at header time compared against
-    /// the parent's placeholder when the parent return type was inferred.
-    /// Re-check those pairs now that inference has published the real type.
     private func validateExplicitOverrideReturnTypeAgainstInferredParent(
         of declID: DeclID,
         ctx: OpenFinalOverrideContext
@@ -266,11 +245,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// `override` properties whose type is inferred from an initializer,
-    /// delegate, or custom getter (`override var x = ...`) still carry the
-    /// `anyType` placeholder during the header pass, so the OFO property-type
-    /// check skips them. Re-validate the inferred type against the overridden
-    /// property once type checking has published the final property types.
     func validateInferredPropertyTypeOverrides(
         ast: ASTModule,
         symbols: SymbolTable,
@@ -363,11 +337,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// `override var x: T` members checked at header time compared against
-    /// the parent's placeholder when the parent property type was inferred.
-    /// Re-check those pairs now that inference has published the real type —
-    /// both for the missed rejection and for the resolved parent name in the
-    /// diagnostic.
     private func validateExplicitPropertyTypeOverrideAgainstInferredParent(
         of declID: DeclID,
         ctx: OpenFinalOverrideContext
@@ -384,8 +353,6 @@ extension DataFlowSemaPhase {
               !typeContainsAnyTypeParam(childType, types: ctx.types)
         else { return }
 
-        // The header pass already reported when an explicit parent fails —
-        // only report failures that are new against inferred parents.
         if firstPropertyTypeMismatch(
             memberName: prop.name,
             childType: childType,
@@ -408,10 +375,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Header-time `validateValVarMutabilityOverride` skips pairs where the
-    /// child's or parent's property type was inferred, because kotlinc renders
-    /// the full property signatures in this diagnostic. Re-check those pairs
-    /// now that inference has published both types.
     private func validateDeferredValVarMutabilityOverride(
         of declID: DeclID,
         ctx: OpenFinalOverrideContext
@@ -464,14 +427,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Declarations bound lazily inside bodies — anonymous object literals
-    /// (`object : A() { ... }`) and local nominal declarations (`class`,
-    /// `interface`, named `object` in function/property bodies) — are never
-    /// reached by the main OFO walk over `topLevelDecls`, so their members
-    /// received no override validation at all: `override` on a nonexistent
-    /// member, `val`-over-`var`, type-mismatched and hidden (missing
-    /// `override`) members were all accepted. Run the same member checks
-    /// once their symbols and types have been published.
     func validateBodyNestedDeclOverrides(
         ast: ASTModule,
         symbols: SymbolTable,
@@ -553,7 +508,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // DATA-CTOR: Validate that data class primary constructor params are all val/var.
         if case let .classDecl(classDecl) = decl,
            classDecl.modifiers.contains(.data) {
             validateDataClassConstructorParams(classDecl: classDecl, ctx: ctx)
@@ -610,8 +564,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Every enum entry is a concrete variant of the enum class, so it must
-    /// implement each abstract member that the enum class still owes.
     private func validateEnumEntryAbstractCompleteness(
         _ classDecl: ClassDecl,
         ownerSymbol: SymbolID,
@@ -716,13 +668,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Enum entry bodies subclass the enum class, so an entry member sees
-    /// the enum class's own members plus everything it inherits as override
-    /// targets — the same surface `validateOverrideTarget` scans for named
-    /// owners, except `validateMemberOverrides` never runs on entry decls.
-    /// Without this pass an entry could silently hide a supertype member
-    /// without `override`, or spell `override` against nothing / against a
-    /// final member (KUU-3748, KUU-4170).
     private func validateEnumEntryMemberOverrides(
         entry: EnumEntryDecl,
         ownerSymbol: SymbolID,
@@ -770,9 +715,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Signature-matching override candidates for an enum-entry member in
-    /// nearest-first order: the enum class's own declared members (the
-    /// entry's anonymous class subclasses the enum class) followed by
     /// everything the enum class inherits. Properties and functions are
     /// separate override namespaces (KUU-4106): a property can never
     /// target a same-named function and vice versa, and a same-named
@@ -856,15 +798,6 @@ extension DataFlowSemaPhase {
         return results
     }
 
-    /// An `override` in an enum entry body is invalid when it targets any
-    /// non-overridable member reachable from the entry's anonymous class:
-    /// the enum class's own members (the entry subclasses the enum class)
-    /// plus the members it inherits. A single final match rejects the
-    /// override even when another same-named overridable member exists,
-    /// matching kotlinc ('X' in 'Y' is final and cannot be overridden).
-    /// With no signature-matching target at all the override is reported
-    /// as 'overrides nothing' under the same completeness gates
-    /// `validateOverrideTarget` applies (KUU-4170).
     private func validateEnumEntryOverrideTarget(
         candidates: [OFOInheritedMember],
         memberName: InternedString,
@@ -917,7 +850,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Whether an enum entry's own member implements the abstract
     /// requirement. The `override` modifier is not required for the
     /// completeness verdict: a signature-matching member implements the
     /// member even when it merely hides it — the missing modifier is
@@ -967,9 +899,6 @@ extension DataFlowSemaPhase {
         return false
     }
 
-    /// Signature-level property match shared by enum-entry override
-    /// validation and abstract completeness: name, kind, and override
-    /// family (member extension vs regular member) plus identical
     /// extension receivers. The property type and mutability stay out —
     /// a `val x: String` spelling still matches `val x: Int`, with the
     /// type conflict reported by the override checks instead (KUU-4170).
@@ -1076,7 +1005,6 @@ extension DataFlowSemaPhase {
     ) {
         for param in classDecl.primaryConstructorParams {
             guard !param.isProperty else { continue }
-            // This parameter lacks val/var; emit error.
             ctx.diagnostics.error(
                 "KSWIFTK-SEMA-DATA-CTOR",
                 "Primary constructor of data class must only have property ('val' / 'var') parameters.",
@@ -1197,7 +1125,6 @@ extension DataFlowSemaPhase {
                 continue
             }
 
-            // STDLIB-DATA-014: Check if attempting to inherit from a data class
             if sup.flags.contains(.dataType) {
                 let name = sup.fqName
                     .map { interner.resolve($0) }
@@ -1325,9 +1252,6 @@ extension DataFlowSemaPhase {
         let hasAbstract: Bool
         let hasFinal: Bool
         let visibility: Visibility
-        /// True when the declaration spells a visibility modifier; an
-        /// implicit-visibility `override` inherits its effective visibility
-        /// from the overridden member instead (KUU-4159).
         let hasExplicitVisibility: Bool
         let isFunction: Bool
         let overrideRange: SourceRange?
@@ -1395,7 +1319,7 @@ extension DataFlowSemaPhase {
         if modifiers.contains(.protected) { return .protected }
         if modifiers.contains(.internal) { return .internal }
         if modifiers.contains(.public) { return .public }
-        return .public // Default visibility
+        return .public
     }
 
     private func validateVisibilityConstraints(
@@ -1518,9 +1442,6 @@ extension DataFlowSemaPhase {
 
         var pending: [(code: String, message: String, range: SourceRange)] = []
         func consider(_ accessor: PropertyAccessorDecl?, isSetter: Bool) {
-            // A fully implicit accessor — no own modifier and no explicit
-            // property modifier — inherits the base accessor's visibility, so
-            // it is equal by construction and there is nothing to report.
             guard let childVisibility = accessor?.visibility
                 ?? explicitVisibility(prop.modifiers)
             else {
@@ -1565,8 +1486,6 @@ extension DataFlowSemaPhase {
         }
 
         consider(prop.getter, isSetter: false)
-        // A `val` child has no setter; a `val` base offers no setter to
-        // override, so an added setter is never compared against it.
         if prop.isVar, baseIsMutable {
             consider(prop.setter, isSetter: true)
         }
@@ -1575,14 +1494,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// KUU-4152: the visibility an `override` property's implicit setter
-    /// effectively carries — the property's own explicit modifier when
-    /// spelled, otherwise the visibility the overridden setter accessor
-    /// carries up the override chain. Returns nil when no overridden member
-    /// resolves, leaving the descriptor's default visibility in place.
-    /// Shared by the declaration-side check and by local/anonymous member
-    /// header collection, whose symbols are created before the deferred
-    /// body-nested override validation runs.
     func implicitOverrideSetterVisibility(
         propertyDecl prop: PropertyDecl,
         ownerSymbol: SymbolID,
@@ -1611,13 +1522,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// KUU-4159: an `override` member that spells no visibility modifier
-    /// inherits the overridden member's effective visibility — kotlinc
-    /// resolves `override fun f()` over a `protected` base member as
-    /// `protected`, and use sites reject accesses the inherited visibility
-    /// does not permit. Publish the resolved value onto the member symbol so
-    /// every use-site reader of `symbol.visibility` sees it; a member with an
-    /// explicit modifier keeps its declared visibility untouched.
     private func publishImplicitOverrideMemberVisibility(
         memberMeta: MemberMeta,
         memberSymbol: SymbolID,
@@ -1643,13 +1547,6 @@ extension DataFlowSemaPhase {
         ctx.symbols.setVisibility(effective, for: memberSymbol)
     }
 
-    /// KUU-4159: the visibility an `override` member effectively carries when
-    /// its declaration spells no visibility modifier — the overridden
-    /// member's effective visibility up the override chain. Returns nil when
-    /// no overridden member resolves, leaving the descriptor's stored
-    /// visibility in place. Shared by the declaration-side override
-    /// validation and by local/anonymous member header collection, whose
-    /// symbols are created before the deferred body-nested validation runs.
     func implicitOverrideMemberVisibility(
         kind: SymbolKind,
         name: InternedString,
@@ -1682,12 +1579,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// The visibility `symbolID`'s member effectively carries at member
-    /// level: its declaration's own modifier when spelled, else — for an
-    /// `override` that repeats none — the visibility inherited from the next
-    /// base member up the override chain. Members with no source decl
-    /// (imported, synthetic) carry the effective visibility their descriptor
-    /// already stored.
     private func effectiveBaseMemberVisibility(
         of symbolID: SymbolID,
         visited: Set<SymbolID>,
@@ -1746,13 +1637,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// The visibility an accessor of `symbolID`'s property effectively
-    /// carries: its own modifier when spelled, else the property's explicit
-    /// modifier, else — for an `override` that repeats neither — the
-    /// visibility inherited from the next base accessor up the override
-    /// chain. Members with no source decl (imported, synthetic) read the
-    /// accessor visibility their descriptor stored, defaulting to the
-    /// member's own visibility.
     private func effectiveBaseAccessorVisibility(
         of symbolID: SymbolID,
         isSetter: Bool,
@@ -1804,9 +1688,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// The visibility spelled by a modifier set, or nil when no visibility
-    /// modifier is present — distinct from `extractVisibility(from:)`, which
-    /// defaults the absent case to `.public` for member-level checks.
     private func explicitVisibility(_ modifiers: Modifiers) -> Visibility? {
         if modifiers.contains(.private) { return .private }
         if modifiers.contains(.protected) { return .protected }
@@ -1833,21 +1714,14 @@ extension DataFlowSemaPhase {
         ownerSymbol: SymbolID,
         ctx: OpenFinalOverrideContext
     ) {
-        // STDLIB-INHERIT-018: Validate that modifier combinations follow Kotlin rules
 
         let memberName = ctx.interner.resolve(memberMeta.name)
 
-        // Rule 2: open and final are mutually exclusive
         if memberMeta.hasOverride && memberMeta.hasFinal {
-            // This is actually valid (final override), so no error here
-            // final override is allowed and means "override but don't allow further overriding"
         }
 
-        // Rule 3: Check for invalid modifier combinations based on context
         guard let ownerSym = ctx.symbols.symbol(ownerSymbol) else { return }
 
-        // Rule 3a: abstract members require an abstract owner, even if the class is open.
-        // Interfaces and enum classes can declare abstract members without an abstract modifier.
         if memberMeta.hasAbstract,
            !ownerSym.flags.contains(.abstractType),
            ownerSym.kind != .interface,
@@ -1862,9 +1736,7 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // Rule 3c: Check interface-specific constraints
         if ownerSym.kind == .interface {
-            // Interface members cannot be final
             if memberMeta.hasFinal {
                 let ownerName = ownerSym.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
                 ctx.diagnostics.error(
@@ -1874,7 +1746,6 @@ extension DataFlowSemaPhase {
                 )
             }
 
-            // Interface members are implicitly abstract, but explicit abstract is redundant
             if memberMeta.hasAbstract {
                 let ownerName = ownerSym.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
                 ctx.diagnostics.warning(
@@ -1885,7 +1756,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // Rule 3d: Data classes cannot declare open members.
         if ownerSym.flags.contains(.dataType) && memberMeta.hasOpen {
             let ownerName = ownerSym.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
             ctx.diagnostics.error(
@@ -1962,7 +1832,6 @@ extension DataFlowSemaPhase {
         memberSymbol: SymbolID,
         ctx: OpenFinalOverrideContext
     ) {
-        // STDLIB-INHERIT-018: Validate that override members follow Kotlin's openness rules
 
         guard let memberSym = ctx.symbols.symbol(memberSymbol) else { return }
         if memberMeta.hasOverride {
@@ -2123,10 +1992,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Enum entry bodies are anonymous subclasses of the enum class, but
-    /// their member symbols are parented to the entry's `.field` symbol,
-    /// which records no supertypes. Inherited-member scans treat the enum
-    /// class itself as the entry's direct supertype (KUU-4161).
     private func inheritedScanSupertypes(
         for symbol: SymbolID,
         symbols: SymbolTable
@@ -2178,13 +2043,9 @@ extension DataFlowSemaPhase {
         return false
     }
 
-    /// A namesake scan is only exhaustive when every reachable supertype
-    /// exposes its full member list. Source-backed declarations (including
-    /// imported library records) do; the synthetic kotlin.Any stub has a
     /// fixed, known member set. Synthetic shells and nominals with pending
     /// imported metadata may hide members the BFS cannot see, so an absent
     /// namesake is not proof that the member overrides nothing.
-    ///
     /// A synthetic shell claimed by a bundled/user source declaration keeps
     /// `declSite == nil` unless its FQName sits on the
     /// `shouldRestoreDeclSiteForReusableSyntheticSymbol` compatibility
@@ -2192,7 +2053,6 @@ extension DataFlowSemaPhase {
     /// member list then comes from the source declaration, so it counts as
     /// complete here without changing `isSourceBackedSymbol` globally
     /// (KUU-4170: bundled `kotlin.Enum` keeps enum-entry 'overrides
-    /// nothing' checks alive in source-stdlib mode).
     private func hasCompleteInheritedMemberIndex(
         for ownerSymbol: SymbolID,
         ctx: OpenFinalOverrideContext
@@ -2215,10 +2075,6 @@ extension DataFlowSemaPhase {
         return true
     }
 
-    /// True when any supertype declares a function with `memberName`,
-    /// regardless of backing. `hasSourceBackedInheritedFunction` proves the
-    /// signature-mismatch case; when no namesake exists at all the override
-    /// target is missing outright (kotlinc: 'X' overrides nothing).
     private func hasInheritedFunctionNamesake(
         named memberName: InternedString,
         for ownerSymbol: SymbolID,
@@ -2285,7 +2141,6 @@ extension DataFlowSemaPhase {
             guard let parentSym = ctx.symbols.symbol(parent.memberID) else { return false }
             return parentSym.kind == .property && parentSym.flags.contains(.mutable)
         }
-        // kotlinc reports only the first mutable parent's failure.
         guard let parent = mutableParents.first else { return }
         // A pair whose declaration type is inferred is re-checked by the
         // deferred pass once inference publishes the signatures that
@@ -2312,11 +2167,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Kotlin property override type rules:
-    ///   - `val` overriding `val`: the child type must be a *subtype* of the
-    ///     parent's (covariant read). Widening is rejected.
-    ///   - `var` overriding `val`: only the getter participates, so the same
-    ///     covariance applies.
     ///   - `var` overriding `var`: the property is read AND written, so the
     ///     child type must equal the parent type (invariant) — neither
     ///     widening nor narrowing is allowed. kotlinc reports "type of 'var x'
@@ -2327,15 +2177,6 @@ extension DataFlowSemaPhase {
     /// first substituted through the child's concrete supertype arguments;
     /// types still parametric after substitution are skipped: those checks
     /// belong to the generic-covariance path.
-    ///
-    /// When the override has no explicit type annotation the symbol stores the
-    /// `anyType` placeholder (see `extractMemberMeta` for the function case),
-    /// which would false-positive against any concrete parent type. Such
-    /// inferred-type overrides are skipped here and re-validated by
-    /// `validateInferredPropertyTypeOverrides` once type checking has
-    /// published the inferred property type. The same deferral applies when
-    /// the *parent* type is inferred (`parentFilter: .explicitOnly` below) —
-    /// the header check would compare against the parent's placeholder.
     private func validatePropertyTypeOverride(
         memberDecl: Decl,
         ownerSymbol: SymbolID,
@@ -2361,10 +2202,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Whether the member's declared type comes from inference — its
-    /// declaration has no type annotation, so header-time checks saw only a
-    /// placeholder. Members without a declaration in this compilation
-    /// (imported, synthetic) always have a concrete type.
     private func declHasInferredType(_ memberID: SymbolID, ctx: OpenFinalOverrideContext) -> Bool {
         guard let declID = ctx.declBySymbol[memberID],
               let decl = ctx.ast.arena.decl(declID)
@@ -2394,8 +2231,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// First inherited property whose type the override fails against, or
-    /// `nil` when the override is valid against every selected parent.
     private func firstPropertyTypeMismatch(
         memberName: InternedString,
         childType: TypeID,
@@ -2519,7 +2354,6 @@ extension DataFlowSemaPhase {
             guard allParentMembers.count == 1 else { return }
         }
 
-        // Enhanced covariance check for generic types
         if typeContainsAnyTypeParam(parentReturnType, types: ctx.types) ||
            typeContainsAnyTypeParam(childReturnType, types: ctx.types) {
             let parentOwnerClass = ctx.symbols.parentSymbol(for: parentSymbol.id)
@@ -2552,9 +2386,8 @@ extension DataFlowSemaPhase {
             return
         }
 
-        // Child return type must be a subtype of parent return type (covariant return).
         guard !ctx.types.isSubtype(childReturnType, parentReturnType) else {
-            return // Valid: child return type is a subtype of parent return type
+            return
         }
 
         let name = ctx.interner.resolve(memberName)
@@ -2595,14 +2428,11 @@ extension DataFlowSemaPhase {
         let parentExceptions = parentSignature.canThrow
         let childExceptions = childSignature.canThrow
 
-        // Exception covariance check: child cannot throw more exceptions than parent
         if parentExceptions && !childExceptions {
-            // This is valid - child throws fewer exceptions
             return
         }
 
         if !parentExceptions && childExceptions {
-            // Child throws exceptions but parent doesn't - this violates covariance
             let name = ctx.interner.resolve(memberName)
             ctx.diagnostics.error(
                 "KSWIFTK-SEMA-OVERRIDE-EXCEPTION",
@@ -2611,9 +2441,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // Note: Currently the FunctionSignature only tracks canThrow boolean, not specific exception types
-        // When exception type information is added to FunctionSignature, we should enhance this check
-        // to verify that child exception types are subtypes of parent exception types
     }
 
     private func validateGenericReturnTypeCovariance(
@@ -2779,7 +2606,6 @@ extension DataFlowSemaPhase {
         return (substitution, parentTypeVarBySymbol)
     }
 
-    /// Fallback for cases where inheritance type arguments cannot be resolved.
     private func validateBasicGenericReturnTypeCovariance(
         childReturnType: TypeID,
         parentReturnType: TypeID,
@@ -2788,7 +2614,6 @@ extension DataFlowSemaPhase {
         let parentKind = types.kind(of: parentReturnType)
         let childKind = types.kind(of: childReturnType)
 
-        // Case 1: Both are the same generic class with potentially different type arguments
         if case let .classType(parentClass) = parentKind,
            case let .classType(childClass) = childKind,
            parentClass.classSymbol == childClass.classSymbol {
@@ -2799,7 +2624,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // Case 2: Child is a subtype of parent (for non-generic cases)
         return types.isSubtype(childReturnType, parentReturnType)
     }
 
@@ -2813,22 +2637,18 @@ extension DataFlowSemaPhase {
         for (childArg, parentArg) in zip(childArgs, parentArgs) {
             switch (childArg, parentArg) {
             case (.out(let childType), .out(let parentType)):
-                // Both are covariant: child must be subtype of parent
                 if !types.isSubtype(childType, parentType) {
                     return false
                 }
             case (.in(let childType), .in(let parentType)):
-                // Both are contravariant: parent must be subtype of child
                 if !types.isSubtype(parentType, childType) {
                     return false
                 }
             case (.invariant(let childType), .invariant(let parentType)):
-                // Both are invariant: types must be equal
                 if childType != parentType {
                     return false
                 }
             default:
-                // Mixed variances: conservative approach - reject
                 return false
             }
         }
@@ -2836,7 +2656,6 @@ extension DataFlowSemaPhase {
         return true
     }
 
-    /// Child functions named `memberName` in `ownerSymbol` (overload set).
     private func childFunctions(
         named memberName: InternedString,
         in ownerSymbol: SymbolID,
@@ -2852,7 +2671,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Pick the overriding overload whose complete signature matches the parent after alpha-alignment.
     private func getFunctionMemberMatching(
         parentMember: SemanticSymbol,
         named memberName: InternedString,
@@ -2939,11 +2757,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// `ctx`-free core of `overrideFunctionSignatureMatches` so member
-    /// lookup helpers that only carry `symbols`/`types` (visibility
-    /// inheritance, `findInheritedMember`, abstract-member completeness)
-    /// can run the same check. Internal (not private) so
-    /// `AbstractMemberCompleteness.swift` can share it (KUU-4170).
     func overrideFunctionSignatureMatches(
         childMember: SymbolID,
         parentMember: SymbolID,
@@ -3008,7 +2821,8 @@ extension DataFlowSemaPhase {
         ), methodIdentityParameterTypesMatch(
             candidateParameterTypes: childSignature.parameterTypes,
             interfaceParameterTypes: parentSignature.parameterTypes.map(alignParentType),
-            types: types
+            types: types,
+            allowJavaCollectionMutability: symbols.isJVMJavaMethod(parentMember)
         ) else { return false }
 
         guard requireCovariantReturn else { return true }
@@ -3114,8 +2928,6 @@ extension DataFlowSemaPhase {
             if let module = ctx.symbols.moduleFQN(for: id) {
                 return module
             }
-            // sourceFileID がある = コンパイル対象ソースのシンボル。
-            // assignCompilationModuleFQNames が設定を漏らした場合のフォールバック。
             if ctx.symbols.sourceFileID(for: id) != nil {
                 return ctx.compilationModuleFQN
             }
@@ -3133,9 +2945,6 @@ extension DataFlowSemaPhase {
     ) {
         let name = ctx.interner.resolve(memberName)
 
-        // Enhanced override detection with signature-aware matching
-
-        // Find all potential parent members that could be overridden
         var allParentMembers = findAllInheritedMembers(
             named: memberName,
             for: ownerSymbol,
@@ -3200,16 +3009,14 @@ extension DataFlowSemaPhase {
                 )
             }
         } else if let childSymbol = ctx.symbols.symbol(memberSymbol), childSymbol.kind == .property {
-            // Extension properties can only override extension properties;
-            // a same-named non-extension interface member is unrelated.
             matchingParents = hideableParents.filter { parent in
                 guard let parentSymbol = ctx.symbols.symbol(parent.memberID),
                       parentSymbol.kind == .property
                 else {
                     return false
                 }
-                return childSymbol.flags.contains(.memberExtension)
-                    == parentSymbol.flags.contains(.memberExtension)
+                return !ctx.symbols.isJVMJavaBeanProperty(parent.memberID)
+                    && childSymbol.flags.contains(.memberExtension) == parentSymbol.flags.contains(.memberExtension)
             }
         } else {
             matchingParents = []
@@ -3233,9 +3040,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// `kotlin.Any` members (`toString`/`hashCode`/`equals`) reachable for
-    /// hiding checks when the supertype walk cannot reach `Any` itself —
-    /// interfaces do not list it in `directSupertypes`.
     private func findAnyMembers(
         named memberName: InternedString,
         ctx: OpenFinalOverrideContext
@@ -3258,10 +3062,6 @@ extension DataFlowSemaPhase {
         return results
     }
 
-    /// A member is overridable when it belongs to an interface,
-    /// is explicitly `open`, is `abstract`, or is a non-final
-    /// `override` (override members are implicitly open in Kotlin
-    /// unless also marked `final`).
     private func isMemberOverridable(
         _ sym: SemanticSymbol,
         parent: OFOInheritedMember
@@ -3269,7 +3069,6 @@ extension DataFlowSemaPhase {
         if parent.ownerIsInterface { return true }
         if sym.flags.contains(.openType) { return true }
         if sym.flags.contains(.abstractType) { return true }
-        // An override member is implicitly open unless marked final.
         if sym.flags.contains(.overrideMember), !sym.flags.contains(.finalMember) {
             return true
         }
@@ -3335,10 +3134,6 @@ extension DataFlowSemaPhase {
         owner.kind != .interface || member.visibility != .private
     }
 
-    /// Finds the inherited member `memberName` overrides. Kotlin keeps
-    /// properties and functions in separate override namespaces even when
-    /// they share a name — `override val p` targets `val p`, never `fun p()`
-    /// (KUU-4106). Matching only `kind` prevents a same-named final member
     /// of the other kind from masking the real override target.
     private func findInheritedMember(
         named memberName: InternedString,
@@ -3367,8 +3162,6 @@ extension DataFlowSemaPhase {
                 guard child.kind == kind, child.name == memberName else {
                     continue
                 }
-                // An expect-declared member only mirrors the name: judge the
-                // override against the linked actual declaration instead.
                 let resolvedChildID = resolveInheritedMember(childID, symbols: symbols)
                 // Function overloads must be matched by their parameter types;
                 // name-only lookup can select a synthetic range overload before
@@ -3400,15 +3193,6 @@ extension DataFlowSemaPhase {
         return nil
     }
 
-    /// Signature check behind `findInheritedMember`'s `parameterTypes`
-    /// filter. With the child symbol and `TypeSystem` at hand this runs the
-    /// full override-signature match, which substitutes the supertype's
-    /// type arguments through the child's supertype edge (`G<T>.m(t: T)`
-    /// seen from `D : G<D>` is `m(t: D)`) and alpha-aligns method type
-    /// parameters. Without the child symbol it still specializes the
-    /// parent's parameter types before the identity comparison; the raw
-    /// `TypeID` equality remains the last resort when no `TypeSystem` is
-    /// available (KUU-4170).
     private func inheritedSignatureMatches(
         childMember: SymbolID?,
         childParameterTypes: [TypeID],
@@ -3496,8 +3280,6 @@ extension DataFlowSemaPhase {
                 guard isInheritedMember(child, from: sym) else { continue }
                 let isMatch = child.kind == .function || child.kind == .property
                 if isMatch, child.name == memberName {
-                    // An expect-declared member resolves to its linked actual
-                    // declaration; deduplicate when both sides surface here.
                     let resolvedChildID = resolveInheritedMember(childID, symbols: symbols)
                     if !results.contains(where: { $0.memberID == resolvedChildID }) {
                         results.append(OFOInheritedMember(

@@ -26,16 +26,6 @@ func nominalRangeElementType(
 }
 
 struct TypeCheckHelpers {
-    /// The companion object's type when `exprID` is a bare `ClassName` value
-    /// expression naming a class/interface/enum that has a companion object.
-    ///
-    /// Sema types such a name as the class's own nominal type so that
-    /// `ClassName.member()` keeps resolving through the companion. In Kotlin,
-    /// however, a bare class name used as a *value* denotes the companion object
-    /// (`val f: Factory<Widget> = Widget`, `makeTwo(Widget)`), and the lowering
-    /// already redirects it to the companion singleton. Value-position callers
-    /// use this to give the expression the companion's type -- which carries the
-    /// companion's supertypes -- and rebind the expression to it.
     func retypeClassNameAsCompanionValue(
         _ exprID: ExprID,
         currentType: TypeID,
@@ -58,13 +48,6 @@ struct TypeCheckHelpers {
         return companionType
     }
 
-    /// The nominal symbol denoted by a class-name receiver expression (`A`
-    /// in `A.member`, or a qualified `outer.A` bound to one), or nil for any
-    /// other receiver. Mirrors the member-call path's
-    /// `classNameReceiverNominalSymbol` so `A.x = v` assignments route
-    /// through the companion scope exactly like reads. A qualified
-    /// `this`/`super` is never a class-name qualifier, and a `typealias`
-    /// qualifier resolves to its expanded nominal target.
     func classNameReceiverNominalSymbol(
         forReceiverExpr receiver: ExprID,
         ctx: TypeInferenceContext
@@ -111,17 +94,10 @@ struct TypeCheckHelpers {
                 return nil
             }
         }
-        // A qualified `this@Label`/`super@Label` is by definition an
-        // instance receiver, never a type/class-name qualifier — regardless
-        // of what symbol kind its `identifierSymbol` carries (see the
-        // member-call path's identical guard for the object-literal
-        // inner-class capture that stashes one).
         let receiverIsQualifiedThisOrSuper: Bool = switch ctx.ast.arena.expr(receiver) {
         case .thisRef, .superRef: true
         default: false
         }
-        // A resolved value binding wins over a same-named classifier scope
-        // match, exactly like the member-call path.
         if !receiverIsQualifiedThisOrSuper,
            let boundSymbol = sema.bindings.identifierSymbol(for: receiver)
         {
@@ -135,12 +111,6 @@ struct TypeCheckHelpers {
         return nil
     }
 
-    /// A control-flow branch (`try` body, `catch`, `if`/`else` arm, `when`
-    /// branch) whose value-producing expression is a bare class name denotes
-    /// the companion object, not a `ClassType(X)` instance. Without retyping,
-    /// branch joins keep the nominal type and postfix member lookup cannot
-    /// reach companion members (`try { ULong } finally { }.MAX_VALUE`,
-    /// KUU-3232). Unwraps block bodies to their trailing expression.
     func retypeBranchClassObjectValue(
         _ exprID: ExprID,
         currentType: TypeID,
@@ -158,9 +128,6 @@ struct TypeCheckHelpers {
         )
     }
 
-    /// Per-compilation memoization for opt-in requirement derivation and
-    /// annotation-class resolution (see `OptInResolutionCache`). A class, so
-    /// copies of this struct and every `driver.helpers` call site share it.
     let optInResolutionCache = OptInResolutionCache()
 
     private func syntheticCoroutineNominalType(
@@ -273,13 +240,6 @@ struct TypeCheckHelpers {
         }
     }
 
-    /// Concrete classes such as `LongRange`/`CharProgression` have a fixed
-    /// primitive element type. Generic interfaces (`OpenEndRange<T>`,
-    /// `ClosedRange<T>`, `ClosedFloatingPointRange<T>`) are invariant in `T`,
-    /// so their element type is read directly from the sole type argument.
-    /// Returns `nil` when the element type cannot be determined (e.g. a
-    /// star-projected type argument), in which case callers should not skip
-    /// the nominal subtype check.
     func rangeLikeDeclaredElementType(
         for rangeType: TypeID,
         sema: SemaModule,
@@ -306,16 +266,6 @@ struct TypeCheckHelpers {
         }
     }
 
-    /// A range literal's bound `bodyType` is usually the scalar element type
-    /// itself (Int/Long/UInt/ULong), but two cases hide the true element type
-    /// behind a side channel: Char ranges share Int's representation
-    /// (STDLIB-290), and floating-point ranges are tracked separately
-    /// (`floatingPointRangeElementType`) because the primary scalar inference
-    /// in `ExprTypeChecker+BinaryAndFlowInference.swift` has no Double/Float
-    /// branch. A range value produced by a resolved call (e.g.
-    /// `IntProgression.fromClosedRange(...)`) instead binds `bodyType` to the
-    /// real nominal class directly, so that case is unwrapped via
-    /// `rangeLikeDeclaredElementType` too.
     func rangeExprActualElementType(
         for exprID: ExprID,
         bodyType: TypeID,
@@ -336,18 +286,6 @@ struct TypeCheckHelpers {
         return sema.types.makeNonNullable(bodyType)
     }
 
-    /// Decides whether the nominal subtype check between a range-literal
-    /// body/initializer and a range-like declared/expected type may be
-    /// skipped under the isRangeExpr duck-typing convention.
-    ///
-    /// The skip is only valid when the body's actual element type matches
-    /// the declared type's expected element type exactly: range element
-    /// types are invariant type parameters, and primitives don't implicitly
-    /// widen in Kotlin (e.g. an `Int` range literal is not an acceptable
-    /// `LongRange`). When the element types don't match — or the expected
-    /// element type can't be determined, e.g. a star-projected type
-    /// argument — this returns `false` so the caller falls through to the
-    /// normal subtype constraint, which correctly rejects the mismatch.
     func rangeExprMatchesDeclaredElementType(
         bodyExprID: ExprID,
         bodyType: TypeID,
@@ -369,10 +307,6 @@ struct TypeCheckHelpers {
         return actualElement == expectedElement
     }
 
-    /// A range expression uses its element type as the intermediate Sema type,
-    /// so `LocalDeclTypeChecker` needs a narrow exemption for an explicitly
-    /// annotated `Iterable<T>`. Concrete collection types and other iterable
-    /// classes still require the normal subtype constraint.
     func isPlainIterableType(
         _ type: TypeID,
         sema: SemaModule,
@@ -388,10 +322,6 @@ struct TypeCheckHelpers {
         ]
     }
 
-    /// Deliberately reads the resolved nominal argument instead of asking
-    /// `iterableElementType` to inspect the synthetic `iterator()` member. The
-    /// latter can expose the declaration's unsubstituted `E` type parameter for
-    /// the interface itself.
     func plainIterableElementType(
         for type: TypeID,
         sema: SemaModule,
@@ -422,13 +352,6 @@ struct TypeCheckHelpers {
         return symbol.name == KnownCompilerNames(interner: interner).openEndRange
     }
 
-    /// True when a resolved call's return type yields a heap-backed range
-    /// object — the `ClosedRange`/`ClosedFloatingPointRange`/`OpenEndRange`
-    /// interfaces or any user-defined class conforming to them — rather
-    /// than the opaque runtime range-box handle that `isRangeExpr` and the
-    /// floating-point range marks describe. Concrete built-in range and
-    /// progression classes (`IntRange`, `CharProgression`, ...) *are*
-    /// runtime boxes, so they are deliberately excluded (KUU-2941).
     func isRangeInterfaceType(
         _ type: TypeID,
         sema: SemaModule,
@@ -461,10 +384,6 @@ struct TypeCheckHelpers {
         return false
     }
 
-    /// - Parameter isCharRangeExpr: true when the range expression's operands were Char
-    ///   (STDLIB-290). Char ranges share Int's runtime/static representation (see the
-    ///   `.rangeTo`/`.rangeUntil`/`.downTo` binary op inference), so this must be checked
-    ///   before the plain Int case below to avoid mistyping the loop variable as Int.
     func iterableElementType(
         for iterableType: TypeID,
         isRangeExpr: Bool,
@@ -472,13 +391,9 @@ struct TypeCheckHelpers {
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID? {
-        // String is iterable over its Char elements; the loop variable still needs
-        // the correct static Char type for member resolution and explicit typing.
         if sema.types.makeNonNullable(iterableType) == sema.types.stringType {
             return sema.types.charType
         }
-        // Range/progression types (Int/Long/UInt/ULong) are iterable over their element type,
-        // but only when the expression is actually a range operator.
         if isRangeExpr, isCharRangeExpr, iterableType == sema.types.intType {
             return sema.types.charType
         }
@@ -511,7 +426,6 @@ struct TypeCheckHelpers {
                 break
             }
         }
-        // Map/MutableMap iteration yields Map.Entry<K, V>, not the first type argument.
         if let entryType = mapEntryElementType(for: iterableType, sema: sema, interner: interner) {
             return entryType
         }
@@ -521,14 +435,9 @@ struct TypeCheckHelpers {
         if let customElement = customIteratorElementType(for: iterableType, sema: sema, interner: interner) {
             return customElement
         }
-        // BUG-167: A class implementing `Iterable<T>` iterates over `T` even when
-        // its `iterator()` override carries no `operator` flag of its own.
         if let supertypeElement = iterableSupertypeElementType(for: iterableType, sema: sema, interner: interner) {
             return supertypeElement
         }
-        // `CharSequence.iterator()` is a `kotlin.text` package-level extension,
-        // not an interface member, so the member-candidate walks above never see
-        // it; every CharSequence subtype iterates `Char` through that extension.
         if isCharSequenceSubtype(iterableType, sema: sema, interner: interner) {
             return sema.types.charType
         }
@@ -640,8 +549,6 @@ struct TypeCheckHelpers {
         return sema.types.anyType
     }
 
-    /// The inherited type arguments matter for classes such as TreeMap, which
-    /// reaches MutableMap through several Java collection interfaces.
     func mapEntryElementType(
         for mapType: TypeID,
         sema: SemaModule,
@@ -680,8 +587,6 @@ struct TypeCheckHelpers {
             return nil
         }
 
-        // MutableMap.iterator() returns MutableMap.MutableEntry, while Map.iterator()
-        // returns the read-only Map.Entry surface.
         let entryOwnerName = isMutable ? interner.intern("MutableMap") : interner.intern("Map")
         let entryName = isMutable ? interner.intern("MutableEntry") : interner.intern("Entry")
         let entryFQName = kotlinCollectionsPkg + [entryOwnerName, entryName]
@@ -702,12 +607,6 @@ struct TypeCheckHelpers {
         )))
     }
 
-    /// True when `candidate` is a function that shares an operator-convention
-    /// name (get/set/componentN/...) but lacks the `operator` modifier —
-    /// the shape kotlinc reports as "'operator' modifier is required".
-    /// Property accessors share the short names `get`/`set` and are excluded
-    /// via their property parent, matching the bundled-stdlib fallback's
-    /// accessor guard.
     func isNonOperatorConventionFunction(_ candidate: SymbolID, sema: SemaModule) -> Bool {
         guard let symbol = sema.symbols.symbol(candidate),
               symbol.kind == .function,
@@ -723,8 +622,6 @@ struct TypeCheckHelpers {
         return true
     }
 
-    /// Receiver display name for operator-convention diagnostics: the nominal
-    /// class name when resolvable, else the full type display name.
     func conventionReceiverDisplayName(
         _ receiverType: TypeID,
         sema: SemaModule,
@@ -839,10 +736,6 @@ struct TypeCheckHelpers {
         case interner.intern("kk_array_set"):
             guard argumentCount == 3 else { return nil }
             return sema.types.unitType
-        // Flow (CORO-003): preserve `flow { ... }` fallback typing as Flow<Any>.
-        // Member-like names such as `map`/`filter`/`take` stay conservative here
-        // because this helper does not know whether the unresolved callee was
-        // invoked on an actual Flow receiver.
         case knownNames.flow:
             guard argumentCount == 1 else { return nil }
             return makeFlowType(
@@ -850,8 +743,6 @@ struct TypeCheckHelpers {
                 sema: sema,
                 interner: interner
             ) ?? sema.types.anyType
-        // KSP-674: flowOf / emptyFlow are Kotlin source now; they resolve
-        // normally and no longer need unresolved-call fallback typing.
         case knownNames.emit:
             guard argumentCount == 1 else { return nil }
             return sema.types.unitType
@@ -874,8 +765,6 @@ struct TypeCheckHelpers {
         }
     }
 
-    /// Returns `nil` when the symbol has not been registered (caller should
-    /// fall back to `anyType`).
     func makeFlowType(
         elementType: TypeID,
         sema: SemaModule,
@@ -945,9 +834,6 @@ struct TypeCheckHelpers {
                 return sema.types.errorType
             }
             let nullability: Nullability = nullable ? .nullable : .nonNull
-            // A qualified builtin name only resolves through the kotlin package
-            // itself (kotlin.Int); any other qualifier denotes a user classifier
-            // such as foo.Int or Outer.Int (KUU-4163).
             let builtinNameApplies = if path.count == 1 {
                 scope.map { hasUserDeclaredClassifier(shortName, scope: $0, sema: sema, interner: interner) } != true
             } else {
@@ -1003,10 +889,6 @@ struct TypeCheckHelpers {
                 } else {
                     []
                 }
-                // A type imported by its outer declaration can be referenced by
-                // a qualified nested name (for example, `Base64.Default`). The
-                // full path is not globally qualified in that form, so walk the
-                // imported outer symbol before falling back to short-name lookup.
                 let qualifiedScopeCandidates: [SymbolID] = {
                     guard path.count > 1, let scope else { return [] }
                     var current = scope.lookupClassifier(path[0], matching: isTypeLikeSymbol)
@@ -1026,10 +908,6 @@ struct TypeCheckHelpers {
                 }()
                 let fqCandidates = sema.symbols.lookupAll(fqName: path).filter(isTypeLikeSymbol)
                     .sorted(by: sourceFirstThenID)
-                // Resolve nested types through the imported or package-scoped
-                // nominal root before falling back to the short name. This is
-                // required when several nominal types expose the same nested
-                // name, such as kotlin.time.Clock.Companion.
                 let nestedCandidates: [SymbolID] = {
                     guard path.count > 1, let scope else {
                         return []
@@ -1067,28 +945,17 @@ struct TypeCheckHelpers {
                     )
                     return sema.types.errorType
                 }
-                // Fall back to short-name lookup so that packaged types
-                // (e.g. `package test; class Foo`) resolve when referenced
-                // by simple name (`Foo`) during type checking.
                 let kotlinReflectPackage = [interner.intern("kotlin"), interner.intern("reflect")]
                 let shortNameCandidates = sema.symbols.lookupByShortName(shortName).filter { candidate in
                     guard isTypeLikeSymbol(candidate), let symbol = sema.symbols.symbol(candidate) else {
                         return false
                     }
                     guard !symbol.fqName.starts(with: kotlinReflectPackage) else { return false }
-                    // A nested classifier is never reachable by its bare
-                    // short name: Kotlin scopes it to the declaring
-                    // classifier's body. Only package members (top-level
-                    // declarations) may satisfy this recovery path, so a
-                    // subtype's `Entry` cannot silently name
-                    // `Contract.Entry` (KUU-3637, KUU-3636).
                     if let parent = sema.symbols.parentSymbol(for: candidate),
                        sema.symbols.symbol(parent)?.kind != .package
                     {
                         return false
                     }
-                    // Local classes resolve only through their lexical scope,
-                    // including self-references while collecting their headers.
                     if symbol.kind == .class, symbol.flags.contains(.synthetic),
                        sema.symbols.isLocalDeclSynthetic(symbol.id)
                     {
@@ -1117,8 +984,6 @@ struct TypeCheckHelpers {
                 {
                     [functionN]
                 } else {
-                    // Preserve short-name recovery for legacy and generated
-                    // type references, but require imports for kotlin.reflect.
                     []
                 }
                 if let symbolID = candidates.first {
@@ -1167,8 +1032,6 @@ struct TypeCheckHelpers {
                     }
                     if let sym = sema.symbols.symbol(symbolID), sym.kind == .typeAlias {
                         let aliasTypeArgs: [TypeArg]
-                        // Bare generic aliases erase their omitted parameters in runtime checks and casts.
-                        // Other type-reference contexts keep the normal arity diagnostic.
                         if allowBareGenericTypeAliasProjection,
                            argRefs.isEmpty
                         {
@@ -1194,14 +1057,11 @@ struct TypeCheckHelpers {
                             validateTypeArgumentBoundsForTypeCheck(result, sema: sema, diagnostics: diagnostics, range: usageRange)
                             return result
                         }
-                        // Fall through to classType for error recovery
                     }
                     if let sym = sema.symbols.symbol(symbolID),
                        symbolID == sema.types.kClassInterfaceSymbol
                         || sym.fqName == [interner.intern("kotlin"), interner.intern("reflect"), interner.intern("KClass")]
                     {
-                        // Preserve use-site projections: the dedicated KClass
-                        // representation has an invariant argument.
                         if let firstArg = resolvedArgs.first {
                             switch firstArg {
                             case .star, .in, .out:
@@ -1232,12 +1092,6 @@ struct TypeCheckHelpers {
                         validateTypeArgumentBoundsForTypeCheck(kClassType, sema: sema, diagnostics: diagnostics, range: usageRange)
                         return kClassType
                     }
-                    // Qualified inner-class references (`Outer<V>.Inner`) supply the
-                    // qualifier's arguments; route through the nominal split so they
-                    // land in enclosingTypeArgs rather than the class's own args.
-                    // A bare name supplies none, so the implicit enclosing instance
-                    // fills those slots (`KeySet` inside `CIM<Value>` spells
-                    // `CIM<Value>.KeySet`).
                     var nominalArgs = resolvedArgs
                     let enclosingCount = sema.types.enclosingTypeParameterSymbols(for: symbolID).count
                     if enclosingCount > 0 {
@@ -1259,10 +1113,6 @@ struct TypeCheckHelpers {
                     validateTypeArgumentBoundsForTypeCheck(result, sema: sema, diagnostics: diagnostics, range: usageRange)
                     return result
                 }
-                // A `private` nested classifier on a supertype is not
-                // inherited and never reached the candidate lists — report it
-                // as inaccessible rather than unresolved, matching kotlinc
-                // (KUU-3798).
                 if let inferenceContext,
                    let privateClassifier = inaccessiblePrivateNestedClassifier(
                        named: shortName, ctx: inferenceContext
@@ -1321,16 +1171,6 @@ struct TypeCheckHelpers {
         }
     }
 
-    /// Lifts a resolved `functionType` delegation specifier
-    /// (`: suspend () -> T`, `: () -> T`) to its nominal SuspendFunctionN /
-    /// FunctionN interface — the same mapping
-    /// `Inheritance.resolveNominalSymbolAndTypeArgs` applies to named
-    /// declarations. Supertype collectors that go through `resolveTypeRef`
-    /// (anonymous object literals, local classes) must apply the same lift or
-    /// the literal's `invoke` override and function-type subtyping silently
-    /// drop the edge (KUU-3838, KUU-3875). Context-receiver function types
-    /// have no nominal equivalent and are returned unchanged, matching the
-    /// named declaration path.
     func nominalFunctionInterfaceSupertype(
         for resolved: TypeID,
         owner: SymbolID,
@@ -1374,7 +1214,7 @@ struct TypeCheckHelpers {
         diagnostics: DiagnosticEngine?,
         range: SourceRange?
     ) {
-        guard let diagnostics else { return }
+        guard let diagnostics, range.map({ sema.jvmClasspathStubFiles.contains($0.start.file) }) != true else { return }
         TypeArgumentBoundsValidator(symbols: sema.symbols, types: sema.types, diagnostics: diagnostics)
             .validate(type: type, range: range)
     }

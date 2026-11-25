@@ -63,6 +63,20 @@
     "kind": "virtual"
   },
   {
+    "symbol": "__jvmInputStreamReader",
+    "owner": "java/io/InputStreamReader",
+    "name": "<init>",
+    "descriptor": "(Ljava/io/InputStream;Ljava/nio/charset/Charset;)V",
+    "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmReaderRead",
+    "owner": "java/io/Reader",
+    "name": "read",
+    "descriptor": "([C)I",
+    "kind": "virtual"
+  },
+  {
     "symbol": "__jvmOutputStreamWrite",
     "owner": "java/io/ByteArrayOutputStream",
     "name": "write",
@@ -1251,6 +1265,13 @@
     "name": "<init>",
     "descriptor": "([BLjava/lang/String;)V",
     "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmUtf8Bytes",
+    "owner": "java/lang/String",
+    "name": "getBytes",
+    "descriptor": "(Ljava/lang/String;)[B",
+    "kind": "virtual"
   },
   {
     "symbol": "__jvmUnmodifiableSet",

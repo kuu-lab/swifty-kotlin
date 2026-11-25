@@ -8,7 +8,6 @@ import TestStdlibCache
 
 @Suite
 struct CodegenBackendArraySortReverseTests {
-    // Expected output comes from Kotlin/JVM 2.4.20 on the shared diff case.
     private static let expected = """
     [a, b, c]
     [c, b, a]

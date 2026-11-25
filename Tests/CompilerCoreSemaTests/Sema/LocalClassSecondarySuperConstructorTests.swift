@@ -36,6 +36,36 @@ struct LocalClassSecondarySuperConstructorTests {
     }
 
     @Test(arguments: [false, true])
+    func localImplicitAnySecondarySuperConstructorResolves(useLibrary: Bool) throws {
+        let ctx = try makeContext(
+            """
+            fun box(): String {
+                class Local {
+                    constructor(x: Int) : super()
+                }
+                return Local(1).toString()
+            }
+            """,
+            useLibrary: useLibrary
+        )
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Local implicit Any super delegation should resolve: \(errors)")
+        #expect(!errors.contains { $0.code == "KSWIFTK-SEMA-0055" })
+
+        let sema = try #require(ctx.sema)
+        let localClass = try classSymbol(named: "Local", sema: sema, interner: ctx.interner)
+        let constructor = try #require(constructors(of: localClass, sema: sema, interner: ctx.interner).first)
+        let binding = try #require(sema.bindings.constructorDelegationCallBinding(for: constructor))
+        let anySymbol = try #require(sema.symbols.lookup(fqName: [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("Any"),
+        ]))
+        #expect(sema.symbols.parentSymbol(for: binding.chosenCallee) == anySymbol)
+    }
+
+    @Test(arguments: [false, true])
     func localOverloadsCapturesVisibilityAndDerivedDelegation(useLibrary: Bool) throws {
         let ctx = try makeContext(
             """
@@ -100,6 +130,28 @@ struct LocalClassSecondarySuperConstructorTests {
         )
         #expect(sema.symbols.parentSymbol(for: genericBinding.chosenCallee) == genericBase)
         #expect(genericBinding.substitutedTypeArguments == [sema.types.stringType])
+    }
+
+    @Test
+    func localPrimaryConstructorRejectsSuperDelegation() throws {
+        let ctx = try makeContext(
+            """
+            fun box(): String {
+                class Local(val text: String) {
+                    constructor() : super()
+                }
+                return Local("OK").text
+            }
+            """,
+            useLibrary: false
+        )
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.contains { $0.code == "KSWIFTK-SEMA-0054" && $0.message.contains("Primary constructor call expected") },
+            "Local primary constructor should reject super() delegation: \(errors)"
+        )
     }
 
     private func makeContext(_ source: String, useLibrary: Bool) throws -> CompilationContext {

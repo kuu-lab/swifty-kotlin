@@ -95,15 +95,9 @@ extension BuildASTPhase {
             }
             return childID
         }).first {
-            // An inline `get() { ... }` may leave the accessor header on the
-            // property and its body as a sibling block. It is not a property
-            // accessor container in that case.
             let directTokens = collectDirectTokens(from: nodeID, in: arena)
             var foundSiblingBlockAccessor = false
             if inlineAccessorStartIndex(in: directTokens, bodyIsSiblingBlock: true) != nil {
-                // Several inline accessors may share the line, e.g.
-                // `var p: Int get() { ... } set(v) { ... }`: each accessor
-                // owns the header tokens and sibling blocks up to the next one.
                 let siblingResult = siblingBlockAccessors(
                     from: nodeID, in: arena, interner: interner, astArena: astArena
                 )
@@ -131,13 +125,6 @@ extension BuildASTPhase {
             }
         }
 
-        // When the parser wraps accessor tokens in .propertyAccessor nodes we
-        // can collect them reliably without flat-token scanning.
-        // If a propertyAccessor contains a .block child (e.g. `set(v) { ... }`),
-        // process it directly using accessorBody which handles block bodies correctly.
-        // Skip propertyAccessor nodes that represent explicit backing fields
-        // (`field = expr` or `field: Type = expr`) — those are handled by
-        // `declarationExplicitBackingField`.
         var hasAccessorNode = false
         var pendingAccessorPrefixTokens: [Token]?
         for child in arena.children(of: nodeID) {
@@ -149,10 +136,6 @@ extension BuildASTPhase {
                     continue
                 }
                 hasAccessorNode = true
-                // Accessor modifiers written at the end of the head line
-                // (`val x: Int @Anno\n get()`) stay direct tokens of the
-                // property node; forward them to the first wrapped accessor
-                // so annotations and visibility attach where they were written.
                 if pendingAccessorPrefixTokens == nil {
                     pendingAccessorPrefixTokens = headTrailingAccessorModifierTokens(
                         from: nodeID, in: arena, interner: interner
@@ -214,9 +197,6 @@ extension BuildASTPhase {
             return (getter, setter)
         }
 
-        // Fallback: detect inline accessor syntax from flat tokens.
-        // Handles `val x: T get() = expr` where get()/set() appear as flat
-        // tokens of the property node without a wrapping block.
         if getter != nil || setter != nil {
             return (getter, setter)
         }
@@ -224,8 +204,6 @@ extension BuildASTPhase {
         return parseInlineAccessors(from: allTokens, nodeRange: arena.node(nodeID).range, interner: interner, astArena: astArena)
     }
 
-    /// - Parameter bodyIsSiblingBlock: the accessor's `{ ... }` body is a separate
-    ///   block node, so the direct tokens legitimately end after the header.
     func inlineAccessorStartIndex(in tokens: [Token], bodyIsSiblingBlock: Bool = false) -> Int? {
         for (index, token) in tokens.enumerated() {
             let isAccessorKeyword = switch token.kind {
@@ -235,8 +213,6 @@ extension BuildASTPhase {
                 false
             }
             guard isAccessorKeyword else { continue }
-            // A member call such as `lookup.get(...)` or `lookup?.set(...)`
-            // uses the same soft-keyword spelling as an inline accessor.
             if index > 0 {
                 switch tokens[index - 1].kind {
                 case .symbol(.dot), .symbol(.questionDot):
@@ -245,24 +221,16 @@ extension BuildASTPhase {
                     break
                 }
             }
-            // Kotlin's default setter may be written as a bare `set` after an
-            // explicitly typed property. It has neither a parameter list nor
-            // a body, but still starts an accessor and must not become part of
-            // the property's type tokens.
             if case .softKeyword(.set) = token.kind,
                isBareDefaultSetter(in: tokens[...], at: index)
             {
                 return index
             }
-            // Custom accessors require a parameter list.
             guard index + 1 < tokens.count,
                   tokens[index + 1].kind == .symbol(.lParen)
             else {
                 continue
             }
-            // Inline accessors have a declaration body after their parameter
-            // list. An accessor may optionally declare its return type before
-            // the body, as in `get(): Int = value`.
             let afterClose = skipBalancedBracket(
                 in: tokens,
                 from: index + 1,
@@ -398,10 +366,6 @@ extension BuildASTPhase {
         return false
     }
 
-    /// Earlier property annotations and annotations inside an initializer are
-    /// not accessor annotations. Modifier keywords may sit between annotations
-    /// and the accessor keyword (`@Anno private get`), so the trailing run
-    /// accepts both.
     private func accessorAnnotations(from tokens: [Token], interner: StringInterner) -> [AnnotationNode] {
         for start in tokens.indices where tokens[start].kind == .symbol(.at) {
             var index = start
@@ -450,10 +414,6 @@ extension BuildASTPhase {
                 continue
             }
 
-            // Dedicated CST accessor nodes can contain a bodyless getter or
-            // setter. Preserve their annotations even without a parameter list.
-            // Flat property tokens still need the default-setter shape check
-            // so an ordinary name in a type or expression is not an accessor.
             let hasParameterList = startIdx + 1 < remaining.endIndex
                 && remaining[startIdx + 1].kind == .symbol(.lParen)
             let explicitAccessorVisibility = accessorVisibility(in: tokensBeforeAccessor)
@@ -479,6 +439,7 @@ extension BuildASTPhase {
                 continue
             }
             let accessorTokens = Array(remaining[startIdx...])
+            diagnoseUnexpectedGetterParameters(kind: kind, headerTokens: accessorTokens)
 
             var closeParenIdx = startIdx + 2
             var depth = 1
@@ -541,11 +502,6 @@ extension BuildASTPhase {
             if afterParen < remaining.endIndex,
                remaining[afterParen].kind == .symbol(.assign)
             {
-                // A `get`/`set` soft keyword only opens the next accessor when it
-                // starts an accessor header: at top level, followed by `(`, and
-                // not preceded by a navigation operator. Member-call tokens like
-                // `this.get()` or a `get(` nested inside call arguments or a
-                // lambda are part of the body expression, not a boundary.
                 let exprStart = afterParen + 1
                 var exprEnd = remaining.endIndex
                 var bodyDepth = BracketDepth()
@@ -669,8 +625,6 @@ extension BuildASTPhase {
         )
         guard afterClose > start + 2 else { return false }
 
-        // A getter header has no parameters. Calls such as `get(0)` inside an
-        // expression body therefore cannot begin another accessor.
         if isGetter, afterClose != start + 3 { return false }
 
         var bodyStart = afterClose
@@ -777,8 +731,6 @@ extension BuildASTPhase {
         return nil
     }
 
-    /// Accessor modifiers sitting at the end of the property head tokens —
-    /// `@Anno` or `private` before a wrapped `get`/`set` accessor node.
     private func headTrailingAccessorModifierTokens(
         from nodeID: NodeID,
         in arena: SyntaxArena,
@@ -814,6 +766,7 @@ extension BuildASTPhase {
         case .softKeyword(.set): kind = .setter
         default: return
         }
+        diagnoseUnexpectedGetterParameters(kind: kind, headerTokens: headerTokens)
 
         let parameterName: InternedString? = kind == .setter
             ? setterParameterName(from: headerTokens, interner: interner)
@@ -877,6 +830,7 @@ extension BuildASTPhase {
         case .softKeyword(.set): kind = .setter
         default: return
         }
+        diagnoseUnexpectedGetterParameters(kind: kind, headerTokens: headerTokens)
 
         let parameterName: InternedString? = kind == .setter
             ? setterParameterName(from: headerTokens, interner: interner)
@@ -952,8 +906,6 @@ extension BuildASTPhase {
                 range: following?.range ?? headerTokens[colonIndex].range
             )
         }
-        // The parameter name is the last identifier-like token in the name
-        // zone; soft keywords such as `vararg` ahead of it act as modifiers.
         let nameIndex = nameZoneTokens.lastIndex(where: { token in
             internedIdentifier(from: token, interner: interner) != nil
                 && TypeRefParserCore.isDeclarationNameToken(token.kind)
@@ -1071,6 +1023,7 @@ extension BuildASTPhase {
             }
             guard case let .softKeyword(keyword) = headerTokens[0].kind else { continue }
             let kind: PropertyAccessorKind = keyword == .get ? .getter : .setter
+            diagnoseUnexpectedGetterParameters(kind: kind, headerTokens: headerTokens)
             let prefixTokens = items[..<start].compactMap { item -> Token? in
                 if case let .token(token) = item { return token }
                 return nil
@@ -1128,8 +1081,6 @@ extension BuildASTPhase {
         )
     }
 
-    /// `get(): = x` / `set(v): { }` — the `:` after an accessor's parameter list
-    /// introduces a required return type, so an empty one is a parse error.
     private func reportEmptyAccessorReturnType(in headerTokens: [Token]) {
         var index = 1
         var parenDepth = 0
@@ -1172,6 +1123,66 @@ extension BuildASTPhase {
         }
     }
 
+    /// Index of the `=` that opens an expression accessor body: the first
+    /// top-level `=` after the parameter list's closing `)`. An `=` inside
+    /// parenthesized annotation arguments in the return type (for example
+    /// `get(): @Mark(value = 7) Int`) or inside the accessor block must not
+    /// be mistaken for the body start.
+    private func accessorBodyAssignIndex(in tokens: [Token]) -> Int? {
+        var depth = 0
+        var sawParameterList = false
+        for (index, token) in tokens.enumerated() {
+            switch token.kind {
+            case .symbol(.lParen), .symbol(.lBracket), .symbol(.lBrace):
+                depth += 1
+            case .symbol(.rParen), .symbol(.rBracket), .symbol(.rBrace):
+                depth -= 1
+                if depth == 0, token.kind == .symbol(.rParen), !sawParameterList {
+                    sawParameterList = true
+                }
+            case .symbol(.assign) where depth == 0 && sawParameterList:
+                return index
+            default:
+                break
+            }
+        }
+        return nil
+    }
+
+    private func diagnoseUnexpectedGetterParameters(
+        kind: PropertyAccessorKind,
+        headerTokens: [Token]
+    ) {
+        guard kind == .getter,
+              headerTokens.count > 2,
+              headerTokens[0].kind == .softKeyword(.get),
+              headerTokens[1].kind == .symbol(.lParen)
+        else { return }
+        var depth = 1
+        var index = 2
+        while index < headerTokens.count {
+            switch headerTokens[index].kind {
+            case .symbol(.lParen), .symbol(.lBracket), .symbol(.lBrace):
+                depth += 1
+            case .symbol(.rParen), .symbol(.rBracket), .symbol(.rBrace):
+                depth -= 1
+                if depth == 0 {
+                    if index > 2 {
+                        diagnostics?.error(
+                            "KSWIFTK-PARSE-0031",
+                            "Getter cannot have parameters.",
+                            range: headerTokens[2].range
+                        )
+                    }
+                    return
+                }
+            default:
+                break
+            }
+            index += 1
+        }
+    }
+
     private func accessorBody(
         headerTokens: [Token],
         accessorTokens: [Token],
@@ -1181,12 +1192,7 @@ extension BuildASTPhase {
         astArena: ASTArena
     ) -> FunctionBody {
         reportEmptyAccessorReturnType(in: headerTokens)
-        // Expression accessors can contain several trailing lambdas, separated
-        // by operators or calls. Keep every block in its original token order,
-        // including semicolons separating statements inside lambda bodies.
-        if headerTokens.contains(where: { $0.kind == .symbol(.assign) }),
-           let assignIndex = accessorTokens.firstIndex(where: { $0.kind == .symbol(.assign) })
-        {
+        if let assignIndex = accessorBodyAssignIndex(in: accessorTokens) {
             let exprTokens = Array(accessorTokens[(assignIndex + 1)...])
             if let exprID = ExpressionParser(
                 tokens: ArraySlice(exprTokens), interner: interner,

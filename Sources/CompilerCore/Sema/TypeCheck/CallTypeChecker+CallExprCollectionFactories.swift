@@ -50,16 +50,9 @@ extension CallTypeChecker {
                 else {
                     return nil
                 }
-                // Collection factories are non-null even when their contextual
-                // assignment target is nullable. Keep the target's type arguments
-                // without propagating its nullability to the call result.
                 return sema.types.makeNonNullable(expectedType)
             }
 
-            /// The nominal collection type the factory produces for the given
-            /// arguments — used only to test whether an expected type is one
-            /// the call result can satisfy (`List<Int>` fits `Collection<Int>`
-            /// but never `MutableList<Int>` or `Sequence<Int>`).
             func producedFactoryReturnType(elements: [TypeID]) -> TypeID? {
                 guard let first = elements.first else { return nil }
                 let second = elements.count > 1 ? elements[1] : elements[0]
@@ -124,13 +117,6 @@ extension CallTypeChecker {
                 }
             }
 
-            /// Whether the expected type supplies a concrete argument for
-            /// every type parameter the factory still needs — the way
-            /// `List<Int>` or `Collection<Int>` pins T while `List<*>`,
-            /// `Collection<*>`, `Any` and `Any?` do not, and `Map<String, *>`
-            /// pins K but not V. The produced nominal must also fit:
-            /// `MutableList<Int>` pins the element of `mutableListOf` but not
-            /// of `listOf` (KUU-4002).
             func expectedTypeProvidesConcreteElementTypes(arity: Int) -> Bool {
                 guard let expected = expectedCollectionType(withArity: arity),
                       case let .classType(expectedClass) = sema.types.kind(of: expected)
@@ -144,8 +130,6 @@ extension CallTypeChecker {
                     case .star:
                         return false
                     }
-                    // A star-captured argument is not proper evidence either:
-                    // `T <: Captured` cannot fix a type variable in kotlinc.
                     if case let .typeParam(parameter) = sema.types.kind(of: element),
                        parameter.capture != nil
                     {
@@ -156,11 +140,6 @@ extension CallTypeChecker {
                 guard let produced = producedFactoryReturnType(elements: elements) else {
                     return false
                 }
-                // The produced nominal must relate to the target either way:
-                // `List<Int>` fits `Collection<Int>` upward, and a narrower
-                // `HashMap<K, V>` can adopt the produced `MutableMap<K, V>`
-                // the way bundled `hashMapOf` relies on. `Set<Int>` never
-                // pins `listOf`/`emptyList` in either direction.
                 return sema.types.isSubtype(produced, expected)
                     || sema.types.isSubtype(expected, produced)
             }
@@ -245,8 +224,6 @@ extension CallTypeChecker {
                 let expectedType = expectedCollectionType(withArity: 1)
                 if let expectedType, explicitTypeArgs.isEmpty {
                     let isImmutable = name == "emptyList" || name == "listOf" || name == "listOfNotNull"
-                    // Mutable factories retain their concrete collection type;
-                    // only immutable factories adopt a compatible read-only target.
                     if isImmutable && !isMutableCollection(expectedType) {
                         return (expectedType, typeArgs(from: expectedType))
                     }
@@ -267,13 +244,6 @@ extension CallTypeChecker {
                     }
                 let contextualElementType = expectedType.flatMap { typeArgs(from: $0).first }
                 let explicitElementType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
-                // Kotlin infers a generic collection's element type from a
-                // non-literal input and then widens compatible integer constant
-                // expressions to that type — `mutableListOf(1, 1L)` is a
-                // MutableList<Long>. Keep the constants out of the ordinary
-                // LUB the way the set factories below already do, then bind
-                // the literals to that element type before lowering reads
-                // their types (KUU-3789; mirrors the setOf fix).
                 let integerConstantArguments = args.indices.filter { index in
                     guard !args[index].isSpread else { return false }
                     let literal = integerLiteralValues(args[index].expr, ast: ctx.ast)
@@ -332,12 +302,6 @@ extension CallTypeChecker {
 
                 var elementType = explicitElementType ?? inferredElementType
                 var resultType = collectionType(elementType: elementType)
-                // Keep the narrow lub-based type when it already fits the target:
-                // an explicit backing field initializer is checked against the
-                // wider public property type but must stay as narrow as its
-                // arguments. For an invariant target such as
-                // `val xs: MutableList<Number> = mutableListOf(1)` the lub (Int)
-                // does not fit, so fall back to the target's element type.
                 if explicitElementType == nil, !elementTypes.isEmpty,
                    let expectedType, let contextualElementType,
                    !sema.types.isSubtype(resultType, expectedType),
@@ -414,11 +378,6 @@ extension CallTypeChecker {
                 }
                 let contextualIntegerType = explicitElementType
                     ?? (nonLiteralElementTypes.isEmpty ? nil : sema.types.lub(nonLiteralElementTypes))
-                // Kotlin can infer a generic collection's element type from a
-                // non-literal input and then widen compatible integer constant
-                // expressions to that type. Keep those constants out of the
-                // ordinary LUB so setOf(1, 1L) becomes Set<Long>, then bind the
-                // literals to Long below before lowering reads their types.
                 let canContextualizeIntegerConstants = !args.contains(where: \.isSpread)
                     && !integerConstantArguments.isEmpty
                     && contextualIntegerType.map { targetType in
@@ -442,8 +401,6 @@ extension CallTypeChecker {
                         return (expectedType, typeArgs(from: expectedType))
                     }
                 }
-                // Spread arguments contribute their array element (Pair<K, V>),
-                // not the array itself, to the factory's key/value inference.
                 let pairTypes = zip(args, argTypes).map { argument, type in
                     argument.isSpread
                         ? (driver.helpers.arrayElementType(for: type, sema: sema, interner: interner)
@@ -467,11 +424,6 @@ extension CallTypeChecker {
                         valueType: valueType
                     )
                 } else if name == "linkedMapOf" {
-                    // KUU-556: linkedMapOf() is declared to return LinkedHashMap<K,
-                    // V> (linked.kt), now a real HashMap subclass -- give call
-                    // sites that same nominal type instead of the generic
-                    // MutableMap hashMapOf/mutableMapOf still get, matching how
-                    // linkedSetOf already gets makeSyntheticLinkedHashSetType above.
                     resultType = makeSourceBackedLinkedHashMapType(
                         symbols: sema.symbols,
                         types: sema.types,
@@ -542,10 +494,6 @@ extension CallTypeChecker {
                        return false
                    }
                    if resolvedName == "listOfNotNull" {
-                       // The fixed-arity and vararg overloads share the same
-                       // source shape. A single ordinary argument selects the
-                       // fixed overload; spreads and all other arities use the
-                       // vararg overload and its packing contract.
                        let isVararg = sema.symbols.functionSignature(for: candidate)?
                            .valueParameterIsVararg.first ?? false
                        return isVararg == (args.count != 1 || args.contains(where: \.isSpread))
@@ -619,13 +567,6 @@ extension CallTypeChecker {
             guard ["ArrayList", "HashSet", "LinkedHashSet", "HashMap", "LinkedHashMap"].contains(resolvedName) else {
                 return nil
             }
-            // The collection aliases and the concrete LinkedHashSet class are
-            // type declarations (Stdlib/kotlin/collections/CollectionAliases.kt)
-            // rather than factory functions, so their constructor calls are typed
-            // here; CollectionLiteralLoweringPass rewrites the resulting calls to
-            // the matching runtime bridge.
-            // A same-named user declaration must go through ordinary overload
-            // resolution rather than acquire a stdlib collection result type.
             let collectionFQName = [knownNames.kotlin, knownNames.collections, calleeName]
             let hasNonStdlibClassifier = ctx.scope.lookupClassifier(calleeName, matching: { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate) else { return false }
@@ -700,8 +641,6 @@ extension CallTypeChecker {
                     ) else { return nil }
                     let elementArgument: TypeArg?
                     if resolvedName == "LinkedHashSet" {
-                        // Copy construction must retain the Collection element
-                        // even when an enclosing generic call supplies no hint.
                         guard argTypes.count == 1,
                               let collection = sema.symbols.lookup(fqName: [
                                 knownNames.kotlin, knownNames.collections, interner.intern("Collection")

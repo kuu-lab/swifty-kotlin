@@ -1,6 +1,4 @@
 extension TypeCheckDriver {
-    /// Returns the called `@Composable` symbol(s) or callable-parameter symbol if `id`
-    /// invokes a composable declaration or composable function-typed parameter.
     func composableCallTargets(for id: ExprID) -> [SymbolID] {
         guard !sema.composableFunctions.isEmpty || !sema.composableFunctionParameters.isEmpty else {
             return []
@@ -25,20 +23,17 @@ extension TypeCheckDriver {
             }
         }
         if let identSym = sema.bindings.identifierSymbol(for: id),
+           sema.symbols.symbol(identSym)?.kind != .object,
            sema.composableFunctions.contains(identSym)
         {
             result.append(identSym)
         }
         if let memberSym = sema.bindings.callBinding(for: id)?.chosenCallee {
-            // Covered above, keep distinct.
             _ = memberSym
         }
         return result
     }
 
-    /// Validates that every `@Composable` invocation recorded during type checking
-    /// occurs inside a `@Composable` function, getter, composable lambda, or an
-    /// inline non-crossinline/non-disallowed lambda enclosed in a `@Composable` scope.
     func validateComposableContexts(
         inlineLambdaArguments: Set<ExprID>,
         inlineAnonymousFunctionArguments: Set<ExprID>

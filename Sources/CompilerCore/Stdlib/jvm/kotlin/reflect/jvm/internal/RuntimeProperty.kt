@@ -49,7 +49,6 @@ open class RuntimeProperty(owner: Any, name: String, signature: String, receiver
             return super.callArray(args, unwrapException)
         }
         val outer = classCompanionFieldOwner()
-        // Logical instance parameters remain present for static object fields.
         val arity = if (!bound && outer != null) 1 else 0
         if (args.size != arity) throw IllegalArgumentException("Callable expects $arity arguments, but ${args.size} were provided.")
         val fieldOwner = outer ?: ownerClass

@@ -2,9 +2,6 @@ package java.util
 
 import kotlin.system.System
 
-/**
- * Minimal `java.util.Date`: an instant held as epoch milliseconds.
- */
 public class Date(
     internal var epochMilliseconds: Long,
 ) : Comparable<Date> {
@@ -20,10 +17,8 @@ public class Date(
         get() = getTime()
         set(value) = setTime(value)
 
-    /** Tests if this date is strictly after [other]. */
     public fun after(other: Date): Boolean = epochMilliseconds > other.epochMilliseconds
 
-    /** Tests if this date is strictly before [other]. */
     public fun before(other: Date): Boolean = epochMilliseconds < other.epochMilliseconds
 
     public override fun compareTo(other: Date): Int =

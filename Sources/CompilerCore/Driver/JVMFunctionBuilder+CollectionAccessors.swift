@@ -17,6 +17,10 @@ extension JVMFunctionBuilder {
             try requireWritableArguments(receiverID, at: id)
         }
 
+        let receiverType = try convert(
+            requireValue(receiverID),
+            to: .reference(owner, nullable: false)
+        )
         var supplied: [Int: (ExprID, JVMValue)] = [:]
         let binding = program.sema.bindings.callBinding(for: id)
         for (position, argument) in args.enumerated() {
@@ -41,10 +45,6 @@ extension JVMFunctionBuilder {
         let resultType = try program.expressionType(id)
         let result = try value(resultType)
         let object: JVMValueType = .reference("java/lang/Object", nullable: true)
-        let receiverType = try convert(
-            requireValue(receiverID),
-            to: .reference(owner, nullable: false)
-        )
         if isList {
             let index = try convert(key, to: .int)
             let size = try jdkCall(owner, "size", [], .int, receiver: receiverType, interface: true)!
@@ -80,6 +80,24 @@ extension JVMFunctionBuilder {
             instructions.append(.copy(try convert(value, to: resultType), result))
             mark(end)
         }
+        return JVMIntrinsicResult(value: result)
+    }
+
+    func collectionIsNullOrEmpty(_ receiverID: ExprID, owner: String, id: ExprID) throws -> JVMIntrinsicResult {
+        let receiver = try requireValue(receiverID)
+        let result = try value(.boolean)
+        let object: JVMValueType = .reference("java/lang/Object", nullable: true)
+        let null = try constant(.null, object), isNull = try value(.boolean)
+        instructions.append(.referenceCompare(.equal, receiver, null, isNull))
+        let nonNull = label(), done = label()
+        instructions.append(.jumpIfFalse(isNull, nonNull))
+        instructions.append(.constant(.boolean(true), result))
+        jump(done)
+        mark(nonNull)
+        let source = try convert(receiver, to: .reference(owner, nullable: false))
+        let empty = try jdkCall(owner, "isEmpty", [], .boolean, receiver: source, interface: true)!
+        instructions.append(.copy(empty, result))
+        mark(done)
         return JVMIntrinsicResult(value: result)
     }
 }

@@ -4,7 +4,6 @@
 // and `KOTLIN_VERSION` in .github/workflows/nightly-full.yml).
 public let kotlinTargetVersion = (major: 2, minor: 4, patch: 20)
 
-/// Returns the targeted Kotlin version packed as `major shl 16 | minor shl 8 | patch`.
 @_cdecl("__kk_kotlin_version_current")
 public func __kk_kotlin_version_current() -> Int {
     (kotlinTargetVersion.major << 16) | (kotlinTargetVersion.minor << 8) | kotlinTargetVersion.patch

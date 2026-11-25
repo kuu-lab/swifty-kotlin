@@ -159,6 +159,16 @@ extension JVMFunctionBuilder {
         if let binding, let metro = try importedMetroCall(binding, id: id) { return metro }
         if let binding, let action = try importedGlanceActivityAction(binding, args: args, id: id) { return action }
         if let binding, let builder = try importedOneTimeWorkRequestBuilder(binding, id: id) { return builder }
+        if let binding, let service = try importedContextService(binding, receiver: receiver, receiverValue: receiverValue, id: id) {
+            return service
+        }
+        if let binding, let model = try importedActivityViewModel(binding, args: args, receiver: receiver,
+                                                                receiverValue: receiverValue, id: id) {
+            return model
+        }
+        if let binding, let model = try importedHiltViewModel(binding, args: args, expectedResult: expectedResult, id: id) {
+            return model
+        }
         if let local = program.localFunctions[symbol] {
             return try localFunctionCall(local, symbol: symbol, args: args, receiver: receiver, id: id, expectedResult: expectedResult)
         }
@@ -217,11 +227,13 @@ extension JVMFunctionBuilder {
             prefix.append(value)
         }
         let allTypes = reference?.parameters ?? method!.parameters
+        let signature = binding.flatMap { program.sema.symbols.functionSignature(for: $0.chosenCallee) }
         let isComposable = program.jvmComposableFunctions.contains(symbol)
-        let composeDefaults = isComposable && program.sourceParameters[symbol]?.contains(where: \.hasDefaultValue) == true
+            || context.jvmImports?.importedComposableSymbols.contains(symbol) == true
+        let composeDefaults = isComposable && (program.sourceParameters[symbol]?.contains(where: \.hasDefaultValue) == true
+            || signature?.valueParameterHasDefaultValues.contains(true) == true)
         let composeSuffixCount = JVMCompose.suffix.count + (composeDefaults ? 1 : 0)
         let types = Array(allTypes.dropFirst(prefix.count).dropLast(isComposable ? composeSuffixCount : 0))
-        let signature = binding.flatMap { program.sema.symbols.functionSignature(for: $0.chosenCallee) }
         let contextParameterTypes = try (signature?.contextParameterTypes ?? []).map(program.type)
         // `importedContextArguments` already consumed the leading context slots
         // via `prefix` — dropping the full context count again would eat the
@@ -238,6 +250,10 @@ extension JVMFunctionBuilder {
         let importedDefaults = importedDefault != nil || importedConstructor?.defaults != nil || importedConstructorDefault != nil
             ? program.sema.symbols.functionSignature(for: symbol)?.valueParameterHasDefaultValues : nil
         let object = constructor ? try value(method!.result) : nil
+        // NEW triggers the owner's <clinit> (companion initialization); kotlinc
+        // runs it before evaluating constructor arguments. Force it eagerly here
+        // and keep the allocation itself after the arguments (below).
+        if constructor { instructions.append(.initializeClass(method!.owner)) }
         var composableParameters = context.jvmImports?.importedComposableParameters[symbol] ?? []
         if isComposable, let signature = program.sema.symbols.functionSignature(for: symbol) {
             for (index, parameter) in signature.valueParameterSymbols.enumerated()
@@ -281,6 +297,12 @@ extension JVMFunctionBuilder {
         // still returns void. The safe-call join materializes Unit afterward.
         let result = constructor || physicalResult == .unit || resultType == .unit
             ? nil : try value(foreignResultType(physicalResult, resolved: resultType))
+        if isComposable, let method, reference == nil {
+            try foreignComposableCall(method: method, symbol: symbol, dispatch: object ?? dispatch,
+                                      arguments: values, defaultMask: composeDefaults ? ordered.masks.first : nil,
+                                      result: result, at: id)
+            return JVMIntrinsicResult(value: try result.map { try convert($0, to: resultType) })
+        }
         if let object { instructions.append(.allocate(method!.owner, object)) }
         if let importedConstructor {
             let target = usesDefaults ? importedConstructor.defaults : importedConstructor.bridge
@@ -294,6 +316,18 @@ extension JVMFunctionBuilder {
         } else if usesDefaults {
             if let importedDefault {
                 values += try maskArguments(ordered.masks, constructor: false)
+                if let dispatch {
+                    values.insert(try convert(dispatch, to: importedDefault.parameters[0]), at: 0)
+                } else if values.count < importedDefault.parameters.count {
+                    // A @JvmStatic forwarder can use the companion's default helper.
+                    let symbols = program.sema.symbols
+                    guard let companion = symbols.parentSymbol(for: symbol),
+                          let owner = symbols.parentSymbol(for: companion),
+                          let receiver = try importedCompanionValue(for: owner) else {
+                        throw fail("Missing JVM companion receiver for default arguments.", id)
+                    }
+                    values.insert(receiver, at: 0)
+                }
                 instructions.append(.foreignCall(importedDefault, receiver: nil, arguments: values, result: result))
             } else if constructor {
                 values += try maskArguments(ordered.masks, constructor: true)

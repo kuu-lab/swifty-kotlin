@@ -1,4 +1,6 @@
 package kotlin.ranges
+
+import kotlin.internal.getProgressionLastElement
 class IntRange(first: Int, last: Int): IntProgression(first, last, 1), ClosedRange<Int>, OpenEndRange<Int> {
     override fun iterator(): kotlin.collections.IntIterator = IntRangeIterator(first, last)
 
@@ -20,7 +22,6 @@ class IntRange(first: Int, last: Int): IntProgression(first, last, 1), ClosedRan
     override fun hashCode(): Int = if (isEmpty()) -1 else first * 31 + last
     override fun toString(): String = "$first..$last"
 
-    // KUU-2834: Keep the JVM range companion surface available to consumers.
     companion object {
         val EMPTY: IntRange = IntRange(1, 0)
     }
@@ -44,9 +45,6 @@ public open class IntProgression(public val first: Int, last: Int, public val st
         if (step == Int.MIN_VALUE) throw IllegalArgumentException("Step must be greater than Int.MIN_VALUE to avoid overflow on negation.")
     }
 
-    // Upstream computes `last` via kotlin.internal.getProgressionLastElement:
-    // the bound is aligned down (or up for negative step) to the final element
-    // reachable from `first`, so `(1..6 step 2).last == 5`.
     public val last: Int = getProgressionLastElement(first, last, step)
 
     public open fun isEmpty(): Boolean = if (step > 0) first > last else first < last
@@ -57,22 +55,6 @@ public open class IntProgression(public val first: Int, last: Int, public val st
     companion object {
         public fun fromClosedRange(rangeStart: Int, rangeEnd: Int, step: Int): IntProgression = IntProgression(rangeStart, rangeEnd, step)
     }
-}
-
-// a mod b (in arithmetical sense)
-private fun progressionMod(a: Int, b: Int): Int {
-    val mod = a % b
-    return if (mod >= 0) mod else mod + b
-}
-
-// (a - b) mod c
-private fun progressionDifferenceModulo(a: Int, b: Int, c: Int): Int =
-    progressionMod(progressionMod(a, c) - progressionMod(b, c), c)
-
-private fun getProgressionLastElement(start: Int, end: Int, step: Int): Int = when {
-    step > 0 -> if (start >= end) end else end - progressionDifferenceModulo(end, start, step)
-    step < 0 -> if (start <= end) end else end + progressionDifferenceModulo(start, end, -step)
-    else -> throw IllegalArgumentException("Step is zero.")
 }
 
 private class IntProgressionIterator(first: Int, private val last: Int, private val step: Int): kotlin.collections.IntIterator() {

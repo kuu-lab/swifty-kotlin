@@ -8,8 +8,6 @@ import Testing
 @Suite
 struct BackendDriverOutputTests {
 
-    // MARK: - Driver output (moved from CompilerCoreTests)
-
     @Test func testEmitObjectProducesMachOFile() throws {
         let source = "fun main() {}"
         let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".o")
@@ -44,8 +42,6 @@ struct BackendDriverOutputTests {
             #expect(exitCode == 1)
         }
     }
-
-    // MARK: - Backend smoke tests (moved from SmokeTests)
 
     @Test func testSmokeDriverExecutableFailsWithoutMain() throws {
         try withTemporaryFile(contents: "fun helper() = 0") { path in

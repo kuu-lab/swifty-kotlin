@@ -54,8 +54,6 @@ extension BuildASTPhase.ExpressionParser {
         case .keyword(.object):
             return parseObjectLiteral()
         case .keyword(.fun) where isAnonymousFunctionLiteralStart():
-            // Distinct from `fun` as a declaration modifier/keyword, which is
-            // never followed directly by `(` (a name always comes first).
             return parseAnonymousFunctionLiteral()
         case .keyword(.in), .keyword(.is), .keyword(.as):
             return nil
@@ -111,7 +109,6 @@ extension BuildASTPhase.ExpressionParser {
         case let .intLiteral(text):
             _ = consume()
             let value = parseSignedLiteral(text, range: token.range) ?? 0
-            // Unsuffixed integer literals widen to Long when they do not fit Int32.
             if value > Int64(Int32.max) || value < Int64(Int32.min) {
                 return astArena.appendExpr(.longLiteral(value, token.range))
             }
@@ -183,7 +180,6 @@ extension BuildASTPhase.ExpressionParser {
         return nil
     }
 
-    /// Hex/bin literals are parsed by radix instead of stripping to decimal digits.
     private func parseSignedLiteral(_ text: String, range: SourceRange) -> Int64? {
         var numPart = text.replacingOccurrences(of: "_", with: "")
         let isNegative = numPart.hasPrefix("-")
@@ -393,7 +389,7 @@ extension BuildASTPhase.ExpressionParser {
                 }
                 if case let .stringSegment(segment) = token.kind {
                     let segmentText = interner.resolve(segment)
-                    pieces.append(shouldDecodeEscapes ? decodeEscapedStringSegment(segmentText) : KotlinStringSurrogateEncoding.encode(segmentText))
+                    pieces.append(shouldDecodeEscapes ? decodeEscapedStringSegment(segmentText) : KotlinStringSurrogateEncoding.encode(normalizeKotlinRawStringLineEndings(segmentText)))
                 }
                 end = token.range.end
                 _ = consume()
@@ -413,12 +409,10 @@ extension BuildASTPhase.ExpressionParser {
             }
 
             if case let .stringSegment(segment) = token.kind {
-                // Decode escape sequences in template literal parts just as we do in
-                // non-template string literals (e.g. `\"` → `"`, `\n` → newline).
                 let effectiveSegment: InternedString = if shouldDecodeEscapes {
                     interner.intern(decodeEscapedStringSegment(interner.resolve(segment)))
                 } else {
-                    interner.intern(KotlinStringSurrogateEncoding.encode(interner.resolve(segment)))
+                    interner.intern(KotlinStringSurrogateEncoding.encode(normalizeKotlinRawStringLineEndings(interner.resolve(segment))))
                 }
                 parts.append(.literal(effectiveSegment))
                 end = token.range.end
@@ -446,9 +440,6 @@ extension BuildASTPhase.ExpressionParser {
                     if let exprRange = astArena.exprRange(exprID) {
                         end = exprRange.end
                     }
-                    // `${}` holds a single expression (kotlinc: "only
-                    // expressions are allowed in this context"); `=` or any
-                    // other leftover is a stray token, not more template.
                     if let unexpected = current(), unexpected.kind != .templateExprEnd {
                         diagnostics?.error(
                             "KSWIFTK-PARSE-0018",

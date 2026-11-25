@@ -208,7 +208,7 @@ extension JVMProgramBuilder {
             switch ast.arena.decl(id) {
             case let .classDecl(c):
                 guard
-                      c.modifiers.subtracting([.public, .internal, .private, .protected, .open, .final, .abstract, .data, .sealed, .enumModifier, .inner, .value, .annotationClass]).isEmpty else { throw JVMFrontendError(message: "Unsupported JVM M9 class declaration.", range: c.range) }
+                      c.modifiers.subtracting([.actual, .public, .internal, .private, .protected, .open, .final, .abstract, .data, .sealed, .enumModifier, .inner, .value, .annotationClass]).isEmpty else { throw JVMFrontendError(message: "Unsupported JVM M9 class declaration.", range: c.range) }
                 let hasJvmInline = c.annotations.contains {
                     KnownCompilerAnnotation.jvmInline.matches($0.name)
                 } || sema.symbols.annotations(for: symbol).contains {
@@ -228,14 +228,14 @@ extension JVMProgramBuilder {
                 if let companion = c.companionObject { try collectNominals([companion], outer: symbol, companion: true) }
             case let .interfaceDecl(i):
                 guard
-                      i.modifiers.subtracting([.public, .internal, .private, .protected, .abstract, .funModifier, .sealed]).isEmpty else { throw JVMFrontendError(message: "Unsupported JVM interface declaration.", range: i.range) }
+                      i.modifiers.subtracting([.actual, .public, .internal, .private, .protected, .abstract, .funModifier, .sealed]).isEmpty else { throw JVMFrontendError(message: "Unsupported JVM interface declaration.", range: i.range) }
                 plan = JVMClassPlan(symbol: symbol, name: try className(symbol), interface: i)
                 classes[symbol] = plan
                 try collectNominals(i.nestedClasses + i.nestedObjects, outer: symbol)
                 if let companion = i.companionObject { try collectNominals([companion], outer: symbol, companion: true) }
             case let .objectDecl(o):
                 guard
-                      o.modifiers.subtracting([.public, .internal, .private, .protected, .companion, .data]).isEmpty else { throw JVMFrontendError(message: "Unsupported JVM object declaration.", range: o.range) }
+                      o.modifiers.subtracting([.actual, .public, .internal, .private, .protected, .companion, .data]).isEmpty else { throw JVMFrontendError(message: "Unsupported JVM object declaration.", range: o.range) }
                 let c = ClassDecl(range: o.range, name: o.name, modifiers: o.modifiers.subtracting(.companion), superTypeEntries: o.superTypeEntries, initBlocks: o.initBlocks, classBodyInitOrder: o.classBodyInitOrder, memberFunctions: o.memberFunctions, memberProperties: o.memberProperties)
                 plan = JVMClassPlan(symbol: symbol, name: try className(symbol), declaration: c)
                 plan.object = o; plan.isAnonymous = anonymous; plan.companionOwner = companion ? outer : nil
@@ -398,7 +398,6 @@ extension JVMProgramBuilder {
                 guard let field = property.field, field.constantValue != nil else { return property }
                 var property = property
                 if classes[companionOwner]?.isInterface == true {
-                    // Kotlin duplicates interface companion constants in both owners.
                     var duplicate = JVMField(owner: plan.name, name: field.name, type: field.type, access: field.access)
                     duplicate.annotations = field.annotations
                     duplicate.constantValue = field.constantValue

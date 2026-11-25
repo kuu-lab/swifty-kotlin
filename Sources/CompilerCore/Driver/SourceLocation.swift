@@ -1,4 +1,4 @@
-public struct TokenID: Hashable, Sendable, Codable {
+public struct TokenID: RawInt32ID {
     public let rawValue: Int32
 
     public init(rawValue: Int32 = -1) {
@@ -6,7 +6,7 @@ public struct TokenID: Hashable, Sendable, Codable {
     }
 }
 
-public struct NodeID: Hashable, Sendable, Codable {
+public struct NodeID: RawInt32ID {
     public let rawValue: Int32
 
     public init(rawValue: Int32 = -1) {
@@ -14,7 +14,7 @@ public struct NodeID: Hashable, Sendable, Codable {
     }
 }
 
-public struct DeclID: Hashable, Sendable, Codable {
+public struct DeclID: RawInt32ID {
     public let rawValue: Int32
 
     public static let invalid = DeclID(rawValue: -1)
@@ -24,7 +24,7 @@ public struct DeclID: Hashable, Sendable, Codable {
     }
 }
 
-public struct FileID: Hashable, Sendable, Codable {
+public struct FileID: RawInt32ID {
     public let rawValue: Int32
 
     public static let invalid = FileID(rawValue: -1)

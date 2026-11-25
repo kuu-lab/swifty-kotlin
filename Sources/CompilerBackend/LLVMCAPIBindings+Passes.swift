@@ -1,7 +1,6 @@
 import CompilerCore
 
 extension LLVMCAPIBindings {
-    /// O0 deliberately leaves the module unchanged, including debug allocas.
     func optimizeModule(
         _ module: LLVMModuleRef,
         targetMachine: LLVMTargetMachineRef,

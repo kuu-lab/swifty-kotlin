@@ -4,7 +4,7 @@ import kotlin.jvm.internal.markers.KMappedMarker
 
 public abstract class AbstractList<out E> protected constructor() : AbstractCollection<E>(), List<E> {
     abstract override val size: Int
-    abstract override fun get(index: Int): E
+    abstract override operator fun get(index: Int): E
 
     override fun iterator(): Iterator<E> = listIterator()
 

@@ -1,6 +1,5 @@
 import Foundation
 
-/// Used to decide bundled-stdlib-specific behavior without parsing paths.
 public enum SourceOrigin: String, Equatable, Sendable, Codable {
     case user
     case bundledStdlib
@@ -183,8 +182,12 @@ public final class SourceManager: @unchecked Sendable {
 
     private func computeLineStartOffsets(contents: Data) -> [Int] {
         var lineStarts = [0]
-        for index in 0 ..< contents.count where contents[index] == 0x0A {
-            lineStarts.append(index + 1)
+        contents.withUnsafeBytes { buffer in
+            guard let baseAddress = buffer.baseAddress else { return }
+            let bytes = baseAddress.assumingMemoryBound(to: UInt8.self)
+            for index in 0 ..< buffer.count where bytes[index] == 0x0A {
+                lineStarts.append(index + 1)
+            }
         }
         return lineStarts
     }

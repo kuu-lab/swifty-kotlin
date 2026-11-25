@@ -103,10 +103,6 @@ extension CallTypeChecker {
                     return finalType
 
                 case .scopeUsePinned:
-                    // usePinned: like `use`, but the lambda receives Pinned<T> (the pinned
-                    // handle) instead of the receiver itself, and lowering calls pin()/unpin()
-                    // instead of close(). Requires the synthetic kotlinx.cinterop.Pinned class
-                    // to already be registered (always true — see registerSyntheticCInteropStubs).
                     let pinnedFQName: [InternedString] = [
                         request.interner.intern("kotlinx"), request.interner.intern("cinterop"), request.interner.intern("Pinned"),
                     ]
@@ -141,16 +137,12 @@ extension CallTypeChecker {
                         } ?? request.sema.types.nullableAnyType
                     }
                     let finalType = request.safeCall ? request.sema.types.makeNullable(returnType) : returnType
-                    // Interception still needs the inline parameter contract for
-                    // return-path validation and capturing-lambda KIR lowering.
                     request.sema.bindings.bindCall(request.id, binding: CallBinding(
                         chosenCallee: usePinnedSymbol,
                         substitutedTypeArguments: [nonNullReceiverType, returnType],
                         parameterMapping: [0: 0]
                     ))
                     request.sema.bindings.markScopeFunctionExpr(request.id, kind: scopeKind)
-                    // Force the capturing-lambda lowering path so try/finally exception
-                    // propagation around the block call works correctly (mirrors scopeUse).
                     request.sema.bindings.markCollectionHOFLambdaExpr(request.args[0].expr)
                     request.sema.bindings.bindExprType(request.id, type: finalType)
                     return finalType
@@ -189,14 +181,11 @@ extension CallTypeChecker {
                     return finalType
 
                 case .scopeContext, .scopeMemScoped:
-                    break // context/memScoped are handled in inferCallExpr (top-level functions)
+                    break
                 }
             }
         }
 
-        // Result<T> members require special handling because the generic type
-        // parameter T needs to be extracted from the receiver's Result<T> type
-        // and used to construct the expected lambda parameter types.
         if request.args.count >= 1, request.args.count <= 2 {
             let calleeStr = request.interner.resolve(request.calleeName)
             let resultMemberNames = request.knownNames.resultMemberNames
@@ -283,8 +272,6 @@ extension CallTypeChecker {
                     return finalType
 
                 case "getOrDefault" where request.args.count == 1:
-                    // Kotlin permits a fallback supertype of the Result element.
-                    // Nothing cannot constrain the fallback of a failure-only Result.
                     let defaultExpectedType: TypeID? = if case .nothing = request.sema.types.kind(of: resultElementType) {
                         request.expectedType
                     } else {
@@ -445,14 +432,6 @@ extension CallTypeChecker {
             }
         }
 
-        // File.forEachLine/useLines require the lambda to use the collection HOF
-        // closure ABI (closureRaw prepended), and the lambda's implicit `it` must
-        // be correctly resolved.
-        // STDLIB-IO-FN-040: also handles `BufferedReader.useLines { lines -> T }`
-        // because the synthetic stub registers `useLines` on `java.io.BufferedReader`
-        // with the same `(List<String>) -> Any` signature.
-        // STDLIB-IO-FN-017: also handles `BufferedReader.forEachLine { line -> Unit }`
-        // via the same HOF closure ABI — action receives `String`, returns `Unit`.
         if request.args.count == 1 {
             let calleeStr = request.interner.resolve(request.calleeName)
             let isFileReceiver = isFileType(receiverType, sema: request.sema, interner: request.interner)
@@ -488,10 +467,6 @@ extension CallTypeChecker {
                     } else {
                         request.sema.types.anyType
                     }
-                    // Keep an unconstrained result distinct from a concrete Any
-                    // result.  The lambda body must be allowed to infer T so the
-                    // result can be used in a following member access, e.g.
-                    // `file.useLines { it.toList() }.size`.
                     lambdaReturnType = request.expectedType ?? request.sema.types.nullableAnyType
                     callReturnType = request.expectedType ?? request.sema.types.nullableAnyType
                 }
@@ -512,10 +487,6 @@ extension CallTypeChecker {
                     } else {
                         callReturnType
                     }
-                    // `inferLambdaLiteralExpr` retains the placeholder in the
-                    // function type when T is unconstrained.  Refine the call
-                    // result from the lambda body in that case, just as the
-                    // residual `use` path does above.
                     if request.expectedType == nil,
                        inferredReturnType == request.sema.types.nullableAnyType,
                        let lambdaExpr = request.ast.arena.expr(request.args[0].expr),

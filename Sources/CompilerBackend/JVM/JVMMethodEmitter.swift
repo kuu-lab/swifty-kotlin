@@ -10,6 +10,7 @@ struct JVMMethodCode {
     let locals: UInt16
     let frames: Data?
     var exceptions: [(UInt16, UInt16, UInt16, UInt16)] = []
+    var declaredExceptions: [String] = []
     var signature: String? = nil
     var annotations: [JVMAnnotation] = []
     var parameterAnnotations: [[JVMAnnotation]] = []
@@ -47,7 +48,6 @@ final class JVMMethodEmitter {
         if slot > 255 { assembler.code.u1(0xC4); assembler.code.u1(opcode); assembler.code.u2(UInt16(slot)) }
         else { assembler.code.u1(opcode); assembler.code.u1(UInt8(slot)) }
     }
-    /// Offset within the i/l/f/d/a opcode families (iload..aload, istore..astore, ireturn..areturn).
     func familyOffset(_ type: JVMValueType) -> UInt8 {
         switch type.stackType {
         case .long: 1
@@ -175,7 +175,7 @@ final class JVMMethodEmitter {
         let frames = try stackMaps(codeSize: code.count)
         return JVMMethodCode(
             name: try pool.utf8(function.reference.name), descriptor: try pool.utf8(function.reference.descriptor),
-            access: sanitizeVarargs((function.access ?? (function.isPrivate ? 0x000A : 0x0009)) | (function.typeParameters.contains(where: \.isReified) || function.isHiddenByDeprecation ? 0x1000 : 0)), code: code, stack: UInt16(maxStack),
+            access: sanitizeVarargs((function.access ?? (function.isPrivate ? 0x000A : 0x0009)) | (function.typeParameters.contains(where: \.isReified) || function.isHiddenByDeprecation ? 0x1000 : 0) | (function.isSynchronized ? 0x0020 : 0)), code: code, stack: UInt16(maxStack),
             locals: UInt16(function.locals.last.map { $0.slot + $0.type.width } ?? 0), frames: frames,
             exceptions: try function.handlers.compactMap { h in
                 guard let start = assembler.labels[h.start], let end = assembler.labels[h.end], let handler = assembler.labels[h.handler], start <= end else { throw JVMEmissionError.limit("Invalid JVM exception range.") }
@@ -310,6 +310,13 @@ final class JVMMethodEmitter {
             uninitialized[object.slot] = assembler.code.data.count
             allocationOffsets[object.slot] = assembler.code.data.count
             assembler.code.u1(0xBB); assembler.code.u2(try pool.classInfo(name)); store(object)
+        case let .initializeClass(name):
+            // Force <clinit> before constructor arguments, matching kotlinc's
+            // NEW-before-args initialization order. The allocation itself
+            // still happens after the arguments are evaluated.
+            assembler.code.u1(0x13); assembler.code.u2(try pool.constant(.string(name.replacingOccurrences(of: "/", with: "."))))
+            assembler.code.u1(0xB8); assembler.code.u2(try pool.member(10, owner: "java/lang/Class", name: "forName", descriptor: "(Ljava/lang/String;)Ljava/lang/Class;"))
+            assembler.code.u1(0x57)
         case let .foreignCall(method, receiver, arguments, result):
             if let continuation = function.inlineContinuation, method.isSuspend {
                 let target = method.suspendABI

@@ -2,23 +2,11 @@ public struct CallArg {
     public let label: InternedString?
     public let isSpread: Bool
     public let type: TypeID
-    /// Keep a literal's value until each candidate's parameter type is known.
-    /// A pre-inferred Int/UInt alone loses contextual integer adaptation.
     public let signedIntegerLiteral: Int64?
     public let unsignedIntegerLiteral: UInt64?
-    /// Source calls distinguish a lambda outside parentheses from ordinary
-    /// positional arguments. Nil preserves normalized calls without an AST.
     public let isTrailingLambda: Bool?
-    /// True when the argument expression is itself a lambda literal. Lambda
-    /// literals adopt a receiver-function expected type, which function
-    /// *values* of matching shape cannot (KUU-4456).
     public let isLambdaLiteral: Bool
-    /// True when this argument is a callable reference whose type may have
-    /// been specialized from the candidate's expected function type.
     public let isCallableReference: Bool
-    /// Synthetic operator-set calls bind the assigned value to the setter's
-    /// final parameter, skipping any defaulted parameters between the indices
-    /// and that value.
     public let bindsToLastParameter: Bool
 
     public init(
@@ -137,18 +125,12 @@ func implicitSignedIntegerCoercionConstant(
     }
 }
 
-/// The alias's parameters remain inference variables until overload resolution.
 public struct TypeAliasConstructorContext {
     public let typeParameterSymbols: [SymbolID]
     public let expandedType: TypeID
-    /// Optional source-level result type when an expect declaration gives the
-    /// alias a distinct nominal type from its expanded constructor target.
     public let resultType: TypeID?
-    /// The source alias, used for call-site annotations such as opt-in markers.
     public let typeAliasSymbol: SymbolID?
-    /// The enclosing instance supplied to a member-style inner constructor call.
     public let innerOuterReceiverType: TypeID?
-    /// Alias parameters that map to the enclosing class's type parameters.
     public let outerTypeParameterSymbols: [SymbolID]
 
     public init(
@@ -173,26 +155,11 @@ public struct CallExpr {
     public let calleeName: InternedString
     public let args: [CallArg]
     public let explicitTypeArgs: [TypeID]
-    /// Lexical receivers, innermost first, independently of the extension receiver.
     public let dispatchReceiverTypes: [TypeID]
-    /// Direct imports bind these ordinary object members to their singleton.
-    /// Explicit member calls must retain their actual receiver type.
     public let boundObjectDispatchReceiverCandidates: Set<SymbolID>
     public let typeAliasConstructor: TypeAliasConstructorContext?
-    /// An Elvis branch's peer or enclosing type may guide generic inference
-    /// without requiring the call result to be a subtype of that type.
     public let elvisLhsExpectedTypeHint: Bool
-    /// A non-null Elvis LHS type may fill unresolved RHS call type variables,
-    /// without constraining variables already inferred from call inputs.
     public let elvisRhsCallResultTypeHint: TypeID?
-    /// `true` when the call uses an operator convention whose multi-candidate
-    /// failure kotlinc reports as NONE_APPLICABLE (`a + b`, `x in y`, `a[i]`,
-    /// `a += b`) rather than an argument-type mismatch, so a multi-candidate
-    /// operator call keeps the generic no-viable-overload diagnostic.
-    /// The range infix calls (`a..b`, `a..<b`, `a downTo b`, `p step s`) are
-    /// excluded: kotlinc reports ARGUMENT_TYPE_MISMATCH for them just like it
-    /// does for named calls, so they keep their per-candidate argument
-    /// mismatch diagnostic even with several overloads.
     public let isOperatorCall: Bool
 
     public init(range: SourceRange, calleeName: InternedString, args: [CallArg], explicitTypeArgs: [TypeID] = [], dispatchReceiverTypes: [TypeID] = [], boundObjectDispatchReceiverCandidates: Set<SymbolID> = [], typeAliasConstructor: TypeAliasConstructorContext? = nil, elvisLhsExpectedTypeHint: Bool = false, elvisRhsCallResultTypeHint: TypeID? = nil, isOperatorCall: Bool = false) {
@@ -213,7 +180,6 @@ public struct ResolvedCall {
     public let chosenCallee: SymbolID?
     public let substitutedTypeArguments: [TypeVarID: TypeID]
     public let parameterMapping: [Int: Int]
-    /// Maps source argument indices to explicitly supplied context-parameter indices.
     public let contextParameterArgumentMapping: [Int: Int]
     public let diagnostic: Diagnostic?
     public let defaultArgumentOwner: SymbolID?
@@ -245,9 +211,6 @@ public struct ProbedCallCandidate {
 
 public struct ProbedCallResult {
     public let viableCandidates: [ProbedCallCandidate]
-    /// Diagnostics from candidates that matched the call shape but failed
-    /// constraint solving (e.g. `KSWIFTK-SEMA-INFER` when a type variable stays
-    /// uninferred). Rejected candidates contribute no diagnostic.
     public let failureDiagnostics: [Diagnostic]
 
     public init(viableCandidates: [ProbedCallCandidate], failureDiagnostics: [Diagnostic] = []) {

@@ -38,8 +38,6 @@ public final class ContentAddressedStore: @unchecked Sendable {
         return stats
     }
 
-    /// Builds a key from labelled parts. Parts are length-prefixed, so
-    /// `["ab", "c"]` and `["a", "bc"]` never collide.
     public static func makeKey(parts: [String]) -> String {
         var material = Data()
         for part in parts {
@@ -54,8 +52,6 @@ public final class ContentAddressedStore: @unchecked Sendable {
         key.utf8.count == digestLength && key.utf8.allSatisfy { ($0 >= 0x30 && $0 <= 0x39) || ($0 >= 0x61 && $0 <= 0x66) }
     }
 
-    /// Returns the payload for `key`, or nil on a miss or a corrupt entry
-    /// (which is deleted so the next `store` repairs it).
     public func load(key: String) -> Data? {
         guard Self.isValidKey(key) else { return recordMiss() }
         guard let rootFD = CacheSecurity.openSafeDirectory(at: rootPath, allowCreate: false) else { return recordMiss() }
@@ -100,8 +96,6 @@ public final class ContentAddressedStore: @unchecked Sendable {
         return nil
     }
 
-    /// Stores `payload` under `key`. Returns false (and leaves the store
-    /// untouched) if the location is untrusted or the write fails.
     @discardableResult
     public func store(key: String, payload: Data) -> Bool {
         guard Self.isValidKey(key),

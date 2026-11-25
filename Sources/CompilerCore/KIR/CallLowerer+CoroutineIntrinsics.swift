@@ -79,9 +79,6 @@ extension CallLowerer {
         return resultExpr
     }
 
-    /// `suspend { p: T -> ... }` is a suspend function literal, not a real
-    /// call to `kotlin.suspend` — lower the expression as the materialized
-    /// lambda value itself (KUU-4475).
     func lowerSuspendLambdaLiteralCallExpr(
         _ exprID: ExprID,
         args: [CallArgument],

@@ -1,11 +1,4 @@
 
-/// Lambda functions produced by `LambdaLowerer` use flat closure conversion:
-/// capture values are prepended as extra function parameters, and call sites
-/// pass them directly.  This works for direct calls but prevents lambdas from
-/// being stored, passed, or invoked polymorphically.
-///
-/// The `<lambda>` marker calls (used by the test fixture) are still rewritten
-/// to `kk_lambda_invoke` for backward compatibility.
 final class LambdaClosureConversionPass: LoweringPass {
     static let name = "LambdaClosureConversion"
     static let requiredStage: KIRStage = .propertyLowered
@@ -30,31 +23,21 @@ final class LambdaClosureConversionPass: LoweringPass {
         let symbol: SymbolID
     }
 
-    /// Pre-computed call-site index to avoid repeated O(#functions * #instructions)
-    /// scans during capture-count validation and throwing detection.
     private struct CallSiteIndex {
         var arityBySymbol: [SymbolID: Set<Int>] = [:]
         var arityByName: [InternedString: Set<Int>] = [:]
-        var throwingBySymbol: Set<SymbolID> = []
-        var throwingByName: Set<InternedString> = []
 
         static func build(from module: KIRModule) -> CallSiteIndex {
             var index = CallSiteIndex()
             for decl in module.arena.declarations {
                 guard case let .function(fn) = decl else { continue }
                 for instruction in fn.body {
-                    if case let .call(symbol, callee, arguments, _, canThrow, _, _, _) = instruction {
+                    if case let .call(symbol, callee, arguments, _, _, _, _, _) = instruction {
                         let arity = arguments.count
                         if let symbol {
                             index.arityBySymbol[symbol, default: []].insert(arity)
-                            if canThrow {
-                                index.throwingBySymbol.insert(symbol)
-                            }
                         }
                         index.arityByName[callee, default: []].insert(arity)
-                        if canThrow {
-                            index.throwingByName.insert(callee)
-                        }
                     }
                 }
             }
@@ -70,14 +53,8 @@ final class LambdaClosureConversionPass: LoweringPass {
             }
             return false
         }
-
-        func isCalledWithCanThrow(symbol: SymbolID, name: InternedString) -> Bool {
-            return throwingBySymbol.contains(symbol) || throwingByName.contains(name)
-        }
     }
 
-    /// Index built by `shouldRun`, reused by `run` since the driver invokes
-    /// them back-to-back on the same module.
     private var cachedCallSiteIndex: (module: KIRModule, index: CallSiteIndex)?
 
     private func callSiteIndex(for module: KIRModule) -> CallSiteIndex {
@@ -102,11 +79,7 @@ final class LambdaClosureConversionPass: LoweringPass {
                    function: function,
                    lambdaExprID: lambdaExprID(from: function.name, interner: ctx.interner),
                    callSiteIndex: callSiteIndex
-               ) > 0,
-               !callSiteIndex.isCalledWithCanThrow(
-                   symbol: function.symbol,
-                   name: function.name
-               )
+               ) > 0
             {
                 return true
             }
@@ -171,12 +144,7 @@ final class LambdaClosureConversionPass: LoweringPass {
             anyType = sema.types.anyType
         }
 
-        // Marker rewriting works without sema; closure-object rewriting only
-        // triggers when captureInfoBySymbol is populated, which requires sema
-        // above.
         module.arena.transformFunctions { function in
-            // Skip invoke wrappers: they already load captures from
-            // the closure object and forward to the original lambda.
             if invokeWrapperNames.contains(function.name) {
                 return function
             }
@@ -221,13 +189,6 @@ final class LambdaClosureConversionPass: LoweringPass {
                 callSiteIndex: callSiteIndex
             )
             if captureCount > 0 {
-                if callSiteIndex.isCalledWithCanThrow(
-                    symbol: function.symbol,
-                    name: function.name
-                ) {
-                    continue
-                }
-
                 results.append(LambdaCaptureInfo(
                     function: function,
                     captureParamCount: captureCount,
@@ -239,8 +200,6 @@ final class LambdaClosureConversionPass: LoweringPass {
         return results
     }
 
-    /// Capture params use synthetic negative SymbolIDs in the range
-    /// -2_000_000... (from `syntheticLambdaCaptureParamSymbol`).
     private func detectCaptureParamCount(
         function: KIRFunction,
         lambdaExprID: Int64?,
@@ -269,10 +228,6 @@ final class LambdaClosureConversionPass: LoweringPass {
             return 0
         }
 
-        // Validate: at least one call site passes the full lambda arity.
-        // Uses the pre-computed call-site index instead of scanning all
-        // functions/instructions, reducing complexity from O(#lambdas * #instructions)
-        // to O(1) per lambda.
         if callSiteIndex.hasCallSiteWithArity(
             symbol: function.symbol,
             name: function.name,
@@ -316,8 +271,6 @@ final class LambdaClosureConversionPass: LoweringPass {
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let anyType = sema.types.anyType
 
-        // Nominal marker type for the closure object. The runtime payload is
-        // stored in the array box allocated by `kk_object_new`.
         _ = interner.intern("kk_closure_obj_\(lambdaSymbolRaw)")
         let nominalSymbol = SymbolID(rawValue: Int32(clamping: -(41_000_000 + Int64(lambdaSymbolRaw))))
         let nominalDecl = KIRDecl.nominalType(KIRNominalType(symbol: nominalSymbol))
@@ -331,9 +284,6 @@ final class LambdaClosureConversionPass: LoweringPass {
 
         var invokeBody: KIRLoweringEmitContext = [.beginBlock]
         let kk_array_get = interner.intern("kk_array_get_inbounds")
-        // Compute next temp ID from the arena's current expression count.
-        // This is safe here because synthesizeClosureObject is called
-        // sequentially and the arena grows monotonically.
         var nextTempID = Int32(clamping: arena.expressions.count)
 
         let closureObjExpr = arena.appendExpr(.symbolRef(closureObjParamSymbol), type: anyType)
@@ -407,9 +357,6 @@ final class LambdaClosureConversionPass: LoweringPass {
         let arena = module.arena
         let kk_object_new = interner.intern("kk_object_new")
         let kk_array_set = interner.intern("kk_array_set")
-        // Derive next temp ID from the function's maximum existing temporary ID
-        // to keep numbering function-local and stable, avoiding sensitivity to
-        // unrelated global expression allocations.
         var nextTempID = Self.maxTempID(in: function) + 1
 
         var updated = function
@@ -508,7 +455,6 @@ final class LambdaClosureConversionPass: LoweringPass {
         nextTempID: inout Int32,
         type: TypeID
     ) -> KIRExprID {
-        // Keep temp IDs stable even if we insert extra helper expressions.
         let expr = arena.appendExpr(.temporary(nextTempID), type: type)
         nextTempID += 1
         return expr
@@ -537,7 +483,6 @@ final class LambdaClosureConversionPass: LoweringPass {
         )
     }
 
-    /// Returns 0 if no temporaries exist, so the first synthesized temp will be 1.
     private static func maxTempID(in function: KIRFunction) -> Int32 {
         var maxID: Int32 = 0
         for instruction in function.body {
@@ -567,7 +512,6 @@ final class LambdaClosureConversionPass: LoweringPass {
     }
 
     private func closureObjectClassID(lambdaSymbol: SymbolID) -> Int64 {
-        // FNV-1a hash for stable ID.
         let name = "kk_closure_obj_\(lambdaSymbol.rawValue)"
         var hash: UInt64 = 0xCBF2_9CE4_8422_2325
         for byte in name.utf8 {

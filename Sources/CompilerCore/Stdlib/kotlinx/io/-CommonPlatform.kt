@@ -11,9 +11,6 @@ package kotlinx.io
 import kotlin.__kkThrowableSetCause
 import kotlin.__kkThrowableSetMessage
 
-/**
- * Signals that an I/O exception of some sort has occurred.
- */
 public open class IOException : Exception {
     public constructor() : super() {
         __kkThrowableSetMessage(this, null)
@@ -23,8 +20,6 @@ public open class IOException : Exception {
         __kkThrowableSetMessage(this, message)
     }
 
-    // Like the JVM, a cause-only exception derives its message from
-    // `cause.toString()`; the runtime-backed super constructor provides that.
     public constructor(cause: Throwable?) : super(cause)
 
     public constructor(message: String?, cause: Throwable?) : super(message, cause) {
@@ -33,14 +28,10 @@ public open class IOException : Exception {
     }
 }
 
-/**
- * Signals that the end of the file or stream was reached unexpectedly during an input operation.
- */
 public open class EOFException : IOException {
     public constructor() : super()
     public constructor(message: String?) : super(message)
     public constructor(message: String?, cause: Throwable?) : super(message, cause)
 }
 
-/** This compiler targets POSIX platforms. */
 internal const val isWindows: Boolean = false

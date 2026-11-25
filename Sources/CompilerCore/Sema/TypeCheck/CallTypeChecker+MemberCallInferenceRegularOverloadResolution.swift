@@ -1,9 +1,6 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
-    /// The collection, Comparator and callable-property scope-priority
-    /// fallbacks must run before lambda argument preparation.
-    /// `earlyReturnType` carries a bound result when a fallback handles the call.
     func selectRegularMemberCallReceiverAndFallbacks(
         _ request: MemberCallInferenceRequest,
         candidates: [SymbolID],
@@ -45,11 +42,6 @@ extension CallTypeChecker {
                       case .functionType:
                           return true
                       case let .typeParam(parameter):
-                          // A generic extension such as `fun <T> T.let(...)`
-                          // must infer T from the structural function type of a
-                          // bound callable reference. Lookup uses its KFunction
-                          // view for reflection, but that nominal view cannot be
-                          // invoked from the extension's callback parameter.
                           return signature.typeParameterSymbols.contains(parameter.symbol)
 
                       default:
@@ -89,21 +81,12 @@ extension CallTypeChecker {
         // variable bounds. Those overloads keep going through the synthetic
         // fallback and their require() bypass is tracked separately.
         let hasTrailingLambdaArg = request.args.last.map { request.ast.arena.expr($0.expr)?.isLambdaOrCallableRef ?? false } ?? false
-        // STDLIB-pipeline §5 / KSP-441: Source-backed Sequence transforms
-        // (map, filter, etc.) must bind to the real Kotlin declaration so the
-        // object-expression pipeline runs instead of a `kk_*` runtime shortcut.
         let memberNameText = request.interner.resolve(request.calleeName)
         let isMutableMapIteratorSource = memberNameText == "iterator"
             && ReceiverClassifier(sema: request.sema, interner: request.interner).isMutableMapType(memberLookupType)
-        // MutableSet inherits independent Set.iterator and MutableIterable.iterator
-        // candidates. Keep the mutable-aware collection fallback when lookup is
-        // ambiguous, while a unique source member retains normal dispatch.
         let isUniqueIteratorSource = memberNameText == "iterator" && candidates.count == 1
         let isListSourceBackedMember: Bool = {
             guard ["get", "indexOf", "lastIndexOf", "subList"].contains(memberNameText),
-                  // `lookup(fqName:)` can return the `List(size, init)` factory
-                  // function that shares this fqName; `lookupNominal` keeps the
-                  // interface so the subtype check compares nominal owners.
                   let listOwner = request.sema.symbols.lookupNominal(fqName: request.knownNames.kotlinCollectionsListFQName)
             else { return false }
             return driver.helpers.allNominalSymbols(of: memberLookupType, types: request.sema.types, symbols: request.sema.symbols).contains {
@@ -132,8 +115,6 @@ extension CallTypeChecker {
             || isMutableMapIteratorSource
             || isUniqueIteratorSource
             || isListSourceBackedMember
-        // Keep user bulk extensions ahead of the bundled fallback. JVM List
-        // and Collection overloads use the same source binding as MutableSet.
         let bulkReceiverFQName = request.sema.requiresResolvedLibraryCalls
             ? request.knownNames.kotlinCollectionsMutableCollectionFQName : request.knownNames.kotlinCollectionsMutableSetFQName
         let isMutableBulkCall = (request.calleeName == request.knownNames.addAll || request.sema.requiresResolvedLibraryCalls && request.calleeName == request.knownNames.removeAll)
@@ -142,9 +123,6 @@ extension CallTypeChecker {
                     request.sema.types.isNominalSubtypeSymbol($0, of: owner)
                 }
             } == true
-        // Ordinary lookup remains member-only until those members fail. Include
-        // visible extensions here so they reach the normal shadowed-extension
-        // resolver instead of being replaced by the stdlib fallback first.
         let bulkExtensionCandidates = isMutableBulkCall ? collectExtensionCallCandidates(
             named: request.calleeName,
             memberLookupType: memberLookupType,
@@ -181,8 +159,6 @@ extension CallTypeChecker {
             && candidates.contains { candidateID in
                 request.sema.symbols.isSourceBackedSymbol(candidateID)
             }
-        // Synthetic collection members need to short-circuit before the generic
-        // overload resolver so their trailing-lambda expectations stay concrete.
         if !hasSourceBackedCandidate, let fallbackType = tryCollectionMemberFallback(
             request.id,
             calleeName: request.calleeName,
@@ -225,8 +201,6 @@ extension CallTypeChecker {
         return (effectiveReceiverType, nil)
     }
 
-    /// `earlyReturnType` carries a bound result only for the ambiguity
-    /// diagnostic that returns immediately.
     func prepareAndResolveRegularMemberCall(
         _ request: MemberCallInferenceRequest,
         candidates: [SymbolID],
@@ -252,8 +226,6 @@ extension CallTypeChecker {
         } else {
             false
         }
-        // A safe call or stable non-null flow fact proves this receiver can use
-        // the non-null view of its upper bounds during overload resolution.
         let receiverTypeForResolution: TypeID = {
             guard request.safeCall || hasNonNullFlowFact else { return effectiveReceiverType }
 
@@ -332,12 +304,6 @@ extension CallTypeChecker {
             ctx: request.ctx,
             locals: &locals
         )
-        // Older imported stdlib artifacts may still expose a String callback
-        // bridge alongside the bundled CharSequence declaration. Lambda
-        // preparation intentionally erases return types while finding a shared
-        // input shape, so prefer that compatibility bridge only when it is
-        // actually present and applicable; bundled source continues through
-        // the CharSequence declaration.
         if memberNameText == "replace",
            request.args.count == 2,
            request.sema.types.makeNonNullable(argTypes[0]) == request.sema.types.stringType,
@@ -358,8 +324,6 @@ extension CallTypeChecker {
             request.sema.symbols.externalLinkName(for: $0) == "kk_kxmini_async_await"
         }
         let resolutionExpectedType = isDeferredAwait ? nil : request.expectedType
-        // The nullable result of findAnnotation does not make its reified
-        // annotation argument nullable. Keep ordinary lookup and bound checking.
         let resolutionTypeArgs: [TypeID]
         if request.explicitTypeArgs.isEmpty, candidates.count == 1,
            let candidate = candidates.first,
@@ -406,11 +370,9 @@ extension CallTypeChecker {
             hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
             ctx: request.ctx
         )
-        // Ambiguous applicable members retain precedence over extensions.
         if let diagnostic = resolved.diagnostic,
            diagnostic.code == "KSWIFTK-SEMA-0003"
         {
-            // An unresolved receiver or argument already has the root diagnostic.
             let hasUnresolvedMemberInput = containsUnresolvedMemberDiagnostic(
                 in: [request.receiverID] + request.args.map(\.expr),
                 ast: request.ast,
@@ -421,15 +383,7 @@ extension CallTypeChecker {
             }
             return (candidates, preparedArgs, resolved, driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema))
         }
-        // A same-named member that cannot accept the call must not hide an
-        // applicable extension. Only retried after ordinary resolution failed, so
-        // a viable member (including range/lambda arguments whose provisional
-        // types are unreliable before resolution) always keeps precedence.
         if resolved.diagnostic != nil,
-           // Class-name receivers resolve through the companion object, so an
-           // extension on a companion supertype (e.g. `Base64.encode` via
-           // `Default`) must still be retried when an inherited member exists
-           // but cannot accept the call.
            (!isClassNameReceiver || companionReceiverType != nil),
            !isSuperCall,
            !request.args.contains(where: { request.ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true }),
@@ -462,7 +416,6 @@ extension CallTypeChecker {
                     )
                 }
             }
-            // Viable user extensions shadow outer bindings, not inapplicable ones.
             var extensionCandidates = receiverMatchingExtensions(request.ctx.scope.lookup(request.calleeName))
             if extensionCandidates.isEmpty || request.ctx.resolver.probeCall(
                 candidates: extensionCandidates,

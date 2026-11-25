@@ -48,6 +48,15 @@ let package = Package(
         .target(
             name: "RuntimeCAtomics"
         ),
+        // Content fingerprints hash artifact-sized inputs (the bundled stdlib
+        // `.kklib` is ~1 GB). CompilerCore uses this only in debug builds,
+        // where the pure-Swift SHA-256 fallback runs at a few MB/s and makes
+        // cache resolution take minutes; keep the target optimized even in
+        // debug compiler builds.
+        .target(
+            name: "CSHA256",
+            cSettings: [.unsafeFlags(["-O2"])]
+        ),
         .systemLibrary(
             name: "CSQLite",
             providers: [
@@ -56,7 +65,7 @@ let package = Package(
         ),
         .target(
             name: "CompilerCore",
-            dependencies: ["RuntimeABI"],
+            dependencies: ["RuntimeABI", "CSHA256"],
             resources: [
                 .copy("Stdlib"),
             ],
@@ -177,9 +186,3 @@ let package = Package(
     ],
     swiftLanguageModes: [.v6]
 )
-
-// SwiftPM's native build system links every test target into one test bundle.
-// The parallel smoke job only needs the target that contains SmokeTests.
-if ProcessInfo.processInfo.environment["KSWIFTK_CI_SMOKE_ONLY"] == "1" {
-    package.targets.removeAll { $0.type == .test && $0.name != "CompilerCoreTests" }
-}

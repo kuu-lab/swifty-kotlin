@@ -25,12 +25,6 @@ extension KIRLoweringDriver {
         return (flagSymbol, globalDeclID)
     }
 
-    /// BUG-274: emits a call to `objectSymbol`'s lazy initializer immediately
-    /// before its state (a stored property, its own value crossing an Any
-    /// boundary, or a member-function receiver) is touched -- mirroring the
-    /// JVM's clinit-on-first-static-access trigger. Imported-library objects
-    /// restore the same guarded function from metadata; legacy compiler-synthetic
-    /// pseudo-objects have neither entry.
     func emitObjectLazyInitGuardIfNeeded(
         objectSymbol: SymbolID,
         arena: KIRArena,
@@ -38,6 +32,7 @@ extension KIRLoweringDriver {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
+        guard !ctx.isObjectLazyInitOmitted(for: objectSymbol) else { return }
         if sema.symbols.externalLinkNameIfKnown(for: objectSymbol) != nil {
             return
         }
@@ -59,12 +54,6 @@ extension KIRLoweringDriver {
             lazyInitSymbol = ctx.deferredObjectLazyInitSymbol(for: objectSymbol)
             lazyInitName = objectInfo.name
         } else {
-            // A same-module object declared later than this use site -- its
-            // ensure-init function has not been synthesized yet, but its
-            // link name is deterministic and resolves at codegen. Decls
-            // that never synthesize a lazy init (imported/synthetic
-            // singletons, expect declarations, function-local objects)
-            // must not reach this path.
             guard let objectInfo = sema.symbols.symbol(objectSymbol),
                   objectInfo.kind == .object,
                   !objectInfo.flags.contains(.importedLibrary),
@@ -72,9 +61,6 @@ extension KIRLoweringDriver {
                   !objectInfo.flags.contains(.expectDeclaration)
             else { return }
             let parentSymbol = sema.symbols.parentSymbolIfKnown(for: objectSymbol)
-            // Only nominal/package ancestors produce a statically-emitted
-            // lazy init; a function or local ancestor means the object is
-            // function-local and never gets one.
             var ancestorSymbol = parentSymbol
             while let ancestorID = ancestorSymbol {
                 switch sema.symbols.symbol(ancestorID)?.kind {
@@ -87,10 +73,6 @@ extension KIRLoweringDriver {
             let isCompanion = parentSymbol.map {
                 sema.symbols.companionObjectSymbolIfKnown(for: $0) == objectSymbol
             } ?? false
-            // Nested (non-companion) objects only synthesize a lazy init when
-            // they need runtime initialization -- the same gate
-            // `synthesizeNestedObjectInitializers` applies. Top-level objects
-            // and companions always get one.
             let parentIsNominal = parentSymbol.map {
                 sema.symbols.symbol($0)?.kind != .package
             } ?? false
@@ -116,20 +98,6 @@ extension KIRLoweringDriver {
         instructions.append(.call(symbol: lazyInitSymbol, callee: lazyInitName, arguments: [], result: result, canThrow: false))
     }
 
-    /// KUU-3225: JVM class-initialization order (JLS 12.4.1; the same order
-    /// Kotlin 2.4.20 native/KLIB adopted for KT-84267/KT-40768).
-    /// Initializing a class runs its supertype initializers first — the
-    /// superclass chain, most distant ancestor first, before the class's
-    /// own companion — followed by superinterfaces that declare a concrete
-    /// (non-abstract) member. Companion-less classes contribute nothing
-    /// themselves but the traversal continues through them, and interfaces
-    /// declaring only abstract members are likewise skipped while their
-    /// superinterfaces still initialize.
-    ///
-    /// Only the nearest companion-owning nominal in each chain gets a call
-    /// emitted here: that ensure-init's own body carries the same
-    /// dependency preamble, so deeper ancestors are covered transitively.
-    /// `visited` deduplicates diamonds and guards malformed cyclic input.
     func emitSupertypeCompanionInitCalls(
         for nominalSymbol: SymbolID,
         sema: SemaModule,
@@ -153,19 +121,12 @@ extension KIRLoweringDriver {
         instructions: inout [KIRInstruction]
     ) {
         let supertypes = sema.symbols.directSupertypes(for: nominalSymbol)
-        // The superclass chain initializes before this class's own
-        // superinterfaces do.
         for superSymbol in supertypes {
             guard let kind = sema.symbols.symbol(superSymbol)?.kind,
                   kind == .class || kind == .enumClass,
                   superSymbol != sema.types.anyClassSymbol,
                   visited.insert(superSymbol).inserted
             else { continue }
-            // KUU-3822: a `companion {}` block is an initialization scope too;
-            // when a supertype carries only blocks (no `companion object`),
-            // its hidden `$CompanionBlocks` ensure-init is the <clinit> to
-            // call here. When both exist, the named companion's ensure-init
-            // already folds the block call inside itself.
             if let companionSymbol = sema.symbols.companionObjectSymbolIfKnown(for: superSymbol)
                 ?? sema.symbols.companionBlockObjectSymbol(for: superSymbol, interner: interner)
             {
@@ -208,10 +169,6 @@ extension KIRLoweringDriver {
             )
             return
         }
-        // Either the interface declares no concrete member — it is not an
-        // initialization dependency — or it declares one without owning a
-        // companion whose <clinit> would carry it. Both cases still recurse
-        // so reachable superinterfaces initialize.
         for superSymbol in sema.symbols.directSupertypes(for: interfaceSymbol) {
             guard sema.symbols.symbol(superSymbol)?.kind == .interface else { continue }
             emitInterfaceCompanionInitCalls(
@@ -221,11 +178,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    /// A superinterface is a class-initialization dependency only when it
-    /// declares at least one member with an implementation (a "default"
-    /// method). Companion objects, nested types, and abstract members do
-    /// not count: `interface J : I { companion object {…} }` is skipped
-    /// while `I` still initializes.
     private func interfaceDeclaresConcreteMember(
         _ interfaceSymbol: SymbolID,
         sema: SemaModule
@@ -257,8 +209,6 @@ extension KIRLoweringDriver {
                 if case let .call(symbol?, _, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType) = instruction,
                    let owner = ownersBySymbol[symbol]
                 {
-                    // Objects without an emitted initializer keep their existing
-                    // no-guard behavior, including skipped bundled declarations.
                     guard let lazyInit = ctx.objectLazyInit(for: owner) else { continue }
                     body.append(.call(symbol: lazyInit.ensureInitSymbol, callee: lazyInit.ensureInitName,
                         arguments: arguments, result: result, canThrow: canThrow, thrownResult: thrownResult,
@@ -274,21 +224,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    /// BUG-274: Kotlin runs `object`/`companion object` bodies lazily, on
-    /// first access, not eagerly at program start. This function keeps the
-    /// eager half (the singleton's heap handle via `kk_object_new`, its type
-    /// edges, and its vtable/itable registrations survive an `Any` boundary
-    /// or a virtual dispatch even before the object's own body has ever run,
-    /// exactly like a JVM object's identity existing before its `<clinit>`
-    /// fires) running unconditionally during module initialization -- it is
-    /// registered via `registerCompanionInitializer` for that. The property
-    /// initializers, `init` blocks, and implicit super-constructor call move
-    /// into a *separate* function guarded by a `$initialized` flag
-    /// (`synthesizeObjectLazyInit` below), which is registered via
-    /// `ctx.registerObjectLazyInit` instead: call sites that touch the
-    /// object's state (`emitObjectLazyInitGuardIfNeeded` above) call it, and
-    /// it runs the guarded body at most once, on whichever access comes
-    /// first.
     func synthesizeObjectInitializer(
         _ objectDecl: ObjectDecl,
         objectSymbol: SymbolID,
@@ -297,9 +232,6 @@ extension KIRLoweringDriver {
         ctx.registerObjectInitializer(for: objectSymbol)
         let sema = shared.sema
 
-        // A source-backed top-level singleton must have a real runtime handle
-        // even when it has no interfaces or virtual slots: it may cross an Any
-        // boundary.
         let interfaceSupertypes = ctx.nominalDispatchCache.transitiveInterfaceSupertypes(
             of: objectSymbol,
             sema: sema
@@ -322,8 +254,6 @@ extension KIRLoweringDriver {
 
         var body: KIRLoweringEmitContext = [.beginBlock]
 
-        // Allocate the singleton handle and store it in the global slot so
-        // generic Any rendering and virtual dispatch can recognize the object.
         let intType = sema.types.intType
         let layout = sema.symbols.nominalLayout(for: objectSymbol)
         let slotCount = Int64(max(layout?.instanceSizeWords ?? 1, 1))
@@ -420,8 +350,6 @@ extension KIRLoweringDriver {
                 interner: interner,
                 instructions: &body.instructions
             )
-            // Register interface property setters into the itable so a write
-            // through an interface-typed receiver can dispatch to them.
             appendObjectItablePropertySetterRegistrations(
                 objectValue: allocatedObj,
                 nominalSymbol: objectSymbol,
@@ -467,10 +395,6 @@ extension KIRLoweringDriver {
         declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())
         ctx.clearImplicitReceiver()
 
-        // BUG-274: companions are excluded here -- `synthesizeCompanionInitializerIfNeeded`
-        // synthesizes its own lazy body (including its super delegation), and
-        // an interface companion can still reach this function through the
-        // nested-object path below.
         if !objectDecl.modifiers.contains(.companion), externalLink == nil {
             declIDs.append(contentsOf: synthesizeObjectLazyInit(
                 objectDecl,
@@ -503,23 +427,6 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    /// KUU-3675: companion objects that never got an initializer from any
-    /// source — compiler-synthetic companions like `kotlin.String.Companion`
-    /// and the primitive companions created by
-    /// `ensureSyntheticPrimitiveCompanionSymbol` (no AST object declaration
-    /// exists for `synthesizeCompanionInitializerIfNeeded` to lower), plus
-    /// imported stub companions an artifact recorded without initializer
-    /// metadata — kept an empty root slot. `symbolRef`/`loadGlobal` then read
-    /// the weak-import zero value, which is not a tagged object, so any
-    /// nominal `kk_op_cast` on the companion (the erased-boundary casts in
-    /// lambda/function-value adapters, `as`/`is` checks) threw at runtime.
-    /// Synthesize the same eager handle a source companion's initializer
-    /// produces — `kk_object_new` + `storeGlobal` + the dispatch
-    /// registrations — and run it from module initialization, so the
-    /// singleton is a real object. Registered through
-    /// `registerCompanionInitializer` (not `SymbolTable`'s initializer link
-    /// tables) so the consumer keeps its weak/local slot definition instead
-    /// of switching to an external reference nothing defines.
     func synthesizeUninitializedCompanionHandles(
         shared: KIRLoweringSharedContext
     ) -> [KIRDeclID] {
@@ -539,16 +446,10 @@ extension KIRLoweringDriver {
             guard let ownerSymbol = sema.symbols.parentSymbolIfKnown(for: objectSymbol),
                   sema.symbols.companionObjectSymbolIfKnown(for: ownerSymbol) == objectSymbol
             else { continue }
-            // A source `companion object` declaration already produced an
-            // initializer via `synthesizeCompanionInitializerIfNeeded`;
-            // synthetic stubs and initializer-less imported companions are
-            // the only ones still missing a handle.
             guard symbolInfo.flags.contains(.synthetic)
                   || symbolInfo.flags.contains(.importedLibrary),
                   !symbolInfo.flags.contains(.expectDeclaration)
             else { continue }
-            // An artifact-recorded initializer shell (or a runtime-provided
-            // external handle) already populates the slot.
             guard sema.symbols.objectInitializerSymbolIfKnown(for: objectSymbol) == nil,
                   sema.symbols.companionObjectInitializerSymbolIfKnown(for: ownerSymbol) == nil,
                   sema.symbols.externalLinkNameIfKnown(for: objectSymbol)?.isEmpty != false
@@ -573,9 +474,6 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    /// Emits the `__companion_init_<owner>_<object>` function for
-    /// ``synthesizeUninitializedCompanionHandles``. The name keeps the
-    /// established metadata convention, so a `.kklib` built from this module
     /// re-exports the initializer and downstream consumers can call it
     /// instead of synthesizing their own. The allocation is guarded by a
     /// zero check: more than one module can legitimately emit an initializer
@@ -701,9 +599,6 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    /// BUG-274: the object's heap handle already exists (allocated eagerly by
-    /// `synthesizeObjectInitializer`), so this function only needs to
-    /// `loadGlobal` it before delegating to the superclass constructor.
     private func synthesizeObjectLazyInit(
         _ objectDecl: ObjectDecl,
         objectSymbol: SymbolID,
@@ -743,18 +638,10 @@ extension KIRLoweringDriver {
         // sees "already initialized" and does not recurse.
         body.append(.storeGlobal(value: trueExpr, symbol: flagSymbol))
 
-        // KUU-3822: a `$CompanionBlocks` object is the hidden implementation
-        // scope of a `companion {}` block, so its <clinit> is the *owner*
-        // class's companion initialization: the owner's supertype companions
-        // initialize before the block's own body, exactly like a named
-        // `companion object` (whose ensure-init takes the same preamble).
         let companionBlockOwnerSymbol = sema.symbols.parentSymbolIfKnown(for: objectSymbol).flatMap { owner in
             sema.symbols.companionBlockObjectSymbol(for: owner, interner: interner) == objectSymbol ? owner : nil
         }
 
-        // KUU-3225: touching the object is an active use of its class — on
-        // the JVM the supertype companions initialize before this object's
-        // own <clinit> body (and before the super-constructor call below).
         emitSupertypeCompanionInitCalls(
             for: companionBlockOwnerSymbol ?? objectSymbol,
             sema: sema, arena: arena, interner: interner,
@@ -818,12 +705,6 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    /// Kotlin runs the superclass constructor before the object's own
-    /// initializers, so the superclass's property initializers and `init`
-    /// blocks — which write into the same instance at the layout offsets the
-    /// object inherits — must execute here. Without this call the object keeps the zeroed
-    /// defaults for every inherited property (same root cause as BUG-155 for
-    /// named classes and KSP-CAP-018 for object literals).
     func emitNamedObjectSuperConstructorCall(
         _ objectDecl: ObjectDecl,
         objectSymbol: SymbolID,
@@ -885,7 +766,6 @@ extension KIRLoweringDriver {
         if sema.symbols.symbol(superCtorSymbol)?.flags.contains(.synthetic) == true,
            sema.symbols.parentSymbol(for: superCtorSymbol) == sema.types.anyClassSymbol
         {
-            // Any's compiler-provided constructor has no body to delegate to.
             return
         }
 
@@ -905,17 +785,6 @@ extension KIRLoweringDriver {
         )
     }
 
-    /// Picks which of the superclass's `<init>` overloads `argExprs` (the
-    /// `object ... : Base(args)` header) actually calls. A single candidate
-    /// is used as-is; multiple candidates are first narrowed by arity, then —
-    /// if more than one still matches — by parameter type (using each
-    /// argument's Sema-resolved expression type, with a type-parameter
-    /// position treated as a wildcard, mirroring `resolveOverriddenVtableSlot`
-    /// in `VtableOverrideMatching.swift`). Falls back to the first candidate
-    /// when nothing narrows cleanly (e.g. a defaulted trailing parameter
-    /// omitted at the call site) rather than emitting no super call at all.
-    /// Objects prefer the Sema call binding and only reach this heuristic
-    /// when none was recorded.
     func resolveObjectSuperConstructor(
         candidates: [SymbolID],
         argExprs: [ExprID],

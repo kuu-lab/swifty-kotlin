@@ -375,8 +375,6 @@ extension DataFlowSemaPhase {
         let functionName = interner.intern(name)
         let functionFQName = packageFQName + [functionName]
         let parameterTypes = parameters.map(\.type)
-        // KUU-2673: re-run once the first lazy imported candidate materializes
-        // instead of decoding its signature eagerly for the dedup check.
         if symbols.deferWorkUntilImportedMemberMaterializes(at: functionFQName, work: { [self] in
             registerSyntheticNativeTopLevelFunction(
                 named: name,

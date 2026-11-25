@@ -1,21 +1,9 @@
-/// KUU-1407: shared validation for declaration positions and modifier
-/// combinations that Kotlin/JVM rejects but KSwiftK previously accepted
-/// silently. The DataFlow sema pass drives this for file-scope and member
-/// declarations; the AST builder reuses it for members of local nominal
-/// declarations (a local declaration itself is an expression, so its own
-/// modifiers are validated while parsing).
 struct DeclarationPositionValidator {
     let astArena: ASTArena
     let interner: StringInterner
     let diagnostics: DiagnosticEngine?
     var fullValueClassesEnabled: Bool = false
     var jvmInlineAnnotationNames: Set<String> = ["JvmInline", "kotlin.jvm.JvmInline"]
-    /// KUU-4119: sema-time resolver for the effective visibility of an
-    /// `override` property that does not repeat a visibility modifier (it
-    /// inherits the overridden member's visibility). AST-build-time callers
-    /// (local and anonymous declarations) leave this nil; the accessor
-    /// visibility check then treats the effective visibility as unknown
-    /// instead of wrongly assuming `public`.
     var inheritedPropertyVisibility: ((DeclID) -> Visibility?)? = nil
 
     static func validateMultipleVarargParameters(
@@ -52,8 +40,6 @@ struct DeclarationPositionValidator {
             }
         }
 
-        /// `true` when the declaration is a nominal member, i.e. has a
-        /// dispatch receiver in kotlinc's operator-eligibility terms.
         var isNominalMemberSite: Bool {
             if case .nominal = self {
                 return true
@@ -61,8 +47,6 @@ struct DeclarationPositionValidator {
             return false
         }
 
-        /// `true` when the declaration is a member of a `companion object` —
-        /// the only site where the collection-literals `of` operator is legal.
         var isCompanionMemberSite: Bool {
             if case .nominal(let site) = self, site.kind == .companionObject {
                 return true
@@ -84,17 +68,9 @@ struct DeclarationPositionValidator {
 
         var kind: Kind
         var isLocal: Bool
-        /// `true` for an anonymous `object : ... { }` expression — unlike a
-        /// named object, the anonymous instance can serve as the enclosing
-        /// receiver of an `inner` member (Kotlin/JVM accepts that form).
         var isAnonymousObjectLiteral: Bool = false
         var ownerModifiers: Modifiers
-        /// `true` when the owner has `init` blocks or secondary constructors
-        /// that can assign stored member properties imperatively.
         var allowsImperativeInit: Bool = false
-        /// `true` when member property initialization needs flow analysis,
-        /// including initializers that may prevent later declarations from
-        /// being reached.
         var defersPropertyInitialization: Bool = false
 
         var name: String {
@@ -139,8 +115,6 @@ struct DeclarationPositionValidator {
         case .typeAliasDecl(let typeAliasDecl):
             validateTypeAlias(typeAliasDecl, site: site)
         case .enumEntryDecl:
-            // Enum entries are reached through the parent enum's
-            // `enumEntries`, not through standalone DeclIDs.
             break
         }
     }
@@ -198,7 +172,7 @@ struct DeclarationPositionValidator {
             validateInterfaceMemberModifiers(
                 modifiers, site: nominal, excluding: conflictCovered, range: decl.range
             )
-            if nominal.kind == .object {
+            if nominal.kind == .object, !nominal.isAnonymousObjectLiteral {
                 if modifiers.contains(.protected), !conflictCovered.contains(.protected) {
                     emitInside("protected", inside: nominal.name, range: decl.range)
                 }
@@ -210,8 +184,6 @@ struct DeclarationPositionValidator {
             if modifiers.contains(.expect), !conflictCovered.contains(.expect) {
                 emitNotApplicable("expect", to: "member function", range: decl.range)
             }
-            // `actual` members are covered by the orphan-actual symbol check
-            // (KSWIFTK-SEMA-0410), which verifies expect-pairing directly.
         }
 
         if modifiers.contains(.operator) {
@@ -239,9 +211,6 @@ struct DeclarationPositionValidator {
         }
 
         if modifiers.contains(.infix) {
-            // kotlinc requires `infix` functions to be members or extension
-            // functions with exactly one non-vararg value parameter. A
-            // default value on that parameter is accepted.
             let hasReceiver: Bool
             switch site {
             case .nominal:
@@ -263,8 +232,6 @@ struct DeclarationPositionValidator {
 
         emitPairConflicts(pairPlan.emissions, range: decl.range)
 
-        // Other bodyless-function cases are already covered by
-        // KSWIFTK-SEMA-0009; only the interface-private combination is a gap.
         if decl.body == .unit,
            modifiers.contains(.private),
            !modifiers.contains(.external),
@@ -280,9 +247,6 @@ struct DeclarationPositionValidator {
     }
 
     private func validateProperty(_ decl: PropertyDecl, site: OwnerSite, declID: DeclID) {
-        // Primary-constructor `val`/`var` parameters are materialized as
-        // member properties; modifier applicability and conflicts were already
-        // reported on the parameter tokens by BuildAST.
         if decl.isSynthesizedPrimaryConstructorProperty {
             return
         }
@@ -324,8 +288,6 @@ struct DeclarationPositionValidator {
             if modifier == .inline, isInlinePropertyWithCustomAccessors(decl, site: site) {
                 continue
             }
-            // kotlinc names the generic 'property' target for `external`
-            // instead of the backing-field-refined description.
             emitNotApplicable(name, to: modifier == .external ? "property" : target, range: decl.range)
         }
 
@@ -349,8 +311,8 @@ struct DeclarationPositionValidator {
                 modifiers, site: nominal, excluding: conflictCovered,
                 checksExternal: false, range: decl.range
             )
-            if nominal.kind == .object, modifiers.contains(.protected),
-               !conflictCovered.contains(.protected)
+            if nominal.kind == .object, !nominal.isAnonymousObjectLiteral,
+               modifiers.contains(.protected), !conflictCovered.contains(.protected)
             {
                 emitInside("protected", inside: nominal.name, range: decl.range)
             }
@@ -386,8 +348,6 @@ struct DeclarationPositionValidator {
             case .file:
                 true
             case .function:
-                // Local `const` is diagnosed as a misplaced modifier by the
-                // statement parser already; keep silent here.
                 false
             case .nominal(let nominal):
                 nominal.kind == .object || nominal.kind == .companionObject
@@ -411,15 +371,6 @@ struct DeclarationPositionValidator {
         validatePropertyInitialization(decl, site: site)
     }
 
-    /// KUU-4119: kotlinc rejects an accessor whose explicit visibility does
-    /// not fit the property's visibility — the getter must spell the same
-    /// visibility (`GETTER_VISIBILITY_DIFFERS_FROM_PROPERTY_VISIBILITY`),
-    /// while the setter may only be narrower
-    /// (`SETTER_VISIBILITY_INCONSISTENT_WITH_PROPERTY_VISIBILITY`).
-    /// `protected` and `internal` are unordered relative to each other, so
-    /// either direction of that pairing is rejected. An `override` without
-    /// its own visibility modifier inherits the overridden member's; the
-    /// `inheritedPropertyVisibility` resolver supplies it at sema time.
     private func validateAccessorVisibility(_ decl: PropertyDecl, declID: DeclID) {
         let effectiveVisibility: Visibility?
         if decl.modifiers.contains(.override),
@@ -435,9 +386,6 @@ struct DeclarationPositionValidator {
             if let effectiveVisibility {
                 differs = getterVisibility != effectiveVisibility
             } else {
-                // The inherited visibility is unknown; `private` is the only
-                // spelling that provably differs, since no overridable member
-                // can be private.
                 differs = getterVisibility == .private
             }
             if differs {
@@ -460,11 +408,6 @@ struct DeclarationPositionValidator {
         }
     }
 
-    /// Kotlin's visibility partial order: `private` is narrower than every
-    /// visibility, and both `protected` and `internal` are narrower than
-    /// `public` but unordered relative to each other — kotlinc therefore
-    /// rejects both directions of a `protected`/`internal` property–setter
-    /// pair as "more permissive".
     private static func isNotMorePermissive(_ accessor: Visibility, than property: Visibility) -> Bool {
         accessor == property || accessor == .private || property == .public
     }
@@ -477,9 +420,6 @@ struct DeclarationPositionValidator {
         decl.initializer == nil && decl.getter == nil && decl.setter == nil
     }
 
-    /// KUU-2879: inline properties need explicit, implemented accessors so
-    /// they have no backing field. Mutable properties need both accessors;
-    /// inline member accessors must not be virtual.
     private func isInlinePropertyWithCustomAccessors(_ decl: PropertyDecl, site: OwnerSite) -> Bool {
         switch site {
         case .file:
@@ -508,16 +448,6 @@ struct DeclarationPositionValidator {
         return decl.setter == nil
     }
 
-    /// KUU-4110: kotlinc prohibits `inline` on virtual members — "Only
-    /// private or final members can be inlined." `open`, `abstract`, and
-    /// `override` (which is implicitly `open` unless `final`) only make a
-    /// member virtual when the owner can actually be subclassed: enum
-    /// classes (entries may override members) and classes carrying `open`,
-    /// `abstract`, or `sealed`. In final classes, objects, companion
-    /// objects, and enum entry bodies every member is effectively final, so
-    /// `override` — and a no-effect `open` — accept `inline`. Interface
-    /// members are virtual unless `private` or `final` (`final` there is
-    /// diagnosed separately).
     private func memberIsVirtualForInline(_ modifiers: Modifiers, owner: NominalSite) -> Bool {
         if modifiers.contains(.private) || modifiers.contains(.final) {
             return false
@@ -543,10 +473,6 @@ struct DeclarationPositionValidator {
         }
     }
 
-    /// A `field` reference inside an accessor materializes a backing field.
-    /// A `val` only resolves `field` when it declares a type (`val x
-    /// get() = field` leaves it unresolved); a `var` always can, since its
-    /// type is inferable from the sibling accessor.
     private func accessorCreatesBackingField(
         _ decl: PropertyDecl,
         accessor: PropertyAccessorDecl?
@@ -579,19 +505,12 @@ struct DeclarationPositionValidator {
             return
         }
         if case .nominal(let nominal) = site {
-            // Members of `expect` declarations declare signatures only.
             if nominal.ownerModifiers.contains(.expect) {
                 return
             }
-            // Bodiless interface properties are implicitly abstract.
             if nominal.kind == .interface, isImplicitlyAbstractInterfaceProperty(decl) {
                 return
             }
-            // Property initializers, init blocks, and secondary constructors
-            // require flow analysis before missing storage can be diagnosed.
-            // Annotation-class members cannot be assigned through init
-            // blocks or constructors — those are prohibited members
-            // themselves — so the check runs unconditionally there.
             if nominal.kind != .annotationClass,
                nominal.allowsImperativeInit || nominal.defersPropertyInitialization
             {
@@ -611,9 +530,6 @@ struct DeclarationPositionValidator {
         let usesBackingField = accessorUsesBackingField(decl.getter)
             || accessorUsesBackingField(decl.setter)
         let initialized = if decl.isVar {
-            // An explicit empty body is still a custom accessor. The property
-            // is fieldless only when both accessors have bodies and neither
-            // uses `field`; a bodiless/default accessor still needs storage.
             accessorHasBody(decl.getter)
                 && accessorHasBody(decl.setter)
                 && !usesBackingField
@@ -621,8 +537,6 @@ struct DeclarationPositionValidator {
             accessorHasBody(decl.getter) && !usesBackingField
         }
         if !initialized {
-            // A property with custom accessor bodies is concrete — kotlinc
-            // drops the "or be abstract" hint in that shape.
             let hasAccessorBody = accessorHasBody(decl.getter) || accessorHasBody(decl.setter)
             let message = switch site {
             case .file:
@@ -634,8 +548,6 @@ struct DeclarationPositionValidator {
                     ? "property must be initialized."
                     : "property must be initialized or be abstract."
             }
-            // kotlinc underlines the `val`/`var` keyword, not leading
-            // modifiers.
             diagnostics?.error(
                 "KSWIFTK-SEMA-0424",
                 message,
@@ -796,17 +708,11 @@ struct DeclarationPositionValidator {
             validateVisibilityModifierConflicts(constructor.modifiers, range: constructor.range)
         }
         let isEnum = modifiers.contains(.enumModifier)
-        // `annotation enum class` resolves to an enum: the annotation modifier
-        // is kind-invalid on it rather than making it an annotation class.
         let isAnnotation = modifiers.contains(.annotationClass) && !isEnum
-        // `inline class` is the deprecated spelling of `value class`, so it
-        // obeys the same position/finality constraints (SEMA-0420/0422).
         let isValue = modifiers.contains(.value)
             || (modifiers.contains(.inline) && !isEnum && !isAnnotation)
         let kindName: String
         if isAnnotation {
-            // kotlinc keeps the 'annotation class' kind name for local
-            // annotation classes; only class and enum become 'local class'.
             kindName = "annotation class"
         } else if site == .function {
             kindName = "local class"
@@ -851,9 +757,6 @@ struct DeclarationPositionValidator {
                     range: decl.range
                 )
             }
-            // Annotation and value classes must declare their `val`
-            // parameters, so kotlinc exempts them from the property-parameter
-            // rule; every other expect class kind reports the constructor.
             if !isAnnotation, isEnum || !isValue, decl.primaryConstructorParams.contains(where: \.isProperty) {
                 diagnostics?.error(
                     "KSWIFTK-SEMA-0456",
@@ -869,8 +772,6 @@ struct DeclarationPositionValidator {
                 )
             }
             for entry in decl.enumEntries {
-                // An entry's `(...)` invokes the enum's constructor — inside an
-                // expect enum that is a supertype initialization site.
                 if entry.hasConstructorCallSyntax {
                     diagnostics?.error(
                         "KSWIFTK-SEMA-0457",
@@ -899,11 +800,6 @@ struct DeclarationPositionValidator {
         for (modifier, name) in Self.classImpossibleModifiers where modifiers.contains(modifier) {
             emitNotApplicable(name, to: kindName, range: decl.range)
         }
-        // `inline class` is the deprecated spelling of `value class`: kotlinc
-        // accepts it with a deprecation warning and the class is still treated
-        // as a value class downstream (isValueClassDeclaration covers .inline).
-        // Enum and annotation classes cannot be value classes, so `inline`
-        // stays impossible there.
         if modifiers.contains(.inline) {
             if isEnum {
                 emitNotApplicable("inline", to: "enum class", range: decl.range)
@@ -919,9 +815,6 @@ struct DeclarationPositionValidator {
         }
         if site == .function {
             if isAnnotation {
-                // A local annotation class still takes its kind-forbidden
-                // diagnostics below, but kotlinc phrases visibility
-                // positionally and never emits the local-class set.
                 for (modifier, name) in Self.localNominalVisibilityModifiers
                 where modifiers.contains(modifier) {
                     emitInside(name, inside: "function", range: decl.range)
@@ -942,7 +835,6 @@ struct DeclarationPositionValidator {
             }
         }
         if modifiers.contains(.external) {
-            // kotlinc calls every nominal 'class' for the external check.
             emitNotApplicable("external", to: "class", range: decl.range)
         }
         if isEnum {
@@ -950,10 +842,6 @@ struct DeclarationPositionValidator {
             for (modifier, name) in Self.enumForbiddenModifiers
             where modifiers.contains(modifier) && !conflictCovered.contains(modifier) {
                 if site == .function {
-                    // A locally declared 'enum' is only diagnosed for its
-                    // nominal-kind conflicts: modality modifiers and `data`
-                    // are subsumed by the 'enum to local class' error, and
-                    // local-class-forbidden modifiers already fired above.
                     if modifier == .open || modifier == .abstract || modifier == .data
                         || Self.localClassForbiddenModifiers.contains(where: { $0.0 == modifier })
                     {
@@ -993,8 +881,6 @@ struct DeclarationPositionValidator {
             emitNotApplicable("protected", to: "top level class", range: decl.range)
         }
 
-        // `inner` is kind-invalid on enum and annotation classes, so the
-        // not-applicable-to diagnostic owns it without a positional duplicate.
         if !conflictCovered.contains(.inner), !isEnum, !isAnnotation {
             validateInnerPosition(modifiers, site: site, range: decl.range)
         }
@@ -1004,10 +890,6 @@ struct DeclarationPositionValidator {
 
         emitPairConflicts(pairPlan.emissions, range: decl.range)
 
-        // kotlinc prohibits `by`-delegation in `expect` classes (one error
-        // per delegated supertype entry, at the `I by d` specifier). Kept in
-        // its own expect-context block so it stays independent of the
-        // KUU-3898 expect-shape checks above.
         if isExpectContext(modifiers, site: site) {
             emitExpectDelegationDiagnostics(decl.superTypeEntries, fallbackRange: decl.range)
         }
@@ -1053,9 +935,6 @@ struct DeclarationPositionValidator {
                     )
                 }
             }
-            // kotlinc reports each prohibited member separately, underlining
-            // the declaring keyword (`fun`, `val`, `constructor`, `init`,
-            // `typealias`) in source order.
             var memberRanges: [SourceRange] = []
             for declID in decl.memberFunctions {
                 guard let memberDecl = astArena.decl(declID),
@@ -1101,9 +980,6 @@ struct DeclarationPositionValidator {
 
     private func validateClassMembers(_ decl: ClassDecl, site: NominalSite) {
         let memberSite = OwnerSite.nominal(site)
-        // Annotation instance members are reported wholesale above, but
-        // kotlinc still validates them as members (modifier applicability,
-        // property initialization, ...).
         for declID in decl.memberFunctions {
             validate(declID: declID, site: memberSite)
         }
@@ -1158,8 +1034,6 @@ struct DeclarationPositionValidator {
         if site == .file, modifiers.contains(.protected) {
             emitNotApplicable("protected", to: "top level interface", range: decl.range)
         }
-        // `inner` is always kind-invalid on interfaces, so validateInnerPosition
-        // would double-report; the not-applicable-to diagnostic owns it.
         if isExpectContext(modifiers, site: site), modifiers.contains(.private) {
             emitExpectNotPrivate(range: decl.range)
         }
@@ -1185,10 +1059,6 @@ struct DeclarationPositionValidator {
             }
         }
 
-        // kotlinc prohibits `by`-delegation on interfaces outright: each
-        // delegated supertype entry reports at its type portion (`I` in
-        // `I by d`). An `expect` interface still collects the SEMA-0460
-        // delegation error on the same specifier, like kotlinc.
         for entry in decl.superTypeEntries where entry.delegateExpression != nil {
             diagnostics?.error(
                 "KSWIFTK-SEMA-0461",
@@ -1233,8 +1103,6 @@ struct DeclarationPositionValidator {
     private func validateObject(_ decl: ObjectDecl, site: OwnerSite) {
         let modifiers = decl.modifiers
         validateVisibilityModifierConflicts(modifiers, range: decl.range)
-        // kotlinc calls every named object a 'standalone object' in modifier
-        // diagnostics, including function-local ones.
         let kindName = "standalone object"
 
         for (modifier, name) in Self.objectImpossibleModifiers where modifiers.contains(modifier) {
@@ -1264,17 +1132,11 @@ struct DeclarationPositionValidator {
             }
         }
         if site == .function {
-            // kotlinc phrases visibility on local objects positionally and
-            // skips `public`/`expect` entirely.
             for (modifier, name) in Self.localNominalVisibilityModifiers where modifiers.contains(modifier) {
                 emitInside(name, inside: "function", range: decl.range)
             }
         }
 
-        // A named object can only be a top-level or member declaration — in
-        // any local position (function body, member of a local/anonymous
-        // nominal, enum entry) kotlinc reports "named object 'X' cannot be
-        // local". `companion object` takes its own not-applicable check below.
         let isLocalSite = switch site {
         case .file:
             false
@@ -1312,8 +1174,6 @@ struct DeclarationPositionValidator {
             validateMemberSiteModifiers(modifiers, site: nominal, target: "nested class", range: decl.range)
         }
 
-        // kotlinc reports the same 'expect' delegation error on objects
-        // (`expect object O : I by d`), still phrased "'expect' classes".
         if isExpectContext(modifiers, site: site) {
             emitExpectDelegationDiagnostics(decl.superTypeEntries, fallbackRange: decl.range)
         }
@@ -1330,10 +1190,6 @@ struct DeclarationPositionValidator {
         validateObjectMembers(decl, site: memberSite)
     }
 
-    /// Anonymous object expressions carry no source modifiers of their own,
-    /// so only their members are checked — at the same member site a named
-    /// local object would produce, except that `inner` members are legal
-    /// (the anonymous object instance acts as their enclosing receiver).
     func validateAnonymousObjectLiteralMembers(_ decl: ObjectDecl) {
         let memberSite = NominalSite(
             kind: .object,
@@ -1369,9 +1225,6 @@ struct DeclarationPositionValidator {
         }
     }
 
-    /// kotlinc's collection-literals rule: once a companion object declares
-    /// `operator fun of` overloads, at least one of them must carry a
-    /// `vararg` parameter — otherwise the error lands on every `of` overload.
     private func validateCollectionLiteralOfOverloadSet(_ memberFunctions: [DeclID]) {
         var ofDecls: [FunDecl] = []
         var hasVarargOf = false
@@ -1407,8 +1260,6 @@ struct DeclarationPositionValidator {
             emitNotApplicable(name, to: "typealias", range: decl.range)
         }
         if site == .function {
-            // Local typealiases reject non-default visibility positionally,
-            // like local objects/interfaces; `public`/`expect` go unreported.
             for (modifier, name) in Self.localNominalVisibilityModifiers where decl.modifiers.contains(modifier) {
                 emitInside(name, inside: "function", range: decl.range)
             }
@@ -1421,8 +1272,6 @@ struct DeclarationPositionValidator {
         }
     }
 
-    /// `inner` is only legal inside a non-local class-like body (a class,
-    /// enum, or enum entry — including members of local classes).
     private func validateInnerPosition(
         _ modifiers: Modifiers,
         site: OwnerSite,
@@ -1458,8 +1307,6 @@ struct DeclarationPositionValidator {
         guard site.kind == .interface else {
             return
         }
-        // `protected` inside interfaces is diagnosed by the
-        // open/final/override pass (KUU-1406) and intentionally not repeated.
         if modifiers.contains(.internal), !conflictCovered.contains(.internal) {
             emitInside("internal", inside: "interface", range: range)
         }
@@ -1475,9 +1322,6 @@ struct DeclarationPositionValidator {
         }
     }
 
-    /// kotlinc rejects non-default visibilities and `override` on
-    /// annotation-class members with 'inside annotation class' wording.
-    /// `open`/`final`/`external`/etc. produce no site diagnostic there.
     private func validateAnnotationMemberSiteModifiers(
         _ modifiers: Modifiers,
         site: NominalSite,
@@ -1512,12 +1356,6 @@ struct DeclarationPositionValidator {
         }
     }
 
-    /// kotlinc reports an incompatible-modifier pair once per modifier: each
-    /// modifier names its first conflicting partner. A modifier that is invalid
-    /// at this site only reports a conflict when an earlier pair entry claims
-    /// it; otherwise the site's not-applicable diagnostic owns it. Returns the
-    /// modifiers that emitted a conflict so callers can suppress redundant
-    /// applicability diagnostics for them.
     @discardableResult
     private func emitIncompatiblePairs(
         _ modifiers: Modifiers,
@@ -1620,8 +1458,6 @@ struct DeclarationPositionValidator {
         )
     }
 
-    /// `expect` declarations — including members of `expect` owners, which
-    /// are expected implicitly — cannot be private or carry a body.
     private func isExpectContext(_ modifiers: Modifiers, site: OwnerSite) -> Bool {
         if modifiers.contains(.expect) {
             return true
@@ -1632,10 +1468,6 @@ struct DeclarationPositionValidator {
         return false
     }
 
-    /// Members of an `expect` owner are themselves expected implicitly at any
-    /// nesting depth — e.g. properties of a `companion object` inside an
-    /// `expect class` need no initializer — so the marker propagates into
-    /// each member site.
     private func memberOwnerModifiers(_ modifiers: Modifiers, site: OwnerSite) -> Modifiers {
         isExpectContext(modifiers, site: site) ? modifiers.union(.expect) : modifiers
     }
@@ -1656,11 +1488,6 @@ struct DeclarationPositionValidator {
         )
     }
 
-    /// kotlinc emits "implementation by delegation in 'expect' classes is
-    /// prohibited." once per delegated supertype entry (`I by d`), covering
-    /// the whole `Type by expr` specifier. Applies to classes, objects,
-    /// enum classes, and their nested members inside an `expect` owner —
-    /// anywhere `isExpectContext` holds.
     private func emitExpectDelegationDiagnostics(
         _ entries: [SuperTypeEntry],
         fallbackRange: SourceRange
@@ -1697,10 +1524,6 @@ struct DeclarationPositionValidator {
         }
     }
 
-    /// kotlinc qualifies modifier targets by backing-field shape: a
-    /// delegated property is 'with delegate'; a property that cannot have
-    /// a backing field is 'without backing field or delegate'; otherwise
-    /// 'with backing field'. Local variables keep the plain name.
     private func propertyTargetName(decl: PropertyDecl, site: OwnerSite) -> String {
         if case .function = site {
             return "local variable"
@@ -1714,12 +1537,6 @@ struct DeclarationPositionValidator {
             : "\(base) with backing field"
     }
 
-    /// A `var` always reports a backing field in these diagnostics; a `val`
-    /// is fieldless only when a custom getter body exists and does not
-    /// resolve a `field` reference. `abstract`/`expect` properties and
-    /// interface members never have one. A `field` reference only creates
-    /// the field when the property is typed — `val x get() = field`
-    /// leaves `field` unresolved and stays fieldless.
     private func propertyIsFieldless(_ decl: PropertyDecl, site: OwnerSite) -> Bool {
         if decl.modifiers.contains(.abstract) || decl.modifiers.contains(.expect) {
             return true
@@ -1737,13 +1554,10 @@ struct DeclarationPositionValidator {
         return accessorHasBody(decl.getter) && !getterResolvesField
     }
 
-    /// Function names that legally carry the `operator` modifier.
     static func isLegalOperatorName(_ name: String) -> Bool {
         if legalOperatorNames.contains(name) {
             return true
         }
-        // kotlinc's component convention accepts `component\d+`, so
-        // `component0` and arbitrarily large suffixes are legal names.
         return isLegalComponentName(name)
     }
 
@@ -1754,19 +1568,9 @@ struct DeclarationPositionValidator {
         "rangeTo", "rangeUntil", "contains",
         "get", "set", "invoke", "iterator", "next", "hasNext",
         "compareTo", "equals", "provideDelegate", "getValue", "setValue",
-        // `of` is the collection-literals factory operator. kotlinc gates it
-        // behind the experimental `-Xcollection-literals` flag; KSwiftK
-        // accepts it unconditionally (same posture as explicit backing
-        // fields).
         "of",
     ]
 
-    /// KUU-3149: per-name `operator` eligibility rules mirroring the check
-    /// order of kotlinc 2.4.20's `OperatorFunctionChecks`, so the first
-    /// reported violation matches the JVM diagnostic. Legs that need resolved
-    /// types (return-type predicates, the `KProperty` parameter of the
-    /// delegate operators, the inc/dec receiver-subsumption check) are not
-    /// reproduced here.
     static func operatorEligibilityViolation(
         name: String,
         isMember: Bool,
@@ -1838,7 +1642,6 @@ struct DeclarationPositionValidator {
     enum OperatorEligibilityRule {
         case memberOrExtension
         case member
-        /// Collection-literals `of` is only legal on a `companion object`.
         case memberOfCompanion
         case noParams
         case singleParam
@@ -1848,9 +1651,6 @@ struct DeclarationPositionValidator {
         case noDefaultAndVarargs
         case lastParamNoDefaultOrVararg
         case nonSuspend
-        /// kotlinc verifies that `equals` overrides `Any.equals`; the
-        /// arity-visible half of that check needs exactly one value
-        /// parameter — any other count can never override it.
         case overridesAnyEquals
 
         func violation(
@@ -1909,10 +1709,6 @@ struct DeclarationPositionValidator {
         (.final, "final", .open, "open"),
         (.private, "private", .open, "open"),
         (.private, "private", .abstract, "abstract"),
-        // KUU-4155: `private` members cannot participate in overriding, so
-        // `private` and `override` are incompatible in both directions —
-        // even where `override` is itself not applicable (e.g. top level),
-        // kotlinc still reports the pair rather than the site diagnostic.
         (.private, "private", .override, "override"),
         (.expect, "expect", .actual, "actual"),
     ]
@@ -1931,8 +1727,6 @@ struct DeclarationPositionValidator {
         (.sealed, "sealed", .inner, "inner"),
     ]
 
-    /// Modifiers whose site diagnostic owns the error unless an earlier pair
-    /// partner claims them — used as `invalidModifiers` for member pairs.
     private static func memberSiteInvalidModifiers(_ site: OwnerSite) -> Modifiers {
         switch site {
         case .file:
@@ -1997,17 +1791,11 @@ struct DeclarationPositionValidator {
         (.value, "value"), (.enumModifier, "enum"), (.companion, "companion"),
     ]
 
-    /// Modifiers kotlinc diagnoses as 'not applicable inside annotation
-    /// class' on instance members. `open`/`final`/`external`/`lateinit`/
-    /// `inline`/`const`-site checks go unreported or report their own
-    /// diagnostic there.
     private static let annotationMemberForbiddenModifiers: [(Modifiers, String)] = [
         (.private, "private"), (.protected, "protected"),
         (.internal, "internal"), (.override, "override"),
     ]
 
-    /// `open`, `abstract` and `sealed` are legal on an interface — kotlinc
-    /// reports no diagnostic for them, so they must not appear here.
     private static let interfaceForbiddenModifiers: [(Modifiers, String)] = [
         (.final, "final"), (.inner, "inner"),
         (.data, "data"), (.value, "value"), (.enumModifier, "enum"),
@@ -2028,17 +1816,12 @@ struct DeclarationPositionValidator {
         (.noinline, "noinline"), (.funModifier, "fun"),
     ]
 
-    /// `actual` is omitted: the orphan-actual symbol check
-    /// (KSWIFTK-SEMA-0410) reports it with better context.
     private static let localClassForbiddenModifiers: [(Modifiers, String)] = [
         (.public, "public"), (.private, "private"), (.internal, "internal"),
         (.protected, "protected"), (.expect, "expect"),
         (.sealed, "sealed"), (.enumModifier, "enum"),
     ]
 
-    /// On local objects (and, separately, local interfaces) kotlinc phrases
-    /// non-default visibility positionally rather than as a kind conflict;
-    /// `public` and `expect` go unreported there.
     private static let localNominalVisibilityModifiers: [(Modifiers, String)] = [
         (.private, "private"), (.internal, "internal"), (.protected, "protected"),
     ]
