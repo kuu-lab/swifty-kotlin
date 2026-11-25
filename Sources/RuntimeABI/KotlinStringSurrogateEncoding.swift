@@ -52,8 +52,6 @@ public enum KotlinStringSurrogateEncoding {
         return result
     }
 
-    /// Decodes to ordinary Unicode text for foreign APIs. Like Swift's UTF-16
-    /// decoder, this replaces isolated surrogates with U+FFFD.
     public static func unicodeString(_ value: String) -> String {
         String(decoding: utf16CodeUnits(value), as: UTF16.self)
     }

@@ -11,10 +11,6 @@ public fun <T> MutableList<T>.replaceAll(operator: UnaryOperator<T>) {
     }
 }
 
-/**
- * Returns a [List] containing all elements of this enumeration, in encounter
- * order. Mirrors the kotlin-stdlib JVM extension `Enumeration<T>.toList()`.
- */
 public fun <T> Enumeration<T>.toList(): List<T> {
     val result = ArrayList<T>()
     while (hasMoreElements()) {

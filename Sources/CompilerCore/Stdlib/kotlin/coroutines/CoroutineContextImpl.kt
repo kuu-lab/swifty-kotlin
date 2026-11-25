@@ -51,9 +51,6 @@ public fun Element.minusPolymorphicKey(key: Key<*>): CoroutineContext {
     return if (this.key === key) EmptyCoroutineContext else this
 }
 
-// KSP-1145: EmptyCoroutineContext's public behavior is pure Kotlin stdlib
-// semantics. The compiler/runtime context bridges remain responsible for
-// context values that contain runtime-owned elements.
 public object EmptyCoroutineContext : CoroutineContext {
     public override operator fun <E : Element> get(key: Key<E>): E? = null
 

@@ -6,7 +6,6 @@ import Testing
 
 @Suite
 struct CodegenBackendStringIndexOutOfBoundsExceptionTests {
-    /// KUU-1069: default imports must expose the runtime's concrete string bounds type.
     @Test(arguments: [false, true])
     func testCatchConstructionThrowAndErasedTypeChecks(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try testStdlibArtifactPath() : nil

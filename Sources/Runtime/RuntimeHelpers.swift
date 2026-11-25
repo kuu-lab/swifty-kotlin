@@ -1,11 +1,6 @@
 import Dispatch
 import Foundation
 
-// Primitive boxes emitted at a statically-known ABI boundary keep the current
-// ARC/object model, but use a reserved handle marker plus the low alignment
-// bits as a fast-path tag. The underlying Swift object remains registered in
-// `objectPointers`; only the handle is tagged. This avoids changing the
-// representation used by the rest of the runtime.
 let runtimePrimitiveBoxTag: UInt = 0xA500_0000_0000_0005
 let runtimePrimitiveBoxTagMask: UInt = 0xFF00_0000_0000_0007
 
@@ -51,10 +46,6 @@ func registerTaggedPrimitiveBox(_ box: AnyObject, inLockedState state: inout GCS
     return Int(bitPattern: taggedPointer)
 }
 
-/// Cache key for `GCState.identityPrimitiveBoxCache`, or nil when the value
-/// lies outside the JVM-cached range for `domain`. `domain` is the
-/// primitive's `RuntimeTypeTokenEncoding.*Base` so different primitive kinds
-/// never alias one another's entries even when their payloads coincide.
 @inline(__always)
 func runtimePrimitiveIdentityCacheKey(domain: Int64, value: Int, range: Range<Int>) -> Int64? {
     guard range.contains(value) else {
@@ -63,8 +54,6 @@ func runtimePrimitiveIdentityCacheKey(domain: Int64, value: Int, range: Range<In
     return (domain << 32) | Int64(UInt32(bitPattern: Int32(truncatingIfNeeded: value)))
 }
 
-/// Used when a shared identity-cache box would otherwise be mutated in place
-/// (e.g. nominal type tagging for a value class).
 func runtimeClonePrimitiveBox(_ raw: Int) -> AnyObject? {
     guard let ptr = runtimePrimitiveBoxBasePointer(from: raw) else {
         return nil
@@ -108,10 +97,6 @@ func runtimeContinuationState(from continuation: Int) -> RuntimeContinuationStat
 }
 
 func runtimeCoroutineScope(from scopeHandle: Int) -> RuntimeCoroutineScope? {
-    // KUU-1439: `produce`/`channelFlow`/`callbackFlow` bind the ProducerScope
-    // receiver to the raw channel handle, so CoroutineScope member calls on it
-    // (launch/async/cancel/isActive) arrive here carrying a channel. Resolve
-    // the scope facet the producer launcher bound to that channel.
     resolveLiveRuntimeHandle(scopeHandle, as: RuntimeCoroutineScope.self)
         ?? runtimeProducerScopeForChannelHandle(scopeHandle)
 }
@@ -138,12 +123,6 @@ func suspendEntryPoint(from rawValue: Int) -> KKSuspendEntryPoint? {
     return unsafeBitCast(rawValue, to: KKSuspendEntryPoint.self)
 }
 
-/// Elements are stored in an array behind a head index: `dequeue` advances the
-/// head (releasing the slot) instead of shifting every element like
-/// `Array.removeFirst()`.  Once the dead prefix grows past a threshold the
-/// storage is compacted back to `head == 0`, which keeps the steady-state cost
-/// O(1) amortized; a fully drained queue resets its head so alternating
-/// enqueue/dequeue never accumulates dead slots.
 struct RuntimeFIFOQueue<Element> {
     private var elements: [Element?] = []
     private var head = 0
@@ -178,14 +157,12 @@ struct RuntimeFIFOQueue<Element> {
         return queued
     }
 
-    /// Counts live entries matching `predicate` (dequeued slots are nil).
     func count(where predicate: (Element) -> Bool) -> Int {
         elements[head...].reduce(0) { total, element in
             element.map(predicate) == true ? total + 1 : total
         }
     }
 
-    /// Cancellation is rare; ordinary enqueue/dequeue remain amortized O(1).
     mutating func removeFirst(where matches: (Element) -> Bool) -> Bool {
         guard let index = elements.indices.dropFirst(head).first(where: {
             elements[$0].map(matches) ?? false
@@ -255,12 +232,6 @@ func runtimeObjectTypeID(rawValue: Int) -> Int64? {
     }
 }
 
-/// The nominal type ID a *value class* box was tagged with, or nil when
-/// `rawValue` is not a boxed value class. `objectTypeByPointer` also tags
-/// runtime-internal objects (lists, map entries, pairs, ...), so membership
-/// in `valueClassTypeIDs` is the discriminator — see `kk_tag_value_class_box`.
-/// Equality consults this so a boxed value class can never unwrap into its
-/// underlying type's payload comparison against an unboxed peer (KUU-3616).
 func runtimeValueClassTypeID(rawValue: Int) -> Int64? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
         return nil
@@ -345,9 +316,6 @@ public func kk_runtime_register_data_class(_ classID: Int) -> Int {
     return 0
 }
 
-/// Records which object slots hold a data class's primary-constructor properties so the
-/// structural `equals`/`hashCode` ignore properties declared in the class body.
-/// `mask` bit `i` set means object slot `i` participates.
 @_cdecl("kk_runtime_register_data_class_fields")
 public func kk_runtime_register_data_class_fields(_ classID: Int, _ mask: Int) -> Int {
     guard classID != 0 else { return 0 }
@@ -479,8 +447,6 @@ func runtimeThrowableMatchesNominalTypeID(_ throwable: RuntimeThrowableBox, targ
     throwable.exceptionHierarchyTypeIDs.contains(targetTypeID)
 }
 
-/// The returned opaque pointer can be stored in `outThrown` and later detected via
-/// `kk_is_cancellation_exception`.
 func runtimeAllocateCancellationException(
     message: String? = "CancellationException", cause: Int = 0, cancellationJob: RuntimeJobHandle? = nil,
     messageRaw: Int = 0
@@ -490,9 +456,6 @@ func runtimeAllocateCancellationException(
     return runtimeRegisterThrowable(exception)
 }
 
-/// The message matches kotlinx.coroutines verbatim so `e.message` agrees with
-/// Kotlin/JVM. A non-positive timeout takes kotlinx' immediate-failure branch
-/// ("Timed out immediately") rather than the deadline-exceeded wording.
 func runtimeAllocateTimeoutCancellationException(timeoutMillis: Int) -> Int {
     runtimeRegisterThrowable(RuntimeTimeoutCancellationBox(
         message: timeoutMillis <= 0
@@ -546,9 +509,6 @@ func runtimeStringBox(fromRaw raw: Int) -> RuntimeStringBox? {
     return extractStringBox(from: UnsafeMutableRawPointer(bitPattern: raw))
 }
 
-/// Returns `raw` when it points at a `RuntimeStringBox`, else 0. Throwable
-/// constructors taking `Any?` (AssertionError) preserve reference identity
-/// only for actual String arguments, matching `String.valueOf` on the JVM.
 func runtimeThrowableStringMessageRaw(_ raw: Int) -> Int {
     guard raw != 0, raw != runtimeNullSentinelInt,
           extractStringBox(from: UnsafeMutableRawPointer(bitPattern: raw)) != nil
@@ -564,10 +524,6 @@ private typealias RuntimeCharSequenceGet = @convention(c) (Int, Int, UnsafeMutab
 private typealias RuntimeCharSequenceLength = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
 
 
-/// UTF-16 code units of a String or StringBuilder box without round-tripping
-/// through a materialized String. String boxes serve their lazily cached
-/// array; StringBuilder boxes share their live buffer (copy-on-write keeps the
-/// aliased array value semantics intact). Returns nil for any other handle.
 func runtimeStringOrBuilderUTF16Units(from raw: Int) -> [UInt16]? {
     guard let ptr = normalizeNullableRuntimePointer(UnsafeMutableRawPointer(bitPattern: raw)) else {
         return nil
@@ -600,9 +556,6 @@ func runtimeCharSequenceUTF16Units(from raw: Int) -> [UInt16]? {
     return runtimeCharSequenceItableCodeUnits(raw: raw)
 }
 
-/// UTF-16 length of a CharSequence handle without materializing its contents:
-/// box caches/buffers when available, the itable length getter otherwise.
-/// Returns nil when `raw` is not a CharSequence at all.
 func runtimeCharSequenceUTF16Length(from raw: Int) -> Int? {
     guard let ptr = normalizeNullableRuntimePointer(UnsafeMutableRawPointer(bitPattern: raw)) else {
         return nil
@@ -637,11 +590,6 @@ func runtimeCharSequenceUTF16Length(from raw: Int) -> Int? {
     return length
 }
 
-/// Source-defined CharSequence implementations expose their get/length
-/// methods through the dynamic itable slot assigned at object construction.
-/// Reading those slots here keeps CharSequence-taking APIs (for example
-/// StringBuilder(CharSequence)) faithful for custom implementations instead
-/// of falling back to an opaque object rendering.
 private func runtimeCharSequenceItableCodeUnits(raw: Int) -> [UInt16]? {
     let lengthPointer = kk_itable_lookup_dynamic(
         raw,
@@ -701,8 +649,6 @@ func normalizeNullableRuntimePointer(_ ptr: UnsafeMutableRawPointer?) -> UnsafeM
 
 final class KKInterceptedContinuation: KKContinuation, @unchecked Sendable {
     public let context: UnsafeMutableRawPointer?
-    /// The pre-interception continuation. `__kk_start_coroutine_cancellable`
-    /// unwraps it to flag a generated coroutine start as cancellable.
     let continuation: KKContinuation
     private let dispatcher: RuntimeDispatcher
 

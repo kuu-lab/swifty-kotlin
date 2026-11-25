@@ -9,7 +9,6 @@ import kotlin.internal.__valuesEqual
 import kotlin.text.StringBuilder
 import kotlin.internal.KsSymbolName
 
-// Allocation preserves the actual component classifier through generic erasure.
 @KsSymbolName("__kk_array_new_same_component")
 private external fun <T> arrayWithCopiedComponent(source: Array<T>, size: Int): Array<T?>
 
@@ -454,9 +453,6 @@ private fun checkCopyIntoArguments(
         )
     }
 }
-
-// Primitive and unsigned array overloads use typed constructors and indexed
-// access so element boxing stays at the compiler-provided array boundary.
 
 public fun IntArray.copyOf(): IntArray = copyOf(this.size)
 public fun IntArray.copyOf(newSize: Int): IntArray {

@@ -7,7 +7,6 @@ import Testing
 struct CodegenBackendNullableEnumTests {
     @Test
     func testNullableEnumNameOrdinal() throws {
-        // Preserve the KUU-1970 verifier reproducer.
         let source = """
         enum class Mode { FAST, SLOW }
         fun getM(): Mode? = Mode.SLOW
@@ -22,7 +21,6 @@ struct CodegenBackendNullableEnumTests {
 
     @Test
     func testNullableEnumMethods() throws {
-        // Preserve the KUU-1970 runtime reproducer, including both unwrap forms.
         let source = """
         enum class Mode(val tag: Int) { FAST(1), SLOW(2);
             fun label() = "L$tag"

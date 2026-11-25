@@ -144,10 +144,6 @@ struct CodegenBackendThrowablePrintStackTraceTests {
         }
     }
 
-    /// KUU-4320: circular suppressed/cause graphs must not recurse without
-    /// bound — JVM `printEnclosedStackTrace` collapses any revisit (true
-    /// cycle or diamond) to "[CIRCULAR REFERENCE: ...]" and
-    /// `stackTraceToString` does the same.
     @Test
     func testStackTraceToStringDetectsCircularSuppressedAndCauseReferences() throws {
         let source = """
@@ -200,12 +196,6 @@ struct CodegenBackendThrowablePrintStackTraceTests {
         }
     }
 
-    /// KUU-4322: `stackTraceToString` follows `printEnclosedStackTrace` —
-    /// `Suppressed:` captions indent one tab deeper than their parent
-    /// (accumulating with nesting), `Caused by:` keeps the parent's indent,
-    /// and frame tails shared with the enclosing trace collapse into a
-    /// `\t... N more` line. Assigned `stackTrace` elements make the shared
-    /// suffix deterministic; the expected block is the JVM output verbatim.
     @Test
     func testStackTraceToStringUsesJvmEnclosedTraceFormat() throws {
         let source = """

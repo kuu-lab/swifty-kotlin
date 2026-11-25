@@ -15,22 +15,6 @@ import platform.posix.uint8_tVar
 import kotlin.experimental.ExperimentalNativeApi
 import kotlin.native.ref.WeakReference
 
-/**
- * Returns an output stream that writes to this sink. Closing the stream will also close this sink.
- *
- * The stream supports both polling and run-loop scheduling, please check
- * [Apple's documentation](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/Streams/Articles/PollingVersusRunloop.html)
- * for information about stream events handling.
- *
- * The stream does not implement initializers
- * ([NSOutputStream.initToBuffer](https://developer.apple.com/documentation/foundation/nsoutputstream/1410805-inittobuffer),
- * [NSOutputStream.initToMemory](https://developer.apple.com/documentation/foundation/nsoutputstream/1409909-inittomemory),
- * [NSOutputStream.initWithURL](https://developer.apple.com/documentation/foundation/nsoutputstream/1414446-initwithurl),
- * [NSOutputStream.initToFileAtPath](https://developer.apple.com/documentation/foundation/nsoutputstream/1416367-inittofileatpath)),
- * their use will result in a runtime error.
- *
- * @sample kotlinx.io.samples.KotlinxIoSamplesApple.asStream
- */
 public fun Sink.asNSOutputStream(): NSOutputStream = SinkNSOutputStream(this)
 
 @OptIn(UnsafeNumber::class)
@@ -137,7 +121,6 @@ private class SinkNSOutputStream(
     }
 
     override fun stream(aStream: NSStream, handleEvent: NSStreamEvent) {
-        // no-op
     }
 
     override fun scheduleInRunLoop(aRunLoop: NSRunLoop, forMode: NSRunLoopMode) {

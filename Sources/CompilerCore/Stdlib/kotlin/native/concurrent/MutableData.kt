@@ -48,10 +48,6 @@ public class MutableData constructor(capacity: Int = 16) {
 
     public fun append(data: COpaquePointer?, count: Int): Unit = synchronized(this) {
         if (data != null && count > 0) {
-            // Raw C memory is not exposed by the current KSwiftK CInterop
-            // surface. Keep the legacy API's observable size behavior without
-            // introducing a new runtime bridge for an API that is deprecated
-            // with an error.
             resizeDataLocked(size_ + count)
         }
     }
@@ -90,9 +86,6 @@ public class MutableData constructor(capacity: Int = 16) {
     public fun <R> withPointerLocked(
         block: (COpaquePointer, dataSize: Int) -> R
     ): R = synchronized(this) {
-        // `Pinned.addressOf` is not part of the bundled CInterop surface yet.
-        // The class itself is a deprecated legacy-memory-manager API, so fail
-        // explicitly instead of passing a fabricated pointer to user code.
         throw UnsupportedOperationException("MutableData pointer access is unavailable")
     }
 

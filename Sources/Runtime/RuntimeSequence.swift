@@ -10,10 +10,6 @@ func runtimeSequenceBuilderBox(from rawValue: Int) -> RuntimeSequenceBuilderBox?
 private let runtimeSequenceInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.sequences.Sequence")
 private let runtimeIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterator")
 
-/// Runtime box that pulls lazy sources on demand and materializes other sources
-/// on first use. This lets source-implemented `Sequence<T>` and
-/// `Iterator<T>` wrappers chain with runtime-backed lazy sequences through the
-/// normal `Sequence`/`Iterator` itable dispatch path.
 final class RuntimeSequenceIteratorBox {
     let seq: RuntimeSequenceBox
     fileprivate var elements: [Int] = []
@@ -74,7 +70,6 @@ final class RuntimeSequenceIteratorBox {
     }
 }
 
-/// Transforms are applied before another source element is requested.
 fileprivate final class RuntimeSequencePullIteratorCursor {
     fileprivate enum Source {
         case seeded(seed: Int, fnPtr: Int, closureRaw: Int)
@@ -244,13 +239,6 @@ private func runtimeIteratorMethodCall(
     return fn(iterRaw, outThrown)
 }
 
-/// Iterates a source-implemented `Sequence` object (created by Kotlin `object`
-/// expressions implementing `kotlin.sequences.Sequence`) by dispatching through
-/// the Sequence itable to obtain an `Iterator`, then driving that iterator with
-/// the `Iterator` itable directly so thrown exceptions can be propagated.
-/// Returns `true` if `rawValue` is a source `Sequence` and was iterated (or an
-/// exception was recorded in `outThrown`). Returns `false` if it is not a source
-/// `Sequence` so callers can fall back to runtime box handling.
 func runtimeTraverseSourceSequenceObject(
     _ rawValue: Int,
     outThrown: UnsafeMutablePointer<Int>?,
@@ -326,8 +314,6 @@ func runtimeSequenceSourceElements(from rawValue: Int) -> [Int]? {
     if let set = runtimeSetBox(from: rawValue) {
         return set.elements
     }
-    // KUU-3978: ranges/progressions are valid Iterable sources even though
-    // they are neither collection boxes nor itable-backed objects.
     if let range = runtimeRangeBox(from: rawValue) {
         return runtimeRangeIterableElements(range)
     }
@@ -357,8 +343,6 @@ func runtimeSequenceSourceValues(from rawValue: Int) -> [RuntimeValue]? {
     if let set = runtimeSetBox(from: rawValue) {
         return set.values
     }
-    // KUU-3978: see runtimeSequenceSourceElements — same element
-    // representation `toList()` stores.
     if let range = runtimeRangeBox(from: rawValue) {
         return runtimeRangeIterableElements(range).map { RuntimeValue(raw: $0) }
     }
@@ -402,7 +386,6 @@ func runtimeSequenceSourceElementsOrThrow(
     if let set = runtimeSetBox(from: rawValue) {
         return set.elements
     }
-    // KUU-3978: ranges/progressions are valid Iterable sources.
     if let range = runtimeRangeBox(from: rawValue) {
         return runtimeRangeIterableElements(range)
     }
@@ -439,7 +422,6 @@ func runtimeSequenceSourceValuesOrThrow(
     if let set = runtimeSetBox(from: rawValue) {
         return set.values
     }
-    // KUU-3978: ranges/progressions are valid Iterable sources.
     if let range = runtimeRangeBox(from: rawValue) {
         return runtimeRangeIterableElements(range).map { RuntimeValue(raw: $0) }
     }
@@ -464,8 +446,6 @@ func runtimeSequenceSourceValuesOrThrow(
     fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(caller) received invalid sequence handle")
 }
 
-/// Use this instead of `runtimeSequenceSourceElements(from:) ?? []` to distinguish
-/// invalid handles from legitimately empty sequences.
 func runtimeSequenceSourceElementsOrPanic(from rawValue: Int, caller: StaticString) -> [Int] {
     if let elements = runtimeSequenceSourceElements(from: rawValue) {
         return elements
@@ -540,7 +520,6 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
-        // Keep the transform's already-boxed result as-is.
         runtimeSequenceTransformElement(
             mapped,
             steps: steps,
@@ -628,8 +607,6 @@ private func runtimeSequenceTransformElement(
             yield: yield
         )
     case .distinctStep:
-        // Mutating through the dictionary subscript avoids a COW copy of the
-        // stored set on every element.
         guard state.distinctSeen[stepIndex, default: []]
             .insert(RuntimeElementKey(value: element)).inserted
         else {
@@ -809,7 +786,6 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
-        // Keep the transform's already-boxed result as-is.
         runtimeSequenceTransformElement(
             mapped,
             steps: steps,
@@ -1088,9 +1064,6 @@ func runtimeTraverseSequenceWithState(
             }
             return
         case let .pullSource(produce):
-            // Lazy pull-source (e.g. `useLines` lines from a live reader):
-            // draw one element at a time so short-circuiting operations only
-            // pull what they need and memory stays bounded.
             while true {
                 if state.stop { break }
                 guard let element = produce() else { break }
@@ -1107,10 +1080,6 @@ func runtimeTraverseSequenceWithState(
             }
             return
         case let .lazyBuilder(coroutine):
-            // STDLIB-563: Lazy element-by-element iteration.
-            // Request one element at a time from the coroutine so that
-            // short-circuiting operations (take, first, etc.) only
-            // compute the elements they actually need.
             let coroutine = coroutine.freshIterator()
             var done = false
             while true {
@@ -1197,9 +1166,6 @@ func runtimeTraverseSequenceWithState(
                     state.stop = true
                     return
                 }
-                // KSP-500: see the .generator case above — the compiler's
-                // boxing adapter already boxed this closure's return value, so
-                // don't strip that here.
                 if next == runtimeNullSentinelInt { break }
                 emit(next)
             }
@@ -1263,9 +1229,6 @@ func runtimeTraverseSequenceSource(
     return nil
 }
 
-/// Generic Iterable calls can reach Sequence compatibility entry points with a
-/// range handle, even though that handle is neither a RuntimeSequenceBox nor a
-/// source-implemented Sequence object.
 private func runtimeTraverseRangeSource(
     _ rawValue: Int,
     outThrown: UnsafeMutablePointer<Int>?,
@@ -1303,8 +1266,6 @@ private func runtimeTraverseRangeSource(
     return true
 }
 
-/// `.stringSource` is NOT extracted here — it is handled lazily in evaluateSequence
-/// and runtimeTraverseSequence to avoid eager materialization.
 private func extractSourceElements(from step: SequenceStepKind, outThrown: UnsafeMutablePointer<Int>? = nil) -> [Int]? {
     switch step {
     case let .source(sourceElements):
@@ -1516,8 +1477,6 @@ private func applyChunkedTransformStep(
     return result
 }
 
-/// Shuffles a snapshot of element handles. `randomRaw == nil` uses the same
-/// default behaviour as [Int].`shuffled()`.
 private func runtimeShuffleElementHandles(_ elements: [Int], randomRaw: Int?) -> [Int] {
     guard elements.count > 1 else { return elements }
     if let randomRaw {
@@ -1573,16 +1532,10 @@ func evaluateSequence(
             break
         }
         if case let .stringSource(source) = step {
-            // Materialize string characters at terminal evaluation only.
-            // Use utf16 code units (not unicodeScalars) so that supplementary characters
-            // (emoji, etc. with scalar value > 0xFFFF) are represented as surrogate pairs,
-            // matching Kotlin's UTF-16 Char semantics.
             elements = runtimeKotlinStringUTF16CodeUnits(source).map { Int($0) }
             break
         }
         if case let .generator(seed, fnPtr, closureRaw) = step {
-            // KSP-500: don't unbox `next` — see runtimeTraverseSequenceWithState's
-            // .generator case for why the closure's boxed return must survive.
             var current = seed
             var generated: [Int] = [current]
             while true {
@@ -1600,8 +1553,6 @@ func evaluateSequence(
             break
         }
         if case let .nullableGenerator(fnPtr, closureRaw) = step {
-            // KSP-500: don't unbox `next` — see runtimeTraverseSequenceWithState's
-            // .nullableGenerator case for why the closure's boxed return must survive.
             let noArgFn = unsafeBitCast(fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
             var generated: [Int] = []
             while true {
@@ -1748,10 +1699,6 @@ private func evaluateSequenceValues(
 
 
 
-/// `Sequence.iterator()` implementation for `RuntimeSequenceBox`.
-/// Returns a `RuntimeSequenceIteratorBox` handle registered with the
-/// `kotlin.collections.Iterator` itable so source `Sequence` wrappers can call
-/// `hasNext()` / `next()` through normal interface dispatch.
 @_cdecl("kk_sequence_box_iterator")
 public func kk_sequence_box_iterator(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     return runtimeThrowingBridge(outThrown) {

@@ -4,13 +4,6 @@
 import Foundation
 import Testing
 
-/// Regression coverage for KSP-466: `/` and `%` on ULong performed plain signed
-/// Int64 division/modulo, which is wrong once a value's high bit is set (any
-/// ULong >= 2^63) — e.g. `17663719463477156090uL / 2uL` printed
-/// `18055231768593353853` instead of `8831859731738578045`. UInt does not
-/// exhibit the bug because it is always zero-extended into the shared 64-bit
-/// container. This is the same root-cause family as the ULong comparison/
-/// toString sign-misinterpretation bug.
 @Suite
 struct CodegenBackendUnsignedDivisionAndModuloTests {
 
@@ -60,11 +53,6 @@ struct CodegenBackendUnsignedDivisionAndModuloTests {
 
     @Test
     func testUnsignedDivisionAndModuloMemberCallForms() throws {
-        // div()/rem()/floorDiv()/mod() are explicit member-call forms of the
-        // same operators, lowered through a separate CallLowerer code path
-        // (CallLowerer+PrimitiveMemberCalls.swift) that already routed to
-        // kk_op_udiv/kk_op_urem before this fix -- lock in that they agree
-        // with the infix operators for a high-bit-set value.
         let source = """
         fun main() {
             val big: ULong = 17663719463477156090uL
@@ -160,8 +148,6 @@ struct CodegenBackendUnsignedDivisionAndModuloTests {
 
     @Test
     func testUnsignedDivisionAndModuloUIntUnaffected() throws {
-        // UInt is zero-extended into the shared 64-bit container, so it never
-        // exhibited this bug -- this test locks in that the fix leaves it correct.
         let source = """
         fun main() {
             val small: UInt = 17u

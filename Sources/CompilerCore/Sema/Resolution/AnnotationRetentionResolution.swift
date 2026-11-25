@@ -6,8 +6,6 @@ public enum AnnotationRetentionKind: String, Codable {
     case runtime = "RUNTIME"
 }
 
-/// Header collection resolves names and retention-entry aliases in the producer,
-/// so imported declarations can be classified without the producer's AST.
 func resolvedAnnotationRetention(
     _ annotation: MetadataAnnotationRecord,
     symbols: SymbolTable,
@@ -28,9 +26,6 @@ func resolvedAnnotationRetention(
     }
 }
 
-/// Retention is an enum constant, which Kotlin permits inside parentheses.
-/// Strip only parentheses enclosing the entire value, rather than arbitrary
-/// leading/trailing punctuation on a different expression.
 private func retentionArgumentValue(_ argument: String) -> String {
     var value = (argument.split(separator: "=", maxSplits: 1).last.map(String.init) ?? argument)
         .trimmingCharacters(in: .whitespacesAndNewlines)

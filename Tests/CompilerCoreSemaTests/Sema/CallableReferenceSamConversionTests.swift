@@ -3,10 +3,6 @@
 @testable import CompilerTestSupport
 import Testing
 
-/// BUG-164: A callable reference passed to a parameter whose type is a
-/// `fun interface` must be SAM-converted, just like an equivalent lambda
-/// literal.  Previously Sema left the reference as a bare function type,
-/// so overload resolution rejected the call.
 @Suite
 struct CallableReferenceSamConversionTests {
 

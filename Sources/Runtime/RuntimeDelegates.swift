@@ -7,11 +7,6 @@ final class RuntimeKPropertyStub {
     let isConst: Bool
     var returnTypeKTypeRaw: Int
     let isMutable: Bool
-    /// KUU-2947: a `val/var x by Delegate()` declared inside a function hands
-    /// getValue/setValue a KProperty0-shaped stub (KMutableProperty0 for `var`)
-    /// whose accessor members throw UnsupportedOperationException instead of
-    /// reading storage that does not exist — matching the JVM's
-    /// PropertyReference0Impl behavior for local delegated properties.
     let isLocalDelegated: Bool
     /// KUU-3694: the delegate handle the compiler points at this stub right
     /// before each getValue/setValue/provideDelegate call, so `p.getDelegate()`
@@ -22,8 +17,6 @@ final class RuntimeKPropertyStub {
     var delegateRaw: Int = 0
     /// KUU-4423: `KCallable.visibility` ordinal (PUBLIC=0, PROTECTED=1,
     /// INTERNAL=2, PRIVATE=3) pinned by `__kk_kcallable_set_visibility`.
-    /// Member stubs carry no `RuntimeCallableRefMetadata`, so the metadata
-    /// getter falls back to this field.
     var visibilityOrdinal: Int = 0
 
     init(
@@ -125,7 +118,6 @@ private func runtimeTagCallableRef(
 
 /// `flags` packs KFunction modifier bits: bit0=suspend, bit1=inline,
 /// bit2=operator, bit3=infix, bit4=external. Legacy callers passing a bare
-/// 0/1 suspend flag are compatible with the packed layout (KUU-1357).
 @_cdecl("kk_callable_ref_tag_kfunction")
 public func kk_callable_ref_tag_kfunction(_ callable: Int, _ name: Int, _ returnType: Int, _ arity: Int, _ flags: Int) -> Int {
     runtimeTagCallableRef(
@@ -147,11 +139,6 @@ public func kk_kproperty_stub_create(_ nameStr: Int, _ returnTypeStr: Int) -> In
     return registerRuntimeObject(stub, typeID: kPropertyRuntimeTypeID)
 }
 
-/// `KClass.memberProperties`/`declaredMemberProperties` handles reflect as
-/// the unbound `KPropertyN`/`KMutablePropertyN` the member's receivers
-/// imply — 1 for an ordinary member, 2 for a member extension — so a `var`
-/// member answers `is KMutableProperty`/`as? KMutablePropertyN` like the
-/// JVM's kotlin-reflect handles do (KUU-4030).
 @_cdecl("__kk_kproperty_stub_create_member")
 public func kk_kproperty_stub_create_member(
     _ nameRaw: Int,
@@ -185,8 +172,6 @@ public func kk_kproperty_stub_create_member(
     return rawValue
 }
 
-/// Returns one KProperty stub per delegated declaration so getValue, setValue,
-/// and provideDelegate observe the same property identity across accesses.
 @_cdecl("__kk_kproperty_stub_create_cached")
 public func kk_kproperty_stub_create_cached(
     _ nameStr: Int,
@@ -213,10 +198,6 @@ public func kk_kproperty_stub_create_cached(
     }
 }
 
-/// The message the JVM's local-delegated property reference (a
-/// `PropertyReference0Impl`/`MutablePropertyReference0Impl`) raises from
-/// `get`/`set`/`invoke`/`call`/`callBy`, because there is no real accessor to
-/// invoke for a local declaration.
 private let kLocalDelegatedCallUnsupportedMessage =
     "call/callBy are not supported for this declaration."
 
@@ -242,8 +223,6 @@ private let runtimeLocalDelegatedPropertyInvoke: @convention(c) (
     return runtimeNullSentinelInt
 }
 
-/// `getDelegate()` on a local delegated property returns null on the JVM —
-/// the property has no bound delegate — rather than throwing.
 private let runtimeLocalDelegatedPropertyGetDelegate: @convention(c) (
     Int,
     UnsafeMutablePointer<Int>?
@@ -264,9 +243,6 @@ private let runtimeLocalDelegatedPropertySet: @convention(c) (
 }
 
 /// The thrown channel of `invokeCallable`: (environment, arguments, mask,
-/// outThrown) -> Int. `KProperty0.Getter`/`KMutableProperty0.Setter` boxes for
-/// local delegated properties route `.call()` through it so both `call()` and
-/// `invoke()` raise the same UnsupportedOperationException.
 private let runtimeLocalDelegatedAccessorCall: @convention(c) (
     Int,
     Int,
@@ -346,10 +322,6 @@ func runtimeRegisterLocalDelegatedPropertyItable(rawValue: Int, isMutable: Bool)
     )
 }
 
-/// The `KProperty0.Getter`/`KMutableProperty0.Setter` a local delegated
-/// property stub hands out. The JVM returns a real accessor object whose
-/// call/invoke raise UnsupportedOperationException, so fabricate a KFunction
-/// box whose call path does the same instead of handing back null.
 func runtimeLocalDelegatedPropertyAccessor(raw: Int, stub: RuntimeKPropertyStub, isSetter: Bool) -> Int {
     let arity = isSetter ? 1 : 0
     let fnPtr: Int
@@ -378,10 +350,6 @@ func runtimeLocalDelegatedPropertyAccessor(raw: Int, stub: RuntimeKPropertyStub,
     return accessor
 }
 
-/// Local delegated properties hand their getValue/setValue a KProperty0
-/// (KMutableProperty0 for `var`) stub whose accessor members throw
-/// UnsupportedOperationException, matching the JVM's
-/// PropertyReference0Impl/MutablePropertyReference0Impl.
 @_cdecl("__kk_kproperty_stub_create_local")
 public func kk_kproperty_stub_create_local(
     _ nameStr: Int,

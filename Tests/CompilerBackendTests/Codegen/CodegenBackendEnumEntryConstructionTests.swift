@@ -4,7 +4,6 @@
 import Foundation
 import Testing
 
-/// Pinned from JetBrains Kotlin at 679366a83f99851b42f64795f10ed803ff011c73.
 private let publishedSecondaryConstructorsEnumFixture = """
 enum class A1(val prop1: String) {
     X("asd"),
@@ -67,12 +66,6 @@ fun box(): String {
 }
 """
 
-/// Enum entries are constructed once, lazily on first access to the enum
-/// class: constructor arguments are evaluated a single time (bound by label,
-/// with defaults that see earlier parameters), and the class body's property
-/// initializers and `init` blocks plus entry-body properties run once per
-/// entry. Values live in per-entry storage behind the enum property helpers
-/// (`KIRLoweringDriver+EnumEntryStorage.swift`).
 @Suite
 struct CodegenBackendEnumEntryConstructionTests {
 
@@ -137,7 +130,6 @@ struct CodegenBackendEnumEntryConstructionTests {
         )
     }
 
-    /// Source-backed O2 is blocked by the independent FunctionN verifier issue KUU-2241.
     @Test
     func testPublishedFixtureAndControlsAcrossStdlibModes() throws {
         let source = publishedSecondaryConstructorsEnumFixture + """
@@ -221,8 +213,6 @@ struct CodegenBackendEnumEntryConstructionTests {
         )
     }
 
-    /// `init` after the entry list's `;` was parsed as a third enum entry, so
-    /// the block never ran (and `values()` grew a bogus `init` entry).
     @Test
     func testInitBlocksRunOnFirstAccess() throws {
         let source = """
@@ -332,9 +322,6 @@ struct CodegenBackendEnumEntryConstructionTests {
         )
     }
 
-    /// The itable getter registered for an interface property overridden by
-    /// an enum constructor property used to read an instance field offset
-    /// from the ordinal box and trip `kk_array_get_inbounds`.
     @Test
     func testInterfacePropertyOverriddenByConstructorPropertyThroughInterface() throws {
         let source = """

@@ -2,9 +2,6 @@ package kotlin.collections
 
 import kotlin.experimental.ExperimentalTypeInference
 
-// Per-type coverage for primitive-array extensions (KUU-2781). The same API surface
-// exists for List/Iterable and Array<T>; these fill the receiver types that were missing.
-
 public inline fun BooleanArray.isNotEmpty(): Boolean = size != 0
 
 public inline fun ShortArray.isNotEmpty(): Boolean = size != 0

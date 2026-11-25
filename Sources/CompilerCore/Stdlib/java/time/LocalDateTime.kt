@@ -2,7 +2,6 @@ package java.time
 
 import java.util.Calendar
 
-/** A date-time without a time-zone in the ISO-8601 calendar system. */
 public class LocalDateTime private constructor(
     public val date: LocalDate,
     public val time: LocalTime,
@@ -119,7 +118,6 @@ public class LocalDateTime private constructor(
 
     public fun format(formatter: java.time.format.DateTimeFormatter): String = formatter.format(this)
 
-    /** Combines this date-time with an offset to create an [OffsetDateTime]. */
     public fun atOffset(offset: ZoneOffset): OffsetDateTime = OffsetDateTime.of(this, offset)
 
     override fun compareTo(other: LocalDateTime): Int {

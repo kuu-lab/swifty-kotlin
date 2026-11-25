@@ -4,23 +4,6 @@
 import Foundation
 import Testing
 
-// STDLIB-030: kotlin.io common - useLines / forEachLine codegen tests
-//
-// CLEANUP-STUB-107 removed java.io.File's delete/writeText/bufferedReader
-// synthetic members. `File.useLines`/`File.forEachLine` themselves survive
-// (Kotlin-source extensions in Stdlib/kotlin/io/FileIO.kt that now share the
-// source-backed `File.readText()` extension and its runtime bridge), so the
-// three File-based cases below keep their real Kotlin-side assertions and
-// only swap their now-dead `file.delete(); file.writeText(...)` setup for a
-// host-side fixture write. The two BufferedReader-based cases
-// (`file.bufferedReader().useLines {}` / `.forEachLine {}`) were deleted
-// outright: their only path to a receiver was `File.bufferedReader()`, which
-// is dead, and `kotlin.io.path.Path` has no confirmed working substitute —
-// `Path.useLines` was independently removed by CLEANUP-STUB-116 (see
-// Tests/CompilerCoreTests/Sema/PathStubRemovalTests.swift), and no Sema
-// registration for `Path.bufferedReader()` could be found either.
-// `kotlin.io.path.Path` itself (the whole shell, not just these members) was
-// later removed entirely by CLEANUP-STUB-115.
 @Suite
 struct CodegenBackendFileUseLinesForEachLineTests {
 

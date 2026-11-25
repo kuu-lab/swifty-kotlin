@@ -107,10 +107,6 @@ extension ExprTypeChecker {
             return boolType
         }
 
-        // A simple, already-available fallback can constrain a generic safe-call
-        // on the left (`x?.let { Result.failure(it) } ?: RESUME`). Resolve only
-        // an independent name reference early: arbitrary RHS expressions may
-        // read locals modified while checking the LHS and must keep their order.
         let isSafeLetElvisFailure: Bool
         if op == .elvis,
            case let .safeMemberCall(_, member, _, args, _) = ast.arena.expr(lhsID),
@@ -151,9 +147,6 @@ extension ExprTypeChecker {
         } else {
             false
         }
-        // A call on the Elvis LHS can use the enclosing result type as a
-        // generic-inference hint. Other expressions keep their natural type so
-        // the context does not incorrectly constrain the Elvis LUB.
         let lhsExpectedType: TypeID? = if isSafeLetElvisFailure {
             expectedType ?? earlyElvisRhs
         } else if isElvisCallLhs {
@@ -179,8 +172,6 @@ extension ExprTypeChecker {
             // (KUU-4451).
             sema.bindings.bindPlatformNullAssertion(lhsID, targetType: nil)
         }
-        // A bare `ClassName` on an Elvis side denotes the companion object;
-        // keep the companion value type through the join (KUU-3232).
         let inferredLhs = op == .elvis
             ? driver.helpers.retypeClassNameAsCompanionValue(
                 lhsID, currentType: lhsOperandType, ast: ast, sema: sema
@@ -212,9 +203,6 @@ extension ExprTypeChecker {
                 return false
             }
         }()
-        // A zero-argument branch call has no argument evidence for its generic
-        // result. The resolver treats its peer type as a hint, leaving concrete
-        // fallback return types unchanged.
         let rhsIsZeroArgumentCallWithoutExplicitTypeArguments: Bool = {
             switch ast.arena.expr(rhsID) {
             case let .call(_, typeArgs, args, _),
@@ -304,9 +292,6 @@ extension ExprTypeChecker {
         } else {
             rhsCtx.isElvisBranchExpectedTypeHint = rhsUsesElvisPeerTypeHint
             if op == .elvis {
-                // The elvis RHS only runs when the LHS is null, so effects it
-                // records on locals (for example `x ?: (y as T)` narrowing y)
-                // must not leak past the join. Check it on a discarded copy.
                 var rhsLocals = locals
                 rhs = driver.inferExpr(rhsID, ctx: rhsCtx, locals: &rhsLocals, expectedType: rhsExpectedType)
             } else {
@@ -348,10 +333,6 @@ extension ExprTypeChecker {
             driver.recordGenericCallConsumer(rhsID, type: sema.types.nullableAnyType)
         }
 
-        // Numeric operators on a type parameter are resolved against its
-        // concrete primitive upper bound (for example, `T : Double`). Keep
-        // the operand bindings generic; the resulting primitive expression
-        // type lets ABI lowering unbox those values before emitting the op.
         let isPrimitiveUpperBoundComparison: Bool = switch op {
         case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
             true
@@ -395,9 +376,6 @@ extension ExprTypeChecker {
                 rhs = target
             }
         }
-        // `===`/`!==` are raw identity comparisons: unlike `==`/`!=` they never
-        // dispatch through a user-defined (or inherited Any) `equals()` override,
-        // so they must bypass the operator-candidate resolution below entirely.
         if op == .identityEqual || op == .notIdentityEqual {
             let lhsType = equalityDeclaredType(lhsID, inferred: lhs, sema: sema)
             let rhsType = equalityDeclaredType(rhsID, inferred: rhs, sema: sema)
@@ -414,10 +392,6 @@ extension ExprTypeChecker {
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
             }
-            // kotlinc also forbids `===`/`!==` when a non-null primitive
-            // operand meets an incompatible non-primitive (`Int === "s"`) —
-            // the same FORBIDDEN_IDENTITY_EQUALS name covers it. Class-vs-class
-            // operands stay on the EQUALITY_NOT_APPLICABLE path below.
             if identityEqualityHasForbiddenPrimitiveOperand(lhsType, rhsType, sema: sema) {
                 let lhsName = sema.types.displayName(of: lhsType, symbols: sema.symbols, interner: interner)
                 let rhsName = sema.types.displayName(of: rhsType, symbols: sema.symbols, interner: interner)
@@ -447,9 +421,6 @@ extension ExprTypeChecker {
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
             }
-            // Remaining incompatible operands involving a String or primitive
-            // (e.g. `String === SomeClass`) are EQUALITY_NOT_APPLICABLE —
-            // kotlinc's name for `===`/`!==` without a primitive operand.
             if equalityHasIncompatibleBuiltinTypes(lhsType, rhsType, sema: sema) {
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0471",
@@ -502,11 +473,6 @@ extension ExprTypeChecker {
         {
             lhs = assertedType
         }
-        // A `Nothing` receiver is a subtype of every operator receiver type,
-        // so kotlinc keeps `TODO() + x` ambiguous among the primitive and
-        // extension overloads. KSwiftK's candidate resolution picks a winner
-        // instead; report the ambiguity directly for the arithmetic
-        // conventions (KUU-4351).
         if [.add, .subtract, .multiply, .divide, .modulo].contains(op),
            lhs == sema.types.nothingType,
            rhs != sema.types.errorType
@@ -521,12 +487,6 @@ extension ExprTypeChecker {
         }
         let operatorNames = operatorFunctionNames(for: op, interner: interner)
         let operatorName = operatorNames[0]
-        // An operator RHS that is itself an inferable call can depend on the
-        // desugared operator's parameter type for its own inference
-        // (`listOf<T>() + l.flatMap { getAll(it) }`). The synthetic operator
-        // call only carries the argument's inferred type, so when the first
-        // pass failed, re-infer the RHS under each viable candidate's
-        // parameter type (KUU-4464).
         let rhsIsInferableCall: Bool = switch ast.arena.expr(rhsID) {
         case .call, .memberCall, .safeMemberCall:
             true
@@ -625,9 +585,6 @@ extension ExprTypeChecker {
             }
             return nil
         }()
-        // A Nothing-typed endpoint fits every primitive range overload. Use
-        // its peer's primitive type for overload selection while preserving
-        // the source expression's actual Nothing type for flow and lowering.
         let operatorReceiverType = nothingRangePeerType ?? lhs
         let operatorArgumentType = nothingRangePeerType ?? rhs
         // For a floating-point range with a Nothing-typed RHS, keep the
@@ -720,8 +677,6 @@ extension ExprTypeChecker {
                     || sema.types.typeContainsAnyTypeParam(rhs)
                     || sema.types.isSubtype(rhs, parameterType)
             }
-            // Keep the direct concatenation path unless another applicable
-            // operator could override the stdlib's String?.plus(Any?) fallback.
             if !hasApplicableNonBuiltinStringPlusCandidate {
                 sema.bindings.bindExprType(id, type: stringType)
                 return stringType
@@ -814,13 +769,6 @@ extension ExprTypeChecker {
             return candidates.filter { !shouldDropGenericRangeCandidate($0) }
         }
         operatorCandidates = dropGenericRangeCandidatesWhenScalarRangeApplies(operatorCandidates)
-        // A built-in or bundled rangeTo candidate can exist for the receiver
-        // while rejecting the RHS type. Kotlin then considers visible operator
-        // extensions; keep member precedence by retrying only when the current
-        // candidates have no viable call.
-        // The fallback below can rediscover the generic stdlib rangeTo after
-        // it was excluded above. Same-type floating-point operands use the
-        // built-in range even when there is no concrete member candidate.
         let isBuiltinFloatingRangePair = (operatorReceiverType == sema.types.doubleType && operatorArgumentType == sema.types.doubleType)
             || (operatorReceiverType == sema.types.floatType && operatorArgumentType == sema.types.floatType)
         if op == .rangeTo, !isBuiltinFloatingRangePair,
@@ -858,9 +806,6 @@ extension ExprTypeChecker {
                 }
             }
         }
-        // The fallback above can rediscover generic rangeTo operators. Apply the
-        // same scalar-range gate again: it must not hide a user extension when
-        // the RHS cannot form a scalar range (for example `1..Marker()`).
         operatorCandidates = dropGenericRangeCandidatesWhenScalarRangeApplies(operatorCandidates)
         // `collectOperatorCandidates` deliberately excludes primitive receivers
         // from member lookup for non-range operators. That also hides scoped
@@ -874,11 +819,6 @@ extension ExprTypeChecker {
         default:
             false
         }
-        // Boolean is not an arithmetic operand, but `kotlin.Boolean` implements
-        // `Comparable<Boolean>` (`true > false` is legal): its 0/1
-        // representation lets the same machine-compare path serve the
-        // relational operators, so pair it with itself as a builtin
-        // comparison (KUU-3490).
         let isBuiltinComparisonPair = (sema.types.isBuiltinArithmeticOperand(lhs)
             && sema.types.isBuiltinArithmeticOperand(rhs)
             && ((lhs == charType) == (rhs == charType)))
@@ -940,9 +880,6 @@ extension ExprTypeChecker {
             let isListLhs = driver.callChecker.isListLikeType(lhs, sema: sema, interner: interner)
             let isSeqLhs = driver.callChecker.isSequenceLikeType(lhs, sema: sema, interner: interner)
             let isCollExpr = sema.bindings.isCollectionExpr(lhsID)
-            // For lists and plain collection exprs: fall back only when no operator candidates exist.
-            // For sequences: also fall back when candidates exist but none accepts the RHS type
-            // (e.g. `seq + element` where only `plus(Sequence<Any>)` is registered).
             let shouldFallBack = (isListLhs || isCollExpr) && operatorCandidates.isEmpty
                 || isSeqLhs && operatorCandidates.isEmpty
             if shouldFallBack {
@@ -992,11 +929,6 @@ extension ExprTypeChecker {
                 break
             }
         }
-        // kotlinc requires the `operator` modifier on `compareTo` for
-        // `<`/`<=`/`>`/`>=` syntax. A member named `compareTo` without the
-        // modifier cannot serve the comparison; report it explicitly instead
-        // of letting the expression fall through to the built-in numeric
-        // fallback below.
         if isComparisonOperator, operatorCandidates.isEmpty, !lhsIsPrimitive, lhs != sema.types.errorType {
             let hasNonOperatorCompareTo = driver.helpers.collectMemberFunctionCandidates(
                 named: interner.intern("compareTo"),
@@ -1179,10 +1111,6 @@ extension ExprTypeChecker {
                 locals: &locals
             )
             let returnType = driver.callChecker.bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
-            // A member-extension operator binds its dispatch receiver from the
-            // implicit-receiver tower; record which entry supplied it so KIR
-            // lowering can materialize `this@Owner` ahead of the operand
-            // (KUU-4420, mirrors the unary operator path).
             if let dispatchOwner = sema.symbols.memberExtensionOwnerSymbol(for: chosen) {
                 let dispatchReceiver = ctx.implicitReceiverMemberLookupEntries().first { entry in
                     driver.helpers.allNominalSymbols(
@@ -1196,9 +1124,6 @@ extension ExprTypeChecker {
                     sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: symbol)
                 }
             }
-            // compareTo desugaring: comparison operators (<, <=, >, >=) that resolve
-            // to a compareTo method should produce Bool, not the compareTo return type (Int).
-            // The KIR lowerer will emit: compareTo(a, b) <op> 0
             let effectiveType: TypeID = switch op {
             case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
                 boolType
@@ -1206,8 +1131,6 @@ extension ExprTypeChecker {
                 returnType
             }
             if [.rangeTo, .rangeUntil, .downTo, .step].contains(op) {
-                // Source-backed range operators do not reach the legacy range
-                // marker path below when ordinary operator resolution succeeds.
                 driver.callChecker.markRangeCallBindings(
                     id,
                     chosen: chosen,
@@ -1261,13 +1184,6 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: effectiveType)
             return effectiveType
         }
-        // KUU-4351: a non-null `Nothing` operand is a subtype of every operator
-        // parameter type, so kotlinc keeps only uniquely-resolvable overloads —
-        // the unsigned receivers and Char's plus/compareTo accept it, signed
-        // and floating-point receivers are ambiguous, and a `Nothing` receiver
-        // has no member operators (the remaining extension set is ambiguous as
-        // well). Range operators keep the Nothing-peer handling above; equality
-        // never reaches this path.
         let isNonNullNothingType: (TypeID) -> Bool = { candidate in
             if case .nothing(.nonNull) = sema.types.kind(of: candidate) {
                 return true
@@ -1331,8 +1247,6 @@ extension ExprTypeChecker {
                 return sema.types.errorType
             }
         }
-        // Char concatenation and applicable operator overloads return above.
-        // A textual RHS alone must not enable the primitive arithmetic fallback.
         if sema.types.containsCapturedTypes(inferredLhs) || sema.types.containsCapturedTypes(inferredRhs),
            [.add, .subtract, .multiply, .divide, .modulo].contains(op),
            !sema.types.isBuiltinArithmeticOperand(lhs) || !sema.types.isBuiltinArithmeticOperand(rhs)
@@ -1343,9 +1257,6 @@ extension ExprTypeChecker {
             )
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
-        // A `Nothing` operand is a subtype of every parameter type, so it must
-        // not satisfy the text-addition check: `c + TODO()` is not a string
-        // concatenation (KUU-4351).
         let isNothingOperand: (TypeID) -> Bool = { operand in
             sema.types.nullability(of: operand) != .nullable
                 && {
@@ -1382,9 +1293,6 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
-        // kotlinc keeps `x + TODO()` ambiguous among the primitive operator
-        // overloads unless a single member applies: `Char.plus(Int)` for `+`,
-        // or the unsigned operators for every arithmetic op (KUU-4351).
         if [.add, .subtract, .multiply, .divide, .modulo].contains(op),
            lhs != sema.types.errorType, rhs != sema.types.errorType,
            (lhsIsNothingOperand || rhsIsNothingOperand)
@@ -1406,20 +1314,9 @@ extension ExprTypeChecker {
         let lhsIsUnsigned = sema.types.isUnsigned(lhs)
         let rhsIsSigned = sema.types.isSigned(rhs)
 
-        // Kotlin's UIntProgression.step(Int) and ULongProgression.step(Long)
-        // take a signed parameter, so mixed signedness is valid only when the
-        // receiver is unsigned and the step operand matches the expected signed
-        // type: Int for UIntProgression, Int or Long for ULongProgression
-        // (Int is implicitly widened to Long in Kotlin).
-        // The reverse (signed..signed step unsigned) is rejected because
-        // IntProgression.step takes Int, not UInt.
         let allowsMixedSignedness: Bool = {
             if case .step = op, lhsIsUnsigned, rhsIsSigned {
                 if lhs == uintType { return rhs == intType }
-                // ULongProgression.step expects Long. Kotlin does not perform
-                // implicit numeric widening for non-literals; only integer
-                // literal constants adapt to the expected parameter type.
-                // Accept Int only when the rhs is a literal constant.
                 if lhs == ulongType {
                     if rhs == longType { return true }
                     if rhs == intType {
@@ -1517,15 +1414,11 @@ extension ExprTypeChecker {
             )
             type = boolType
         case .elvis:
-            // Kotlin's `?:` joins `T & Any` (not bare `T`) with the rhs —
-            // the lhs value is proven non-null, so a null-capable type
-            // parameter needs its definitely-non-null form (KUU-2693).
             let nonNullLhs = sema.types.definitelyNonNullForm(of: lhs)
             let elvisRhs = driver.helpers.retypeBranchClassObjectValue(
                 rhsID, currentType: rhs, ast: ast, sema: sema
             ) ?? rhs
             type = sema.types.lub([nonNullLhs, elvisRhs])
-            // Smart cast: `x ?: return` / `x ?: throw` narrows x to non-null (P5-66)
             if let rhsExpr = ast.arena.expr(rhsID),
                driver.helpers.isTerminatingExpr(rhsExpr)
             {
@@ -1715,8 +1608,6 @@ extension ExprTypeChecker {
         else { return false }
         switch op {
         case .add:
-            // KUU-4015: `Char.plus(Int)` is the only member overload, so a
-            // non-null Nothing operand resolves to Char just like an Int one.
             let rhsIsNonNullNothing: Bool = {
                 if case .nothing(.nonNull) = sema.types.kind(of: rhs) {
                     return true
@@ -1736,12 +1627,6 @@ extension ExprTypeChecker {
         }
     }
 
-    /// A nominal `step` receiver is valid only when it is one of the concrete
-    /// `kotlin.ranges` range/progression classes — the only types that carry a
-    /// bundled `step` overload. The generic `ClosedRange`/`OpenEndRange`
-    /// interfaces are deliberately excluded: kotlinc rejects `step` on those
-    /// receivers too. A user class that merely shares the simple name is not a
-    /// range receiver either (KUU-4056).
     private func isStepReceiverType(
         _ type: TypeID,
         sema: SemaModule,
@@ -1877,8 +1762,6 @@ extension ExprTypeChecker {
     func equalityOperandType(_ expr: ExprID, inferred: TypeID, ctx: TypeInferenceContext) -> TypeID {
         let sema = ctx.sema
         let declared = equalityDeclaredType(expr, inferred: inferred, sema: sema)
-        // Range literals and their local references can carry a scalar element
-        // type for lowering. Compare their source-level range types instead.
         guard sema.bindings.isRangeExpr(expr),
               case .primitive = sema.types.kind(of: sema.types.makeNonNullable(declared))
         else { return declared }
@@ -1895,16 +1778,8 @@ extension ExprTypeChecker {
         ) ?? declared
     }
 
-    // Use the declaration type for smart-cast references. Kotlin only warns
-    // when a comparison becomes incompatible after smart casting.
     private func equalityDeclaredType(_ expr: ExprID, inferred: TypeID, sema: SemaModule) -> TypeID {
-        // A callable reference binds its target symbol for lowering, but its
-        // expression type is the callable reference type (for example,
-        // KMutableProperty0<Int>), not the target property's value type.
         guard sema.bindings.callableRefKind(for: expr) == nil else { return inferred }
-        // Receiver-function value invocations retain the callee symbol on the
-        // call expression for capture analysis. Their equality type is the
-        // inferred invocation result, not the function value's declaration type.
         guard sema.bindings.callableValueCallBinding(for: expr) == nil else { return inferred }
         guard let symbol = sema.bindings.identifierSymbol(for: expr) else { return inferred }
         if let declared = sema.symbols.propertyType(for: symbol) { return declared }
@@ -1932,8 +1807,6 @@ extension ExprTypeChecker {
         }
     }
 
-    /// kotlinc rejects `===` between different non-null primitive types
-    /// (e.g. `Int === Long`) with the same diagnostic as value classes.
     private func identityEqualityHasDistinctPrimitiveTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
         guard case let .primitive(left, .nonNull) = sema.types.kind(of: lhs),
               case let .primitive(right, .nonNull) = sema.types.kind(of: rhs)
@@ -1941,10 +1814,6 @@ extension ExprTypeChecker {
         return left != right
     }
 
-    /// kotlinc's FORBIDDEN_IDENTITY_EQUALS also fires when a primitive operand
-    /// (nullability ignored — `Int? === "s"` is still forbidden) is compared
-    /// against a type it can never be identical to, whether that other type is
-    /// another primitive or a class type (`Int === String`, `SomeClass === Int`).
     private func identityEqualityHasForbiddenPrimitiveOperand(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
         func isPrimitiveOperand(_ type: TypeID) -> Bool {
             guard case .primitive = sema.types.kind(of: sema.types.makeNonNullable(type)) else { return false }
@@ -1964,8 +1833,6 @@ extension ExprTypeChecker {
     }
 
     private func identityEqualityHasDistinctSingletonTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
-        // Both nullable types can contain the same null value. Widened operands
-        // and type parameters retain their declared types on the caller's path.
         if sema.types.nullability(of: lhs) == .nullable,
            sema.types.nullability(of: rhs) == .nullable {
             return false
@@ -1977,8 +1844,6 @@ extension ExprTypeChecker {
     }
 
     private func identityEqualityHasDistinctAnonymousObjectTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
-        // Anonymous object literals are distinct final nominal classes, even
-        // when their members or declared supertypes happen to match.
         if sema.types.nullability(of: lhs) == .nullable,
            sema.types.nullability(of: rhs) == .nullable {
             return false
@@ -1991,10 +1856,6 @@ extension ExprTypeChecker {
             && left.id != right.id
     }
 
-    // Kotlin 2.3.10 rejects unrelated concrete operands when a primitive or
-    // String is involved. Ordinary classes may implement cross-type equals.
-    // Type-parameter bounds and enum/value-class diagnostics have additional
-    // warning rules and remain on the existing path.
     func equalityHasIncompatibleBuiltinTypes(_ lhs: TypeID, _ rhs: TypeID, sema: SemaModule) -> Bool {
         func erasedOperand(_ type: TypeID) -> TypeID? {
             let nonNull = sema.types.makeNonNullable(type)
@@ -2028,7 +1889,6 @@ extension ExprTypeChecker {
     }
 
     private func coroutineContextType(sema: SemaModule, interner: StringInterner) -> TypeID? {
-        // CoroutineContext lives in kotlin.coroutines (not kotlinx.coroutines)
         let fqName = [
             interner.intern("kotlin"),
             interner.intern("coroutines"),
@@ -2052,7 +1912,6 @@ extension ExprTypeChecker {
             interner.intern("kotlinx"),
             interner.intern("coroutines"),
         ]
-        // CoroutineContext lives in kotlin.coroutines, others in kotlinx.coroutines
         let kotlinCoroutinesPkg = [
             interner.intern("kotlin"),
             interner.intern("coroutines"),

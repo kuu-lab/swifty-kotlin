@@ -63,9 +63,6 @@ private let runtimeMutableMapPutAllMethodSlot = 1
 private let runtimeMutableMapRemoveMethodSlot = 2
 private let runtimeMutableMapClearMethodSlot = 3
 
-/// Source-defined Collection/Map implementations expose `size` through the
-/// same dynamic interface-property getter table used by ordinary Kotlin code.
-/// Built-in list/set/map boxes continue to use their direct fast paths.
 @inline(__always)
 func runtimeSourceCollectionSize(_ rawValue: Int) -> Int? {
     let fnPtr = kk_itable_lookup_dynamic(
@@ -86,8 +83,6 @@ func runtimeSourceCollectionSize(_ rawValue: Int) -> Int? {
     return result
 }
 
-/// Dispatch a source-defined Set.size override through Set's property getter
-/// slot. This differs from Collection.size because Set redeclares the property.
 @inline(__always)
 func runtimeSourceSetSize(_ rawValue: Int) -> Int? {
     let fnPtr = kk_itable_lookup_dynamic(

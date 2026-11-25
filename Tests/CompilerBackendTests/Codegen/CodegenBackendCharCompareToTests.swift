@@ -8,7 +8,6 @@ import Testing
 @Suite
 struct CodegenBackendCharCompareToTests {
 
-    // PARITY-CODEGEN-005: Char.compareTo(Char)
     @Test
     func testCodegenCompilesCharCompareTo() throws {
         let source = """
@@ -79,10 +78,6 @@ struct CodegenBackendCharCompareToTests {
         )
     }
 
-    // KUU-1211: a `Comparable<Char>` local that never escapes keeps kotlinc's
-    // unboxed `char` slot, so `compareTo` reports normalized -1/0/1 like
-    // `Intrinsics.compare`; once it escapes to `Any`, reads are boxed and
-    // `Comparable.compareTo` reports the raw UTF-16 code-unit difference.
     @Test
     func testCodegenComparableCharLocalEscapeAnalysis() throws {
         let source = """

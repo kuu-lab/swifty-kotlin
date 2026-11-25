@@ -1,8 +1,5 @@
 import Foundation
 
-/// Stable nominal type ID of `kotlin.String`, with String's interface
-/// supertype edges registered on first use (BUG-153). Strings never reach
-/// `kk_object_new`, so this is the only place those edges get installed.
 let runtimeStringNominalTypeID: Int64 = {
     let stringTypeID = runtimeStableNominalTypeID(fqName: "kotlin.String")
     runtimeRegisterTypeEdge(
@@ -16,12 +13,6 @@ let runtimeStringNominalTypeID: Int64 = {
     return stringTypeID
 }()
 
-/// Stable nominal type IDs for boxed primitive Kotlin types (pure hashes of
-/// their fqNames, safe to cache once). Their `kotlin.Number`/
-/// `kotlin.Comparable` supertype edges are registered separately by
-/// `registerEdgesOnce()` below -- see that method's doc comment for why this
-/// can't reuse `runtimeStringNominalTypeID`'s "register inside a `static
-/// let` closure" pattern.
 private struct RuntimePrimitiveNominalTypeIDs {
     let byte, short, int, long, float, double: Int64
     let uint, ulong, ubyte, ushort, char, boolean: Int64
@@ -41,19 +32,6 @@ private struct RuntimePrimitiveNominalTypeIDs {
         boolean: runtimeStableNominalTypeID(fqName: "kotlin.Boolean")
     )
 
-    /// Registers every ID above against `kotlin.Number`/`kotlin.Comparable`
-    /// (Kotlin's unsigned types and Char/Boolean implement Comparable but
-    /// are not Number subtypes), exactly once -- mirroring
-    /// `registerReflectionRuntimeTypeMetadata`'s `reflectionTypeEdgesRegistered`
-    /// flag (RuntimeReflectionTypeMetadata.swift), including its
-    /// resettability: `kk_runtime_reset_metadata` clears
-    /// `primitiveTypeEdgesRegistered` alongside `typeParents`, so a metadata
-    /// reset (e.g. RuntimeTests' per-test isolation) re-registers on the next
-    /// call instead of leaving these edges permanently missing after the
-    /// one-time `static let` closure that installed them has already run.
-    /// Cheap on the hot path: one lock acquisition and a flag read once the
-    /// edges are installed (the caller's own `runtimeIsAssignable` takes a
-    /// second, separate acquisition for its BFS).
     func registerEdgesOnce() {
         runtimeStorage.withMetadataLock { state in
             if state.primitiveTypeEdgesRegistered {
@@ -61,8 +39,6 @@ private struct RuntimePrimitiveNominalTypeIDs {
             }
             let comparable = runtimeStableNominalTypeID(fqName: "kotlin.Comparable")
             let number = runtimeStableNominalTypeID(fqName: "kotlin.Number")
-            // Serializable is inherited through Number, independently of the
-            // direct-parent lists exposed by KClass.supertypes.
             state.typeParents[number, default: []].insert(
                 runtimeStableNominalTypeID(fqName: "java.io.Serializable")
             )
@@ -100,14 +76,6 @@ func runtimePrimitiveNominalTypeID(forTypeTokenBase base: Int64) -> Int64? {
     return typeID
 }
 
-/// The nominal type ID of the boxed primitive `ptr` represents (Int, Double,
-/// UInt, Char, ...), or `nil` when `ptr` is not a registered primitive box.
-/// An enum-ordinal `RuntimeIntBox` (`enumClassID != nil`) is excluded: its
-/// nominal identity is its enum class, not `kotlin.Int`.
-///
-/// `RuntimeIntBox` also backs Byte/Short and the small unsigned types;
-/// `primitiveTypeBase` preserves their distinct Kotlin identities.
-///
 /// Precondition (enforced by `kk_op_is`, this function's only caller): `ptr`
 /// must not already be a tagged value-class box (`runtimeObjectTypeID(rawValue:)
 /// != nil`). This function does not re-check that itself, so a value class
@@ -127,9 +95,6 @@ private func runtimePrimitiveBoxNominalTypeID(_ ptr: UnsafeMutableRawPointer) ->
         return nil
     }
     let ids = RuntimePrimitiveNominalTypeIDs.shared
-    // Registration only runs once a box actually matches below, so an `is`
-    // check on an untagged non-primitive object (a throwable, list, map, ...)
-    // never pays for it.
     if let intBox = tryCast(ptr, to: RuntimeIntBox.self), intBox.enumClassID == nil {
         ids.registerEdgesOnce()
         switch intBox.primitiveTypeBase {
@@ -170,10 +135,6 @@ private func runtimePrimitiveBoxNominalTypeID(_ ptr: UnsafeMutableRawPointer) ->
 
 private let runtimeBigDecimalNominalTypeID = runtimeStableNominalTypeID(fqName: "java.math.BigDecimal")
 
-/// Registers BigDecimal's direct Number/Comparable ancestry once. BigDecimal
-/// values are `RuntimeBigNumberBox` handles rather than `kk_object_new`
-/// allocations, so `kk_op_is` recovers this nominal identity from the box
-/// (KUU-4596 `divideAndRemainder` array elements).
 func registerBigDecimalTypeEdgesOnce() {
     runtimeStorage.withMetadataLock { state in
         if state.bigDecimalTypeEdgesRegistered {
@@ -212,13 +173,6 @@ private func runtimeFunctionTypeMatches(
     return targetArity == loweredFunctionArity
 }
 
-/// Whether a nominal type (a user class, an interface, or a SAM adapter's
-/// interface) satisfies a function-type check through its supertypes. A
-/// `suspend (P1..PN) -> R` supertype lowers to `FunctionN+1` on the JVM, so
-/// `SuspendFunction{N-1}` also satisfies a non-suspend `FunctionN` check.
-/// Both the SAM-identity path and the plain object path need this: a suspend
-/// fun interface built from a callable reference is re-wrapped around a
-/// suspend function value, and that outer wrapper carries no SAM identity.
 private func runtimeNominalTypeImplementsFunction(
     _ sourceTypeID: Int64,
     arity: Int,
@@ -289,9 +243,6 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         if !isObjectPointer {
             return 1
         }
-        // A box tagged with a nominal type ID (kk_tag_value_class_box) represents
-        // a boxed value class, which is a distinct type from its underlying
-        // primitive even though it shares the same physical box.
         if runtimeObjectTypeID(rawValue: value) != nil {
             return 0
         }
@@ -301,8 +252,6 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         return box.primitiveTypeBase == base ? 1 : 0
 
     case RuntimeTypeTokenEncoding.functionBase:
-        // KUU-1084: function-type tokens carry source arity and the suspend
-        // marker. Suspend functions also expose their lowered FunctionN+1 shape.
         let (arity, isSuspend) = RuntimeTypeTokenEncoding.functionPayloadParts(payload)
         let (samInterfaceTypeID, taggedFunctionType) = runtimeStorage.withDelegateLock { state -> (Int64?, (Int, Bool)?) in
             if let adapter = state.callableAdapterIdentityByValue[value],
@@ -323,8 +272,6 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
             return (nil, nil)
         }
         if let samInterfaceTypeID {
-            // A SAM adapter is a function only when its interface inherits a
-            // function type, not merely because its delegate has that arity.
             return runtimeNominalTypeImplementsFunction(
                 samInterfaceTypeID, arity: arity, isSuspend: isSuspend
             ) ? 1 : 0
@@ -352,8 +299,6 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
                 actualIsSuspend: fnBox.suspendEntryPoint != 0
             ) ? 1 : 0
         }
-        // Callable references (`::foo`) also satisfy function-type checks at
-        // their declared arity.
         if let kfnBox = tryCast(ptr, to: RuntimeKFunctionBox.self) {
             return runtimeFunctionTypeMatches(
                 targetArity: arity,
@@ -362,9 +307,6 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
                 actualIsSuspend: false
             ) ? 1 : 0
         }
-        // User classes can implement a function type as a supertype. Their
-        // nominal metadata carries the arity-specific FunctionN edge, while
-        // runtime-created closure boxes use the arity metadata above.
         if let sourceTypeID = runtimeObjectTypeID(rawValue: value) {
             return runtimeNominalTypeImplementsFunction(
                 sourceTypeID, arity: arity, isSuspend: isSuspend
@@ -453,20 +395,14 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         return 0
 
     case RuntimeTypeTokenEncoding.unitBase:
-        // Direct Unit values remain integer 0; Any-erased Unit values use the
-        // runtime box so they remain distinguishable from other raw values.
         return runtimeIsUnitValue(value) ? 1 : 0
 
     case RuntimeTypeTokenEncoding.nominalBase:
-        // Coroutine state handles are live runtime objects rather than Kotlin
-        // allocations, so they do not carry the usual nominal type metadata.
         if payload == runtimeStableNominalTypeID(fqName: "kotlin.coroutines.Continuation"),
            runtimeContinuationState(from: value) != nil
         {
             return 1
         }
-        // Raw callable references and adapted closure boxes retain reflection
-        // identity in callable metadata rather than an object allocation tag.
         let isFunctionReference = runtimeStorage.withDelegateLock { state in
             state.callableRefMetadataByValue[value]?.kind == .function
         }
@@ -502,9 +438,6 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
             {
                 return 1
             }
-            // Arity-specific KFunctionN/KSuspendFunctionN checks erase to the
-            // KFunction classifier on the JVM, so any object whose nominal
-            // identity reaches KFunction satisfies them (KUU-3841).
             if runtimeIsKFunctionArityTypeID(payload) {
                 registerReflectionRuntimeTypeMetadata()
                 return runtimeIsAssignable(
@@ -517,34 +450,18 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
             return 0
         }
-        // BUG-153: String values are allocated through the flat-string fast
-        // paths (kk_string_from_flat / kk_string_from_utf8 / concatenation /
-        // toString()), never through kk_object_new, so they carry no object
-        // type ID and can't answer an interface check (`is CharSequence`,
-        // `is Comparable<*>`) via the registered supertype graph. Recover
-        // String's identity from the box itself instead of tagging every
-        // allocation site, then reuse the ordinary assignability walk over
-        // kotlin.String's supertype edges.
         if runtimeIsStringBoxPointer(ptr) {
             return runtimeIsAssignable(
                 sourceTypeID: runtimeStringNominalTypeID,
                 targetTypeID: payload
             ) ? 1 : 0
         }
-        // A Double/Float/Long/Int/... held in an Any slot boxes through the
-        // same primitive box types as `is Int`/`is Double` above, but (like
-        // String) carries no object type ID, so it needs the same recovery
-        // to answer an interface check (`is Number`, `is Comparable<*>`).
         if let primitiveTypeID = runtimePrimitiveBoxNominalTypeID(ptr) {
             return runtimeIsAssignable(
                 sourceTypeID: primitiveTypeID,
                 targetTypeID: payload
             ) ? 1 : 0
         }
-        // Range handles carry no object type ID either: they are allocated by
-        // `__kk_*_rangeTo`/`downTo`/`until` factories, not kk_object_new.
-        // Recover the nominal identity from the range kind, mirroring the
-        // primitive-box recovery above.
         if let rangeBox = runtimeRangeBox(from: value) {
             registerRangeTypeEdgesOnce()
             return runtimeIsAssignable(
@@ -584,10 +501,6 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
                 targetTypeID: payload
             ) ? 1 : 0
         }
-        // KUU-2687: bare scheduler tags (`kk_dispatcher_main`,
-        // `Dispatchers.Main.immediate`) are Ints, not registered objects —
-        // recover their nominal identity so `Dispatchers.Main is
-        // MainCoroutineDispatcher` answers like kotlinx's.
         if isDispatcherTag(value) {
             registerCoroutineDispatcherTypeEdgesOnce()
             let tagSourceTypeID = runtimeStableNominalTypeID(
@@ -601,10 +514,6 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
                 targetTypeID: payload
             ) ? 1 : 0
         }
-        // KUU-1386: coroutine job-family handles (launch/async tasks, Job()/
-        // SupervisorJob() handles, ChildHandle boxes) are raw runtime objects
-        // with no object type ID — recover the kotlinx nominal they answer
-        // `is`/`as`/`as?` as (AbstractCoroutine/DeferredCoroutine/JobImpl/...).
         if let jobFamilyTypeID = runtimeJobFamilyNominalTypeID(rawValue: value) {
             registerJobFamilyTypeEdgesOnce()
             return runtimeIsAssignable(
@@ -612,18 +521,12 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
                 targetTypeID: payload
             ) ? 1 : 0
         }
-        // KUU-3701: the DeepRecursive trampoline's scope/function boxes are
-        // likewise raw runtime objects — recover the kotlin.DeepRecursive*
-        // nominal they stand in for.
         if let deepRecursiveTypeID = runtimeDeepRecursiveNominalTypeID(rawValue: value) {
             return runtimeIsAssignable(
                 sourceTypeID: deepRecursiveTypeID,
                 targetTypeID: payload
             ) ? 1 : 0
         }
-        // KUU-3847: channel handles and their iterators are likewise raw
-        // runtime objects — recover the kotlinx.coroutines.channels nominal
-        // (`Channel`/`ChannelIterator`) they answer `is`/`as`/`as?` as.
         if let channelFamilyTypeID = runtimeChannelFamilyNominalTypeID(rawValue: value) {
             registerChannelFamilyTypeEdgesOnce()
             return runtimeIsAssignable(
@@ -631,9 +534,6 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
                 targetTypeID: payload
             ) ? 1 : 0
         }
-        // KUU-4596: BigDecimal values are RuntimeBigNumberBox handles rather
-        // than kk_object_new allocations, so recover the java.math.BigDecimal
-        // nominal identity for `is`/`as` checks (notably Array<BigDecimal> reads).
         if let bigNumberBox = runtimeStorage.withGCLock({ state in
             state.objectPointers.contains(UInt(bitPattern: ptr))
                 ? tryCast(ptr, to: RuntimeBigNumberBox.self)
@@ -661,9 +561,6 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         if runtimeThrowableMatchesNominalTypeID(throwable, targetTypeID: payload) {
             return 1
         }
-        // A base RuntimeThrowableBox has no Kotlin-level type information. Keep
-        // the historical broad catch fallback for those internal throwables,
-        // while typed subclasses must obey their explicit hierarchy above.
         return throwable.exceptionHierarchyIsBaseThrowable ? 1 : 0
 
     default:
@@ -671,14 +568,6 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
     }
 }
 
-/// KUU-3801: whether `value` satisfies `x as suspend (P1..Pn) -> R` through
-/// the lowered `Function{n+1}` runtime representation. JVM emits a plain
-/// checkcast of `Function{n+1}` for the unsafe `as` cast — the
-/// SuspendFunction marker is only tested by `is`/`as?` — so a plain
-/// `(P1..Pn, Continuation<R>) -> Any?` function value (the erased form of
-/// the suspend type) must pass. The retry reuses the ordinary
-/// `Function{n+1}` check, which a true suspend lambda also answers through
-/// its lowered arity.
 private func runtimeSuspendCastAcceptsLoweredShape(value: Int, typeToken: Int) -> Bool {
     let token = Int64(truncatingIfNeeded: typeToken)
     guard token & RuntimeTypeTokenEncoding.baseMask == RuntimeTypeTokenEncoding.functionBase else {
@@ -703,9 +592,6 @@ public func kk_op_cast(_ value: Int, _ typeToken: Int, _ outThrown: UnsafeMutabl
         if runtimeSuspendCastAcceptsLoweredShape(value: value, typeToken: typeToken) {
             return value
         }
-        // Kotlin/JVM reports a null-to-non-null cast as NullPointerException,
-        // while a non-null value with the wrong runtime type is ClassCastException.
-        // Keep the distinction before allocating the generic cast failure.
         if value == runtimeNullSentinelInt {
             let token = Int64(truncatingIfNeeded: typeToken)
             let base = token & RuntimeTypeTokenEncoding.baseMask
@@ -742,9 +628,6 @@ private func runtimeClassCastExceptionMessage(value: Int, targetTypeToken: Int) 
     return "class \(sourceName) cannot be cast to class \(targetName)"
 }
 
-/// Uses declaration metadata directly because local classes still need their
-/// generated qualified name in ClassCastException messages even though
-/// KClass.qualifiedName is null for local declarations.
 private func runtimeClassCastTypeName(typeToken: Int, nameHint: Int = 0) -> String {
     let normalizedToken = Int(
         truncatingIfNeeded: Int64(truncatingIfNeeded: typeToken)
@@ -791,9 +674,6 @@ private func runtimeClassCastTypeName(typeToken: Int, nameHint: Int = 0) -> Stri
     return "kotlin.Any"
 }
 
-/// Checks an erased generic result at the delegated property boundary. A null
-/// result is accepted for nullable properties and rejected as a cast failure
-/// for non-null properties, without changing explicit `as` cast behavior.
 @_cdecl("kk_op_cast_erased_return")
 public func kk_op_cast_erased_return(
     _ value: Int,
@@ -868,8 +748,6 @@ public func kk_op_contains(_ container: Int, _ element: Int) -> Int {
     if let array = runtimeArrayBoxExcludingObjects(from: container) {
         return array.values.contains(where: { runtimeLookupValuesEqual($0.legacyRawValue, element) }) ? 1 : 0
     }
-    // Source-defined collections (e.g. `class C : List<Int> by delegate`)
-    // are not native boxes; dispatch through the object's Collection itable.
     return runtimeSourceInterfaceCall1(
         container,
         element,

@@ -5,7 +5,6 @@
 import Foundation
 import Testing
 
-/// Runtime regressions for Kotlin's `closures/captureInSuperConstructorCall` box cases.
 @Suite
 struct CodegenBackendSuperConstructorClosureCaptureTests {
     @Test(arguments: [

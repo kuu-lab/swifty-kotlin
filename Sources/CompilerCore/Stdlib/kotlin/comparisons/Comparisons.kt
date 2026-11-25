@@ -1,13 +1,5 @@
 package kotlin.comparisons
 
-// MIGRATION-COMP-002
-// maxOf / minOf overloads migrated to Kotlin source.
-//
-// NOTE: CallLowerer still recognizes this source-backed API surface and lowers
-// primitive, comparable, comparator, and vararg calls inline. Float/Double
-// overloads delegate to the existing runtime helpers so NaN propagation and
-// signed-zero ordering stay aligned with Kotlin semantics.
-
 @PublishedApi
 internal external fun kk_max_float(a: Float, b: Float): Float
 @PublishedApi

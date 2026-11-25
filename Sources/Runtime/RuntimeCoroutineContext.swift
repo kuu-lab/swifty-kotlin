@@ -9,11 +9,6 @@ private let runtimeEmptyCoroutineContextTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.coroutines.EmptyCoroutineContext"
 )
 
-/// KUU-4402: one slot in a context's element order. kotlinx models a
-/// composite context as a `CombinedContext` chain whose `fold`/`toString`
-/// walk elements in insertion order with the `ContinuationInterceptor`
-/// element always rightmost; the flat field model cannot recover that
-/// order, so it is tracked explicitly.
 enum RuntimeContextElementSlot: Hashable {
     case dispatcher
     case name
@@ -27,10 +22,6 @@ struct RuntimeContextElementPair: Hashable {
     let element: Int
 }
 
-/// Best-effort handle for the source-backed `EmptyCoroutineContext`
-/// singleton, captured whenever runtime code observes it so `minusKey`/
-/// `plus` can return the real object (and keep `===` identity) instead of
-/// an empty runtime wrapper.
 private nonisolated(unsafe) var runtimeEmptyCoroutineContextRaw: Int = 0
 
 private func runtimeNoteEmptyCoroutineContext(_ raw: Int) -> Bool {
@@ -43,11 +34,6 @@ private func runtimeNoteEmptyCoroutineContext(_ raw: Int) -> Bool {
     return true
 }
 
-/// `kk_object_new` hook: the singleton's Kotlin `plus`/`minusKey`/`get`/
-/// `fold` overrides all short-circuit in source, so the object can be
-/// materialised without ever crossing a context bridge. Capturing it at
-/// allocation keeps `ctx.minusKey(...) === EmptyCoroutineContext` true even
-/// when no context operation ran first (KUU-4402).
 func runtimeNoteEmptyCoroutineContextClassID(_ classID: Int, raw: Int) {
     if classID == Int(runtimeEmptyCoroutineContextTypeID) {
         runtimeEmptyCoroutineContextRaw = raw
@@ -61,14 +47,9 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
     var nameHandleRaw: Int
     var exceptionHandler: RuntimeExceptionHandlerBox?
     var jobHandleRaw: Int
-    /// Source-defined elements the fixed fields cannot model, stored as
-    /// ordered (key, element) handle pairs. Element order matters for `fold`.
     var extras: [(key: Int, element: Int)]
-    /// JVM fold/toString order: non-interceptor elements in insertion order,
-    /// the ContinuationInterceptor element last. See KUU-4402.
     var elementOrder: [RuntimeContextElementSlot]
 
-    /// Context operations expose the original element; scheduling uses its tag.
     var dispatcherElementHandle: Int {
         if dispatcherHandleRaw != 0 { return dispatcherHandleRaw }
         // KUU-2687: a bare scheduler tag resolves to the singleton dispatcher
@@ -106,10 +87,6 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
         )
     }
 
-    /// Field-derived order used when no explicit `+`/`minusKey` history is
-    /// known: non-interceptor slots first (name, handler, job, extras), the
-    /// interceptor (dispatcher) last — matching kotlinx's rule that the
-    /// `ContinuationInterceptor` element is always rightmost.
     static func defaultElementOrder(
         hasName: Bool,
         hasExceptionHandler: Bool,
@@ -134,8 +111,6 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
         return slots
     }
 
-    /// The `(key, element)` pair one order slot currently resolves to, or
-    /// nil when the backing field was cleared (e.g. by `minusKey`).
     func elementPair(for slot: RuntimeContextElementSlot) -> RuntimeContextElementPair? {
         switch slot {
         case .dispatcher:
@@ -162,8 +137,6 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
         }
     }
 
-    /// Pairs derivable purely from the fields, ignoring `elementOrder` —
-    /// used to drop stale order slots after `minusKey` clears fields.
     var memberElementPairs: Set<RuntimeContextElementPair> {
         var pairs = Set<RuntimeContextElementPair>()
         let dispatcherHandle = dispatcherElementHandle
@@ -189,7 +162,6 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
         return pairs
     }
 
-    /// Elements in JVM `fold`/`toString` order.
     var orderedElements: [RuntimeContextElementPair] {
         let members = memberElementPairs
         return elementOrder
@@ -197,15 +169,10 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
             .filter { members.contains($0) }
     }
 
-    /// Whether this slot resolves to the `ContinuationInterceptor` element,
-    /// which kotlinx always keeps rightmost in a `CombinedContext`.
     func isInterceptorElementSlot(_ slot: RuntimeContextElementSlot) -> Bool {
         elementPair(for: slot)?.key == runtimeContinuationInterceptorKeyRaw
     }
 
-    /// Install a runtime-owned Job while keeping a synthesized element order
-    /// consistent with the context fields. The Job is inserted before any
-    /// interceptor slot, as `CoroutineContext.plus` does.
     func installJobHandle(_ raw: Int) {
         jobHandleRaw = raw
         guard raw != 0, !elementOrder.contains(.job) else { return }
@@ -213,8 +180,6 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
         elementOrder.insert(.job, at: insertionIndex)
     }
 
-    /// Install the runtime event-loop interceptor as the rightmost element,
-    /// preserving the recorded order of all non-interceptor elements.
     func installDispatcherElementHandle(_ raw: Int) {
         dispatcherHandleRaw = raw
         guard raw != 0,
@@ -236,14 +201,7 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
         return nil
     }
 
-    /// Right-hand side wins for duplicate keys — including a `key` collision
-    /// between a built-in field and an extras element, which
-    /// `kotlin.coroutines` resolves as `minusKey(otherKeys) + other`.
     func plus(_ other: RuntimeCoroutineContext) -> RuntimeCoroutineContext {
-        // The dispatcher/interceptor slot is occupied whenever the other
-        // context carries a dispatcher — a scheduler tag or an element object
-        // with no tag (e.g. a runBlocking event loop, KUU-1395) — so
-        // `ctx + element` replaces it like kotlinx's `+` does.
         let otherHasDispatcher = other.dispatcherElementHandle != 0
         let otherClaimsJob = other.extras.contains { $0.key == runtimeJobKeyRaw }
         let otherClaimsName = other.extras.contains { $0.key == runtimeCoroutineNameKeyRaw }
@@ -274,15 +232,9 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
                 : (otherClaimsDispatcher ? 0 : self.dispatcherHandleRaw),
             extras: mergedExtras
         )
-        // KUU-4402: kotlinx's `+` appends the right-hand elements after the
-        // left ones, except that the right-hand interceptor is hoisted to
-        // the rightmost slot and a replaced same-key element moves to the
-        // end of the non-interceptor run. The flat fields cannot express
-        // that, so rebuild the order explicitly.
         let mergedPairs = merged.memberElementPairs
         var claimedKeys = Set(other.orderedElements.map(\.key))
         if otherHasDispatcher {
-            // A dispatcher also shadows extras keyed by CoroutineDispatcher.Key.
             claimedKeys.insert(runtimeCoroutineDispatcherKeyRaw)
         }
         var newOrder: [RuntimeContextElementSlot] = []
@@ -313,12 +265,6 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
     }
 }
 
-/// KUU-1387: content identity of a `CoroutineContext` object. Ambient-context
-/// readers (`coroutineContext`, `currentCoroutineContext()`,
-/// `continuation.context`) must return the same object whenever the same
-/// logical context is in force — Kotlin's property contract returns the
-/// continuation's one fixed context on every access (JVM), so repeated reads
-/// are `===`- and `==`-stable.
 private struct RuntimeCoroutineContextIdentity: Hashable {
     let dispatcher: Int
     let dispatcherHandleRaw: Int
@@ -328,8 +274,6 @@ private struct RuntimeCoroutineContextIdentity: Hashable {
     let jobHandleRaw: Int
     let extraKeys: [Int]
     let extraElements: [Int]
-    /// KUU-4402: fold/toString order is part of the context's content —
-    /// `Name + Job` and `Job + Name` are distinct contexts on the JVM.
     var elementOrder: [RuntimeContextElementSlot]
 
     init(
@@ -374,10 +318,6 @@ private struct RuntimeCoroutineContextIdentity: Hashable {
     }
 }
 
-/// Element membership for matching a reconstructed context to the source
-/// context held by its continuation. CoroutineContext equality is independent
-/// of fold order, while the canonical identity above keeps order so distinct
-/// fold/toString layouts do not share one runtime object.
 private struct RuntimeCoroutineContextContentIdentity {
     let elements: Set<RuntimeContextElementPair>
 
@@ -404,11 +344,6 @@ private struct RuntimeWeakCoroutineContext {
     weak var context: RuntimeCoroutineContext?
 }
 
-/// Canonicalizes `RuntimeCoroutineContext` objects by content identity so every
-/// read of an equal ambient context resolves to the same registered object.
-/// Weak entries let contexts die with their last handle (registered objects are
-/// retained by `runtimeRegisterObject`, so an entry outlives its consumers in
-/// practice and only a never-registered context can drop out early).
 private final class RuntimeCoroutineContextCanonicalizer: @unchecked Sendable {
     static let shared = RuntimeCoroutineContextCanonicalizer()
 
@@ -463,15 +398,10 @@ private final class RuntimeCoroutineContextCanonicalizer: @unchecked Sendable {
     }
 }
 
-/// The canonical object for `context`'s content — `context` itself when it is
-/// the first object registered under that identity.
 func runtimeCanonicalCoroutineContext(_ context: RuntimeCoroutineContext) -> RuntimeCoroutineContext {
     RuntimeCoroutineContextCanonicalizer.shared.canonical(context)
 }
 
-/// Whether two runtime context models contain the same elements, regardless
-/// of their fold order. Kotlin context equality compares elements by key;
-/// iteration order only affects fold/toString and canonical object identity.
 func runtimeCoroutineContextsHaveSameContent(
     _ lhs: RuntimeCoroutineContext,
     _ rhs: RuntimeCoroutineContext
@@ -481,8 +411,6 @@ func runtimeCoroutineContextsHaveSameContent(
     )
 }
 
-/// The canonical object for the given content, creating it only on a miss so
-/// repeated `coroutineContext` reads on an unchanged context allocate nothing.
 func runtimeCanonicalCoroutineContext(
     dispatcher: Int,
     dispatcherHandleRaw: Int,
@@ -526,10 +454,6 @@ private let runtimeExceptionHandlerTypeID = runtimeStableNominalTypeID(
     fqName: "kotlinx.coroutines.CoroutineExceptionHandler"
 )
 
-/// KUU-3752: handler boxes used to register with no nominal tag, so the
-/// erased `E` cast on `ctx[CoroutineExceptionHandler]` — and `is`/`as`
-/// checks on a `CoroutineExceptionHandler { }` SAM — fell through to
-/// ClassCastException. Tag them like CoroutineName boxes (KUU-3700).
 func runtimeRegisterExceptionHandler(_ box: RuntimeExceptionHandlerBox) -> Int {
     let raw = runtimeRegisterObject(box)
     runtimeRegisterObjectType(rawValue: raw, classID: runtimeExceptionHandlerTypeID)
@@ -547,10 +471,6 @@ func runtimeRegisterExceptionHandler(_ box: RuntimeExceptionHandlerBox) -> Int {
 private final class RuntimeCoroutineNameKey: @unchecked Sendable {}
 private let runtimeCoroutineNameKeyRaw = runtimeRegisterObject(RuntimeCoroutineNameKey())
 
-/// KUU-1386: singleton backing `Job.Key` (`kk_job_key`). Mirroring
-/// CoroutineName's key, `Job`/`Job.Key` expressions evaluate to this object so
-/// `job.key == Job` is true and `ctx[Job]`/`ctx.minusKey(Job)` resolve the
-/// context's stored job handle.
 private final class RuntimeJobKey: @unchecked Sendable {}
 private let runtimeJobKeyRaw = runtimeRegisterObject(RuntimeJobKey())
 
@@ -569,11 +489,6 @@ public func kk_coroutine_name_key_get(_ receiver: Int) -> Int {
     runtimeCoroutineNameKeyRaw
 }
 
-/// KUU-1405: singleton backing `ContinuationInterceptor.Key` /
-/// `CoroutineDispatcher.Key`. The bundled stdlib marks those companions
-/// `@KsSymbolName`s onto these getters so `ctx[ContinuationInterceptor]` and
-/// `ctx[CoroutineDispatcher]` resolve the stored dispatcher element, matching
-/// kotlinx where both companions model the same interceptor key.
 private final class RuntimeContinuationInterceptorKey: @unchecked Sendable {}
 private let runtimeContinuationInterceptorKeyRaw = runtimeRegisterObject(RuntimeContinuationInterceptorKey())
 
@@ -596,11 +511,6 @@ public func kk_continuation_interceptor_key() -> Int {
     )
 }
 
-/// `CoroutineDispatcher.Key` is a distinct object in kotlinx — an
-/// `AbstractCoroutineContextKey` whose base key is `ContinuationInterceptor`
-/// — so `ctx[CoroutineDispatcher]` accepts dispatcher elements while
-/// `ctx[ContinuationInterceptor]` on a `CoroutineDispatcher`-keyed element
-/// does not.
 private final class RuntimeCoroutineDispatcherKey: @unchecked Sendable {}
 private let runtimeCoroutineDispatcherKeyRaw = runtimeRegisterObject(RuntimeCoroutineDispatcherKey())
 
@@ -611,8 +521,6 @@ public func kk_coroutine_dispatcher_key() -> Int {
     )
 }
 
-/// KUU-1405: singleton backing `CoroutineExceptionHandler.Key` so
-/// `ctx[CoroutineExceptionHandler]`/`minusKey` resolve the stored handler.
 private final class RuntimeExceptionHandlerKey: @unchecked Sendable {}
 private let runtimeExceptionHandlerKeyRaw = runtimeRegisterObject(RuntimeExceptionHandlerKey())
 
@@ -621,10 +529,6 @@ public func kk_exception_handler_key() -> Int {
     runtimeExceptionHandlerKeyRaw
 }
 
-/// KUU-1405: merge the source-element `extras` of two contexts the way
-/// `base.plus(override)` merges the fixed fields — override extras win per
-/// key, and extras claiming a built-in key lose to the merged built-in
-/// field (the coroutine's own Job, resolved name/dispatcher/handler).
 func runtimeMergedContextExtras(
     inherited: [(key: Int, element: Int)],
     override: [(key: Int, element: Int)],
@@ -662,7 +566,6 @@ private let runtimeCoroutineContextElementInterfaceTypeID = runtimeStableNominal
 )
 
 func runtimeCoroutineContextElementMethod(_ receiver: Int, _ interfaceTypeID: Int, _ methodSlot: Int) -> Int? {
-    // Element declares get/fold/minusKey; its key getter follows those slots.
     guard interfaceTypeID == Int(runtimeCoroutineContextElementInterfaceTypeID) else {
         return nil
     }
@@ -734,7 +637,6 @@ private func runtimeCoroutineElementKeyHandle(for receiver: Int) -> Int {
     return 0
 }
 
-/// Register a heap-allocated object in the runtime storage so it is not GC'd.
 func runtimeRegisterObject<T: AnyObject>(_ object: T) -> Int {
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(object).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -745,7 +647,6 @@ func runtimeRegisterObject<T: AnyObject>(_ object: T) -> Int {
     return Int(bitPattern: ptr)
 }
 
-/// nameRaw is a pointer to a runtime string (RuntimeStringBox or interned).
 @_cdecl("kk_coroutine_name_create")
 public func kk_coroutine_name_create(_ nameRaw: Int) -> Int {
     let nameStr: String
@@ -761,7 +662,6 @@ public func kk_coroutine_name_create(_ nameRaw: Int) -> Int {
     return registerRuntimeCoroutineName(nameStr)
 }
 
-/// Returns a RuntimeStringBox pointer.
 @_cdecl("kk_coroutine_name_get")
 public func kk_coroutine_name_get(_ handleRaw: Int) -> Int {
     guard handleRaw != 0,
@@ -785,12 +685,6 @@ public func kk_coroutine_name_get(_ handleRaw: Int) -> Int {
 /// [[function-type-param-abi-split-convention]]: a *bundled* `external fun`
 /// with a function-type parameter (e.g. `__kk_job_invoke_on_completion` in
 /// Job.kt) instead crosses as a split (fnPtr, closureRaw) pair -- do not
-/// confuse the two conventions. Previously this bitcast `handlerFnPtr`
-/// directly to a 1-arg entry point and called it with only the exception,
-/// which is wrong on two counts: it silently dropped the closure environment
-/// (so a handler that captured locals would read garbage) and the context
-/// argument. If the function pointer is invalid, the handler falls back to
-/// printing the exception to stderr.
 @_cdecl("kk_exception_handler_create")
 public func kk_exception_handler_create(_ handlerFnPtr: Int) -> Int {
     let capturedFnPtr = handlerFnPtr
@@ -824,13 +718,8 @@ public func kk_exception_handler_invoke(_ handlerRaw: Int, _ contextRaw: Int, _ 
     return 0
 }
 
-/// Each argument can be a RuntimeCoroutineContext, a dispatcher tag,
-/// a RuntimeCoroutineNameBox, or a RuntimeExceptionHandlerBox.
 @_cdecl("kk_context_plus")
 public func kk_context_plus(_ leftRaw: Int, _ rightRaw: Int) -> Int {
-    // The source-backed empty singleton is the identity on either side.
-    // Preserve the operand itself so `ctx + EmptyCoroutineContext` keeps the
-    // exact context object (kotlinx returns the same instance).
     if runtimeNoteEmptyCoroutineContext(rightRaw) {
         return leftRaw
     }
@@ -840,9 +729,6 @@ public func kk_context_plus(_ leftRaw: Int, _ rightRaw: Int) -> Int {
     let leftCtx = resolveToCoroutineContext(leftRaw)
     let rightCtx = resolveToCoroutineContext(rightRaw)
     let merged = leftCtx.plus(rightCtx)
-    // KUU-4402: kotlinx's `+` on two elements returns the bare element
-    // (CombinedContext only exists for 2+ elements), so collapse a
-    // single-element merge the same way `minusKey` does.
     let elements = merged.orderedElements
     if elements.isEmpty {
         return runtimeEmptyCoroutineContextRaw != 0
@@ -855,7 +741,6 @@ public func kk_context_plus(_ leftRaw: Int, _ rightRaw: Int) -> Int {
     return runtimeRegisterObject(merged)
 }
 
-/// Preserve Kotlin overrides while retaining native context composition.
 @_cdecl("__kk_context_plus_dispatch")
 public func __kk_context_plus_dispatch(
     _ contextRaw: Int,
@@ -880,9 +765,6 @@ public func __kk_context_plus_dispatch(
     }
 }
 
-/// The current runtime recognizes the closed set of coroutine element handles
-/// already modeled in RuntimeCoroutineContext.
-///
 /// Kotlin-facing callers (`CoroutineContext.get`, `Element.get`, the
 /// `CoroutineName`/`Job` member bridges, and itable thunks inheriting them)
 /// declare an `E?` result, so an absent key must report the null sentinel —
@@ -957,8 +839,6 @@ public func kk_context_fold(
         let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
         let ctx = resolveToCoroutineContext(contextRaw)
         var acc = initial
-        // KUU-4402: fold order follows the context's recorded element order
-        // (insertion order, interceptor rightmost) like kotlinx's CombinedContext.
         for pair in ctx.orderedElements {
             var thrown = 0
             let result = lambda(closureRaw, acc, pair.element, &thrown)
@@ -976,10 +856,6 @@ public func kk_context_fold(
 public func kk_context_minusKey(_ contextRaw: Int, _ keyRaw: Int) -> Int {
     let resolved = resolveToCoroutineContext(contextRaw)
     let reduced = runtimeCoroutineContextRemovingElement(for: keyRaw, from: resolved)
-    // KUU-4402: kotlinx's `minusKey` unwraps CombinedContext down to the
-    // surviving element itself — `ctx.minusKey(Job)` on a two-element
-    // context returns the remaining element (`===`-identical), an emptied
-    // context returns the EmptyCoroutineContext singleton.
     let elements = reduced.orderedElements
     if elements.isEmpty {
         return runtimeEmptyCoroutineContextRaw != 0
@@ -1012,7 +888,6 @@ public func __kk_context_minusKey_dispatch(
     }
 }
 
-/// Returns a dispatcher tag (or 0 if none).
 @_cdecl("kk_context_get_dispatcher")
 public func kk_context_get_dispatcher(_ contextRaw: Int) -> Int {
     if isDispatcherTag(contextRaw) {
@@ -1033,7 +908,6 @@ public func kk_context_get_dispatcher(_ contextRaw: Int) -> Int {
     return 0
 }
 
-/// Intercept compiler-created states, leaving ordinary source continuations untouched.
 @_cdecl("__kk_continuation_intercepted")
 public func __kk_continuation_intercepted(
     _ continuationRaw: Int,
@@ -1122,17 +996,6 @@ func runtimeReleaseInterceptedContinuation(interceptor: Int, continuation: Int) 
     }
 }
 
-/// KUU-2689: kotlinx's `startCoroutineCancellable`
-/// (`resumeCancellableWith` in MODE_CANCELLABLE + `runSafely`). The suspend
-/// block receiver arrives as a single boxed function value, the same operand
-/// `createCoroutineUninterceptedNoReceiver` forwards as its function param.
-/// When interception produces a native dispatch wrapper -- the analogue of
-/// upstream's `is DispatchedContinuation` gate -- the un-started coroutine is
-/// flagged so the Job check in `__kk_coroutine_continuation_resume_with` runs
-/// on the resume boundary (inline or on the dispatcher queue). Non-dispatched
-/// interception products take upstream's plain `resumeWith` path unchanged.
-/// A thrown interception or dispatch failure is delivered to `completion`
-/// and rethrown through `outThrown`, matching `runSafely`.
 @_cdecl("__kk_start_coroutine_cancellable")
 public func __kk_start_coroutine_cancellable(
     _ functionRaw: Int,
@@ -1210,9 +1073,6 @@ func runtimeIsNativeDispatcher(_ receiver: Int) -> Bool {
 
 @_cdecl("__kk_job_is_runtime")
 public func kk_job_is_runtime(_ receiver: Int) -> Int {
-    // runtimeJobHandle unwraps bound JobSupport-wrapper boxes (Job(),
-    // CompletableDeferred(), ...), so `keyOf(job)` reaches `Job.Key` for them
-    // too; unbound source elements fall through to their own `key` getter.
     return runtimeJobHandle(from: receiver) != nil
         || runtimeAsyncTask(from: receiver) != nil ? 1 : 0
 }
@@ -1222,7 +1082,6 @@ public func kk_is_native_dispatcher(_ receiver: Int) -> Int {
     runtimeIsNativeDispatcher(receiver) ? 1 : 0
 }
 
-// The compiler supplies the source implementation, not a runtime-owned slot.
 @_cdecl("__kk_dispatcher_default_method")
 public func kk_dispatcher_default_method(_ receiver: Int, _ virtualMethod: Int, _ defaultMethod: Int) -> Int {
     runtimeIsNativeDispatcher(receiver) ? defaultMethod : virtualMethod
@@ -1238,7 +1097,6 @@ func runtimeDispatcherInterceptorMethod(_ receiver: Int, _ interfaceTypeID: Int,
     else {
         return nil
     }
-    // ContinuationInterceptor declares intercept/release before its context overrides.
     switch methodSlot {
     case 0:
         let intercept: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { receiver, continuation, outThrown in
@@ -1284,11 +1142,6 @@ private func runtimeCoroutineContextElementHandle(for keyRaw: Int, in ctx: Runti
         return ctx.name != nil ? ctx.nameHandleRaw : nil
     }
     if keyRaw == runtimeContinuationInterceptorKeyRaw || keyRaw == runtimeCoroutineDispatcherKeyRaw {
-        // KUU-1395: `ctx[ContinuationInterceptor]` / `ctx[CoroutineDispatcher]`
-        // resolve the context's dispatcher element. A handle-only element
-        // (the runBlocking event loop) occupies the slot the same way a tag
-        // does, and a tag-only slot resolves to its dispatcher object so the
-        // element answers `is CoroutineDispatcher`.
         let handle = ctx.dispatcherElementHandle
         let dispatcherElement: Int? = handle != 0
             ? (isDispatcherTag(handle) ? runtimeDispatcherObjectHandle(forTag: handle) : handle)
@@ -1296,9 +1149,6 @@ private func runtimeCoroutineContextElementHandle(for keyRaw: Int, in ctx: Runti
         if keyRaw == runtimeContinuationInterceptorKeyRaw {
             return dispatcherElement ?? ctx.extraElement(for: runtimeContinuationInterceptorKeyRaw)
         }
-        // CoroutineDispatcher.Key is a polymorphic sub-key of
-        // ContinuationInterceptor: it also accepts elements keyed by the
-        // interceptor key.
         return dispatcherElement
             ?? (ctx.extraElement(for: runtimeCoroutineDispatcherKeyRaw)
                 ?? ctx.extraElement(for: runtimeContinuationInterceptorKeyRaw))
@@ -1345,8 +1195,6 @@ private func runtimeCoroutineContextElementHandle(for keyRaw: Int, in ctx: Runti
 
 private func runtimeCoroutineContextRemovingElement(for keyRaw: Int, from ctx: RuntimeCoroutineContext) -> RuntimeCoroutineContext {
     let next = runtimeCoroutineContextRemovingElementFields(for: keyRaw, from: ctx)
-    // KUU-4402: keep the surviving slots in their recorded order so the
-    // collapsed context still folds/renders like the JVM's remainder.
     let members = next.memberElementPairs
     next.elementOrder = next.elementOrder.filter { slot in
         next.elementPair(for: slot).map { members.contains($0) } ?? false
@@ -1364,8 +1212,6 @@ private func runtimeCoroutineContextRemovingElementFields(for keyRaw: Int, from 
         dispatcherHandleRaw: ctx.dispatcherHandleRaw,
         extras: ctx.extras.filter { pair in
             pair.key != keyRaw
-                // CoroutineDispatcher.Key's polymorphic minusKey also drops
-                // elements stored under the ContinuationInterceptor key.
                 && !(keyRaw == runtimeCoroutineDispatcherKeyRaw
                      && pair.key == runtimeContinuationInterceptorKeyRaw)
         },
@@ -1377,8 +1223,6 @@ private func runtimeCoroutineContextRemovingElementFields(for keyRaw: Int, from 
         return next
     }
     if keyRaw == runtimeContinuationInterceptorKeyRaw || keyRaw == runtimeCoroutineDispatcherKeyRaw {
-        // KUU-1395: `ctx.minusKey(ContinuationInterceptor)` drops the
-        // dispatcher element (the runBlocking event loop included).
         next.dispatcher = 0
         next.dispatcherHandleRaw = 0
         return next
@@ -1441,15 +1285,11 @@ public func kk_context_is_active(_ contextRaw: Int) -> Int {
     let ctx = resolveToCoroutineContext(contextRaw)
     guard let job = runtimeJobHandle(from: ctx.jobHandleRaw)
         ?? runtimeAsyncTask(from: ctx.jobHandleRaw)?.completionJob else {
-        return 1 // No Job element: kotlinx.coroutines treats this as active.
+        return 1
     }
     return job.isActiveSnapshot() ? 1 : 0
 }
 
-/// KUU-CORO-101: ABI backing for the `CoroutineContext.job` extension
-/// (`kotlinx.coroutines.job`). Returns the Job element's raw handle, or 0 if
-/// the context has none -- the Kotlin wrapper (`Job.kt`) treats 0 as "no Job
-/// element" and throws, matching real kotlinx.coroutines' `error(...)`.
 @_cdecl("kk_context_get_job")
 public func kk_context_get_job(_ contextRaw: Int) -> Int {
     let ctx = resolveToCoroutineContext(contextRaw)
@@ -1458,11 +1298,7 @@ public func kk_context_get_job(_ contextRaw: Int) -> Int {
             .flatMap { runtimeExtraElementGet($0, key: runtimeJobKeyRaw) } ?? 0)
 }
 
-/// Returns a RuntimeStringBox pointer (or 0 if no name).
 public func kk_context_get_name(_ contextRaw: Int) -> Int {
-    // KUU-4402: `plus`/`minusKey` collapse single-element results to the
-    // bare element, so resolve like the other context entry points instead
-    // of requiring a RuntimeCoroutineContext wrapper.
     guard contextRaw != 0 else {
         return 0
     }
@@ -1495,15 +1331,6 @@ public func kk_with_context_full(_ contextRaw: Int, _ blockFnPtr: Int, _ continu
     }
 }
 
-/// KUU-1398: kotlinx's `withContext` runs its block under a child context —
-/// `parent + overrides` plus a fresh child Job (the `ScopeCoroutine`) — so the
-/// ambient `coroutineContext` inside the block is a different object carrying
-/// the override's elements and a new Job, whatever the override contains.
-///
-/// Installs that child context on the block's continuation state and returns
-/// the one-shot restore closure `kk_with_context_impl` invokes when the block
-/// has genuinely finished (across all of its completion paths). Returns nil
-/// when the continuation carries no state to mutate.
 private func runtimeInstallWithContextChildContext(
     overrideContext resolvedCtx: RuntimeCoroutineContext,
     continuation: Int
@@ -1512,9 +1339,6 @@ private func runtimeInstallWithContextChildContext(
         return nil
     }
 
-    // The block inherits the *caller's* ambient context — the fresh
-    // continuation state still has no scope/job of its own — merged with the
-    // override's elements (right-hand side wins per `+`).
     let savedBuilderContext = contState.builderContext
     let savedJobHandle = contState.jobHandle
     let savedScope = contState.scope
@@ -1523,10 +1347,6 @@ private func runtimeInstallWithContextChildContext(
         ?? RuntimeCoroutineContext()
     let mergedContext = parentContext.plus(resolvedCtx)
 
-    // The block's ambient Job is always a fresh child. It is parented to the
-    // override's own Job element when the context carries one — except
-    // NonCancellable, which leaves it detached from the enclosing Job's
-    // cancellation — and to the ambient Job otherwise.
     let overrideJobHandle = resolvedCtx.jobHandleRaw != 0
         ? resolvedCtx.jobHandleRaw
         : (resolvedCtx.extraElement(for: runtimeJobKeyRaw)
@@ -1549,8 +1369,6 @@ private func runtimeInstallWithContextChildContext(
         ?? RuntimeJobHandle.current)
     if blockJob != nil { blockParent?.registerChild(blockJobRaw) }
     contState.jobHandle = blockJob
-    // Even an empty override receives a fresh ScopeCoroutine. Its receiver
-    // keeps this context after the block returns or another coroutine runs.
     let childContext = mergedContext.plus(RuntimeCoroutineContext(jobHandleRaw: blockJobRaw))
     let blockScope = RuntimeCoroutineScope(context: childContext)
     if let blockJob { blockScope.adoptJob(blockJob) }
@@ -1566,8 +1384,6 @@ private func runtimeInstallWithContextChildContext(
             blockScope.cancel(message: "withContext failed", cause: thrown)
         }
         _ = blockScope.waitForChildren()
-        // A ContextScope constructed around this Job owns another child list.
-        // Join those children through the shared Job hierarchy as well.
         var joined: Set<Int> = []
         while let blockJob {
             let children = blockJob.registeredChildrenSnapshot().filter { !joined.contains($0) }
@@ -1593,8 +1409,6 @@ private func runtimeInstallWithContextChildContext(
         if failure != 0 { _ = blockJob?.completeExceptionally(with: failure) }
         else { _ = blockJob?.complete(with: 0) }
         let settledCause = blockJob?.completionSnapshot(handoff: .exception).exception ?? failure
-        // A scoped failure is delivered through its caller. Once caught it
-        // must not remain in the parent's hierarchy as an unhandled child.
         blockParent?.detachChild(blockJobRaw)
         contState?.jobHandle = savedJobHandle
         contState?.builderContext = savedBuilderContext
@@ -1620,9 +1434,6 @@ func isRegisteredRuntimeObjectPointer(_ raw: Int) -> Bool {
     }
 }
 
-/// GC-root a heap-object handle so storing it inside a runtime-owned context
-/// keeps it alive across mark-and-sweep (contexts outlive the Kotlin frames
-/// that created their elements).
 private func runtimePinHeapObjectIfNeeded(_ raw: Int) {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return
@@ -1635,17 +1446,11 @@ private func runtimePinHeapObjectIfNeeded(_ raw: Int) {
     }
 }
 
-/// KUU-1405: if `raw` is a source-defined `CoroutineContext.Element` (an
-/// object carrying the Element itable), return its own `key` handle so the
-/// element can be modelled in `RuntimeCoroutineContext.extras`.
-/// Returns nil for runtime boxes, non-elements, and non-pointer values.
 private func runtimeSourceContextElementKey(_ raw: Int) -> Int? {
     guard UnsafeMutableRawPointer(bitPattern: raw) != nil else {
         return nil
     }
     let elementTypeID = runtimeStableNominalTypeID(fqName: "kotlin.coroutines.CoroutineContext.Element")
-    // `key` is the Element interface slot after get/fold/minusKey; its
-    // presence identifies a source element.
     guard let keyRaw = runtimeSourceInterfaceCall0(
         raw,
         interfaceTypeID: elementTypeID,
@@ -1660,7 +1465,6 @@ private func runtimeSourceContextElementKey(_ raw: Int) -> Int? {
 }
 
 func resolveToCoroutineContext(_ raw: Int) -> RuntimeCoroutineContext {
-    // Source-backed EmptyCoroutineContext is a heap singleton, not a dispatcher.
     if raw == 0 || runtimeNoteEmptyCoroutineContext(raw) {
         return RuntimeCoroutineContext()
     }
@@ -1688,10 +1492,6 @@ func resolveToCoroutineContext(_ raw: Int) -> RuntimeCoroutineContext {
         state.objectPointers.contains(UInt(bitPattern: ptr))
     }
     if !isObjectPointer {
-        // KUU-1405: a source-defined `CoroutineContext.Element` (a GC heap
-        // object) contributes itself under its own key, like kotlinx's
-        // `elem.plus(other)` treating a lone element as a single-entry
-        // context. Previously it fell into the default-dispatcher fallback.
         if let elementKey = runtimeSourceContextElementKey(raw) {
             return RuntimeCoroutineContext(extras: [(key: elementKey, element: raw)])
         }
@@ -1723,20 +1523,13 @@ func resolveToCoroutineContext(_ raw: Int) -> RuntimeCoroutineContext {
 
 class RuntimeDispatcher: @unchecked Sendable {
     let queue: DispatchQueue
-    /// The scheduler identity stored on a `RuntimeCoroutineContext`. Views
-    /// assign their own pointer post-init so the context keeps the view as the
-    /// dispatcher element instead of collapsing to the base tag.
     var tag: Int
     let displayName: String?
     let isUnconfined: Bool
-    /// KUU-2687: `Dispatchers.Main.immediate` semantics — when a dispatch lands
-    /// while already running on this dispatcher, the work runs in place rather
-    /// than being re-queued (upstream `isDispatchNeeded() == false`).
     let supportsImmediateDispatch: Bool
     weak var blockingEventLoop: RuntimeEventLoop?
     private var immediatePeerStorage: RuntimeDispatcher?
 
-    /// CORO-003: pthread key for the currently active dispatcher (replaces threadDictionary).
     private static let currentDispatcherPthreadKey: pthread_key_t = makePthreadKey()
 
     static var current: RuntimeDispatcher? {
@@ -1757,9 +1550,6 @@ class RuntimeDispatcher: @unchecked Sendable {
         self.displayName = displayName
         self.isUnconfined = isUnconfined
         self.supportsImmediateDispatch = supportsImmediateDispatch
-        // KUU-1395: a dispatcher object carries CoroutineDispatcher's nominal
-        // identity so `is`/`as?` checks on `Dispatchers.*` values and on the
-        // runBlocking event-loop element answer like kotlinx's.
         registerCoroutineDispatcherTypeEdgesOnce()
         runtimeRegisterObjectType(
             rawValue: Int(bitPattern: Unmanaged.passUnretained(self).toOpaque()),
@@ -1767,14 +1557,9 @@ class RuntimeDispatcher: @unchecked Sendable {
         )
     }
 
-    /// The dispatcher `.immediate` resolves to. For every dispatcher except
-    /// `Dispatchers.Main` (and views over it) this is `self`, matching upstream
-    /// where only `MainCoroutineDispatcher.immediate` is a distinct object.
     var immediatePeer: RuntimeDispatcher { immediatePeerStorage ?? self }
     func setImmediatePeer(_ peer: RuntimeDispatcher) { immediatePeerStorage = peer }
 
-    /// Whether this dispatcher (or the dispatcher a view delegates to) is the
-    /// main-bound one — upstream `limitedParallelism` answers namedOrThis for it.
     var isMainDispatcher: Bool {
         tag == RuntimeDispatcherTag.mainDispatcher
             || tag == RuntimeDispatcherTag.mainImmediateDispatcher
@@ -1800,9 +1585,6 @@ class RuntimeDispatcher: @unchecked Sendable {
     }
 
     func dispatchAsync(execute work: @escaping @Sendable () -> Void) {
-        // immediate dispatchers resume in place when already on their thread —
-        // upstream `DispatchedContinuation` skips dispatch when
-        // `isDispatchNeeded` returns false.
         if supportsImmediateDispatch, isCurrent {
             let saved = RuntimeDispatcher.current
             RuntimeDispatcher.current = self
@@ -1818,12 +1600,6 @@ class RuntimeDispatcher: @unchecked Sendable {
         }
     }
 
-    /// NOTE: Re-entrancy detection relies on the `RuntimeDispatcher.current`
-    /// thread-local, which is only set inside `dispatchSync`/`dispatchAsync`
-    /// blocks. For the main dispatcher we additionally check
-    /// `Thread.isMainThread` to avoid a guaranteed deadlock when
-    /// `DispatchQueue.main.sync` is called from the main thread before any
-    /// dispatcher context has been established.
     var isCurrent: Bool {
         if RuntimeDispatcher.current?.tag == tag { return true }
         // DispatchQueue.main.sync from the main thread deadlocks; detect it
@@ -1835,12 +1611,6 @@ class RuntimeDispatcher: @unchecked Sendable {
     }
 }
 
-/// KUU-2687: runtime backing for `CoroutineDispatcher.limitedParallelism` —
-/// the upstream `LimitedDispatcher` view. Dispatched work enters a FIFO queue
-/// and at most `parallelismLimit` of it runs on the underlying dispatcher at
-/// once; a suspension frees its slot, which the next queued task takes.
-/// Nested views enqueue their worker tasks through the parent view's own gate,
-/// so chained views compound the limit the way upstream's do.
 final class RuntimeLimitedDispatcher: RuntimeDispatcher, @unchecked Sendable {
     let base: RuntimeDispatcher
     let parallelismLimit: Int
@@ -1887,8 +1657,6 @@ final class RuntimeLimitedDispatcher: RuntimeDispatcher, @unchecked Sendable {
         return value
     }
 
-    /// Start worker tasks until every permit is held. Each worker occupies its
-    /// slot only while a task runs; a suspending coroutine releases it.
     private func pump() {
         while true {
             gateLock.lock()
@@ -1917,10 +1685,6 @@ private final class RuntimeSyncResultBox<T>: @unchecked Sendable {
     var value: T?
 }
 
-/// KUU-2687: runtime backing for upstream `NamedDispatcher` — the view
-/// `limitedParallelism(parallelism, name)` returns for dispatchers that already
-/// satisfy the limit (Main) and for nested views whose requested parallelism
-/// is not tighter than the parent's.
 final class RuntimeNamedDispatcher: RuntimeDispatcher, @unchecked Sendable {
     let wrapped: RuntimeDispatcher
     private let peerLock = NSLock()
@@ -1943,8 +1707,6 @@ final class RuntimeNamedDispatcher: RuntimeDispatcher, @unchecked Sendable {
         self.tag = Int(bitPattern: Unmanaged.passUnretained(self).toOpaque())
     }
 
-    /// Upstream `NamedDispatcher.immediate` is a named view over the wrapped
-    /// dispatcher's immediate peer.
     override var immediatePeer: RuntimeDispatcher {
         peerLock.lock()
         defer { peerLock.unlock() }
@@ -1983,10 +1745,6 @@ enum RuntimeDispatcherTag {
     static let defaultDispatcher: Int = 0x4B4B_4401 // "KKD\x01"
     static let ioDispatcher: Int = 0x4B4B_4402 // "KKD\x02"
     static let mainDispatcher: Int = 0x4B4B_4403 // "KKD\x03"
-    /// KUU-2687: `Dispatchers.Main.immediate` is a distinct object upstream
-    /// (`MainCoroutineDispatcher.immediate`); keep a dedicated tag so contexts
-    /// preserve it as the interceptor element and `is Dispatchers.Main` stays
-    /// false like kotlinx's.
     static let mainImmediateDispatcher: Int = 0x4B4B_4404 // "KKD\x04"
 }
 
@@ -2031,9 +1789,6 @@ private let runtimeMainDispatcher = RuntimeDispatcher(
     displayName: "Dispatchers.Main",
     nominalTypeFqName: "kotlinx.coroutines.MainCoroutineDispatcher"
 )
-/// KUU-2687: upstream `Dispatchers.Main.immediate` — same main queue, but a
-/// dispatch requested while already on the main thread runs in place instead
-/// of being re-queued.
 private let runtimeImmediateMainDispatcher = RuntimeDispatcher(
     queue: DispatchQueue.main,
     tag: RuntimeDispatcherTag.mainImmediateDispatcher,
@@ -2042,12 +1797,10 @@ private let runtimeImmediateMainDispatcher = RuntimeDispatcher(
     nominalTypeFqName: "kotlinx.coroutines.MainCoroutineDispatcher"
 )
 
-/// Wire the Main ↔ Main.immediate peer relation on first use; idempotent.
 private func runtimeEnsureMainImmediatePeer() {
     runtimeMainDispatcher.setImmediatePeer(runtimeImmediateMainDispatcher)
 }
 
-/// Returns the Default dispatcher for unrecognized values.
 func runtimeResolveDispatcher(from raw: Int) -> RuntimeDispatcher {
     if let sourceDispatcher = runtimeSourceCoroutineDispatcher(from: raw) {
         return sourceDispatcher
@@ -2087,10 +1840,6 @@ private func runtimeRegisterBorrowedHandle(
     return Int(bitPattern: pointer)
 }
 
-/// KUU-1395: registered handle for the dispatcher *object* behind a bare
-/// scheduler tag — what `ctx[ContinuationInterceptor]`/`ctx.fold` expose when
-/// the context only recorded the tag. Named singletons are used so the element
-/// is `===`-equal to the `Dispatchers.*` value the tag came from.
 private func runtimeDispatcherObjectHandle(forTag tag: Int) -> Int {
     let object: RuntimeDispatcher = switch tag {
     case RuntimeDispatcherTag.ioDispatcher:
@@ -2105,9 +1854,6 @@ private func runtimeDispatcherObjectHandle(forTag tag: Int) -> Int {
     return runtimeRegisterBorrowedHandle(object)
 }
 
-// These globals own the objects; accessors register their pointers idempotently.
-// Named IO uses its actual pool; Unconfined is distinguished without changing
-// the legacy tag fallback used by unrelated invocation paths.
 private let runtimeNamedDispatchers: [RuntimeDispatcher] = [
     RuntimeDispatcher(queue: runtimeDefaultDispatcher.queue, tag: RuntimeDispatcherTag.defaultDispatcher,
                       displayName: "Dispatchers.Default"),
@@ -2142,24 +1888,14 @@ public func kk_dispatcher_io() -> Int {
 
 @_cdecl("kk_dispatcher_main")
 public func kk_dispatcher_main() -> Int {
-    // `Dispatchers.Main` resolves to the dispatcher *object* (not the bare
-    // scheduler tag) so it is `===`-equal to the element
-    // `ctx[ContinuationInterceptor]` hands back — kotlinx's singleton
-    // contract. Every scheduling path resolves tags and objects through the
-    // same `runtimeResolveDispatcher`, so either form dispatches identically.
     runtimeRegisterBorrowedHandle(runtimeMainDispatcher)
 }
 
-// Memory-representation bridge: scheduler tags have no Kotlin vtable, while
-// source-defined MainCoroutineDispatcher implementations retain their getter.
 @_cdecl("__kk_dispatcher_immediate")
 public func kk_dispatcher_immediate(
     _ dispatcher: Int, _ getterSlot: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     return runtimeThrowingBridge(outThrown) {
-        // Bare tags and runtime dispatcher objects resolve through the shared
-        // path: Main answers its dedicated immediate object, everything else self.
-        // A source-defined MainCoroutineDispatcher keeps its Kotlin getter below.
         if runtimeDispatcherIfSupported(dispatcher) != nil {
             return kk_dispatcher_immediate_or_self(dispatcher)
         }
@@ -2178,13 +1914,6 @@ public func kk_dispatcher_immediate(
     }
 }
 
-/// KUU-2687: upstream `MainCoroutineDispatcher.immediate` resolution for
-/// runtime dispatchers — `Dispatchers.Main` answers the immediate object,
-/// `Dispatchers.Main.immediate` answers itself, all other dispatchers answer
-/// themselves (kotlinx's default getter).
-/// Resolves only real runtime dispatchers (tags + registered objects); a
-/// source-defined `CoroutineDispatcher` heap object resolves to nil so bridge
-/// entry points can leave it untouched instead of collapsing to Default.
 private func runtimeDispatcherIfSupported(_ raw: Int) -> RuntimeDispatcher? {
     if isDispatcherTag(raw) { return runtimeResolveDispatcher(from: raw) }
     guard isRegisteredRuntimeObjectPointer(raw),
@@ -2203,21 +1932,11 @@ public func kk_dispatcher_immediate_or_self(_ dispatcher: Int) -> Int {
     return runtimeRegisterBorrowedHandle(resolved.immediatePeer)
 }
 
-/// KUU-2687: upstream `CoroutineDispatcher.limitedParallelism`. Returns a
-/// dispatcher *view* whose concurrent task count never exceeds `parallelism`.
-/// Nested view rules: a view on `Dispatchers.Main` is a named wrapper of Main
-/// (upstream `namedOrThis`); a limited view whose stored parallelism is not
-/// tighter than the requested one returns itself (a named wrapper of it when
-/// `name` is given); otherwise the returned view queues through the parent
-/// view so limits compound. Validation of `parallelism` and the Unconfined
-/// rejection happen on the Kotlin side.
 @_cdecl("__kk_dispatcher_limited_parallelism")
 public func kk_dispatcher_limited_parallelism(
     _ dispatcher: Int, _ parallelism: Int, _ nameRaw: Int
 ) -> Int {
     runtimeEnsureMainImmediatePeer()
-    // A source-defined dispatcher keeps its identity — the runtime cannot
-    // delegate dispatch into a Kotlin `dispatch()` override from a view yet.
     guard let resolved = runtimeDispatcherIfSupported(dispatcher) else {
         return dispatcher
     }
@@ -2227,7 +1946,6 @@ public func kk_dispatcher_limited_parallelism(
     let view: RuntimeDispatcher
     var created = false
     if resolved.isMainDispatcher {
-        // Upstream `MainDispatcher.limitedParallelism` → `namedOrThis`.
         if let name {
             view = RuntimeNamedDispatcher(wrapped: resolved, name: name)
             created = true
@@ -2236,8 +1954,6 @@ public func kk_dispatcher_limited_parallelism(
         }
     } else if let limited = resolved as? RuntimeLimitedDispatcher,
               parallelism >= limited.parallelismLimit {
-        // Upstream `LimitedDispatcher.limitedParallelism`: the requested limit
-        // is no tighter than the existing one → `namedOrThis`.
         if let name {
             view = RuntimeNamedDispatcher(wrapped: limited, name: name)
             created = true
@@ -2252,25 +1968,16 @@ public func kk_dispatcher_limited_parallelism(
         )
         created = true
     }
-    // `view === resolved` means upstream returned `this` — keep the caller's
-    // raw handle so `Main.limitedParallelism(n) === Dispatchers.Main` holds.
     return view === resolved && !created
         ? dispatcher
         : runtimeRegisterBorrowedHandle(view, retain: created)
 }
 
-/// KUU-2687: Kotlin-side `Unconfined` check for `limitedParallelism` —
-/// upstream throws `UnsupportedOperationException` on it.
 @_cdecl("__kk_dispatcher_is_unconfined")
 public func kk_dispatcher_is_unconfined(_ dispatcher: Int) -> Int {
     (runtimeDispatcherIfSupported(dispatcher)?.isUnconfined ?? false) ? 1 : 0
 }
 
-/// KUU-3910: backing for `CoroutineDispatcher.isDispatchNeeded` — upstream
-/// returns false for `Dispatchers.Unconfined` and for immediate-capable
-/// dispatchers already executing on their queue (`Main.immediate` on the main
-/// thread). An unresolved handle is a source-defined dispatcher object, whose
-/// upstream default is `true`.
 @_cdecl("__kk_dispatcher_is_dispatch_needed")
 public func kk_dispatcher_is_dispatch_needed(_ dispatcher: Int) -> Int {
     guard let resolved = runtimeDispatcherIfSupported(dispatcher) else { return 1 }
@@ -2279,11 +1986,6 @@ public func kk_dispatcher_is_dispatch_needed(_ dispatcher: Int) -> Int {
     return 1
 }
 
-/// KUU-3910: guarded `kk_vtable_lookup` used for `CoroutineDispatcher`
-/// member calls that may reach a native dispatcher object. Tags and
-/// `RuntimeDispatcher` handles have no Kotlin vtable, so they resolve the
-/// compiler-supplied source default (which asks the runtime dispatcher);
-/// Kotlin-defined dispatchers keep their vtable entry so overrides still win.
 @_cdecl("kk_vtable_lookup_or_default")
 public func kk_vtable_lookup_or_default(_ receiver: Int, _ slot: Int, _ defaultMethod: Int) -> Int {
     if runtimeDispatcherIfSupported(receiver) != nil {
@@ -2292,10 +1994,6 @@ public func kk_vtable_lookup_or_default(_ receiver: Int, _ slot: Int, _ defaultM
     return kk_vtable_lookup(receiver, slot)
 }
 
-/// A simple heap-allocated, `@unchecked Sendable` box used to pass an integer
-/// result from a `DispatchQueue.async` closure back to the waiting thread in
-/// the non-coroutine (semaphore) fallback path of `kk_with_context`.
-/// Synchronization is provided externally by a `DispatchSemaphore`.
 private final class WithContextResultBox: @unchecked Sendable {
     var value: Int = 0
     var failure: Int = 0
@@ -2303,17 +2001,9 @@ private final class WithContextResultBox: @unchecked Sendable {
 
 @_cdecl("kk_with_context")
 public func kk_with_context(_ dispatcherRaw: Int, _ blockFnPtr: Int, _ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
-    // A bare dispatcher tag still gets the child-context treatment: on JVM
-    // every `withContext` installs a fresh child Job and exposes the
-    // dispatcher element in the ambient context, not just reschedules.
     kk_with_context_full(dispatcherRaw, blockFnPtr, continuation, outThrown)
 }
 
-/// `restoreJobHandle`, when non-nil, is invoked exactly once at the point the
-/// block's execution has genuinely finished -- across all three completion
-/// paths below (inline, CORO-004 async, non-coroutine semaphore) -- so that
-/// `kk_with_context_full`'s job-element override (e.g. NonCancellable) does
-/// not leak past the end of this withContext block.
 func kk_with_context_impl(
     _ dispatcherRaw: Int,
     _ blockFnPtr: Int,
@@ -2321,20 +2011,14 @@ func kk_with_context_impl(
     outThrown: UnsafeMutablePointer<Int>? = nil,
     restoreJobHandle: (@Sendable (Int) -> Int)?
 ) -> Int {
-    // `kk_with_context_full` resolves the context argument first; the raw may
-    // be a scheduler tag or a dispatcher-object handle (limited/named views).
-    // `runtimeResolveDispatcher` covers both, falling back to Default.
     let dispatcher = runtimeResolveDispatcher(from: dispatcherRaw)
 
     guard suspendEntryPoint(from: blockFnPtr) != nil else {
-        // Clean up the continuation to avoid leaking coroutine state.
         _ = kk_coroutine_state_exit(continuation, 0)
         outThrown?.pointee = restoreJobHandle?(0) ?? 0
         return 0
     }
 
-    // Capture the current coroutine scope so child launches inside the block
-    // are registered with the correct scope on the target queue's thread.
     let parentScope = runtimeContinuationState(from: continuation)?.scope ?? RuntimeCoroutineScope.current
 
     // Propagate caller's scope to continuation context so that
@@ -2344,11 +2028,6 @@ func kk_with_context_impl(
     // would lose the parent scope — breaking structured concurrency.
     if let contState = runtimeContinuationState(from: continuation) {
         if contState.scope == nil { contState.scope = parentScope }
-        // KUU-964: propagate the caller's Job the same way — withContext(context)
-        // without a Job element keeps the ambient Job, so `coroutineContext.job`
-        // resolves inside the block (kotlinx's contract). A Job element the
-        // context itself carries (e.g. NonCancellable) was already installed by
-        // `kk_with_context_full` and must not be clobbered.
         if contState.jobHandle == nil {
             contState.jobHandle = contState.scope?.job
                 ?? RuntimeContinuationState.current?.jobHandle
@@ -2381,16 +2060,6 @@ func kk_with_context_impl(
         return result
     }
 
-    // CORO-004: Continuation-based withContext (caller suspend path).
-    //
-    // When called from inside a coroutine, the caller's GCD thread must not be
-    // blocked while the dispatched block runs.  Instead we install a completion
-    // resumer on the *caller* state so the outer suspend-entry loop can re-enter
-    // without holding any thread.  The dispatched block starts its own inner
-    // suspend-entry loop on the target queue and returns immediately (async path);
-    // the dispatcher thread is released rather than blocked for the duration of
-    // the block (DEBT-CORO-003: previously the dispatcher thread was blocked by
-    // the inner completionGate semaphore inside runSuspendEntryLoopWithContinuation).
     if let callerState = RuntimeContinuationState.current {
         let capturedContinuation = continuation
         dispatcher.dispatchAsync {
@@ -2413,8 +2082,6 @@ func kk_with_context_impl(
         return Int(bitPattern: kk_coroutine_suspended())
     }
 
-    // Non-coroutine context (e.g. runBlocking top-level, tests): block the
-    // calling thread until the dispatched block completes.
     let semaphore = DispatchSemaphore(value: 0)
     let resultBox = WithContextResultBox()
 
@@ -2441,9 +2108,6 @@ func kk_with_context_impl(
     return resultBox.value
 }
 
-/// KUU-4402: kotlinx renders a composite context as
-/// `[elem1, elem2, ...]` (interceptor last), a single surviving element as
-/// the element itself, and an empty context as `EmptyCoroutineContext`.
 func runtimeCoroutineContextToString(_ context: RuntimeCoroutineContext) -> String {
     let elements = context.orderedElements
     if elements.isEmpty {
