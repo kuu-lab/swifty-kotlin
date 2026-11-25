@@ -5,7 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2012: exact signed shifts must survive stdlib serialization and optimization.
     @Test
     func testBigIntegerShiftLeftAcrossStdlibSurfaces() throws {
         let source = try diffCaseSource("big_integer_shift_left.kt")
