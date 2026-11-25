@@ -3,8 +3,6 @@
 import Testing
 
 extension JVMBackendTests {
-    // KUU-4655: Array<out Array<out T>>.flatten() must resolve on the JVM
-    // backend and match kotlinc's output (diff case array_flatten.kt).
     @Test
     func arrayOfArraysFlattenLinksAgainstOwnStdlib() throws {
         try withWorkspace { root in
