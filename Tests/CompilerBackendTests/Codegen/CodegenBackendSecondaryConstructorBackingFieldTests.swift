@@ -30,10 +30,10 @@ struct CodegenBackendSecondaryConstructorBackingFieldTests {
 
     private func source() throws -> String {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerBackendTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repository root
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
         let sourceURL = repositoryRoot.appendingPathComponent(
             "Scripts/diff_cases/kuu_2385_secondary_constructor_custom_getter_backing_field.kt"
         )

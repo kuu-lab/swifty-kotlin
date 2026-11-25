@@ -54,9 +54,10 @@ extension TypeCheckDriver {
                 }
             case .safeMemberCall: break
             default:
+                let memberExtension = callee.flatMap { sema.symbols.memberExtensionOwnerSymbol(for: $0) } != nil
                 receiver = sema.bindings.implicitExtensionReceiver(for: id)
-                    ?? sema.bindings.implicitReceiverOuterReceiver(for: id)
-                    ?? sema.bindings.callBinding(for: id)?.dispatchReceiverSymbol
+                    ?? (memberExtension ? nil : sema.bindings.implicitReceiverOuterReceiver(for: id))
+                    ?? (memberExtension ? nil : sema.bindings.callBinding(for: id)?.dispatchReceiverSymbol)
                     ?? currentThis
             }
             if restricted == nil || !(scopeMember || scopeExtension || scopeCallable) || receiver != restricted {

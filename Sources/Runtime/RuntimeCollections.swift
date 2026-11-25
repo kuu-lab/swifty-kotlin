@@ -91,9 +91,6 @@ func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int =
         hasher.combine(callableHash)
         return
     }
-    // KParameter boxes hash the owning-callable token, accessor discriminator,
-    // bound arguments, and index, matching `runtimeKParameterBoxesEqual`, so
-    // equal `parameters[i]` handles land in the same bucket (KUU-4069).
     if let parameterBox = tryCast(pointer, to: RuntimeKParameterBox.self) {
         hasher.combine(18)
         hasher.combine(parameterBox.callableOwner)
@@ -278,8 +275,6 @@ func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int =
                     let identityHash = Int(Int32(truncatingIfNeeded: kk_native_identityHashCode(entry.key))
                         ^ Int32(truncatingIfNeeded: kk_native_identityHashCode(entry.value)))
                     if overridden == structuralHash || overridden == identityHash {
-                        // Source wrappers preserve either entry hash policy.
-                        // Match native content hashing without weakening its collision resistance.
                         hasher.combine(14)
                         runtimeElementKeyHash(entry.key, into: &hasher, depth: depth + 1)
                         runtimeElementKeyHash(entry.value, into: &hasher, depth: depth + 1)
@@ -291,7 +286,6 @@ func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int =
                 return
             }
             if !runtimeIsDataClass(classID: objBox.classID) {
-                // Plain classes inherit identity hashCode.
                 hasher.combine(15)
                 hasher.combine(Int(bitPattern: pointer))
                 return
@@ -431,10 +425,6 @@ public func kk_array_list_is_read_only(_ listRaw: Int) -> Int {
     kk_box_bool(runtimeListBox(from: listRaw)?.isReadOnly == true ? 1 : 0)
 }
 
-// Kotlin exposes emptyList() as a shared immutable instance. The handle is
-// module-internal (like `emptySetSingletonRaw`/`emptyMapSingletonRaw`) so the
-// erased `is` check and `::class` reflection can gate on canonical identity
-// rather than element count (KUU-4144).
 let emptyListSingletonRaw: Int = {
     let raw = registerRuntimeObject(RuntimeListBox(elements: []), typeID: listRuntimeTypeID)
     runtimeListBox(from: raw)?.freeze()
@@ -454,8 +444,6 @@ public func kk_list_size(_ listRaw: Int) -> Int {
     return runtimeSourceCollectionSize(listRaw) ?? 0
 }
 
-// Legacy non-throwing collection bridges keep their C signatures. Lowering
-// emits this check before accessing a potentially invalid list view.
 @_cdecl("__kk_list_check_modification")
 public func kk_list_check_modification(_ listRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeThrowingBridge(outThrown) {
@@ -631,8 +619,6 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
             currentModCount: { list.modCount },
             currentValue: { list.value(at: $0) }
         )
-        // KUU-3963: `iter::class` reflects the JVM iterator implementation
-        // (`java.util.Arrays.ArrayItr`, `java.util.ArrayList.Itr`, ...).
         (iterator.reflectedClassID, iterator.reflectedClassName) =
             runtimeReflectedListIteratorClass(sourceRaw: listRaw, list: list, listIterator: false)
         let raw = registerRuntimeObject(iterator)
@@ -692,9 +678,6 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
     return raw
 }
 
-/// Backs both `List.listIterator(index)` and `MutableList.listIterator(index)`
-/// (Sema registers the same external link name for both, matching the
-/// zero-arg `kk_list_iterator` convention above).
 @_cdecl("kk_list_iterator_at")
 public func kk_list_iterator_at(_ listRaw: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeThrowingBridge(outThrown) {
@@ -712,10 +695,6 @@ public func kk_list_iterator_at(_ listRaw: Int, _ index: Int, _ outThrown: Unsaf
                 message: "Index: \(index), Size: \(list.count)"
             ))
         }
-        // KUU-3962: `emptyList().listIterator(0)` is the shared `EmptyIterator` on
-        // the JVM — a Kotlin-marked object failing `as MutableIterator` /
-        // `as MutableListIterator` with `ClassCastException`. Keeping the mutation
-        // actions unset preserves that cast behavior (see `kk_list_iterator`).
         let isCanonicalEmptyIterator = listRaw == emptyListSingletonRaw
         let iter = RuntimeListIteratorBox(
             values: list.values,
@@ -824,12 +803,8 @@ public func kk_list_iterator_next(
     _ iterRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
-    // Failure sentinels differ per path (runtimeExceptionCaughtSentinel for
-    // concurrent modification, 0 for exhaustion), so the error writes stay
-    // manual inside the bridge closure.
     runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeExceptionCaughtSentinel) {
         guard let iter = runtimeListIteratorBox(from: iterRaw) else {
-            // BUG-231: see kk_list_iterator_hasNext above.
             return kk_iterator_next(iterRaw, outThrown)
         }
         guard iter.isInSyncWithBackingCollection() else {
@@ -889,10 +864,6 @@ func runtimeListIteratorAdd(_ iterRaw: Int, _ elem: Int, _ outThrown: UnsafeMuta
     }
 }
 
-/// The invariant maintained by `kk_list_iterator_next` guarantees
-/// `index` is always in `0...elements.count`, but we defensively
-/// also check the upper bound so that a corrupted/invalid index
-/// cannot lead to an out-of-bounds access in `previous()`.
 func listIteratorCanGoBack(_ iter: RuntimeListIteratorBox) -> Bool {
     iter.index > 0 && iter.index <= iter.values.count
 }
@@ -956,9 +927,6 @@ func runtimeMutableCollectionExists(_ destRaw: Int) -> Bool {
     if runtimeListBox(from: destRaw) != nil || runtimeSetBox(from: destRaw) != nil {
         return true
     }
-    // KUU-4130: a source-defined (user-defined) MutableCollection is an
-    // ordinary heap object; it accepts `add` (slot 0) through the
-    // MutableCollection itable registered at construction.
     return kk_itable_lookup_dynamic(
         destRaw,
         Int(runtimeMutableCollectionInterfaceTypeID),
@@ -981,8 +949,6 @@ func runtimeAppendToMutableCollection(_ destRaw: Int, _ element: RuntimeValue) {
         _ = set.insert(value: element)
         return
     }
-    // KUU-4130: JVM semantics call `destination.add(e)` on any MutableCollection;
-    // fall back to the itable dispatch for source-defined implementations.
     if runtimeSourceMutableCollectionAdd(destRaw, element.legacyRawValue) != nil {
         return
     }
@@ -1306,8 +1272,6 @@ public func kk_mutable_list_removeAt(
     _ index: Int,
     _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
-    // Failure returns depend on whether `outThrown` is non-nil, so the error
-    // writes stay manual inside the bridge closure.
     runtimeThrowingBridge(outThrown) {
         guard let list = runtimeListBox(from: listRaw) else {
             if let result = runtimeSourceInterfaceCall1(
@@ -1602,7 +1566,6 @@ public func kk_list_as_reversed(_ listRaw: Int) -> Int {
     )
 }
 
-// Kotlin's mutable reversed view implements MutableList, but not RandomAccess.
 @_cdecl("__kk_mutable_list_as_reversed")
 public func kk_mutable_list_as_reversed(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
@@ -1636,15 +1599,11 @@ public func kk_array_asSequence(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_array_asSequence")
     }
-    // Same COW-snapshot semantics (known Kotlin deviation) as kk_list_asSequence above.
     let seq = RuntimeSequenceBox(steps: [.valueSource(values: array.values)])
     return registerRuntimeObject(seq)
 }
 
 
-/// LinkedHashSet copy-constructor storage, also used by `Iterable.toMutableSet()`.
-/// BUG-254: both callers declare a mutable result backed by LinkedHashSet, so the
-/// box carries that nominal tag rather than the read-only `Set` default.
 @_cdecl("__kk_iterable_toMutableSet")
 public func kk_iterable_toMutableSet(_ iterableRaw: Int) -> Int {
     if let values = runtimeIterableValues(from: iterableRaw) {

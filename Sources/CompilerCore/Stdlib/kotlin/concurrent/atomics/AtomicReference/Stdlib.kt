@@ -10,11 +10,6 @@ package kotlin.concurrent.atomics
 
 import kotlin.internal.KsSymbolName
 
-/**
- * `AtomicReference` is now a real class in this package, so the factory binds
- * directly to the runtime-backed allocation (`kk_atomic_ref_create`) instead of
- * delegating through `kotlin.concurrent.AtomicReference`.
- */
 @kotlin.concurrent.atomics.ExperimentalAtomicApi
 @SinceKotlin("2.1")
 @KsSymbolName("kk_atomic_ref_create")

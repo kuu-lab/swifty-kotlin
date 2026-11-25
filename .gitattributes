@@ -1,6 +1,6 @@
 # Machine-written run records: GitHub collapses them in pull request diffs and
 # leaves them out of language statistics. Expected outputs and hand-written
-# audits (expectations.json, *.expected.json, sources.json)
+# audits (expectations.json, *.expected.json)
 # are deliberately not listed, so weakening an oracle stays visible in review.
 docs/fixtures/js_annotations/evidence/*-matrix-results.json linguist-generated=true
 docs/fixtures/js_annotations/evidence/*reference-results.json linguist-generated=true

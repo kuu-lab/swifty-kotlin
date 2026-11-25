@@ -3,7 +3,6 @@ import Testing
 
 @Suite
 struct CodegenBackendGenericNonNullCastTests {
-    /// KUU-2387: null assertions must survive generic erasure and remain catchable.
     // Source-injected O2 independently fails LLVM verification for stdlib invoke adapters.
     @Test(arguments: [(false, 0), (true, 0), (true, 2)])
     func nullAndValueCasts(useArtifact: Bool, optimizationLevel: Int) throws {
@@ -22,7 +21,6 @@ struct CodegenBackendGenericNonNullCastTests {
         )
     }
 
-    /// KUU-3344: Explicit `T & Any` returns must preserve generic values and throw a catchable NPE for null.
     @Test
     func definitelyNonNullIntersectionCast() throws {
         let source = try diffCaseSource("definitely_nonnull_type_parameter_cast.kt", file: #filePath)
@@ -33,7 +31,6 @@ struct CodegenBackendGenericNonNullCastTests {
         )
     }
 
-    /// KUU-2410: Keep the upstream Kotlin/JVM box regression executable.
     @Test(arguments: [(false, 0), (true, 0), (true, 2)])
     func publicAsWithGenericBox(useArtifact: Bool, optimizationLevel: Int) throws {
         let source = try diffCaseSource("as_with_generic.kt", file: #filePath)

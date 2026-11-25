@@ -1,15 +1,4 @@
-// java.util sorted-collection runtime (KUU-1361).
-//
-// `TreeSet`/`TreeMap` are ordinary `RuntimeSetBox`/`RuntimeMapBox` instances
-// carrying comparator state (`sorted`/`comparatorRaw`), so every existing
-// `__kk` collection bridge already operates on them. This file adds the
-// entry points that construct those boxes and serve the
-// SortedSet/NavigableSet/SortedMap/NavigableMap member surface declared in
-// `Sources/CompilerCore/Stdlib/java/util/`.
 
-
-/// Half-open key/element bounds used by live SortedSet/SortedMap range views.
-/// A nil lower or upper bound leaves that side unbounded.
 struct RuntimeSortedRange {
     let lowerBoundRaw: Int?
     let upperBoundRaw: Int?
@@ -21,8 +10,6 @@ struct RuntimeSortedRange {
     }
 }
 
-/// The effective range of a view in that view's comparator order. Descending
-/// views swap the endpoints and their inclusivity while inverting ordering.
 struct RuntimeSortedBounds {
     let lowerBoundRaw: Int?
     let lowerBoundInclusive: Bool
@@ -129,8 +116,6 @@ private func runtimeSortedSetBoxCreate(comparatorRaw: Int) -> RuntimeSetBox {
     return box
 }
 
-/// The comparator object stored on a sorted set box, or 0 for natural order.
-/// Non-sorted and non-box receivers both answer 0.
 private func runtimeSortedSetComparatorRaw(_ setRaw: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw), set.sorted else { return 0 }
     return set.comparatorRaw
@@ -177,15 +162,11 @@ private func runtimeSortedSetBound(
 }
 
 
-/// `java.util.TreeSet(comparator)` / `java.util.TreeSet()` — a null-sentinel
-/// or 0 comparator selects natural order.
 @_cdecl("__kk_tree_set_new")
 public func kk_tree_set_new(_ comparatorRaw: Int) -> Int {
     registerRuntimeObject(runtimeSortedSetBoxCreate(comparatorRaw: comparatorRaw), typeID: treeSetRuntimeTypeID)
 }
 
-/// `java.util.TreeSet(Collection)` — natural order; duplicates collapse under
-/// natural comparison, matching `java.util.TreeSet.addAll` semantics.
 @_cdecl("__kk_tree_set_new_collection")
 public func kk_tree_set_new_collection(_ collectionRaw: Int) -> Int {
     let box = runtimeSortedSetBoxCreate(comparatorRaw: 0)
@@ -208,9 +189,6 @@ public func kk_tree_set_new_sorted_set(_ setRaw: Int) -> Int {
     return registerRuntimeObject(box, typeID: treeSetRuntimeTypeID)
 }
 
-/// Attach a sorted backing box to a source-allocated TreeSet instance
-/// (superclass-init path — `__kk_linked_hash_set_init` precedent). The
-/// comparator argument arrives from the primary constructor parameter.
 @_cdecl("__kk_tree_set_init")
 public func kk_tree_set_init(_ setRaw: Int, _ comparatorRaw: Int) -> Int {
     guard let pointer = UnsafeMutableRawPointer(bitPattern: setRaw),
@@ -222,8 +200,6 @@ public func kk_tree_set_init(_ setRaw: Int, _ comparatorRaw: Int) -> Int {
 }
 
 
-/// `SortedSet.comparator()` — the stored comparator object, or null for
-/// natural ordering.
 @_cdecl("__kk_sorted_set_comparator")
 public func kk_sorted_set_comparator(_ setRaw: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw), set.sorted, set.comparatorRaw != 0 else {
@@ -232,9 +208,6 @@ public func kk_sorted_set_comparator(_ setRaw: Int) -> Int {
     return set.comparatorRaw
 }
 
-/// `SortedSet.first()` — least element; throws NoSuchElementException on
-/// empty. On descending views `values` is already reversed, so `first` is the
-/// original set's greatest element, matching `descendingSet().first()`.
 @_cdecl("__kk_sorted_set_first")
 public func kk_sorted_set_first(_ setRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
@@ -245,8 +218,6 @@ public func kk_sorted_set_first(_ setRaw: Int, _ outThrown: UnsafeMutablePointer
     }
 }
 
-/// `SortedSet.last()` — greatest element; throws NoSuchElementException on
-/// empty.
 @_cdecl("__kk_sorted_set_last")
 public func kk_sorted_set_last(_ setRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
@@ -382,9 +353,6 @@ public func kk_sorted_set_poll_last(_ setRaw: Int) -> Int {
     return last.legacyRawValue
 }
 
-/// `NavigableSet.descendingSet()` — a live reversed view sharing the parent's
-/// storage, tagged as NavigableSet (matching `java.util.TreeSet`'s
-/// descendingSet, which is not itself a TreeSet).
 @_cdecl("__kk_sorted_set_descending")
 public func kk_sorted_set_descending(_ setRaw: Int) -> Int {
     runtimeRegisterViewOrEmpty(
@@ -396,9 +364,6 @@ public func kk_sorted_set_descending(_ setRaw: Int) -> Int {
     )
 }
 
-/// `NavigableSet.descendingIterator()` — a MutableIterator over the reversed
-/// view whose `remove()` writes through to the set (same RuntimeListIteratorBox
-/// removeAction mechanism `kk_list_iterator` uses for set receivers).
 @_cdecl("__kk_sorted_set_descending_iterator")
 public func kk_sorted_set_descending_iterator(_ setRaw: Int) -> Int {
     let descending = runtimeSetBox(from: setRaw).map { Array($0.elements.reversed()) } ?? []
@@ -427,10 +392,6 @@ private func runtimeSortedMapComparatorRaw(_ mapRaw: Int) -> Int {
     return map.comparatorRaw
 }
 
-/// Copy every entry of `mapRaw` into `box` through `put`, preserving the
-/// destination's comparator order. Handles both box-backed maps and
-/// source-implemented `Map` receivers (which expose keys/get through their
-/// itable).
 private func runtimeSortedMapCopyEntries(from mapRaw: Int, into box: RuntimeMapBox) {
     if let source = runtimeMapBox(from: mapRaw) {
         let keys = source.keys
@@ -517,8 +478,6 @@ public func kk_sorted_map_tail_map(
     }
 }
 
-/// Binary-search a navigable key bound over the map's key order — same
-/// lower/floor vs ceiling/higher parameterization as `runtimeSortedSetBound`.
 private func runtimeSortedMapBound(
     map: RuntimeMapBox,
     key: Int,
@@ -590,9 +549,6 @@ public func kk_sorted_map_comparator(_ mapRaw: Int) -> Int {
     return map.comparatorRaw
 }
 
-/// `SortedMap.firstKey()` — least key; throws NoSuchElementException on
-/// empty. On descending views `keys` is already reversed, so `firstKey` is
-/// the original map's greatest key, matching `descendingMap().firstKey()`.
 @_cdecl("__kk_sorted_map_first_key")
 public func kk_sorted_map_first_key(_ mapRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
@@ -603,8 +559,6 @@ public func kk_sorted_map_first_key(_ mapRaw: Int, _ outThrown: UnsafeMutablePoi
     }
 }
 
-/// `SortedMap.lastKey()` — greatest key; throws NoSuchElementException on
-/// empty.
 @_cdecl("__kk_sorted_map_last_key")
 public func kk_sorted_map_last_key(_ mapRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
@@ -651,8 +605,6 @@ public func kk_sorted_map_higher_key(_ mapRaw: Int, _ key: Int) -> Int {
     return bound
 }
 
-/// `NavigableMap.firstEntry()` — detached snapshot entry (JVM returns an
-/// immutable entry; a plain pair box is its closest analogue).
 @_cdecl("__kk_sorted_map_first_entry")
 public func kk_sorted_map_first_entry(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw),
@@ -664,7 +616,6 @@ public func kk_sorted_map_first_entry(_ mapRaw: Int) -> Int {
     return runtimeMapEntryNew(key: key, value: value)
 }
 
-/// `NavigableMap.lastEntry()` — detached snapshot entry.
 @_cdecl("__kk_sorted_map_last_entry")
 public func kk_sorted_map_last_entry(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw),
@@ -676,8 +627,6 @@ public func kk_sorted_map_last_entry(_ mapRaw: Int) -> Int {
     return runtimeMapEntryNew(key: key, value: value)
 }
 
-/// `NavigableMap.pollFirstEntry()` — removes the least entry and returns a
-/// detached snapshot (JVM's returned entry is not live).
 @_cdecl("__kk_sorted_map_poll_first_entry")
 public func kk_sorted_map_poll_first_entry(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw),
@@ -690,8 +639,6 @@ public func kk_sorted_map_poll_first_entry(_ mapRaw: Int) -> Int {
     return runtimeMapEntryNew(key: key, value: value)
 }
 
-/// `NavigableMap.pollLastEntry()` — removes the greatest entry and returns a
-/// detached snapshot.
 @_cdecl("__kk_sorted_map_poll_last_entry")
 public func kk_sorted_map_poll_last_entry(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw),
@@ -704,8 +651,6 @@ public func kk_sorted_map_poll_last_entry(_ mapRaw: Int) -> Int {
     return runtimeMapEntryNew(key: key, value: value)
 }
 
-/// `NavigableMap.descendingMap()` — a live reversed view sharing the parent's
-/// storage, tagged as NavigableMap.
 @_cdecl("__kk_sorted_map_descending")
 public func kk_sorted_map_descending(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
@@ -714,9 +659,6 @@ public func kk_sorted_map_descending(_ mapRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeMapBox(descendingViewOf: map), typeID: navigableMapRuntimeTypeID)
 }
 
-/// `NavigableMap.descendingKeySet()` — a live reversed view over the map's
-/// keys: a `descendingViewOf` wrapper around a `mapKeysOf` view, so removes
-/// write through to the map and the iteration is the reversed key order.
 @_cdecl("__kk_sorted_map_descending_key_set")
 public func kk_sorted_map_descending_key_set(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {

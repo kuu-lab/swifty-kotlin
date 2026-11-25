@@ -1,9 +1,6 @@
 private let boxingABI = RuntimeABISectionBuilder("Boxing")
 
 public extension RuntimeABISpec {
-    /// ABI entry points emitted when ABILoweringPass has a statically-known
-    /// primitive at a boxing boundary. They preserve the canonical Swift ARC
-    /// box while using the tagged-handle fast path.
     static let staticPrimitiveBoxingFunctions: [RuntimeABIFunctionSpec] = [
         boxingABI.nt("kk_box_int_static", "value"),
         boxingABI.nt("kk_box_byte_static", "value"),

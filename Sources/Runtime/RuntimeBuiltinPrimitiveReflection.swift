@@ -552,8 +552,6 @@ private func invokeBuiltinIntArithmetic(_ member: Int, values: [Int], outThrown:
     return kk_box_double_nonnull(kk_double_to_bits(result))
 }
 
-// Primitive types have no lowered class declaration. Register their real Any
-// members here; type-specific operations require separate metadata.
 func ensureBuiltinPrimitiveMembers(_ kclassRaw: Int) {
     guard let box = runtimeKClassBox(from: kclassRaw) else { return }
     let token = Int64(truncatingIfNeeded: box.typeToken) & RuntimeTypeTokenEncoding.baseMask
@@ -646,7 +644,6 @@ func ensureBuiltinPrimitiveMembers(_ kclassRaw: Int) {
                 let resultRaw = runtimeMakeStringRaw("kotlin.\(resultName)")
                 let raw = __kk_kfunction_create(nameRaw, 2, resultRaw, 4, 0, 0)
                 _ = kk_callable_ref_tag_kfunction(raw, nameRaw, resultRaw, 2, 4)
-                // KUU-3947: `fun kotlin.Int.plus(kotlin.Byte): kotlin.Int`.
                 __kk_function_set_description(
                     raw,
                     runtimeMakeStringRaw("fun \(receiverName).\(functionName)(kotlin.\(operandName)): kotlin.\(resultName)"),
@@ -672,7 +669,6 @@ func ensureBuiltinPrimitiveMembers(_ kclassRaw: Int) {
             let resultRaw = runtimeMakeStringRaw(resultName)
             let raw = __kk_kfunction_create(nameRaw, operand == nil ? 1 : 2, resultRaw, flags, 0, 0)
             _ = kk_callable_ref_tag_kfunction(raw, nameRaw, resultRaw, operand == nil ? 1 : 2, flags)
-            // KUU-3947: `fun kotlin.Int.inc(): kotlin.Int`.
             __kk_function_set_description(
                 raw,
                 runtimeMakeStringRaw("fun \(receiverName).\(functionName)(\(operand.map { $0.type } ?? "")): \(resultName)"),
@@ -732,7 +728,6 @@ func ensureBuiltinPrimitiveMembers(_ kclassRaw: Int) {
         let resultRaw = runtimeMakeStringRaw(resultName)
         let raw = __kk_kfunction_create(functionNameRaw, operand == nil ? 1 : 2, resultRaw, flags, 0, 0)
         _ = kk_callable_ref_tag_kfunction(raw, functionNameRaw, resultRaw, operand == nil ? 1 : 2, flags)
-        // KUU-3947: `fun kotlin.Double.div(kotlin.Float): kotlin.Double`.
         __kk_function_set_description(
             raw,
             runtimeMakeStringRaw("fun \(receiverName).\(functionName)(\(operand.map { $0.type } ?? "")): \(resultName)"),
@@ -877,8 +872,6 @@ func ensureBuiltinPrimitiveMembers(_ kclassRaw: Int) {
             nameRaw, dataTypeRaw, runtimeMakeStringRaw("kotlin.\(name).data"), 0, 1, 0
         )
         _ = kk_callable_ref_tag_kproperty(property, nameRaw, dataTypeRaw, 1)
-        // KUU-3947: JVM memberProperties renders
-        // `val kotlin.UInt.data: kotlin.Int` — pin the same text.
         __kk_function_set_description(
             property,
             runtimeMakeStringRaw("val kotlin.\(name).data: \(dataTypeName)"),

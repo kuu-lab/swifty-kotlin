@@ -7,8 +7,6 @@
 
 package kotlin.collections
 
-// The compiler-side shell remains the fallback for non-bundled contexts.
-
 private class AbstractMutableMapKeys<K, V>(
     private val map: AbstractMutableMap<K, V>
 ) : AbstractMutableSet<K>() {

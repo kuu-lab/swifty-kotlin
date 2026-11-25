@@ -17,9 +17,6 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        // KSP-1324: `findAssociatedObject` is bundled Kotlin source
-        // (Stdlib/kotlin/reflect/AssociatedObjects.kt) when the stdlib is
-        // included; register the synthetic fallback only when it is absent.
         if !bundledIndex.contains(
             ownerFQName: kotlinReflectPkg + [interner.intern("KClass")],
             name: interner.intern("findAssociatedObject"),
@@ -51,8 +48,6 @@ extension DataFlowSemaPhase {
             bundledIndex: bundledIndex
         )
 
-        // Keep synthetic members only when no source-backed KCallable declaration
-        // can provide the properties through KProperty inheritance.
         let stringType = types.stringType
         if !hasSourceBackedKCallable, let kPropertyInfo = symbols.symbol(kPropertySymbol) {
             let namePropName = interner.intern("name")
@@ -158,10 +153,6 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
-        // KSP-682: KProperty0/1/2 and KMutableProperty0/1/2 are bundled Kotlin
-        // source (Stdlib/kotlin/reflect/KProperty.kt) when the stdlib is
-        // included; register the synthetic fallback shells only when the bundled
-        // source is absent (e.g. compilations without the stdlib).
         if !bundledIndex.contains(
             ownerFQName: kotlinReflectPkg + [interner.intern("KProperty0")],
             name: interner.intern("get"),
@@ -232,7 +223,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // Store in TypeSystem so subtyping checks can recognise KFunction receivers.
         let kFunctionSymbol = ensureInterfaceSymbol(
             named: "KFunction", in: kotlinReflectPkg, symbols: symbols, interner: interner
         )
@@ -277,7 +267,6 @@ extension DataFlowSemaPhase {
                 symbols.setPropertyType(types.booleanType, for: isSuspendSymbol)
             }
 
-            // Patched to List<Any?> later by patchKFunctionParametersType.
             let paramsName = interner.intern("parameters")
             let paramsFQ = kFunctionInfo.fqName + [paramsName]
             if symbols.lookup(fqName: paramsFQ) == nil {
@@ -363,7 +352,6 @@ extension DataFlowSemaPhase {
         let function1FQName = [interner.intern("kotlin"), interner.intern("Function"), interner.intern("Function1")]
         if let function1Symbol = symbols.lookup(fqName: function1FQName) {
             addSyntheticDirectSupertypes([function1Symbol], to: setterSymbol, symbols: symbols, types: types)
-            // Function1<V, Unit>: args follow Kotlin declaration order [in P1, out R].
             let function1Args: [TypeArg] = [.in(setterValueType), .out(types.unitType)]
             symbols.setSupertypeTypeArgs(function1Args, for: setterSymbol, supertype: function1Symbol)
             types.setNominalSupertypeTypeArgs(function1Args, for: setterSymbol, supertype: function1Symbol)
@@ -708,7 +696,6 @@ extension DataFlowSemaPhase {
         let function1FQName = [interner.intern("kotlin"), interner.intern("Function"), interner.intern("Function1")]
         if let function1Symbol = symbols.lookup(fqName: function1FQName) {
             addSyntheticDirectSupertypes([function1Symbol], to: kMutableProperty1Symbol, symbols: symbols, types: types)
-            // Function1<T, V>: args follow Kotlin declaration order [in P1, out R].
             let functionArgs: [TypeArg] = [.in(typeParamTypes[0]), .out(typeParamTypes[1])]
             symbols.setSupertypeTypeArgs(functionArgs, for: kMutableProperty1Symbol, supertype: function1Symbol)
             types.setNominalSupertypeTypeArgs(functionArgs, for: kMutableProperty1Symbol, supertype: function1Symbol)
@@ -1007,7 +994,6 @@ extension DataFlowSemaPhase {
                     let receiverType = types.make(.typeParam(TypeParamType(symbol: typeParams[0], nullability: .nonNull)))
                     let valueType = types.make(.typeParam(TypeParamType(symbol: typeParams[1], nullability: .nonNull)))
                     addSyntheticDirectSupertypes([function1Symbol], to: kProperty1Symbol, symbols: symbols, types: types)
-                    // Function1<T, V>: args follow Kotlin declaration order [in P1, out R].
                     let function1Args: [TypeArg] = [.in(receiverType), .out(valueType)]
                     symbols.setSupertypeTypeArgs(function1Args, for: kProperty1Symbol, supertype: function1Symbol)
                     types.setNominalSupertypeTypeArgs(function1Args, for: kProperty1Symbol, supertype: function1Symbol)
@@ -1030,7 +1016,6 @@ extension DataFlowSemaPhase {
             let eType = types.make(.typeParam(TypeParamType(symbol: typeParams[1], nullability: .nonNull)))
             let vType = types.make(.typeParam(TypeParamType(symbol: typeParams[2], nullability: .nonNull)))
             addSyntheticDirectSupertypes([function2Symbol], to: kProperty2Symbol, symbols: symbols, types: types)
-            // Function2<D, E, V>: args follow Kotlin declaration order [in P1, in P2, out R].
             let function2Args: [TypeArg] = [.in(dType), .in(eType), .out(vType)]
             symbols.setSupertypeTypeArgs(function2Args, for: kProperty2Symbol, supertype: function2Symbol)
             types.setNominalSupertypeTypeArgs(function2Args, for: kProperty2Symbol, supertype: function2Symbol)
@@ -1084,7 +1069,6 @@ extension DataFlowSemaPhase {
             let receiverType = types.make(.typeParam(TypeParamType(symbol: typeParams[0], nullability: .nonNull)))
             let valueType = types.make(.typeParam(TypeParamType(symbol: typeParams[1], nullability: .nonNull)))
             addSyntheticDirectSupertypes([function1Symbol], to: kMutableProperty1Symbol, symbols: symbols, types: types)
-            // Function1<T, V>: args follow Kotlin declaration order [in P1, out R].
             let function1Args: [TypeArg] = [.in(receiverType), .out(valueType)]
             symbols.setSupertypeTypeArgs(function1Args, for: kMutableProperty1Symbol, supertype: function1Symbol)
             types.setNominalSupertypeTypeArgs(function1Args, for: kMutableProperty1Symbol, supertype: function1Symbol)
@@ -1158,10 +1142,6 @@ extension DataFlowSemaPhase {
             kotlinReflectPkg: kotlinReflectPkg
         )
 
-        // KSP-1323: kotlin.reflect.typeOf<T>() is bundled Kotlin source
-        // (Stdlib/kotlin/reflect/typeOf.kt); the `kotlin.typeOf` alias is not
-        // part of the official surface, so only the reflect FQName keeps a
-        // synthetic fallback for compilations without the bundled stdlib.
         let typeOfName = interner.intern("typeOf")
         let typeOfReflectFQName = kotlinReflectPkg + [typeOfName]
         if !bundledIndex.contains(ownerFQName: kotlinReflectPkg, name: typeOfName, arity: 0),
@@ -1195,8 +1175,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    // The interface's abstract members are declared by the bundled
-    // KTypeParameter source.
     private func registerSyntheticKTypeParameterStub(
         kClassifierSymbol: SymbolID,
         symbols: SymbolTable,
@@ -1226,10 +1204,6 @@ extension DataFlowSemaPhase {
             named: "KParameter", in: kotlinReflectPkg, symbols: symbols, interner: interner
         )
 
-        // KUU-1364: the bundled kotlin/reflect/KParameter.kt declaration owns
-        // the interface members and the nested `Kind` enum (Kotlin 2.3.10
-        // declares INSTANCE, CONTEXT, EXTENSION_RECEIVER, VALUE). The
-        // synthetic members below remain only for --no-stdlib compilations.
         let kParameterFQName = kotlinReflectPkg + [interner.intern("KParameter")]
         let hasSourceBackedKParameter = bundledIndex.containsNominal(fqName: kParameterFQName)
             || symbols.isSourceBackedSymbol(kParameterSymbol)
@@ -1366,8 +1340,6 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
-        // The bundled declaration owns its real enum entry symbols. Keep the
-        // synthetic entries only for --no-stdlib compatibility.
         if !symbols.isSourceBackedSymbol(enumSymbol) {
             for entry in ["INVARIANT", "IN", "OUT"] {
                 let entryName = interner.intern(entry)
@@ -1560,8 +1532,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// KSP-1332: preserve the compiler's canonical covariant List projection
-    /// for KType.arguments after either synthetic or source-backed collection.
     func patchKTypeArgumentsType(
         symbols: SymbolTable,
         types: TypeSystem,

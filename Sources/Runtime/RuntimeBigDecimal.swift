@@ -135,7 +135,6 @@ private func runtimeMultiplyMagnitudes(_ lhs: String, _ rhs: String) -> String {
     return String(result.reversed().map { Character(String($0)) })
 }
 
-/// Returns quotient and remainder for nonnegative decimal magnitudes.
 private func runtimeDivideMagnitudes(_ dividend: String, _ divisor: String) -> (String, String) {
     precondition(divisor != "0")
     var quotient = ""

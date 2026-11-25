@@ -1,6 +1,5 @@
 package kotlin.collections
 
-// MIGRATION-ITER-001
 // Iterable aggregate HOFs that return List<R> so an Iterable-typed receiver
 // (e.g. `val xs: Iterable<Int> = setOf(...)`) does not accidentally dispatch to
 // Sequence<T>.scan/scanIndexed/runningFold/runningFoldIndexed, which return
