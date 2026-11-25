@@ -1,6 +1,36 @@
 import Foundation
 
 extension JVMProgramBuilder {
+    /// Name given to a property accessor by `@get:JvmName` / `@set:JvmName`, if any.
+    /// The argument is evaluated as a Kotlin string constant (plain or raw literal,
+    /// or a `const val` reference), not parsed as JSON.
+    func explicitAccessorJvmName(for symbol: SymbolID, target: String) throws -> String? {
+        guard let record = try annotationRecords(for: symbol).first(where: {
+            $0.annotationFQName == KnownCompilerAnnotation.jvmName.qualifiedName && $0.useSiteTarget == target
+        }), var raw = record.arguments.first else { return nil }
+        raw = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let eq = raw.firstIndex(of: "="), raw[..<eq].trimmingCharacters(in: .whitespaces) == "name" {
+            raw = raw[raw.index(after: eq)...].trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        var explicit = extractKotlinStringLiteralContent(raw)?.content
+        if explicit == nil {
+            // Not a literal (e.g. a `const val`): evaluate the first annotation argument.
+            if let declaration = sourceDeclarations[symbol],
+               let node = declaration.annotations.first(where: { $0.usageID != nil && $0.usageID == record.usageID }),
+               var tokens = node.constructionTokens, let last = tokens.last {
+                try rememberRawAnnotationConstruction(node, tokens: &tokens, lastToken: last, message: "Unsupported JVM @JvmName annotation arguments.")
+            }
+            if let construction = annotationConstruction(record) {
+                switch ast.arena.expr(construction) {
+                case let .call(_, _, args, _), let .memberCall(_, _, _, args, _):
+                    if let argument = args.first, case let .constant(.string(value)) = try annotationConstant(argument.expr) { explicit = value }
+                default: break
+                }
+            }
+        }
+        guard let name = explicit, Self.isIdentifier(name) else { throw JVMFrontendError(message: "Invalid JVM method name.") }
+        return name
+    }
     func annotationRecords(for symbol: SymbolID) throws -> [MetadataAnnotationRecord] {
         var records = sema.symbols.annotations(for: symbol)
         var nodes: [(AnnotationNode, String?)] = []

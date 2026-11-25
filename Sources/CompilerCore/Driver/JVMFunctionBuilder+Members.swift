@@ -588,6 +588,8 @@ extension JVMProgramBuilder {
             f.typeParameters = accessorTypeParameters
             let setter = f.reference.result == .unit
             if let symbol = propertySymbol {
+                // Keep an explicit accessor name through value-class lowering (which would hash it).
+                f.jvmName = try explicitAccessorJvmName(for: symbol, target: setter ? "set" : "get")
                 f.isSynchronized = try annotationRecords(for: symbol).contains {
                     $0.annotationFQName == KnownCompilerAnnotation.jvmSynchronized.qualifiedName
                         && $0.useSiteTarget == (setter ? "set" : "get")

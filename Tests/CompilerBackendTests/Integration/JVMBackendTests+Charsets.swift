@@ -36,29 +36,43 @@ extension JVMBackendTests {
     @Test
     func accessorJvmNameRenamesPhysicalGetterAndSetter() throws {
         try withWorkspace { root in
-            let source = """
+            let source = #"""
             object Holder {
                 private var cache: String? = null
                 @get:JvmName("UTF32")
                 val UTF_32: String get() = cache ?: "x".also { cache = it }
                 @get:JvmName("flagOn") @set:JvmName("flagSet")
                 var flag: Boolean = false
+                @get:JvmName("""rawName""")
+                val raw: Int = 1
+                @get:JvmName(CONST_NAME)
+                val viaConst: Int = 2
+                @get:JvmName("readCount") @set:JvmName("writeCount")
+                var count: UInt = 0u
             }
+            const val CONST_NAME = "constName"
             fun main() {
                 println(Holder.UTF_32)
                 Holder.flag = true
                 println(Holder.flag)
+                Holder.count = 7u
+                println(Holder.count + Holder.raw.toUInt() + Holder.viaConst.toUInt())
             }
-            """
-            let (app, exit, diagnostics) = try m22Build(root: root, sources: [("Main.kt", source)], name: "app.jar")
+            """#
+            let runtime = try m11Runtime()
+            let (app, exit, diagnostics) = try m22Build(root: root, sources: [("Main.kt", source)], name: "app.jar", classpath: runtime.components(separatedBy: ":"))
             try #require(exit == 0, "\(diagnostics.map(\.message))")
-            let run = try java(["-Xverify:all", "-cp", app.path, "MainKt"])
-            #expect(run.stdout == "x\ntrue\n")
-            let listing = try jvmTool("javap", ["-cp", app.path, "Holder"], root: root)
+            let run = try java(["-Xverify:all", "-cp", app.path + ":" + runtime, "MainKt"])
+            #expect(run.stdout == "x\ntrue\n10\n")
+            let listing = try jvmTool("javap", ["-cp", app.path + ":" + runtime, "Holder"], root: root)
             #expect(listing.stdout.contains("UTF32()"))
             #expect(listing.stdout.contains("flagOn()"))
             #expect(listing.stdout.contains("flagSet(boolean)"))
             #expect(!listing.stdout.contains("getUTF_32"))
+            #expect(listing.stdout.contains("rawName()"))
+            #expect(listing.stdout.contains("constName()"))
+            #expect(listing.stdout.contains("readCount()"))
+            #expect(listing.stdout.contains("writeCount(int)"))
         }
     }
 }
