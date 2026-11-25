@@ -3,11 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// kotlinc rejects `true + true` because `Boolean` has no `plus` member:
-/// with no operator candidates left, the primitive arithmetic fallback used
-/// to promote Boolean operands into an Int result (KUU-2991). The same gate
-/// keeps class/String/Any operands and range operators out of the fallback,
-/// and unary +/- no longer accepts Boolean/Char operands.
 @Suite
 struct BooleanOperatorOperandTests {
     @Test
@@ -67,8 +62,6 @@ struct BooleanOperatorOperandTests {
 
     @Test
     func booleanSameTypeRangeIsAccepted() throws {
-        // kotlinc accepts `true..true`: Boolean is Comparable<Boolean>, so the
-        // generic `T.rangeTo(that: T): ClosedRange<T>` applies.
         let source = """
         fun probe() = true..true
         """
