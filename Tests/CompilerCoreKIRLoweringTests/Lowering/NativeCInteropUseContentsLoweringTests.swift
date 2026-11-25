@@ -6,12 +6,6 @@ import Testing
 
 @Suite
 struct NativeCInteropUseContentsLoweringTests {
-    /// Regression: `CValue<T>.useContents { ... }` lowers as an implicit-receiver
-    /// scope function, so the contained C variable must be copied into the
-    /// lambda's synthetic receiver storage before the block runs. Without the
-    /// initializing `.copy`, every `this` reference inside the block reads an
-    /// uninitialized expression (see scopeUseContents in
-    /// CallLowerer+ScopeFunctionLowering).
     @Test
     func testUseContentsLowersReceiverInitializationCopy() throws {
         let source = """
@@ -39,9 +33,6 @@ struct NativeCInteropUseContentsLoweringTests {
                 return symbol
             }
 
-            // The receiver initialization is a `.copy` from one symbol reference
-            // (the lowered `value` receiver) into another (the synthetic
-            // implicit-receiver storage captured by the block).
             let receiverCopies = expose.body.compactMap { instruction -> (from: SymbolID, to: KIRExprID, toSymbol: SymbolID)? in
                 guard case let .copy(from, to) = instruction,
                       let fromSymbol = symbol(of: from),
@@ -59,8 +50,6 @@ struct NativeCInteropUseContentsLoweringTests {
                 "Receiver copy should move the lowered receiver into a distinct synthetic storage symbol"
             )
 
-            // The initialized storage must actually be consumed (captured by the
-            // block) after being written — otherwise the copy would be dead.
             let copyIndex = try #require(expose.body.firstIndex { instruction in
                 if case let .copy(_, to) = instruction { return to == receiverCopy.to }
                 return false
