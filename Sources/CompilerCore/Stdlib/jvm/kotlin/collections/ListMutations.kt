@@ -31,20 +31,14 @@ public fun <T> MutableList<T>.removeFirstOrNull(): T? = if (isEmpty()) null else
 
 public fun <T> MutableList<T>.removeLastOrNull(): T? = if (isEmpty()) null else removeAt(size - 1)
 
+// Delegate to the JDK like kotlinc: java.util.Collections walks LinkedList
+// with iterators, whereas index-based swaps would be quadratic there.
 public fun <T> MutableList<T>.reverse() {
-    var left = 0
-    var right = size - 1
-    while (left < right) {
-        val value = this[left]
-        this[left] = this[right]
-        this[right] = value
-        left++
-        right--
-    }
+    java.util.Collections.reverse<T>(this)
 }
 
 public fun <T> MutableList<T>.shuffle() {
-    shuffle(Random.Default)
+    java.util.Collections.shuffle<T>(this)
 }
 
 // Same swap order as java.util.Collections.shuffle, which Kotlin/JVM delegates
