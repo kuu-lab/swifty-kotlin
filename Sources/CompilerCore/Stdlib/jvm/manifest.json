@@ -738,6 +738,12 @@
       "runtimeFacade": "kotlin/collections/GroupingKt"
     },
     {
+      "path": "declarations/GroupingFoldTo.kt",
+      "virtualPath": "<kswiftk-jvm>/grouping-fold-to.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/GroupingKt"
+    },
+    {
       "path": "declarations/JavaLang.kt",
       "virtualPath": "<kswiftk-jvm>/javaLang.kt",
       "excludeFromStdlibBuild": false
