@@ -61,6 +61,8 @@ inline fun <T> Iterable<T>.forEachIndexed(action: (Int, T) -> Unit) {
     }
 }
 inline fun <T, R> Iterable<T>.fold(initial: R, operation: (R, T) -> R): R { var result = initial; for (item in this) result = operation(result, item); return result }
+inline fun <T> Iterable<T>.sumBy(selector: (T) -> Int): Int { var sum = 0; for (item in this) sum += selector(item); return sum }
+inline fun <T> Iterable<T>.sumByDouble(selector: (T) -> Double): Double { var sum = 0.0; for (item in this) sum += selector(item); return sum }
 inline fun <T, K> kotlin.Array<out T>.groupBy(keySelector: (T) -> K): Map<K, List<T>> { val result = mutableMapOf<K, MutableList<T>>(); for (item in this) { val key = keySelector(item); val list = result[key]; if (list == null) { val created = mutableListOf<T>(); result[key] = created; created.add(item) } else list.add(item) }; return result }
 inline fun <T, K, V> kotlin.Array<out T>.groupBy(keySelector: (T) -> K, valueTransform: (T) -> V): Map<K, List<V>> { val result = mutableMapOf<K, MutableList<V>>(); for (item in this) { val key = keySelector(item); var list = result[key]; if (list == null) { list = mutableListOf<V>(); result[key] = list }; list.add(valueTransform(item)) }; return result }
 inline fun <T, K, V> kotlin.Array<out T>.associate(transform: (T) -> Pair<K, V>): Map<K, V> { val result = mutableMapOf<K, V>(); for (item in this) { val pair = transform(item); result[pair.first] = pair.second }; return result }
