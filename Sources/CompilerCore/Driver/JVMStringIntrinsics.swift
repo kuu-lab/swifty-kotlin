@@ -220,6 +220,7 @@ extension JVMFunctionBuilder {
             case "space": fallback = try constant(.int(32), .char)
             case "empty": fallback = try constant(.string(""), .string)
             case "margin": fallback = try constant(.string("|"), .string)
+            case "indent": fallback = try constant(.string("    "), .string)
             case "this": fallback = source
             case "length": fallback = try textLength(source)
             case "lastIndex":
