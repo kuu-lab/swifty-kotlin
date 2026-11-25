@@ -280,8 +280,19 @@ extension JVMProgramBuilder {
             let capital = String(name.prefix(1)).uppercased() + name.dropFirst()
             let booleanIs = name.hasPrefix("is") && name.count > 2 && name.dropFirst(2).first!.isUppercase
             let collectionGetter = collectionPropertyGetter(plan, name: name)
-            let getterName = plan.isJvmRecord ? name : (collectionGetter ?? (plan.isAnnotation ? name : (booleanIs ? name : "get" + capital)))
-            let setterName = booleanIs ? "set" + name.dropFirst(2) : "set" + capital
+            // `@get:JvmName("x")` / `@set:JvmName("x")` rename the physical accessor.
+            func explicitAccessorName(_ target: String) throws -> String? {
+                guard let annotation = sema.symbols.annotations(for: symbol).first(where: {
+                    $0.annotationFQName == KnownCompilerAnnotation.jvmName.qualifiedName && $0.useSiteTarget == target
+                }), let raw = annotation.arguments.first else { return nil }
+                let literal = raw.components(separatedBy: "=").last!.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard let data = ("[" + literal + "]").data(using: .utf8),
+                      let names = try? JSONSerialization.jsonObject(with: data) as? [String],
+                      let explicit = names.first, Self.isIdentifier(explicit) else { throw JVMFrontendError(message: "Invalid JVM method name.") }
+                return explicit
+            }
+            let getterName = try explicitAccessorName("get") ?? (plan.isJvmRecord ? name : (collectionGetter ?? (plan.isAnnotation ? name : (booleanIs ? name : "get" + capital))))
+            let setterName = try explicitAccessorName("set") ?? (booleanIs ? "set" + name.dropFirst(2) : "set" + capital)
             var getter = JVMForeignMethod(owner: plan.name, name: getterName, descriptor: "(" + getterParameters.map(\.descriptor).joined() + ")" + type.descriptor, parameters: getterParameters, result: type, isStatic: plan.isFacade, isInterface: plan.isInterface, isAbstract: isAbstract)
             getter.isSpecial = !plan.isFacade && (p.getter?.visibility == .private || p.modifiers.contains(.private))
             var setter: JVMForeignMethod?
