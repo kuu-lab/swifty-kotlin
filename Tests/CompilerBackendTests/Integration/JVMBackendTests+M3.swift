@@ -78,7 +78,6 @@ extension JVMBackendTests {
                 println(Child.twice(3))
             }
             """
-            // Exercise both compressed JAR input and a directory of classfiles.
             let classpath = mode == .jvmJar ? dependency.path : root.appendingPathComponent("deps").path
             let result = try compile(source, root: root, mode: mode, classpath: [classpath])
             #expect(result.0 == 0, "\(result.1.map(\.message))")
