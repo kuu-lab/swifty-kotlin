@@ -86,13 +86,10 @@ struct AnonymousObjectLocalTypingTests {
         ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
     }
 
-    // MARK: - Consolidated runSema clean tests
-
     @Test
     func testRunSemaClean() throws {
 
         let sources: [String] = [
-            // testAnonymousObjectBodyProducesLocalNominalTypeAndResolvableProperty
             """
             package sample0
 
@@ -104,7 +101,6 @@ struct AnonymousObjectLocalTypingTests {
                     }
 
             """,
-            // testAnonymousObjectCanImplementMultipleInterfacesWithoutClassInheritanceDiagnostic
             """
             package sample1
 
@@ -118,7 +114,6 @@ struct AnonymousObjectLocalTypingTests {
                     }
 
             """,
-            // testAnonymousObjectCallablePropertyCanBeInvokedFromMemberFunction
             """
             package sample2
 
@@ -148,8 +143,6 @@ struct AnonymousObjectLocalTypingTests {
             let sema = try #require(ctx.sema)
 
             let interner = ctx.interner
-
-            // === testAnonymousObjectBodyProducesLocalNominalTypeAndResolvableProperty ===
 
             do {
 
@@ -219,8 +212,6 @@ struct AnonymousObjectLocalTypingTests {
 
             }
 
-            // === testAnonymousObjectCanImplementMultipleInterfacesWithoutClassInheritanceDiagnostic ===
-
             do {
 
                 let sample1Path = paths[1]
@@ -247,8 +238,6 @@ struct AnonymousObjectLocalTypingTests {
                 #expect(!sample1Diagnostics.contains { $0.severity == .error }, "Unexpected diagnostics: \(renderDiagnostics(ctx))")
 
             }
-
-            // === testAnonymousObjectCallablePropertyCanBeInvokedFromMemberFunction ===
 
             do {
 
