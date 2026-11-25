@@ -1116,7 +1116,18 @@ extension JVMFunctionBuilder {
                 interner: context.interner
             )
         }()
-        if withIndexReceiver == nil, source.type.referenceName == "java/util/Map" {
+        // Concrete JDK maps (LinkedHashMap, HashMap, TreeMap, ...) are not
+        // java/lang/Iterable either, so they need the same entrySet loop.
+        let isJDKMap: Bool = {
+            guard let referenceName = source.type.referenceName else { return false }
+            if referenceName == "java/util/Map" { return true }
+            guard referenceName.hasPrefix("java/util/"),
+                  let mapSymbol = program.sema.symbols.lookup(fqName: ["kotlin", "collections", "Map"].map(context.interner.intern)),
+                  let iterableType = program.sema.bindings.exprType(for: iterable)
+            else { return false }
+            return program.sema.types.isSubtype(iterableType, program.sema.types.make(.classType(ClassType(classSymbol: mapSymbol, args: [.star, .star]))))
+        }()
+        if withIndexReceiver == nil, isJDKMap {
             try mapEntryLoop(name, source, body, id, destructuringNames: destructuringNames, label: loopLabel)
             return
         }
