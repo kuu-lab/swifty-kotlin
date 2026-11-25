@@ -1,9 +1,5 @@
 package kotlin
 
-/**
- * The size-only constructor remains compiler-provided; this overload is
- * implemented as ordinary bundled Kotlin source.
- */
 public inline fun ByteArray(size: Int, init: (Int) -> Byte): ByteArray {
     val result = ByteArray(size)
     var index = 0

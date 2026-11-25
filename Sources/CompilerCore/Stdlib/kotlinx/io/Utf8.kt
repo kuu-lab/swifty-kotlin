@@ -114,8 +114,6 @@ public fun Source.readLineStrict(limit: Long = Long.MAX_VALUE): String {
     return result
 }
 
-// Pinned 0.9.1 validation/streaming helpers. Unused writeToTail result bindings
-// are omitted; all byte commits, continuation consumption and getter order remain.
 private fun Buffer.commonReadUtf8CodePoint(): Int {
     require(1)
 
@@ -128,33 +126,32 @@ private fun Buffer.commonReadUtf8CodePoint(): Int {
         b0 and 0x80 == 0 -> {
             // 0xxxxxxx.
             codePoint = b0 and 0x7f
-            byteCount = 1 // 7 bits (ASCII).
+            byteCount = 1
             min = 0x0
         }
 
         b0 and 0xe0 == 0xc0 -> {
             // 0x110xxxxx
             codePoint = b0 and 0x1f
-            byteCount = 2 // 11 bits (5 + 6).
+            byteCount = 2
             min = 0x80
         }
 
         b0 and 0xf0 == 0xe0 -> {
             // 0x1110xxxx
             codePoint = b0 and 0x0f
-            byteCount = 3 // 16 bits (4 + 6 + 6).
+            byteCount = 3
             min = 0x800
         }
 
         b0 and 0xf8 == 0xf0 -> {
             // 0x11110xxx
             codePoint = b0 and 0x07
-            byteCount = 4 // 21 bits (3 + 6 + 6 + 6).
+            byteCount = 4
             min = 0x10000
         }
 
         else -> {
-            // We expected the first byte of a code point but got something else.
             skip(1)
             return REPLACEMENT_CODE_POINT
         }
@@ -183,15 +180,15 @@ private fun Buffer.commonReadUtf8CodePoint(): Int {
 
     return when {
         codePoint > 0x10ffff -> {
-            REPLACEMENT_CODE_POINT // Reject code points larger than the Unicode maximum.
+            REPLACEMENT_CODE_POINT
         }
 
         codePoint in 0xd800..0xdfff -> {
-            REPLACEMENT_CODE_POINT // Reject partial surrogates.
+            REPLACEMENT_CODE_POINT
         }
 
         codePoint < min -> {
-            REPLACEMENT_CODE_POINT // Reject overlong code points.
+            REPLACEMENT_CODE_POINT
         }
 
         else -> codePoint
@@ -200,7 +197,6 @@ private fun Buffer.commonReadUtf8CodePoint(): Int {
 
 @OptIn(UnsafeIoApi::class)
 private inline fun Buffer.commonWriteUtf8(beginIndex: Int, endIndex: Int, charAt: (Int) -> Char) {
-    // Transcode a UTF-16 chars to UTF-8 bytes.
     var i = beginIndex
     while (i < endIndex) {
         var c = charAt(i).code
@@ -211,7 +207,6 @@ private inline fun Buffer.commonWriteUtf8(beginIndex: Int, endIndex: Int, charAt
                     val segmentOffset = -i
                     val runLimit = minOf(endIndex, i + segment.remainingCapacity)
 
-                    // Emit a 7-bit character with 1 byte.
                     ctx.setUnchecked(segment, segmentOffset + i++, c.toByte()) // 0xxxxxxx
 
                     // Fast-path contiguous runs of ASCII characters. This is ugly, but yields a ~4x performance
@@ -222,12 +217,11 @@ private inline fun Buffer.commonWriteUtf8(beginIndex: Int, endIndex: Int, charAt
                         ctx.setUnchecked(segment, segmentOffset + i++, c.toByte()) // 0xxxxxxx
                     }
 
-                    i + segmentOffset // Equivalent to i - (previous i).
+                    i + segmentOffset
                 }
             }
 
             c < 0x800 -> {
-                // Emit a 11-bit character with 2 bytes.
                 UnsafeBufferOperations.writeToTail(this, 2) { ctx, segment ->
                     ctx.setUnchecked(
                         segment, 0,
@@ -240,7 +234,6 @@ private inline fun Buffer.commonWriteUtf8(beginIndex: Int, endIndex: Int, charAt
             }
 
             c < 0xd800 || c > 0xdfff -> {
-                // Emit a 16-bit character with 3 bytes.
                 UnsafeBufferOperations.writeToTail(this, 3) { ctx, segment ->
                     ctx.setUnchecked(
                         segment, 0,
@@ -254,9 +247,6 @@ private inline fun Buffer.commonWriteUtf8(beginIndex: Int, endIndex: Int, charAt
             }
 
             else -> {
-                // c is a surrogate. Make sure it is a high surrogate & that its successor is a low
-                // surrogate. If not, the UTF-16 is invalid, in which case we emit a replacement
-                // character.
                 val low = (if (i + 1 < endIndex) charAt(i + 1).code else 0)
                 if (c > 0xdbff || low !in 0xdc00..0xdfff) {
                     writeByte('?'.code.toByte())
@@ -267,7 +257,6 @@ private inline fun Buffer.commonWriteUtf8(beginIndex: Int, endIndex: Int, charAt
                     // Unicode code point:    00010000000000000000 + xxxxxxxxxxyyyyyyyyyy (21 bits)
                     val codePoint = 0x010000 + (c and 0x03ff shl 10 or (low and 0x03ff))
 
-                    // Emit a 21-bit character with 4 bytes.
                     UnsafeBufferOperations.writeToTail(this, 4) { ctx, segment ->
                         ctx.setUnchecked(segment, 0,
                             (codePoint shr 18 or 0xf0).toByte(), // 11110xxx
@@ -294,12 +283,10 @@ private fun Buffer.commonWriteUtf8CodePoint(codePoint: Int) {
         }
 
         codePoint < 0x80 -> {
-            // Emit a 7-bit code point with 1 byte.
             writeByte(codePoint.toByte())
         }
 
         codePoint < 0x800 -> {
-            // Emit a 11-bit code point with 2 bytes.
             UnsafeBufferOperations.writeToTail(this, 2) { ctx, segment ->
                 ctx.setUnchecked(segment, 0, (codePoint shr 6 or 0xc0).toByte()) // 110xxxxx
                 ctx.setUnchecked(segment, 1, (codePoint and 0x3f or 0x80).toByte()) // 10xxxxxx
@@ -308,12 +295,10 @@ private fun Buffer.commonWriteUtf8CodePoint(codePoint: Int) {
         }
 
         codePoint in 0xd800..0xdfff -> {
-            // Emit a replacement character for a partial surrogate.
             writeByte('?'.code.toByte())
         }
 
         codePoint < 0x10000 -> {
-            // Emit a 16-bit code point with 3 bytes.
             UnsafeBufferOperations.writeToTail(this, 3) { ctx, segment ->
                 ctx.setUnchecked(segment, 0, (codePoint shr 12 or 0xe0).toByte()) // 1110xxxx
                 ctx.setUnchecked(segment, 1, (codePoint shr 6 and 0x3f or 0x80).toByte()) // 10xxxxxx
@@ -323,7 +308,6 @@ private fun Buffer.commonWriteUtf8CodePoint(codePoint: Int) {
         }
 
         else -> { // [0x10000, 0x10ffff]
-            // Emit a 21-bit code point with 4 bytes.
             UnsafeBufferOperations.writeToTail(this, 4) { ctx, segment ->
                 ctx.setUnchecked(segment,0, (codePoint shr 18 or 0xf0).toByte()) // 11110xxx
                 ctx.setUnchecked(segment,1, (codePoint shr 12 and 0x3f or 0x80).toByte()) // 10xxxxxx

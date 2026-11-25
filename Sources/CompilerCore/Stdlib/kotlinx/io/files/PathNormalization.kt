@@ -7,9 +7,8 @@ package kotlinx.io.files
 
 import kotlinx.io.isWindows
 
-internal fun removeTrailingSeparators(path: String, /* only for testing */ isWindows_: Boolean = isWindows): String {
+internal fun removeTrailingSeparators(path: String, isWindows_: Boolean = isWindows): String {
     if (isWindows_) {
-        // don't trim the path separator right after the drive name
         val limit = if (path.length > 1) {
             if (path[1] == ':') {
                 3

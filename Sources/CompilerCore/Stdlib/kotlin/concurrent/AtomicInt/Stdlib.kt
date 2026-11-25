@@ -8,9 +8,6 @@ package kotlin.concurrent
 
 import kotlin.internal.KsSymbolName
 
-/**
- * The allocation remains in the shared runtime atomic box.
- */
 @SinceKotlin("1.9")
 @KsSymbolName("kk_atomic_int_create")
 public external fun AtomicInt(value: Int): AtomicInt

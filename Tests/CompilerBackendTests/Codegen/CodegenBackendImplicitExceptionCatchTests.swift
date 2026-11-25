@@ -4,9 +4,6 @@
 import Foundation
 import Testing
 
-// Regression coverage for implicit exceptions produced by `!!` and a cast to
-// a non-null type. These operations must enter the enclosing Kotlin catch
-// clause through the same thrown channel as an explicit `throw`.
 @Suite
 struct CodegenBackendImplicitExceptionCatchTests {
 

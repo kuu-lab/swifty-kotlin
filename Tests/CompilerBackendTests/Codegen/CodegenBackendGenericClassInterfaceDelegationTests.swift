@@ -3,8 +3,6 @@
 import Testing
 
 @Suite struct CodegenBackendGenericClassInterfaceDelegationTests {
-    // KUU-3606: a generic forwarding method must preserve its return ABI when
-    // the interface delegate comes from an unchecked cast.
     @Test func uncheckedCastDelegatePreservesGenericReturnDispatch() throws {
         try compileAndRunKotlin(
             """

@@ -23,16 +23,6 @@ package kotlinx.io
 import java.nio.ByteBuffer
 import java.nio.channels.WritableByteChannel
 
-/**
- * Writes data from the [source] into this sink and returns the number of bytes written.
- *
- * @param source the source to read from.
- *
- * @throws IllegalStateException when the sink is closed.
- * @throws IOException when some I/O error occurs.
- *
- * @sample kotlinx.io.samples.KotlinxIoSamplesJvm.readWriteByteBuffer
- */
 @OptIn(InternalIoApi::class)
 public fun Sink.write(source: ByteBuffer): Int {
     val sizeBefore = buffer.size
@@ -42,9 +32,6 @@ public fun Sink.write(source: ByteBuffer): Int {
     return bytesRead.toInt()
 }
 
-/**
- * Returns [WritableByteChannel] backed by this sink. Closing the channel will also close the sink.
- */
 public fun Sink.asByteChannel(): WritableByteChannel {
     val isClosed: () -> Boolean = when (this) {
         is RealSink -> this::closed

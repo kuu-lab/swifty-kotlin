@@ -361,8 +361,6 @@ struct CodegenBackendKotlinTextSlicingEdgeCasesTests {
     }
 
     @Test func testKotlinTextTakeNegativeThrows() throws {
-        // Kotlin spec: take(n) with n < 0 throws
-        // IllegalArgumentException("Requested element count -1 is less than zero.")
         let source = """
         fun main() {
             try {
@@ -377,8 +375,6 @@ struct CodegenBackendKotlinTextSlicingEdgeCasesTests {
     }
 
     @Test func testKotlinTextDropNegativeThrows() throws {
-        // Kotlin spec: drop(n) with n < 0 throws
-        // IllegalArgumentException("Requested element count -1 is less than zero.")
         let source = """
         fun main() {
             try {
@@ -393,8 +389,6 @@ struct CodegenBackendKotlinTextSlicingEdgeCasesTests {
     }
 
     @Test func testKotlinTextTakeLastNegativeThrows() throws {
-        // Kotlin spec: takeLast(n) with n < 0 throws
-        // IllegalArgumentException("Requested element count -1 is less than zero.")
         let source = """
         fun main() {
             try {
@@ -409,8 +403,6 @@ struct CodegenBackendKotlinTextSlicingEdgeCasesTests {
     }
 
     @Test func testKotlinTextDropLastNegativeThrows() throws {
-        // Kotlin spec: dropLast(n) with n < 0 throws
-        // IllegalArgumentException("Requested element count -1 is less than zero.")
         let source = """
         fun main() {
             try {

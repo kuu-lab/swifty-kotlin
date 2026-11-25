@@ -83,8 +83,6 @@ struct CodegenBackendShortCircuitLogicalOperatorsTests {
         )
     }
 
-    // Regression test: `list.isEmpty() || list.last() == x` must not evaluate
-    // `list.last()` when the list is already empty, or it throws NoSuchElementException.
     @Test
     func testCodegenLogicalOrShortCircuitAvoidsNoSuchElementException() throws {
         let source = """
@@ -98,8 +96,6 @@ struct CodegenBackendShortCircuitLogicalOperatorsTests {
         try assertKotlinOutput(source, moduleName: "LogicalOrAvoidsListLastCrash", expected: "result=true\n")
     }
 
-    // Regression test: `s.length >= 2 && s[1] == x` must not evaluate `s[1]`
-    // when the length guard already fails, or it throws an out-of-bounds exception.
     @Test
     func testCodegenLogicalAndShortCircuitAvoidsStringIndexOutOfBounds() throws {
         let source = """

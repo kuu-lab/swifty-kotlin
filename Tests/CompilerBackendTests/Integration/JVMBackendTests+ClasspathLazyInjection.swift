@@ -71,11 +71,9 @@ extension JVMBackendTests {
             let facadePath = "<kswiftk-jvm-import>/fixture/ProviderKt.kt"
             let facadeID = try #require(ctx.sourceManager.fileID(forPath: facadePath))
             let facade = String(decoding: ctx.sourceManager.contents(of: facadeID), as: UTF8.self)
-            // Stub type names are emitted with every path segment
-            // backtick-escaped (`JVMClasspathIndex.dottedTypeName`), so
-            // keyword segments such as `annotation` stay valid Kotlin.
-            #expect(facade.contains("suspend fun `fixture`.`Widget`.`render`"), "\(facade)")
-            #expect(facade.contains("(`kotlin`.`Int`, `kotlin`.`Int`) -> `kotlin`.`Unit`"), "\(facade)")
+            // `dottedTypeName` backticks every name segment.
+            #expect(facade.contains("suspend fun `fixture`.`Widget`.`render`"))
+            #expect(facade.contains("(`kotlin`.`Int`, `kotlin`.`Int`) -> `kotlin`.`Unit`"))
             #expect(ctx.sourceManager.fileID(forPath: "<kswiftk-jvm-import>/fixture/Widget.kt") != nil)
         }
     }

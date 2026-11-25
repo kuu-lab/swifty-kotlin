@@ -15,11 +15,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 // not redirect `delay`/`launch` until the dispatcher migration (KSP-1565)
 // lands.
 
-/**
- * Degraded (KSP-1583): nominal only — does not implement
- * `CoroutineDispatcher`/`Delay`, so it cannot be installed into a
- * coroutine context yet.
- */
 @ExperimentalCoroutinesApi
 public abstract class TestDispatcher {
     public abstract val scheduler: TestCoroutineScheduler
@@ -44,27 +39,12 @@ private class UnconfinedTestDispatcherImpl(
     override val name: String?
 ) : TestDispatcher()
 
-/**
- * A [TestDispatcher] that queues tasks onto its scheduler (upstream
- * semantics: work scheduled on it does not run eagerly and needs the
- * virtual clock to be advanced).
- *
- * Degraded (KSP-1583): nominal only — carries the scheduler and name but
- * performs no dispatch.
- */
 @ExperimentalCoroutinesApi
 public fun StandardTestDispatcher(
     scheduler: TestCoroutineScheduler? = null,
     name: String? = null
 ): TestDispatcher = StandardTestDispatcherImpl(scheduler ?: TestCoroutineScheduler(), name)
 
-/**
- * A [TestDispatcher] that runs work eagerly (upstream semantics: tasks on
- * it execute immediately rather than queueing on the scheduler).
- *
- * Degraded (KSP-1583): nominal only — carries the scheduler and name but
- * performs no dispatch.
- */
 @ExperimentalCoroutinesApi
 public fun UnconfinedTestDispatcher(
     scheduler: TestCoroutineScheduler? = null,

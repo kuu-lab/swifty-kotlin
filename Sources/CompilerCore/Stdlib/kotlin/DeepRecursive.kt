@@ -2,16 +2,6 @@ package kotlin
 
 import kotlin.internal.KsSymbolName
 
-// KSP-612 / KUU-642: DeepRecursiveFunction / DeepRecursiveScope are opaque
-// runtime handles.
-//
-// The block is the suspend receiver lambda
-// `suspend DeepRecursiveScope<T, R>.(T) -> R` required by Kotlin's public API.
-// `callRecursive` is a suspend point: the compiler splits the block into a
-// state machine, and the runtime trampoline
-// (Sources/Runtime/RuntimeDeepRecursive.swift) starts a fresh coroutine for
-// each recursive step instead of consuming a native stack frame.
-
 public class DeepRecursiveScope<T, R> private constructor() {
     @KsSymbolName("__kk_deep_recursive_scope_callRecursive")
     public external suspend fun callRecursive(value: T): R

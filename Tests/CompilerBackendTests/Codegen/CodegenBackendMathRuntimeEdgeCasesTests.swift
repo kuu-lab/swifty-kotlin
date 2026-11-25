@@ -8,8 +8,6 @@ import Testing
 @Suite
 struct CodegenBackendMathRuntimeEdgeCasesTests {
 
-    // TEST-MATH-022: End-to-end execution coverage for kotlin.math.pow IEEE 754 special cases.
-
     @Test
     func testCodegenCompilesMathPowFloatingSpecialCases() throws {
         let source = """

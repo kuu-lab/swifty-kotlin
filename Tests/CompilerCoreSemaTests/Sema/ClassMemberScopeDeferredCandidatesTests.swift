@@ -3,11 +3,6 @@
 import Foundation
 import Testing
 
-/// KUU-4574: `ClassMemberScope.deferredCandidates` memoizes its supertype-chain
-/// walk per name and revalidates the visited parents' dependency versions, so
-/// repeat lookups must not rescan children — and every mutation the walk can
-/// observe (child reparenting, supertype edges, child visibility) must
-/// invalidate the memo.
 @Suite
 struct ClassMemberScopeDeferredCandidatesTests {
     private struct Fixture {
@@ -18,8 +13,6 @@ struct ClassMemberScopeDeferredCandidatesTests {
         let scope: ClassMemberScope
     }
 
-    /// Owner `Sub` extends class `Base`; `Base` carries decoy members so a
-    /// full child-set scan would do real work.
     private func makeFixture() -> Fixture {
         let interner = StringInterner()
         let symbols = SymbolTable()
@@ -78,8 +71,6 @@ struct ClassMemberScopeDeferredCandidatesTests {
         let second = fixture.scope.deferredCandidates(for: name)
         #expect(second == [nested])
         #expect(fixture.symbols.attribution?.value(.memberScopeQueries) == queriesAfterFirst + 1)
-        // The memoized repeat validates dependency versions instead of
-        // scanning any child entries.
         #expect(
             fixture.symbols.attribution?.value(.memberScopeCandidatesScanned) == scannedAfterFirst
         )
@@ -106,8 +97,6 @@ struct ClassMemberScopeDeferredCandidatesTests {
 
         #expect(fixture.scope.deferredCandidates(for: name) == [nested])
 
-        // Private members are not inherited (KUU-3798): the memo must not
-        // keep serving the public candidate after the visibility flip.
         fixture.symbols.setVisibility(.private, for: nested)
         #expect(fixture.scope.deferredCandidates(for: name).isEmpty)
 
@@ -150,7 +139,6 @@ struct ClassMemberScopeDeferredCandidatesTests {
 
         symbols.setDirectSupertypes([base], for: owner)
         #expect(scope.deferredCandidates(for: name) == [target])
-        // And the new answer memoizes for subsequent lookups.
         #expect(scope.deferredCandidates(for: name) == [target])
     }
 
@@ -174,9 +162,6 @@ struct ClassMemberScopeDeferredCandidatesTests {
         symbols.setDirectSupertypes([contract], for: child)
         let scope = ClassMemberScope(parent: nil, symbols: symbols, ownerSymbol: child, thisType: nil)
 
-        // KUU-3637: a nested classifier reachable only through an interface
-        // supertype is not visible by simple name; the memo must preserve
-        // that on repeat lookups.
         #expect(scope.deferredCandidates(for: entryName).isEmpty)
         #expect(scope.deferredCandidates(for: entryName).isEmpty)
     }
@@ -201,7 +186,6 @@ struct ClassMemberScopeDeferredCandidatesTests {
 
         #expect(fixture.scope.deferredCandidates(for: name) == [target])
 
-        // Moving the candidate out of the chain must empty the memoized answer.
         let outsideName = fixture.interner.intern("Outside")
         let outside = fixture.symbols.define(
             kind: .class, name: outsideName, fqName: [outsideName], declSite: nil, visibility: .public

@@ -2,10 +2,6 @@ import RuntimeABI
 
 @_cdecl("kk_compare_any")
 public func kk_compare_any(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
-    // KUU-3621: prefer the operand's own registered Comparable.compareTo
-    // (e.g. an interface-implementing value class boxed for polymorphic
-    // dispatch) over the identity/scalar shortcuts, mirroring JVM virtual
-    // dispatch; operands without a Comparable itable entry fall through.
     if let comparableResult = runtimeCompareComparableValues(lhs: lhsRaw, rhs: rhsRaw) {
         return comparableResult
     }

@@ -3,7 +3,6 @@ import Testing
 import TestStdlibCache
 @testable import CompilerTestSupport
 
-/// KUU-3655: Channel members resolve through projected type-parameter bounds.
 @Suite
 struct ChannelUpperBoundMemberTests {
     private func compile(_ source: String, useArtifact: Bool) throws -> CompilationContext {

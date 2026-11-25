@@ -21,7 +21,6 @@ struct CodegenBackendCharPredicatesTests {
         try assertKotlinOutput(source, moduleName: "CharPredicatesRuntime", expected: "true\ntrue\ntrue\ntrue\n")
     }
 
-    // STDLIB-TEXT-PROP-008: Char.isIdentifierIgnorable end-to-end execution test
     @Test
     func testCodegenCharIsIdentifierIgnorableMatchesExpectedOutput() throws {
         let source = """
@@ -46,7 +45,6 @@ struct CodegenBackendCharPredicatesTests {
         try assertKotlinOutput(source, moduleName: "CharIsSurrogateRuntime", expected: "true\ntrue\nfalse\n")
     }
 
-    // STDLIB-TEXT-PROP-016: Char.isTitleCase end-to-end execution test
     @Test
     func testCodegenCharIsTitleCaseMatchesExpectedOutput() throws {
         let source = """

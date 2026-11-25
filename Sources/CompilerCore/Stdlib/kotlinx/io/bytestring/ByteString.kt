@@ -6,7 +6,6 @@
  */
 package kotlinx.io.bytestring
 
-/** An immutable sequence of bytes. Public construction and extraction copy the array. */
 public class ByteString private constructor(private val data: ByteArray, unused: Boolean) : Comparable<ByteString> {
     public constructor(data: ByteArray, startIndex: Int = 0, endIndex: Int = data.size) :
         this(copyByteStringData(data, startIndex, endIndex), true)
