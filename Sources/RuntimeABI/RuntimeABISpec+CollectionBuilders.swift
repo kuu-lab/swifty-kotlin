@@ -2,9 +2,6 @@ private let abi = RuntimeABISectionBuilder("Collection")
 
 public extension RuntimeABISpec {
     static let collectionBuilderFunctions: [RuntimeABIFunctionSpec] = [
-        // `__kk_build_list` / `__kk_build_list_with_capacity` were removed with
-        // their lowering rewrite (RF-LOWER-CALL-004); `buildList` is served by
-        // `CollectionBuilders.kt` via `__kk_builder_list_*`.
         abi.nt("__kk_builder_list_new", "capacity"),
         abi.nt("__kk_builder_set_new", "capacity"),
         abi.nt("__kk_builder_map_new", "capacity"),

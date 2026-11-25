@@ -21,6 +21,7 @@ import kotlin.jvm.internal.__jvmUpperChar
 import kotlin.jvm.internal.__jvmLowerChar
 import kotlin.jvm.internal.__jvmEqualsIgnoreCase
 import kotlin.jvm.internal.__jvmUtf8String
+import kotlin.jvm.internal.__jvmUtf8Bytes
 import kotlin.OverloadResolutionByLambdaReturnType
 import kotlin.experimental.ExperimentalTypeInference
 import kotlin.jvm.JvmName
@@ -492,3 +493,4 @@ public fun String.trimStart(): String = (this as CharSequence).trimStart().toStr
 public fun String.trimEnd(): String = (this as CharSequence).trimEnd().toString()
 
 public fun ByteArray.decodeToString(): String = __jvmUtf8String(this, "UTF-8")
+public fun String.encodeToByteArray(): ByteArray = __jvmUtf8Bytes(this, "UTF-8")

@@ -7,13 +7,6 @@
 
 package kotlin.io.encoding
 
-/**
- * This annotation marks the experimental API for encoding and decoding between binary data and
- * printable ASCII character sequences.
- *
- * > Beware using the annotated API especially if you're developing a library, since your library might become binary incompatible
- * with the future versions of the standard library.
- */
 @kotlin.RequiresOptIn(level = RequiresOptIn.Level.ERROR)
 @kotlin.annotation.Retention(AnnotationRetention.BINARY)
 @kotlin.annotation.Target(

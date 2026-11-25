@@ -2,8 +2,6 @@ package kotlin.collections
 
 import kotlin.random.Random
 
-// KUU-1105: primitive-array overloads keep their exact element types.
-
 public fun IntArray.take(n: Int): List<Int> = asList().take(n)
 
 public fun IntArray.takeLast(n: Int): List<Int> = asList().takeLast(n)

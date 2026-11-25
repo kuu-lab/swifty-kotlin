@@ -4,8 +4,6 @@ protocol LSPScheduledTask: AnyObject, Sendable {
     func cancel()
 }
 
-/// The abstraction keeps debounce tests deterministic without relying on
-/// wall-clock sleeps.
 protocol LSPDebounceScheduler: AnyObject, Sendable {
     func schedule(
         after delay: DispatchTimeInterval,

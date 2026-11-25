@@ -28,8 +28,6 @@ public func kk_sequence_filter(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -
 @_cdecl("kk_sequence_take")
 public func kk_sequence_take(_ seqRaw: Int, _ count: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     return runtimeThrowingBridge(outThrown) {
-        // The bundled `Sequence<T>.take(n)` source validates `require(n >= 0)`
-        // eagerly at the call site; keep that contract on the intrinsic path.
         if count < 0 {
             outThrown?.pointee = runtimeAllocateIllegalArgumentException(
                 message: "Requested element count \(count) is less than zero."
@@ -54,7 +52,6 @@ public func kk_sequence_take(_ seqRaw: Int, _ count: Int, _ outThrown: UnsafeMut
 @_cdecl("kk_sequence_drop")
 public func kk_sequence_drop(_ seqRaw: Int, _ count: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     return runtimeThrowingBridge(outThrown) {
-        // Same eager `require(n >= 0)` contract as the bundled source `drop`.
         if count < 0 {
             outThrown?.pointee = runtimeAllocateIllegalArgumentException(
                 message: "Requested element count \(count) is less than zero."

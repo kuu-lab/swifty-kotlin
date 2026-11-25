@@ -11,10 +11,6 @@ import kotlin.native.internal.__nativeConcurrentWorkerFromCPointer
 import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.ExperimentalForeignApi
 
-// Runtime-only pieces of the Worker receiver APIs remain private bridges so the
-// public surface follows Kotlin/Native's declarations without exposing
-// synthetic member stubs.
-
 @KsSymbolName("kk_worker_id")
 private external fun Worker.__kkWorkerId(): Int
 

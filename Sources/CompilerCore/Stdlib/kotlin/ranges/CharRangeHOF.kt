@@ -6,8 +6,6 @@ import kotlin.internal.KsSymbolName
 import kotlin.native.NoInline
 import kotlin.random.Random
 
-// MIGRATION-RANGE-002: CharRange higher-order functions, moved verbatim from RangeHOF.kt.
-
 public inline fun CharRange.forEach(action: (Char) -> Unit) {
     for (element in this) { action(element) }
 }

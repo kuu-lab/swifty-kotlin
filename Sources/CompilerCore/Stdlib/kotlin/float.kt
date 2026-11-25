@@ -2,14 +2,9 @@ package kotlin
 
 import kotlin.internal.KsSymbolName
 
-// KSP-777: The shared array factory lowering packs the vararg elements before
-// calling the runtime's common kk_array_of entry point.
 @KsSymbolName("kk_array_of")
 public external fun floatArrayOf(vararg elements: Float): FloatArray
 
-// Kotlin's unsigned floating-point conversions saturate at the destination
-// range, truncate toward zero, and map NaN to zero. Keep the high-bit branches
-// in Kotlin so these APIs do not require dedicated runtime conversion bridges.
 @PublishedApi
 internal inline fun floatToUInt(value: Float): UInt {
     if (value.isNaN() || value <= 0.0f) return 0u

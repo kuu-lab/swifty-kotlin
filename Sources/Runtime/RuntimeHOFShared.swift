@@ -152,7 +152,6 @@ func applyMapIndexedStep(
             runtimeSetThrown(outThrown, thrown)
             return []
         }
-        // Keep the transform's already-boxed result as-is.
         mapped.append(result)
     }
     return mapped

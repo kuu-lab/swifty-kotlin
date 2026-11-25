@@ -26,26 +26,14 @@ private external fun <T> interceptContinuation(
     interceptorKey: CoroutineContext.Key<ContinuationInterceptor>
 ): Continuation<T>
 
-/**
- * KSwiftK uses Swift-owned continuation handles instead of ContinuationImpl;
- * the bridge owns the representation check and dispatcher adaptation.
- */
 @SinceKotlin("1.3")
 public fun <T> Continuation<T>.intercepted(): Continuation<T> =
     interceptContinuation(this, ContinuationInterceptor.Key)
 
-/**
- * The runtime owns the singleton so the state-machine lowering can compare it
- * by identity with the value returned from the intrinsic block.
- */
 @SinceKotlin("1.3")
 public val COROUTINE_SUSPENDED: Any
     get() = coroutineSuspended()
 
-/**
- * The runtime currently represents COROUTINE_SUSPENDED with its existing ABI
- * singleton; the enum remains source-backed for the Kotlin API surface.
- */
 @SinceKotlin("1.3")
 @PublishedApi
 internal enum class CoroutineSingletons {
@@ -62,10 +50,6 @@ public suspend inline fun <T> suspendCoroutineUninterceptedOrReturn(crossinline 
     throw NotImplementedError("Implementation of suspendCoroutineUninterceptedOrReturn is intrinsic")
 }
 
-/**
- * Fallback used when a suspend function value is not already a compiler-generated
- * continuation implementation.
- */
 @Suppress("UNCHECKED_CAST")
 @PublishedApi
 internal fun <T> startCoroutineUninterceptedOrReturnFallback(
@@ -98,10 +82,5 @@ internal external fun <R, T> createCoroutineUninterceptedWithReceiver(
     completion: Continuation<T>
 ): Continuation<Unit>
 
-/**
- * The runtime continuation is already suitable for KSwiftK's coroutine ABI.
- * Keep this source-backed helper as the identity adaptation until a distinct
- * ContinuationImpl representation is required by the runtime.
- */
 @PublishedApi
 internal fun <T> wrapWithContinuationImpl(completion: Continuation<T>): Continuation<T> = completion

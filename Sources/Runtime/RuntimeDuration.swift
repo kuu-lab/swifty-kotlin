@@ -16,9 +16,6 @@ private func runtimeDurationBox(from raw: Int) -> RuntimeDurationBox? {
 
 private let durationRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.time.Duration")
 
-/// Reads legacy Duration boxes, boxed Long payloads, boxed value-class objects,
-/// and raw value-class payloads. The unbox helper checks registry membership
-/// before interpreting a handle.
 func runtimeDurationNanosecondsValue(from raw: Int) -> Int64? {
     runtimeDurationWholeValue(runtimeDurationRawValue(from: raw), unitScale: 1)
 }
@@ -120,10 +117,6 @@ private func runtimeDurationFromDouble(_ value: Double, scale: Double) -> Int64 
     return runtimeDurationOfMillis(Int64(millis))
 }
 
-/// Formats `whole.fraction<unit>` following kotlin-stdlib's `Duration.toString()`
-/// trimming rule: fewer than 3 significant fractional digits are kept as-is,
-/// otherwise the fraction is padded out to the next multiple of 3 digits
-/// (e.g. 4500ns of a second -> ".000004500", 500000ns -> ".000500").
 private func runtimeDurationFormatFractional(
     whole: Int64,
     fractionalRemainder: Int64,
@@ -551,12 +544,9 @@ private func runtimeDurationParse(_ input: String) -> Int64? {
     runtimeDurationParseDuration(input, strictIso: false)
 }
 
-/// Clamp-safe multiplication: returns `Int64.max` / `Int64.min` on overflow
-/// instead of trapping, matching Kotlin's Duration saturation semantics.
 func saturatingMultiply(_ a: Int64, _ b: Int64) -> Int64 {
     let (result, overflow) = a.multipliedReportingOverflow(by: b)
     if overflow {
-        // If signs differ the overflow is negative, otherwise positive
         return (a ^ b) < 0 ? Int64.min : Int64.max
     }
     return result
@@ -618,9 +608,6 @@ public func kk_duration_toString(_ durationRaw: Int) -> Int {
     let absNs = isNegative ? -ns : ns
     let scale = runtimeDurationStorageScale(rawValue)
 
-    // Decompose into days/hours/minutes/seconds/nanoseconds, matching
-    // kotlin-stdlib's Duration.toString() component breakdown (values > 24h
-    // roll up into days, e.g. 25h -> "1d 1h").
     let components = runtimeDurationComponents(
         absNs,
         topUnit: runtimeDurationNanosPerDay / scale,
@@ -644,8 +631,6 @@ public func kk_duration_toString(_ durationRaw: Int) -> Int {
         out += "\(days)d"
         componentCount += 1
     }
-    // Intermediate zero components stay visible once a higher and a lower
-    // component are both present, e.g. 1 day + 5 minutes -> "1d 0h 5m".
     if hasHours || (hasDays && (hasMinutes || hasSeconds)) {
         if componentCount > 0 { out += " " }
         out += "\(hours)h"
@@ -678,8 +663,6 @@ public func kk_duration_toString(_ durationRaw: Int) -> Int {
         componentCount += 1
     }
 
-    // A single negative component is prefixed with "-"; multiple components
-    // are wrapped in parens, e.g. "-12m" vs. "-(1h 30m)".
     let str: String
     if isNegative && componentCount > 1 {
         str = "-(\(out))"

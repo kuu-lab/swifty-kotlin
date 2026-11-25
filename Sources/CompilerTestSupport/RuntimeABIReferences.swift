@@ -1,8 +1,6 @@
 import RuntimeABI
 import Testing
 
-/// Logical runtime operations used by Sema tests. The C link name (including
-/// bridge visibility) comes from the ABI catalog, never from the test case.
 enum SemaRuntimeFunction: String {
     case accessDeniedExceptionNewFile = "access_denied_exception_new_file"
     case accessDeniedExceptionNewFileOther = "access_denied_exception_new_file_other"
@@ -132,8 +130,6 @@ func hasRuntimeABIFamily(_ linkName: String?, _ family: SemaRuntimeFamily) -> Bo
     return operation.hasPrefix(family.rawValue + "_")
 }
 
-/// These migrations deleted their runtime entries. Guard both public and
-/// internal spellings without requiring a nonexistent canonical ABI entry.
 enum RemovedSemaRuntimeOperation: String {
     case iterableCount = "iterable_count"
     case listCount = "list_count"
@@ -146,13 +142,10 @@ func hasRemovedRuntimeOperation(_ linkName: String, _ operation: RemovedSemaRunt
     runtimeABIOperation(of: linkName) == operation.rawValue
 }
 
-/// Reject direct calls to either visibility of a source-backed wrapper's bridge.
 func hasRuntimeABIOperation(_ linkName: String, _ function: SemaRuntimeFunction) -> Bool {
     runtimeABIOperation(of: linkName) == runtimeABIOperation(of: runtimeABIName(function))
 }
 
-/// Legacy dispatch can produce this internal marker, although bundled range
-/// HOF source takes precedence and no runtime ABI entry exists for it.
 enum SemaCompilerDispatchOperation: String {
     case ulongRangeReduce = "ulong_range_reduce"
 }
