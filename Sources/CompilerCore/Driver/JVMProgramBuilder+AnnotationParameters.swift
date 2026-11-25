@@ -12,7 +12,7 @@ extension JVMProgramBuilder {
         if let eq = raw.firstIndex(of: "="), raw[..<eq].trimmingCharacters(in: .whitespaces) == "name" {
             raw = raw[raw.index(after: eq)...].trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        var explicit = extractKotlinStringLiteralContent(raw)?.content
+        var explicit = extractKotlinStringLiteralContent(raw).map { $0.isRaw ? $0.content : decodeKotlinStringEscapes($0.content) }
         if explicit == nil {
             // Not a literal (e.g. a `const val`): evaluate the first annotation argument.
             if let declaration = sourceDeclarations[symbol],
@@ -23,7 +23,26 @@ extension JVMProgramBuilder {
             if let construction = annotationConstruction(record) {
                 switch ast.arena.expr(construction) {
                 case let .call(_, _, args, _), let .memberCall(_, _, _, args, _):
-                    if let argument = args.first, case let .constant(.string(value)) = try annotationConstant(argument.expr) { explicit = value }
+                    if let argument = args.first {
+                        // A bare name resolves through the enclosing declarations first
+                        // (an object's `const val` shadows a top-level one).
+                        var value: JVMAnnotationValue?
+                        if case let .nameRef(name, _) = ast.arena.expr(argument.expr) {
+                            var owner = sema.symbols.parentSymbol(for: symbol)
+                            while let current = owner, value == nil {
+                                if let fqName = sema.symbols.symbol(current)?.fqName,
+                                   let found = sema.symbols.lookup(fqName: fqName + [name]),
+                                   let declaration = declarationIDsBySymbol[found]?.first,
+                                   case let .propertyDecl(property) = ast.arena.decl(declaration),
+                                   property.modifiers.contains(.const), let initial = property.initializer {
+                                    value = try annotationConstant(initial)
+                                }
+                                owner = sema.symbols.parentSymbol(for: current)
+                            }
+                        }
+                        let evaluated = try value ?? annotationConstant(argument.expr)
+                        if case let .constant(.string(text)) = evaluated { explicit = text }
+                    }
                 default: break
                 }
             }

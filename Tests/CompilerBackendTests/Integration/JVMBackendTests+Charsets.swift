@@ -47,8 +47,17 @@ extension JVMBackendTests {
                 val raw: Int = 1
                 @get:JvmName(CONST_NAME)
                 val viaConst: Int = 2
+                @get:JvmName("\u0072eadEscaped")
+                val escaped: Int = 3
+                @get:JvmName("read" + "Joined")
+                val joined: Int = 4
                 @get:JvmName("readCount") @set:JvmName("writeCount")
                 var count: UInt = 0u
+            }
+            object Shadow {
+                const val CONST_NAME = "fromObject"
+                @get:JvmName(CONST_NAME)
+                val value: Int = 5
             }
             const val CONST_NAME = "constName"
             fun main() {
@@ -71,6 +80,11 @@ extension JVMBackendTests {
             #expect(!listing.stdout.contains("getUTF_32"))
             #expect(listing.stdout.contains("rawName()"))
             #expect(listing.stdout.contains("constName()"))
+            #expect(listing.stdout.contains("readEscaped()"))
+            let shadow = try jvmTool("javap", ["-cp", app.path + ":" + runtime, "Shadow"], root: root)
+            #expect(shadow.stdout.contains("fromObject()"))
+            #expect(!shadow.stdout.contains("constName()"))
+            #expect(listing.stdout.contains("readJoined()"))
             #expect(listing.stdout.contains("readCount()"))
             #expect(listing.stdout.contains("writeCount(int)"))
         }
