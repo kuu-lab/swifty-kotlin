@@ -4,9 +4,6 @@
 import RuntimeABI
 import Testing
 
-/// Like `extractCallees`, but also reports each call's argument count for
-/// Like `extractCallees`, but also reports each call's argument count for
-/// tests that need to distinguish overloads by arity.
 func extractCalleesWithArgumentCounts(
     from body: [KIRInstruction],
     interner: StringInterner
@@ -17,8 +14,6 @@ func extractCalleesWithArgumentCounts(
     }
 }
 
-/// Imported stdlib functions are mangled in a precompiled artifact, while
-/// source-injected declarations retain their short Kotlin name in KIR.
 func isKotlinCallee(_ actual: String, named expected: String) -> Bool {
     actual == expected || actual.hasPrefix("\(RuntimeABISpec.compilerGeneratedLinkNamePrefix)\(expected)_")
 }
@@ -27,8 +22,6 @@ func containsKotlinCallee(_ expected: String, in callees: [String]) -> Bool {
     callees.contains { isKotlinCallee($0, named: expected) }
 }
 
-/// Select an ABI operation without pinning its public/private link-name prefix.
-/// Missing or ambiguous operations fail the test instead of inventing a name.
 func runtimeABIFunction(_ operation: String) throws -> RuntimeABIFunctionSpec {
     let matches = RuntimeABISpec.allFunctions.filter {
         runtimeABIOperation($0.name) == operation
@@ -53,7 +46,6 @@ private func runtimeABIOperation(_ name: String) -> String {
     String(name.drop(while: { $0 == "_" }).split(separator: "_", maxSplits: 1).last ?? "")
 }
 
-/// Reject retired runtime targets even if Sema selected a source declaration.
 func expectDeclaredRuntimeCalls(in body: [KIRInstruction], ctx: CompilationContext) throws {
     let module = try #require(ctx.kir)
     let generatedPrefix = RuntimeABISpec.compilerGeneratedLinkNamePrefix
@@ -69,7 +61,6 @@ func expectDeclaredRuntimeCalls(in body: [KIRInstruction], ctx: CompilationConte
     #expect(unexpected.isEmpty, "Consumer KIR contains undeclared runtime calls: \(unexpected)")
 }
 
-/// Source routing remains observable in Sema even when artifact KIR is inlined.
 func expectSourceBackedCall(_ name: String, in ctx: CompilationContext) throws {
     let sema = try #require(ctx.sema)
     let chosen = Set(sema.bindings.callBindings.values.map(\.chosenCallee)).filter {
