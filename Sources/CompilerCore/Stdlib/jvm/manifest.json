@@ -753,6 +753,11 @@
       "runtimeFacade": "kotlin/collections/GroupingKt"
     },
     {
+      "path": "declarations/GroupingAggregate.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-grouping-aggregate-inline.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "declarations/JavaLang.kt",
       "virtualPath": "<kswiftk-jvm>/javaLang.kt",
       "excludeFromStdlibBuild": false
