@@ -420,6 +420,14 @@ extension JVMFunctionBuilder {
             return try jdkCall("kotlin/time/DurationKt", "toDuration", [source.type, unitType], .long, arguments: [source, unit], resolved: program.expressionType(id))
         }
         if let charsetName = program.textLibraryCharsetNames[symbol] {
+            // A receiver that is a value expression (e.g. `loadCharsets().UTF_32`)
+            // still has to run for its side effects; a plain `Charsets` type
+            // reference has nothing to evaluate.
+            if let receiver {
+                let target = program.sema.bindings.identifierSymbol(for: receiver).flatMap { program.sema.symbols.symbol($0) }
+                let isTypeReference = target.map { $0.kind == .object && $0.fqName.map(context.interner.resolve) == ["kotlin", "text", "Charsets"] } ?? false
+                if !isTypeReference { _ = try requireValue(receiver) }
+            }
             let name = try constant(.string(charsetName), .string)
             return try jdkCall("java/nio/charset/Charset", "forName", [.string], .reference("java/nio/charset/Charset", nullable: false), arguments: [name], resolved: program.expressionType(id))
         }
