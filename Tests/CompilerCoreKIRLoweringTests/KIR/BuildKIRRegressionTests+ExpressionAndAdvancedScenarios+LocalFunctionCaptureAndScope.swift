@@ -5,10 +5,6 @@ import Testing
 
 extension BuildKIRRegressionTests {
 
-    /// Built once per process: `static let` initializes under `swift_once`, so
-    /// parallel tests share a single compile. The previous check-then-set over
-    /// a mutable static allowed concurrent tests to each miss the cache and
-    /// re-pay the bundled-stdlib compile.
     private static let _sharedLocalFunctionCtx = Result<CompilationContext, any Error> {
         let sources: [String] = [
             """
@@ -171,10 +167,6 @@ extension BuildKIRRegressionTests {
         try Self._sharedLocalFunctionCtx.get()
     }
 
-    /// Built once per process: `static let` initializes under `swift_once`, so
-    /// parallel tests share a single compile. The previous check-then-set over
-    /// a mutable static allowed concurrent tests to each miss the cache and
-    /// re-pay the bundled-stdlib compile.
     private static let _sharedLocalFunctionErrorCtx = Result<CompilationContext, any Error> {
         let sources: [String] = [
             """
@@ -202,7 +194,6 @@ extension BuildKIRRegressionTests {
         let ctx = try sharedLocalFunctionCtx()
         #expect(!(ctx.diagnostics.hasError), "Nested local functions should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         let module = try #require(ctx.kir)
-        // outer, middle, inner, main => at least 4 functions
         #expect(module.functionCount >= 4)
     }
 
@@ -236,7 +227,6 @@ extension BuildKIRRegressionTests {
         let ctx = try sharedLocalFunctionCtx()
         #expect(!(ctx.diagnostics.hasError), "Nested local function capture should be handled: \(ctx.diagnostics.diagnostics.map(\.message))")
         let module = try #require(ctx.kir)
-        // outer, middle, inner, main => at least 4 functions with capture analysis performed correctly
         #expect(module.functionCount >= 4)
     }
 
@@ -278,7 +268,6 @@ extension BuildKIRRegressionTests {
         let ctx = try sharedLocalFunctionCtx()
         #expect(!(ctx.diagnostics.hasError), "Local function capturing multiple outer vals should compile: \(ctx.diagnostics.diagnostics.map(\.message))")
         let module = try #require(ctx.kir)
-        // compute, sum, main => at least 3 functions
         #expect(module.functionCount >= 3)
     }
 
@@ -287,7 +276,6 @@ extension BuildKIRRegressionTests {
         let ctx = try sharedLocalFunctionCtx()
         #expect(!(ctx.diagnostics.hasError), "Nested local function call with capture forwarding should compile: \(ctx.diagnostics.diagnostics.map(\.message))")
         let module = try #require(ctx.kir)
-        // main, g, h => at least 3 functions
         #expect(module.functionCount >= 3, "Expected at least 3 functions (main + g + h)")
     }
 
@@ -296,7 +284,6 @@ extension BuildKIRRegressionTests {
         let ctx = try sharedLocalFunctionCtx()
         #expect(!(ctx.diagnostics.hasError), "Nested local function forwarding non-literal val capture should compile: \(ctx.diagnostics.diagnostics.map(\.message))")
         let module = try #require(ctx.kir)
-        // main, g, h => at least 3 functions
         #expect(module.functionCount >= 3, "Expected at least 3 functions (main + g + h)")
     }
 
@@ -305,7 +292,6 @@ extension BuildKIRRegressionTests {
         let ctx = try sharedLocalFunctionCtx()
         #expect(!(ctx.diagnostics.hasError), "Nested local function forwarding value parameter capture should compile: \(ctx.diagnostics.diagnostics.map(\.message))")
         let module = try #require(ctx.kir)
-        // main, g, h => at least 3 functions
         #expect(module.functionCount >= 3, "Expected at least 3 functions (main + g + h)")
     }
 
@@ -314,7 +300,6 @@ extension BuildKIRRegressionTests {
         let ctx = try sharedLocalFunctionCtx()
         #expect(!(ctx.diagnostics.hasError), "Recursive local function with capture should compile without errors: \(ctx.diagnostics.diagnostics.map(\.message))")
         let module = try #require(ctx.kir)
-        // Should have at least main + countdown
         #expect(module.functionCount >= 2, "Expected at least 2 functions (main + countdown)")
     }
 
@@ -385,11 +370,6 @@ extension BuildKIRRegressionTests {
 
     @Test
     func testWhileBodyLocalFunctionCaptureCellDominatesLoop() throws {
-        // KUU-4120: a `var` captured by a local/anonymous function created
-        // inside a `while` body must be boxed at its declaration so the
-        // shared cell dominates the loop. Boxing it lazily at the capture
-        // site re-created the cell every iteration while the loop condition
-        // kept reading the stale unboxed register — an infinite loop.
         let source = """
         fun main() {
             var j = 0
@@ -415,8 +395,6 @@ extension BuildKIRRegressionTests {
                 labelIndexByID[label] = index
             }
         }
-        // The while head is the earliest label that is the target of a
-        // backward jump (the loop's back-edge).
         var loopHeadIndex: Int?
         for (index, instruction) in main.body.enumerated() {
             guard case let .jump(target) = instruction,
@@ -430,8 +408,6 @@ extension BuildKIRRegressionTests {
         }
         let headIndex = try #require(loopHeadIndex, "expected the while loop back-edge")
 
-        // The capture cell must be allocated before the loop head — never
-        // inside the re-executing body.
         for (index, instruction) in main.body.enumerated() {
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction,
                   callee == arrayNew
@@ -441,9 +417,6 @@ extension BuildKIRRegressionTests {
             #expect(index < headIndex, "the `j` capture cell must dominate the while loop")
         }
 
-        // The condition read sits between the loop head and its exit branch;
-        // it must load the shared cell (kk_array_get_inbounds), not a stale
-        // unboxed register.
         var conditionReadsCell = false
         for instruction in main.body[headIndex...] {
             if case let .call(_, callee, _, _, _, _, _, _) = instruction,
@@ -460,10 +433,6 @@ extension BuildKIRRegressionTests {
 
     @Test
     func testNestedLocalFunctionDefaultParamCapturesOuterLocal() throws {
-        // KUU-3182: `x` is referenced only by `bar`'s default parameter
-        // expression, one nesting level below its declaring scope. Both the
-        // innermost function and every enclosing local function must record
-        // `x` as a capture so the `$default` stub can read it.
         let source = """
         fun box(): String {
             val x = "OK"
@@ -493,11 +462,6 @@ extension BuildKIRRegressionTests {
 
     @Test
     func testLocalFunctionCapturingBoxedFunctionValue() throws {
-        // KUU-4334: a local `fun` capturing a `kk_function_create_N` boxed
-        // function value must not try to remap the box's packed-environment
-        // capture argument — it is an opaque object temp with no body-side
-        // expression. The capture stays unregistered so invokes inside the
-        // body lower to the generic `kk_function_invoke*` ABI.
         let sources: [String] = [
             """
             package sampleBoxAlias
