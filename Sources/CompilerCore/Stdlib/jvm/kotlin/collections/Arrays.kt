@@ -11,6 +11,12 @@ public val LongArray.lastIndex: Int get() = size - 1
 
 public operator fun <T> Array<out T>.contains(element: T): Boolean = indexOf(element) >= 0
 
+public fun <T : Any> Array<out T?>.filterNotNull(): List<T> {
+    val result = mutableListOf<T>()
+    for (element in this) if (element != null) result.add(element)
+    return result
+}
+
 public fun <T> Array<out T>.getOrNull(index: Int): T? =
     if (index < 0 || index >= size) null else this[index]
 
@@ -69,6 +75,54 @@ public fun FloatArray.max(): Float {
     return result
 }
 
+public fun <T : Comparable<T>> Array<out T>.minOrNull(): T? {
+    if (size == 0) return null
+    var result = this[0]
+    for (index in 1 until size) {
+        val element = this[index]
+        if (result > element) result = element
+    }
+    return result
+}
+
+public fun <T : Comparable<T>> Array<out T>.maxOrNull(): T? {
+    if (size == 0) return null
+    var result = this[0]
+    for (index in 1 until size) {
+        val element = this[index]
+        if (result < element) result = element
+    }
+    return result
+}
+
+public fun Array<out Float>.minOrNull(): Float? {
+    if (size == 0) return null
+    var result = this[0]
+    for (index in 1 until size) result = java.lang.Math.min(result, this[index])
+    return result
+}
+
+public fun Array<out Float>.maxOrNull(): Float? {
+    if (size == 0) return null
+    var result = this[0]
+    for (index in 1 until size) result = java.lang.Math.max(result, this[index])
+    return result
+}
+
+public fun Array<out Double>.minOrNull(): Double? {
+    if (size == 0) return null
+    var result = this[0]
+    for (index in 1 until size) result = java.lang.Math.min(result, this[index])
+    return result
+}
+
+public fun Array<out Double>.maxOrNull(): Double? {
+    if (size == 0) return null
+    var result = this[0]
+    for (index in 1 until size) result = java.lang.Math.max(result, this[index])
+    return result
+}
+
 public fun IntArray.minOrNull(): Int? {
     if (size == 0) return null
     var result = this[0]
@@ -82,8 +136,11 @@ public fun IntArray.minOrNull(): Int? {
 public fun IntArray.min(): Int = minOrNull() ?: throw NoSuchElementException()
 
 @JvmName("maxOrThrow")
-public fun IntArray.max(): Int {
-    var result = first()
+public fun IntArray.max(): Int = maxOrNull() ?: throw NoSuchElementException("Array is empty.")
+
+public fun IntArray.maxOrNull(): Int? {
+    if (size == 0) return null
+    var result = this[0]
     for (index in 1 until size) {
         if (this[index] > result) result = this[index]
     }
@@ -291,6 +348,7 @@ public fun ShortArray.joinToString(separator: CharSequence = ", ", prefix: CharS
 
 public fun <T> Array<out T>.asList(): List<T> = __jvmArrayList(this)
 fun <T> Array<out T>.toList(): List<T> = this.asSequence().toList()
+fun <T> Array<out T>.distinct(): List<T> = this.toMutableSet().toList()
 fun <T> Array<out T>.toMutableList(): MutableList<T> = this.asSequence().toMutableList()
 fun <T> Array<out T>.toSet(): Set<T> = this.asSequence().toSet()
 fun <T> Array<out T>.toMutableSet(): MutableSet<T> = this.asSequence().toMutableSet()

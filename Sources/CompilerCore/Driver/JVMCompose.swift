@@ -111,6 +111,18 @@ extension JVMFunctionBuilder {
         return JVMIntrinsicResult(value: result)
     }
 
+    func foreignComposableCall(method: JVMForeignMethod, symbol: SymbolID, dispatch: JVMValue?, arguments: [JVMValue], defaultMask: UInt32?, result: JVMValue?, at id: ExprID) throws {
+        guard let composer = activeComposer else { throw fail("JVM @Composable calls require an active Composer.", id) }
+        guard activeRegions.isEmpty else { throw fail("JVM @Composable calls are unsupported inside a try expression.", id) }
+        let needsGroup = !program.sema.readonlyComposableFunctions.contains(symbol)
+        if needsGroup { try beginComposeGroup(composer, key: composeCallKey(at: id)) }
+        let unchanged = try constant(.int(0), .int)
+        var hidden = [composer, unchanged]
+        if let defaultMask { hidden.append(try constant(.int(Int32(bitPattern: defaultMask)), .int)) }
+        instructions.append(.foreignCall(method, receiver: dispatch, arguments: arguments + hidden, result: result))
+        if needsGroup { _ = try jdkCall(JVMCompose.composer, JVMCompose.end, [], .unit, receiver: composer, interface: true) }
+    }
+
     func composeCallKey(at id: ExprID) -> Int32 {
         let identity = (reference.owner ?? program.facadeName) + "." + reference.name + reference.descriptor
         return JVMCompose.key(identity + "@" + String(arena.exprRange(id)?.start.offset ?? 0))
@@ -139,7 +151,6 @@ extension JVMFunctionBuilder {
         guard activeRegions.isEmpty else { throw fail("JVM @Composable calls are unsupported inside a try expression.", id) }
         let needsGroup = !program.sema.readonlyComposableFunctions.contains(symbol)
         if needsGroup {
-            // Distinguish branches calling the same composable at different sites.
             try beginComposeGroup(composer, key: composeCallKey(at: id))
         }
         let changed = try constant(.int(0), .int)
@@ -153,8 +164,6 @@ extension JVMFunctionBuilder {
         guard let composer = activeComposer, let symbol = functionSymbol,
               !program.sema.readonlyComposableFunctions.contains(symbol) else { return }
         let end = JVMForeignMethod(owner: JVMCompose.composer, name: JVMCompose.end, descriptor: "()V", parameters: [], result: .unit, isStatic: false, isInterface: true, isAbstract: true)
-        // Every ordinary exit must close the replaceable group. Exceptions
-        // unwind through the enclosing Compose composition's abort path.
         instructions = instructions.flatMap { instruction in
             guard case .returnValue = instruction else { return [instruction] }
             return [.foreignCall(end, receiver: composer, arguments: [], result: nil), instruction]

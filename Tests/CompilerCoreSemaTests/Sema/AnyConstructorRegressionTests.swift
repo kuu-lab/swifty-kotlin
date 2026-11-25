@@ -4,8 +4,8 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-/// Regression coverage for KSP-805: implicit kotlin.Any must remain the
-/// nominal root without becoming an explicit `super()` delegation target.
+/// Regression coverage for KSP-805: `kotlin.Any` has a constructor, so both
+/// explicit `Any()` and the implicit superclass can be `super()` targets.
 @Suite
 struct AnyConstructorRegressionTests {
     @Test(arguments: [
@@ -203,7 +203,7 @@ struct AnyConstructorRegressionTests {
     }
 
     @Test
-    func implicitAnyConstructorDoesNotResolveBareSuperDelegation() throws {
+    func implicitAnyConstructorResolvesBareSuperDelegation() throws {
         let source = """
         package ksp805
 
@@ -215,10 +215,71 @@ struct AnyConstructorRegressionTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let codes = ctx.diagnostics.diagnostics.map(\.code)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Implicit Any should resolve bare super(), got: \(errors)")
+        let sema = try #require(ctx.sema)
+        #expect(delegationBindings(for: "Foo", target: "Any", sema: sema, interner: ctx.interner).count == 1)
+    }
+
+    @Test
+    func interfaceOnlySuperclassStillDelegatesToImplicitAny() throws {
+        let source = """
+        package ksp805
+
+        interface Marker
+        class Foo : Marker {
+            constructor(x: Int) : super()
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Interface-only class should delegate to implicit Any, got: \(errors)")
+        let sema = try #require(ctx.sema)
+        #expect(delegationBindings(for: "Foo", target: "Any", sema: sema, interner: ctx.interner).count == 1)
+    }
+
+    @Test
+    func implicitAnyConstructorRejectsArguments() throws {
+        let source = """
+        package ksp805
+
+        class Foo {
+            constructor(x: Int) : super(1)
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        let codes = ctx.diagnostics.diagnostics.filter { $0.severity == .error }.map(\.code)
         #expect(
-            codes.contains("KSWIFTK-SEMA-0021") || codes.contains("KSWIFTK-SEMA-0055"),
-            "Expected an invalid super() diagnostic, got: \(codes)"
+            codes.contains("KSWIFTK-SEMA-0002") || codes.contains("KSWIFTK-SEMA-0473") || codes.contains("KSWIFTK-SEMA-0055"),
+            "Implicit Any has only a parameterless constructor: \(codes)"
+        )
+        let sema = try #require(ctx.sema)
+        #expect(delegationBindings(for: "Foo", target: "Any", sema: sema, interner: ctx.interner).isEmpty)
+    }
+
+    @Test
+    func primaryConstructorRejectsSuperDelegation() throws {
+        let source = """
+        package ksp805
+
+        class Foo(val text: String) {
+            constructor() : super()
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.contains { $0.code == "KSWIFTK-SEMA-0054" && $0.message.contains("Primary constructor call expected") },
+            "Primary constructor should reject super() delegation: \(errors)"
         )
     }
 

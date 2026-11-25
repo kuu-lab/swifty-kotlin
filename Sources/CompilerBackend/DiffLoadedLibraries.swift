@@ -5,8 +5,6 @@ import Foundation
 import MachO
 #endif
 
-/// Identifies loaded libraries whose changes can affect the compiler.
-/// On Darwin the sealed system libraries are covered by the OS version.
 enum DiffLoadedLibraries {
     static func current(excluding executable: String) -> [(String, String)]? {
         let paths: [String]
@@ -49,8 +47,6 @@ enum DiffLoadedLibraries {
     static func linuxMappedPaths(_ maps: String) -> [String] {
         maps.split(separator: "\n").compactMap { line in
             let fields = line.split(maxSplits: 5, whereSeparator: { $0 == " " || $0 == "\t" })
-            // Executable mappings identify loaded code rather than unrelated
-            // mapped data, which can change during an artifact build.
             guard fields.count == 6, fields[1].contains("x"), fields[5].hasPrefix("/") else { return nil }
             return String(fields[5])
         }

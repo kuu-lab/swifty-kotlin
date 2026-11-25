@@ -7,8 +7,6 @@ import kotlinx.io.buffered
 import kotlinx.io.files.Path as IoPath
 import kotlinx.io.files.SystemFileSystem
 
-// Minimal Native producers used by the locked NioTest file-channel cases.
-// The attribute/open-option overloads remain outside this producer subset.
 public fun Path.createFile(): Path {
     createNativeFile(toString())
     return this

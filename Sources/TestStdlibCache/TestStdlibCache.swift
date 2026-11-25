@@ -131,13 +131,6 @@ public final class TestStdlibCache: @unchecked Sendable {
         }
     }
 
-    /// `builder` receives an output-base path (no extension) and must return
-    /// the path of the `.kklib` directory it produced there.
-    ///
-    /// Exposed as an injectable-builder helper (rather than folded directly
-    /// into `build()`) so tests can exercise the locking/no-delete contract
-    /// with a fast fake builder instead of the real, multi-second stdlib
-    /// compile.
     static func resolveOrBuildArtifact(
         buildDirectory: URL,
         contentKey: String,
@@ -150,9 +143,6 @@ public final class TestStdlibCache: @unchecked Sendable {
         let artifactPath = artifactURL.path
         let lockPath = artifactPath + ".lock"
 
-        // Coordinate across parallel `swift test` workers using an advisory
-        // lock, keyed to this exact content-addressed path so builders for
-        // different keys never block on each other.
         let lockFd = lockPath.withCString { path in
             open(path, O_CREAT | O_RDWR | O_NOFOLLOW, S_IRUSR | S_IWUSR)
         }
@@ -173,11 +163,6 @@ public final class TestStdlibCache: @unchecked Sendable {
             fileManager: fm
         )
 
-        // Another worker may have built this content key's artifact while we
-        // waited for the lock, or a previous run already left one here.
-        // Either way its mere presence at this exact path is proof it is
-        // complete (see the type-level doc comment), so trust it as-is —
-        // no staleness re-check, no delete.
         if fm.fileExists(atPath: artifactPath) {
             return artifactPath
         }
@@ -200,18 +185,11 @@ public final class TestStdlibCache: @unchecked Sendable {
         guard fm.fileExists(atPath: builtPath) else {
             throw TestStdlibCacheError.artifactMissing(builtPath)
         }
-        // Atomic on the same volume: readers can never observe a partially
-        // renamed `artifactPath`. And since we still hold the lock and just
-        // confirmed `artifactPath` doesn't exist, this can't collide with
-        // another builder's output either.
         try fm.moveItem(atPath: builtPath, toPath: artifactPath)
         try? fm.removeItem(atPath: stageLockPath)
         return artifactPath
     }
 
-    /// Reclaim only old staging trees whose parent and worker have both
-    /// released their shared attempt lock. Keep the lock file itself so an
-    /// already-open descriptor cannot be split from a newly created lock.
     static func cleanupStaleStaging(
         buildDirectory: URL,
         olderThan cutoff: Date,
@@ -235,8 +213,6 @@ public final class TestStdlibCache: @unchecked Sendable {
         }
     }
 
-    /// Missing compiler identity must not map to a reusable "unknown" key.
-    /// `prepare()` reports this error and leaves source-based compilation available.
     static func contentKey(manifestHash: String, compilerFingerprint: String?) throws -> String {
         try contentKey(manifestHash: manifestHash, compilerFingerprint: compilerFingerprint, failureDetail: nil)
     }
@@ -264,17 +240,12 @@ public final class TestStdlibCache: @unchecked Sendable {
         }
         return URL(fileURLWithPath: String(cString: filename)).standardizedFileURL
         #elseif os(Linux)
-        // Linux SwiftPM runs the statically linked .xctest executable directly.
         return URL(fileURLWithPath: "/proc/self/exe").resolvingSymlinksInPath()
         #else
         return nil
         #endif
     }
 
-    /// Fingerprint the actual loaded image by content, keeping its path to
-    /// separate products/configurations. Relinking or touching identical bytes
-    /// does not invalidate the artifact, while same-size, same-mtime changes do.
-    /// Fail closed if the image cannot be read or changes while it is hashed.
     static func currentCompilerFingerprint(
         compilerImageURL: URL? = currentCompilerImageURL(),
         fileManager fm: FileManager = .default
@@ -303,8 +274,6 @@ public final class TestStdlibCache: @unchecked Sendable {
 }
 
 #if canImport(Darwin)
-// A C function pointer lets dladdr resolve this module's loaded Mach-O image,
-// including when swiftpm-testing-helper dynamically loads an .xctest bundle.
 @_cdecl("kswiftk_test_stdlib_cache_image_anchor")
 private func testStdlibCacheImageAnchor() {}
 #endif

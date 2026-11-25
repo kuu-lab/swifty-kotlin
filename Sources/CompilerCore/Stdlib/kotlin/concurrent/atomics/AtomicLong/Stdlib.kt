@@ -10,11 +10,6 @@ package kotlin.concurrent.atomics
 
 import kotlin.internal.KsSymbolName
 
-/**
- * `AtomicLong` is now a real class in this package, so the factory binds
- * directly to the runtime-backed allocation (`kk_atomic_long_create`) instead
- * of delegating through `kotlin.concurrent.AtomicLong`.
- */
 @kotlin.concurrent.atomics.ExperimentalAtomicApi
 @SinceKotlin("2.1")
 @KsSymbolName("kk_atomic_long_create")

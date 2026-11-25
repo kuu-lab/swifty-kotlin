@@ -40,7 +40,7 @@ enum CLIParser {
       --classpath <paths>    JVM JAR/class directories, separated by ':' (also -cp)
       -jvm-target <version>  JVM bytecode target (1.8, 9–26; default 1.8)
       -java-parameters       Emit parameter names for Java reflection (class or jar)
-      -include-runtime       Package the bundled Kotlin/JVM runtime with --emit jar
+      -include-runtime       Package the bundled Kotlin/JVM runtime with --emit jar, dex or apk
       --android-sdk <path>   Android SDK root (default: ANDROID_HOME, ANDROID_SDK_ROOT,
                              or the platform install location)
       --android-build-tools <version>
@@ -59,6 +59,25 @@ enum CLIParser {
                              Key alias (default: androiddebugkey)
       --android-store-pass <pass>  Keystore password (default: android)
       --android-key-pass <pass>    Key password (default: store password)
+      --android-dependency <group:artifact:version>
+                             Maven dependency packaged with its runtime closure (dex/apk,
+                             repeatable). Resolved from Google Maven and Maven Central
+      --android-library <path>
+                             Local .aar or .jar packaged into the app (dex/apk, repeatable)
+      --maven-repository <url>
+                             Repository for --android-dependency, replacing the defaults
+                             (repeatable; file:// URLs allowed)
+      --maven-cache <dir>    Download cache (default: ~/.kswiftk/maven or KSWIFTK_MAVEN_CACHE)
+      --offline              Resolve --android-dependency from the cache only
+      --android-namespace <package>
+                             R class package for a manifest without a package attribute
+      --android-application-id <id>
+                             Application ID (default: the manifest package / namespace)
+      --android-target-sdk <api>, --android-version-code <n>, --android-version-name <name>
+                             Manifest uses-sdk and version values (apk only)
+      --android-debuggable   Mark the application debuggable (apk only)
+      <file>.java            Java sources compiled by javac before the Kotlin sources
+                             (dex/apk; Java code cannot reference the Kotlin sources)
       -Xlegacy-non-exhaustive-when
                              Allow Kotlin 1.2-style non-exhaustive when statements
       -Xfrontend <flag>      Frontend feature flag (e.g. time-phases, incremental-stats,
@@ -188,6 +207,36 @@ enum CLIParser {
                 case "--android-key-pass": android.keyPassword = value
                 default: break
                 }
+                explicitAndroidOptions.insert(arg)
+            case "--android-dependency", "--android-library", "--maven-repository", "--maven-cache",
+                 "--android-namespace", "--android-application-id", "--android-target-sdk",
+                 "--android-version-code", "--android-version-name":
+                let value = try requireValue(option: arg, args: args, index: &index)
+                guard !value.isEmpty, !value.hasPrefix("-") else { throw CLIParseError.missingValue(arg) }
+                switch arg {
+                case "--android-dependency":
+                    guard MavenCoordinate(parsing: value) != nil else {
+                        throw CLIParseError.missingValue("\(arg) requires group:artifact:version")
+                    }
+                    android.dependencies.append(value)
+                case "--android-library": android.libraries.append(value)
+                case "--maven-repository": android.mavenRepositories.append(value)
+                case "--maven-cache": android.mavenCachePath = value
+                case "--android-namespace": android.namespace = value
+                case "--android-application-id": android.applicationID = value
+                case "--android-version-name": android.versionName = value
+                default:
+                    guard let number = Int(value), number > 0 else {
+                        throw CLIParseError.missingValue("\(arg) requires a positive integer")
+                    }
+                    if arg == "--android-target-sdk" { android.targetSdk = number } else { android.versionCode = number }
+                }
+                explicitAndroidOptions.insert(arg)
+            case "--offline":
+                android.offline = true
+                explicitAndroidOptions.insert(arg)
+            case "--android-debuggable":
+                android.debuggable = true
                 explicitAndroidOptions.insert(arg)
             case _ where arg.hasPrefix("--android-sdk="):
                 android.sdkPath = String(arg.dropFirst("--android-sdk=".count)); explicitAndroidOptions.insert("--android-sdk")
@@ -368,7 +417,12 @@ enum CLIParser {
                 if arg.hasPrefix("-") {
                     throw CLIParseError.unknownOption(arg)
                 }
-                inputPaths.append(arg)
+                if arg.hasSuffix(".java") {
+                    android.javaSources.append(arg)
+                    explicitAndroidOptions.insert(".java input")
+                } else {
+                    inputPaths.append(arg)
+                }
             }
 
             index += 1
@@ -420,7 +474,6 @@ enum CLIParser {
             emitMode = .executable
             frontendFlags.append("run")
             if !explicitOutputPath {
-                // Only used when the interpreter falls back to a native build.
                 outputPath = FileManager.default.temporaryDirectory
                     .appendingPathComponent("kswiftc-run-\(UUID().uuidString)").path
                 frontendFlags.append("run-temp-output")
@@ -443,15 +496,17 @@ enum CLIParser {
         if javaParameters, emitMode != .jvmClass, emitMode != .jvmJar {
             throw CLIParseError.javaParametersRequireClassOrJar
         }
-        if includeJVMRuntime, emitMode != .jvmJar {
-            throw CLIParseError.incompatibleStdlibOptions("-include-runtime requires --emit jar")
-        }
         let isAndroidEmit = emitMode == .dex || emitMode == .apk
+        if includeJVMRuntime, emitMode != .jvmJar, !isAndroidEmit {
+            throw CLIParseError.incompatibleStdlibOptions("-include-runtime requires --emit jar, dex or apk")
+        }
         if emitMode != .apk {
             let apkOnly = explicitAndroidOptions.filter {
                 ["--manifest", "--android-res", "--android-assets",
                  "--android-keystore", "--android-key-alias",
-                 "--android-store-pass", "--android-key-pass"].contains($0)
+                 "--android-store-pass", "--android-key-pass",
+                 "--android-namespace", "--android-application-id", "--android-target-sdk",
+                 "--android-version-code", "--android-version-name", "--android-debuggable"].contains($0)
             }
             if let flag = apkOnly.sorted().first {
                 throw CLIParseError.androidPackagingRequiresAPK("\(flag) requires --emit apk")
@@ -542,8 +597,6 @@ enum CLIParser {
     }
 
     private static func parseTargetTriple(_ value: String) -> TargetTriple? {
-        // WebAssembly spellings. `wasm32-wasi` / `wasm-js` are two-part
-        // shorthand; the unknown-vendor forms normalize to the same triple.
         switch value {
         case "wasm32-wasi", "wasm-wasi", "wasm32-unknown-wasi",
              "wasm32-wasip1", "wasm32-unknown-wasip1":

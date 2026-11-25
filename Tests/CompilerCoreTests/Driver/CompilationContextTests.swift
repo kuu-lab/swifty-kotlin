@@ -6,7 +6,6 @@ import Testing
 
 @Suite
 struct CompilationContextTests {
-    // MARK: - CompilationContext init
 
     @Test
     func testCompilationContextInitStoresProperties() {
@@ -40,8 +39,6 @@ struct CompilationContextTests {
         #expect(ctx.phaseTimer == nil)
     }
 
-    // MARK: - isIncremental
-
     @Test
     func testIsIncrementalReturnsFalseByDefault() {
         let ctx = makeCompilationContext(inputs: ["/a.kt"])
@@ -56,8 +53,6 @@ struct CompilationContextTests {
         )
         #expect(ctx.isIncremental)
     }
-
-    // MARK: - needsRecompilation
 
     @Test
     func testNeedsRecompilationReturnsTrueWhenNoRecompileSet() {
@@ -94,8 +89,6 @@ struct CompilationContextTests {
         ctx.markIncrementalOutputRestored()
         #expect(ctx.incrementalOutputRestored)
     }
-
-    // MARK: - frontendJobs
 
     @Test
     func testFrontendJobsDefaultIsHostBounded() {

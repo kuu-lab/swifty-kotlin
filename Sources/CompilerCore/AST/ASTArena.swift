@@ -19,8 +19,6 @@ public struct ASTArenaSnapshot: Codable {
     public let incrementDecrementExpressions: Set<ExprID>
     public let incrementDecrementValueExpressions: Set<ExprID>
     public let callResultCompoundAssignmentBlocks: Set<ExprID>
-    /// `x!! += v` / `a[i]!! += v` compound assignments whose LHS carried a
-    /// postfix `!!`: the read of the assignable value is asserted non-null.
     public let nullAssertedCompoundAssignReads: Set<ExprID>
     public let nonFunctionLambdaLabels: Set<ExprID>
     public let incrementDecrementCachedValues: [ExprID: ExprID]
@@ -285,31 +283,15 @@ public final class ASTArena: @unchecked Sendable {
     private var _forVariableTypeRefs: [ExprID: TypeRefID] = [:]
     private var _lambdaParamTypeRefs: [ExprID: [TypeRefID?]] = [:]
     private var _callableRefReceiverTypeRefs: [ExprID: TypeRefID] = [:]
-    /// Tracks member-call expressions written with parentheses so zero-argument
-    /// function calls remain distinct from bare property access in the AST.
     private var _explicitCallExpressions: Set<ExprID> = []
-    /// Preserves infix syntax independently of ordinary member calls.
     private var _infixCallExpressions: Set<ExprID> = []
     private var _infixFunctionExpressions: Set<ExprID> = []
     private var _operatorFunctionExpressions: Set<ExprID> = []
-    /// Marks `receiver.(expression)(args)` calls, which require a function type
-    /// with an explicit extension receiver.
     private var _receiverExpressionArgsCallExpressions: Set<ExprID> = []
-    /// Tracks `expr<Args>` nodes parsed as the receiver of `.member` access
-    /// (`G<Int>.GI()`): the `.call` shape carries the type arguments while the
-    /// marker tells Sema to resolve the callee chain as a classifier qualifier
-    /// rather than a zero-argument call.
     private var _typeQualifierCallExpressions: Set<ExprID> = []
-    /// Tracks compound-assignment nodes synthesized from `++` / `--` so Sema and
-    /// KIR can apply inc/dec semantics without changing the public AST shape.
     private var _incrementDecrementExpressions: Set<ExprID> = []
-    /// Tracks prefix increment/decrement nodes whose value is the updated value.
     private var _incrementDecrementValueExpressions: Set<ExprID> = []
-    /// Synthetic call-result assignment blocks preserve outer data flow while
-    /// keeping their receiver temporary in a separate lexical scope.
     private var _callResultCompoundAssignmentBlocks: Set<ExprID> = []
-    /// Compound assignments whose LHS carried a postfix `!!`
-    /// (`a[i]!! += v`): the read of the assignable is asserted non-null.
     private var _nullAssertedCompoundAssignReads: Set<ExprID> = []
     /// Tracks lambda literals whose leading `label@` is bound to a following
     /// postfix expression. In Kotlin a label prefixes the whole postfix-unary
@@ -318,9 +300,7 @@ public final class ASTArena: @unchecked Sendable {
     /// a function and must be rejected.
     private var _nonFunctionLambdaLabels: Set<ExprID> = []
     private var _incrementDecrementCachedValues: [ExprID: ExprID] = [:]
-    // Prefix annotations belong to the operand without changing its AST shape.
     private var _expressionAnnotations: [ExprID: [AnnotationNode]] = [:]
-    /// Anonymous function literal blocks and the local declarations backing them.
     private var _anonymousFunctionExpressions: Set<ExprID> = []
     private var _labeledAnonymousFunctionExpressions: Set<ExprID> = []
     private var _parenthesizedExpressions: Set<ExprID> = []
@@ -480,7 +460,8 @@ public final class ASTArena: @unchecked Sendable {
             _destructuringDeclLayouts[remapper.remap(key)] = DestructuringDeclLayout(
                 syntax: value.syntax,
                 properties: value.properties.map { $0.map { remapper.remap($0) } },
-                mutableFlags: value.mutableFlags
+                mutableFlags: value.mutableFlags,
+                entryTypeRefs: value.entryTypeRefs.mapValues { remapper.remap($0) }
             )
         }
         _anonymousFunctionExpressions.formUnion(snapshot.anonymousFunctionExpressions.map { remapper.remap($0) })
@@ -624,8 +605,6 @@ public final class ASTArena: @unchecked Sendable {
         return id
     }
 
-    /// Returns call expressions that use `argumentExprID` as an argument, in AST order.
-    /// The index is built once and updated as synthesized expressions are appended.
     func callArgumentParents(of argumentExprID: ExprID) -> [ASTCallArgumentParent] {
         lock.lock()
         defer { lock.unlock() }
@@ -680,8 +659,6 @@ public final class ASTArena: @unchecked Sendable {
         return Self.expressionRange(of: expr)
     }
 
-    /// Resolves a position through the cached range index while holding the
-    /// same lock that protects expression storage and index invalidation.
     public func indexedInnermostExpr(at offset: Int, in fileID: FileID) -> ExprID? {
         lock.lock()
         defer { lock.unlock() }
@@ -880,9 +857,6 @@ public final class ASTArena: @unchecked Sendable {
         return _localTailrecFunctionExpressions.contains(exprID)
     }
 
-    /// Local functions carrying the source-level `inline` modifier. Sema only
-    /// accepts them under `@Suppress("NOT_YET_SUPPORTED_LOCAL_INLINE_FUNCTION")`,
-    /// matching kotlinc's diagnostic gate.
     public func markLocalInlineFunction(_ exprID: ExprID) {
         lock.lock()
         defer { lock.unlock() }
@@ -895,9 +869,6 @@ public final class ASTArena: @unchecked Sendable {
         return _localInlineFunctionExpressions.contains(exprID)
     }
 
-    /// Local functions whose bodiless form is legal as written (`external` or
-    /// `abstract`). They are exempt from both 'must have a body' and
-    /// 'without a body must be abstract' diagnostics.
     public func markLocalBodilessExemptFunction(_ exprID: ExprID) {
         lock.lock()
         defer { lock.unlock() }
@@ -910,9 +881,6 @@ public final class ASTArena: @unchecked Sendable {
         return _localBodilessExemptFunctionExpressions.contains(exprID)
     }
 
-    /// Local functions declared with the `abstract` modifier. kotlinc checks
-    /// them against the enclosing class's abstractness just like abstract
-    /// members, so sema needs to know the modifier was present.
     public func markLocalAbstractFunction(_ exprID: ExprID) {
         lock.lock()
         defer { lock.unlock() }
@@ -1079,12 +1047,8 @@ public final class ASTModule {
     public let tokenCount: Int
     public let activeDeclsByFileRawID: [Int32: [DeclID]]
 
-    /// Files pre-sorted by fileID for stable iteration order.
     public let sortedFiles: [ASTFile]
 
-    /// Files indexed by fileID so resolving a declaration's owning file does
-    /// not scan the whole file list. `fileID` is unique per file, so a
-    /// dictionary hit is identical to `files.first { $0.fileID == fileID }`.
     private let filesByID: [FileID: ASTFile]
 
     public init(
@@ -1105,14 +1069,9 @@ public final class ASTModule {
             uniquingKeysWith: { first, _ in first }
         )
 
-        // ASTModule is finalized after all expressions have been appended, so
-        // build the index before the first position-based query pays for it.
         arena.prepareExpressionRangeIndex()
     }
 
-    /// Each Sema worker gets its own arena lock and copy-on-write storage.
-    /// Scalar inference preserves every AST ID and never needs the LSP range
-    /// index, so copying the finalized module avoids rebuilding that index.
     func makeSemaWorkerAST() -> ASTModule {
         ASTModule(workerSnapshotOf: self)
     }
@@ -1127,8 +1086,6 @@ public final class ASTModule {
         filesByID = module.filesByID
     }
 
-    /// O(1) lookup of the file with `fileID`; identical result to a linear
-    /// `files.first { $0.fileID == fileID }` scan.
     public func file(for fileID: FileID) -> ASTFile? {
         filesByID[fileID]
     }

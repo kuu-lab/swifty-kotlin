@@ -21,11 +21,17 @@ public final class CompilationContext: @unchecked Sendable {
     var jvmImports: JVMClasspathIndex?
     var jvmClasspathArchiveCache: JVMClasspathArchiveCache?
     var jvmStdlibDeclarationFiles: Set<FileID> = []
+    /// Residual-stdlib declaration files excluded from the stdlib jar build
+    /// whose non-inline helpers are emitted directly into consumer bytecode.
+    var jvmConsumerEmittedStdlibFiles: Set<FileID> = []
     var deferredJVMInlineBodies: [DeclID: JVMInlineBodySyntax] = [:]
     var jvmRuntimeClassAliases: [String: String] = [:]
     package var androidResourceLink: AndroidResourceLink?
+    package var androidBuildInputs: AndroidBuildInputs?
+    /// `R` classes to dex: the app's (unless a classpath entry provides
+    /// them) plus every library package's.
     package var androidResourceClassFiles: [(String, Data)] {
-        jvmImports?.fallbackClassFiles ?? []
+        (jvmImports?.fallbackClassFiles ?? []) + (androidResourceLink?.libraryClassFiles ?? [])
     }
 
     /// Classfile entry names (`a/b/C.class`) of the classpath stubs injected

@@ -25,19 +25,12 @@ import Glibc
 public final class IncrementalCompilationCache {
     public let cachePath: String
 
-    /// Root of the managed cache ancestry inside which every directory up to
-    /// `cachePath` must be private. Non-nil only for the compiler-managed
-    /// default location; explicit `--incremental-cache` paths are leaf-checked
-    /// and authenticated by the integrity index instead.
     private let managedAncestorBase: String?
 
     private var previousFingerprints: [String: FileFingerprint] = [:]
     private var previousBuildConfigurationHash: String?
     private var previousOutputArtifact: CachedOutputArtifact?
 
-    /// Per-run memo for `buildConfigurationHash` — a compile consults it
-    /// several times (recompile set, restore, frontend state, save) and the
-    /// environment fingerprint does real stat work.
     private var configHashMemo: (options: CompilerOptions, hash: String)?
 
     private func configurationHash(for options: CompilerOptions) -> String {
@@ -49,22 +42,14 @@ public final class IncrementalCompilationCache {
         return hash
     }
 
-    /// Nil until `loadPreviousState` (or `saveState`) authenticates the cache.
     private var trustedFileDigests: [String: String]?
 
-    /// `nil` means no valid dependency graph was loaded (deps.json missing or corrupt).
     private var previousDependencyGraph: DependencyGraph?
 
     private var currentFingerprints: [String: FileFingerprint] = [:]
 
-    /// Test hook: when set, the compiler-managed default cache root moves to
-    /// this directory instead of the per-user caches directory.
     nonisolated(unsafe) public static var userCacheRootOverride: String?
 
-    /// Extra fingerprint material supplied by the layer that owns linking —
-    /// the CLI wires this to CompilerBackend so packaged runtime objects and
-    /// the resolved linker plan join the build-configuration hash. Drivers
-    /// that never link (tests, frontend-only tools) leave it nil.
     nonisolated(unsafe) public static var environmentFingerprintProvider:
         (@Sendable (CompilerOptions) -> [String])?
 
@@ -74,9 +59,6 @@ public final class IncrementalCompilationCache {
     }
 
 
-    /// Per-user private cache root for compiler-managed state: the
-    /// `<caches>/kswiftk` directory holding the integrity key and the
-    /// namespaced incremental caches.
     public static func userPrivateCacheBase(allowOverride: Bool = true) -> String? {
         if allowOverride, let override = userCacheRootOverride {
             return IncrementalCacheTrust.normalize(override)
@@ -90,14 +72,10 @@ public final class IncrementalCompilationCache {
         return caches.path + "/kswiftk"
     }
 
-    /// Namespaced by repository identity, compiler build, and the resolved
-    /// input set so caches from other projects or toolchains never collide.
     public static func defaultCachePath(for options: CompilerOptions) -> String? {
         userPrivateCacheBase().map { $0 + "/incremental/" + namespace(for: options) }
     }
 
-    /// Nil when no per-user caches directory is available (incremental then
-    /// compiles uncached rather than falling back to a workspace directory).
     public static func makeDefault(for options: CompilerOptions) -> IncrementalCompilationCache? {
         guard let base = userPrivateCacheBase() else {
             return nil
@@ -114,9 +92,6 @@ public final class IncrementalCompilationCache {
             .deletingLastPathComponent()
         let resolvedOutputParent = outputParent.standardized
             .resolvingSymlinksInPath().path
-        // The worktree root (the directory containing `.git`, which can also
-        // be a file for linked worktrees) is the repository identity; outside
-        // a worktree the output directory itself stands in.
         var repositoryIdentity = resolvedOutputParent
         var cursor = resolvedOutputParent
         while true {
@@ -141,10 +116,6 @@ public final class IncrementalCompilationCache {
 
     private static let supportedManifestVersion = 1
 
-    /// The cache location must pass trust validation and every file read must
-    /// match the authenticated integrity index; a cache that fails either
-    /// check — including one committed inside a workspace — is ignored so the
-    /// build starts fresh.
     public func loadPreviousState() {
         let fm = FileManager.default
         switch IncrementalCacheTrust.validateLocation(
@@ -164,7 +135,7 @@ public final class IncrementalCompilationCache {
 
         // Refuse a cache whose on-disk tree contains an intermediate symlink
         // hop (KUU-806), even when the leaf itself looks regular to lstat.
-        guard CacheSecurity.openSafeDirectory(at: cachePath, allowCreate: false) != nil else {
+        guard CacheSecurity.isSafeDirectory(at: cachePath) else {
             return
         }
 
@@ -238,17 +209,12 @@ public final class IncrementalCompilationCache {
                 changed.insert(path)
             }
         }
-        // Files that were in the previous build but removed in this build
-        // must be treated as changed so their provided symbols are invalidated
-        // and dependents are recompiled.
         for previousPath in previousFingerprints.keys where !allPathsSet.contains(previousPath) {
             changed.insert(previousPath)
         }
         return changed
     }
 
-    /// Returns `nil` if no cache is available (full build needed), including
-    /// when the dependency graph is missing or corrupt.
     public func recompilationSet(allPaths: [String], options: CompilerOptions? = nil) -> Set<String>? {
         if previousFingerprints.isEmpty {
             return nil
@@ -357,7 +323,7 @@ public final class IncrementalCompilationCache {
         guard previousBuildConfigurationHash == buildHash else {
             return nil
         }
-        guard CacheSecurity.openSafeDirectory(at: cachePath, allowCreate: false) != nil,
+        guard CacheSecurity.isSafeDirectory(at: cachePath),
               let digests = trustedFileDigests,
               let data = IncrementalCacheTrust.authenticatedFileData(
                   cachePath: cachePath,
@@ -376,9 +342,6 @@ public final class IncrementalCompilationCache {
         return state
     }
 
-    /// Non-error diagnostics persisted by the previous build, replayed when
-    /// its output is restored so a cached build prints the same warnings a
-    /// fresh one would have.
     public func loadPersistedDiagnostics() -> [Diagnostic] {
         guard let digests = trustedFileDigests,
               let data = IncrementalCacheTrust.authenticatedFileData(
@@ -402,8 +365,6 @@ public final class IncrementalCompilationCache {
     ) {
         let fm = FileManager.default
 
-        // The cache may only ever live in a private, current-user-owned
-        // directory — refuse to write into anything else.
         guard IncrementalCacheTrust.ensureSecureLocation(
             cachePath: cachePath,
             managedAncestorBase: managedAncestorBase
@@ -439,6 +400,8 @@ public final class IncrementalCompilationCache {
             )
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
+            let compactEncoder = JSONEncoder()
+            compactEncoder.outputFormatting = [.sortedKeys]
             let manifestData = try encoder.encode(manifest)
             guard CacheSecurity.writeAtomicFile(in: rootFD, filename: "manifest.json", data: manifestData) else {
                 return
@@ -453,7 +416,7 @@ public final class IncrementalCompilationCache {
                 // PropertyListEncoder(binary) is pathologically slow on the
                 // deeply nested AST state (generic wrapGeneric recursion) —
                 // JSON stays the frontend-state format.
-                let frontendData = try encoder.encode(frontendState)
+                let frontendData = try compactEncoder.encode(frontendState)
                 guard CacheSecurity.writeAtomicFile(in: rootFD, filename: "frontend.json", data: frontendData) else {
                     return
                 }
@@ -495,7 +458,6 @@ public final class IncrementalCompilationCache {
                 Self.pruneStaleNamespacesIfNeeded(managedBase: managedAncestorBase)
             }
         } catch {
-            // Cache save failure is non-fatal — next build will do a full compile.
             let message = "[IncrementalCompilationCache] Failed to save cache at '\(cachePath)': \(error)\n"
             if let data = message.data(using: .utf8) {
                 FileHandle.standardError.write(data)
@@ -617,7 +579,6 @@ public final class IncrementalCompilationCache {
             stdlibManifestHash = ""
         }
         let config = IncrementalBuildConfiguration(
-            // Also invalidate cached output when the frontend AST representation changes.
             schemaVersion: IncrementalFrontendState.supportedVersion,
             environmentFingerprint: environmentFingerprint(for: options),
             moduleName: options.moduleName,
@@ -657,9 +618,6 @@ public final class IncrementalCompilationCache {
             && flag != "time-phases" && !flag.hasPrefix("jobs=")
     }
 
-    /// Compiler binary, environment, resolved tools and search-path library
-    /// contents — plus whatever the backend contributes for link-affecting
-    /// inputs (packaged runtime objects, linker plan identity).
     private static func environmentFingerprint(for options: CompilerOptions) -> [String] {
         var parts = IncrementalEnvironmentFingerprint.fingerprint(
             for: options,
@@ -675,16 +633,8 @@ public final class IncrementalCompilationCache {
     private static let persistedDiagnosticsName = "diagnostics.json"
     private static let statsFileName = "stats.json"
 
-    /// Keeps at most this many `artifacts/<buildHash>` generations per
-    /// namespace; older ones are removed so flag-flipping does not grow the
-    /// cache without bound.
     private static let maxArtifactGenerations = 8
-    /// Artifact generations younger than this are never pruned, so a
-    /// concurrent compile cannot lose the output it just wrote.
     private static let minArtifactGenerationAge: TimeInterval = 60
-    /// Managed namespaces whose manifest has not been touched in this long
-    /// are deleted at save time. The age bound also keeps directories a
-    /// racing compile may be writing out of the sweep.
     private static let namespaceMaxAge: TimeInterval = 30 * 24 * 3600
 
     private func pruneArtifactGenerations(rootFD: Int32, keeping buildHash: String?) {
@@ -730,9 +680,6 @@ public final class IncrementalCompilationCache {
         }
     }
 
-    /// Best-effort sweep of managed namespaces idle for `namespaceMaxAge`,
-    /// run at most once per process per cache root so repeated compiles do
-    /// not re-scan.
     nonisolated(unsafe) private static var prunedNamespaceBases: Set<String> = []
 
     private static func pruneStaleNamespacesIfNeeded(managedBase: String) {
@@ -771,11 +718,6 @@ public final class IncrementalCompilationCache {
         }
     }
 
-    // MARK: - Outcome statistics
-
-    /// Records how this compile resolved against the cache; persisted in the
-    /// cache directory so `-Xfrontend incremental-stats` can report hit rates
-    /// across runs.
     func recordOutcome(_ outcome: IncrementalRunOutcome) {
         var stats = readStats() ?? IncrementalStats()
         stats.runs += 1
@@ -788,9 +730,6 @@ public final class IncrementalCompilationCache {
             stats.fullBuilds += 1
         }
         stats.lastRunNanos = Int64(Date().timeIntervalSince1970 * 1_000_000_000)
-        // The first cold run reaches this before saveState creates the
-        // directory — create it through the same ownership/permission gate so
-        // the cold build still counts toward the hit-rate stats.
         guard IncrementalCacheTrust.ensureSecureLocation(
             cachePath: cachePath,
             managedAncestorBase: managedAncestorBase
@@ -811,7 +750,6 @@ public final class IncrementalCompilationCache {
         return try? JSONDecoder().decode(IncrementalStats.self, from: data)
     }
 
-    /// Human-readable summary for `-Xfrontend incremental-stats`.
     func incrementalStatsSummary() -> String {
         guard let stats = readStats() else {
             return "incremental: no recorded runs"
@@ -857,9 +795,6 @@ enum CachedOutputArtifactKind: String, Codable {
 
 private struct IncrementalBuildConfiguration: Encodable {
     let schemaVersion: Int
-    /// Stat/content signatures of everything outside the source set that
-    /// still shapes the output: compiler binary, tool-resolution
-    /// environment, search-path libraries, and backend link inputs.
     let environmentFingerprint: [String]
     let moduleName: String
     let inputPaths: [String]
@@ -887,13 +822,9 @@ private struct IncrementalTargetTriple: Encodable {
     let osVersion: String?
 }
 
-/// How a compile resolved against the incremental cache.
 enum IncrementalRunOutcome: String, Codable {
-    /// Nothing changed; the previous artifact was restored byte-for-byte.
     case restored
-    /// Some files changed; unchanged-file frontend state was reused.
     case partial
-    /// No reuse — cold cache, changed configuration, or rejected cache.
     case full
 }
 
@@ -905,8 +836,6 @@ struct IncrementalStats: Codable {
     var lastRunNanos: Int64 = 0
 }
 
-/// Serialized form of a diagnostic for the persisted-diagnostics file.
-/// `codeActions` are intentionally not stored — they are never rendered.
 private struct PersistedDiagnostic: Codable {
     var severity: String
     var code: String
@@ -994,6 +923,14 @@ enum CacheSecurity {
         }
 
         return fd
+    }
+
+    static func isSafeDirectory(at path: String) -> Bool {
+        guard let fd = openSafeDirectory(at: path, allowCreate: false) else {
+            return false
+        }
+        close(fd)
+        return true
     }
 
     static func openSubdirectory(in parentFD: Int32, name: String, allowCreate: Bool) -> Int32? {

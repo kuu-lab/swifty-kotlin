@@ -68,7 +68,7 @@ DIFF_BACKEND=jvm bash Scripts/diff_kotlinc.sh Scripts/diff_cases/foo.kt   # JVM 
 
 CI で diff が落ちたとき: GitHub 上はジョブ **Summary** と **Artifacts**（TSV・失敗ケースディレクトリ）を優先。`gh run view RUN_ID --log-failed` だけだと、kotlinc diff ステップは `continue-on-error` のため **本体ログが含まれない**ことがある。全文ログでは `FAIL ` を grep。
 
-CI は 2 段構成。PR と merge_group では最小ゲート（`.github/workflows/ci.yml`: リポジトリチェック + 全ターゲットのデバッグビルド + `SmokeTests`、必須チェックは `CI gate` 1 つ）だけが走る。それ以外のバッチ処理はすべて `.github/workflows/nightly-full.yml`（毎朝 04:00 JST、master）に集約されている: CompilerCore/Backend/Runtime/CLI/LSP の全テスト、kotlinc diff（O0 / O2 全件）とその JVM / WASM バックエンドレーン（`// DIFF_JVM` / `// DIFF_WASM` マーカー付きケースのみ）、JS annotation evidence、bounded mutation fuzzer + crash corpus replay、dead-code / fiction audit、kotlinx-io 上流リファレンス（JVM / Native）と Apple candidate ゲート。マージ前に全件を確認したい PR は `gh workflow run nightly-full.yml --ref <branch>` で手動実行する（失敗 artifact 名は `kotlinc-diff-regression-<run id>-{O0,O2}-shard-<n>`）。
+CI は 2 段構成。PR と merge_group では最小ゲート（`.github/workflows/ci.yml`: リポジトリチェック + 全ターゲットのデバッグビルド、必須チェックは `CI gate` 1 つ）だけが走り、`SmokeTests` は含まれない（nightly の `verify-core` shard 1 で実行）。それ以外のバッチ処理はすべて `.github/workflows/nightly-full.yml`（毎朝 04:00 JST、master）に集約されている: CompilerCore/Backend/Runtime/CLI/LSP の全テスト、kotlinc diff（O0 / O2 全件）とその JVM / WASM バックエンドレーン（`// DIFF_JVM` / `// DIFF_WASM` マーカー付きケースのみ）、JS annotation evidence、bounded mutation fuzzer + crash corpus replay、dead-code / fiction audit、kotlinx-io 上流リファレンス（JVM / Native）と Apple candidate ゲート。マージ前に全件を確認したい PR は `gh workflow run nightly-full.yml --ref <branch>` で手動実行する（失敗 artifact 名は `kotlinc-diff-regression-<run id>-{O0,O2}-shard-<n>`）。
 
 ### リファクタ PR のゲート
 
@@ -154,6 +154,12 @@ JVM:         LoadSources → JVMPreparation → Lex → Parse → BuildAST → J
 - コミットメッセージ: 短く命令形（例: "Add ...", "Fix ..."）
 - 診断コード: `KSWIFTK-{PHASE}-{NUMBER}` 形式（例: `KSWIFTK-SEMA-0001`）
 - 分割ファイルは責務ベースで命名（`+Part2` のような番号付き名は禁止）
+- コメントは原則書かない（`Sources/` と `Tests/` の Swift / Kotlin。`Tests/` の `.kt` フィクスチャは入力データなので対象外）。How はコード、What はテスト、Why はコミットメッセージと PR 本文に書く。残してよいのは次だけ:
+  - ライセンス・帰属ヘッダ（`Copyright` / `Licensed under` / `Derived from kotlin-stdlib …` など）
+  - ツールが読む指示（`swiftlint:`、`.kt.tmpl` の `//@` ディレクティブなど）
+  - 仕様・契約: バイナリ形式やプロトコルのレイアウト図、マジック定数の対応表、裸の位置引数のラベル（`/* isVolatile */ false`）、型やテストで表せない呼び出し側の契約
+  - 要な why-not: 素直な書き方に直すと具体的に壊れる理由（誤コンパイル、kotlinc との挙動差、ABI 不整合、順序依存など）で、コードやテスト名から読み取れないもの
+- doc コメント（`///`、KDoc）、what/how の説明、TODO / FIXME、`// MARK:`、来歴やチケット番号だけのコメントは書かない
 
 ## テスト記述規約
 
@@ -222,7 +228,6 @@ bash Scripts/swift_test.sh --filter SmokeTests -Xswiftc -swift-version -Xswiftc 
 | [`docs/spec.md`](docs/spec.md) | フェーズ別実装仕様（Swift 型・API レベル） |
 | [`docs/stdlib-pipeline.md`](docs/stdlib-pipeline.md) | Stdlib の Kotlin ソース化: 3層モデル・優先規則・ブリッジ規約・移行プレイブック・移行ガバナンス（§13: 完了=enforcing / ブリッジ入場審査 / Capability Matrix / 粒度ルール） |
 | [`docs/debugging.md`](docs/debugging.md) | DWARF / lldb デバッグガイド |
-| [`docs/runtime-abi-external-link-validation-gaps.md`](docs/runtime-abi-external-link-validation-gaps.md) | CompilerCore emit `kk_*` 名と `RuntimeABISpec` 照合の検証ギャップ |
 | [`docs/refactoring-metrics.md`](docs/refactoring-metrics.md) | LoC / jscpd / stdlib 注入コストのベースライン（リファクタゲートの比較基準） |
 | [`Scripts/README.md`](Scripts/README.md) | swift_test.sh の環境変数・補助スクリプト一覧 |
 | [`TODO.md`](TODO.md) | 未完了タスク一覧 |

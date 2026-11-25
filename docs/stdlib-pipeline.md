@@ -3,8 +3,7 @@
 Kotlin ソースで stdlib を実装するための設計メモ。TODO.md の Phase RF2（Stdlib ソースパイプライン基盤）
 および M1–M17（モジュール別移行）の共通指針とする。
 
-関連: [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) / [`docs/stdlib-fiction-audit.md`](stdlib-fiction-audit.md) /
-[`docs/runtime-abi-external-link-validation-gaps.md`](runtime-abi-external-link-validation-gaps.md)
+関連: [`docs/ARCHITECTURE.md`](ARCHITECTURE.md)
 
 ## 1. 目的とゴール
 
@@ -160,8 +159,7 @@ public fun ByteArray.decodeToString(): String = __stringFromUtf8(this, 0, size)
   「通常引数に取るトップレベル関数＋非 external ラッパー」の2段構成は不要（KUU-545）
 - **ABI 突合を機械化する**: runtime bridge の `@KsSymbolName` (`kk_*` / `__kk_*`) は `RuntimeABISpec` に宣言され、
   型署名が一致することをテストで enforcing にする。`platform.posix` のような直接 C FFI 宣言は Runtime 実装を持たないため、
-  pinned signature で別途検証する。これにより
-  `runtime-abi-external-link-validation-gaps.md` の検証ギャップは注釈⇔Spec の突合に一本化される
+  pinned signature で別途検証する。これにより emit 名の検証は注釈⇔Spec の突合に一本化される
 
 ### `kk_*` → `__kk_*` の縮小
 
@@ -661,8 +659,6 @@ should follow the same shape:
    target-out surface.
 5. Run focused Sema/runtime tests for the touched surface, then run golden
    regeneration only for affected cases.
-6. Update `docs/stdlib-fiction-audit.md` with the new synthetic symbol count
-   when a phase-sized cleanup lands.
 
 ### Follow-up order
 

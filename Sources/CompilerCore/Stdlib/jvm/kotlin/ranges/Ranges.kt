@@ -103,6 +103,28 @@ public class ClosedFloatRange(
     override fun hashCode(): Int = if (isEmpty()) -1 else 31 * start.hashCode() + endInclusive.hashCode()
 }
 
+private open class ComparableRange<T : Comparable<T>>(
+    override val start: T,
+    override val endInclusive: T
+) : ClosedRange<T> {
+    override operator fun contains(value: T): Boolean = value >= start && value <= endInclusive
+    override fun isEmpty(): Boolean = start > endInclusive
+
+    @Suppress("UNCHECKED_CAST")
+    override fun equals(other: Any?): Boolean {
+        if (other !is ComparableRange<*>) return false
+        val o = other as ComparableRange<T>
+        return isEmpty() && o.isEmpty() ||
+                start == o.start && endInclusive == o.endInclusive
+    }
+
+    // Generic T member resolution does not see Any.hashCode through the Comparable bound on JVM.
+    override fun hashCode(): Int = if (isEmpty()) -1 else 31 * (start as Any).hashCode() + (endInclusive as Any).hashCode()
+    override fun toString(): String = "$start..$endInclusive"
+}
+
+public operator fun <T : Comparable<T>> T.rangeTo(that: T): ClosedRange<T> = ComparableRange(this, that)
+
 public operator fun Double.rangeTo(that: Double): ClosedFloatingPointRange<Double> = ClosedDoubleRange(this, that)
 public operator fun Float.rangeTo(that: Float): ClosedFloatingPointRange<Float> = ClosedFloatRange(this, that)
 
@@ -124,7 +146,5 @@ public operator fun IntProgression.contains(value: Int): Boolean {
     return (value.toLong() - first.toLong()) % step.toLong() == 0L
 }
 
-// Upstream reverses by swapping the endpoints and negating the step; the
-// result is still an IntProgression, not the generic Iterable.reversed list.
 public fun IntProgression.reversed(): IntProgression =
     IntProgression.fromClosedRange(last, first, -step)

@@ -1,6 +1,3 @@
-/// Emits older ABI entry points for declarations whose optional parameters
-/// carry `@IntroducedAt` versions. The wrappers keep the original default
-/// expressions reachable through the declaration's `$default` stub.
 final class IntroducedAtVersionOverloadingLoweringPass: LoweringPass {
     static let name = "IntroducedAtVersionOverloading"
     static let requiredStage: KIRStage = .desugared

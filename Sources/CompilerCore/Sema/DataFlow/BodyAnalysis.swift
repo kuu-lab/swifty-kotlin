@@ -135,10 +135,6 @@ extension DataFlowSemaPhase {
                 candidates = [builtinShadow]
             } else if let relativeOwnerFQName
             {
-                // Resolve the lexical root before walking a qualified nested name.
-                // For example, Slot.Task inside Ch refers to Ch.Slot.Task.
-                // Qualified type annotations can start at a lexically enclosing
-                // declaration, such as Slot.Closed inside the class owning Slot.
                 let relativeRoots = resolveRelativeNominalCandidates(
                     named: path[0],
                     relativeTo: relativeOwnerFQName,
@@ -261,10 +257,8 @@ extension DataFlowSemaPhase {
             if let resolved = resolvedNominal {
                 let isBundledDeclaration = (symbols.sourceFileID(for: resolved.id) ?? resolved.declSite?.start.file)
                     .map { sourceManager?.origin(of: $0)?.isBundledStdlib == true } == true
-                // Header resolution has no enclosing-class context here. The
-                // source-origin check enforces the stdlib's internal module
-                // boundary; private/protected source access uses type checking.
-                if resolved.flags.contains(.importedLibrary) || (isBundledDeclaration && resolved.visibility == .internal), let usageRange {
+                if resolved.flags.contains(.importedLibrary) || (isBundledDeclaration && resolved.visibility == .internal)
+                    || symbols.jvmPackageAccess[resolved.id] != nil, let usageRange {
                     let fileID = usageRange.start.file
                     let suppressed = ast.file(for: fileID)?.annotations.contains { annotation in
                         KnownCompilerAnnotation.suppress.matches(annotation.name)
@@ -342,8 +336,6 @@ extension DataFlowSemaPhase {
                         projectionRange: usageRange,
                         interner: interner
                     ) {
-                        // The alias may have been resolved before an alias it
-                        // mentions (declared later) had an underlying type.
                         let underlying = expandNestedTypeAliases(
                             in: underlying, inProgress: [resolved.id], depth: 0, symbols: symbols, types: types
                         )
@@ -352,9 +344,6 @@ extension DataFlowSemaPhase {
                         }
                         return underlying
                     }
-                    // Fall through to class-type path for error recovery when
-                    // underlying type is not yet available (e.g. unresolved RHS,
-                    // imported alias without signature metadata).
                 }
                 if resolved.id == types.kClassInterfaceSymbol
                     || resolved.fqName == [interner.intern("kotlin"), interner.intern("reflect"), interner.intern("KClass")]
@@ -666,14 +655,8 @@ extension DataFlowSemaPhase {
         }
         return symbols.lookupByShortName(shortName).compactMap { symbols.symbol($0) }.filter { symbol in
             guard isNominalTypeSymbol(symbol.kind) else { return false }
-            // kotlin.reflect declarations require an explicit import.
             guard !symbol.fqName.starts(with: kotlinReflectPackage) else { return false }
             let parentID = symbols.parentSymbol(for: symbol.id)
-            // The classifier legitimately visible through an enclosing
-            // owner's superclass chain is in scope regardless of import
-            // shape. Package parents can never be in the set (it holds only
-            // class-kind symbols), so this also skips forcing the lazy
-            // computation for package-parented candidates entirely.
             if let parentID, symbols.symbol(parentID)?.kind != .package {
                 return inheritedNestedParentIDs().contains(parentID)
             }
@@ -714,16 +697,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Self types of the lexical nominal owners enclosing a type reference,
-    /// innermost first, together with each owner's inherited-instance views
-    /// (`CIM<Int>` for `Sub : CIM<Int>`). An inner class reference resolves
-    /// its implicit enclosing instance from this chain: inside `Sub` the
-    /// instance is a `Sub` lifted through its declared `CIM<Int>` supertype.
-    ///
-    /// The chain mirrors the implicit receiver tower: a non-`inner` nested
-    /// owner (class/object/interface) does not capture an enclosing instance,
-    /// so the walk stops there; an `inner` class passes its parent's instance
-    /// through.
     private func lexicalOwnerSelfTypes(
         relativeOwnerFQName: [InternedString]?,
         ast: ASTModule,
@@ -761,9 +734,6 @@ extension DataFlowSemaPhase {
         return selfTypes
     }
 
-    /// The candidate enclosing-instance types one lexical owner contributes:
-    /// its self type (e.g. `Sub` or `CIM<Value>`) followed by the types its
-    /// declared supertype clause resolves to (`CIM<Int>` for `Sub : CIM<Int>`).
     func lexicalOwnerInstanceTypes(
         forOwnerID ownerID: SymbolID,
         ownerFQName: [InternedString],
@@ -912,9 +882,6 @@ extension DataFlowSemaPhase {
         return instanceTypes
     }
 
-    /// The decl carrying `fqName`, located by walking the file's nested-type
-    /// containers. Local declarations and synthetic members not reachable
-    /// through the tree return nil, which simply skips the supertype lookup.
     private func nominalDeclID(
         forFQName fqName: [InternedString],
         ast: ASTModule
@@ -1005,8 +972,6 @@ extension DataFlowSemaPhase {
                 }
             }
 
-            // Inherited classifiers are in the lexical class scope, before
-            // the file's imports (including the default-imported kotlin.Result).
             if hasInheritedCandidate,
                let ownerID = symbols.lookupAll(fqName: current).first(where: {
                    guard let symbol = symbols.symbol($0) else { return false }
@@ -1088,8 +1053,6 @@ extension DataFlowSemaPhase {
                     {
                         paths.append(currentPackageFQName + path)
                     }
-                    // Wildcard imports rank below same-package and explicit
-                    // imports, matching Kotlin's unqualified-name precedence.
                     paths.append(contentsOf: wildcardPaths)
                 }
                 // Header types are resolved before TypeCheck builds file scopes.
@@ -1115,10 +1078,6 @@ extension DataFlowSemaPhase {
                 // alias with the same short name (KSP-1150).
                 paths.append(path)
             } else {
-                // The qualifier of a nested-type reference resolves like an
-                // unqualified classifier name: explicit/alias imports outrank
-                // same-package declarations, and both outrank wildcard and
-                // root-package fallbacks (KUU-1423).
                 var wildcardQualifiedPaths: [[InternedString]] = []
                 for importDecl in imports {
                     let tail = Array(path.dropFirst())
@@ -1152,17 +1111,11 @@ extension DataFlowSemaPhase {
         }()
 
         if path.count > 1 {
-            // Package-only paths (and `a.b.*` wildcards) contribute members,
-            // e.g. `import kotlin.coroutines.*` + `CoroutineContext.Key`.
             for importDecl in imports where importDecl.alias == nil {
                 if symbols.importPathContributesMembers(importDecl.path, isWildcard: importDecl.isWildcard) {
                     candidatePaths.append(importDecl.path + path)
                 }
             }
-            // A nested type can be rooted in a default-imported declaration,
-            // such as Map.Entry. Header resolution must use the same import
-            // packages as expression/type checking instead of requiring an
-            // explicit import of the outer declaration.
             for defaultPackage in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
                 candidatePaths.append(defaultPackage + path)
             }
@@ -1284,8 +1237,6 @@ extension DataFlowSemaPhase {
             return types.make(.kClassType(KClassType(argument: kc.argument, nullability: .nullable)))
         case .any, .unit, .nullableUnit, .platformUnit, .nothing:
             let nullable = types.makeNullable(typeID)
-            // If makeNullable is a no-op: either the type is already nullable (keep it)
-            // or makeNullable genuinely can't apply (e.g. an intersection) — fall back to Any?
             if nullable == typeID {
                 return types.isSubtype(types.nullableNothingType, typeID) ? typeID : types.nullableAnyType
             }
@@ -1295,7 +1246,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Maximum depth for recursive typealias expansion to prevent infinite loops.
     private static let maxAliasExpansionDepth = 32
 
     /// Maximum structural recursion depth for type resolution and substitution.
@@ -1387,13 +1337,9 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine? = nil
     ) -> TypeID {
         let typeParamSymbols = symbols.typeAliasTypeParameters(for: aliasSymbol)
-        // Non-generic aliases may still carry fully-substituted underlying type arguments
-        // through expected-type propagation, so there is nothing left to substitute here.
         if typeParamSymbols.isEmpty {
             return typeID
         }
-        // Alias is generic. Emit a diagnostic whenever the argument count does not match,
-        // even if we end up not performing any substitution.
         if !typeArgs.isEmpty && typeArgs.count != typeParamSymbols.count {
             diagnostics?.error(
                 "KSWIFTK-SEMA-0062",
@@ -1520,12 +1466,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Substitute a type argument, preserving use-site projections through expansion.
-    /// - `.invariant(T)` in the RHS: replace with the full `TypeArg` from the use-site
-    ///   (e.g., `Foo<out String>` expands `Box<T>` to `Box<out String>`)
-    /// - `.out(T)` / `.in(T)` in the RHS: keep the declaration-site projection,
-    ///   substitute inner type; `.star` substitution yields `.star`
-    /// - `.star`: preserved as-is
     private func substituteArg(
         _ arg: TypeArg,
         argSubstitution: [SymbolID: TypeArg],
@@ -1536,8 +1476,6 @@ extension DataFlowSemaPhase {
     ) -> TypeArg {
         switch arg {
         case let .invariant(inner):
-            // If the inner type is a bare type parameter with a substitution,
-            // replace the entire arg with the use-site TypeArg (preserving projection).
             if case let .typeParam(tp) = types.kind(of: inner),
                let replacement = argSubstitution[tp.symbol]
             {
@@ -1558,7 +1496,6 @@ extension DataFlowSemaPhase {
             if case let .typeParam(tp) = types.kind(of: inner),
                let replacement = argSubstitution[tp.symbol]
             {
-                // Declaration-site has `.out`; if use-site is `.star`, star wins.
                 if case .star = replacement { return .star }
                 let innerType = typeArgInnerType(replacement, types: types, diagnostics: diagnostics)
                 let resolved = tp.nullability == .nullable ? applyNullability(innerType, types: types) : innerType
@@ -1612,8 +1549,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Resolve a nested type reference (e.g. `Char.Companion`) inside a builtin
-    /// type's synthetic class symbol when normal nominal lookup fails.
     private func resolveBuiltinClassNestedType(
         path: [InternedString],
         types: TypeSystem,

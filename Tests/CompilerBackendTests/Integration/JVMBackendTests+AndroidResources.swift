@@ -15,7 +15,7 @@ extension JVMBackendTests {
             for directory in [tools, platform, res] {
                 try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
             }
-            _ = try jvmTool("jar", ["cf", platform.appendingPathComponent("android.jar").path, "-C", res.path, "."], root: root)
+            try writeFakeAndroidJar(to: platform.appendingPathComponent("android.jar"), root: root)
             func writeTool(_ name: String, _ body: String) throws {
                 let path = tools.appendingPathComponent(name)
                 try ("#!/bin/sh\nset -eu\n" + body + "\n").write(to: path, atomically: true, encoding: .utf8)

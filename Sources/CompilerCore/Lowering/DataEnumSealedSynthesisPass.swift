@@ -82,6 +82,31 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                     existingSymbol: syntheticToString, module: module, sema: sema,
                     existingFunctionSymbols: existingFunctionSymbols, interner: ctx.interner
                 )
+                // A value class implementing an interface stays boxed as a
+                // nominal object for polymorphic dispatch. Boxed instances
+                // need the structural equals/hashCode data classes get, or
+                // == falls back to reference equality and hashCode to identity.
+                if sema.symbols.valueClassImplementsInterface(nominalSymbol.id) {
+                    let equalsName = ctx.interner.intern("equals")
+                    let syntheticEquals = sema.symbols.lookupAll(
+                        fqName: nominalSymbol.fqName + [equalsName]
+                    ).first { sema.symbols.symbol($0)?.flags.contains(.synthetic) == true }
+                    appendSyntheticDataClassEqualsIfNeeded(
+                        owner: nominalSymbol,
+                        properties: dataClassPropertySymbols(owner: nominalSymbol, symbols: sema.symbols),
+                        existingSymbol: syntheticEquals, module: module, sema: sema,
+                        existingFunctionSymbols: existingFunctionSymbols, interner: ctx.interner
+                    )
+                    let hashCodeName = ctx.interner.intern("hashCode")
+                    let syntheticHashCode = sema.symbols.lookupAll(
+                        fqName: nominalSymbol.fqName + [hashCodeName]
+                    ).first { sema.symbols.symbol($0)?.flags.contains(.synthetic) == true }
+                    appendSyntheticDataClassHashCodeIfNeeded(
+                        owner: nominalSymbol, existingSymbol: syntheticHashCode,
+                        module: module, sema: sema,
+                        existingFunctionSymbols: existingFunctionSymbols, interner: ctx.interner
+                    )
+                }
             }
             if nominalSymbol.kind == .annotationClass {
                 synthesizeAnnotationHelpers(
@@ -185,17 +210,11 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             }
         }
 
-        // User-defined enum entries are backed by global variables, but
-        // synthetic entries have no globals — so we inline the ordinal.
         rewriteSyntheticEnumEntryRefs(module: module, sema: sema)
 
         module.recordLowering(Self.name)
     }
 
-    /// Boxing in generated annotation factories can call an enum name helper
-    /// even when the enum's bundled source nominal was omitted from KIR dumps.
-    /// Preserve that dependency using the emitted calls, including factories
-    /// that have no corresponding expression in the user's source AST.
     private func appendEnumNominalsForReferencedNameHelpers(
         module: KIRModule,
         sema: SemaModule,
@@ -230,7 +249,6 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             else { continue }
             let helperName = NameMangler.enumOrdinalToNameHelperName(for: symbol, interner: interner)
             guard referencedHelpers.contains(helperName) else { continue }
-            // Imported helpers already have a body in the producer's object.
             let hasExternalHelper = sema.symbols.lookupAll(fqName: symbol.fqName + [helperName]).contains {
                 sema.symbols.externalLinkNameIfKnown(for: $0) != nil
             }
@@ -253,18 +271,12 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         let checksExprTypes: Bool
     }
 
-    /// Bundled source declarations are omitted from consumer KIR, but their
-    /// source-backed nominal identity is still required by enum helper bodies.
-    /// A single combined pass over the binding maps records which enums are
-    /// referenced instead of rescanning each map once per enum.
     private func appendReferencedBundledEnumNominalsIfNeeded(
         module: KIRModule,
         sema: SemaModule,
         interner: StringInterner
     ) {
         let specs: [BundledEnumSpec] = [
-            // An annotation's nested enum still needs ordinary name/entries
-            // helpers when its bundled source file is omitted from consumer KIR.
             BundledEnumSpec(
                 pathSegments: ["kotlinx", "serialization", "EncodeDefault", "Mode"],
                 requiresSourceBacked: true,
@@ -300,9 +312,6 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                 companionMemberNames: ["entries", "valueOf"],
                 checksExprTypes: true
             ),
-            // KUU-1364: nested `KParameter.Kind` — `p.kind` produces a
-            // Kind-typed expression without referencing a member symbol, so
-            // checksExprTypes must treat the type itself as a reference.
             BundledEnumSpec(
                 pathSegments: ["kotlin", "reflect", "KParameter", "Kind"],
                 requiresSourceBacked: true,
@@ -444,7 +453,6 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             else {
                 continue
             }
-            // The sorted sibling list is computed once per enum, not per entry.
             let siblings = sema.symbols.declaredChildren(of: parentSymbol)
                 .filter { id in
                     guard let s = sema.symbols.symbol(id) else { return false }
@@ -469,8 +477,6 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                     continue
                 }
                 changed = true
-                // Replace the symbolRef with a raw ordinal int literal,
-                // matching how all other enum synthesis paths represent entries.
                 newBody.append(.constValue(result: result, value: .intLiteral(Int64(ordinal))))
             }
             if changed {
@@ -534,10 +540,6 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             existingFunctionSymbols: existingFunctionSymbols,
             interner: ctx.interner
         )
-        // valueOf and the `entries$get` helper live on the companion
-        // (Color.valueOf). The synthetic `entries` property itself is owned
-        // by the enum class (KUU-3544); EnumEntriesLoweringPass resolves this
-        // getter through its companion fallback.
         let valueOfOwner: SemanticSymbol = if let companionSymbol = sema.symbols.companionObjectSymbolIfKnown(for: nominalSymbol.id),
                                               let companionSym = sema.symbols.symbol(companionSymbol)
         {
@@ -675,7 +677,6 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         }
     }
 
-    /// Returns the primary-constructor data properties of a data class, sorted by constructor order.
     func dataClassPropertySymbols(owner: SemanticSymbol, symbols: SymbolTable) -> [SemanticSymbol] {
         let primaryConstructorParamNames: [InternedString] = primaryConstructorSymbol(owner: owner, symbols: symbols)
             .flatMap { constructor in
@@ -901,7 +902,6 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             .compactMap { symbols.symbol($0) }
             .filter { symbols.enumOwnerSymbol(for: $0) == owner.id }
             .sorted(by: {
-                // Source-backed entries have precise declaration ranges.
                 let lhsDeclOffset = $0.declSite?.start.offset
                 let rhsDeclOffset = $1.declSite?.start.offset
                 if let lhsDeclOffset, let rhsDeclOffset, lhsDeclOffset != rhsDeclOffset {
@@ -910,8 +910,6 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                 if (lhsDeclOffset == nil) != (rhsDeclOffset == nil) {
                     return lhsDeclOffset != nil
                 }
-                // Imported library entries have no source declaration range;
-                // their metadata field offsets preserve declaration order.
                 let lhsFieldOffset = fieldOffsets[$0.id] ?? Int.max
                 let rhsFieldOffset = fieldOffsets[$1.id] ?? Int.max
                 if lhsFieldOffset != rhsFieldOffset {
@@ -986,8 +984,6 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         params: [KIRParameter],
         body: [KIRInstruction]
     ) {
-        // Preserve the generic receiver contract collected for source-backed data
-        // class members when the lowering body is synthesized with erased KIR types.
         let effectiveSignature: FunctionSignature = if
             signature.classTypeParameterCount == 0,
             let existingSignature = sema.symbols.functionSignature(for: functionSymbol),

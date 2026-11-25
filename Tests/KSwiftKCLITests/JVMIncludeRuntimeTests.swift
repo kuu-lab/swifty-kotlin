@@ -98,11 +98,17 @@ struct JVMIncludeRuntimeTests {
         #expect(result.stderr.isEmpty)
     }
 
-    @Test(arguments: ["executable", "class", "dex", "apk"])
+    @Test(arguments: ["executable", "class"])
     func requiresJarEmission(mode: String) {
-        #expect(throws: CLIParseError.incompatibleStdlibOptions("-include-runtime requires --emit jar")) {
+        #expect(throws: CLIParseError.incompatibleStdlibOptions("-include-runtime requires --emit jar, dex or apk")) {
             try CLIParser.parse(args: ["-include-runtime", "--emit", mode, "main.kt"])
         }
+    }
+
+    /// Android apps package the runtime into their dex files.
+    @Test(arguments: ["dex", "apk"])
+    func allowsAndroidEmission(mode: String) throws {
+        #expect(try CLIParser.parse(args: ["-include-runtime", "--emit", mode, "main.kt"]).includeJVMRuntime)
     }
 }
 #endif

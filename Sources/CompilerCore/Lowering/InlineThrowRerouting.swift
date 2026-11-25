@@ -12,20 +12,6 @@
 /// still reaches the caller's catch dispatch -- the pre-existing instructions
 /// immediately following this splice point in the caller body.
 enum InlineThrowRerouting {
-    /// - `callerThrownResult`: the caller's exception slot -- the same slot the
-    ///   original call site's throw-aware wrapping feeds the catch dispatch
-    ///   from. `nil` means the call site is unprotected: the expansion passes
-    ///   through unchanged and no label is allocated.
-    /// - Local catch: an instruction whose `thrownResult` is already set (the
-    ///   callee's own try/catch) keeps that route; rerouting it again would
-    ///   steal the throw from the callee-local handler.
-    /// - Finally guard: instructions between `.beginFinallyGuard` and the
-    ///   matching `.endFinallyGuard` already have their throws claimed by the
-    ///   guard's own dispatch and pass through untouched.
-    /// - `throwDispatchLabel`: every rerouted throw jumps to this label,
-    ///   emitted immediately after the expansion. By default it comes from
-    ///   the caller cursor. An expansion still being assembled can supply a
-    ///   scratch `dispatchLabel`, which must pass through final relocation.
     static func rerouteUnprotectedThrows(
         in instructions: [KIRInstruction],
         callerThrownResult: KIRExprID?,
@@ -47,9 +33,6 @@ enum InlineThrowRerouting {
         )
     }
 
-    /// Use when splicing a lambda in place of a call that already has
-    /// throw-aware follow-up instructions (for example `jumpIfNotNull` into
-    /// the inline function's own catch handler).
     static func routeUnprotectedThrowsToSlot(
         in instructions: [KIRInstruction],
         thrownSlot: KIRExprID?

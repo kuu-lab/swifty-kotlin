@@ -9,6 +9,7 @@ private struct AnnotationTargetResolutionContext {
     var hasInferredBodies = false
     var enclosingFQName: [InternedString] = []
     var lexicalEnclosingFQNames: [[InternedString]] = []
+    var localTypeParameters: [InternedString: SymbolID] = [:]
 
     func within(_ owner: [InternedString]) -> Self {
         var nested = self
@@ -48,8 +49,6 @@ extension DataFlowSemaPhase {
                    symbols.symbol($0)?.kind == .constructor && symbols.parentSymbol(for: $0) == owner
                }), let signature = symbols.functionSignature(for: constructor),
                index < signature.parameterTypes.count {
-                // The call signature stores a vararg's element type, but its
-                // source parameter type is the same array as the property.
                 let parameterType = parameter.isVararg
                     ? symbols.propertyType(for: propertySymbol) ?? signature.parameterTypes[index]
                     : signature.parameterTypes[index]
@@ -71,8 +70,6 @@ extension DataFlowSemaPhase {
                           for: annotationSymbol, symbols: symbols, filesByID: filesByID, interner: interner
                       ), targets.contains("PROPERTY")
                 else { return false }
-                // Kotlin's default primary-constructor site prefers the value
-                // parameter when both VALUE_PARAMETER and PROPERTY apply.
                 if annotation.useSiteTarget == nil && targets.contains("VALUE_PARAMETER") { return false }
                 if let usage = annotation.usageID, let symbol = symbols.symbol(annotationSymbol) {
                     resolvedNames[usage] = symbol.fqName.map(interner.resolve).joined(separator: ".")
@@ -94,8 +91,6 @@ extension DataFlowSemaPhase {
                 sourceFileID: file.fileID, sourceFile: file, sourceManager: sourceManager,
                 interner: interner, symbols: symbols, diagnostics: diagnostics
             )
-            // Registration now runs after headers, so preserve the exact
-            // classifier even for qualified relative names and nested aliases.
             let records = symbols.annotations(for: propertySymbol).map { annotation in
                 MetadataAnnotationRecord(
                     annotationFQName: annotation.usageID.flatMap { resolvedNames[$0] } ?? annotation.annotationFQName,
@@ -200,10 +195,6 @@ extension DataFlowSemaPhase {
                   let owner = symbols.symbol(symbol) else { return nil }
             return (decl.range, owner.fqName)
         }
-        // Type references embedded in body expressions (local declarations,
-        // casts, explicit type arguments, object-literal supertypes, local
-        // functions) are not reachable from the declaration walk; validate
-        // their annotations with the same enclosing-decl context.
         validateBodyEmbeddedTypeAnnotations(
             ast: ast, owners: owners, types: types, bindings: bindings,
             symbols: symbols, diagnostics: diagnostics, interner: interner,
@@ -258,8 +249,6 @@ extension DataFlowSemaPhase {
                 if let usageID = annotation.usageID, !seenAnnotationUsages.insert(usageID).inserted {
                     continue
                 }
-                // Register before body inference and worker creation, retaining
-                // the existing diagnostic-name and severity suppression policy.
                 if let symbolID = resolveAnnotationSymbol(
                     named: annotation.name, in: file, symbols: symbols, interner: interner,
                     types: types, enclosingFQName: resolutionContext.enclosingFQName,
@@ -287,7 +276,7 @@ extension DataFlowSemaPhase {
     /// concatenations unsuppressed even though annotation metadata folds them.
     private func concatenatedExpressionAnnotationArguments(_ annotation: AnnotationNode) -> Set<Int> {
         guard let tokens = annotation.constructionTokens,
-              let opening = tokens.firstIndex(where: { $0.kind == .symbol(.lParen) }) else { return [] }
+              let opening = AnnotationParsingSupport.constructionArgumentListStart(in: tokens, name: annotation.name) else { return [] }
         var concatenated: Set<Int> = []
         var argument = 0
         var paren = 1
@@ -396,9 +385,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Mirrors the `validateTypeAnnotationTargets(typeRefID:)` descent so the
-    /// caller can cheaply skip expressions whose type references contain no
-    /// `.annotated` node (which the validator would no-op on anyway).
     private func typeRefContainsAnnotations(_ typeRefID: TypeRefID, arena: ASTArena) -> Bool {
         guard let typeRef = arena.typeRef(typeRefID) else {
             return false
@@ -480,7 +466,12 @@ extension DataFlowSemaPhase {
         if let ownerSymbol {
             resolutionContext.enclosingFQName = Array(ownerSymbol.fqName.dropLast())
         }
-        let memberResolutionContext = resolutionContext.within(ownerSymbol?.fqName ?? [])
+        var memberResolutionContext = resolutionContext.within(ownerSymbol?.fqName ?? [])
+        if let symbolID {
+            memberResolutionContext.localTypeParameters = localTypeParameters(
+                for: symbolID, symbols: symbols, types: resolutionContext.types
+            )
+        }
 
         let isJvmRecord = decl.annotations.contains { annotation in
             guard let annotationID = resolveAnnotationSymbol(
@@ -538,8 +529,6 @@ extension DataFlowSemaPhase {
            resolutionContext.propertyValidator.accessorUsesBackingField(property.getter)
                || resolutionContext.propertyValidator.accessorUsesBackingField(property.setter)
         {
-            // A local named `field` can shadow the accessor's backing field.
-            // Reuse the post-inference target pass to inspect resolved bindings.
             bindings.deferAnnotationTargets(declID, lexicalEnclosingFQNames: resolutionContext.lexicalEnclosingFQNames)
             return
         }
@@ -825,12 +814,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Validates annotations on a value parameter, mapping use-site targets to the
-    /// appropriate `AnnotationUsageSite` rather than blindly using `.valueParameter`.
-    ///
-    /// Kotlin allows `@field:Anno`, `@get:Anno`, `@set:Anno`, `@param:Anno`, and
-    /// `@setparam:Anno` on primary-constructor parameters. Each must be validated
-    /// against the corresponding target kind, not the `VALUE_PARAMETER` target.
     private func validateValueParamAnnotations(
         param: ValueParamDecl,
         ownerDecl: Decl,
@@ -934,7 +917,6 @@ extension DataFlowSemaPhase {
     ) {
         guard annotations.count > 1 else { return }
 
-        // A property and its accessors are separate annotation sites.
         var seenUseSitesByAnnotation: [SymbolID: Set<String>] = [:]
         for annotation in annotations {
             guard let annotationSymbolID = resolveAnnotationSymbol(
@@ -953,6 +935,7 @@ extension DataFlowSemaPhase {
             guard seenUseSitesByAnnotation[annotationSymbolID, default: []].insert(useSiteTarget).inserted else {
                 let isRepeatable = symbols.annotations(for: annotationSymbolID).contains {
                     KnownCompilerAnnotation.repeatable.matches($0.annotationFQName)
+                        || KnownCompilerAnnotation.jvmRepeatable.matches($0.annotationFQName)
                 }
                 if !isRepeatable {
                     diagnostics.error(
@@ -978,6 +961,7 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         filesByID: [Int32: ASTFile],
         resolutionContext: AnnotationTargetResolutionContext,
+        ast: ASTModule? = nil,
         isTopLevel: Bool = false
     ) {
         guard let annotationSymbolID = resolveAnnotationSymbol(
@@ -1004,6 +988,27 @@ extension DataFlowSemaPhase {
                 )
             }
             return
+        }
+
+        if resolutionContext.jvmTarget != nil,
+           annotationSymbol.fqName.map({ interner.resolve($0) }).joined(separator: ".") == KnownCompilerAnnotation.jvmSynchronized.qualifiedName {
+            let synchronizedSite: Bool
+            switch site {
+            case .function, .getter, .setter:
+                synchronizedSite = true
+            default:
+                synchronizedSite = false
+            }
+            if synchronizedSite,
+               let owner = symbols.lookup(fqName: resolutionContext.enclosingFQName),
+               symbols.symbol(owner)?.kind == .interface {
+                diagnostics.error(
+                    "KSWIFTK-SEMA-ANNOTATION-TARGET",
+                    "'@Synchronized' annotation cannot be used on interface members.",
+                    range: annotation.constructionTokens?.first?.range ?? ownerRange
+                )
+                return
+            }
         }
 
         if case .getter = site,
@@ -1081,6 +1086,19 @@ extension DataFlowSemaPhase {
             return
         }
 
+        if case .type = site {
+            validateTypeAnnotationTypeArguments(
+                annotation: annotation,
+                annotationSymbolID: annotationSymbolID,
+                file: file,
+                ast: ast,
+                symbols: symbols,
+                diagnostics: diagnostics,
+                interner: interner,
+                resolutionContext: resolutionContext
+            )
+        }
+
         let expectRefinementFQName = ["kotlin", "experimental", "ExpectRefinement"].map {
             interner.intern($0)
         }
@@ -1093,6 +1111,182 @@ extension DataFlowSemaPhase {
                 range: ownerRange
             )
         }
+    }
+
+    private func localTypeParameters(
+        for symbolID: SymbolID,
+        symbols: SymbolTable,
+        types: TypeSystem
+    ) -> [InternedString: SymbolID] {
+        var chain: [SymbolID] = []
+        var current: SymbolID? = symbolID
+        while let id = current {
+            chain.append(id)
+            current = symbols.parentSymbol(for: id)
+        }
+        var result: [InternedString: SymbolID] = [:]
+        func add(_ parameter: SymbolID) {
+            guard let name = symbols.symbol(parameter)?.name else { return }
+            result[name] = parameter
+        }
+        func isNominalBoundary(_ id: SymbolID) -> Bool {
+            guard let symbol = symbols.symbol(id) else { return false }
+            if symbol.flags.contains(.localDeclSynthetic) { return false }
+            switch symbol.kind {
+            case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
+                return true
+            default:
+                return false
+            }
+        }
+        func addTypeParameters(of id: SymbolID) {
+            for parameter in types.nominalTypeParameterSymbols(for: id) { add(parameter) }
+            if symbols.symbol(id)?.kind == .typeAlias {
+                for parameter in symbols.typeAliasTypeParameters(for: id) { add(parameter) }
+            }
+            if let signature = symbols.functionSignature(for: id) {
+                for parameter in signature.typeParameterSymbols { add(parameter) }
+            }
+        }
+        guard let first = chain.first else { return result }
+        addTypeParameters(of: first)
+        var child = first
+        var index = 1
+        while index < chain.count {
+            let parent = chain[index]
+            let childCapturesParent = isNominalBoundary(child)
+                ? symbols.symbol(child)?.flags.contains(.innerClass) == true
+                : true
+            if !childCapturesParent { break }
+            addTypeParameters(of: parent)
+            child = parent
+            index += 1
+        }
+        return result
+    }
+
+    private func validateTypeAnnotationTypeArguments(
+        annotation: AnnotationNode,
+        annotationSymbolID: SymbolID,
+        file: ASTFile,
+        ast: ASTModule?,
+        symbols: SymbolTable,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        resolutionContext: AnnotationTargetResolutionContext
+    ) {
+        guard let ast, let tokens = annotation.constructionTokens, !tokens.isEmpty else { return }
+        let nameTokenCount = AnnotationParsingSupport.qualifiedNameTokenCount(for: annotation.name)
+        let typeArgumentsStart = min(nameTokenCount, tokens.count)
+        guard typeArgumentsStart < tokens.count,
+              tokens[typeArgumentsStart].kind == .symbol(.lessThan),
+              let typeArgumentsEnd = AnnotationParsingSupport.endOfTypeArguments(in: tokens, at: typeArgumentsStart)
+        else { return }
+
+        let inner = Array(tokens[(typeArgumentsStart + 1)..<(typeArgumentsEnd - 1)])
+        let arguments = splitAnnotationTypeArguments(inner)
+        let typeConstructorSymbolID = resolveAnnotationSymbol(
+            named: annotation.name,
+            in: file,
+            symbols: symbols,
+            interner: interner,
+            types: resolutionContext.types,
+            enclosingFQName: resolutionContext.enclosingFQName,
+            lexicalEnclosingFQNames: resolutionContext.lexicalEnclosingFQNames,
+            expandTypeAliases: false
+        ) ?? annotationSymbolID
+        let expectedCount: Int
+        if symbols.symbol(typeConstructorSymbolID)?.kind == .typeAlias {
+            expectedCount = symbols.typeAliasTypeParameters(for: typeConstructorSymbolID).count
+        } else {
+            expectedCount = resolutionContext.types.nominalTypeParameterSymbols(for: typeConstructorSymbolID).count
+        }
+        if arguments.count != expectedCount {
+            diagnostics.error(
+                "KSWIFTK-SEMA-0495",
+                "Type argument count mismatch for annotation class \(annotation.name): expected \(expectedCount), got \(arguments.count).",
+                range: tokens[typeArgumentsStart].range
+            )
+        }
+
+        for argument in arguments {
+            var argumentTokens = argument
+            if let first = argumentTokens.first,
+               first.kind == .keyword(.in) || first.kind == .softKeyword(.out)
+            {
+                argumentTokens.removeFirst()
+            }
+            if argumentTokens.count == 1, argumentTokens[0].kind == .symbol(.star) { continue }
+            guard !argumentTokens.isEmpty,
+                  let parsed = TypeRefParserCore.parseTypeRefPrefix(
+                      ArraySlice(argumentTokens),
+                      interner: interner,
+                      astArena: ast.arena,
+                      options: .declaration,
+                      diagnostics: diagnostics
+                  ),
+                  parsed.consumed == argumentTokens.count
+            else {
+                diagnostics.error(
+                    "KSWIFTK-SEMA-0495",
+                    "Invalid type argument for annotation class \(annotation.name).",
+                    range: argument.first?.range
+                )
+                continue
+            }
+            _ = resolveTypeRef(
+                parsed.ref,
+                ast: ast,
+                symbols: symbols,
+                types: resolutionContext.types,
+                interner: interner,
+                sourceManager: resolutionContext.sourceManager,
+                localTypeParameters: resolutionContext.localTypeParameters,
+                relativeOwnerFQName: resolutionContext.enclosingFQName,
+                currentPackageFQName: file.packageFQName,
+                imports: file.imports,
+                diagnostics: diagnostics,
+                usageRange: tokens[typeArgumentsStart].range
+            )
+        }
+    }
+
+    private func splitAnnotationTypeArguments(_ tokens: [Token]) -> [[Token]] {
+        var result: [[Token]] = []
+        var current: [Token] = []
+        var angleDepth = 0
+        var parenDepth = 0
+        var bracketDepth = 0
+        var braceDepth = 0
+        var templateDepth = 0
+        for token in tokens {
+            let kind = token.kind
+            let topLevel = angleDepth == 0 && parenDepth == 0 && bracketDepth == 0 && braceDepth == 0 && templateDepth == 0
+            if topLevel, kind == .symbol(.comma) {
+                result.append(current)
+                current = []
+                continue
+            }
+            current.append(token)
+            let inExpressionGroup = parenDepth > 0 || bracketDepth > 0 || braceDepth > 0 || templateDepth > 0
+            if !inExpressionGroup {
+                if kind == .symbol(.lessThan) { angleDepth += 1 }
+                else if kind == .symbol(.greaterThan) { angleDepth = max(0, angleDepth - 1) }
+            }
+            switch kind {
+            case .symbol(.lParen): parenDepth += 1
+            case .symbol(.rParen): parenDepth = max(0, parenDepth - 1)
+            case .symbol(.lBracket): bracketDepth += 1
+            case .symbol(.rBracket): bracketDepth = max(0, bracketDepth - 1)
+            case .symbol(.lBrace): braceDepth += 1
+            case .symbol(.rBrace): braceDepth = max(0, braceDepth - 1)
+            case .templateExprStart: templateDepth += 1
+            case .templateExprEnd: templateDepth = max(0, templateDepth - 1)
+            default: break
+            }
+        }
+        if !current.isEmpty { result.append(current) }
+        return result
     }
 
     private func isExpectDeclaration(_ decl: Decl?) -> Bool {
@@ -1316,7 +1510,9 @@ extension DataFlowSemaPhase {
         case .typeParameter:
             return allowedTargets.contains("TYPE_PARAMETER")
         case .constructorPropertyParameter:
-            return !allowedTargets.isDisjoint(with: ["VALUE_PARAMETER", "PROPERTY", "FIELD"])
+            var applicableTargets: Set<String> = ["VALUE_PARAMETER", "PROPERTY", "FIELD"]
+            if isAnnotationClassDecl(decl) { applicableTargets.remove("FIELD") }
+            return !allowedTargets.isDisjoint(with: applicableTargets)
         case .enumEntry:
             return allowedTargets.contains("FIELD") || allowedTargets.contains("CLASS")
         case let .property(explicitUseSiteTarget):
@@ -1344,8 +1540,7 @@ extension DataFlowSemaPhase {
             }
             return allowedTargets.contains("FIELD")
         case .paramField:
-            // Constructor parameter backing field — always has a backing field
-            // (val/var params always generate a field), so skip PropertyDecl guard.
+            guard !isAnnotationClassDecl(decl) else { return false }
             return allowedTargets.contains("FIELD")
         case .delegate:
             guard let propertySymbol,
@@ -1438,6 +1633,11 @@ extension DataFlowSemaPhase {
         return propertyDecl
     }
 
+    private func isAnnotationClassDecl(_ decl: Decl?) -> Bool {
+        guard case let .classDecl(classDecl)? = decl else { return false }
+        return classDecl.modifiers.contains(.annotationClass)
+    }
+
     private func propertyAllowsFieldTarget(
         _ propertyDecl: PropertyDecl,
         symbol: SymbolID?,
@@ -1459,8 +1659,6 @@ extension DataFlowSemaPhase {
             guard let backingField else { return false }
             return bindings.identifierSymbol(for: expression) == backingField
         }
-        // Storage follows accessor semantics, independently of whether the
-        // initializer appears here, in an init block, or in a constructor.
         return !validator.accessorHasBody(propertyDecl.getter)
             || (propertyDecl.isVar && !validator.accessorHasBody(propertyDecl.setter))
             || validator.accessorUsesBackingField(propertyDecl.getter, isBackingFieldReference: usesBackingField)
@@ -1480,8 +1678,6 @@ extension DataFlowSemaPhase {
         case getter
         case setter
         case field
-        /// Like `.field` but applies to a constructor parameter's backing field —
-        /// always valid for `FIELD` target without requiring a `PropertyDecl`.
         case paramField
         case delegate
         case file
@@ -1622,7 +1818,8 @@ private extension DataFlowSemaPhase {
                     diagnostics: diagnostics,
                     interner: interner,
                     filesByID: filesByID,
-                    resolutionContext: resolutionContext
+                    resolutionContext: resolutionContext,
+                    ast: ast
                 )
             }
             validateTypeAnnotationTargets(typeRefID: base, ownerRange: ownerRange, file: file, ast: ast, symbols: symbols, diagnostics: diagnostics, interner: interner, filesByID: filesByID, resolutionContext: resolutionContext)

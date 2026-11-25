@@ -1,12 +1,4 @@
-import RuntimeABI
-
 extension KIRLoweringDriver {
-    /// Synthesizes KIR bodies for `@Serializable` classes:
-    ///   - `Companion.serializer()` returning a real `$serializer` instance
-    ///   - `$serializer.<init>()`
-    ///   - `$serializer.descriptor` (`ClassSerialDescriptorBuilder` + `SerialDescriptorImpl`)
-    ///   - `$serializer.serialize(encoder, value)`
-    ///   - `$serializer.deserialize(decoder)`
     func synthesizeSerializationMembers(
         classDecl: ClassDecl,
         classSymbol: SymbolID,
@@ -20,7 +12,6 @@ extension KIRLoweringDriver {
 
         var companionMemberDecls: [KIRDeclID] = []
 
-        // 1. Companion serializer() method
         if let serializerSym = info.companionSerializerMethod,
            arena.function(for: serializerSym) == nil,
            let signature = sema.symbols.functionSignature(for: serializerSym)
@@ -89,8 +80,6 @@ extension KIRLoweringDriver {
             extraDecls.append(declID)
         }
 
-        // If KotlinxSerializationPlugin synthesized a Companion not present in AST,
-        // emit its KIRGlobal + KIRNominalType so Companion.serializer() resolves at link time.
         if let compID = info.companionObjectSymbol, classDecl.companionObject == nil {
             let compType = sema.types.make(.classType(ClassType(
                 classSymbol: compID,
@@ -109,7 +98,6 @@ extension KIRLoweringDriver {
             ))
         }
 
-        // 2. $serializer nested class & its members
         if let genClass = info.generatedSerializerClass {
             var genMembers: [KIRDeclID] = []
 
@@ -250,8 +238,6 @@ extension KIRLoweringDriver {
         instructions.append(.returnValue(serializerResult))
         return true
     }
-
-    // MARK: - $serializer Member Emitters
 
     private func emitSerializerDescriptorGetter(
         getterSymbol: SymbolID,
@@ -726,8 +712,6 @@ extension KIRLoweringDriver {
         )
         return arena.appendDecl(.function(kirFunc))
     }
-
-    // MARK: - Descriptor & Primitive Helpers
 
     private func lookupInitConstructor(
         on classSymbol: SymbolID,

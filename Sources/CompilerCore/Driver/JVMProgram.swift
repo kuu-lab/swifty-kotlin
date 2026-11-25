@@ -1,5 +1,3 @@
-/// Typed, stack-neutral JVM IR. Each value has a fixed local slot; branches
-/// have empty operand stacks, allowing deterministic verifier frames.
 public enum JVMValueType: Hashable, Sendable {
     case int, long, float, double, boolean, byte, short, char, uint, ulong, ubyte, ushort, string, unit
     case unsignedArray(PrimitiveType, nullable: Bool)
@@ -22,9 +20,10 @@ public enum JVMValueType: Hashable, Sendable {
         }
     }
     public var width: Int { self == .unit ? 0 : (self == .long || self == .ulong || self == .double ? 2 : 1) }
+    var withBoxedUnit: JVMValueType {
+        self == .unit ? .reference("kotlin/Unit", nullable: false) : self
+    }
     public var isNumeric: Bool { [.int, .long, .float, .double, .byte, .short, .char, .uint, .ulong, .ubyte, .ushort].contains(self) }
-    /// The primitive carrier used for numeric operations, without changing the
-    /// reference descriptor required by generic bounds and nullable values.
     var numericCarrier: JVMValueType? {
         if isNumeric { return self }
         return switch referenceName {
@@ -148,6 +147,7 @@ public enum JVMInstruction {
     case call(JVMFunctionReference, [JVMValue], JVMValue?)
     case invokeDynamic(name: String, descriptor: String, captures: [JVMValue], samDescriptor: String, implementation: JVMFunctionReference, instantiatedDescriptor: String, result: JVMValue)
     case allocate(String, JVMValue)
+    case initializeClass(String)
     case abandonAllocations([JVMValue])
     case foreignCall(JVMForeignMethod, receiver: JVMValue?, arguments: [JVMValue], result: JVMValue?)
     case getStatic(JVMField, JVMValue)
@@ -190,7 +190,6 @@ public struct JVMFunction {
     public var definitelyNotNullParameterSlots: Set<Int> = []
     public var instructions: [JVMInstruction]
     public var parameterNames: [String]
-    /// Java reflection names and flags in JVM descriptor order.
     public var javaParameters: [JVMMethodParameter] = []
     public var isInternal: Bool
     public var owner: String? = nil
@@ -204,10 +203,10 @@ public struct JVMFunction {
     public var typeParameters: [JVMTypeParameter] = []
     public var kotlinParameters: [JVMKotlinType] = []
     public var kotlinResult: JVMKotlinType? = nil
-    /// The indexed Boolean value parameter is true after any normal return.
     public var normalReturnConditionParameter: Int? = nil
     public var kotlinReceiver: JVMKotlinType? = nil
     public var isSynthetic: Bool = false
+    public var isJvmSynthetic: Bool = false
     public var isMetadataHidden: Bool = false
     public var isSuspend = false
     public var suspendValueResult: JVMSuspendValueResult? = nil
@@ -218,6 +217,7 @@ public struct JVMFunction {
     public var parameterDefaultFlags: [Bool] = []
     public var kotlinParameterOffset = 0
     public var isInline = false
+    public var isSynchronized = false
     public var callsInPlaceEffects: [Int: InvocationKind] = [:]
     public var inlineContinuation: JVMValue? = nil
     public var inlineSuspendValueResults: [String: JVMSuspendValueResult] = [:]
@@ -226,6 +226,7 @@ public struct JVMFunction {
     public var jvmName: String? = nil
     public var metadataDescriptor: String? = nil
     public var metadataParameterOffset = 0
+    public var declaredExceptions: [String] = []
     public var annotations: [JVMAnnotation] = []
     public var parameterAnnotations: [[JVMAnnotation]] = []
     public var annotationDefault: JVMAnnotationValue? = nil
@@ -268,16 +269,28 @@ public struct JVMForeignMethod: Sendable {
     public var isVarargs = false
     public var isSuspend = false
     public var isProtected = false
+    var isPackagePrivate = false
+    var isSynthetic = false
     public var annotations: [JVMAnnotation] = []
     public var annotationDefault: JVMAnnotationValue? = nil
-    // Classpath methods keep their physical descriptor until bound to a Kotlin call.
+    var parameterAnnotations: [[JVMAnnotation]] = []
     var kotlinSuspendFunction: JVMKotlinSuspendFunction?
     var genericResultParameter: (name: String, classParameterIndices: Set<Int>)?
+    var genericSignature: String?
     var kotlinOwnerResultParameter: String?
     var kotlinConstructorParameterNames: [String]?
     var kotlinCollisionSourceName: String?
     var kotlinFunction: JVMKotlinFunction?
     public var isConstructor: Bool { name == "<init>" }
+    var isHiddenByDeprecation: Bool {
+        annotations.contains { annotation in
+            guard annotation.descriptor == "Lkotlin/Deprecated;" else { return false }
+            return annotation.values.contains { name, value in
+                if name == "level", case .enumEntry("Lkotlin/DeprecationLevel;", "HIDDEN") = value { return true }
+                return false
+            }
+        }
+    }
 }
 
 public struct JVMField {
@@ -313,6 +326,7 @@ public struct JVMProperty {
     public var isGetterInline: Bool = false
     public var isSetterInline: Bool = false
     var accessesForeignField = false
+    var usesPrivateBackingField = false
 }
 
 public struct JVMRecordComponent {
@@ -350,7 +364,6 @@ public struct JVMClass {
     public var isFileFacade = false
     public var sourceFileName: String? = nil
     public var emitMetadata = true
-    // The bundled JVM runtime can supply this compiler-generated compatibility class.
     package var isRuntimeFallback = false
     public var isObject = false
     public var isCompanion = false
@@ -387,7 +400,6 @@ public struct JVMExceptionHandler {
     public let type: String?
 }
 
-/// Source types retained independently of JVM erasure for Kotlin consumers.
 public indirect enum JVMKotlinType {
     case named(String, [JVMKotlinTypeArgument], nullable: Bool)
     case parameter(Int, nullable: Bool, definitelyNotNull: Bool)
@@ -433,7 +445,6 @@ public struct JVMTypeAlias {
     public var annotations: [JVMAnnotation] = []
 }
 
-/// Reference value classes return raw storage synchronously and boxed values on resume.
 public struct JVMSuspendValueResult {
     public let boxed: JVMValueType
     public let underlying: JVMValueType

@@ -112,6 +112,33 @@ fun viaMemberRun(): Int {
     return m
 }
 
+fun viaShadowedCustomExactlyOnce(): Int {
+    var r: Int
+    once {
+        r = 11
+        val r = 10
+    }
+    return r
+}
+
+fun viaShadowedMemberAlso(): Int {
+    var s: Int
+    "world".also {
+        s = 7
+        val s = 10
+    }
+    return s
+}
+
+fun viaShadowedMemberLet(): Int {
+    var l: Int
+    "hello".let {
+        l = it.length
+        val l = 10
+    }
+    return l
+}
+
 fun main() {
     println(read { it + 42 })
     println(readBufferObject { array, start, end -> array + end - start })
@@ -124,4 +151,7 @@ fun main() {
     println(viaMemberApply())
     println(viaMemberAlso())
     println(viaMemberRun())
+    println(viaShadowedCustomExactlyOnce())
+    println(viaShadowedMemberAlso())
+    println(viaShadowedMemberLet())
 }

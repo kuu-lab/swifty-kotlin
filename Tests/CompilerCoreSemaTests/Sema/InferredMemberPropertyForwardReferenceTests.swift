@@ -361,5 +361,45 @@ struct InferredMemberPropertyForwardReferenceTests {
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
+
+    @Test(arguments: [true, false])
+    func safeCallElvisGetterPropertyPublishesTypeForEarlierReader(consumerFirst: Bool) throws {
+        // Wikipedia testkitchen's `StreamConfig.curationFilter` derives its type
+        // from `?.` reads plus an Elvis fallback. The member precheck must
+        // publish that inferred getter type before an earlier-processed reader
+        // calls `test` on it; otherwise the read keeps the `Any?` placeholder
+        // and member lookup reports KSWIFTK-SEMA-0024.
+        let consumer = """
+        package consumer
+        import lib.*
+        class CurationController {
+            fun shouldProduceEvent(event: Event, streamConfig: StreamConfig): Boolean {
+                if (!streamConfig.hasCurationFilter()) return true
+                return streamConfig.curationFilter.test(event)
+            }
+        }
+        """
+        let lib = """
+        package lib
+        class Event
+        class CurationFilter {
+            fun test(event: Event): Boolean = true
+        }
+        class StreamConfig {
+            var producerConfig: ProducerConfig? = null
+            fun hasCurationFilter(): Boolean = producerConfig?.metricsPlatformClientConfig?.curationFilter != null
+            val curationFilter get() = producerConfig?.metricsPlatformClientConfig?.curationFilter ?: CurationFilter()
+            class ProducerConfig { var metricsPlatformClientConfig: MetricsPlatformClientConfig? = null }
+            class MetricsPlatformClientConfig { var curationFilter: CurationFilter? = null }
+        }
+        """
+        let sources = consumerFirst ? [consumer, lib] : [lib, consumer]
+        let ctx = makeContextFromSources(sources)
+        try runSema(ctx)
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected the earlier reader to see the inferred curationFilter type, got: \(ctx.diagnostics.diagnostics)"
+        )
+    }
 }
 #endif

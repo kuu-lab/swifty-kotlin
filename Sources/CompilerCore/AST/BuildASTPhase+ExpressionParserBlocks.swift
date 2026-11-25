@@ -66,7 +66,6 @@ extension BuildASTPhase.ExpressionParser {
                 undoFailedSpeculation()
                 statement = parseLocalDeclFromSlice(group)
             }
-            // A failed `val`/`var` keeps its diagnostics, as in parseStatementGroup.
             if statement == nil, BuildASTPhase.startsLocalPropertyDeclaration(strippedGroup),
                let speculationCheckpoint, (diagnostics?.checkpoint() ?? 0) > speculationCheckpoint
             {
@@ -108,8 +107,6 @@ extension BuildASTPhase.ExpressionParser {
             case .localDecl, .localAssign, .memberAssign, .safeMemberAssign, .indexedAssign, .compoundAssign, .indexedCompoundAssign, .memberCompoundAssign, .localFunDecl, .localNominalDecl:
                 break
             default:
-                // A compound-assign desugar block (`this += x`, `a?.b += x`)
-                // is a statement, not the block's value.
                 if !astArena.isCallResultCompoundAssignmentBlock(lastID) {
                     trailingExpr = statements.removeLast()
                 }
@@ -208,14 +205,10 @@ extension BuildASTPhase.ExpressionParser {
         var templateDepth = 0
         var unpairedTopLevelIfCount = 0
         for (idx, token) in tokens.enumerated() {
-            // `${ ... }` interiors are expression context: a newline, `;`, or
-            // `if`/`else` inside one never marks a statement boundary here.
             let isTopLevel = parenDepth == 0 && bracketDepth == 0 && braceDepth == 0
                 && templateDepth == 0
             if isTopLevel {
                 if token.kind == .symbol(.semicolon) {
-                    // Kotlin permits a statement separator between an unbraced
-                    // if branch and its else branch, including across a newline.
                     if unpairedTopLevelIfCount > 0,
                        tokens.indices.contains(idx + 1),
                        tokens[idx + 1].kind == .keyword(.else)

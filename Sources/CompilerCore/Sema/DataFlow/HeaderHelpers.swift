@@ -106,8 +106,6 @@ extension DataFlowSemaPhase {
         }
 
         let records = astAnnotations.map { ann in
-            // Persist producer-side resolution so imported metadata does not
-            // depend on the consumer having the producer's imports or AST.
             let resolvedFQName: String?
             if ann.name.contains(".") {
                 resolvedFQName = ann.name
@@ -149,7 +147,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // Register @Suppress ranges so matching diagnostics are filtered.
         guard let declRange else {
             return
         }
@@ -334,8 +331,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Assigns the compilation module FQN to every source symbol that has a source file but no
-    /// explicit module (library imports set their own module FQN during `loadImportedLibrarySymbols`).
     func assignCompilationModuleFQNames(
         symbols: SymbolTable,
         moduleName: String,
@@ -376,15 +371,11 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Computes the effective visibility for a class's constructor (primary or
-    /// secondary) and whether that visibility was inherited from the owning
-    /// class/object rather than written explicitly on the constructor itself.
     ///
     /// The distinction matters for `VisibilityChecker`: an inherited-private
     /// constructor's true accessibility ceiling is the owner's own visibility
     /// (e.g. file scope for a top-level `private class`), whereas an explicitly
     /// `private constructor` stays scoped to the class body/companion even when
-    /// its owner happens to carry the same visibility keyword.
     func constructorVisibilityDetail(
         explicitModifiers: Modifiers,
         classKind: SymbolKind,
@@ -498,8 +489,6 @@ extension DataFlowSemaPhase {
         guard !existing.isEmpty else {
             return false
         }
-        // Package symbols share the FQ-name table but live in a separate namespace,
-        // so they never conflict with declarations in that package.
         if newKind == .package {
             return false
         }
@@ -541,14 +530,6 @@ extension DataFlowSemaPhase {
                 !(isCallableLike($0.kind) || $0.kind == .property || isNominalTypeSymbol($0.kind))
             }
         }
-        // KSP-CAP-006: a class/interface/object/enum/annotation-class/typealias
-        // may coexist with a top-level function of the same name (e.g. `class
-        // Random` + `fun Random(seed: Long): Random`, the real kotlin-stdlib
-        // factory-function idiom). This mirrors the tolerance already granted
-        // above for the opposite declaration order (callable declared first),
-        // so the check no longer depends on which of the two comes first in
-        // source order. A second nominal type (or a property) of the same name
-        // still conflicts.
         if isNominalTypeSymbol(newKind) {
             return nonPackageExisting.contains { !isCallableLike($0.kind) }
         }
@@ -562,11 +543,6 @@ extension DataFlowSemaPhase {
         kind == .function || kind == .constructor
     }
 
-    /// Checks for a duplicate declaration conflict at the given fully-qualified name and
-    /// emits the standard KSWIFTK-SEMA-0001 diagnostic when a conflict is detected.
-    /// An `expect` and `actual` pair sharing the same FQ name is NOT a conflict.
-    /// This includes `actual typealias` implementations of expect classes and
-    /// annotation classes, such as `kotlin.concurrent.Volatile`.
     func checkAndReportDuplicateDeclaration(
         newKind: SymbolKind,
         fqName: [InternedString],
@@ -587,11 +563,6 @@ extension DataFlowSemaPhase {
         for symbol in additionalExisting where symbol.fqName == fqName {
             existingByID[symbol.id] = symbol
         }
-        // A source declaration may replace a declaration imported from a
-        // dependency with the same FQName. Only declarations already owned by
-        // this compilation participate in SEMA-0001 redeclaration checks.
-        // Imported library symbols carry `.importedLibrary`; bundled source
-        // declarations do not, so same-module source duplicates still fail.
         let existing = existingByID.values.filter { existing in
             guard !existing.flags.contains(.importedLibrary) else { return false }
             // Callable parameters are indexed under `callableFQName + name`.
@@ -767,8 +738,6 @@ extension DataFlowSemaPhase {
                 return
             }
         }
-        // Kotlin data classes and data objects keep inherited final implementations
-        // of the generated Any members.
         let toStringName = interner.intern("toString")
         if symbols.symbol(ownerSymbol)?.flags.contains(.dataType) == true,
            hasInheritedFinalDataClassMember(
@@ -825,13 +794,16 @@ extension DataFlowSemaPhase {
     }
 
     /// Collects data-class and data-object generated members after superclass edges are bound.
+    /// `includeInterfaceValueClassMembers` is false for JVM targets, whose frontend synthesizes
+    /// value-class equals/hashCode itself; collecting the symbols there would shadow that path.
     func collectDataTypeGeneratedMembersAfterInheritance(
         ast: ASTModule,
         symbols: SymbolTable,
         bindings: BindingTable,
         types: TypeSystem,
         interner: StringInterner,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        includeInterfaceValueClassMembers: Bool
     ) {
         for rawDeclID in 0 ..< ast.arena.declCount {
             let declID = DeclID(rawValue: Int32(rawDeclID))
@@ -861,6 +833,18 @@ extension DataFlowSemaPhase {
             case let .objectDecl(objectDecl) where objectDecl.modifiers.contains(.data):
                 guard let symbol = bindings.declSymbols[declID],
                       let info = symbols.symbol(symbol)
+                else {
+                    continue
+                }
+                ownerSymbol = symbol
+                owner = info
+                requireDataTypeFlag = false
+            case .classDecl:
+                guard let symbol = bindings.declSymbols[declID],
+                      let info = symbols.symbol(symbol),
+                      includeInterfaceValueClassMembers,
+                      info.flags.contains(.valueType),
+                      symbols.valueClassImplementsInterface(symbol)
                 else {
                     continue
                 }
@@ -898,23 +882,23 @@ extension DataFlowSemaPhase {
                 scope: nil,
                 interner: interner
             )
-            collectSyntheticToString(
-                ownerSymbol: ownerSymbol,
-                ownerFQName: owner.fqName,
-                ownerType: ownerType,
-                requireDataTypeFlag: requireDataTypeFlag,
-                symbols: symbols,
-                types: types,
-                scope: nil,
-                interner: interner
-            )
+            // Value classes collected their synthetic toString during header
+            // collection; collecting it again here would duplicate the symbol.
+            if !owner.flags.contains(.valueType) {
+                collectSyntheticToString(
+                    ownerSymbol: ownerSymbol,
+                    ownerFQName: owner.fqName,
+                    ownerType: ownerType,
+                    requireDataTypeFlag: requireDataTypeFlag,
+                    symbols: symbols,
+                    types: types,
+                    scope: nil,
+                    interner: interner
+                )
+            }
         }
     }
 
-    /// Returns the closest member declared on a superclass in the chain
-    /// (interface supertypes do not participate) whose name, arity and — when
-    /// `returnType` is non-nil — return type match a generated member.
-    /// `private` members are invisible to the subclass and are skipped.
     private func inheritedClassMemberForGeneratedDataClassMember(
         ownerSymbol: SymbolID,
         name: InternedString,
@@ -957,7 +941,6 @@ extension DataFlowSemaPhase {
         return nil
     }
 
-    /// Returns whether the closest superclass declaration of a generated data-class member is final.
     private func hasInheritedFinalDataClassMember(
         ownerSymbol: SymbolID,
         name: InternedString,
@@ -979,12 +962,6 @@ extension DataFlowSemaPhase {
         return symbols.symbol(memberID)?.flags.contains(.finalMember) == true
     }
 
-    /// KUU-3254: a data class's generated `componentN()` must be able to
-    /// override each effective inherited member with the same name and arity.
-    /// An effectively final member, or a member whose return type is not a
-    /// supertype of the generated one, conflicts — kotlinc reports
-    /// "generated for the data class conflicts with the supertype member".
-    /// `private` members are invisible and never conflict.
     private func validateDataClassComponentNSupertypeConflicts(
         classDecl: ClassDecl,
         ast: ASTModule,
@@ -1031,9 +1008,6 @@ extension DataFlowSemaPhase {
                       let memberSignature = symbols.functionSignature(for: memberID)
                 else { continue }
 
-                // Interface members can never be final. Kotlin class members
-                // are final unless declared `open`/`abstract` or overriding
-                // without `final`.
                 let memberOwnerIsInterface = symbols.parentSymbol(for: memberID)
                     .flatMap { symbols.symbol($0) }?.kind == .interface
                 let isEffectivelyFinal = !memberOwnerIsInterface
@@ -1042,10 +1016,6 @@ extension DataFlowSemaPhase {
                             && !member.flags.contains(.openType)
                             && !member.flags.contains(.abstractType)))
                 let generatedReturn = componentReturnTypes.map { $0[index] }
-                // A type-parameter return is left unvalidated: substituting it
-                // through the supertype's type arguments is required to
-                // compare precisely and is rare enough to stay out of this
-                // check.
                 let returnTypesCompatible = generatedReturn == nil
                     || types.typeContainsAnyTypeParam(memberSignature.returnType)
                     || types.isSubtype(generatedReturn ?? types.anyType, memberSignature.returnType)
@@ -1063,9 +1033,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Returns source declarations that have the same callable shape as a
-    /// generated data-class component: no extension receiver, context
-    /// receivers, or value parameters.
     private func userDeclaredDataClassComponentNFunctions(
         named name: InternedString,
         classDecl: ClassDecl,
@@ -1084,11 +1051,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// All parameterless functions named `name` visible on the supertype
-    /// chain — classes and interfaces alike — that the generated member must
-    /// override. A declaration shadowed by a more-derived redeclaration of the
-    /// same member no longer participates: the override targets the closest
-    /// redeclaration on each path.
     private func effectiveInheritedDataClassComponentMembers(
         ownerSymbol: SymbolID,
         name: InternedString,
@@ -1129,8 +1091,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Nominal (type-argument-insensitive) strict subtype check over direct
-    /// supertypes.
     private func isNominalSubtypeOf(
         _ candidate: SymbolID,
         _ base: SymbolID,
@@ -1197,8 +1157,6 @@ extension DataFlowSemaPhase {
             fqName: equalsFQName,
             declSite: nil,
             visibility: .public,
-            // Synthesized equals replaces Any.equals in the vtable, including
-            // when the class has an explicit superclass implementation.
             flags: [.synthetic, .overrideMember]
         )
         symbols.setParentSymbol(ownerSymbol, for: funcSymbol)
@@ -1278,6 +1236,7 @@ extension DataFlowSemaPhase {
             declSite: nil,
             visibility: .public,
             flags: symbols.symbol(ownerSymbol)?.kind == .annotationClass
+                || symbols.symbol(ownerSymbol)?.flags.contains(.valueType) == true
                 ? [.synthetic, .overrideMember] : [.synthetic]
         )
         symbols.setParentSymbol(ownerSymbol, for: funcSymbol)
@@ -1321,9 +1280,6 @@ extension DataFlowSemaPhase {
         return signature.parameterTypes
     }
 
-    /// DATA-002 / STDLIB-090: Registers synthetic `componentN()` functions for each
-    /// primary constructor parameter of a data class.
-    /// `component1()` returns the first constructor property, `component2()` the second, etc.
     func collectSyntheticDataClassComponentN(
         classDecl: ClassDecl,
         ast: ASTModule,
@@ -1376,8 +1332,6 @@ extension DataFlowSemaPhase {
                 name: componentName,
                 fqName: componentFQName,
                 declSite: classDecl.range,
-                // Local class symbols are private to model their lexical scope;
-                // their generated component functions remain public in that scope.
                 visibility: ownerIsLocal
                     ? .public
                     : restrictedVisibility(symbols.symbol(ownerSymbol)?.visibility ?? .public, .public),
@@ -1438,8 +1392,6 @@ extension DataFlowSemaPhase {
         symbols.setParentSymbol(ownerSymbol, for: copySymbol)
 
         let localNamespaceFQName = copyFQName + [interner.intern("$\(copySymbol.rawValue)")]
-        // Synthetic signatures use the same lexical and import scope as the
-        // primary constructor, rather than global short-name lookup.
         let file = ast.file(for: classDecl.range.start.file)
         let parameterTypes = dataClassPrimaryConstructorParameterTypes(
             classDecl: classDecl, ownerSymbol: ownerSymbol, ownerFQName: ownerFQName,
@@ -1672,8 +1624,6 @@ extension DataFlowSemaPhase {
                 flags: typeParamFlags
             )
             typeParameterSymbols.append(typeParamSymbol)
-            // Preserve the resolved annotation identity for inference and metadata.
-            // All source nominal headers are predeclared before function headers.
             let annotationFileID = declSite?.start.file
             registerAnnotations(
                 typeParam.annotations,
@@ -1765,17 +1715,13 @@ extension DataFlowSemaPhase {
         return localTypeParameters
     }
 
-    /// Register synthetic stdlib symbols for property delegate functions so that
-    /// sema can resolve `lazy { }`, `Delegates.observable(...)`, and `Delegates.vetoable(...)`.
-    /// Also registers `kotlin.properties.Lazy<T>` and `kotlin.properties.ReadWriteProperty<T, V>`
-    /// as interface stubs so that return types are structurally correct.
-    /// These are minimal stubs: just enough for name resolution and type checking to succeed.
     func registerSyntheticDelegateStubs(
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
         bundledIndex: BundledDeclarationIndex = .empty,
-        projectsCoroutineContextIsActive: Bool = false
+        projectsCoroutineContextIsActive: Bool = false,
+        isJVMTarget: Bool = false
     ) {
         let skipStats = SyntheticStubSkipStatsCollector()
         let firstGeneratedSymbol = symbols.count
@@ -1791,7 +1737,8 @@ extension DataFlowSemaPhase {
             kotlinPropertiesPkg: kotlinPropertiesPkg,
             bundledIndex: bundledIndex,
             skipStats: skipStats,
-            projectsCoroutineContextIsActive: projectsCoroutineContextIsActive
+            projectsCoroutineContextIsActive: projectsCoroutineContextIsActive,
+            isJVMTarget: isJVMTarget
         )
 
         registerSyntheticDelegateRegistryStubs(
@@ -1811,9 +1758,6 @@ extension DataFlowSemaPhase {
         skipStats.logIfEnabled()
     }
 
-    /// Restores the TypeSystem anchors that the bootstrap registry normally
-    /// installs after importing a stdlib artifact that already serializes its
-    /// synthetic declarations and their metadata.
     func restorePrecomputedStdlibSyntheticTypeSymbols(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -1830,9 +1774,6 @@ extension DataFlowSemaPhase {
             }) else {
                 return nil
             }
-            // The TypeSystem anchors need only the imported shell's SymbolID.
-            // Keep its declaration body lazy; semantic queries load it when
-            // they need supertypes, generic bounds, layout, or members.
             return symbol
         }
 
@@ -1878,11 +1819,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Register the synthetic `kotlin.Any` and `kotlin.Annotation` built-in stubs.
-    ///
-    /// `Any` is needed as the root nominal type for default superclass binding, and
-    /// `Annotation` is the built-in supertype used by annotation classes and the
-    /// `Annotation` type name resolver.
     func registerSyntheticAnyStub(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -1910,16 +1846,10 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([anySymbol], for: annotationSymbol)
         types.setNominalDirectSupertypes([anySymbol], for: annotationSymbol)
 
-        // Register toString(), hashCode(), equals() as members of kotlin.Any so that
-        // member calls on user-defined class instances resolve instead of producing <error>.
         guard let anyInfo = symbols.symbol(anySymbol) else { return }
         let anyClassType = types.make(.classType(ClassType(
             classSymbol: anySymbol, args: [], nullability: .nonNull)))
 
-        // Kotlin/Native exposes Any's implicit public constructor in metadata,
-        // although the actual class declaration is compiler-provided rather
-        // than bundled Kotlin source. The KIR constructor path performs the
-        // object allocation; no constructor body is emitted for this symbol.
         let anyConstructorName = interner.intern("<init>")
         let anyConstructorFQName = anyInfo.fqName + [anyConstructorName]
         if symbols.lookupAll(fqName: anyConstructorFQName).isEmpty {
@@ -1943,10 +1873,6 @@ extension DataFlowSemaPhase {
                 for: constructorSymbol)
         }
 
-        // Any has only the two-word object header and is the root of the
-        // nominal allocation hierarchy. Keep its layout empty so the existing
-        // Any member fallback remains responsible for toString/hashCode/equals
-        // dispatch while constructors still receive a stable nominal type ID.
         if symbols.nominalLayout(for: anySymbol) == nil {
             symbols.setNominalLayout(
                 NominalLayout(
@@ -2074,10 +2000,6 @@ extension DataFlowSemaPhase {
                 guard let symbol = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
                     guard let symbol = symbols.symbol(symbolID),
                           symbol.kind == .function,
-                          // Symbols loaded from a precompiled stdlib library artifact
-                          // (`--stdlib-library`, used by Scripts/diff_kotlinc.sh) carry
-                          // both `.importedLibrary` and `.synthetic`, so only exclude
-                          // synthetic placeholders that are NOT backed by an import.
                           !symbol.flags.contains(.synthetic) || symbol.flags.contains(.importedLibrary),
                           let signature = symbols.functionSignature(for: symbolID)
                     else {
@@ -2187,8 +2109,6 @@ extension DataFlowSemaPhase {
         types.numberClassSymbol = numberSymbol
     }
 
-    /// Resolve the source-backed or imported kotlin.Unit object while
-    /// preserving the compiler's builtin Unit value representation.
     func resolveUnitClassSymbol(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -2231,10 +2151,6 @@ extension DataFlowSemaPhase {
     ) -> SymbolID {
         let internedName = interner.intern(name)
         let fqName = pkg + [internedName]
-        // A factory function may share the class FQName (for example,
-        // `kotlin.concurrent.AtomicIntArray(Int)` or a Kotlin `class Foo` +
-        // `fun Foo(...)` pair). Prefer an existing nominal class over the
-        // first callable that shadows it.
         if let existing = symbols.lookupAll(fqName: fqName).first(where: { id in
             symbols.symbol(id)?.kind == .class
         }) {

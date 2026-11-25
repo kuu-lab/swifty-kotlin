@@ -49,6 +49,50 @@ struct CollectionHOFExpectedTypeBackpropTests {
     }
 
     @Test(arguments: [false, true])
+    func firstNotNullTransformInfersNestedGenericFromExpectedResult(useLibrary: Bool) throws {
+        if useLibrary { TestStdlibCache.shared.prepare() }
+        let source = """
+        class Scope(val id: String = "") {
+            val linkedScopes = ArrayList<Scope>()
+        }
+
+        fun <T> resolveFromContextOrNull(scope: Scope, lookupParent: Boolean = true): T? = null
+        fun <T> resolveFromContext(scope: Scope, lookupParent: Boolean = true): T = TODO()
+        fun flatten(scopes: List<Scope>): Set<Scope> = scopes.toSet()
+
+        fun <T> findOrNull(scope: Scope): T? {
+            val hasSingleLink = scope.linkedScopes.size == 1
+            val parentScopes = if (!hasSingleLink && scope.linkedScopes.size > 1) flatten(scope.linkedScopes) else scope.linkedScopes
+            return parentScopes.firstNotNullOfOrNull {
+                resolveFromContextOrNull(it, lookupParent = hasSingleLink)
+            }
+        }
+
+        fun <T> findNonNull(scope: Scope): T {
+            val parentScopes = scope.linkedScopes
+            return parentScopes.firstNotNullOf {
+                resolveFromContext(it, lookupParent = true)
+            }
+        }
+
+        fun findConcrete(scope: Scope): String? {
+            return scope.linkedScopes.firstNotNullOfOrNull {
+                resolveFromContextOrNull(it, lookupParent = true)
+            }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let library = useLibrary ? try #require(CompilerOptions.defaultStdlibLibraryPath) : nil
+            let ctx = makeCompilationContext(inputs: [path], stdlibLibraryPath: library)
+            try runSema(ctx)
+            #expect(
+                !ctx.diagnostics.hasError,
+                "Expected firstNotNullOf/OrNull transform type arguments to back-propagate from the enclosing expected type, got: \(ctx.diagnostics.diagnostics)"
+            )
+        }
+    }
+
+    @Test(arguments: [false, true])
     func unconstrainedFlatMapTransformStillRejects(useLibrary: Bool) throws {
         if useLibrary { TestStdlibCache.shared.prepare() }
         let source = """

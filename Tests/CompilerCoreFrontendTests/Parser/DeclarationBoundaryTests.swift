@@ -288,6 +288,19 @@ struct DeclarationBoundaryTests {
     }
 
     @Test
+    func unterminatedParameterGroupDoesNotAbsorbFollowingProperty() {
+        let parsed = parse("""
+        fun broken(x: Int
+        val next: Int = 1
+        fun after() = 2
+        """)
+
+        #expect(parsed.diagnostics.diagnostics.map(\.code) == ["KSWIFTK-PARSE-0004"])
+        #expect(nodeCount(in: parsed.arena, kind: .funDecl) == 2)
+        #expect(nodeCount(in: parsed.arena, kind: .propertyDecl) == 1)
+    }
+
+    @Test
     func multilineDefaultLambdaIssueReproductionParses() {
         let parsed = parse("""
         fun topRun(value: Int = run {

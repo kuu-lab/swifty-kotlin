@@ -4,11 +4,6 @@ import kotlin.comparisons.compareValuesUnchecked
 import kotlin.internal.__kk_list_index_of
 import kotlin.internal.__kk_list_lastIndexOf
 
-// MIGRATION-COL-005
-// Migration source:
-//   Sources/Runtime/RuntimeCollectionHOF.swift  (first / last / find / findLast / indexOf*)
-//   Sources/Runtime/RuntimeCollections.swift    (firstOrNull / lastOrNull / single / singleOrNull, contains / containsAll)
-
 public fun <T> List<T>.first(): T {
     if (size == 0) throw NoSuchElementException("List is empty.")
     return this[0]

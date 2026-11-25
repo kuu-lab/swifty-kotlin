@@ -2,9 +2,6 @@ package kotlin.text
 
 typealias Charset = java.nio.charset.Charset
 
-// Reads map to java.nio.charset.StandardCharsets static fields (see
-// prepareTextLibrary). UTF_32* have no StandardCharsets field, so they lower
-// to Charset.forName("UTF-32...").
 object Charsets {
     val UTF_8: Charset get() = null!!
     val UTF_16: Charset get() = null!!

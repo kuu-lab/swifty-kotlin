@@ -1,24 +1,13 @@
 import Foundation
-import RuntimeABI
 
 
 final class RuntimeRegexBox {
     let regex: NSRegularExpression
     let pattern: String
-    /// When true, input strings are NFC-normalized before matching to emulate
-    /// Kotlin's `RegexOption.CANON_EQ` (Unicode canonical equivalence).
-    /// The pattern itself is also NFC-normalized at creation time.
     let canonEq: Bool
-    /// The Kotlin `RegexOption` ordinals this regex was created with.
-    /// Used by the `Regex.options` property to reconstruct the original
-    /// `Set<RegexOption>`.
     let optionOrdinals: Set<Int>
 
-    /// Guards the lazily-initialized caches below. `regex`/`pattern`/`optionOrdinals`
-    /// are immutable, so each cached value is computed once and stays stable.
     private let cacheLock = NSLock()
-    /// Outer optional tracks whether computation ran; the inner value is the
-    /// compiled anchored regex or nil when wrapping the pattern fails to compile.
     private var cachedAnchoredRegex: NSRegularExpression??
     private var cachedNamedGroupNames: [String]?
 
@@ -52,8 +41,6 @@ final class RuntimeRegexBox {
         return compiled
     }
 
-    /// Named capture-group declarations in `pattern`, extracted once on first use
-    /// instead of rescanning the pattern for every produced MatchResult.
     var namedGroupNames: [String] {
         cacheLock.lock()
         defer { cacheLock.unlock() }
@@ -85,20 +72,12 @@ private func registerRuntimeMatchResult(_ match: RuntimeMatchResultBox) -> Int {
 final class RuntimeMatchResultBox {
     let value: String
     let groupValues: [String]
-    /// Per-group MatchGroup data (index 0 = entire match, 1.. = capture groups).
     let groups: [RuntimeMatchGroupBox?]
-    /// Named capture group name -> group index mapping.
     let namedGroups: [String: Int]
-    /// Names declared by the pattern, including groups that did not participate.
     let namedGroupNames: Set<String>
-    /// The original input string (for next() iteration).
     let inputString: String?
-    /// UTF-16 length of `inputString`, cached so the next() chain does not
-    /// recompute it on every step. Unused when `inputString` is nil.
     let inputUTF16Count: Int
-    /// The end position in the input string where this match ended (UTF-16 offset, for next() iteration).
     let matchEndOffset: Int
-    /// The regex box used to produce this match (for next() iteration).
     weak var regexBox: RuntimeRegexBox?
 
     init(
@@ -124,7 +103,6 @@ final class RuntimeMatchResultBox {
     }
 }
 
-/// Stores the matched value and the range as (start, endInclusive) indices.
 final class RuntimeMatchGroupBox {
     let value: String
     let rangeStart: Int
@@ -138,20 +116,8 @@ final class RuntimeMatchGroupBox {
 }
 
 
-/// Fixed ICU/NSRegularExpression pattern that never matches any input.
-///
-/// Used when a user-supplied pattern fails to compile: Kotlin's `Regex` constructor
-/// throws `PatternSyntaxException` on invalid syntax; this runtime substitutes a
-/// never-match regex so subsequent `find`/`matches` calls return empty results
-/// instead of crashing.
-///
-/// `(?!)` is a negative lookahead with an empty sub-expression — always
-/// unsatisfiable. It is independent of user input and is valid POSIX/ICU regex
-/// syntax, so `NSRegularExpression` compilation cannot fail for this literal.
 private enum RegexNeverMatch {
     static let expression: NSRegularExpression = {
-        // "(?!)" is a static literal independent of user input — provably valid
-        // ICU/POSIX syntax. If this fails, Foundation itself is broken.
         guard let expression = try? NSRegularExpression(pattern: "(?!)", options: []) else {
             preconditionFailure("KSwiftK: static never-match regex (?!) failed to compile — Foundation/ICU broken")
         }
@@ -178,10 +144,6 @@ private func regexStringFromFlat(
     return runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
 }
 
-/// NSString-backed ICU-domain string for a sequence of source UTF-16 units.
-/// The units are escape-pair encoded (see `regexEncodeICUUnits`) so isolated
-/// surrogates and marker-space scalars survive platforms that repair
-/// unpaired surrogates at string-construction time (KUU-4319 / KUU-4590).
 private func regexICUString(_ units: [UInt16]) -> String {
     let icuUnits = regexEncodeICUUnits(units).icuUnits
     guard !icuUnits.isEmpty else { return "" }
@@ -206,13 +168,7 @@ private func regexICUString(_ units: [UInt16]) -> String {
 /// ranges can be reported in Kotlin UTF-16 offsets.
 struct RegexICUEncodedUnits {
     var icuUnits: [UInt16]
-    /// icuToUnit[i] = the source unit index whose encoded scalars cover ICU
-    /// offset i...i+1? No: it maps an ICU *boundary* offset to a unit-domain
-    /// boundary index (length == icuUnits.count + 1). A boundary inside an
-    /// escape pair maps to the pair's source unit index.
     var icuToUnit: [Int]
-    /// unitToIcu[u] = the ICU offset where source unit u's encoding starts
-    /// (length == units.count + 1).
     var unitToIcu: [Int]
 }
 
@@ -229,7 +185,6 @@ func regexEncodeICUUnits(_ units: [UInt16]) -> RegexICUEncodedUnits {
         unitToIcu.append(icuUnits.count)
         if (0xD800 ... 0xDBFF).contains(u), i + 1 < units.count,
            (0xDC00 ... 0xDFFF).contains(Int(units[i + 1])) {
-            // Well-formed supplementary pair stays verbatim (2 units).
             icuToUnit.append(i)
             icuUnits.append(UInt16(u))
             i += 1
@@ -264,8 +219,6 @@ func regexEncodeICUUnits(_ units: [UInt16]) -> RegexICUEncodedUnits {
     return RegexICUEncodedUnits(icuUnits: icuUnits, icuToUnit: icuToUnit, unitToIcu: unitToIcu)
 }
 
-/// Inverse of `regexEncodeICUUnits` for strings produced in the ICU domain
-/// (match values, replacement results).
 func regexDecodeICUUnits(_ icuUnits: [UInt16]) -> [UInt16] {
     var units: [UInt16] = []
     units.reserveCapacity(icuUnits.count)
@@ -290,8 +243,6 @@ func regexDecodeICUUnits(_ icuUnits: [UInt16]) -> [UInt16] {
     return units
 }
 
-/// UTF-16 code units of an ICU-domain string, decoded back through the
-/// escape-pair encoding (see `regexEncodeICUUnits`).
 func regexUTF16Units(ofICUString value: String) -> [UInt16] {
     let nsString = value as NSString
     var units = [unichar](repeating: 0, count: nsString.length)
@@ -299,10 +250,6 @@ func regexUTF16Units(ofICUString value: String) -> [UInt16] {
     return regexDecodeICUUnits(units)
 }
 
-/// A regex match subject: `icu`/`icuUnits` is the escape-pair-encoded string
-/// handed to `NSRegularExpression`, `units` holds the Kotlin UTF-16 code
-/// units reported to the Kotlin API, and the index maps translate match
-/// ranges between the two domains.
 struct RegexSubject {
     let icu: String
     let icuUnits: [UInt16]
@@ -325,16 +272,11 @@ struct RegexSubject {
         self.init(units: runtimeKotlinStringUTF16CodeUnits(encoded))
     }
 
-    /// Rebuilds a subject from an ICU-domain string (stored match state):
-    /// the pairs are decoded and both maps recomputed.
     init(icuSubject icu: String) {
         let nsString = icu as NSString
         var rawUnits = [unichar](repeating: 0, count: nsString.length)
         nsString.getCharacters(&rawUnits, range: NSRange(location: 0, length: nsString.length))
         let decoded = regexDecodeICUUnits(rawUnits)
-        // Re-encoding is deterministic and reproduces `rawUnits` for any
-        // string this subject produced; for exotic strings `icu` becomes
-        // the canonical re-encoded form, which is equivalent for matching.
         let encoded = regexEncodeICUUnits(decoded)
         units = decoded
         icuUnits = encoded.icuUnits
@@ -345,21 +287,15 @@ struct RegexSubject {
         }
     }
 
-    /// Maps an ICU-domain match range to the Kotlin unit-domain range.
-    /// A boundary inside an escape pair maps to the pair's source unit.
     func unitRange(_ icuRange: NSRange) -> Range<Int>? {
         guard icuRange.location != NSNotFound, icuRange.location >= 0, icuRange.length >= 0,
               icuRange.location + icuRange.length <= icuUnits.count else { return nil }
         let start = icuToUnit[icuRange.location]
         var end = icuToUnit[icuRange.location + icuRange.length]
-        // A match ending on a pair's marker scalar means the pair's unit is
-        // fully covered; the boundary map already gives unit index + 1 there
-        // only when the offset lands after the whole pair.
         if end < start { end = start }
         return start ..< end
     }
 
-    /// ICU-domain offset where the given unit-domain boundary lands.
     func icuLocation(forUnitOffset offset: Int) -> Int {
         unitToIcu[offset]
     }
@@ -394,9 +330,6 @@ private enum RuntimeRegexCompileError: Error {
 /// every position. `NSRegularExpression` rejects an empty pattern string, so
 /// the equivalent non-capturing empty group `(?:)` is compiled instead.
 private func compileRegexPattern(_ pattern: String, options: NSRegularExpression.Options) throws -> NSRegularExpression {
-    // `NSRegularExpression` rejects an empty pattern, and a `(?U)`-only pattern
-    // translates to empty as well, so fall back to the equivalent
-    // non-capturing empty group `(?:)` in both cases.
     let source = pattern.isEmpty ? "(?:)" : pattern
     // KUU-4169: reject \p{...} property names java.util.regex would reject.
     // ICU resolves names case-insensitively and knows aliases and property
@@ -418,8 +351,6 @@ private func compileRegexPattern(_ pattern: String, options: NSRegularExpression
         unixLinesInitially: options.contains(.useUnixLineSeparators)
     )
     let effective = translated.isEmpty ? "(?:)" : translated
-    // The translated pattern is still Kotlin marker-encoded; hand ICU the
-    // UTF-16 form so literal surrogate characters in the pattern survive.
     return try NSRegularExpression(pattern: regexICUString(runtimeKotlinStringUTF16CodeUnits(effective)), options: options)
 }
 
@@ -448,14 +379,10 @@ private let unicodeNonWordBoundaryPattern =
 /// the JVM meaning of the class (surrogates match every negated class whose
 /// positive does not contain them; marker scalars are handled the same way).
 private func regexMarkerSpaceWrapEmission(_ emitted: String, negated: Bool) -> String {
-    // Emissions already written for the encoded domain (surrogate
-    // property/block rewrites, `\\P{C}` which correctly excludes surrogates).
     if emitted.hasPrefix("(?:") || emitted.hasPrefix("\\uE800") || emitted.hasPrefix("\\uE801") || emitted == "\\P{C}" {
         return emitted
     }
     let pairs = "|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801]"
-    // `\\p{Any}`/assigned-only properties: markers and surrogates are inside
-    // the match set whether the escape is negated or not.
     if emitted == "\\p{Any}" || emitted == "\\p{Assigned}" {
         return "(?:[\(emitted)--[\\uE000-\\uE801]]\(pairs))"
     }
@@ -524,7 +451,6 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
         let c = chars[index]
         if c == "\\" {
             if index + 1 < chars.count, chars[index + 1] == "Q" {
-                // \Q ... \E literal quote (an unterminated quote runs to the end).
                 var end = index + 2
                 while end < chars.count, !(chars[end] == "\\" && end + 1 < chars.count && chars[end + 1] == "E") {
                     end += 1
@@ -541,16 +467,6 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
             }
             let escape = chars[index + 1]
             if escape == "p" || escape == "P" {
-                // `\p{Name}` / `\P{Name}`: `jvmRegexICUPropertyReplacement`
-                // mirrors `java.util.regex.Pattern#family` — POSIX names get
-                // their ASCII expansions outside `(?U)`, `gc=`/`general_category=`
-                // values resolve through `forProperty`, `Is*` names follow the
-                // JVM's three-stage dispatch, and names ICU cannot express
-                // (`LD`, `L1`, `all`, `javaAlphabetic`, `javaLowerCase`,
-                // `InSurrogates_Area`, ...) are rewritten to the ICU
-                // expression with the same match set (KUU-4295). Emitted as
-                // `[...]` classes the expansions are safe in both contexts:
-                // nested class inside `[...]`, plain class outside.
                 if index + 2 < chars.count, chars[index + 2] == "{" {
                     var end = index + 3
                     while end < chars.count, chars[end] != "}" { end += 1 }
@@ -558,14 +474,6 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
                         let name = String(chars[(index + 3)..<end])
                         let negated = escape == "P"
                         if classDepth > 0 {
-                            // Sequence alternatives are not expressible as a
-                            // class member: `(?:...)`- and multi-atom-form
-                            // replacements (`\uE800[...]`) keep the
-                            // surrogate-space name verbatim for
-                            // regexMarkerSpaceClassReplacement to model, while
-                            // `[...]`-form and `\p{...}`-form replacements are
-                            // valid members and are emitted canonicalized
-                            // (`\p{javaAlphabetic}` -> `\p{Alphabetic}`).
                             if let replacement = jvmRegexICUPropertyReplacement(
                                 name, negated: negated, unicodeClasses: unicodeClasses
                             ), replacement.hasPrefix("[") || replacement.hasPrefix("\\p{") || replacement.hasPrefix("\\P{") {
@@ -583,13 +491,6 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
                         continue
                     }
                 } else if index + 2 < chars.count, "LMNPSZC".contains(chars[index + 2]) {
-                    // Unbraced single-letter categories `\pL` / `\PL`: the JVM
-                    // accepts exactly one of L M N P S Z C (the major
-                    // general-category codes) without braces; ICU requires
-                    // them, so the letter is wrapped — through the same
-                    // surrogate-aware property dispatch (`\pC` covers Cs).
-                    // Other letters (`\pU`, `\pl`) are invalid on the JVM too
-                    // and pass through to fail compilation the same way.
                     let letter = String(chars[index + 2])
                     let negated = escape == "P"
                     if classDepth > 0 {
@@ -609,16 +510,11 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
                     index += 3
                     continue
                 }
-                // Not a `\p{...}` construct (unterminated or missing braces):
-                // copy the two-character escape verbatim.
                 out.append(contentsOf: chars[index...index + 1])
                 index += 2
                 continue
             }
             if classDepth > 0 {
-                // Negated shorthand classes inside `[...]`: a nested negated
-                // class excluding the marker range — it cannot match half a
-                // pair; the class post-processor adds the pair alternatives.
                 switch escape {
                 case "w": out.append(unicodeClasses ? "\\w" : "[a-zA-Z0-9_]")
                 case "W": out.append(unicodeClasses ? "[^\\w]" : "[^a-zA-Z0-9_]")
@@ -641,8 +537,6 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
                 case "b": out.append(unicodeClasses ? unicodeWordBoundaryPattern : asciiWordBoundaryPattern)
                 case "B": out.append(unicodeClasses ? unicodeNonWordBoundaryPattern : asciiNonWordBoundaryPattern)
                 case "u":
-                    // \uXXXX scalar escape: rewrite values the encoded
-                    // subject carries as escape pairs (KUU-4590).
                     var end = index + 2
                     var value = 0
                     var digits = 0
@@ -658,8 +552,6 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
                     }
                     out.append(contentsOf: chars[index...index + 1])
                 case "x":
-                    // \x{...}: the braced form can name surrogate / marker
-                    // scalars; \xHH is limited to Latin-1.
                     if index + 2 < chars.count, chars[index + 2] == "{" {
                         var end = index + 3
                         var value = 0
@@ -708,9 +600,6 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
                 out.append(c)
                 index += 1
                 if classDepth == 0, let start = outerClassStart {
-                    // Marker-space rewrite (KUU-4590): class members covering
-                    // E000...E801 or D800...DFFF must be expressed as
-                    // escape-pair sequences in the encoded ICU domain.
                     let emitted = String(out[out.index(out.startIndex, offsetBy: start)...])
                     if let rewritten = regexMarkerSpaceClassReplacement(emitted) {
                         out = String(out.prefix(start)) + rewritten
@@ -728,17 +617,11 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
             outerClassStart = out.count
             out.append(c)
             index += 1
-            // A leading `^` and a leading `]` are literal members of the class.
             if index < chars.count, chars[index] == "^" { out.append("^"); index += 1 }
             if index < chars.count, chars[index] == "]" { out.append("]"); index += 1 }
             continue
         }
         if c == "." {
-            // `.` in the encoded domain must match a surrogate or marker-space
-            // unit as ONE pair (KUU-4590). The scalar arm carries the JVM's
-            // line-terminator rule: default `.` excludes \n \r \u0085
-            // \u2028 \u2029, (?d) UNIX_LINES leaves only \n, (?s)
-            // DOT_MATCHES_ALL excludes nothing.
             if dotAll {
                 out.append("(?:[^\\uE000-\\uE801]|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801])")
             } else if unixLines {
@@ -750,9 +633,6 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
             continue
         }
         if c == ")" {
-            // Closing a group restores the character-class mode saved when the
-            // group opened; bare (?flags) directives set the mode only until
-            // this point on the JVM.
             if let saved = savedModes.popLast() {
                 (unicodeClasses, dotAll, unixLines) = saved
             }
@@ -789,9 +669,6 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
                 && (chars[cursor] == ")" || chars[cursor] == ":")
             if isFlagGroup {
                 let terminator = chars[cursor]
-                // `(?flags:` opens a scoped group: save the enclosing mode, then
-                // apply this group's own flags. A bare `(?flags)` retargets the
-                // mode in place (the enclosing `)` restores it via savedModes).
                 if terminator == ":" { savedModes.append((unicodeClasses, dotAll, unixLines)) }
                 if onUnicode { unicodeClasses = true }
                 if offUnicode { unicodeClasses = false }
@@ -800,7 +677,6 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
                 if onUnixLines { unixLines = true }
                 if offUnixLines { unixLines = false }
                 if on.isEmpty && off.isEmpty {
-                    // `(?U)` vanishes entirely; `(?U:...)` becomes a plain non-capturing group.
                     if terminator == ":" { out.append("(?:") }
                 } else {
                     out.append("(?")
@@ -811,9 +687,6 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
                 index = cursor + 1
                 continue
             }
-            // Some other `(?...)` construct (lookaround, named group, atomic
-            // group, ...): it still opens a group on the JVM, so flag
-            // directives inside it end at its `)`.
             savedModes.append((unicodeClasses, dotAll, unixLines))
             out.append(c)
             index += 1
@@ -831,13 +704,6 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
     return out
 }
 
-/// Removes the `java.util.regex` inline flags that ICU does not know about.
-///
-/// Kept for existing callers/tests as a narrow wrapper around
-/// ``translateJavaPatternForICU`` with Unicode character classes enabled
-/// initially: predefined class escapes pass through verbatim, so for patterns
-/// without `\b` / `\B` / `(?-U)` this reduces to the historical flag-stripping
-/// behaviour.
 func stripJavaOnlyInlineFlags(_ pattern: String) -> String {
     translateJavaPatternForICU(pattern, unicodeCharacterClassesInitially: true)
 }
@@ -887,8 +753,6 @@ private enum RegexEvaluationLimits {
     }
 }
 
-/// Detector for `(?<name>...)` named-group declarations, compiled once
-/// process-wide — ICU compilation dwarfs the cost of the pattern scan itself.
 private enum RegexNamedGroupDetector {
     static let expression: NSRegularExpression? = try? NSRegularExpression(
         pattern: "\\(\\?<([a-zA-Z_][a-zA-Z0-9_]*)>",
@@ -1037,9 +901,6 @@ private func namedCaptureGroupIndexMap(
     return namedGroups
 }
 
-/// Kotlin/Java replacement strings expand `${name}` (and `${n}`) to capture
-/// groups. `NSRegularExpression.replacementString` only understands `$n`, so
-/// rewrite the Kotlin form before handing the template to Foundation.
 private func expandNamedGroupReferences(in template: String, namedGroups: [String: Int]) -> String {
     var result = ""
     var index = template.startIndex
@@ -1080,9 +941,6 @@ private func replacementGroupIndex(_ name: String, namedGroups: [String: Int]) -
     return namedGroups[name]
 }
 
-/// `template` is the Kotlin-encoded replacement text; the result is the
-/// ICU-domain string `NSRegularExpression` produces (recover its UTF-16 units
-/// with `regexUTF16Units(ofICUString:)` before storing or returning it).
 private func applyRegexReplacementTemplate(
     _ regex: NSRegularExpression,
     match: NSTextCheckingResult,
@@ -1096,11 +954,7 @@ private func applyRegexReplacementTemplate(
     return regex.replacementString(for: match, in: subject.icu, offset: 0, template: icuTemplate)
 }
 
-/// `inputUTF16Count` may carry the caller's already-computed UTF-16 length of
-/// the subject; omitting it recomputes it once here.
 private func makeMatchResult(from result: NSTextCheckingResult, in subject: RegexSubject, regexBox: RuntimeRegexBox? = nil, inputUTF16Count: Int? = nil) -> RuntimeMatchResultBox {
-    // NSRegularExpression only returns matches whose ranges are within the matched string,
-    // so this conversion should never fail in practice.
     func groupString(_ range: NSRange) -> String? {
         guard let unitRange = subject.unitRange(range) else { return nil }
         return runtimeKotlinStringFromUTF16CodeUnits(
@@ -1118,7 +972,6 @@ private func makeMatchResult(from result: NSTextCheckingResult, in subject: Rege
         let groupRange = result.range(at: i)
         if let groupValue = groupString(groupRange), let unitRange = subject.unitRange(groupRange) {
             groupValues.append(groupValue)
-            // Reported indexes are Kotlin UTF-16 offsets into the subject.
             let startIndex = unitRange.lowerBound
             let endIndex = unitRange.upperBound - 1
             groups.append(RuntimeMatchGroupBox(value: groupValue, rangeStart: startIndex, rangeEnd: endIndex))
@@ -1542,20 +1395,19 @@ private let kRegexOptionOrdinalCanonEq  = 6
 /// to match.
 private func nsRegexOption(fromOrdinal ordinal: Int) -> NSRegularExpression.Options {
     switch ordinal {
-    case 0: return .caseInsensitive          // IGNORE_CASE
-    case 1: return .anchorsMatchLines        // MULTILINE
-    case kRegexOptionOrdinalLiteral: return []  // LITERAL (handled via escapedPattern)
-    case 3: return .useUnixLineSeparators        // UNIX_LINES
-    case 4: return .allowCommentsAndWhitespace   // COMMENTS
-    case 5: return .dotMatchesLineSeparators     // DOT_MATCHES_ALL
-    case kRegexOptionOrdinalCanonEq: return []   // CANON_EQ (handled via NFC normalization)
+    case 0: return .caseInsensitive
+    case 1: return .anchorsMatchLines
+    case kRegexOptionOrdinalLiteral: return []
+    case 3: return .useUnixLineSeparators
+    case 4: return .allowCommentsAndWhitespace
+    case 5: return .dotMatchesLineSeparators
+    case kRegexOptionOrdinalCanonEq: return []
     default:
         assertionFailure("KSwiftK: unknown RegexOption ordinal \(ordinal) – compiler/runtime enum mismatch?")
         return []
     }
 }
 
-/// Returns `nil` and sets `outThrown` to an `IllegalArgumentException` on compile failure.
 private func createRegexBox(
     pattern: String,
     isLiteral: Bool,
@@ -1630,7 +1482,6 @@ private func runtimeRegexCreateWithOption(pattern: String, optionRaw: Int, outTh
 }
 
 
-/// Creates a Regex from a pattern and a `Set<RegexOption>`.
 @_cdecl("__kk_regex_create_with_options_flat")
 public func kk_regex_create_with_options_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -1726,12 +1577,6 @@ public func kk_string_toRegex_flat(
 }
 
 
-//
-// The public `Regex.pattern` / `Regex.options` / `Regex.groupNames` accessors and
-// the whole MatchResult / MatchGroup / MatchGroupCollection / Destructured API
-// live in `Sources/CompilerCore/Stdlib/kotlin/text/MatchResult.kt`. Only the raw
-// data that the Foundation match engine owns is exposed here.
-
 @_cdecl("__kk_regex_pattern")
 public func __kk_regex_pattern(_ regexRaw: Int) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return runtimeMakeUTF8StringRaw("") }
@@ -1751,14 +1596,12 @@ public func __kk_regex_option_mask(_ regexRaw: Int) -> Int {
 }
 
 
-/// Number of groups in the match, including group 0 (the entire match).
 @_cdecl("__kk_match_result_group_count")
 public func __kk_match_result_group_count(_ matchRaw: Int) -> Int {
     guard let matchResult = matchResultBoxFromRaw(matchRaw) else { return 0 }
     return matchResult.groupValues.count
 }
 
-/// Text of group [index], or the empty string when the group is absent.
 @_cdecl("__kk_match_result_group_value")
 public func __kk_match_result_group_value(_ matchRaw: Int, _ index: Int) -> Int {
     guard let matchResult = matchResultBoxFromRaw(matchRaw),
@@ -1768,21 +1611,18 @@ public func __kk_match_result_group_value(_ matchRaw: Int, _ index: Int) -> Int 
     return runtimeMakeStringRaw(matchResult.groupValues[index])
 }
 
-/// UTF-16 start offset of group [index], or -1 when the group did not participate.
 @_cdecl("__kk_match_result_group_start")
 public func __kk_match_result_group_start(_ matchRaw: Int, _ index: Int) -> Int {
     guard let group = matchResultGroup(matchRaw, index) else { return -1 }
     return group.rangeStart
 }
 
-/// UTF-16 end offset (inclusive) of group [index], or -1 when the group did not participate.
 @_cdecl("__kk_match_result_group_end")
 public func __kk_match_result_group_end(_ matchRaw: Int, _ index: Int) -> Int {
     guard let group = matchResultGroup(matchRaw, index) else { return -1 }
     return group.rangeEnd
 }
 
-/// Index of the capture group named [nameRaw], or -1 when there is no such group.
 @_cdecl("__kk_match_result_group_index_of_name")
 public func __kk_match_result_group_index_of_name(_ matchRaw: Int, _ nameRaw: Int) -> Int {
     guard let matchResult = matchResultBoxFromRaw(matchRaw),
@@ -1793,7 +1633,6 @@ public func __kk_match_result_group_index_of_name(_ matchRaw: Int, _ nameRaw: In
     return index
 }
 
-/// Whether the regex pattern declares a capture group named [nameRaw].
 @_cdecl("__kk_match_result_has_named_group")
 public func __kk_match_result_has_named_group(_ matchRaw: Int, _ nameRaw: Int) -> Int {
     guard let matchResult = matchResultBoxFromRaw(matchRaw),
@@ -1840,8 +1679,6 @@ public func __kk_match_result_next(_ matchRaw: Int) -> Int {
     let offset = matchResult.matchEndOffset + (matchResult.value.isEmpty ? 1 : 0)
     let utf16Count = matchResult.inputUTF16Count
     guard offset <= utf16Count else { return runtimeNullSentinelInt }
-    // `inputString` is the ICU-domain subject; decode the pairs and rebuild
-    // the offset maps so the unit-domain search offset lands correctly.
     let subject = RegexSubject(icuSubject: inputString)
     let icuOffset = subject.icuLocation(forUnitOffset: offset)
     let range = NSRange(location: icuOffset, length: subject.icuUnits.count - icuOffset)
@@ -1857,10 +1694,6 @@ public func __kk_match_result_next(_ matchRaw: Int) -> Int {
 }
 
 
-/// Kotlin's `fromLiteral` is `Regex(literal, RegexOption.LITERAL)`: keep the
-/// original literal as `.pattern` / `toString()`, and escape only when compiling
-/// the Foundation matcher. The first argument is the Companion receiver
-/// (ignored; companion singleton).
 @_cdecl("__kk_regex_from_literal_flat")
 public func kk_regex_from_literal_flat(
     _ companionRef: Int,
@@ -1937,23 +1770,6 @@ public func kk_string_replaceFirst_regex(
 }
 
 
-/// Uses the compiled effective pattern from `regexBox.regex.pattern` (which is
-/// already escaped for LITERAL regexes) wrapped in `\A(?:...)\z` to force a
-/// full-string match. This correctly handles:
-///
-/// - **Alternation**: `firstMatch` may find only the first alternative (e.g. "a"
-///   for pattern `a|ab`), returning a partial match. Wrapping with `\A...\z`
-///   forces the engine to match the entire input.
-/// - **MULTILINE**: `.anchorsMatchLines` makes `^`/`$` match line boundaries,
-///   not string boundaries. Using `\A`/`\z` avoids this. The option is stripped
-///   from the anchored regex so `\A`/`\z` bind to the full string.
-/// - **LITERAL**: LITERAL regexes in this runtime are compiled by passing the
-///   pre-escaped pattern (via `NSRegularExpression.escapedPattern`) to
-///   `NSRegularExpression` without `.ignoreMetacharacters`. Therefore
-///   `regexBox.regex.pattern` already holds the escaped form and can be embedded
-///   directly. `.ignoreMetacharacters` is stripped from the anchored options
-///   (it is never set in practice, but removing it defensively ensures the
-///   `\A(?:...)\z` wrapper is always parsed as regex syntax, not literal text.
 @_cdecl("__kk_regex_matches_flat")
 public func kk_regex_matches_flat(
     _ regexRaw: Int,
@@ -1978,10 +1794,6 @@ private func runtimeRegexMatches(_ regexRaw: Int, input rawInput: String) -> Int
 }
 
 
-// `MatchResult.Destructured` carries no state beyond the match it destructures,
-// so it is represented by the MatchResult object itself. `component1()`..
-// `component9()` are derived in Kotlin from the raw group values above.
-
 @_cdecl("__kk_match_result_destructured")
 public func __kk_match_result_destructured(_ matchRaw: Int) -> Int {
     guard matchResultBoxFromRaw(matchRaw) != nil else { return runtimeNullSentinelInt }
@@ -1994,15 +1806,10 @@ public func __kk_match_result_destructured_match(_ destructuredRaw: Int) -> Int 
     return destructuredRaw
 }
 
-// MARK: - Marker-space pattern rewrites (KUU-4590)
-
-/// Escaped form of one BMP scalar for use inside the translated pattern.
 private func regexMarkerScalarEscape(_ value: Int) -> String {
     String(format: "\\u%04X", value)
 }
 
-/// For a scalar atom `value` outside a class: the encoded-ICU replacement
-/// when the unit is carried as an escape pair, else nil (emit verbatim).
 private func regexMarkerSpaceScalarReplacement(_ value: Int) -> String? {
     if (0xD800 ... 0xDFFF).contains(value) {
         return "\\uE800" + regexMarkerScalarEscape(0xE000 + value - 0xD800)
@@ -2017,7 +1824,6 @@ private func regexMarkerRangeEscape(_ lo: Int, _ hi: Int) -> String {
     lo == hi ? regexMarkerScalarEscape(lo) : regexMarkerScalarEscape(lo) + "-" + regexMarkerScalarEscape(hi)
 }
 
-/// Merges a list of scalar ranges (inclusive bounds) into sorted disjoint ranges.
 private func regexMergeScalarRanges(_ ranges: [(Int, Int)]) -> [(Int, Int)] {
     var result: [(Int, Int)] = []
     for r in ranges.sorted(by: { $0.0 < $1.0 }) {
@@ -2047,23 +1853,13 @@ private func regexSubtractMarkerSpace(_ ranges: [(Int, Int)], _ space: (Int, Int
     return out
 }
 
-/// Rewrites an emitted top-level `[...]` class for the escape-pair-encoded
-/// ICU subject (KUU-4590). Members covering E000...E801 would match pair
-/// marker scalars mid-pair, and members covering D800...DFFF must match the
-/// `\uE800<marker>` sequence instead. Returns nil when the class is verbatim-
-/// safe, or when its body contains constructs this pass does not model
-/// (nested classes, `\p` forms, octal/other escapes) — the old emission is
-/// kept, matching the pre-encoding behaviour for those shapes.
 func regexMarkerSpaceClassReplacement(_ emitted: String) -> String? {
     let chars = Array(emitted)
     guard chars.count >= 2, chars.first == "[", chars.last == "]" else { return nil }
     var i = 1
     var negated = false
     if i < chars.count - 1, chars[i] == "^" { negated = true; i += 1 }
-    // A `]` immediately after `[`/`[^` is a literal member on the JVM.
     var scalarRanges: [(Int, Int)] = []
-    // Rebuilt member list for the plain class: each entry is either a literal
-    // text fragment (verbatim atom) or a scalar range needing subtraction.
     enum Member { case scalar(Int, String); case rangeSet; case nested; }
     var members: [(kind: Member, text: String, scalarRanges: [(Int, Int)])] = []
     var pendingScalar: (value: Int, text: String)?
@@ -2075,8 +1871,6 @@ func regexMarkerSpaceClassReplacement(_ emitted: String) -> String? {
         }
     }
 
-    // Parses a scalar atom at `i` and returns (value, sourceText) or nil on
-    // constructs this pass does not model.
     func parseAtom() -> (Int, String)? {
         guard i < chars.count - 1 else { return nil }
         let start = i
@@ -2117,8 +1911,6 @@ func regexMarkerSpaceClassReplacement(_ emitted: String) -> String? {
                 i = j
                 return (value, String(chars[start..<j]))
             }
-            // Single-char escapes: letter escapes with unknown set meaning
-            // bail; punctuation/other escapes denote the literal char.
             switch e {
             case "n": i += 2; return (0x0A, "\\n")
             case "t": i += 2; return (0x09, "\\t")
@@ -2137,18 +1929,12 @@ func regexMarkerSpaceClassReplacement(_ emitted: String) -> String? {
         return (c.unicodeScalars.first.map { Int($0.value) } ?? -1, String(c))
     }
 
-    // First member may be a literal `]`.
     if i < chars.count - 1, chars[i] == "]" {
         members.append((kind: .scalar(0x5D, "]"), text: "]", scalarRanges: [(0x5D, 0x5D)]))
         i += 1
     }
     while i < chars.count - 1 {
         if chars[i] == "[", i + 1 < chars.count - 1, chars[i + 1] == "^" {
-            // Nested negated class `[^...]` — emitted for \D/\S/\W and
-            // valid user input. It contributes its text (with the marker
-            // range folded into the complement so it can't match half a
-            // pair) plus full encoded-space coverage: a negated member
-            // always covers surrogates and marker scalars.
             var j = i + 2
             var bail = false
             while j < chars.count - 1, chars[j] != "]" {
@@ -2163,8 +1949,6 @@ func regexMarkerSpaceClassReplacement(_ emitted: String) -> String? {
             continue
         }
         if chars[i] == "\\", i + 1 < chars.count - 1, chars[i + 1] == "p" || chars[i + 1] == "P" {
-            // `\p{Name}` / `\P{Name}` class member: surrogate-space-aware
-            // coverage (Cs/C/Co, surrogate blocks, PUA, Any/Assigned).
             let memberNegated = chars[i + 1] == "P"
             var j = i + 2
             var name = ""
@@ -2185,25 +1969,16 @@ func regexMarkerSpaceClassReplacement(_ emitted: String) -> String? {
             if let coverage = jvmRegexMemberSpaceCoverage(name, negated: memberNegated) {
                 members.append((kind: .nested, text: coverage.text, scalarRanges: coverage.ranges))
             } else if memberNegated {
-                // `\P{Name}` for a name without surrogate-space members: its
-                // complement covers the WHOLE marker space, so both escape
-                // pairs match as units. The member text is polarity-aware:
-                // inside `[^...]` it keeps matching markers (they stay
-                // excluded); inside `[...]` it must not match half a pair.
                 members.append((kind: .nested,
                                 text: negated ? "\\P{\(name)}" : "[\\P{\(name)}--[\\uE000-\\uE801]]",
                                 scalarRanges: [(0xD800, 0xDFFF), (0xE000, 0xE801)]))
             } else {
-                // Positive names without marker-space coverage (scripts,
-                // ordinary categories, binary properties) cannot match an
-                // escape pair's scalars — keep them as a verbatim member.
                 members.append((kind: .nested, text: "\\p{\(name)}", scalarRanges: []))
             }
             i = j
             continue
         }
         if chars[i] == "-" {
-            // Range operator between two scalar atoms; otherwise a literal `-`.
             if pendingScalar != nil, i + 1 < chars.count - 1 {
                 let prev = pendingScalar!
                 let dashStart = i
@@ -2234,7 +2009,6 @@ func regexMarkerSpaceClassReplacement(_ emitted: String) -> String? {
     let covered = regexMergeScalarRanges(scalarRanges)
     let surrogateSpace = (0xD800, 0xDFFF)
     let markerSpace = (0xE000, 0xE801)
-    // Coverage of the two encoded spaces by the class's match set.
     let coveredSurrogates = negated
         ? regexSubtractAllMarkerSpace([surrogateSpace], covered)
         : regexIntersectMarkerSpace(covered, surrogateSpace)
@@ -2242,15 +2016,11 @@ func regexMarkerSpaceClassReplacement(_ emitted: String) -> String? {
         ? regexSubtractAllMarkerSpace([markerSpace], covered)
         : regexIntersectMarkerSpace(covered, markerSpace)
 
-    // If nothing in the class's match set touches marker space and it has no
-    // E000...E801 members, the emitted form is already correct.
     let hasMarkerMembers = covered.contains { $0.0 <= markerSpace.1 && $0.1 >= markerSpace.0 }
     if !negated, coveredSurrogates.isEmpty, coveredPrivate.isEmpty, !hasMarkerMembers {
         return nil
     }
 
-    // Plain class: subtract E000...E801 member coverage; add the exclusion to
-    // a negated class so markers can't be matched mid-pair.
     var plain = negated ? "^" : ""
     for m in members {
         switch m.kind {
@@ -2267,8 +2037,6 @@ func regexMarkerSpaceClassReplacement(_ emitted: String) -> String? {
     }
     if negated {
         plain += "\\uE000-\\uE801"
-        // Negated class: also exclude the already-covered members — they are
-        // still present in `plain`, which is correct for a negation.
     }
     var alts: [String] = []
     for r in regexMergeScalarRanges(coveredSurrogates) {
@@ -2280,7 +2048,6 @@ func regexMarkerSpaceClassReplacement(_ emitted: String) -> String? {
         alts.append("\\uE801[\(inner)]")
     }
     if alts.isEmpty {
-        // Only marker-space member subtraction was needed.
         return "[\(plain)]"
     }
     // `plain` can be empty when every member moved into pair alternatives
@@ -2289,8 +2056,6 @@ func regexMarkerSpaceClassReplacement(_ emitted: String) -> String? {
     return "(?:\(plainPart)\(alts.joined(separator: "|")))"
 }
 
-/// Complement helper: removes the covered ranges from `space` — used to
-/// derive which encoded-space members a negated class still matches.
 func regexSubtractAllMarkerSpace(_ spaces: [(Int, Int)], _ covered: [(Int, Int)]) -> [(Int, Int)] {
     var remaining = spaces
     for c in covered {

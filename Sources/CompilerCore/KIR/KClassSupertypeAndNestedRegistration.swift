@@ -1,15 +1,3 @@
-/// The runtime splits the '|'-joined `supertypeNameRaw` slot back into one
-/// `KType` per entry, so `KClass.supertypes` can return class + interface
-/// supertypes instead of the previous single class-name string.
-///
-/// Ordering matches kotlin-reflect: declared supertypes in source order
-/// (Kotlin requires the superclass first when one is listed), then an
-/// implicit `kotlin.Any` for interfaces and for classes whose only
-/// supertypes are interfaces.
-
-/// Returns the '|'-joined display names of every direct supertype of a
-/// nominal symbol, or nil when the type has no supertypes (kotlin.Any
-/// itself) or the symbol cannot be resolved.
 func kclassSupertypeDisplayNamesJoined(
     for symbolID: SymbolID,
     sema: SemaModule,

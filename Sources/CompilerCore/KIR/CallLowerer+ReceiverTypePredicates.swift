@@ -7,8 +7,6 @@ extension CallLowerer {
         ReceiverClassifier(sema: sema, interner: interner).isRegexLikeType(receiverType)
     }
 
-    /// Shared across `CallLowerer+MemberCalls` and `CallLowerer+Operators`;
-    /// kept `internal` to avoid exposing it beyond the `CallLowerer` extensions.
     func isSequenceLikeType(
         _ receiverType: TypeID,
         sema: SemaModule,
@@ -17,9 +15,6 @@ extension CallLowerer {
         ReceiverClassifier(sema: sema, interner: interner).isSequenceLikeType(receiverType)
     }
 
-    /// KUU-3202: a `T : Sequence` receiver erases to a real sequence object at
-    /// runtime. `isSequenceLikeType` stays exact-receiver; this bound-aware
-    /// variant lets the unresolved-member fallback reach `kk_sequence_*`.
     func isSequenceBoundTypeParameterType(
         _ receiverType: TypeID,
         sema: SemaModule,

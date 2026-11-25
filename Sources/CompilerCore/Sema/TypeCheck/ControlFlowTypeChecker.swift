@@ -39,9 +39,6 @@ final class ControlFlowTypeChecker {
         ) {
             return elementType
         }
-        // The legacy range-element fallback bypasses iterator convention
-        // lookup, so floating-point ranges may use it only after a real
-        // iterator operator was bound above.
         if !sema.bindings.isFloatingPointRangeExpr(iterableExpr),
            let elementType = driver.helpers.iterableElementType(
             for: iterableType,
@@ -77,12 +74,6 @@ final class ControlFlowTypeChecker {
         case .classType, .typeParam, .intersection:
             break
         case .primitive:
-            // Primitive receivers (e.g. `for (i in 1)`) cannot carry members,
-            // but a user extension such as `operator fun <T : Any>
-            // T?.iterator()` still applies — its nullable type-parameter
-            // receiver admits the non-null value (KUU-3583). A primitive type
-            // may still be a scalar range handle (`1..5` lowered as Int), so
-            // range-marked iterables keep their dedicated path.
             guard !sema.bindings.isRangeExpr(iterableExpr),
                   !sema.bindings.isCharRangeExpr(iterableExpr),
                   !sema.bindings.isUIntRangeExpr(iterableExpr),
@@ -96,9 +87,6 @@ final class ControlFlowTypeChecker {
             return nil
         }
 
-        // Arrays already have an indexed lowering that avoids allocating the
-        // stdlib iterator object. Leave their source-backed iterator
-        // extensions to that established path.
         if ReceiverClassifier(sema: sema, interner: interner).isArrayLikeType(nonNullIterableType) {
             return nil
         }
@@ -135,9 +123,6 @@ final class ControlFlowTypeChecker {
             if isDirectIteratorType(nonNullIterableType, sema: sema, interner: interner),
                isStdlibIteratorIdentityExtension(iteratorChosen, sema: sema, interner: interner)
             {
-                // The stdlib's Iterator<T>.iterator() is an identity
-                // extension. Keep the existing direct-iterator fast path,
-                // while allowing more-specific user extensions to bind above.
                 iteratorCall = nil
                 iteratorType = nonNullIterableType
             } else {
@@ -148,9 +133,6 @@ final class ControlFlowTypeChecker {
                 iteratorType = resolvedIteratorType
             }
         } else if isDirectIteratorType(nonNullIterableType, sema: sema, interner: interner) {
-            // Iterator<T> already is the iterator; the stdlib extension
-            // Iterator<T>.iterator() returns this, so skip the call and
-            // use hasNext()/next() directly on the iterable value.
             iteratorCall = nil
             iteratorType = nonNullIterableType
         } else {
@@ -344,11 +326,6 @@ final class ControlFlowTypeChecker {
             }
         }
 
-        // Top-level extensions (including locally declared extensions) are
-        // part of Kotlin's operator convention lookup after real members and
-        // implicit-receiver member extensions. Reuse ordinary extension-call
-        // candidate collection so imports, visibility, and receiver
-        // applicability follow the same rules as `receiver.iterator()`.
         let extensionCandidates = driver.callChecker.collectExtensionCallCandidates(
             named: calleeName,
             memberLookupType: receiverType,
@@ -379,10 +356,6 @@ final class ControlFlowTypeChecker {
         return nil
     }
 
-    /// `iterator()` resolved but its return type lacks a callable operator
-    /// `hasNext()`/`next()`. A present-but-non-`operator` member or extension
-    /// reports kotlinc's "'operator' modifier is required" instead of the
-    /// missing-candidate "'<name>()' cannot be called on 'iterator()'".
     private func reportMissingLoopIteratorConvention(
         missingHasNext: Bool,
         missingNext: Bool,
@@ -524,10 +497,6 @@ final class ControlFlowTypeChecker {
     ) -> TypeID {
         let sema = ctx.sema
         let inferredIterableType = driver.inferExpr(iterableExpr, ctx: ctx, locals: &locals, expectedType: nil)
-        // Floating-point ranges keep an Int scalar representation for lowering,
-        // but for-in convention lookup must use their source-level range type.
-        // Otherwise the integer-range fallback accepts them without checking
-        // that an `iterator()` operator exists.
         let iterableType: TypeID
         if sema.bindings.isFloatingPointRangeExpr(iterableExpr),
            let sourceLevelRangeType = driver.callChecker.floatingPointRangeArgumentType(
@@ -545,8 +514,6 @@ final class ControlFlowTypeChecker {
             exprID: id, iterableExpr: iterableExpr, iterableType: iterableType,
             range: range, locals: locals, ctx: ctx
         )
-        // An explicit `for (c: T in xs)` annotation must accept the iterator
-        // element type; kotlinc reports an initializer type mismatch.
         let declaredLoopType = ctx.ast.arena.forVariableTypeRef(for: id).map {
             driver.helpers.resolveTypeRef(
                 $0, ast: ctx.ast, sema: sema, interner: ctx.interner,
@@ -564,6 +531,13 @@ final class ControlFlowTypeChecker {
             )
         }
         let loopValueType = declaredLoopType ?? elementType
+        // JVM codegen needs the explicit declared type: when it is a reference
+        // supertype of a primitive element (e.g. `for (x: Any in doubleArray)`),
+        // the loop local must hold the boxed value or every read re-boxes and
+        // referential identity (`x === x`) breaks.
+        if loopVariable != nil, let declaredLoopType {
+            sema.bindings.bindLoopVariableType(id, type: declaredLoopType)
+        }
         invalidateNullableControlFlowAssignments(id, ctx: ctx, locals: &locals)
         var bodyLocals = locals
         if let loopVariable {
@@ -614,8 +588,6 @@ final class ControlFlowTypeChecker {
             loopLabelStack: newLabelStack,
             loopFlowScopes: loopFlowScopes
         )
-        // The loop body runs on its own locals copy; narrowing inside it cannot
-        // leak to the enclosing conditional path.
         bodyCtx.isConditionallyEvaluated = false
         _ = driver.inferExpr(
             bodyExpr,
@@ -767,8 +739,6 @@ final class ControlFlowTypeChecker {
         let hasCurrentLoopBreak = containsBreakTargetingCurrentLoop(
             conditionExpr, loopLabelStack: [label], ast: ast, ctx: ctx
         ) || containsBreakTargetingCurrentLoop(bodyExpr, loopLabelStack: [label], ast: ast, ctx: ctx)
-        // Inline lambdas carry non-local loop jumps without contributing to
-        // this loop's local-state records, so inspect those routes as well.
         let bodyCannotReachCondition = conditionEntryStates.isEmpty && !containsBreakTargetingCurrentLoop(
             bodyExpr, loopLabelStack: [label], ast: ast, ctx: ctx, includingContinues: true
         )
@@ -813,8 +783,6 @@ final class ControlFlowTypeChecker {
         }
     }
 
-    /// Loop-carried writes invalidate assignment facts on later iterations
-    /// and break paths, regardless of the body's final type.
     func invalidateNullableControlFlowAssignments(_ expression: ExprID, ctx: TypeInferenceContext, locals: inout LocalBindings) {
         for (name, local) in locals where local.isMutable {
             guard let declaration = ctx.dataFlow.localDeclarations[local.symbol],
@@ -846,10 +814,6 @@ final class ControlFlowTypeChecker {
         return false
     }
 
-    /// Returns true if `exprID` has a break that can exit the loop at the bottom
-    /// of `loopLabelStack` (index 0). The stack is ordered from the loop being
-    /// checked outwards, so nested loops are appended. A non-completing `finally`
-    /// suppresses breaks from its try/catch paths.
     private func containsBreakTargetingCurrentLoop(
         _ exprID: ExprID,
         loopLabelStack: [InternedString?],
@@ -879,8 +843,6 @@ final class ControlFlowTypeChecker {
                 nestedStack.append(label)
                 return visit(body, loopLabelStack: nestedStack)
             case .whileExpr(let condition, let body, let label, _):
-                // A while condition runs before entering the loop body, so an
-                // unlabelled jump there targets an enclosing loop.
                 if visit(condition, loopLabelStack: loopLabelStack) { return true }
                 var nestedStack = loopLabelStack
                 nestedStack.append(label)
@@ -1036,13 +998,8 @@ final class ControlFlowTypeChecker {
         var thenLocals = locals
         driver.exprChecker.applyFlowStateToLocals(branch.trueState, locals: &thenLocals, sema: sema)
         var thenCtx = ctx.copying(flowState: branch.trueState)
-        // Branch bodies run on their own locals copies, so narrowing inside
-        // them cannot leak — the conditional-evaluation flag only guards the
-        // enclosing linear scope.
         thenCtx.isConditionallyEvaluated = false
         var thenType = driver.inferExpr(thenExpr, ctx: thenCtx, locals: &thenLocals, expectedType: expectedType, isStatementContext: isStatementContext || elseExpr == nil)
-        // A bare `ClassName` branch denotes the companion object; keep the
-        // companion value type through the join (KUU-3232).
         thenType = driver.helpers.retypeClassNameAsCompanionValue(
             thenExpr, currentType: thenType, ast: ast, sema: sema
         ) ?? thenType
@@ -1057,15 +1014,6 @@ final class ControlFlowTypeChecker {
             elseType = driver.helpers.retypeClassNameAsCompanionValue(
                 elseExpr, currentType: elseType, ast: ast, sema: sema
             ) ?? elseType
-            // A nested call in a branch can leave a type parameter
-            // unresolved because it is only fixed by the sibling branch's
-            // type — kotlinc solves both branches under one constraint
-            // system. When a branch failed to infer, no contextual expected
-            // type was provided, and the sibling produced a usable type,
-            // retry the failing branch against that sibling type so
-            // `if (b) OD<Boolean, Boolean>(false) else OD(false)` resolves.
-            // Block bodies qualify through their value-producing tail
-            // expression (KUU-3797).
             func retriableBranchExpr(_ expr: ExprID) -> Bool {
                 var candidate = expr
                 while case let .blockExpr(_, trailingExpr, _) = ast.arena.expr(candidate),
@@ -1084,10 +1032,6 @@ final class ControlFlowTypeChecker {
                thenType != sema.types.errorType, thenType != sema.types.nothingType,
                retriableBranchExpr(elseExpr)
             {
-                // Drop the first pass's error diagnostics inside the branch
-                // range up front: re-inference re-emits the ones that stay
-                // genuine, while inference-dependent ones prove stale when
-                // the retry succeeds (same restore pattern as KUU-3750).
                 var removedDiagnostics: [Diagnostic] = []
                 if let elseRange = ast.arena.exprRange(elseExpr) {
                     removedDiagnostics = ctx.sema.diagnostics.removeErrorDiagnostics(containedIn: elseRange)
@@ -1150,16 +1094,6 @@ final class ControlFlowTypeChecker {
             ) {
                 elseType = companionType
             }
-            // A call-like branch can also infer *successfully* yet leave its
-            // type arguments at the unconstrained default (`ArrayList()`
-            // becomes `ArrayList<Any>`): under kotlinc's single constraint
-            // system the sibling's type would have pinned them. The
-            // unspecialized result then forces the join into a use-site `out`
-            // projection (`MutableList<out W>`) whose `in`-position members
-            // such as `add` become unusable (KUU-4472). Retry the branch
-            // against the sibling's type; a retried result that is a subtype
-            // of the sibling replaces the branch type, so the join resolves
-            // to the sibling's own instantiation.
             func retryUnderConstrainedBranch(
                 _ branchExpr: ExprID,
                 type: inout TypeID,
@@ -1179,20 +1113,8 @@ final class ControlFlowTypeChecker {
                 if let branchRange = ast.arena.exprRange(branchExpr) {
                     removedDiagnostics = ctx.sema.diagnostics.removeErrorDiagnostics(containedIn: branchRange)
                 }
-                // A conforming branch can still carry inference errors:
-                // `listOf()` stays `List<out Nothing>` with SEMA-INFER when
-                // nothing pins its type argument, and that stuck type happens
-                // to be a subtype of a nullable sibling like `List<Int>?`.
-                // Retry whenever the branch does not conform to the sibling
-                // or it reported errors on the first pass (KUU-4481).
                 let conforms = sema.types.isSubtype(type, siblingType)
                 guard !conforms || !removedDiagnostics.isEmpty else { return }
-                // The sibling type itself can be unsatisfiable for the
-                // call's declared return nominal — `listOf()` can never
-                // produce a `MutableList<Int>`. The join of the branch's
-                // own first-pass type with the sibling type is the common
-                // nominal both can reach (`List<Int>`), matching the
-                // shared-constraint result kotlinc reports.
                 var expectedCandidates = [siblingType]
                 if !conforms {
                     let bridged = sema.types.lub([type, siblingType])
@@ -1273,10 +1195,6 @@ final class ControlFlowTypeChecker {
                 expectedType: expectedType,
                 ctx: ctx
             )
-            // A branch typed `Nothing` (ends in `return`/`throw`/`break`/`continue`)
-            // never completes normally, so it vacuously satisfies initialization:
-            // control only reaches the code after the `if` through whichever
-            // branch does complete.
             let thenCompletes = thenType != sema.types.nothingType
             elseCompletes = elseType != sema.types.nothingType
             for (name, local) in locals {
@@ -1303,10 +1221,6 @@ final class ControlFlowTypeChecker {
                 thenCompletes ? thenLocals : nil,
                 elseCompletes ? elseLocals : nil,
             ].compactMap { $0 }
-            // Kotlin joins per-branch narrowing into the state after the `if`:
-            // a local narrowed on every reaching branch keeps the join of those
-            // narrowed types (e.g. `x === y` narrowing on one side and `x as T`
-            // on the other leaves `x` at the tighter type afterwards).
             for (name, local) in locals {
                 guard local.isInitialized else { continue }
                 let branchTypes = reachingBranchLocals.compactMap { branch -> TypeID? in
@@ -1324,11 +1238,6 @@ final class ControlFlowTypeChecker {
             locals.memberFlow = joinMemberFlow(from: reachingBranchLocals, base: locals.memberFlow)
             locals.joinVariableFacts(from: reachingBranchLocals)
         } else {
-            // An `if` without `else` is a statement in Kotlin; using it where a
-            // value is consumed must fail like kotlinc's INVALID_IF_AS_EXPRESSION.
-            // Parenthesizing the `if` also makes it an expression even in an
-            // otherwise-discarded statement slot (kotlinc rejects `(if (c) {})`
-            // in every position).
             if !isStatementContext || ast.arena.isParenthesized(id) {
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0434",
@@ -1338,18 +1247,11 @@ final class ControlFlowTypeChecker {
             }
             resolvedType = sema.types.unitType
             if thenType == sema.types.nothingType {
-                // The then-branch never completes normally (return/throw/break/continue),
-                // so control only reaches the code after this `if` via the implicit else
-                // path, i.e. the negated condition. Apply that narrowed state so it survives
-                // the fallthrough.
                 driver.exprChecker.applyFlowStateToLocals(branch.falseState, locals: &locals, sema: sema)
             } else {
                 locals.joinVariableFacts(from: [thenLocals, elseLocals])
             }
         }
-        // Retain nullable-local assignment facts only on paths that can
-        // reach the following statement. The implicit else path participates
-        // too, so conditional initialization alone cannot prove non-nullness.
         for (name, local) in locals where local.isMutable {
             guard let declaredType = sema.symbols.propertyType(for: local.symbol),
                   sema.types.nullability(of: declaredType) == .nullable
@@ -1446,9 +1348,6 @@ final class ControlFlowTypeChecker {
             return nil
         }
 
-        // `rangeTo` keeps the scalar Sema type while `rangeUntil` returns a
-        // nominal range type. Normalize both through the call-argument view
-        // before joining so an if-expression can retain the common range type.
         let sourceRangeTypes = branches.map {
             driver.callChecker.sourceLevelRangeArgumentType(
                 $0.expr,
@@ -1519,21 +1418,17 @@ final class ControlFlowTypeChecker {
         let preTryLocals = locals
         var branchTypes: [TypeID] = []
         var normalCompletionLocals: [LocalBindings] = []
-        // A discarded try expression is Unit-coerced by its statement
-        // context. Do not push that Unit expectation into generic calls in
-        // the branches, whose values are not used by the enclosing statement.
         let branchExpectedType = isStatementContext && expectedType == sema.types.unitType
             ? nil
             : expectedType
         var branchCtx = ctx
         if isStatementContext && expectedType == nil {
-            // A discarded try expression does not provide a Unit result type
-            // to generic calls nested in its branches.
             branchCtx.isUnitCoercionContext = false
         }
-        // Try/catch bodies run on their own locals copies; narrowing inside
-        // them cannot leak to the enclosing conditional path.
         branchCtx.isConditionallyEvaluated = false
+        if finallyExpr != nil {
+            branchCtx.enclosingTryFinallyDepth += 1
+        }
 
         var tryBodyLocals = preTryLocals
         var tryBodyType = driver.inferExpr(
@@ -1595,7 +1490,6 @@ final class ControlFlowTypeChecker {
         mergeNullableBranchAssignments(normalCompletionLocals, sema: sema, locals: &locals)
 
         if let finallyExpr {
-            // Finally is always checked for side effects, but it does not participate in try-expr type inference.
             var finallyLocals = locals
             _ = driver.inferExpr(finallyExpr, ctx: ctx, locals: &finallyLocals, expectedType: nil, isStatementContext: true)
             locals = finallyLocals
@@ -1641,9 +1535,6 @@ final class ControlFlowTypeChecker {
         guard let paramType else {
             return sema.types.anyType
         }
-        // Route through the same type-reference resolution used by declarations
-        // and `is`/`as` expressions so that import priority (explicit > wildcard
-        // > default), aliases, and qualified names resolve identically here.
         var resolved = driver.helpers.resolveTypeRef(
             paramType,
             ast: ctx.ast,

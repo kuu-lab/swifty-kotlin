@@ -19,7 +19,6 @@ internal external fun __kkMutexTryLockOwner(mutex: Mutex, owner: Any?): Boolean
 
 public fun Mutex(locked: Boolean = false): Mutex {
     val mutex = __kkMutexCreate()
-    // The fresh handle is not observable until its anonymous initial lock is set.
     if (locked) __kkMutexTryLock(mutex)
     return mutex
 }

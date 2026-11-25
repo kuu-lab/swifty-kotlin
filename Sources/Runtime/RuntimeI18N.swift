@@ -4,7 +4,6 @@ import Foundation
 import Glibc
 #endif
 
-// Locale constructors allocate runtime-owned boxes rather than nominal objects.
 private let runtimeLocaleNominalTypeID = runtimeStableNominalTypeID(fqName: "java.util.Locale")
 
 final class RuntimeLocaleBox {
@@ -65,8 +64,6 @@ private func i18nStringFromFlat(
     runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
 }
 
-/// Normalizes a locale identifier from Kotlin/Java format (e.g. "en_US") to the IETF BCP 47
-/// format expected by Apple APIs (e.g. "en-US") by replacing underscores with hyphens.
 func normalizeLocaleIdentifier(_ identifier: String) -> String {
     identifier.replacingOccurrences(of: "_", with: "-")
 }
@@ -92,7 +89,6 @@ private func makeRuntimeLocaleBox(languageOnly rawLanguage: String) -> RuntimeLo
 
 private func makeRuntimeLocaleBox(language: String, country: String) -> RuntimeLocaleBox {
     let identifier = localeIdentifier(language: language, country: country, variant: "")
-    // Preserve the constructor fields, including an empty language and literal separators.
     return RuntimeLocaleBox(
         identifier: identifier,
         language: language.lowercased(),

@@ -1,12 +1,13 @@
 name: CI
 
-# Minimal gate for pull requests and the merge queue: repository checks,
-# a single debug build of every source and test target, and SmokeTests.
+# Minimal gate for pull requests and the merge queue: repository checks and
+# a single debug build of every source and test target.
 # A per-target build matrix was measured to add ~180 runner-minutes per PR
 # while surfacing the same shared-dependency compile errors, so the full
-# build is consolidated into one job. The full verification suite (all test
-# targets and the kotlinc diff corpus at -O0/-O2) runs once every morning
-# in nightly-full.yml.
+# build is consolidated into one job. SmokeTests moved out of the PR gate to
+# keep the merge queue fast; the full verification suite (all test targets
+# including SmokeTests and the kotlinc diff corpus at -O0/-O2) runs once
+# every morning in nightly-full.yml.
 
 on:
   pull_request:
@@ -113,28 +114,16 @@ jobs:
           exit $jscpd_exit
 
   swift-checks:
-    name: ${{ matrix.name }}
+    name: Build all targets
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Build all targets
-            smoke-only: "0"
-            build-variant: fast
-          - name: Run SmokeTests
-            smoke-only: "1"
-            build-variant: fast-smoke
     env:
       KSWIFTK_CI_FAST_BUILD: "1"
-      KSWIFTK_CI_SMOKE_ONLY: ${{ matrix.smoke-only }}
       SWIFT_BUILD_SYSTEM: native
       SWIFT_ENABLE_COMPILE_CACHE: "1"
       SWIFT_ENABLE_CACHE_REMARKS: "1"
       SWIFT_CAS_PATH: ${{ github.workspace }}/.build/out/CompilationCache.noindex
       SWIFT_XSWIFTC_FLAGS: -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
-      SWIFT_SMOKE_FILTER: '^CompilerCoreTests\.SmokeTests/'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Prepare Linux runner
@@ -149,7 +138,7 @@ jobs:
         uses: ./.github/actions/setup-swiftpm-cache
         with:
           swift-version: "6.3"
-          build-variant: ${{ matrix.build-variant }}
+          build-variant: fast
           save: "false"
       - name: Configure build and test parallelism
         run: |
@@ -165,12 +154,6 @@ jobs:
           echo "Detected $worker_count logical CPUs"
       - name: Build Swift test bundle
         run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" $SWIFT_XSWIFTC_FLAGS
-      - name: Run smoke tests with strict concurrency warnings
-        if: matrix.smoke-only == '1'
-        # Bound the step so an intermittent hang or pathological slowdown fails
-        # with logs instead of losing the hosted runner mid-run, which produces no
-        # log output and blocks the merge queue. 40m is ~4x the ~10.5m baseline.
-        run: timeout --kill-after=30s 2400s bash Scripts/swift_test.sh --skip-build --filter "$SWIFT_SMOKE_FILTER" $SWIFT_XSWIFTC_FLAGS
       - name: Reproduce hints
         if: always()
         run: |
@@ -180,13 +163,10 @@ jobs:
             echo '('
             echo 'set -e'
             echo 'worker_count="$(nproc)"'
-            echo "export KSWIFTK_CI_SMOKE_ONLY=$KSWIFTK_CI_SMOKE_ONLY KSWIFTK_OPTIMIZE_COMPILER_CORE=1"
+            echo 'export KSWIFTK_OPTIMIZE_COMPILER_CORE=1'
             echo 'export KSWIFTK_CI_FAST_BUILD=1 SWIFT_BUILD_SYSTEM=native SWIFT_ENABLE_COMPILE_CACHE=1 SWIFT_ENABLE_CACHE_REMARKS=1'
             echo 'export SWIFT_CAS_PATH="$PWD/.build/out/CompilationCache.noindex"'
             echo "bash Scripts/build_swift_tests.sh -j \"\$worker_count\" $SWIFT_XSWIFTC_FLAGS"
-            if [[ "$KSWIFTK_CI_SMOKE_ONLY" == "1" ]]; then
-              echo "SWIFT_TEST_WORKERS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '$SWIFT_SMOKE_FILTER' $SWIFT_XSWIFTC_FLAGS"
-            fi
             echo ')'
             echo '```'
             echo

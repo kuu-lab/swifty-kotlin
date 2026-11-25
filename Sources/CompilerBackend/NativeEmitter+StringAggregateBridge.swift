@@ -67,8 +67,6 @@ extension NativeEmitter {
             _ value: LLVMCAPIBindings.LLVMValueRef,
             suffix: String
         ) -> [LLVMCAPIBindings.LLVMValueRef]? {
-            // A KIR expression typed as String may still be materialized as a raw handle.
-            // Bridge it before extracting fields so LLVM never sees an invalid extract.
             let aggregate: LLVMCAPIBindings.LLVMValueRef
             if emitter.bindings.isAggregateStructValue(value) {
                 aggregate = value
@@ -113,7 +111,6 @@ extension NativeEmitter {
                 arguments: fields,
                 name: "string_raw_\(suffix)"
             ).flatMap { raw in
-                // String? uses null data in aggregate form and the runtime null sentinel at raw boundaries.
                 guard let nullData = emitter.bindings.constPointerNull(typeLowering.dataPointerType),
                       let isNull = emitter.bindings.buildICmpEqual(
                           state.builder,

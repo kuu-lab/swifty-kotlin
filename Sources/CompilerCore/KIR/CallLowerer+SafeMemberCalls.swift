@@ -68,8 +68,6 @@ extension CallLowerer {
             return result
         }
 
-        // const val member property folding (P5-109): check before lowering
-        // receiver so no dead instructions are emitted.
         // Only fold actual const val properties (constValue flag); regular
         // immutable class members must not be folded because the receiver
         // expression may have side effects that would be silently dropped.
@@ -100,9 +98,6 @@ extension CallLowerer {
             shared: shared, emit: &instructions
         )
 
-        // KUU-4431: `a?.isArrayOf<T>()` takes the safe-call path; route it to
-        // the same component check as the member-call spelling and keep the
-        // null receiver on the null branch. See CallLowerer+MemberCalls.swift.
         if let binding = sema.bindings.callBindings[exprID],
            let calleeSymbol = sema.symbols.symbol(binding.chosenCallee),
            calleeSymbol.fqName == KnownCompilerNames(interner: interner).kotlinIsArrayOfFQName
@@ -271,8 +266,6 @@ extension CallLowerer {
             return nullableResult
         }
 
-        // Boolean safe calls: return null on null receiver and only evaluate
-        // arguments on the non-null path.
         if sema.types.isSubtype(nonNullSafeReceiverType, sema.types.booleanType) {
             let boolCallee: InternedString? = switch calleeStr {
             case "not" where args.isEmpty:
@@ -297,8 +290,6 @@ extension CallLowerer {
                 instructions.append(.copy(from: nullValue, to: nullableResult))
                 instructions.append(.jump(endLabel))
                 instructions.append(.label(nonNullLabel))
-                // Unbox the nullable receiver before passing it to the Boolean
-                // intrinsic, which expects a non-null primitive value.
                 let nonNullReceiver = arena.appendTemporary(type: sema.types.booleanType)
                 instructions.append(.copy(from: loweredReceiverID, to: nonNullReceiver))
                 let nonNullResult = arena.appendTemporary(type: sema.types.booleanType)
@@ -356,11 +347,6 @@ extension CallLowerer {
             }
         }
 
-        // KSP-642: Int/Long rotateLeft / rotateRight are lowered as ordinary calls to
-        // the bundled Kotlin declarations in `Stdlib/kotlin/Numbers.kt`.
-
-        // Float?.mod(other) / Double?.mod(other): keep safe-call argument
-        // evaluation behind the null check and use Kotlin floor-style modulo.
         let selectsUserNumericExtension = selectsUserNumericExtension(
             calleeStr, chosenCallee: sema.bindings.callBinding(for: exprID)?.chosenCallee, sema: sema, interner: interner
         )
@@ -426,10 +412,11 @@ extension CallLowerer {
             }
         }
 
-        // Char/Float/Double arithmetic member calls share the same primitive
-        // lowering as operator syntax. Keep the argument behind the safe-call
-        // null check, then feed a non-null receiver to operator lowering so
-        // nullable boxing is removed before the intrinsic reads its bits.
+        // Primitive arithmetic member calls share the same lowering as operator
+        // syntax. Keep the argument behind the safe-call null check, then feed a
+        // non-null receiver to operator lowering so nullable boxing is removed
+        // before the intrinsic reads its bits. Floating-point operands need the
+        // operator path for the same widening conversions as non-safe calls.
         let chosenArithmeticCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee
         let isSourceArithmeticExtension = chosenArithmeticCallee.map {
             sema.symbols.isSourceBackedSymbol($0)
@@ -447,10 +434,16 @@ extension CallLowerer {
             let receiverType = sema.types.makeNonNullable(
                 sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             )
-            if receiverType == sema.types.charType
+            let argumentType = sema.types.makeNonNullable(
+                sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
+            )
+            let receiverIsFloatingOrChar = receiverType == sema.types.charType
                 || receiverType == floatType
                 || receiverType == doubleType
-            {
+            let usesFloatingPointOperands = receiverIsFloatingOrChar
+                || argumentType == floatType
+                || argumentType == doubleType
+            if usesFloatingPointOperands, sema.types.isBuiltinArithmeticOperand(receiverType) {
                 let nonNullLabel = driver.ctx.makeLoopLabel()
                 let endLabel = driver.ctx.makeLoopLabel()
                 let callResultType = sema.types.makeNonNullable(boundType ?? sema.types.anyType)
@@ -546,8 +539,6 @@ extension CallLowerer {
                     instructions.append(.copy(from: nullValue, to: nullableResult))
                     instructions.append(.jump(endLabel))
                     instructions.append(.label(nonNullLabel))
-                    // Give boxing lowering the non-null primitive type so it
-                    // unboxes the receiver before applying the intrinsic.
                     let nonNullReceiver = arena.appendTemporary(type: nonNullReceiverType)
                     instructions.append(.copy(from: loweredReceiverID, to: nonNullReceiver))
                     let nonNullResult = arena.appendTemporary(type: callResultType)
@@ -574,9 +565,6 @@ extension CallLowerer {
         // that `receiver?.f(sideEffect())` does not evaluate sideEffect()
         // when receiver is null.
 
-        // Int/Long.toString(radix: Int) is bundled Kotlin source
-        // (Stdlib/kotlin/text/StringNumberConversions.kt, KSP-717) and falls
-        // through to the general safe-call lowering below.
         if calleeStr == "toString",
            args.isEmpty
         {
@@ -622,9 +610,6 @@ extension CallLowerer {
             case .primitive:
                 true
             case .typeParam:
-                // All type parameters have an implicit upper bound of Any? in Kotlin,
-                // so Any methods (toString, hashCode, equals) are always available on
-                // type parameter receivers (STDLIB-GEN-055).
                 true
             case .nothing:
                 // A `Nothing?` receiver (`null` literal, `v: Nothing?`) unwraps to
@@ -759,23 +744,20 @@ extension CallLowerer {
             case ("toInt", doubleType, intType): interner.intern("__kk_double_to_int")
             case ("toInt", floatType, intType): interner.intern("__kk_float_to_int")
             case ("toInt", longType, intType): interner.intern("kk_long_to_int")
-            case ("toInt", byteType, intType): nil // identity
-            case ("toInt", shortType, intType): nil // identity
-            case ("toInt", intType, intType): nil // identity
+            case ("toInt", byteType, intType): nil
+            case ("toInt", shortType, intType): nil
+            case ("toInt", intType, intType): nil
             case ("toUInt", intType, uintType): interner.intern("kk_int_to_uint")
             case ("toUInt", longType, uintType): interner.intern("kk_long_to_uint")
             case ("toUInt", ubyteType, uintType): interner.intern("kk_ubyte_to_uint")
             case ("toUInt", ushortType, uintType): interner.intern("kk_ushort_to_uint")
             case ("toUInt", byteType, uintType): interner.intern("kk_int_to_uint")
             case ("toUInt", shortType, uintType): interner.intern("kk_int_to_uint")
-            case ("toUInt", uintType, uintType): nil // identity
+            case ("toUInt", uintType, uintType): nil
             // KSP-1533: ULong.toUInt() narrows 64 bits to 32 and must mask the
             // high bits away (kk_ulong_to_uint has no dedicated symbol; reuse
             // kk_long_to_uint, which already truncates via UInt32(truncatingIfNeeded:)
             // on the same raw-register representation). Was wrongly treated as
-            // representation-preserving, which left garbage high bits behind
-            // (observed: ULong.MAX_VALUE.toUInt() printed as -1 / 4294967295uL+5
-            // printed as 4294967301 instead of 5).
             case ("toUInt", ulongType, uintType): interner.intern("kk_long_to_uint")
             case ("toLong", intType, longType): interner.intern("kk_int_to_long")
             case ("toLong", uintType, longType): interner.intern("kk_uint_to_long")
@@ -783,9 +765,9 @@ extension CallLowerer {
             case ("toLong", ushortType, longType): interner.intern("kk_ushort_to_long")
             case ("toLong", doubleType, longType): interner.intern("__kk_double_to_long")
             case ("toLong", floatType, longType): interner.intern("__kk_float_to_long")
-            case ("toLong", byteType, longType): nil // identity
-            case ("toLong", shortType, longType): nil // identity
-            case ("toLong", longType, longType), ("toLong", ulongType, longType): nil // identity
+            case ("toLong", byteType, longType): nil
+            case ("toLong", shortType, longType): nil
+            case ("toLong", longType, longType), ("toLong", ulongType, longType): nil
             case ("toULong", intType, ulongType): interner.intern("kk_int_to_ulong")
             case ("toULong", longType, ulongType): interner.intern("kk_long_to_ulong")
             case ("toULong", ubyteType, ulongType): interner.intern("kk_ubyte_to_ulong")
@@ -793,11 +775,11 @@ extension CallLowerer {
             case ("toULong", byteType, ulongType): interner.intern("kk_int_to_ulong")
             case ("toULong", shortType, ulongType): interner.intern("kk_int_to_ulong")
             case ("toULong", uintType, ulongType): interner.intern("kk_uint_to_ulong")
-            case ("toULong", ulongType, ulongType): nil // identity
+            case ("toULong", ulongType, ulongType): nil
             case ("toFloat", intType, floatType): interner.intern("kk_int_to_float")
             case ("toFloat", longType, floatType): interner.intern("kk_long_to_float")
             case ("toFloat", doubleType, floatType): interner.intern("kk_double_to_float")
-            case ("toFloat", floatType, floatType): nil // identity
+            case ("toFloat", floatType, floatType): nil
             case ("toFloat", uintType, floatType): interner.intern("kk_uint_to_float")
             case ("toFloat", ulongType, floatType): interner.intern("kk_ulong_to_float")
             case ("toFloat", byteType, floatType): interner.intern("kk_int_to_float")
@@ -806,7 +788,7 @@ extension CallLowerer {
             case ("toFloat", ushortType, floatType): interner.intern("kk_ushort_to_float")
             case ("toDouble", longType, doubleType): interner.intern("kk_long_to_double")
             case ("toDouble", floatType, doubleType): interner.intern("__kk_float_to_double_bits")
-            case ("toDouble", doubleType, doubleType): nil // identity
+            case ("toDouble", doubleType, doubleType): nil
             case ("toDouble", uintType, doubleType): interner.intern("kk_uint_to_double")
             case ("toDouble", ulongType, doubleType): interner.intern("kk_ulong_to_double")
             case ("toDouble", byteType, doubleType): interner.intern("kk_int_to_double_bits")
@@ -819,7 +801,7 @@ extension CallLowerer {
             case ("toByte", ulongType, byteType): interner.intern("kk_ulong_to_byte")
             case ("toByte", ubyteType, byteType): interner.intern("kk_ubyte_to_byte")
             case ("toByte", ushortType, byteType): interner.intern("kk_ushort_to_byte")
-            case ("toByte", byteType, byteType): nil // identity
+            case ("toByte", byteType, byteType): nil
             case ("toByte", shortType, byteType): interner.intern("kk_int_to_byte")
             case ("toShort", intType, shortType): interner.intern("kk_int_to_short")
             case ("toShort", longType, shortType): interner.intern("kk_long_to_short")
@@ -827,13 +809,13 @@ extension CallLowerer {
             case ("toShort", ulongType, shortType): interner.intern("kk_ulong_to_short")
             case ("toShort", ubyteType, shortType): interner.intern("kk_ubyte_to_short")
             case ("toShort", ushortType, shortType): interner.intern("kk_ushort_to_short")
-            case ("toShort", byteType, shortType): nil // identity
-            case ("toShort", shortType, shortType): nil // identity
+            case ("toShort", byteType, shortType): nil
+            case ("toShort", shortType, shortType): nil
             case ("toUByte", intType, ubyteType): interner.intern("kk_int_to_ubyte")
             case ("toUByte", longType, ubyteType): interner.intern("kk_long_to_ubyte")
             case ("toUByte", uintType, ubyteType): interner.intern("kk_uint_to_ubyte")
             case ("toUByte", ulongType, ubyteType): interner.intern("kk_ulong_to_ubyte")
-            case ("toUByte", ubyteType, ubyteType): nil // identity
+            case ("toUByte", ubyteType, ubyteType): nil
             case ("toUByte", ushortType, ubyteType): interner.intern("kk_ushort_to_ubyte")
             case ("toUByte", byteType, ubyteType): interner.intern("kk_byte_to_ubyte")
             case ("toUByte", shortType, ubyteType): interner.intern("kk_short_to_ubyte")
@@ -844,8 +826,8 @@ extension CallLowerer {
             case ("toUShort", uintType, ushortType): interner.intern("kk_uint_to_ushort")
             case ("toUShort", ulongType, ushortType): interner.intern("kk_ulong_to_ushort")
             case ("toUShort", ubyteType, ushortType): interner.intern("kk_ubyte_to_ushort")
-            case ("toUShort", ushortType, ushortType): nil // identity
-            case ("toChar", charType, charType): nil // identity
+            case ("toUShort", ushortType, ushortType): nil
+            case ("toChar", charType, charType): nil
             default: nil
             }
             if let callee = conversionCallee {
@@ -857,10 +839,6 @@ extension CallLowerer {
                 instructions.append(.copy(from: nullValue, to: result))
                 instructions.append(.jump(endLabel))
                 instructions.append(.label(nonNullLabel))
-                // The receiver slot keeps its erased/nullable
-                // representation under the non-null branch; materialize
-                // the raw primitive so the conversion callee consumes the
-                // payload, not the box handle or sentinel.
                 let conversionReceiverID = materializePrimitiveValue(
                     loweredReceiverID, toType: nonNullReceiverType, sema: sema,
                     arena: arena, instructions: &instructions.instructions
@@ -980,9 +958,6 @@ extension CallLowerer {
             return result
         }
 
-        // Mirrors the non-safe-call arm in `lowerMemberCallExpr` and goes
-        // through `lowerResolvedCallBody` so positional-receiver / default-arg
-        // shapes stay consistent.
         if let invokeResult = tryLowerFunctionTypeInvokeMemberCall(
             exprID,
             calleeName: effectiveCalleeName,
@@ -1000,8 +975,6 @@ extension CallLowerer {
             return result
         }
 
-        // The receiver is already known non-null here. Explicit
-        // `x?.invoke(args)` is handled above.
         if let callableBinding = sema.bindings.callableValueCalls[exprID],
            case let .functionType(fnType) = sema.types.kind(of: callableBinding.functionType),
            let invokeCallee = runtimeCallableInvokeCallee(
@@ -1010,8 +983,6 @@ extension CallLowerer {
                interner: interner
            )
         {
-            // Resolve the call prefix first so that a missed arm does not
-            // emit dead argument instructions.
             var callSymbol: SymbolID?
             var callCallee = invokeCallee
             var callPrefix: [KIRExprID]?
@@ -1057,8 +1028,6 @@ extension CallLowerer {
                     }
                 }
             case nil:
-                // `.invoke` sugar on a function value: the lowered receiver
-                // itself is the function object.
                 callPrefix = [loweredReceiverID]
             case .symbol:
                 break
@@ -1136,8 +1105,6 @@ extension CallLowerer {
         // Preserve the getter or backing-field value: a platform Unit! may
         // carry null even when the property's declared type is Unit.
 
-        // Enum.name/ordinal use ordinal helpers, not constructor-property
-        // storage. Keep the primitive ordinal result non-null until the merge.
         if let enumProperty = tryLowerEnumEntryPropertyRead(
             exprID,
             loweredReceiverID: loweredReceiverID,
@@ -1223,7 +1190,6 @@ extension CallLowerer {
             return result
         }
 
-        // Lower arguments only on the non-null path.
         let loweredArgIDs = args.enumerated().map { argumentIndex, argument in
             let previousAllowance = driver.ctx.pendingLambdaNonLocalReturnAllowance
             driver.ctx.pendingLambdaNonLocalReturnAllowance = allowsNonLocalReturn(
@@ -1290,9 +1256,6 @@ extension CallLowerer {
             if safeReceiverType != nonNullSafeReceiverType,
                case .primitive(_, .nonNull) = sema.types.kind(of: declaredReceiverType)
             {
-                // The null branch has exited. ABI argument adaptation skips
-                // the receiver slot, so expose this boundary as a typed copy
-                // to unbox nullable primitives before calling their member.
                 receiverArgument = arena.appendTemporary(type: declaredReceiverType)
                 instructions.append(.copy(from: loweredReceiverID, to: receiverArgument))
             }
@@ -1430,9 +1393,6 @@ extension CallLowerer {
            (sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true ||
             sema.symbols.externalLinkName(for: driver.callSupportLowerer.defaultStubSymbol(for: stubOwner)) != nil)
         {
-            // KUU-655: an override that inherits its defaults never has its
-            // own stub; resolve to the base declaration's stub instead (see
-            // `defaultStubOwnerSymbol`).
             appendReifiedTypeTokens(
                 chosenCallee: chosen,
                 callBinding: callBinding,
@@ -1442,9 +1402,6 @@ extension CallLowerer {
                 instructions: &instructions.instructions,
                 arguments: &finalArguments
             )
-            // KUU-655: see the matching comment in
-            // `CallLowerer+MemberCallEmission.swift` -- a `super?.f()` call
-            // that omits a defaulted argument must dispatch statically.
             var effectiveMasks = safeNormalized.defaultMaskWords
             if isSuperCall, !effectiveMasks.isEmpty {
                 if effectiveMasks.count > 1 {
@@ -1514,14 +1471,6 @@ extension CallLowerer {
                 case "completeExceptionally":
                     resolvedCalleeName = interner.intern("kk_job_complete_exceptionally")
                 default:
-                    // Not actually a coroutine-handle member (isCoroutineReceiver
-                    // just means "non-primitive receiver") — e.g. a not-yet-
-                    // migrated stdlib collection member like `sortedBy` reached
-                    // through a safe-call chain (`x?.entries?.sortedBy { ... }`).
-                    // Fall back to the same name-based collection/synthetic
-                    // dispatch the regular (non-safe) member call path uses,
-                    // instead of emitting the bare Kotlin name as an unresolved
-                    // external symbol.
                     resolvedViaGeneralCollectionFallback = true
                     resolvedCalleeName = loweredMemberCalleeName(
                         chosenCallee: nil,
@@ -1537,14 +1486,6 @@ extension CallLowerer {
             } else {
                 resolvedCalleeName = effectiveCalleeName
             }
-            // The chosen == nil branches above never insert the receiver
-            // into finalArguments (mirroring the "when Sema failed to
-            // resolve nextLong/nextInt on Random" gap already worked around
-            // for Random.nextInt/nextLong in the regular, non-safe path).
-            // Reuse the exact same shared helper the regular path calls
-            // (appendReceiverToMemberArguments, CallLowerer+MemberCallEmission.swift)
-            // instead of hand-rolling the insertion, so collection/coroutine/
-            // channel/flow member names all get identical treatment here.
             if resolvedViaGeneralCollectionFallback {
                 appendReceiverToMemberArguments(
                     loweredReceiverID,
@@ -1633,9 +1574,6 @@ extension CallLowerer {
                         && needsThrownChannel(calleeName: virtualCalleeName, interner: interner),
                     dispatch: dispatchKind
                 )
-                // KUU-763: floating-point range boxes carry no itable, so a
-                // safe-call on an interface-typed range receiver probes the
-                // runtime representation before dispatching.
                 if let probeEndLabel = emitFloatingPointRangeMemberProbe(
                     chosenCallee: chosen,
                     receiverID: dispatchReceiver ?? loweredReceiverID,
@@ -1698,11 +1636,6 @@ extension CallLowerer {
         return result
     }
 
-    /// Whether a callee's external link name denotes a runtime bridge (a `kk_*`
-    /// entry point taking the runtime's argument shape) rather than an ordinary
-    /// Kotlin declaration. A declaration imported from a precompiled library
-    /// also carries a link name — its own `kk_fn_*` mangled definition — so the
-    /// link name, not the mere presence of one, decides.
     func kirIsRuntimeBridgedCallee(_ callee: SymbolID, sema: SemaModule) -> Bool {
         !Self.isSourceBackedLinkName(sema.symbols.externalLinkName(for: callee))
     }
@@ -1720,9 +1653,6 @@ extension CallLowerer {
         return true
     }
 
-    /// InputStream/OutputStream bridge declarations are real overridable
-    /// class members. Runtime stream boxes register those base slots, while
-    /// source subclasses install their own vtable implementations.
     func isJavaIOStreamVirtualBridge(
         _ callee: SymbolID,
         sema: SemaModule,
@@ -1827,13 +1757,6 @@ extension CallLowerer {
         return true
     }
 
-    /// Nominals whose construction produces a `Runtime*Box` handle instead of
-    /// a `kk_object_new` object — `ArrayList`/`HashSet`/`TreeMap` and friends
-    /// lower their constructors to `__kk_*_of` factories and `ArrayDeque`
-    /// allocates a `RuntimeArrayDequeBox`. A vtable dispatch on one of those
-    /// exact types reads a slot the box never registered, so their receivers
-    /// stay on direct runtime calls; user-defined subclasses between them and
-    /// the receiver are the `kk_object_new` objects that do carry the slot.
     private func isRuntimeBoxedCollectionNominal(
         _ classSymbol: SymbolID,
         sema: SemaModule,
@@ -1895,9 +1818,6 @@ extension CallLowerer {
         }
     }
 
-    /// A class-typed `ArrayList.get` call must dispatch through the Kotlin
-    /// vtable so a subclass override wins over the runtime list-storage bridge.
-    /// Interface-typed collection boxes keep calling the bridge directly.
     func isClassReceiverListGetRuntimeBridge(
         _ callee: SymbolID,
         receiverTypeID: TypeID?,
@@ -1915,14 +1835,6 @@ extension CallLowerer {
         return true
     }
 
-    /// Thin wrapper over the free `resolveVirtualDispatchKind` (below, outside
-    /// this extension) so existing `CallLowerer`-qualified call sites (and the
-    /// unit tests that exercise this by name) are unaffected; the free function
-    /// exists so lowering passes without a `CallLowerer` instance -- e.g.
-    /// `ConsolePrintLoweringPass`, which runs on already-built KIR well after
-    /// the originating driver/CallLowerer have gone out of scope -- can reuse
-    /// the exact same dispatch-kind resolution instead of hand-rolling a
-    /// (potentially divergent) direct-call-only rewrite.
     func resolveVirtualDispatch(
         callee: SymbolID,
         receiverTypeID: TypeID?,
@@ -1933,12 +1845,6 @@ extension CallLowerer {
     }
 }
 
-/// Returns `.vtable(slot:)` for class methods or `.itable(slot:)` for interface methods,
-/// or `nil` if the call should use direct (static) dispatch.
-///
-/// A free function (not a `CallLowerer` member) so both BuildKIR-time callers
-/// (via `CallLowerer.resolveVirtualDispatch` above) and later, driver-less
-/// lowering passes can resolve the same dispatch kind for a callee symbol.
 func resolveVirtualDispatchKind(
     callee: SymbolID,
     receiverTypeID: TypeID?,
@@ -1948,9 +1854,6 @@ func resolveVirtualDispatchKind(
     guard let calleeSymbol = sema.symbols.symbol(callee),
           calleeSymbol.kind == .function
     else { return nil }
-    // Bundled top-level extensions can be parented by their receiver nominal
-    // for lookup, but remain static calls. Use the semantic receiver/owner
-    // relationship so regular interface and class members keep virtual dispatch.
     if TypeCheckHelpers().declaresExtensionReceiver(callee, sema: sema, interner: interner),
        sema.symbols.memberExtensionOwnerSymbol(for: callee) == nil
     {
@@ -1994,17 +1897,11 @@ func resolveVirtualDispatchKind(
             return nil
         }
     }
-    // Members declared on a range/progression class are only ever invoked on
-    // RuntimeRangeBox handles — the constructors are internal, so no
-    // vtable-carrying subclass exists. Keep them on direct dispatch even when
-    // the receiver's static type lost the nominal (e.g. ClosedRange<Long>).
     if parentSymbol.kind == .class,
        MemberRuntimeDispatch.rangeReceiverKind(forClassSymbol: parentSymbol, interner: interner) != nil
     {
         return nil
     }
-    // An extension accessor is parented by its property; dispatch on the
-    // property's enclosing class, using its synthetic getter/setter slot.
     if parentSymbol.kind == .property,
        parentSymbol.flags.contains(.memberExtension),
        let owner = sema.symbols.parentSymbol(for: parentID),
@@ -2026,9 +1923,6 @@ func resolveVirtualDispatchKind(
         )
     }
     if parentSymbol.kind == .class {
-        // Final internal helpers are also absent from exported dispatch
-        // metadata. Open/abstract/non-final override members still need the
-        // implementation selected from the concrete receiver.
         let isOverridable = !calleeSymbol.flags.contains(.finalMember)
             && !calleeSymbol.flags.intersection([.openType, .abstractType, .overrideMember]).isEmpty
         guard calleeSymbol.visibility != .internal || isOverridable else { return nil }
@@ -2047,10 +1941,6 @@ func resolveVirtualDispatchKind(
     return nil
 }
 
-/// Whether `symbol` is one of the `kotlin.ranges` progression/range classes
-/// whose values the runtime represents as `RuntimeRangeBox` handles rather
-/// than real heap objects — a `vtable` dispatch on such an owner can never
-/// resolve a slot (`kk_vtable_lookup` traps on the raw handle).
 private func isRuntimeRangeBoxNominal(_ symbol: SemanticSymbol, interner: StringInterner) -> Bool {
     let fqName = symbol.fqName
     guard fqName.count == 3,
@@ -2144,8 +2034,6 @@ private func resolveItableDispatchKind(
             if let registeredSlot = receiverLayout.itableSlots[parentID] {
                 interfaceSlot = registeredSlot
             } else if hasSubtypes {
-                // Preserve the established fallback for a class whose subtype
-                // metadata is incomplete in this compilation unit.
                 interfaceSlot = 0
             } else {
                 return nil
@@ -2168,18 +2056,11 @@ private func resolveItableDispatchKind(
             return .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
         }
     case .typeParam:
-        // A generic receiver (e.g. `T : AutoCloseable` in `AutoCloseable.use`)
-        // has an unknown concrete class at compile time, so the interface
-        // itable must be resolved dynamically at runtime.
         let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
             symbol: parentID, sema: sema, interner: interner
         )
         return .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
     case .intersection:
-        // A smart-cast intersection can prove the member's interface through any
-        // one of its conjuncts, but the concrete runtime class is still unknown.
-        // Dispatch through the declaring interface's itable just like a direct
-        // interface or bounded type-parameter receiver.
         guard containsNominalSubtype(nonNullReceiverType, of: parentID) else { return nil }
         let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
             symbol: parentID, sema: sema, interner: interner
@@ -2215,11 +2096,6 @@ private func resolveVtableDispatchKind(
     // Open and abstract classes can acquire subtypes in a later compilation
     // unit. Their method bodies must retain virtual dispatch when a library
     // is compiled in isolation, even without currently known subtypes.
-    //
-    // Compiler-created objects register their concrete vtable slot methods at
-    // allocation time, mirroring the existing itable method registry.  Raw
-    // kk_alloc-backed objects can still use KTypeInfo vtables via the runtime
-    // lookup fallback.
     let subtypes = sema.symbols.directSubtypes(of: parentID)
     let flags = sema.symbols.symbol(parentID)?.flags ?? []
     guard !subtypes.isEmpty || flags.contains(.abstractType) || flags.contains(.openType) else { return nil }

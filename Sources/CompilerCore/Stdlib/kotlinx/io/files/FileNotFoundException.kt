@@ -6,7 +6,6 @@ package kotlinx.io.files
 
 import kotlinx.io.IOException
 
-/** Signals that a file or directory requested from the filesystem is absent. */
 public open class FileNotFoundException : IOException {
     public constructor(message: String?) : super(message)
 }

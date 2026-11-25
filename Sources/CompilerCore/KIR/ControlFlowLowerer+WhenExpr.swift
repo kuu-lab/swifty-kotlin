@@ -34,7 +34,6 @@ extension ControlFlowLowerer {
                 if ast.arena.whenSubjectTypeRef(for: exprID) != nil,
                    let declaredType = sema.symbols.propertyType(for: subjectSymbol)
                 {
-                    // Copy into declared storage so ABI lowering applies widening/boxing.
                     let slot = arena.appendTemporary(type: declaredType)
                     instructions.append(.copy(from: loweredSubject, to: slot))
                     subjectID = slot
@@ -59,7 +58,6 @@ extension ControlFlowLowerer {
         let falseID = arena.appendExpr(.boolLiteral(false), type: boolType)
         instructions.append(.constValue(result: falseID, value: .boolLiteral(false)))
 
-        // Vacuously true when branches is empty (only else exists).
         var allBranchesTerminated = true
         for (index, branch) in branches.enumerated() {
             if branch.conditions.count > 1 {
@@ -67,7 +65,6 @@ extension ControlFlowLowerer {
                     branch.conditions, ast: ast, sema: sema, interner: interner
                 )
                 let bodyLabel: Int32 = driver.ctx.makeLoopLabel()
-                // Hoist the true constant outside the loop so it's reused for all non-last conditions.
                 let hoistedTrueID = arena.appendExpr(.boolLiteral(true), type: boolType)
                 instructions.append(.constValue(result: hoistedTrueID, value: .boolLiteral(true)))
 
@@ -120,8 +117,6 @@ extension ControlFlowLowerer {
                     propertyConstantInitializers: propertyConstantInitializers,
                     instructions: &instructions
                 )
-                // A `Nothing` guard (`return`/`throw`/`break`/`continue`) never
-                // falls through, so no conditional jump can follow it.
                 if !isTerminatedExpr(guardID, arena: arena, sema: sema) {
                     instructions.append(.jumpIfEqual(lhs: guardID, rhs: falseID, target: nextBranchLabels[index]))
                 }

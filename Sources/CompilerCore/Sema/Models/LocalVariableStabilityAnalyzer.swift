@@ -1,28 +1,21 @@
-/// Proves effective immutability before flow inference, including deferred writes
-/// in closures. A local with any reassignment is conservatively excluded.
 final class LocalVariableStabilityAnalyzer {
     private var analyzedRoots: Set<ExprID> = []
     private var declarations: Set<ExprID> = []
-    private var reassigned: Set<ExprID> = []
+    private var reassigned: [ExprID: Set<ExprID>] = [:]
     var inPlaceLambdaScopes: Set<ExprID> = []
     private var mutationValues: [ExprID: [ExprID: (scopes: [ExprID], value: ExprID?)]] = [:]
     private var mutationScopes: [ExprID: Set<[ExprID]>] = [:]
-    /// Writes in the local function currently being checked are direct writes.
-    /// Other deferred scopes still make the captured variable unstable.
     var currentLocalFunctionScope: ExprID?
     private var closureScopes: [ExprID] = []
     private var flowBarrierScopes: [ExprID] = []
-    private var flowBarrierReassignments: [ExprID: Set<ExprID>] = [:]
+    private var flowBarrierReassignments: [ExprID: [ExprID: Set<ExprID>]] = [:]
     private var lambdaCalls: [ExprID: (call: ExprID, argument: Int)] = [:]
-    // Only writes from a deeper deferred scope invalidate local smart casts.
     private var declarationDepths: [ExprID: Int] = [:]
 
     func isMutatedInClosure(_ declaration: ExprID, sema: SemaModule) -> Bool {
         (mutationScopes[declaration] ?? []).contains { isDeferredMutation($0, sema: sema) }
     }
 
-    /// A captured write cannot invalidate a narrowing if every deferred value
-    /// is already a subtype of the narrowed type. Unknown values stay unsafe.
     func closureWritesPreserve(
         _ declaration: ExprID, type: TypeID, ast: ASTModule,
         sema: SemaModule, localSymbols: Set<SymbolID>
@@ -44,8 +37,6 @@ final class LocalVariableStabilityAnalyzer {
     }
 
     private func isDeferredMutation(_ scopes: [ExprID], sema: SemaModule) -> Bool {
-        // A write directly in this body is sequenced with its reads,
-        // even when the local function itself is nested in a closure.
         if let currentLocalFunctionScope, scopes.last == currentLocalFunctionScope { return false }
         return scopes.contains { scope in
             if scope == currentLocalFunctionScope { return false }
@@ -76,11 +67,28 @@ final class LocalVariableStabilityAnalyzer {
     }
 
     func isNeverReassigned(_ declaration: ExprID) -> Bool {
-        declarations.contains(declaration) && !reassigned.contains(declaration)
+        declarations.contains(declaration) && (reassigned[declaration] ?? []).isEmpty
     }
 
     func isReassigned(_ declaration: ExprID, within expression: ExprID) -> Bool {
-        flowBarrierReassignments[expression]?.contains(declaration) == true
+        guard let assignments = flowBarrierReassignments[expression]?[declaration] else { return false }
+        let active = reassigned[declaration] ?? []
+        return assignments.contains { active.contains($0) }
+    }
+
+    /// A resolved in-place compound assignment mutates the receiver without rebinding
+    /// the local, so it is not a reassignment for stability purposes. Deferred writes
+    /// stay recorded as closure mutations: kotlinc still rejects member smart casts on
+    /// a local mutated in a capturing closure even when the write resolves to an
+    /// in-place `plusAssign` family operator.
+    func markCompoundAssignmentAsInPlace(_ expression: ExprID, declaration: ExprID) {
+        guard var active = reassigned[declaration], active.contains(expression) else { return }
+        active.remove(expression)
+        if active.isEmpty {
+            reassigned.removeValue(forKey: declaration)
+        } else {
+            reassigned[declaration] = active
+        }
     }
 
     func analyze(_ body: FunctionBody, ast: ASTModule) {
@@ -136,14 +144,13 @@ final class LocalVariableStabilityAnalyzer {
             for name in names.compactMap({ $0 }) { locals[name] = id }
         case let .localAssign(name, value, _), let .compoundAssign(_, name, value, _):
             if let declaration = locals[name] {
-                reassigned.insert(declaration)
+                reassigned[declaration, default: []].insert(id)
                 for loop in flowBarrierScopes {
-                    flowBarrierReassignments[loop, default: []].insert(declaration)
+                    flowBarrierReassignments[loop, default: [:]][declaration, default: []].insert(id)
                 }
                 if let depth = declarationDepths[declaration], depth < closureScopes.count {
                     let scopes = Array(closureScopes.dropFirst(depth))
                     mutationScopes[declaration, default: []].insert(scopes)
-                    // Compound assignments do not necessarily store the RHS type.
                     if case .localAssign = expression {
                         mutationValues[declaration, default: [:]][id] = (scopes, value)
                     } else {
@@ -161,17 +168,15 @@ final class LocalVariableStabilityAnalyzer {
             closureScopes.append(id)
             scoped(body, hiding: params)
             closureScopes.removeLast()
-        case let .localFunDecl(name, _, params, _, body, _, _, _, _):
+        case let .localFunDecl(_, _, params, _, body, _, _, _, _):
             closureScopes.append(id)
             var scope = locals
             for param in params {
                 if let value = param.defaultValue { visit(value, ast: ast, locals: &scope) }
                 scope.removeValue(forKey: param.name)
             }
-            scope.removeValue(forKey: name)
             visitBody(body, ast: ast, locals: scope)
             closureScopes.removeLast()
-            locals.removeValue(forKey: name)
         case let .forExpr(variable, iterable, body, _, _):
             children([iterable])
             flowBarrierScopes.append(id)

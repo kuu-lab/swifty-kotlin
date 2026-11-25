@@ -107,10 +107,6 @@ public final class PhaseTimer {
         }
     }
 
-    /// Measure a scope, including work completed before an error is thrown.
-    /// Accumulated scopes are reported once under the active top-level phase;
-    /// recursive invocations of the same scope are included only once.
-    /// They overlap other inclusive scopes and are not added to TOTAL.
     fileprivate func measure<Result>(
         _ name: String,
         accumulating: Bool,
@@ -168,8 +164,6 @@ public final class PhaseTimer {
     }
 
 
-    /// Measure synchronous work on the pipeline thread. With no timer, avoid
-    /// reading the clock. Failed operations still contribute a timing record.
     public static func measureSubPhase<T>(
         _ name: String,
         timer: PhaseTimer?,
@@ -196,7 +190,6 @@ public final class PhaseTimer {
     }
 
 
-    /// Pad `text` without truncating labels needed to identify individual passes.
     private func pad(_ text: String, to width: Int) -> String {
         text + String(repeating: " ", count: max(0, width - text.count))
     }
@@ -229,7 +222,6 @@ public final class PhaseTimer {
     }
 }
 
-/// Avoid clock reads, label construction and timing storage when timing is disabled.
 package func withSubPhaseTiming<Result>(
     _ name: @autoclosure () -> String,
     timer: PhaseTimer?,

@@ -29,8 +29,6 @@ enum TypeRefParserCore {
         let consumed: Int
     }
 
-    /// Guards the mutually recursive type parser against unbounded native stack
-    /// growth on deeply nested untrusted source (a stack-overflow DoS).
     // Function-type recursion retains several native frames per nested type.
     // Keep enough headroom for the smaller stacks used by macOS test workers.
     static let maxRecursionDepth = 32
@@ -50,9 +48,6 @@ enum TypeRefParserCore {
         isTypeNameToken(kind, options: .declaration)
     }
 
-    /// Declaration names use Kotlin's `simpleIdentifier` grammar. `out` is
-    /// accepted here even though it is reserved as declaration-site variance
-    /// in type positions; hard keywords still require backticks.
     static func isDeclarationNameToken(_ kind: TokenKind) -> Bool {
         if case .softKeyword(.out) = kind {
             return true
@@ -223,13 +218,6 @@ enum TypeRefParserCore {
             return functionType
         }
 
-        // Parenthesized type group: `(Type)`, most commonly used to allow a
-        // trailing `?` to bind to an entire function type rather than just its
-        // return type — `((Int) -> Int)?` is a nullable function type, while
-        // `(Int) -> Int?` is a non-nullable function returning `Int?`. Kotlin's
-        // grammar allows this grouping around any type, not just function
-        // types, so this is attempted whenever `(` did not already parse as a
-        // function type above.
         if tokens[start].kind == .symbol(.lParen),
            let closeParen = findMatchingCloseParen(in: tokens, from: start),
            let inner = parseTypeRefPrefix(
@@ -290,9 +278,6 @@ enum TypeRefParserCore {
                   tokens[next].kind == .symbol(.dot),
                   let name = identifier(from: tokens[next + 1], interner: interner, options: options)
             {
-                // Qualified inner-class names carry the qualifier's type
-                // arguments (`Outer<V>.Inner<U>`): keep them in path order so
-                // resolution can split enclosing arguments from the class's own.
                 path.append(name)
                 next += 2
 
@@ -446,8 +431,6 @@ enum TypeRefParserCore {
         var contextReceivers: [TypeRefID] = []
         var isSuspend = false
 
-        // Kotlin orders the modifiers `suspend context(R) () -> A`; the
-        // reverse `context(R) suspend` order is also still accepted.
         if next < tokens.count, isSuspendModifierToken(tokens[next].kind) {
             isSuspend = true
             next += 1
@@ -471,11 +454,6 @@ enum TypeRefParserCore {
             next += 1
         }
 
-        // `suspend` is one of Kotlin's type modifiers, so annotations may
-        // still follow it (`suspend @Composable () -> Unit`). Re-enter the
-        // single-type parse so its annotation loop applies the modifier
-        // ordering — including the argument-list vs parameter-list
-        // disambiguation — then fold `suspend` (and any context receivers)
         // into the parsed type. Re-dispatch only when the result is a
         // function type so `suspend @A Int` stays an error, as in kotlinc.
         if isSuspend, next < tokens.count, tokens[next].kind == .symbol(.at) {
@@ -503,9 +481,6 @@ enum TypeRefParserCore {
            next < tokens.count,
            tokens[next].kind != .symbol(.lParen)
         {
-            // Context function types may place a named extension receiver before
-            // `.()`, as in `context(C) E.() -> Unit`. Suspend receiver types use
-            // the same path.
             guard let receiverParse = parseNamedTypeOnly(
                 tokens, from: next, interner: interner, astArena: astArena, options: options, diagnostics: diagnostics, recursionDepth: recursionDepth
             ),
@@ -540,9 +515,6 @@ enum TypeRefParserCore {
         guard closeParen + 1 < tokens.count,
               tokens[closeParen + 1].kind == .symbol(.arrow)
         else {
-            // A `(` group that is not a function parameter list is a
-            // parenthesized type: `(T)` is `T`, so `((Int) -> Int)` still
-            // resolves to a function type.
             guard let inner = parseTypeRefPrefix(
                 tokens,
                 from: next + 1,
@@ -668,9 +640,6 @@ enum TypeRefParserCore {
         }
     }
 
-    /// `suspend` may only modify a function type. `.annotated` wrappers are
-    /// transparent here so `suspend @A () -> R` qualifies while
-    /// `suspend @A Int` does not.
     private static func unwrapsToFunctionType(_ refID: TypeRefID, astArena: ASTArena) -> Bool {
         var current = refID
         while let ref = astArena.typeRef(current) {
@@ -866,10 +835,6 @@ enum TypeRefParserCore {
         return refs
     }
 
-    /// Kotlin function type parameters may have an optional documentation-only
-    /// parameter label (`name: Type`). When a top-level colon is present in a
-    /// parameter segment and the preceding token is a valid parameter name, the
-    /// type starts after the colon. Otherwise the whole segment is the type.
     private static func parameterTypeStart(
         tokens: [Token],
         segmentStart: Int,
@@ -886,8 +851,6 @@ enum TypeRefParserCore {
         return tokens[nameIndex].kind.isLabelName ? colonIndex + 1 : segmentStart
     }
 
-    /// Used when a `?` suffix follows a parenthesized type group, e.g.
-    /// `((Int) -> Int)?`.
     private static func nullableVariant(of ref: TypeRefID, astArena: ASTArena) -> TypeRefID {
         switch astArena.typeRef(ref) {
         case let .named(path, args, nullable):
@@ -959,8 +922,6 @@ enum TypeRefParserCore {
         }
     }
 
-    /// Parse a named type, including nullability, without checking for a function type suffix.
-    /// Used to parse the receiver part of `ReceiverType.() -> ReturnType`.
     private static func parseNamedTypeOnly(
         _ tokens: [Token],
         from start: Int,

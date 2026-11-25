@@ -56,8 +56,6 @@ public extension RuntimeABISpec {
         abi.nt("__kk_math_log10_float", "value"),
         abi.nt("__kk_math_log_float", "x base"),
         abi.nt("__kk_math_hypot_float", "x y"),
-        // Throwing callees: NaN receiver throws IllegalArgumentException, so the
-        // ABI carries the trailing outThrown pointer (see RuntimeNumericCompat).
         abi.th("__kk_float_roundToInt", "value outThrown"),
         abi.th("__kk_double_roundToInt", "value outThrown"),
         abi.th("__kk_float_roundToLong", "value outThrown"),

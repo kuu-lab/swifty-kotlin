@@ -70,8 +70,6 @@ private extension ProtoFields {
         try messages(field).map(decode)
     }
 
-    /// `repeated NullableIrExpression` → `[KlibIrExpression?]` (an absent
-    /// element message means `null`).
     func nullableExpressionList(_ field: Int) throws -> [KlibIrExpression?] {
         try wireValues(field).map { value in
             guard case .bytes(let bytes) = value else { return nil }
@@ -81,7 +79,6 @@ private extension ProtoFields {
     }
 }
 
-/// Index-based fields stay raw — resolution happens in ``KlibIrModule``.
 package enum KlibIrDecoding {
 
     package static func fileEntry(_ proto: ProtoFields) throws -> KlibFileEntry {
@@ -342,7 +339,6 @@ package enum KlibIrDecoding {
     }
 
     package static func declaration(_ proto: ProtoFields) throws -> KlibIrDeclaration {
-        // `IrDeclaration` oneof field numbers.
         if let value = try proto.message(1) { return .anonymousInit(try anonymousInit(value)) }
         if let value = try proto.message(2) { return .class(try `class`(value)) }
         if let value = try proto.message(3) { return .constructor(try constructor(value)) }
@@ -370,8 +366,6 @@ package enum KlibIrDecoding {
         try proto.decodedList(field, statement)
     }
 
-    /// Merges `member_access_pre_2_4_0` with the post-2.4 on-message
-    /// `argument`/`type_argument` fields.
     private static func callMemberAccess(
         _ proto: ProtoFields,
         memberAccessField: Int,
@@ -434,8 +428,6 @@ package enum KlibIrDecoding {
         throw KlibFormatError.corruptProto("IrVarargElement has no value set")
     }
 
-    /// `IrOperationPre_2_4_0` field number → the same member's field
-    /// number in the Kotlin 2.4 `IrExpression.operation` oneof.
     private static let modernOperationField: [Int: Int] = [
         1: 10, 2: 22, 3: 8, 4: 19, 5: 21, 6: 5, 7: 23, 8: 26, 9: 25, 10: 27,
         11: 39, 12: 18, 13: 20, 14: 15, 15: 17, 16: 6, 17: 28, 18: 40,
@@ -444,10 +436,6 @@ package enum KlibIrDecoding {
         35: 38, 36: 11, 37: 43, 38: 41, 39: 42,
     ]
 
-    /// `IrOperationPre_2_4_0` — the legacy operation oneof, carrying the
-    /// same operation messages as `IrExpression.operation` under pre-2.4
-    /// field numbers. Only the numbering differs, so each member is
-    /// re-tagged to its modern number and decoded by ``expression``.
     private static func legacyOperation(_ proto: ProtoFields) throws -> KlibIrExpressionKind {
         for legacyField in 1 ... 39 {
             guard let modernField = modernOperationField[legacyField],

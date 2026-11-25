@@ -1,8 +1,4 @@
 
-/// CLEANUP-STUB-107 removed `java.io.File`'s own Sema facade (constructor,
-/// member functions). CLEANUP-STUB-115 removed `kotlin.io.path.Path` entirely.
-/// What remains here are the runtime callee names still produced by the
-/// surviving BufferedReader closureRaw-injection logic in `+CallRewriteFile.swift`.
 struct FileIOLookupNames {
     let kkBufferedReaderForEachLineName: InternedString
     let kkBufferedReaderUseLinesName: InternedString

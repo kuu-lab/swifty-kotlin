@@ -6,8 +6,6 @@ import Darwin
 import Glibc
 #endif
 
-/// Opt-in, cross-process timing for actual stdlib artifact builds.
-/// Logging is best-effort and never changes the build result.
 public final class StdlibBuildTiming {
     private let path: String
     private let identifier: String

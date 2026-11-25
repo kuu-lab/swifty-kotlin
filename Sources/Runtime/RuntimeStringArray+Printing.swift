@@ -12,10 +12,6 @@ func runtimeKPropertyStubToString(_ property: RuntimeKPropertyStub) -> String {
     return "\(property.isMutable ? "var" : "val") \(name): \(returnType)"
 }
 
-/// KUU-3896: renders a stored return-type descriptor the way
-/// `runtimeKTypeToString` renders the same descriptor on a RuntimeKTypeBox —
-/// builtin simple names print qualified (`Int` → `kotlin.Int`), so a stub's
-/// `val x: T` signature spells the type like `property.returnType` does.
 private func runtimeReturnTypeDescriptorToString(_ raw: Int) -> String? {
     guard let descriptor = extractString(from: UnsafeMutableRawPointer(bitPattern: raw)),
           !descriptor.isEmpty
@@ -27,12 +23,6 @@ private func runtimeReturnTypeDescriptorToString(_ raw: Int) -> String? {
     return runtimeQualifiedTypeName(baseName) + (isNullable ? "?" : "")
 }
 
-/// KUU-4156: `java.lang.System.out`/`System.err` are bundled `PrintStream`
-/// objects whose `closed` flag lives in Kotlin state, while `kotlin.io.print`/
-/// `println` and `Throwable.printStackTrace` lower straight to the raw
-/// bridges below. These flags mirror each console sink's closed state so the
-/// raw bridges follow the stream lifecycle the way the JVM does — closing
-/// `System.out`/`System.err` drops later output instead of writing to the fd.
 private nonisolated(unsafe) var runtimeConsoleStdoutClosed = false
 private nonisolated(unsafe) var runtimeConsoleStderrClosed = false
 
@@ -77,10 +67,6 @@ public func __kk_printStderr(_ messageRaw: Int) -> Int {
     return 0
 }
 
-/// KSP-615: single low-level console input bridge behind `kotlin.io.readLine` /
-/// `readln` / `readlnOrNull`. Returns a pointer to a runtime string on success,
-/// or `runtimeNullSentinelInt` on EOF; nullability and the `readln` EOF throw
-/// live in `Stdlib/kotlin/io/Console.kt`.
 @_cdecl("__kk_readline_raw")
 public func __kk_readline_raw() -> Int {
     let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
@@ -108,15 +94,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     guard let raw = UnsafeMutableRawPointer(bitPattern: value) else {
         return String(value)
     }
-    // KUU-1352: coroutine job/task handles live in the liveness registry, not
-    // objectPointers — render kotlinx's `Name{State}@hex` before the
-    // pointer-type gate drops them into the numeric fallback.
     if let rendered = runtimeJobHandleDebugString(value) {
         return rendered
     }
-    // KUU-3947: accessor-backed callable-reference wrappers (KProperty /
-    // KFunction) carry a compiler-emitted description — render it like
-    // `runtimeElementToString` does instead of `<object 0x…>`.
     if let description = runtimeFunctionDescription(value) {
         return description
     }
@@ -133,8 +113,6 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
        let name = dispatcher.displayName {
         return name
     }
-    // KUU-4402: CoroutineName's Kotlin toString() is "CoroutineName(name)";
-    // the runtime box has no itable, so render it here.
     if let nameBox = tryCast(raw, to: RuntimeCoroutineNameBox.self) {
         return "CoroutineName(\(nameBox.name))"
     }
@@ -246,8 +224,6 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     if let rendered = runtimeJobWrapperDebugString(value) {
         return rendered
     }
-    // KUU-4402: composite coroutine contexts render like kotlinx's
-    // CombinedContext — `[elem, elem]` with the interceptor last.
     if let context = tryCast(raw, to: RuntimeCoroutineContext.self) {
         return runtimeCoroutineContextToString(context)
     }
@@ -348,8 +324,6 @@ private func runtimeScientificString(fromFixed rendered: String) -> String {
     return "\(sign)\(firstDigit).\(mantissaFraction)E\(exponent)"
 }
 
-/// Kotlin (matching java.lang.Double/Float.toString) uses scientific notation
-/// when the magnitude is >= 1e7 or < 1e-3.
 private func runtimeFinishFloatingPointFormat(rendered: String, useScientific: Bool) -> String {
     if rendered.contains("e") || rendered.contains("E") {
         return runtimeNormalizeScientificExponent(rendered)

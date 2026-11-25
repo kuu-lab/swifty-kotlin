@@ -5,7 +5,6 @@ import RuntimeCAtomics
 struct HeapObjectRecord {
     let pointer: UnsafeMutableRawPointer
     let byteCount: Int
-    /// Distinguishes allocations that reuse the same address.
     let generation: UInt64
 }
 
@@ -18,8 +17,6 @@ enum TracedGCReference {
 struct ActiveFrameRecord {
     let functionID: UInt32
     let frameBase: UnsafeMutableRawPointer?
-    /// Non-nil for compiler-emitted shadow frames whose root slots are stored
-    /// contiguously at `frameBase`.
     let rootCount: Int?
 }
 
@@ -36,10 +33,7 @@ final class GCShadowFrame {
     /// each dictionary probe costs a SipHash.
     var returnHandoff: Int?
     var thrownHandoff: Int?
-    /// Values returned by native operations remain rooted until this frame returns.
     var handoffs: Set<Int> = []
-    /// Values preserved across an inner native helper frame until the caller's
-    /// slot write or next safepoint retires them.
     var pendingReturnHandoffs: Set<Int> = []
 
     func clearReturnHandoffs(matching value: Int) {
@@ -60,19 +54,11 @@ final class GCShadowFrame {
     }
 }
 
-/// Per-thread shadow frame stack. Class storage keeps push/pop and nested
-/// `frames.last` mutations in place instead of copy-on-writing the array back
-/// into `shadowFrames` on every call.
 final class GCShadowFrameStack {
     var frames: [GCShadowFrame] = []
-    /// Popped frames kept for the next push: a fresh frame per generated call
-    /// would allocate and regrow its slot table every time. Frames are only
-    /// referenced inside GC-locked sections, so none outlives its pop.
     var spareFrames: [GCShadowFrame] = []
 }
 
-/// Per-thread active (native/root) frame stack — same class rationale as
-/// `GCShadowFrameStack` for `kk_push_frame`/`kk_pop_frame`/`kk_gc_frame_leave`.
 final class GCActiveFrameStack {
     var records: [ActiveFrameRecord] = []
 }
@@ -106,8 +92,6 @@ func runtimeGCCurrentThreadID() -> ObjectIdentifier {
     return ObjectIdentifier(thread)
 }
 
-/// Keep frame creation and a multi-part test reset mutually exclusive. The
-/// body is not called when frames or queued work prevent a reset.
 @discardableResult
 func runtimeWithQuiescentGCFrames(_ body: () -> Void) -> Bool {
     runtimeWithQuiescentGCFramesResult {
@@ -121,8 +105,6 @@ func runtimeWithQuiescentGCFramesResult(_ body: () -> Bool) -> Bool {
     runtimeGCSafepoints.withQuiescentFramesResult(body)
 }
 
-/// Protect a queued native callback before it has had a chance to push its
-/// first shadow frame. Its owner finishes the lease after the callback exits.
 final class RuntimeGCResetWorkLease: @unchecked Sendable {
     private let lock = NSLock()
     private var active = true
@@ -159,8 +141,6 @@ nonisolated(unsafe) private let runtimeGCTransientEpoch: UnsafeMutablePointer<In
     return cell
 }()
 
-/// Per-thread epoch of the last `runtimeClearTransientReturnHandoffs`, stored
-/// directly as the TLS word so the check allocates nothing.
 private let runtimeGCTransientClearedEpochKey: pthread_key_t = {
     var key = pthread_key_t()
     pthread_key_create(&key, nil)
@@ -248,9 +228,6 @@ struct KClassCacheKey: Hashable {
     let arrayComponent: Int
 }
 
-/// A Java Class handle is canonical per Kotlin classifier, except for runtime
-/// values whose JVM class depends on their concrete representation (arrays,
-/// collection implementations, and generated function classes).
 struct JavaClassCacheKey: Hashable {
     let typeToken: Int
     var runtimeClassName: String? = nil
@@ -258,14 +235,6 @@ struct JavaClassCacheKey: Hashable {
     var enclosingClassName: String? = nil
 }
 
-/// Per-category count of GC roots discovered while seeding the mark worklist,
-/// mapped onto `kotlin.native.runtime.RootSetStatistics`'s four pools:
-/// `threadLocalReferences` counts rooted thread-local values,
-/// `stackReferences` counts frame-map/coroutine roots, `globalReferences`
-/// counts global root slots plus runtime-internal reflection roots, and
-/// `stableReferences` counts StableRef / Pinned targets plus foreign-resource
-/// lease roots and retained atomic-cell payloads (the "internal usages" bucket
-/// of the upstream API).
 struct RuntimeGCRootSetCounts {
     var threadLocalReferences: Int64 = 0
     var stackReferences: Int64 = 0
@@ -273,7 +242,6 @@ struct RuntimeGCRootSetCounts {
     var stableReferences: Int64 = 0
 }
 
-/// Statistics gathered by one mark-and-sweep pass over the managed heap.
 struct RuntimeGCMarkSweepStats {
     var markedCount: Int64 = 0
     var sweptCount: Int64 = 0
@@ -283,12 +251,6 @@ struct RuntimeGCMarkSweepStats {
     var rootSet = RuntimeGCRootSetCounts()
 }
 
-/// Immutable per-pass record backing `kotlin.native.runtime.GC.lastGCInfo`.
-/// Written under gcLock once per `kk_gc_collect` pass; `postGcCleanupTimeNs`
-/// is patched in afterwards under an epoch guard because retired-lease ARC
-/// destruction deliberately runs outside gcLock. Optional `*TimeNs` fields
-/// are nil only for collector phases this runtime does not have — it is a
-/// single-pause collector, so the second-pause fields are always nil.
 struct RuntimeGCInfoSnapshot {
     var epoch: Int64
     var startTimeNs: Int64
@@ -342,15 +304,9 @@ struct RuntimeGCInfoSnapshot {
 struct GCState {
     var heapObjects: [UInt: HeapObjectRecord] = [:]
     var nextHeapGeneration: UInt64 = 0
-    /// `kk_object_new` boxes use ARC storage but participate in the same
-    /// reachability pass as `kk_alloc` objects. `objectPointers` remains the
-    /// handle registry; this set identifies the subset the collector owns.
     var managedObjectPointers: Set<UInt> = []
     var managedObjectGenerations: [UInt: UInt64] = [:]
     var nextManagedObjectGeneration: UInt64 = 0
-    /// New allocations and values crossing a generated function return are
-    /// held here until a shadow root slot is published or the next collection
-    /// completes. This closes the short handoff window between runtime calls.
     var pendingGCRoots: Set<UInt> = []
     var pendingGCRootCountsByThread: [ObjectIdentifier: [UInt: Int]] = [:]
     /// ARC releases are deferred until after `gcLock` is released so object
@@ -360,43 +316,26 @@ struct GCState {
     var foreignResources: [Int: RuntimeForeignResourceLease] = [:]
     var retiredForeignResources: [RuntimeForeignResourceLease] = []
     var objectPointers = RuntimePointerSet()
-    /// Existing retained reference cells are external owners, not swept boxes.
-    /// Trace their direct kk_alloc payloads until replacement or owner release.
     var retainedAtomicReferenceHandles: Set<UInt> = []
-    /// Direct managed-heap references of retained boxes with tracked fields.
     var retainedObjectHeapFields: [UInt: [Int: UInt]] = [:]
-    /// Immutable edges whose children are traced only if their owner is reached.
     var tracedObjectReferences: [UInt: [TracedGCReference]] = [:]
     var tracedResultGenerations: [UInt: UInt64] = [:]
     var nextTracedResultGeneration: UInt64 = 0
     var tracedResultLeaseRoots: [ObjectIdentifier: RuntimeTracedLeaseRoots] = [:]
-    /// Shared array storage is weakly referenced so its roots disappear when
-    /// the last retained array/view releases the storage.
     var retainedArrayHeapFields: [ObjectIdentifier: RuntimeStorageHeapRoots] = [:]
-    /// Each registered array or view owns its shared storage independently.
     var arrayStorageByOwner: [UInt: ObjectIdentifier] = [:]
-    /// Job wrapper links are published under gcLock for the collector.
     var objectJobHandles: [UInt: Int] = [:]
-    /// Coroutine terminal and handoff values follow their native storage lifetime.
     var retainedCoroutineHeapFields: [ObjectIdentifier: RuntimeStorageHeapRoots] = [:]
-    /// In-flight Future operations keep their result even if its handle is released.
     var retainedFutureHeapFields: [ObjectIdentifier: RuntimeStorageHeapRoots] = [:]
-    /// Borrowed pointers in `objectPointers` whose lifetime is owned by a
-    /// singleton or a dedicated runtime registry rather than passRetained.
     var borrowedObjectPointers: Set<UInt> = []
-    /// Canonical boxed Unit pointer, retained in `objectPointers` across GC resets.
     var unitBoxPointer: UInt? = nil
     var globalRootSlots: Set<UInt> = []
-    /// Compiler-owned static globals contain intptr words rather than Swift
-    /// pointer values. Their addresses remain valid for the process lifetime.
     var globalWordRootSlots: Set<UInt> = []
     /// Mirror thread-local words so collection never dereferences TLS storage
     /// after its owning thread exits.
     var threadLocalGlobalValues: [ObjectIdentifier: [UInt: Int]] = [:]
     var frameMaps: [UInt32: [Int32]] = [:]
     var activeFrames: [ObjectIdentifier: GCActiveFrameStack] = [:]
-    // Shadow roots contain raw ABI words. Registry membership is checked by the
-    // collector before any word is treated as a managed pointer.
     var shadowFrames: [ObjectIdentifier: GCShadowFrameStack] = [:]
     var pendingResetWork = 0
     var coroutineRoots: Set<UInt> = []
@@ -407,9 +346,6 @@ struct GCState {
     /// membership set would let one handle's unpin drop the root while a
     /// sibling pin is still held, leaving it dangling into freed memory.
     var pinnedObjectCounts: [UInt: Int] = [:]
-    /// Per-target refcount for `kotlinx.cinterop.StableRef` (kk_stable_ref_create/
-    /// _dispose). The same target object may be wrapped by several
-    /// independent StableRef handles at once — see kk_stable_ref_create.
     var stableRefCounts: [UInt: Int] = [:]
     /// Kotlin/JVM reference-identity cache for `kk_box_*` primitive boxing:
     /// Boolean (both values), Char (0..127), and Int/Long/Short/Byte
@@ -423,17 +359,8 @@ struct GCState {
     /// cache box must never be nominal-type tagged in place, so
     /// `kk_tag_value_class_box` consults this set and clones instead.
     var identityPrimitiveBoxHandles: Set<UInt> = []
-    /// Canonical Any-erased box handle per enum entry, keyed by enum class ID
-    /// and ordinal. Kotlin/JVM enum entries are singletons, so boxing the
-    /// same entry twice must return one object for `===` to observe reference
-    /// identity (KUU-2957). Handles are also registered in
-    /// `identityPrimitiveBoxHandles` so value-class tagging clones the shared
-    /// box instead of mutating it in place.
     var enumIdentityBoxCache: [RuntimeEnumBoxCacheKey: Int] = [:]
-    /// Monotonic counter of completed GC passes, surfaced as `GCInfo.epoch`.
-    /// The first recorded pass reports epoch 1.
     var gcEpoch: Int64 = 0
-    /// Statistics of the most recently completed GC pass (`GC.lastGCInfo`).
     var lastGCInfo: RuntimeGCInfoSnapshot? = nil
 }
 
@@ -611,8 +538,6 @@ struct MetadataState {
     var valueClassTypeIDs: Set<Int64> = []
     var arrayTypeIDsByPointer: [UInt: Set<Int64>] = [:]
     var typeParents: [Int64: Set<Int64>] = [:]
-    /// Set once the static reflection hierarchy edges are in `typeParents`;
-    /// cleared with `typeParents` so a metadata reset re-registers them.
     var reflectionTypeEdgesRegistered = false
     var primitiveTypeEdgesRegistered = false
     var bigDecimalTypeEdgesRegistered = false
@@ -624,8 +549,6 @@ struct MetadataState {
     var mapEntryTypeEdgesRegistered = false
     var cinteropTypeEdgesRegistered = false
     var dataClassIDs: Set<Int64> = []
-    /// Bitmask of object slot indices holding primary-constructor properties, per data class.
-    /// Absent entries mean "every stored slot participates" (legacy registration).
     var dataClassFieldMasks: [Int64: Int64] = [:]
     var objectVtableMethods: [UInt: [Int: Int]] = [:]
     var objectEqualsOverrides: [UInt: Int] = [:]
@@ -644,7 +567,6 @@ struct FlowState {
 struct ThreadLocalState {
     var threadLocalBoxes: Set<UInt> = []
     var threadLocalValues: [UInt: [ObjectIdentifier: Int]] = [:]
-    /// Reverse index for removing a thread's values when its pthread exits.
     var threadLocalReceiversByOwner: [ObjectIdentifier: Set<UInt>] = [:]
 }
 
@@ -739,10 +661,6 @@ final class RuntimeStorageBox: @unchecked Sendable {
 
     let coroutineSuspendedBox = RuntimeStringBox("COROUTINE_SUSPENDED")
     let flowStopSentinelBox = RuntimeStringBox("FLOW_STOP_SENTINEL")
-    /// Sentinel returned via callerState.resume(with:) when a lazy sequence
-    /// coroutine reaches the end of the builder lambda.  Callers compare the
-    /// resumed value against this box's pointer to distinguish
-    /// "done" from a real element.
     let sequenceCompletedBox = RuntimeStringBox("SEQUENCE_COMPLETED")
 
     @discardableResult
@@ -824,11 +742,8 @@ let kkObjMarkFlag: UInt32 = 1 << 0
 
 private let runtimeGCDefaultTargetHeapBytes = 100 * 1024 * 1024
 
-// KSP-1263 defaults: this runtime processes finalizers synchronously during
-// `kk_gc_collect` rather than dispatching batches to the main thread, so
-// these knobs are tunable state without an independent scheduler backing them.
 private let runtimeGCDefaultMainThreadFinalizerBatchSize = 100
-private let runtimeGCDefaultMainThreadFinalizerMaxTimeInTaskNs = 10_000_000 // 10ms
+private let runtimeGCDefaultMainThreadFinalizerMaxTimeInTaskNs = 10_000_000
 private let runtimeGCDefaultMainThreadFinalizerMinTimeBetweenTasksNs = 0
 
 private final class RuntimeGCTuningState: @unchecked Sendable {
@@ -879,9 +794,6 @@ private final class RuntimeGCTuningState: @unchecked Sendable {
         maxHeapBytes = value
     }
 
-    /// Called by `.runtimeIsolation(.gcOnly)` test resets so a test that mutates a
-    /// knob cannot leak state into an unrelated test running later in the same
-    /// process.
     func reset() {
         lock.lock()
         defer { lock.unlock() }
@@ -949,7 +861,6 @@ public func kk_alloc(_ size: UInt32, _ typeInfo: UnsafeRawPointer) -> UnsafeMuta
     return ptr
 }
 
-/// The pointer is already initialized and must not be registered elsewhere.
 func runtimeRegisterHeapAllocation(_ pointer: UnsafeMutableRawPointer, byteCount: Int) {
     runtimeStorage.withGCLock { state in
         let key = UInt(bitPattern: pointer)
@@ -977,8 +888,6 @@ private func runtimeGCNowNanos() -> Int64 {
 @_cdecl("kk_gc_collect")
 public func kk_gc_collect(_ gcRaw: Int = 0) {
     _ = gcRaw
-    // Only enrolled mutators participate in the safepoint protocol. Other
-    // threads and arbitrary direct frame-slot writes are not protected yet.
     let startTimeNs = runtimeGCNowNanos()
     let firstPauseRequestTimeNs = runtimeGCNowNanos()
     runtimeGCSafepoints.beginCollection()
@@ -1022,7 +931,7 @@ public func kk_gc_collect(_ gcRaw: Int = 0) {
         )
         return (retired, retiredManagedObjects)
     }
-    withExtendedLifetime(retired.0) {} // ARC destruction outside gcLock.
+    withExtendedLifetime(retired.0) {}
     for pointer in retired.1 {
         Unmanaged<AnyObject>.fromOpaque(pointer).release()
     }
@@ -1044,11 +953,6 @@ public func kk_gc_schedule(_ gcRaw: Int = 0) -> Int {
     return 0
 }
 
-/// Hands the recorded `RuntimeGCInfoSnapshot` to Kotlin as a flat `List<Long>`
-/// (see `serializedFieldValues` for the index layout). Returns
-/// `runtimeNullSentinelInt` while no GC pass has completed. The snapshot
-/// struct is copied under gcLock, so the returned list is an immutable
-/// per-pass view even if a concurrent collection lands mid-read.
 @_cdecl("kk_gc_last_gc_info")
 public func kk_gc_last_gc_info(_ gcRaw: Int = 0) -> Int {
     _ = gcRaw
@@ -1104,9 +1008,6 @@ public func kk_gc_max_heap_bytes_set(_ gcRaw: Int, _ value: Int) -> Int {
     return 0
 }
 
-// This target always processes finalizers, so `available` is unconditionally
-// true; the remaining members are plain tunable state (see the state comment
-// above `RuntimeGCTuningState`).
 @_cdecl("kk_gc_main_thread_finalizer_processor_available")
 public func kk_gc_main_thread_finalizer_processor_available(_ receiverRaw: Int) -> Int {
     _ = receiverRaw
@@ -1152,8 +1053,6 @@ public func kk_gc_main_thread_finalizer_processor_min_time_between_tasks_store(_
     return 0
 }
 
-// Kotlin global slots are registered by generated code before loading or
-// storing a reference-valued global.
 @discardableResult
 @_cdecl("kk_register_global_root")
 public func kk_register_global_root(_ slot: UnsafeMutablePointer<UnsafeMutableRawPointer?>?) -> Int {
@@ -1175,7 +1074,6 @@ public func kk_unregister_global_root(_ slot: UnsafeMutablePointer<UnsafeMutable
     }
 }
 
-/// Publish a compiler-owned static global and its value atomically with GC.
 @_cdecl("kk_gc_store_global")
 @discardableResult
 public func kk_gc_store_global(_ slot: UnsafeMutablePointer<Int>?, _ value: Int) -> Int {
@@ -1299,7 +1197,6 @@ public func kk_pop_frame() {
     }
 }
 
-/// Publishes compiler-owned raw Kotlin reference slots as a GC frame.
 @_cdecl("kk_gc_push_root_frame")
 public func kk_gc_push_root_frame(_ rootSlots: UnsafeMutableRawPointer?, _ rootCount: Int) -> Int {
     guard let rootSlots, rootCount > 0 else { return 0 }
@@ -1320,7 +1217,6 @@ public func kk_gc_push_root_frame(_ rootSlots: UnsafeMutableRawPointer?, _ rootC
     return 0
 }
 
-/// Publishes a root slot and retires its allocation or return handoff.
 @_cdecl("kk_gc_root_store")
 public func kk_gc_root_store(_ slot: UnsafeMutablePointer<Int>?, _ value: Int) -> Int {
     guard let slot else { return 0 }
@@ -1332,7 +1228,6 @@ public func kk_gc_root_store(_ slot: UnsafeMutablePointer<Int>?, _ value: Int) -
     return 0
 }
 
-/// Retains a return value until its caller publishes a root slot.
 @_cdecl("kk_gc_frame_leave")
 public func kk_gc_frame_leave(_ returnValue: Int, _ hasRootFrame: Int) -> Int {
     let threadID = runtimeGCCurrentThreadID()
@@ -1478,8 +1373,6 @@ private func runtimePopGCShadowFrame(
         if count == 1 {
             state.shadowFrames.removeValue(forKey: threadID)
         } else {
-            // Negative slots are reserved for handoff until the caller records
-            // the returned value and exception in its own frame.
             let parent = stack.frames[count - 2]
             parent.returnHandoff = result
             parent.thrownHandoff = thrown
@@ -1578,8 +1471,6 @@ private func runtimeTryResetGC() -> Bool {
                 object.pointer.deallocate()
             }
             state.heapObjects.removeAll(keepingCapacity: false)
-            // Registered ARC boxes survive reset. Preserve their edges to other
-            // registered boxes, but discard references to the freed kk_alloc heap.
             let registered = state.objectPointers
             state.retainedObjectHeapFields = state.retainedObjectHeapFields.reduce(into: [:]) { retained, entry in
                 guard registered.contains(entry.key) else { return }
@@ -1740,8 +1631,6 @@ func kk_runtime_reset_thread_local() {
     releaseRegisteredRuntimeBoxes(boxes)
 }
 
-/// Release boxes registered in `objectPointers`, dropping their registration
-/// first so no handle can resolve to the freed memory.
 private func releaseRegisteredRuntimeBoxes(_ pointers: [UnsafeMutableRawPointer]) {
     guard !pointers.isEmpty else {
         return
@@ -1762,8 +1651,6 @@ private func releaseRegisteredRuntimeBoxes(_ pointers: [UnsafeMutableRawPointer]
         }
     }
     for pointer in pointers {
-        // Primitive box handles registered under tagged bits need the base
-        // object pointer for ARC release.
         let base = runtimePrimitiveBoxBasePointer(from: Int(bitPattern: pointer)) ?? pointer
         Unmanaged<AnyObject>.fromOpaque(base).release()
     }
@@ -1799,8 +1686,6 @@ func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [
         }
     }
     stats.rootSet.globalReferences += Int64(resolvedCallableRoots)
-    // Unattached and externally retained owners keep their captures alive.
-    // Managed owners expose captures only when the owner is reachable.
     var seededLeaseRoots = 0
     for lease in state.foreignResources.values {
         if lease.owner == nil || lease.owner.map({
@@ -1846,9 +1731,6 @@ func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [
             }
         }
 
-        // Retained runtime containers are not swept by this pass, but walking
-        // their direct child handles lets a reachable Kotlin object retain
-        // objects held through arrays, lists, sets, maps, and closure boxes.
         if state.objectPointers.contains(key),
            visitedRuntimeBoxes.insert(key).inserted
         {
@@ -1936,8 +1818,6 @@ func performMarkAndSweepLocked(state: inout GCState, threadLocalValues: [UInt: [
     return stats
 }
 
-/// Keep only Result edges that can still reach a live managed allocation.
-/// Reverse traversal avoids order-dependent stale chains and handles cycles.
 private func pruneTracedObjectReferencesLocked(state: inout GCState) {
     var parents: [UInt: [UInt]] = [:]
     var liveOwners: Set<UInt> = []

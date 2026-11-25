@@ -56,9 +56,6 @@ private fun BigDecimal.roundToMathContext(mathContext: MathContext): BigDecimal 
     }
 
     var rounded = setScale(targetScale.toInt(), mathContext.roundingMode)
-    // Rounding can carry into one additional digit (for example, 999 at
-    // precision 2). Remove only exact trailing zeroes to keep the requested
-    // precision without changing the represented value.
     while (rounded.significantDigitCount() > precision) {
         val reducedScale = rounded.scale().toLong() - 1
         if (reducedScale < Int.MIN_VALUE) {

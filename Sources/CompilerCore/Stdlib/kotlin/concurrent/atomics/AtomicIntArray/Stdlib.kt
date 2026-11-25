@@ -8,9 +8,6 @@ package kotlin.concurrent.atomics
 
 import kotlin.internal.KsSymbolName
 
-/**
- * Creates an atomic integer array of the requested size, initialized to zero.
- */
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
 @KsSymbolName("kk_atomic_int_array_create")

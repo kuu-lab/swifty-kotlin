@@ -170,10 +170,7 @@ struct CodegenBackendScopeFunctionEdgeCasesTests {
             source,
             moduleName: "ExplicitContextArgumentOverload",
             expected: "context\nplain\n",
-            frontendFlags: [
-                "opt-in=kotlin.ExperimentalContextParameters",
-                "explicit-context-arguments",
-            ]
+            frontendFlags: ["opt-in=kotlin.ExperimentalContextParameters"]
         )
     }
 

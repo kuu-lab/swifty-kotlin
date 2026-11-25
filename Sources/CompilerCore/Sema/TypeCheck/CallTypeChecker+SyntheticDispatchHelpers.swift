@@ -27,10 +27,6 @@ extension CallTypeChecker {
         if visibleCandidates.isEmpty {
             return true
         }
-        // KSP-674: defer to any real (non-synthetic) declaration — the bundled
-        // Kotlin `flowOf`/`emptyFlow` implementations (kotlinx.coroutines.flow)
-        // or a user override. Only keep the builtin factory special handling
-        // while a synthetic stub is the only visible candidate.
         let hasRealCandidate = visibleCandidates.contains { candidate in
             guard let symbol = ctx.cachedSymbol(candidate),
                   symbol.kind == .function
@@ -42,8 +38,6 @@ extension CallTypeChecker {
         return !hasRealCandidate
     }
 
-    /// Preserve the bundled launcher's receiver/continuation slots even when
-    /// postponed builder inference resolves the call before the regular path.
     func markSourceBackedCoroutineLauncherArguments(
         _ chosen: SymbolID,
         args: [CallArgument],
@@ -55,7 +49,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// A same-named user declaration must keep the regular callable ABI.
     func isSourceBackedProducerFlowBuilder(
         _ symbolID: SymbolID,
         ctx: TypeInferenceContext
@@ -84,9 +77,6 @@ extension CallTypeChecker {
             return symbol.fqName == flowPackage + [symbol.name]
                 && ctx.sema.symbols.externalLinkName(for: symbolID) == expectedLink
         }
-        // KSP-1573: the bundled CoroutineScope.produce/actor extensions use the
-        // same launcher-continuation convention for their suspend
-        // ProducerScope/ActorScope receiver block.
         let produce = interner.intern("produce")
         let actor = interner.intern("actor")
         if symbol.name == produce || symbol.name == actor {
@@ -97,9 +87,6 @@ extension CallTypeChecker {
             ]
             return symbol.fqName == channelsPackage + [symbol.name]
         }
-        // KSP-1583: the bundled kotlinx.coroutines.test.runTest extern binds
-        // its suspend TestScope receiver through the same launcher
-        // continuation convention (TestScope in launcherArgs[0]).
         let runTest = interner.intern("runTest")
         if symbol.name == runTest {
             let testPackage = [
@@ -113,8 +100,6 @@ extension CallTypeChecker {
         return false
     }
 
-    /// Used to guard stdlib special-call paths (measureTimeMillis, measureNanoTime, etc.)
-    /// so that user-defined functions with the same name are not misidentified as stdlib intrinsics.
     func isShadowedByNonSyntheticSymbol(
         _ name: InternedString,
         locals: LocalBindings,
@@ -160,10 +145,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Imported library symbols carry the synthetic flag for compatibility, so
-    /// the source-backed provenance check must be used before falling back to
-    /// the runtime factory special path. Legacy `kotlin.concurrent` constructors
-    /// intentionally retain their existing special-call behavior.
     func hasSourceBackedAtomicArrayFactory(
         _ name: InternedString,
         className: String,
@@ -190,10 +171,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// A migrated bundled function is no longer synthetic, so the generic
-    /// shadowing guard would otherwise treat the stdlib declaration itself as a
-    /// user shadow.  We allow the exact stdlib FQN and reject any other
-    /// non-synthetic candidate with the same simple name.
     func sourceOrSyntheticStdlibFunctionSymbol(
         _ name: InternedString,
         fqComponents: [String],
@@ -242,6 +219,22 @@ extension CallTypeChecker {
             return [member]
         default:
             return nil
+        }
+    }
+
+    func isQualifiedNamespacePath(for exprID: ExprID, ast: ASTModule) -> Bool {
+        guard let expr = ast.arena.expr(exprID) else {
+            return false
+        }
+        switch expr {
+        case .nameRef:
+            return true
+        case let .memberCall(receiver, _, _, args, _):
+            return args.isEmpty
+                && !ast.arena.isExplicitCall(exprID)
+                && isQualifiedNamespacePath(for: receiver, ast: ast)
+        default:
+            return false
         }
     }
 }

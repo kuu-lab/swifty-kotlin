@@ -1,7 +1,5 @@
 import Foundation
 
-/// Keeps raw classfile declarations for a batch or daemon. Each compilation
-/// still builds its own ordered classpath and owns its source and Sema state.
 final class JVMClasspathArchiveCache {
     private struct Entry {
         let path: String

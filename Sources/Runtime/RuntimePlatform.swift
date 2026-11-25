@@ -23,11 +23,7 @@ private enum RuntimePlatformCpuArchitecture: Int {
     case wasm32 = 7
 }
 
-// MemoryModel ordinals match Kotlin stdlib MemoryModel enum:
-// STRICT=0, RELAXED=1, EXPERIMENTAL=2
 private enum RuntimePlatformMemoryModel: Int {
-    case strict = 0
-    case relaxed = 1
     case experimental = 2
 }
 
@@ -84,13 +80,11 @@ private let runtimePlatformCpuArchitecture: RuntimePlatformCpuArchitecture = {
 #endif
 }()
 
-// Kotlin 2.3.10 exposes only EXPERIMENTAL at runtime.
 private let runtimePlatformMemoryModel: RuntimePlatformMemoryModel = .experimental
 
 private let runtimePlatformIsDebugBinary: Bool = _isDebugAssertConfiguration()
 private nonisolated(unsafe) var runtimePlatformMemoryLeakCheckerActive = runtimePlatformIsDebugBinary
 
-// Cache boxed ordinals once at startup to avoid heap allocation on every access.
 private let runtimePlatformOsFamilyBoxed: Int = kk_box_int(runtimePlatformOsFamily.rawValue)
 private let runtimePlatformCpuArchitectureBoxed: Int = kk_box_int(runtimePlatformCpuArchitecture.rawValue)
 private let runtimePlatformMemoryModelBoxed: Int = kk_box_int(runtimePlatformMemoryModel.rawValue)

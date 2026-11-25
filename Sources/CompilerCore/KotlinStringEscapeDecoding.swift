@@ -12,9 +12,32 @@ private let simpleKotlinStringEscapes: [Character: Character] = [
     "b": "\u{08}",
 ]
 
-/// Decodes standard Kotlin string-literal escape sequences (`\n`, `\\`, `\"`,
-/// `\uXXXX` including surrogate pairs, etc.) so that text reconstructed from
-/// raw lexer tokens matches the value a user would see at runtime.
+/// Kotlin normalizes CR and CRLF line endings to LF inside raw string literals
+/// at compile time, regardless of the platform the compiler runs on.
+/// Iterates Unicode scalars because Swift treats CRLF as a single grapheme cluster.
+internal func normalizeKotlinRawStringLineEndings(_ value: String) -> String {
+    guard value.contains("\r") else { return value }
+    var result = String.UnicodeScalarView()
+    var index = value.unicodeScalars.startIndex
+    let end = value.unicodeScalars.endIndex
+    while index < end {
+        let scalar = value.unicodeScalars[index]
+        if scalar == "\r" {
+            result.append("\n")
+            let next = value.unicodeScalars.index(after: index)
+            if next < end, value.unicodeScalars[next] == "\n" {
+                index = value.unicodeScalars.index(after: next)
+            } else {
+                index = next
+            }
+        } else {
+            result.append(scalar)
+            index = value.unicodeScalars.index(after: index)
+        }
+    }
+    return String(result)
+}
+
 internal func decodeKotlinStringEscapes(_ raw: String) -> String {
     var result = ""
     var index = raw.startIndex
@@ -111,9 +134,6 @@ internal enum KotlinStringLiteralRepresentation {
     case legacyAnnotationTokens
 }
 
-/// Raw strings retain embedded quotes and backslashes; regular literals are
-/// escape-decoded separately. Historical token text requires an explicit
-/// representation because quote counts alone cannot distinguish raw contents.
 internal func extractKotlinStringLiteralContent(
     _ value: String,
     representation: KotlinStringLiteralRepresentation = .canonical
@@ -135,8 +155,6 @@ internal func extractKotlinStringLiteralContent(
     return (String(remainder.dropFirst().dropLast()), false)
 }
 
-/// Compatibility decoder for pre-version-6 annotation token text. Synthetic
-/// metadata using ordinary delimiters is also accepted by the legacy format.
 private func extractLegacyAnnotationStringLiteralContent(_ value: String) -> (content: String, isRaw: Bool)? {
     var index = value.startIndex
     var dollarCount = 0

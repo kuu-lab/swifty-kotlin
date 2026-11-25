@@ -26,8 +26,6 @@ package enum KlibChunkIO {
             | UInt32(bytes[offset + 3]))
     }
 
-    /// Unsigned LEB128 at `offset`; returns the value and the offset of the
-    /// next byte.
     package static func readUVarint(_ bytes: [UInt8], at offset: Int, end: Int? = nil) throws -> (value: UInt32, next: Int) {
         let limit = end ?? bytes.count
         guard offset >= 0, offset <= limit, limit <= bytes.count else {
@@ -87,7 +85,6 @@ package enum KlibChunkIO {
             }
             offsets[i + 1] = offsets[i] + size
         }
-        // Element payloads follow the header immediately.
         guard offsets[count] <= limit - position else {
             throw KlibFormatError.corruptChunk("element data exceeds chunk size")
         }
@@ -97,10 +94,8 @@ package enum KlibChunkIO {
     }
 }
 
-/// Single-dimension table (`IrArrayReader` in Kotlin).
 package struct KlibIrTable {
     package let bytes: [UInt8]
-    /// Element start offsets relative to `start`, `count + 1`.
     package let elementOffsets: [Int]
     private let start: Int
 
@@ -120,12 +115,8 @@ package struct KlibIrTable {
     }
 }
 
-/// Two-level table (`IrMultiArrayReader`): `element(row, column)` reads the
-/// inner table header embedded at the row offset and returns the column
-/// element relative to that row.
 package struct KlibIrMultiTable {
     package let bytes: [UInt8]
-    /// Outer row offsets relative to the buffer start.
     private let rowOffsets: [Int]
 
     package init(bytes: [UInt8]) throws {
@@ -215,9 +206,6 @@ package struct KlibIrDeclarationTable {
     }
 }
 
-/// Per-file declaration-id table (`DeclarationIdMultiTableReader`):
-/// `element(fileIndex, declId)` reads the coordinate header embedded at the
-/// row offset, then the element relative to that row.
 package struct KlibIrDeclarationMultiTable {
     package let bytes: [UInt8]
     private let rowOffsets: [Int]

@@ -121,8 +121,6 @@ extension KIRLoweringDriver {
     }
 
 
-    /// The initializer expression comes from the `field = expr` declaration,
-    /// not from the property's own initializer.
     private func lowerExplicitBackingFieldInitializer(
         _ explicitField: ExplicitBackingField,
         symbol: SymbolID,
@@ -219,8 +217,6 @@ extension KIRLoweringDriver {
         let receiverSymbol = callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: symbol)
         let receiverParam = KIRParameter(symbol: receiverSymbol, type: receiverType)
         let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: receiverType)
-        // Mirror `lowerAccessorBody`: context parameters trail the extension
-        // receiver so the emitted signature matches `propertyAccessorArguments`.
         let contextParams = zip(
             semanticSignature?.contextParameterSymbols ?? [],
             semanticSignature?.contextParameterTypes ?? []
@@ -458,9 +454,6 @@ extension KIRLoweringDriver {
                 initInstructions: &initInstructions
             )
         case .lazy:
-            // `lazy(initializer)` supplies a Function0 argument instead of a
-            // trailing delegate body. Lower the factory call itself so that
-            // its initializer argument is preserved.
             emitDelegateInit(
                 propertyDecl: propertyDecl, symbol: symbol,
                 delegateStorageSymbol: delegateStorageSymbol,
@@ -533,11 +526,6 @@ extension KIRLoweringDriver {
         initInstructions.append(.storeGlobal(value: createResult, symbol: delegateStorageSymbol))
     }
 
-    /// Resolves the `mode` argument for a `lazy`/`lazy(mode)` delegate creation:
-    /// lowers the user's explicit `LazyThreadSafetyMode` expression when
-    /// `lazy(mode) { ... }` was written, otherwise references the compiler's
-    /// default mode entry (matching the bare `lazy { ... }` form's prior
-    /// behavior, which honored `-Xfrontend lazy-thread-safety=...`).
     func lowerLazyModeExpr(
         delegateExpression: ExprID?,
         shared: KIRLoweringSharedContext,
@@ -557,10 +545,6 @@ extension KIRLoweringDriver {
         {
             return lowerExpr(modeArg.expr, shared: shared, emit: &instructions)
         }
-        // `ctx.lazyThreadSafetyMode` mirrors
-        // `compilationCtx.options.lazyThreadSafetyMode` (set in `lowerModule`)
-        // — this helper runs both from module lowering and from object-literal
-        // lowering, where no CompilationContext is in scope.
         let entryName: String = switch ctx.lazyThreadSafetyMode {
         case .synchronized: "SYNCHRONIZED"
         case .publication: "PUBLICATION"
@@ -573,9 +557,6 @@ extension KIRLoweringDriver {
         )
     }
 
-    /// KSP-491's stdlib delegate kinds are never overloaded on anything but
-    /// arity, so arity alone disambiguates (e.g. `lazy`'s 1-arg vs 2-arg
-    /// overload).
     func stdlibDelegateSymbol(
         fqName: [InternedString],
         parameterCount: Int,
@@ -603,13 +584,6 @@ extension KIRLoweringDriver {
         return ref
     }
 
-    /// Allocates a heap object for a direct constructor call (KSP-491: the
-    /// bundled `LazyImpl` delegate implementation), mirroring the allocation
-    /// `CallLowerer.lowerCallExpr` performs for an ordinary `NewExpr(...)`
-    /// call before invoking its constructor (`kk_object_new` sized from the
-    /// class's `NominalLayout`, then itable/vtable/supertype-edge
-    /// registration) -- constructors always need this as their implicit
-    /// receiver (p0); they are never called on an already-allocated object.
     func allocateStdlibDelegateInstance(
         ownerSymbol: SymbolID,
         resultType: TypeID,
@@ -672,8 +646,6 @@ extension KIRLoweringDriver {
     ) {
         let sema = shared.sema
         guard let delegateExpr = propertyDecl.delegateExpression else {
-            // Internal error: emitDelegateInit called for a property without delegate expression.
-            // This indicates an AST invariant violation — emit a diagnostic and bail out.
             compilationCtx.diagnostics.error(
                 "KSWIFTK-KIR-0002",
                 "Internal error: emitDelegateInit called for a property without a delegate expression.",

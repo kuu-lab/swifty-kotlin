@@ -181,9 +181,6 @@ public extension RuntimeABISpec {
         nativeABI.nt("kk_native_byteArray_setDoubleAt", "arrayRaw index value"),
         nativeABI.nt("__kk_immutable_blob_as_cpointer", "blobRaw offset"),
         systemABI.nt("kk_platform_isDebugBinary", "platformRaw"),
-        // withTimeout reports an expired deadline as a catchable
-        // TimeoutCancellationException, so its outThrown channel is declared
-        // explicitly (as for kk_ensure_active) rather than left implicit.
         coroutineABI.th("kk_with_timeout", "timeoutMillis entryPointRaw continuation outThrown"),
         coroutineABI.nt("kk_with_timeout_or_null", "timeoutMillis entryPointRaw continuation"),
         coroutineABI.th("kk_with_timeout_or_null_throwing", "timeoutMillis entryPointRaw continuation outThrown"),

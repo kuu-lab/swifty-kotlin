@@ -62,8 +62,6 @@ final class RuntimeCancellableContinuation: @unchecked Sendable {
     func initParent() {
         let context = __kk_coroutine_continuation_context(delegate, nil)
         let jobRaw = kk_context_get_job(context)
-        // A launch/async Job is represented by its task identity in the
-        // coroutine context. Its cancellation state lives on completionJob.
         guard let job = runtimeJobHandle(from: jobRaw)
             ?? runtimeAsyncTask(from: jobRaw)?.completionJob else { return }
         lock.lock()
@@ -165,7 +163,6 @@ final class RuntimeCancellableContinuation: @unchecked Sendable {
         }
     }
 
-    /// Kernel resources must be returned if cancellation wins before delivery.
     func resume(value: Int, onCancellation: @escaping @Sendable () -> Void) {
         resume(runtimeResultSuccess(value), callback: RuntimeCancellationCallback(
             fnPtr: 0, closureRaw: 0, native: { _ in onCancellation() }
@@ -335,8 +332,9 @@ public func __kk_cancellable_continuation_state(_ handle: Int) -> Int {
 public func __kk_cancellable_continuation_resume(
     _ handle: Int, _ result: Int, _ fnPtr: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) {
-    outThrown?.pointee = 0
-    cancellableContinuation(handle).resume(result, callback: RuntimeCancellationCallback(fnPtr: fnPtr, closureRaw: 0), outThrown: outThrown)
+    runtimeThrowingBridge(outThrown) {
+        cancellableContinuation(handle).resume(result, callback: RuntimeCancellationCallback(fnPtr: fnPtr, closureRaw: 0), outThrown: outThrown)
+    }
 }
 
 @_cdecl("__kk_cancellable_continuation_cancel")
@@ -348,8 +346,9 @@ public func __kk_cancellable_continuation_cancel(_ handle: Int, _ cause: Int) ->
 public func __kk_cancellable_continuation_invoke_on_cancellation(
     _ handle: Int, _ fnPtr: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) {
-    outThrown?.pointee = 0
-    cancellableContinuation(handle).invokeOnCancellation(RuntimeCancellationCallback(fnPtr: fnPtr, closureRaw: 0), outThrown: outThrown)
+    runtimeThrowingBridge(outThrown) {
+        cancellableContinuation(handle).invokeOnCancellation(RuntimeCancellationCallback(fnPtr: fnPtr, closureRaw: 0), outThrown: outThrown)
+    }
 }
 
 @_cdecl("__kk_cancellable_continuation_try_resume")
@@ -359,8 +358,9 @@ public func __kk_cancellable_continuation_try_resume(_ handle: Int, _ result: In
 
 @_cdecl("__kk_cancellable_continuation_complete_resume")
 public func __kk_cancellable_continuation_complete_resume(_ handle: Int, _ token: Int, _ outThrown: UnsafeMutablePointer<Int>?) {
-    outThrown?.pointee = 0
-    cancellableContinuation(handle).completeResume(token, outThrown: outThrown)
+    runtimeThrowingBridge(outThrown) {
+        cancellableContinuation(handle).completeResume(token, outThrown: outThrown)
+    }
 }
 
 @_cdecl("__kk_cancellable_continuation_get_result")

@@ -21,14 +21,6 @@ final class LocalDeclTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner
-        // Declaration annotations BuildAST forwarded onto this expression
-        // (KUU-4284) resolve once up front: the records are registered on the
-        // local symbol below, and their `@OptIn` markers scope over the type
-        // annotation, delegate and initializer — including lambda bodies —
-        // like a member property's own annotations. `expressionOptInContext`
-        // already covers the name-matched `@OptIn` spelling; the records path
-        // additionally keeps import aliases (`import kotlin.OptIn as OI`)
-        // working, matching the local-function handling (KUU-4290).
         let localDeclAnnotationRecords = driver.helpers.localDeclarationAnnotationRecords(for: id, ctx: ctx)
         let localDeclOptInMarkers = driver.helpers.optInMarkers(
             from: localDeclAnnotationRecords,
@@ -59,8 +51,6 @@ final class LocalDeclTypeChecker {
             )
         }
 
-        // The delegate resolution below needs a symbol to key getValue/setValue
-        // onto, so the symbol is defined up front instead of after localType.
         var localFlags: SymbolFlags = isMutable ? [.mutable] : []
         if isLateinit, isMutable { localFlags.insert(.lateinitProperty) }
         let localSymbol = sema.symbols.define(
@@ -146,9 +136,6 @@ final class LocalDeclTypeChecker {
                             )
                         } ?? false)
                     {
-                        // Range expressions keep their runtime representation separate from
-                        // the source-level range interface, so accept a matching range-like or
-                        // plain Iterable annotation without forcing a nominal subtype check.
                     } else {
                         driver.emitSubtypeConstraint(
                             left: initializerType, right: declaredType,
@@ -178,8 +165,6 @@ final class LocalDeclTypeChecker {
             }
         }
         if isLateinit {
-            // The parser already diagnoses source-level `lateinit val`. Keep
-            // programmatically constructed ASTs checked without duplicating it.
             let diagnosedVal = ctx.sema.diagnostics.diagnostics.contains { diagnostic in
                 diagnostic.code == "KSWIFTK-SEMA-0418"
                     && diagnostic.primaryRange.map { range.contains($0) } == true
@@ -212,7 +197,6 @@ final class LocalDeclTypeChecker {
                     range: range
                 )
             } else if case .primitive = sema.types.kind(of: localType) {
-                // Includes Byte/Short and every unsigned primitive.
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-LATEINIT",
                     "'lateinit' is not allowed on primitive local variable types.",
@@ -233,15 +217,12 @@ final class LocalDeclTypeChecker {
             sema.symbols.setAnnotations(localDeclAnnotationRecords, for: localSymbol)
         }
         locals[name] = (localType, localSymbol, isMutable, initializer != nil)
+        if isDelegated {
+            locals.delegatedLocalSymbols.insert(localSymbol)
+        }
         if !isMutable, !isDelegated, let initializer {
             locals.immutableLocalInitializers[localSymbol] = initializer
         }
-        // kotlinc narrows a `when` subject through the initializer only for
-        // enum-typed locals declared without a type annotation (`val e = E.A`
-        // is exhaustive over `{E.A}` but `val e: E = E.A`, `val b = true` and
-        // nullable declarations still need the full case set). Later plain
-        // assignments narrow enum/sealed/null subjects regardless — see
-        // inferLocalAssignExpr.
         if let initializer, !isDelegated, typeAnnotation == nil,
            case let .classType(classType) = sema.types.kind(of: localType),
            classType.nullability != .nullable,
@@ -279,9 +260,6 @@ final class LocalDeclTypeChecker {
             && declaredType.map {
                 nominalRangeElementType(for: $0, sema: sema, interner: interner) == nil
             } ?? false
-        // Propagate collection marks through local variable declarations
-        // so that `val list = listOf(1,2,3); list.size` still recognizes
-        // `list` as a collection receiver (P5-84).
         if let initializer, !mutableNonBoxedRangeHolder, sema.bindings.isCollectionExpr(initializer) {
             sema.bindings.markCollectionExpr(id)
             sema.bindings.markCollectionSymbol(localSymbol)
@@ -356,8 +334,6 @@ final class LocalDeclTypeChecker {
             return nil
         }
 
-        // A mutable copy of a stable reference keeps its declared storage type,
-        // even when reads of that reference are flow-narrowed in this branch.
         return declaredType
     }
 
@@ -395,9 +371,6 @@ final class LocalDeclTypeChecker {
         let interner = ctx.interner
 
         if let local = locals[name] {
-            // Reassignment drops any smart cast narrowing applied to the local
-            // inside the current branch, so both the constraint and the binding
-            // use the declared type again.
             let declaredType = ctx.sema.symbols.propertyType(for: local.symbol) ?? local.type
             // A lambda literal assigned to a local (e.g. a recursive
             // `lateinit var` closure such as `fact = { ... fact(it - 1) ... }`)
@@ -409,11 +382,6 @@ final class LocalDeclTypeChecker {
             if case .lambdaLiteral = ast.arena.expr(value) {
                 locals[name] = (local.type, local.symbol, local.isMutable, true)
             }
-            // A `val`'s single initializing assignment stays valid however
-            // many times the enclosing expression is re-inferred: contract
-            // effects (`callsInPlace`) or candidate probes can mark the local
-            // initialized before a later pass re-checks this same assignment
-            // (KUU-4513).
             let repeatsValInitialization = ctx.dataFlow.valInitializingAssignmentExprs.contains(id)
             let assignmentEligible = driver.helpers.isAssignmentOverloadEligible(
                 targetType: declaredType, targetSymbol: local.symbol, sema: ctx.sema, interner: interner
@@ -452,9 +420,6 @@ final class LocalDeclTypeChecker {
                     diagnosticCode: "KSWIFTK-SEMA-0470",
                     failureMessage: "Assignment type mismatch."
                 )
-                // A stable nullable local assigned a non-null value remains
-                // non-null until its next assignment, including captured
-                // locals written directly in their own local function.
                 let mutatedInClosure = ctx.dataFlow.localDeclarations[local.symbol].map {
                     ctx.dataFlow.localStability.isMutatedInClosure($0, sema: ctx.sema)
                 } ?? false
@@ -465,11 +430,6 @@ final class LocalDeclTypeChecker {
                     && valueType != ctx.sema.types.nothingType
                     && valueType != declaredType
                     && ctx.sema.types.isSubtype(valueType, declaredType)
-                // A sequenced write gives a stable mutable local the written
-                // value's subtype for subsequent reads in this flow branch.
-                // The first assignment to an uninitialized val establishes its
-                // value too. Keep the declared type when a deferred closure may
-                // overwrite the local.
                 let assignedType: TypeID = local.isMutable
                     && !mutatedInClosure
                     && valueType != ctx.sema.types.errorType
@@ -485,11 +445,6 @@ final class LocalDeclTypeChecker {
                     ? ctx.sema.types.makeNonNullable(declaredType) : declaredType
                 locals[name] = (assignedType, local.symbol, local.isMutable, true)
                 locals.invalidateMembers(root: local.symbol)
-                // A standalone assignment pins the local to its written
-                // singleton regardless of annotations or declared
-                // nullability (`e = E.A`, `e = null`, `s = S.O` all narrow
-                // `when` exhaustiveness under kotlinc). Boolean literal
-                // writes do not narrow Boolean `when` subjects.
                 if let constant = ctx.dataFlow.dataFlowValue(
                     value, ast: ast, sema: ctx.sema, interner: interner
                 ) {
@@ -538,9 +493,6 @@ final class LocalDeclTypeChecker {
                 )
             }
             guard let member = found else { continue }
-            // A member on a nullable implicit receiver is unsafe to write:
-            // keep walking for a non-null owner, and only if none exists does
-            // the unsafe member bind and report UNSAFE_CALL (KUU-4501, KUU-4504).
             if ctx.sema.types.nullability(of: receiverType) == .nullable {
                 if implicitReceiverMember == nil {
                     implicitReceiverMember = (member, nonNullReceiverType)
@@ -671,8 +623,6 @@ final class LocalDeclTypeChecker {
             return ctx.sema.types.unitType
         }
 
-        // Find the nearest assignable property in the scope chain. A same-named
-        // function in an inner class scope must not hide a top-level property.
         let allCandidateIDs = ctx.cachedScopeLookup(name, matching: { candidateID in
             guard let candidate = ctx.cachedSymbol(candidateID), candidate.kind == .property else {
                 return false
@@ -690,10 +640,6 @@ final class LocalDeclTypeChecker {
         let dslFilteredIDs = allCandidateIDs.filter { !ctx.isCandidateBlockedByDslMarker($0) }
         let (visibleIDs, _) = ctx.filterByVisibility(dslFilteredIDs)
         let candidates = visibleIDs.compactMap { ctx.cachedSymbol($0) }
-        // A receiver-bearing extension property binds only when an implicit
-        // receiver tower entry can supply its declared receiver — the same
-        // tower the read path walks. An entry that matches only leniently is
-        // nullable, so the write is unsafe rather than unresolved (KUU-4501).
         let receiverEntries = ctx.implicitReceiverMemberLookupEntries()
         var sawUnsafeReceiverWrite = false
         let writableCandidates = candidates.filter { candidate in
@@ -776,9 +722,6 @@ final class LocalDeclTypeChecker {
             return ctx.sema.types.unitType
         }
 
-        // No assignment target was resolved; still type-check the RHS (with no
-        // useful expected type) so its sub-expressions get bound types and any
-        // diagnostics inside it are still reported.
         _ = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: nil)
         if !dslBlockedIDs.isEmpty {
             ctx.sema.diagnostics.error(
@@ -795,10 +738,6 @@ final class LocalDeclTypeChecker {
         } else if let privateMember = driver.helpers.inaccessiblePrivateImplicitReceiverMember(
             named: name, ctx: ctx
         ) {
-            // Inherited `private` members never enter member lookup (they are
-            // not inherited), but the member still exists — report it as
-            // inaccessible rather than unresolved, matching kotlinc
-            // (KUU-3766).
             driver.helpers.emitVisibilityError(
                 for: privateMember,
                 name: interner.resolve(name),
@@ -817,10 +756,6 @@ final class LocalDeclTypeChecker {
     }
 }
 
-/// A syntactically non-null `T` can still denote null when its upper bound
-/// is nullable (including the implicit `Any?`). Local lateinit needs proof
-/// that null cannot be a valid assigned value, since null is its sentinel.
-/// Keep this separate from TypeSystem's syntactic nullability API.
 func lateinitLocalTypeIsDefinitelyNonNull(
     _ type: TypeID,
     sema: SemaModule,
@@ -832,16 +767,12 @@ func lateinitLocalTypeIsDefinitelyNonNull(
               !visiting.contains(parameter.symbol)
         else { return false }
         let bounds = sema.symbols.typeParameterUpperBounds(for: parameter.symbol)
-        // No explicit bound means Any?, never Any. A recursive path without
-        // any concrete non-null evidence must not prove its own nullability.
         guard !bounds.isEmpty else { return false }
         let next = visiting.union([parameter.symbol])
         return bounds.contains {
             lateinitLocalTypeIsDefinitelyNonNull($0, sema: sema, visiting: next)
         }
     case let .intersection(parts):
-        // A concrete non-null conjunct makes the intersection non-null even
-        // when another conjunct is a nullable/recursive type parameter.
         return parts.contains {
             lateinitLocalTypeIsDefinitelyNonNull($0, sema: sema, visiting: visiting)
         }

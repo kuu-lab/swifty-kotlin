@@ -24,21 +24,6 @@ func runtimePointerSetMayContain(_ key: UInt) -> Bool {
         && key <= UInt(bitPattern: kkrt_atomic_word_load(runtimePointerSetUpperBound))
 }
 
-/// Membership set for runtime object handles, used for `GCState.objectPointers`.
-///
-/// Every box/unbox, string extraction and collection access consults the
-/// handle registry while holding the global GC lock, so `Set<UInt>.contains`
-/// (SipHash via `Hasher._hash(seed:_:)` plus `__RawDictionaryStorage.find`) was
-/// the single largest cost in the runtime hot path profile (KUU-3018).
-///
-/// Keys here are heap addresses or tagged handles, never attacker-controlled,
-/// so a multiplicative hash with linear probing is sufficient and avoids the
-/// randomly-seeded SipHash. The table keeps its load factor at or below one
-/// half so successful and failed probes both stay short.
-///
-/// `0` and `1` are reserved as the empty and tombstone slot markers; real
-/// handles can never take those values (null and an unaligned address), but a
-/// caller passing them is still answered correctly through dedicated flags.
 struct RuntimePointerSet {
     private static let emptySlot: UInt = 0
     private static let tombstoneSlot: UInt = 1
@@ -81,7 +66,6 @@ struct RuntimePointerSet {
         }
     }
 
-    /// Returns `true` when `key` was not already a member.
     @discardableResult
     mutating func insert(_ key: UInt) -> Bool {
         if key <= Self.tombstoneSlot {
@@ -110,8 +94,6 @@ struct RuntimePointerSet {
         }
         slots[index] = key
         liveCount += 1
-        // Inserts are serialized by the GC lock, so load-then-store cannot
-        // lose a concurrent widening.
         if key < UInt(bitPattern: kkrt_atomic_word_load(runtimePointerSetLowerBound)) {
             kkrt_atomic_word_store(runtimePointerSetLowerBound, Int(bitPattern: key))
         }
@@ -121,7 +103,6 @@ struct RuntimePointerSet {
         return true
     }
 
-    /// Returns the removed key, or `nil` when it was not a member.
     @discardableResult
     mutating func remove(_ key: UInt) -> UInt? {
         if key <= Self.tombstoneSlot {

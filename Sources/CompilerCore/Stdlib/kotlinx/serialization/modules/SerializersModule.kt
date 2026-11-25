@@ -10,15 +10,6 @@ import kotlinx.serialization.*
 import kotlinx.serialization.internal.*
 import kotlin.reflect.*
 
-/**
- * [SerializersModule] is a collection of serializers used for contextual and polymorphic
- * serialization to override or provide serializers at the runtime, whereas at the compile-time
- * they are provided by the serialization plugin.
- * It can be considered as a map where serializers can be found using their statically known KClasses.
- *
- * Serializers module can be built with `SerializersModule {}` builder function.
- * Empty module can be obtained with `EmptySerializersModule()` factory function.
- */
 public sealed class SerializersModule {
 
     @ExperimentalSerializationApi
@@ -26,37 +17,22 @@ public sealed class SerializersModule {
         "Deprecated in favor of overload with default parameter",
         ReplaceWith("getContextual(kclass)"),
         DeprecationLevel.HIDDEN
-    ) // Was experimental since 1.0.0, HIDDEN in 1.2.0 in a backwards-compatible manner
+    )
     public fun <T : Any> getContextual(kclass: KClass<T>): KSerializer<T>? =
         getContextual(kclass, emptyList())
 
-    /**
-     * Returns a contextual serializer associated with a given [kClass].
-     * If given class has generic parameters and module has provider for [kClass],
-     * [typeArgumentsSerializers] are used to create serializer.
-     */
     @ExperimentalSerializationApi
     public abstract fun <T : Any> getContextual(
         kClass: KClass<T>,
         typeArgumentsSerializers: List<KSerializer<*>> = emptyList()
     ): KSerializer<T>?
 
-    /**
-     * Returns a polymorphic serializer registered for a class of the given [value] in the scope of [baseClass].
-     */
     @ExperimentalSerializationApi
     public abstract fun <T : Any> getPolymorphic(baseClass: KClass<in T>, value: T): SerializationStrategy<T>?
 
-    /**
-     * Returns a polymorphic deserializer registered for a [serializedClassName] in the scope of [baseClass]
-     * or default value constructed from [serializedClassName] if a default serializer provider was registered.
-     */
     @ExperimentalSerializationApi
     public abstract fun <T : Any> getPolymorphic(baseClass: KClass<in T>, serializedClassName: String?): DeserializationStrategy<T>?
 
-    /**
-     * Copies contents of this module to the given [collector].
-     */
     @ExperimentalSerializationApi
     public abstract fun dumpTo(collector: SerializersModuleCollector)
 
@@ -64,9 +40,6 @@ public sealed class SerializersModule {
     internal abstract val hasInterfaceContextualSerializers: Boolean
 }
 
-/**
- * A [SerializersModule] which is empty and always returns `null`.
- */
 @Deprecated("Deprecated in the favour of 'EmptySerializersModule()'",
     level = DeprecationLevel.WARNING,
     replaceWith = ReplaceWith("EmptySerializersModule()"))
@@ -79,23 +52,11 @@ public val EmptySerializersModule: SerializersModule = SerialModuleImpl(
     false
 )
 
-/**
- * Returns a combination of two serial modules
- *
- * If serializer for some class presents in both modules, a [SerializerAlreadyRegisteredException] is thrown.
- * To overwrite serializers, use [SerializersModule.overwriteWith] function.
- */
 public operator fun SerializersModule.plus(other: SerializersModule): SerializersModule = SerializersModule {
     include(this@plus)
     include(other)
 }
 
-/**
- * Returns a combination of two serial modules
- *
- * If serializer for some class presents in both modules, result module
- * will contain serializer from [other] module.
- */
 @OptIn(ExperimentalSerializationApi::class)
 public infix fun SerializersModule.overwriteWith(other: SerializersModule): SerializersModule = SerializersModule {
     include(this@overwriteWith)
@@ -135,12 +96,6 @@ public infix fun SerializersModule.overwriteWith(other: SerializersModule): Seri
     })
 }
 
-// Implementation details below
-
-/**
- * A default implementation of [SerializersModule]
- * which uses hash maps to store serializers associated with KClasses.
- */
 @Suppress("UNCHECKED_CAST")
 @OptIn(ExperimentalSerializationApi::class)
 internal class SerialModuleImpl(
@@ -154,18 +109,14 @@ internal class SerialModuleImpl(
 
     override fun <T : Any> getPolymorphic(baseClass: KClass<in T>, value: T): SerializationStrategy<T>? {
         if (!baseClass.isInstance(value)) return null
-        // Registered
         val registered = polyBase2Serializers[baseClass]?.get(value::class) as? SerializationStrategy<T>
         if (registered != null) return registered
-        // Default
         return (polyBase2DefaultSerializerProvider[baseClass] as? PolymorphicSerializerProvider<T>)?.invoke(value)
     }
 
     override fun <T : Any> getPolymorphic(baseClass: KClass<in T>, serializedClassName: String?): DeserializationStrategy<T>? {
-        // Registered
         val registered = polyBase2NamedSerializers[baseClass]?.get(serializedClassName) as? KSerializer<out T>
         if (registered != null) return registered
-        // Default
         return (polyBase2DefaultDeserializerProvider[baseClass] as? PolymorphicDeserializerProvider<T>)?.invoke(serializedClassName)
     }
 

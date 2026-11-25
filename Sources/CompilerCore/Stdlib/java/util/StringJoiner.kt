@@ -1,6 +1,5 @@
 package java.util
 
-/** Mutable builder for joining strings with a delimiter, prefix, and suffix. */
 public class StringJoiner(
     private val delimiter: String,
     private val prefix: String = "",

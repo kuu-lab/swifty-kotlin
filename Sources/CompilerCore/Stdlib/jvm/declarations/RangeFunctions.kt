@@ -1,5 +1,12 @@
 package kotlin.ranges
 
+public interface ClosedRange<T : Comparable<T>> {
+    public val start: T
+    public val endInclusive: T
+    public operator fun contains(value: T): Boolean = value >= start && value <= endInclusive
+    public fun isEmpty(): Boolean = start > endInclusive
+}
+
 external fun Byte.coerceAtLeast(minimumValue: Byte): Byte
 external fun Byte.coerceAtMost(maximumValue: Byte): Byte
 external fun Short.coerceAtLeast(minimumValue: Short): Short
@@ -17,6 +24,8 @@ external fun Long.coerceIn(minimumValue: Long, maximumValue: Long): Long
 external fun Double.coerceIn(minimumValue: Double, maximumValue: Double): Double
 external fun <T : Comparable<T>> T.coerceIn(minimumValue: T?, maximumValue: T?): T
 
+external operator fun <T : Comparable<T>> T.rangeTo(that: T): ClosedRange<T>
+
 public infix fun Int.until(to: Int): IntRange =
     if (to == Int.MIN_VALUE) IntRange(1, 0) else IntRange(this, to - 1)
 
@@ -29,8 +38,6 @@ public operator fun IntProgression.contains(value: Int): Boolean = null!!
 // the common ProgressionConstructors.kt declaration is.
 public operator infix fun IntProgression.step(step: Int): IntProgression = null!!
 
-// Reversing swaps the endpoints and negates the step; the specialized
-// progression overload keeps the IntProgression return type.
 public fun IntProgression.reversed(): IntProgression = null!!
 
 public inline fun IntRange.all(predicate: (Int) -> Boolean): Boolean {

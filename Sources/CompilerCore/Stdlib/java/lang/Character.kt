@@ -10,7 +10,6 @@ import kotlin.text.__charTitlecaseCode
 import kotlin.text.__charUnicodeCategory
 import kotlin.text.__charUppercaseCode
 
-/** Java-compatible Unicode operations for UTF-16 chars and Unicode code points. */
 public class Character(private val value: Char) {
     override fun toString(): String = value.toString()
 
@@ -24,7 +23,6 @@ public class Character(private val value: Char) {
     override fun hashCode(): Int = value.code
 
     public companion object {
-        // JDK scalar limits (KUU-3987).
         public const val MIN_VALUE: Char = '\u0000'
         public const val MAX_VALUE: Char = '\uFFFF'
         public const val MIN_HIGH_SURROGATE: Char = '\uD800'
@@ -47,10 +45,16 @@ public class Character(private val value: Char) {
 
         private const val UPPERCASE_LETTER: Int = 1
         private const val OTHER_LETTER: Int = 5
+        private const val NON_SPACING_MARK_TYPE: Int = 6
+        private const val COMBINING_SPACING_MARK_TYPE: Int = 8
         private const val DECIMAL_DIGIT_NUMBER: Int = 9
+        private const val LETTER_NUMBER_TYPE: Int = 10
         private const val SPACE_SEPARATOR: Int = 12
         private const val LINE_SEPARATOR: Int = 13
         private const val PARAGRAPH_SEPARATOR: Int = 14
+        private const val FORMAT_TYPE: Int = 16
+        private const val CONNECTOR_PUNCTUATION_TYPE: Int = 23
+        private const val CURRENCY_SYMBOL_TYPE: Int = 26
 
         // Java deliberately does not validate code points for this operation.
         public fun charCount(codePoint: Int): Int = if (codePoint >= 0x10000) 2 else 1
@@ -77,6 +81,30 @@ public class Character(private val value: Char) {
         public fun isLowerCase(ch: Char): kotlin.Boolean = ch.isLowerCase()
 
         public fun isLowerCase(codePoint: Int): kotlin.Boolean = __charIsLowerCase(codePoint)
+
+        public fun isJavaIdentifierStart(codePoint: Int): kotlin.Boolean {
+            val type = getType(codePoint)
+            return type in UPPERCASE_LETTER..OTHER_LETTER ||
+                type == LETTER_NUMBER_TYPE ||
+                type == CONNECTOR_PUNCTUATION_TYPE ||
+                type == CURRENCY_SYMBOL_TYPE
+        }
+
+        public fun isJavaIdentifierPart(codePoint: Int): kotlin.Boolean {
+            if (isJavaIdentifierStart(codePoint)) return true
+            val type = getType(codePoint)
+            return type == DECIMAL_DIGIT_NUMBER ||
+                type == NON_SPACING_MARK_TYPE ||
+                type == COMBINING_SPACING_MARK_TYPE ||
+                isIdentifierIgnorable(codePoint)
+        }
+
+        private fun isIdentifierIgnorable(codePoint: Int): kotlin.Boolean {
+            if (getType(codePoint) == FORMAT_TYPE) return true
+            return codePoint in 0x0000..0x0008 ||
+                codePoint in 0x000E..0x001B ||
+                codePoint in 0x007F..0x009F
+        }
 
         public fun isTitleCase(ch: Char): kotlin.Boolean = ch.isTitleCase()
 

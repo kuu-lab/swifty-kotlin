@@ -13,11 +13,6 @@ import kotlinx.atomicfu.locks.ParkingSupport
 import kotlin.concurrent.Volatile
 import kotlin.internal.KsSymbolName
 
-// KUU-3059: java.util.concurrent.locks.ReentrantLock on its own atomicfu
-// lock kernel (kind 1 = argument-error on foreign unlock). The kernel is
-// recursive per thread; `owner`/`holdCount` are tracked here so Condition
-// can release the lock fully and re-acquire it, like the JVM sync fields.
-
 @KsSymbolName("__kk_atomicfu_lock_new")
 private external fun newReentrantKernel(ownerErrorKind: Int): Any
 

@@ -1,10 +1,5 @@
 import Foundation
 
-// Bucketed synthetic stub registry (RF-STUB-006).
-// Entries stay in the historical registration order, but each call is tagged
-// with the stdlib-pipeline bucket it belongs to: target-out cleanup (a),
-// source-backed migration (b), or compiler/runtime residual (c).
-
 private enum SyntheticStubRegistryBucket: String {
     case sourceBackedMigration = "b"
     case residualCompilerSurface = "c"
@@ -22,6 +17,7 @@ struct SyntheticDelegateStubRegistryContext {
     let bundledIndex: BundledDeclarationIndex
     let skipStats: SyntheticStubSkipStatsCollector
     let projectsCoroutineContextIsActive: Bool
+    let isJVMTarget: Bool
 }
 
 private struct SyntheticDelegateStubRegistryEntry {
@@ -72,16 +68,12 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
                 phase.registerSyntheticComparableStub(symbols: symbols, types: types, interner: interner)
             }
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "String") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticStringStubs(symbols: symbols, types: types, interner: interner)
+        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "String") { phase, symbols, types, interner, context in
+            phase.registerSyntheticStringStubs(symbols: symbols, types: types, interner: interner, isJVMTarget: context.isJVMTarget)
         },
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Char") { phase, symbols, types, interner, _ in
             phase.registerSyntheticCharStubs(symbols: symbols, types: types, interner: interner)
         },
-        // KUU-586: all kotlin.math APIs are bundled Kotlin source (Math.kt); the
-        // residual entry point only anchors Byte/Long/Short nominal + Companion
-        // symbols for bundled Companion extensions, which is (c) language-core.
-        // Kept at the former "Math" slot to preserve registration order.
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "PrimitiveCompanionAnchors") { phase, symbols, types, interner, _ in
             phase.registerSyntheticPrimitiveCompanionAnchors(symbols: symbols, interner: interner)
         },
@@ -120,10 +112,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "FunctionTypes") { phase, symbols, types, interner, _ in
             phase.registerSyntheticFunctionTypes(symbols: symbols, types: types, interner: interner)
         },
-        // KSP-682: these patches attach the Function{N} supertypes for the
-        // synthetic KProperty fallback shells only. When the bundled Kotlin
-        // source is present, Sema inheritance binding resolves the `() -> V`
-        // supertypes to Function{N} directly, so the patches are skipped.
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "KPropertyFunctionSupertypePatch") { phase, symbols, types, interner, context in
             guard !context.bundledIndex.contains(
                 ownerFQName: context.kotlinPkg + [interner.intern("reflect"), interner.intern("KProperty0")],
@@ -148,17 +136,9 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
             ) else { return }
             phase.patchKMutableProperty1FunctionSupertype(symbols: symbols, types: types, interner: interner)
         },
-        // CLEANUP-STUB-107 removed File's own target-out facade; what remains
-        // (bare File shell + shared Reader/Writer/Stream primitives) is
-        // permanent scaffolding for Path/FileSystemException, not a delete
-        // candidate, so this is tagged (c) rather than (a).
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "JavaIOStream") { phase, symbols, types, interner, _ in
             phase.registerSyntheticJavaIOStreamStubs(symbols: symbols, types: types, interner: interner)
         },
-        // KSP-1544: the coercion/range (b) surface is fully source-backed
-        // (RangeCoercion.kt + Numbers.kt Float/Double.toByte/toShort). What
-        // remains are language-core primitive casts (Int/Long/Double.toFloat)
-        // lowered directly to kk_* runtime symbols — residual (c).
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Coercion") { phase, symbols, types, interner, _ in
             phase.registerSyntheticCoercionStubs(symbols: symbols, types: types, interner: interner)
         },
@@ -233,7 +213,6 @@ extension DataFlowSemaPhase {
             }
             entry.register(self, symbols, types, interner)
         }
-        // KSP-1205: EnumEntries is available after the Enum bucket has run.
         if stubTrace {
             FileHandle.standardError.write(Data("STUBENTRY ext.MemoryModelEnumMembers\n".utf8))
         }

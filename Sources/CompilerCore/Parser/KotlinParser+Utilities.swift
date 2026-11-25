@@ -44,6 +44,38 @@ extension KotlinParser {
             }
         }
 
+        if stream.peek().kind == .symbol(.lessThan) {
+            _ = consumeToken(into: &children, range: &range)
+            var angleDepth = 1
+            var parenDepth = 0
+            var bracketDepth = 0
+            var braceDepth = 0
+            var templateDepth = 0
+            while !stream.atEOF(), angleDepth > 0 {
+                let token = consumeToken(into: &children, range: &range)
+                let kind = token.kind
+                let inExpressionGroup = parenDepth > 0 || bracketDepth > 0 || braceDepth > 0 || templateDepth > 0
+                if !inExpressionGroup {
+                    if kind == .symbol(.lessThan) {
+                        angleDepth += 1
+                    } else if kind == .symbol(.greaterThan) {
+                        angleDepth -= 1
+                    }
+                }
+                switch kind {
+                case .symbol(.lParen): parenDepth += 1
+                case .symbol(.rParen): parenDepth = max(0, parenDepth - 1)
+                case .symbol(.lBracket): bracketDepth += 1
+                case .symbol(.rBracket): bracketDepth = max(0, bracketDepth - 1)
+                case .symbol(.lBrace): braceDepth += 1
+                case .symbol(.rBrace): braceDepth = max(0, braceDepth - 1)
+                case .templateExprStart: templateDepth += 1
+                case .templateExprEnd: templateDepth = max(0, templateDepth - 1)
+                default: break
+                }
+            }
+        }
+
         if stream.peek().kind == .symbol(.lParen) {
             _ = consumeToken(into: &children, range: &range)
             var closingSymbols: [Symbol] = [.rParen]
@@ -76,9 +108,6 @@ extension KotlinParser {
         return true
     }
 
-    /// Only named declaration keywords synchronize an unclosed annotation.
-    /// Soft keywords such as value/context and nested annotation expressions
-    /// remain valid arguments; anonymous functions and objects remain operands.
     func isAnnotationArgumentRecoveryBoundary(at offset: Int) -> Bool {
         let token = stream.peek(offset)
         switch token.kind {
@@ -129,12 +158,6 @@ extension KotlinParser {
             && stream.peek(offset + 2).kind == .symbol(.colon)
     }
 
-    /// Offset just past the annotation prefix starting at the `@` seen at
-    /// `offset`: an optional use-site target (`@field:`), the qualified
-    /// annotation name, and an optional balanced argument group. Mirrors the
-    /// token shape consumed by `consumeDeclarationAnnotationPrefixIfPresent`
-    /// without mutating the parser stream. Returns nil when the qualified
-    /// name is missing.
     func offsetPastAnnotationPrefix(from offset: Int) -> Int? {
         var cursor = offset + 1
         if isAnnotationUseSiteTarget(stream.peek(cursor)),
@@ -146,6 +169,9 @@ extension KotlinParser {
         while stream.peek(cursor).kind == .symbol(.dot),
               isIdentifierLike(stream.peek(cursor + 1).kind) {
             cursor += 2
+        }
+        if stream.peek(cursor).kind == .symbol(.lessThan) {
+            cursor = offsetPastTypeArguments(from: cursor)
         }
         if stream.peek(cursor).kind == .symbol(.lParen) {
             cursor = offsetPastBalancedGroup(from: cursor,
@@ -169,10 +195,16 @@ extension KotlinParser {
 
         let parsesValueParameters = allowsValueParameters
             && opening == .lParen && closing == .rParen
-        var atValueParameterStart = true
         var valueParameterPrefixEnd: Int?
         var valueParameterTypeArgumentDepth = 0
         var valueParameterInDefaultValue = false
+        // Whether the current parameter's prefix is complete (its `name:` or
+        // a default `=` was seen). Only an incomplete prefix may shield a
+        // declaration-looking newline; afterwards a missing ')' must recover
+        // at the next declaration instead of absorbing it as a parameter.
+        var valueParameterPrefixComplete = false
+        var valueParameterAtPending = false
+        var valueParameterAtTargetPending = false
         let whenSubjectVariablePrefixEnd = allowsWhenSubjectVariable
             ? lookaheadWhenSubjectVariablePrefixEnd()
             : nil
@@ -183,10 +215,14 @@ extension KotlinParser {
                 _ = consumeToken(into: &children, range: &range)
                 return arena.appendNode(kind: .statement, range: range.value ?? invalidRange, children)
             }
-            // A proven parameter prefix or anonymous default expression may
-            // cross a declaration-looking newline. Keep recovery boundaries
-            // for a missing ')' and following named declarations.
-            if parsesValueParameters, closingSymbols.count == 1, atValueParameterStart,
+            // A proven parameter prefix — including annotations or modifiers
+            // split across newlines inside one parameter — or an anonymous
+            // default expression may cross a declaration-looking newline.
+            // Keep recovery boundaries for a missing ')' and following named
+            // declarations: once the current parameter's prefix is complete,
+            // a new parameter can only start after a comma, so a proven
+            // prefix here would be an unrelated declaration.
+            if parsesValueParameters, closingSymbols.count == 1, !valueParameterPrefixComplete,
                hasLeadingNewline(token), isLikelyTopLevelDeclarationStart(token) {
                 valueParameterPrefixEnd = lookaheadValueParameterPrefixEnd()
             }
@@ -207,16 +243,20 @@ extension KotlinParser {
             }
 
             if parsesValueParameters, closingSymbols.count == 1 {
-                // A generic type's comma is not a new parameter. Conversely,
-                // '<' in a default expression may be a comparison, not a type.
                 if token.kind == .symbol(.comma), valueParameterTypeArgumentDepth == 0 {
-                    atValueParameterStart = true
                     valueParameterPrefixEnd = nil
                     valueParameterInDefaultValue = false
+                    valueParameterPrefixComplete = false
+                    valueParameterAtPending = false
+                    valueParameterAtTargetPending = false
                 } else {
-                    atValueParameterStart = false
+                    if token.kind == .symbol(.colon), valueParameterTypeArgumentDepth == 0,
+                       !valueParameterAtTargetPending {
+                        valueParameterPrefixComplete = true
+                    }
                     if token.kind == .symbol(.assign) {
                         valueParameterInDefaultValue = true
+                        valueParameterPrefixComplete = true
                     } else if token.kind == .symbol(.lessThan) {
                         if !valueParameterInDefaultValue || valueParameterTypeArgumentDepth > 0
                             || valueParameterDefaultStartsTypeArguments() {
@@ -224,6 +264,19 @@ extension KotlinParser {
                         }
                     } else if token.kind == .symbol(.greaterThan), valueParameterTypeArgumentDepth > 0 {
                         valueParameterTypeArgumentDepth -= 1
+                    }
+                }
+                switch token.kind {
+                case .symbol(.at):
+                    valueParameterAtPending = true
+                    valueParameterAtTargetPending = false
+                default:
+                    if valueParameterAtPending, isIdentifierLike(token.kind) {
+                        valueParameterAtPending = false
+                        valueParameterAtTargetPending = true
+                    } else {
+                        valueParameterAtPending = false
+                        valueParameterAtTargetPending = false
                     }
                 }
             }
@@ -250,9 +303,6 @@ extension KotlinParser {
         return arena.appendNode(kind: .statement, range: range.value ?? invalidRange, children)
     }
 
-    /// Recognizes only the declaration prefix of a `when` subject so a valid
-    /// multiline `val` does not look like an unrelated declaration boundary.
-    /// Stop at the assignment; the initializer is scanned by the group parser.
     private func lookaheadWhenSubjectVariablePrefixEnd() -> Int? {
         guard stream.peek().kind == .keyword(.val),
               isWhenSubjectVariableName(stream.peek(1)) else {
@@ -308,8 +358,6 @@ extension KotlinParser {
         return isObjectExpressionStart(stream.peek())
     }
 
-    /// Called once per value-parameter boundary; the cached end also
-    /// covers annotations/modifiers split across newlines.
     private func lookaheadValueParameterPrefixEnd() -> Int? {
         var offset = 0
         var work = 0
@@ -329,6 +377,9 @@ extension KotlinParser {
                     guard consumeDeclarationLookaheadWork(&work, at: offset) else { return nil }
                     offset += 2
                 }
+                if stream.peek(offset).kind == .symbol(.lessThan) {
+                    offset = offsetPastTypeArguments(from: offset)
+                }
                 if stream.peek(offset).kind == .symbol(.lParen) {
                     offset = offsetPastBalancedGroup(from: offset,
                                                     open: .symbol(.lParen), close: .symbol(.rParen))
@@ -336,7 +387,6 @@ extension KotlinParser {
                 }
                 continue
             }
-            // Modifier keywords can themselves be parameter names (`value:`).
             if isValueParameterName(kind), stream.peek(offset + 1).kind == .symbol(.colon) {
                 return stream.index + offset + 2
             }
@@ -377,9 +427,6 @@ extension KotlinParser {
     private func valueParameterDefaultStartsTypeArguments() -> Bool {
         guard let anchor = lastConsumedToken, isIdentifierLike(anchor.kind) else { return false }
         var depth = 0
-        // Bound this new lookup before calling the existing generic scanner.
-        // Exhaustion only declines shielding; it emits no new diagnostic and
-        // never changes the generic scanner's own recovery behavior.
         for offset in 0..<4096 {
             let kind = stream.peek(offset).kind
             if kind == .eof { return false }
@@ -390,8 +437,6 @@ extension KotlinParser {
                 if depth == 0 {
                     let following = stream.peek(offset + 1).kind
                     guard following == .symbol(.lParen) || following == .symbol(.lBrace) else { return false }
-                    // A closed generic call shields its commas in a default;
-                    // an ordinary comparison leaves parameter commas visible.
                     return canStartTypeArgumentsInternal(hasAnchorToken: true)
                 }
             }
@@ -406,7 +451,6 @@ extension KotlinParser {
             if shouldStopStatementBefore(token, inBlock: false) {
                 break
             }
-            // Package/import paths must not consume declaration starts on the next line.
             if consumed, hasLeadingNewline(token) {
                 break
             }
@@ -592,8 +636,6 @@ extension KotlinParser {
     ) {
         let skippedStart = stream.peek().range
         if !inBlock, case .symbol(.rBrace) = stream.peek().kind {
-            // Consume an unmatched file-scope brace without skipping the valid
-            // top-level declarations or statements that follow it.
             _ = consumeToken(into: &children, range: &range)
             diagnostics.error(
                 "KSWIFTK-PARSE-0006",
@@ -641,11 +683,6 @@ extension KotlinParser {
         return isDeclarationStart(token.kind)
     }
 
-    /// `@` starting a new line inside an unterminated `<…>` list usually
-    /// annotates the next element (`fun <T,\n    @Anno P>`) rather than a
-    /// following top-level declaration. Look past the annotation prefix;
-    /// the `@` stays inside the list unless what follows can only begin a
-    /// declaration (`@Anno\nfun g()`).
     func continuesAngleBracketListAtNewlineAnnotation(_ token: Token) -> Bool {
         guard token.kind == .symbol(.at) else { return false }
         var cursor = 0
@@ -660,8 +697,6 @@ extension KotlinParser {
         }
         let kind = stream.peek(cursor).kind
         if case .softKeyword(.context) = kind {
-            // Mirror isLikelyTopLevelDeclarationStart: `context` starts a
-            // declaration only as a context-parameter prefix.
             return stream.peek(cursor + 1).kind != .symbol(.lParen)
         }
         // Modifier keywords (`private`, `inline`, …) are also label names,
@@ -674,10 +709,6 @@ extension KotlinParser {
         return isIdentifierLike(kind) || kind == .keyword(.in)
     }
 
-    /// Whether the tokens consumed so far end in an infix function name, so a
-    /// newline after it continues the expression (`a or\n    (b)`). Kotlin's
-    /// grammar allows `{NL}` after an infix identifier, and an identifier that
-    /// directly follows an operand can only be an infix call name.
     func endsWithPendingInfixOperator(_ children: [SyntaxChild]) -> Bool {
         let trailing = trailingTokens(of: children, limit: 64)
         return Self.endsWithPendingInfixOperator(trailing[...])
@@ -720,8 +751,6 @@ extension KotlinParser {
         guard case .identifier = last.kind else {
             return false
         }
-        // If the trailing identifier is preceded by `.`, `?.`, or `::`, it is a
-        // qualified member access / property / method, not an infix operator name.
         let lastIndex = tokens.index(before: tokens.endIndex)
         if lastIndex > tokens.startIndex {
             let beforeLast = tokens[tokens.index(before: lastIndex)].kind
@@ -737,8 +766,6 @@ extension KotlinParser {
             if token.kind.isLabelName, current > tokens.startIndex {
                 let at = tokens.index(before: current)
                 if tokens[at].kind == .symbol(.at) {
-                    // A return label is not an operand or an infix operator.
-                    // Keep a qualified `this@label` together as one operand.
                     if at > tokens.startIndex {
                         let receiver = tokens.index(before: at)
                         if tokens[receiver].kind == .keyword(.this) || tokens[receiver].kind == .keyword(.super) {
@@ -785,8 +812,6 @@ extension KotlinParser {
         var start = end
         var current = end
 
-        // `!!` is a postfix on the operand that precedes it, so the operand
-        // ending at `a!!` starts where `a` starts.
         if tokens[current].kind == .symbol(.bangBang), current > tokens.startIndex {
             return postfixOperandStart(in: tokens, endingAt: tokens.index(before: current))
         }
@@ -837,12 +862,6 @@ extension KotlinParser {
         return start
     }
 
-    /// Whether the token *ending* at `end` closes a complete operand — one
-    /// element of the operand / infix-name alternation that
-    /// `endsWithPendingInfixOperator` counts. Identifiers alternate: a name
-    /// directly after an operand is the infix callee (`a or` — `or` is the
-    /// name, not an operand-end), while a name after a name or a
-    /// non-operand boundary is the next operand (`x = f`, `a or f`).
     private static func isOperandEnd<C: BidirectionalCollection>(
         in tokens: C, endingAt end: C.Index
     ) -> Bool where C.Element == Token {
@@ -884,9 +903,6 @@ extension KotlinParser {
         }
     }
 
-    /// Whether the tokens consumed so far end with the closing `)` of an
-    /// `if (...)` / `when (...)` condition, whose body may start on the next
-    /// line (`if (a)\n    if (b) 1\n    else 2\nelse 3`).
     func endsWithControlFlowCondition(_ children: [SyntaxChild]) -> Bool {
         let trailing = trailingTokens(of: children, limit: 64)
         guard Self.endsWithControlFlowCondition(trailing[...]) else {
@@ -980,8 +996,6 @@ extension KotlinParser {
     }
 
 
-    /// Stops at the most recent nested node so only the flat tail of the
-    /// statement is seen.
     private func trailingTokens(of children: [SyntaxChild], limit: Int) -> [Token] {
         var collected: [Token] = []
         for child in children.reversed() {
@@ -1082,7 +1096,6 @@ extension KotlinParser {
 }
 
 enum ParserBoundaryPolicy {
-    /// Keywords that start declarations or terminate a preceding expression on a new line.
     private static let newlineBoundaryKeywords: Set<Keyword> = [
         .class, .object, .interface, .fun, .val, .var, .typealias, .enum, .package, .import, .return,
     ]
@@ -1098,10 +1111,6 @@ enum ParserBoundaryPolicy {
         .rParen, .rBracket,
     ]
 
-    /// Symbols that cannot end an expression, so a newline right after one is a
-    /// line continuation rather than a statement/declaration boundary
-    /// (`fun f(): Int = 1 +\n    2`). `<`, `>`, `?` and postfix operators are
-    /// excluded because they legitimately end a type or an expression.
     private static let danglingContinuationSymbols: Set<Symbol> = [
         .plus, .minus, .star, .slash, .percent,
         .ampAmp, .barBar,
@@ -1141,9 +1150,6 @@ enum ParserBoundaryPolicy {
         case .eof:
             return true
         case .symbol(.rBrace):
-            // A closing brace is a synchronization point only inside a block.
-            // At file scope it is unexpected input that the top-level recovery
-            // node must consume and diagnose before parsing the next declaration.
             return inBlock
         case let .keyword(kw) where synchronizationKeywords.contains(kw):
             return true
@@ -1166,9 +1172,6 @@ enum ParserBoundaryPolicy {
     }
 
     static func continuesExpressionAfterNewline(_ kind: TokenKind) -> Bool {
-        // Both class and property delegation require an expression after `by`;
-        // `else` requires a branch expression, which may start on the next line;
-        // a cast may also continue a block-bodied expression after its closing brace.
         if kind == .softKeyword(.by) || kind == .keyword(.as) {
             return true
         }
@@ -1181,11 +1184,6 @@ enum ParserBoundaryPolicy {
         return false
     }
 
-    /// Tokens that can only continue an expression when they begin a line:
-    /// `.member`, `?.member`, `?: fallback`, `&&`, `||`, `as`, and the `else` /
-    /// `catch` / `finally` continuation keywords never start a statement, so a
-    /// newline before one of them keeps the current declaration going
-    /// (`fun f() =\n    xs\n        .map { ... }`).
     private static let leadingContinuationSymbols: Set<Symbol> = [
         .dot, .questionDot, .questionColon, .ampAmp, .barBar,
     ]
@@ -1220,30 +1218,17 @@ enum ParserBoundaryPolicy {
 /// never parses a trailing lambda in this position: `C by run { x }` reports
 /// "function invocation 'run(...)' expected" and treats the brace as the class body.
 struct DelegateExpressionBraceTracker {
-    /// A top-level `by` introduced a delegate expression in the current
-    /// supertype entry.
     private(set) var sawBy = false
-    /// An `object` literal's body brace is still expected; commas before it
-    /// separate the literal's own supertypes, not class supertype entries.
     private(set) var objectPendingBody = false
-    /// The token consumed just before the current position.
     private var previous: TokenKind?
-    /// For each open `(`-group, whether it directly follows a control
-    /// keyword whose body is a brace block (`when (x) {`, `if (c) {`,
-    /// `catch (e) {`, ...).
     private var parenFollowsControlKeyword: [Bool] = []
-    /// Whether the most recently consumed `)` closed such a paren group.
     private var closedParenFollowsControlKeyword = false
 
-    /// Records `kind` as consumed. `atTopLevel` is the caller's bracket
-    /// depth state *before* this token, so `by`, `object`, and entry-ending
-    /// commas only count outside every open group.
     mutating func note(_ kind: TokenKind, atTopLevel: Bool) {
         if atTopLevel {
             if kind == .softKeyword(.by) {
                 sawBy = true
             } else if kind == .symbol(.comma), !objectPendingBody {
-                // A top-level comma starts the next supertype entry.
                 sawBy = false
             }
             if sawBy, kind == .keyword(.object) {
@@ -1266,20 +1251,14 @@ struct DelegateExpressionBraceTracker {
         previous = kind
     }
 
-    /// Ends the current supertype entry after a `,` that was consumed as an
-    /// entry separator rather than fed through `note`.
     mutating func reset() {
         self = DelegateExpressionBraceTracker()
     }
 
-    /// A top-level `,` ends a supertype entry unless it separates an object
-    /// literal's own supertypes (`by object : A, B { ... }`).
     var commaEndsSupertypeEntry: Bool {
         !objectPendingBody
     }
 
-    /// Whether a `{` at the current top-level position belongs to the
-    /// delegate expression rather than starting the declaration body.
     func braceContinuesDelegateExpression() -> Bool {
         guard sawBy else { return false }
         if objectPendingBody { return true }

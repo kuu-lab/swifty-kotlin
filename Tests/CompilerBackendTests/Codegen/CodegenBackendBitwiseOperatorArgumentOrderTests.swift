@@ -4,11 +4,6 @@
 import Foundation
 import Testing
 
-// DEBT-KIR-004 regression coverage: a bitwise-operator right-hand operand
-// bound (via a `val`) to the result of a preceding function call must not be
-// dropped/read-as-zero. Verified against Kotlin/JVM semantics for each
-// operator in both operand orders, plus a self-referential accumulator loop
-// matching the pattern Base64.decodeRaw relies on.
 @Suite(.serialized)
 struct CodegenBackendBitwiseOperatorArgumentOrderTests {
 
@@ -66,9 +61,6 @@ struct CodegenBackendBitwiseOperatorArgumentOrderTests {
 
     @Test
     func testCodegenBitwiseOrSelfReferentialAccumulatorWithCallDerivedRightOperand() throws {
-        // Mirrors Base64.decodeRaw's `buffer = (buffer shl 6) or value` loop:
-        // a mutable accumulator combined with a right operand that comes from
-        // a preceding function call, decoding "SGVsbG8=" ("Hello") by hand.
         let source = """
         fun main() {
             val alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"

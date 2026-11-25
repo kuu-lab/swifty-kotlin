@@ -44,9 +44,6 @@ extension CallTypeChecker {
         ctx.sema.bindings.markCoroutineScopeImplicitReceiverCall(expr)
     }
 
-    /// Recover erased builder results from the block's inferred return type.
-    /// Keep generic Deferred's shape and retain the out-of-band element binding
-    /// for the parameterless synthetic fallback.
     func coroutineBuilderNarrowedReturnType(
         id: ExprID,
         launcherName: String,
@@ -55,11 +52,6 @@ extension CallTypeChecker {
         ast: ASTModule,
         sema: SemaModule
     ) -> TypeID {
-        // The lambda literal's own function-type signature mirrors the *expected*
-        // type it was inferred against (usually `Any`, see
-        // coroutineLauncherExpectedLambdaType), not the body's actual
-        // tightest type. Dig into the AST for the body expression's own bound
-        // type instead, same as the Flow `.map` element-type readback.
         let bodyReturnType: TypeID?
         if case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(lambdaArgExpr) {
             bodyReturnType = sema.bindings.exprType(for: bodyExpr)
@@ -131,7 +123,6 @@ extension CallTypeChecker {
         )))
     }
 
-    /// Recover the element type when Deferred's fallback signature erases it.
     func deferredAwaitResultType(
         receiverID: ExprID,
         fallback: TypeID,

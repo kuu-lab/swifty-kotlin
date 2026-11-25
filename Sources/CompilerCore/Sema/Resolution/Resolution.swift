@@ -2624,6 +2624,15 @@ extension OverloadResolver {
             || parent.kind == .annotationClass
     }
 
+    private func isZeroArgumentJVMFunctionalInterface(_ type: TypeID, symbols: SymbolTable, types: TypeSystem) -> Bool {
+        guard case let .classType(nominal) = types.kind(of: type),
+              symbols.symbol(nominal.classSymbol)?.flags.contains(.funInterface) == true,
+              let method = TypeCheckHelpers().effectiveSamAbstractMethod(for: nominal.classSymbol, symbols: symbols, types: types),
+              let signature = symbols.functionSignature(for: method)
+        else { return false }
+        return signature.parameterTypes.isEmpty
+    }
+
     /// Returns true if `lhs` is at least as specific as `rhs`.
     /// First compares parameter types; if they are equivalent, falls back to
     /// receiver type: the more-derived receiver (override) wins over the base.
@@ -2668,6 +2677,41 @@ extension OverloadResolver {
             if rhsIsFunction, isSam(pair.0) { return false }
         }
         if prefersFunctionParameter { return true }
+
+        // JVM overloads often provide Runnable plus a generic Callable sibling.
+        // Prefer the non-generic callable for a bare lambda, as both SAM
+        // conversions have the same parameter shape before its body is checked.
+        if let symbols = typeSystem.symbolTable,
+           symbols.isJVMJavaMethod(lhs.symbol), symbols.isJVMJavaMethod(rhs.symbol),
+           lhs.instantiatedParameterTypes.count == 1, rhs.instantiatedParameterTypes.count == 1,
+           call.args.count == 1, case .functionType = typeSystem.kind(of: call.args[0].type),
+           isZeroArgumentJVMFunctionalInterface(lhs.instantiatedParameterTypes[0], symbols: symbols, types: typeSystem),
+           isZeroArgumentJVMFunctionalInterface(rhs.instantiatedParameterTypes[0], symbols: symbols, types: typeSystem)
+        {
+            let lhsGeneric = lhs.signature.typeParameterSymbols.count > lhs.signature.classTypeParameterCount
+            let rhsGeneric = rhs.signature.typeParameterSymbols.count > rhs.signature.classTypeParameterCount
+            if lhsGeneric != rhsGeneric {
+                // A generic candidate whose SAM parameter type is a subtype
+                // of the non-generic sibling is still the more specific
+                // overload — a derived SAM (Special<T> : Callable<T>) must
+                // win over its base SAM.
+                func samInherits(_ a: TypeID, _ b: TypeID) -> Bool {
+                    guard case let .classType(na) = typeSystem.kind(of: a),
+                          case let .classType(nb) = typeSystem.kind(of: b) else { return false }
+                    var visited: Set<SymbolID> = [na.classSymbol]
+                    var queue = symbols.directSupertypes(for: na.classSymbol)
+                    while let current = queue.popLast() {
+                        if current == nb.classSymbol { return true }
+                        guard visited.insert(current).inserted else { continue }
+                        queue.append(contentsOf: symbols.directSupertypes(for: current))
+                    }
+                    return false
+                }
+                if lhsGeneric, samInherits(lhs.instantiatedParameterTypes[0], rhs.instantiatedParameterTypes[0]) { return true }
+                if rhsGeneric, samInherits(rhs.instantiatedParameterTypes[0], lhs.instantiatedParameterTypes[0]) { return false }
+                return !lhsGeneric
+            }
+        }
 
         // A bare type-parameter parameter is never at least as specific as a
         // declared-shape parameter: kotlinc picks `at(p: KProperty0<T>)` over

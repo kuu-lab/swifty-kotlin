@@ -37,6 +37,24 @@ extension JVMClasspathIndex {
                       isStatic: true) != nil
     }
 
+    var lazyItemsContractMethod: JVMForeignMethod? {
+        let lazyPackage = "androidx/compose/foundation/lazy/"
+        let descriptor = "(L\(lazyPackage)LazyListScope;ILkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function4;ILjava/lang/Object;)V"
+        guard hasComposableLambdaFactory, classes[lazyPackage + "LazyItemScope"] != nil else { return nil }
+        return composeMethod(owner: lazyPackage + "LazyListScope", name: "items$default", descriptor: descriptor, isStatic: true)
+    }
+
+    /// Kotlin-metadata members a hand-written Compose contract stands in
+    /// for. Their stubs would drop the `@Composable` lambda annotation and,
+    /// as members, win over the contract extension; calls would then fail
+    /// with KSWIFTK-SEMA-0493 (`LazyColumn { items(n) { ... } }`).
+    func isReplacedByComposeContract(_ method: JVMForeignMethod) -> Bool {
+        guard !method.isStatic, method.name == "items",
+              method.owner == "androidx/compose/foundation/lazy/LazyListScope",
+              method.parameters.first == .int else { return false }
+        return lazyItemsContractMethod != nil
+    }
+
     var composeContentMethod: JVMForeignMethod? {
         guard hasComposableLambdaFactory else { return nil }
         return composeMethod(owner: Self.composeView, name: "setContent",
@@ -104,9 +122,7 @@ extension JVMClasspathIndex {
                 @androidx.compose.runtime.Composable external fun LazyColumn(content: LazyListScope.() -> Unit): Unit
                 """, method: method, composable: .init(defaultMask: 0xFF))
         }
-        let items = "(L\(lazyPackage)LazyListScope;ILkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function4;ILjava/lang/Object;)V"
-        if classes[lazyPackage + "LazyItemScope"] != nil,
-           let method = composeMethod(owner: lazyPackage + "LazyListScope", name: "items$default", descriptor: items, isStatic: true) {
+        if let method = lazyItemsContractMethod {
             inject("<kswiftk-jvm-import>/compose-lazy-items.kt", """
                 package androidx.compose.foundation.lazy
                 external fun LazyListScope.items(count: Int, itemContent: @androidx.compose.runtime.Composable LazyItemScope.(Int) -> Unit): Unit

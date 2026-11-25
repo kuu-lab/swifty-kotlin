@@ -4,9 +4,6 @@ struct VisibilityChecker {
     let sourceManager: SourceManager?
     let diagnostics: DiagnosticEngine?
     let interner: StringInterner
-    /// Files that opted into otherwise-invisible references through a file
-    /// annotation. Expression and declaration suppressions are checked against
-    /// `diagnostics` when the use site has a source range.
     let invisibleAccessFiles: Set<Int32>
 
     init(
@@ -29,9 +26,6 @@ struct VisibilityChecker {
         enclosingClass: SymbolID?,
         usageRange: SourceRange? = nil
     ) -> Bool {
-        // Anonymous object types are local to their declaring file. Their
-        // synthetic private owner chain must not make their public members
-        // inaccessible within that file, including through nested literals.
         if symbol.flags.contains(.objectLiteralType) {
             guard !symbol.flags.contains(.importedLibrary),
                   let declarationFileID = symbols.sourceFileID(for: symbol.id) ?? symbol.declSite?.start.file
@@ -40,8 +34,13 @@ struct VisibilityChecker {
             }
             return declarationFileID == accessFileID
         }
-        // A nested declaration cannot expose an owner that is invisible at its
-        // use site, for source declarations or imported metadata alike.
+        if symbol.kind == .function || symbol.kind == .constructor {
+            symbols.loadDeferredFunctionSignature(for: symbol.id)
+        }
+        if let package = symbols.jvmPackageAccess[symbol.id],
+           symbols.jvmFilePackages[accessFileID] != package {
+            return false
+        }
         if let parent = symbols.parentSymbol(for: symbol.id),
            let owner = symbols.symbol(parent),
            !isAccessible(owner, fromFile: accessFileID, enclosingClass: enclosingClass) {
@@ -107,11 +106,6 @@ struct VisibilityChecker {
             guard let ownerClass = symbols.parentSymbol(for: symbol.id) else {
                 return false
             }
-            // A protected nested class passes its visibility to an implicit
-            // constructor. Check access against that class's owning scope so
-            // the enclosing class and its subclasses can construct it. An
-            // explicitly protected constructor still uses its own class as
-            // the protected owner.
             if symbol.flags.contains(.constructorVisibilityInherited),
                let ownerSymbol = symbols.symbol(ownerClass) {
                 return isAccessible(ownerSymbol, fromFile: accessFileID, enclosingClass: enclosingClass)
@@ -119,10 +113,6 @@ struct VisibilityChecker {
             guard let enclosingClass else {
                 return false
             }
-            // A protected member declared in a companion object is scoped to
-            // the companion's containing class: the class itself and every
-            // declaration lexically nested inside it — inner and nested
-            // classes included — may access it (KUU-3605).
             var protectedScopeOwner = ownerClass
             var ownerIsCompanion = false
             if let companionOwner = symbols.parentSymbol(for: ownerClass),
@@ -141,12 +131,6 @@ struct VisibilityChecker {
                 && !symbols.annotations(for: symbol.id).contains(where: {
                     KnownCompilerAnnotation.jvmStatic.matches($0.annotationFQName)
                 })
-            // Protected access is evaluated against every nominal enclosing
-            // the use site, not only the innermost one: a nested or inner
-            // class also sees protected members that an enclosing class can
-            // reach (e.g. a member of an outer class's supertype), and being
-            // lexically nested inside the owner counts as access from within
-            // the owner.
             var visited: Set<SymbolID> = []
             var useSiteClass: SymbolID? = enclosingClass
             while let candidate = useSiteClass, visited.insert(candidate).inserted {
@@ -161,6 +145,10 @@ struct VisibilityChecker {
     }
 
     func isPublicAPI(_ symbol: SemanticSymbol, allowProtected: Bool = true) -> Bool {
+        if symbol.kind == .function || symbol.kind == .constructor {
+            symbols.loadDeferredFunctionSignature(for: symbol.id)
+        }
+        if symbols.jvmPackageAccess[symbol.id] != nil { return false }
         if symbol.flags.contains(.constructorVisibilityInherited),
            let parent = symbols.parentSymbol(for: symbol.id),
            let owner = symbols.symbol(parent) {
@@ -213,10 +201,6 @@ struct VisibilityChecker {
     /// diverge from kotlinc — KUU-3880.)
     private func shareEnclosingClass(_ a: SymbolID?, _ b: SymbolID) -> Bool {
         guard let a else { return false }
-        // A companion-scope object (`companion object`, or a `companion { }`
-        // block's hidden `$CompanionBlocks` object) scopes its private
-        // members to the containing class: the class body and everything
-        // nested inside it can reach them (KUU-3605). Check that owner.
         var scopeOwner = b
         if let ownerParent = symbols.parentSymbol(for: b),
            symbols.companionObjectSymbol(for: ownerParent) == b

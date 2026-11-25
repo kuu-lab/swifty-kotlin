@@ -6,16 +6,12 @@ private struct RuntimeFormatSpecifier {
     let width: Int?
     let precision: Int?
     let conversion: Character
-    /// Java date/time suffix after `%t`/`%T` (`Y`, `m`, `Q`, …). Nil for other conversions.
     let dateTimeConversion: Character?
 
     var normalizedConversion: Character {
         Character(String(conversion).lowercased())
     }
 
-    /// `%,d` / `%,f`: Kotlin/JVM inserts locale-aware grouping separators.
-    /// The C formatter has no equivalent flag, so grouping and the resulting
-    /// width padding are applied afterwards on the rendered digits.
     var usesGroupingSeparator: Bool {
         flags.contains(",")
     }
@@ -24,18 +20,10 @@ private struct RuntimeFormatSpecifier {
         flags.contains("<")
     }
 
-    /// `java.util.Formatter`'s `Flags.toString` ordering:
-    /// `-`, `#`, `+`, ` `, `0`, `,`, `(`, `<` (the internal UPPERCASE marker
-    /// is stripped before rendering).
     var canonicalFlags: String {
         runtimeFormatCanonicalFlags(Set(flags))
     }
 
-    /// `java.util.Formatter.FormatSpecifier.toString()` — the reconstructed
-    /// specifier that MissingFormatWidthException and
-    /// MissingFormatArgumentException report: `%` + canonical flags +
-    /// `index$` + width + `.precision` + `t`/`T` + conversion. The `<` flag
-    /// and the text conversions (`%`, `n`) discard the index, like the JVM.
     var jvmDescription: String {
         var text = "%"
         text += canonicalFlags
@@ -86,8 +74,6 @@ private enum RuntimeParsedFormatToken {
     case specifier(RuntimeFormatSpecifier, next: Int)
 }
 
-// Resource limits for String.format (KUU-804)
-// Prevents memory exhaustion and arithmetic traps on maliciously large width/precision.
 internal let runtimeFormatMaxWidth = 100_000
 internal let runtimeFormatMaxPrecision = 100_000
 internal let runtimeFormatMaxArgumentIndex = 100_000
@@ -95,8 +81,6 @@ internal let runtimeFormatMaxOutputBudget = 100_000
 
 private let runtimeFormatFlagCharacters: Set<Character> = ["-", "+", " ", "0", "#", ",", "(", "<"]
 
-/// `java.util.Formatter`'s `Flags.toString` ordering for an arbitrary flag
-/// set: `-`, `#`, `+`, ` `, `0`, `,`, `(`, `<`.
 private func runtimeFormatCanonicalFlags(_ flags: Set<Character>) -> String {
     var result = ""
     for flag in "-#+ 0,(<" where flags.contains(flag) {
@@ -105,14 +89,10 @@ private func runtimeFormatCanonicalFlags(_ flags: Set<Character>) -> String {
     return result
 }
 
-/// java.util.UnknownFormatConversionException's message is
-/// `Conversion = '<conversion text>'`.
 private func runtimeUnknownFormatConversion(_ conversion: Character) -> RuntimeFormatError {
     RuntimeFormatError(kind: "UnknownFormatConversionException", message: "Conversion = '\(conversion)'")
 }
 
-/// The character set that can complete a `java.util.Formatter` specifier:
-/// ASCII letters and `%` (the regex's final `[a-zA-Z%]` group).
 private func runtimeFormatIsConversionCharacter(_ char: Character) -> Bool {
     char == "%" || (char.isASCII && char.isLetter)
 }
@@ -121,39 +101,27 @@ private let runtimeSupportedFormatConversions: Set<Character> = [
     "s", "S", "b", "B", "d", "x", "X", "o", "f", "e", "E", "g", "G", "a", "A", "c", "C",
     "h", "H", "t", "T", "%", "n",
 ]
-/// Java `Formatter` date/time conversion suffixes. These are case-sensitive
-/// (`Y` vs `y`, `H` vs `h`).
 private let runtimeSupportedDateTimeConversions: Set<Character> = [
     "H", "I", "k", "l", "M", "S", "L", "N", "p", "z", "Z", "s", "Q",
     "B", "b", "h", "A", "a", "C", "Y", "y", "j", "m", "d", "e",
     "R", "T", "r", "D", "F", "c",
 ]
 
-/// Validates a parsed specifier the way `java.util.Formatter`'s
-/// FormatSpecifier constructor checks it, so each java.util format
-/// exception reports the same message text as the JVM:
-/// `Flags = '<flags>'`, `Conversion = <c>, Flags = <flags>`,
-/// the reconstructed specifier, or the bare numeric width.
 private func runtimeValidateFormatSpecifier(_ specifier: RuntimeFormatSpecifier) throws {
     let flags = Set(specifier.flags)
     let conversion = specifier.normalizedConversion
 
     func illegalFormatFlags() throws -> Never {
-        // IllegalFormatFlagsException reports every parsed flag in
-        // canonical order.
         throw RuntimeFormatError(
             kind: "IllegalFormatFlagsException", message: "Flags = '\(specifier.canonicalFlags)'")
     }
     func missingFormatWidth() throws -> Never {
-        // MissingFormatWidthException reports FormatSpecifier.toString().
         throw RuntimeFormatError(kind: "MissingFormatWidthException", message: specifier.jvmDescription)
     }
     func illegalFormatPrecision() throws -> Never {
         throw RuntimeFormatError(kind: "IllegalFormatPrecisionException", message: "\(specifier.precision!)")
     }
     func flagsMismatch(_ badFlags: Set<Character>) throws {
-        // failMismatch reports the conversion plus the offending flags,
-        // intersected with the disallowed set, in canonical order.
         let offenders = runtimeFormatCanonicalFlags(flags.intersection(badFlags))
         if !offenders.isEmpty {
             let reported = specifier.dateTimeConversion ?? conversion
@@ -186,8 +154,6 @@ private func runtimeValidateFormatSpecifier(_ specifier: RuntimeFormatSpecifier)
         try flagsMismatch(["+", " ", "0", ",", "("])
     case "s":
         if specifier.width == nil && flags.contains("-") { try missingFormatWidth() }
-        // '#' for %s is a per-argument check (java.util.Formatter's
-        // Formattable path), handled in runtimeValidateFormatArgument.
         try flagsMismatch(["+", " ", "0", ",", "("])
     case "c":
         if specifier.precision != nil { try illegalFormatPrecision() }
@@ -225,7 +191,7 @@ private func runtimeValidateFormatSpecifier(_ specifier: RuntimeFormatSpecifier)
         case "e": try flagsMismatch([","])
         case "g": try flagsMismatch(["#"])
         case "a": try flagsMismatch([",", "("])
-        default: break // %f accepts every numeric flag
+        default: break
         }
     default:
         break
@@ -269,7 +235,6 @@ private func runtimeValidateFormatArgument(_ value: RuntimeValue, specifier: Run
         // Java's %c accepts Byte/Short/Int, but not Long.
         if conversion == "c", tryCast(pointer, to: RuntimeLongBox.self) != nil { integral = false }
     } else if value.tag == RuntimeValue.rawTag {
-        // Preserve unboxed legacy Runtime callers; Kotlin Any? values are boxed.
         dateTime = true
         floating = true
     }
@@ -282,9 +247,6 @@ private func runtimeValidateFormatArgument(_ value: RuntimeValue, specifier: Run
     default: valid = true
     }
     if !valid {
-        // java.util.IllegalFormatConversionException's message is
-        // "<conversion> != <argument Java class name>"; for %t*/%T* it uses
-        // the date-time suffix ('Q', 'Y', ...) rather than 't'.
         let reportedConversion = specifier.dateTimeConversion ?? conversion
         let message = runtimeFormatArgumentClassName(value).map {
             "\(reportedConversion) != \($0)"
@@ -306,27 +268,18 @@ private func runtimeValidateFormatArgument(_ value: RuntimeValue, specifier: Run
     if conversion == "c" {
         let codePoint = runtimeFormatIntegerValue(value)
         if codePoint < 0 || codePoint > 0x10ffff {
-            // java.util.IllegalFormatCodePointException reports
-            // "Code point = 0x" + Integer.toHexString(codePoint), i.e. the
-            // raw 32-bit pattern for sign-extended values.
             let hex = String(UInt32(bitPattern: Int32(truncatingIfNeeded: codePoint)), radix: 16)
             throw RuntimeFormatError(kind: "IllegalFormatCodePointException", message: "Code point = 0x\(hex)")
         }
     }
 }
 
-/// `primitiveTypeBase` values of the unsigned Kotlin integer kinds that share
-/// `RuntimeIntBox` with the signed integer types (ULong has its own box).
 private func runtimeFormatIsUnsignedBase(_ base: Int64) -> Bool {
     base == RuntimeTypeTokenEncoding.uintBase
         || base == RuntimeTypeTokenEncoding.ubyteBase
         || base == RuntimeTypeTokenEncoding.ushortBase
 }
 
-/// The Java class name that `java.util.Formatter` reports in
-/// `IllegalFormatConversionException` (`argument.getClass().getName()`), or
-/// nil when the argument's runtime representation has no identifiable class —
-/// the caller then keeps the legacy generic message.
 private func runtimeFormatArgumentClassName(_ value: RuntimeValue) -> String? {
     if value.tag == RuntimeValue.stringTag {
         return "java.lang.String"
@@ -396,8 +349,6 @@ private func runtimeFormatArgumentClassName(_ value: RuntimeValue) -> String? {
         return runtimeJVMExceptionFQName(from: throwable.exceptionFQName)
     }
     if let typeID = runtimeObjectTypeID(rawValue: value.payload0) {
-        // JVM exposes the implementation class for platform collections
-        // (e.g. `d != java.util.Collections$SingletonList`).
         if let identity = runtimeReflectedCollectionClass(rawValue: value.payload0, typeID: typeID),
            case let .named(_, qualifiedName) = identity
         {
@@ -408,9 +359,6 @@ private func runtimeFormatArgumentClassName(_ value: RuntimeValue) -> String? {
     return nil
 }
 
-/// `Class.getName()` for a nominal runtime type ID (boxed enum ordinals and
-/// ordinary objects), reusing the reflection machinery's JVM binary-name
-/// mapping (nested classes render with `$`, kotlin.* maps to java.*).
 private func runtimeFormatNominalClassName(typeID: Int64) -> String {
     let token = Int(
         truncatingIfNeeded: (typeID & RuntimeTypeTokenEncoding.payloadMask)
@@ -436,8 +384,6 @@ private func runtimeFormatString(_ template: String, values arguments: [RuntimeV
     }
     var cursor = 0
     var implicitArgumentIndex = 0
-    /// Index of the argument selected by the most recent specifier
-    /// (`java.util.Formatter`'s `last`), reused by the `<` flag.
     var lastArgumentIndex: Int?
     var result = ""
     var remainingBudget = runtimeFormatMaxOutputBudget
@@ -468,9 +414,6 @@ private func runtimeFormatString(_ template: String, values arguments: [RuntimeV
                 cursor = next
                 continue
             }
-            // The `<` flag overrides an explicit `%n$` index and relative
-            // indexing does not consume the ordinary (implicit) index,
-            // matching `java.util.Formatter`.
             let argumentIndex: Int?
             if specifier.reusesPreviousArgument {
                 argumentIndex = lastArgumentIndex
@@ -487,9 +430,6 @@ private func runtimeFormatString(_ template: String, values arguments: [RuntimeV
             if let argumentIndex, arguments.indices.contains(argumentIndex) {
                 argument = arguments[argumentIndex]
             } else {
-                // java.util.MissingFormatArgumentException reports
-                // "Format specifier '<specifier text>'" — the reconstructed
-                // specifier (FormatSpecifier.toString()), not the raw text.
                 throw RuntimeFormatError(
                     kind: "MissingFormatArgumentException",
                     message: "Format specifier '\(specifier.jvmDescription)'"
@@ -521,11 +461,8 @@ private func runtimeFormatString(_ template: String, values arguments: [RuntimeV
 private func runtimeParseFormatToken(_ characters: [Character], start: Int) throws -> RuntimeParsedFormatToken {
     var cursor = start + 1
     guard cursor < characters.count else {
-        // Trailing '%' — java.util.Formatter reports '%' as the conversion.
         throw runtimeUnknownFormatConversion("%")
     }
-    // When the specifier cannot be completed, the JVM reports the first
-    // character after '%' in UnknownFormatConversionException.
     var incompleteSpecifierError: RuntimeFormatError {
         runtimeUnknownFormatConversion(characters[start + 1])
     }
@@ -538,8 +475,6 @@ private func runtimeParseFormatToken(_ characters: [Character], start: Int) thro
     if cursor < characters.count, characters[cursor] == "$", initialDigitsStart < cursor {
         let indexString = String(characters[initialDigitsStart ..< cursor])
         guard let index = Int(indexString), let index32 = Int32(exactly: index) else {
-            // Digits that overflow a Java int report Integer.MIN_VALUE as
-            // "Format argument index: (not representable as int)".
             throw RuntimeFormatError(
                 kind: "IllegalFormatArgumentIndexException",
                 message: "Format argument index: (not representable as int)")
@@ -560,9 +495,6 @@ private func runtimeParseFormatToken(_ characters: [Character], start: Int) thro
         cursor += 1
     }
     let flags = String(characters[flagsStart ..< cursor])
-    // java.util.Formatter parses flags left to right and throws
-    // DuplicateFormatFlagsException on the first flag already seen —
-    // before any width/precision/conversion handling.
     var seenFlags = Set<Character>()
     for flag in flags where !seenFlags.insert(flag).inserted {
         throw RuntimeFormatError(kind: "DuplicateFormatFlagsException", message: "Flags = '\(flag)'")
@@ -576,7 +508,6 @@ private func runtimeParseFormatToken(_ characters: [Character], start: Int) thro
     if widthStart < cursor {
         let widthString = String(characters[widthStart ..< cursor])
         guard let parsedWidth = Int(widthString), let width32 = Int32(exactly: parsedWidth) else {
-            // parseInt overflow maps to Integer.MIN_VALUE ("-2147483648").
             throw RuntimeFormatError(kind: "IllegalFormatWidthException", message: "-2147483648")
         }
         guard Int(width32) <= runtimeFormatMaxWidth else {
@@ -916,7 +847,6 @@ private func runtimeIncrementDecimalDigits(_ value: String) -> String {
     return "1" + String(decoding: digits, as: UTF8.self)
 }
 
-/// Divides a non-negative decimal integer by 10^dropCount using HALF_UP.
 private func runtimeRoundDecimalInteger(_ value: String, dropping dropCount: Int) -> String {
     guard dropCount > 0 else {
         return value + String(repeating: "0", count: -dropCount)
@@ -1180,10 +1110,6 @@ private func runtimeApplyStringWidth(_ value: String, specifier: RuntimeFormatSp
     return padding + value
 }
 
-/// Applies the Kotlin/JVM locale rules to a number rendered with the C default locale:
-/// the decimal separator becomes the locale's one, and the `,` flag inserts the locale's
-/// grouping separator. Numbers are never grouped without the flag, matching
-/// `java.util.Formatter` (and unlike `String(format:locale:)`, which groups by locale).
 private func runtimeLocalizeFormattedNumber(
     _ rendered: String,
     specifier: RuntimeFormatSpecifier,
@@ -1276,7 +1202,6 @@ private func runtimeFormatArgumentIsNull(_ value: RuntimeValue) -> Bool {
     }
 }
 
-/// `%h` / `%t` print width-padded `"null"`; precision is not applied to the literal.
 private func runtimeRenderOrNull(
     _ value: RuntimeValue,
     specifier: RuntimeFormatSpecifier,
@@ -1299,7 +1224,6 @@ private func runtimeFormatHashCode(_ value: RuntimeValue) -> Int {
     }
 }
 
-/// `Integer.toHexString(arg.hashCode())`, matching `java.util.Formatter` `%h`.
 private func runtimeFormatHashConversion(
     _ value: RuntimeValue,
     specifier: RuntimeFormatSpecifier
@@ -1508,26 +1432,27 @@ public func __kk_string_format_flat(
     _ outHash: UnsafeMutablePointer<Int>?,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
-    outThrown?.pointee = 0
-    let template = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
-        ?? runtimeListBox(from: argsArrayRaw)?.values
-        ?? []
-    do {
-        return runtimeRegisterFlatString(
-            try runtimeFormatString(template, values: arguments),
-            outLength: outLength,
-            outByteCount: outByteCount,
-            outHash: outHash
-        )
-    } catch let error as RuntimeFormatError {
-        outThrown?.pointee = runtimeAllocateFormatException(error)
-        outLength?.pointee = 0
-        outByteCount?.pointee = 0
-        outHash?.pointee = 0
-        return nil
-    } catch {
-        preconditionFailure("Unexpected format error")
+    return runtimeThrowingBridge(outThrown, defaultOnFailure: nil) {
+        let template = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+        let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
+            ?? runtimeListBox(from: argsArrayRaw)?.values
+            ?? []
+        do {
+            return runtimeRegisterFlatString(
+                try runtimeFormatString(template, values: arguments),
+                outLength: outLength,
+                outByteCount: outByteCount,
+                outHash: outHash
+            )
+        } catch let error as RuntimeFormatError {
+            outThrown?.pointee = runtimeAllocateFormatException(error)
+            outLength?.pointee = 0
+            outByteCount?.pointee = 0
+            outHash?.pointee = 0
+            return nil
+        } catch {
+            preconditionFailure("Unexpected format error")
+        }
     }
 }
 
@@ -1544,34 +1469,35 @@ public func __kk_string_format_locale_flat(
     _ outHash: UnsafeMutablePointer<Int>?,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
-    outThrown?.pointee = 0
-    let locale: Locale?
-    if localeRaw == runtimeNullSentinelInt {
-        locale = nil
-    } else {
-        guard let box = runtimeLocaleBox(from: localeRaw) else {
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_string_format_locale_flat received invalid Locale handle")
+    return runtimeThrowingBridge(outThrown, defaultOnFailure: nil) {
+        let locale: Locale?
+        if localeRaw == runtimeNullSentinelInt {
+            locale = nil
+        } else {
+            guard let box = runtimeLocaleBox(from: localeRaw) else {
+                fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_string_format_locale_flat received invalid Locale handle")
+            }
+            locale = box.locale
         }
-        locale = box.locale
-    }
-    let template = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
-        ?? runtimeListBox(from: argsArrayRaw)?.values
-        ?? []
-    do {
-        return runtimeRegisterFlatString(
-            try runtimeFormatString(template, values: arguments, locale: locale),
-            outLength: outLength,
-            outByteCount: outByteCount,
-            outHash: outHash
-        )
-    } catch let error as RuntimeFormatError {
-        outThrown?.pointee = runtimeAllocateFormatException(error)
-        outLength?.pointee = 0
-        outByteCount?.pointee = 0
-        outHash?.pointee = 0
-        return nil
-    } catch {
-        preconditionFailure("Unexpected format error")
+        let template = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+        let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
+            ?? runtimeListBox(from: argsArrayRaw)?.values
+            ?? []
+        do {
+            return runtimeRegisterFlatString(
+                try runtimeFormatString(template, values: arguments, locale: locale),
+                outLength: outLength,
+                outByteCount: outByteCount,
+                outHash: outHash
+            )
+        } catch let error as RuntimeFormatError {
+            outThrown?.pointee = runtimeAllocateFormatException(error)
+            outLength?.pointee = 0
+            outByteCount?.pointee = 0
+            outHash?.pointee = 0
+            return nil
+        } catch {
+            preconditionFailure("Unexpected format error")
+        }
     }
 }

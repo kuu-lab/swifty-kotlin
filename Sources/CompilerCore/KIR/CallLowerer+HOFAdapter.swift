@@ -26,23 +26,12 @@ extension CallLowerer {
             symbol: driver.ctx.allocateSyntheticGeneratedSymbol(),
             type: sema.types.intType
         )
-        // For receiver-bearing function types like `DeepRecursiveScope<T,R>.(T) -> R`,
-        // the receiver is stored in `functionType.receiver` and must be forwarded
-        // as an explicit parameter so the adapter's ABI matches the runtime call site.
         var allValueTypes = functionType.contextReceivers
         if let receiverType = functionType.receiver {
             allValueTypes.append(receiverType)
         }
         allValueTypes.append(contentsOf: functionType.params)
 
-        // When the callee declares the parameter with erased types -- e.g.
-        // `fun <T, R> Array<T>.map(transform: (T) -> R)` -- the values crossing
-        // the function-value ABI are `Any` handles, while the lambda literal was
-        // compiled against the instantiated types (`(Double) -> Double`). The
-        // adapter is that erasure boundary: it keeps the erased signature and
-        // converts on both sides, so a boxed element reaches `{ it * 2 }` as a
-        // raw `Double` and the raw result is boxed again before the generic
-        // caller stores it into a `List<R>`.
         var erasedValueTypes: [TypeID] = []
         if let erasedFunctionType {
             erasedValueTypes.append(contentsOf: erasedFunctionType.contextReceivers)
@@ -122,9 +111,6 @@ extension CallLowerer {
                 symbols: sema.symbols
             )
             {
-                // Erased generic callback slots carry nullable-underlying
-                // value classes as nominal boxes; the typed lambda expects
-                // the raw value-class payload.
                 let unboxedExpr = arena.appendTemporary(type: lambdaParamType)
                 emitValueClassUnboxCall(
                     value: forwardedParamExpr,
@@ -185,14 +171,9 @@ extension CallLowerer {
                 + Array(callArguments.prefix(captureCount))
         }
 
-        // Use the emitted function's return type: a callable reference can be
-        // contextually typed as `(T) -> R` while its entry point returns a
-        // concrete primitive such as `Int`.
         let callableReturnType = arena.function(for: callableInfo.symbol)?.returnType
             ?? functionType.returnType
 
-        // Reference-returning callbacks (e.g. Comparable selectors) need boxes
-        // even when the concrete callable already has a closure parameter.
         let adapterReturnType = erasedFunctionType.flatMap {
             functionValueBoxedReturnType(
                 concreteReturnType: functionType.returnType,
@@ -201,8 +182,6 @@ extension CallLowerer {
             )
         } ?? functionType.returnType
 
-        // Generic callbacks may already return an erased, boxed value. The
-        // emitted callable ABI also preserves that distinction here.
         let callResult = arena.appendTemporary(type: callableReturnType)
         let canThrow = callableRequiresThrownChannel(callableInfo.symbol, arena: arena)
         body.append(.call(symbol: callableInfo.symbol, callee: callableInfo.callee, arguments: callArguments, result: callResult, canThrow: canThrow))
@@ -293,13 +272,8 @@ extension CallLowerer {
         ) != nil,
             isErasedRepresentationType(expectedReturnType, sema: sema)
         {
-            // A nullable-underlying value class uses its payload as the direct
-            // representation, so an erased callback result needs the nominal
-            // box to preserve the wrapper's non-null identity.
             return sema.types.anyType
         }
-        // Unit also needs a value across an erased return boundary. Keeping
-        // the adapter void would discard the lambda's boxed Unit singleton.
         guard sema.types.kind(of: concreteReturnType) == .unit
             || isNonNullValueRepresentationType(concreteReturnType, sema: sema) else {
             return nil
@@ -316,22 +290,17 @@ extension CallLowerer {
         return nil
     }
 
-    /// Splits a `transform` callable bound for a `__kk_list_*_transform`
-    /// runtime bridge into its `(fnPtr, closureRaw)` pair, first wrapping the
-    /// callable in an erased-ABI adapter when its concrete return is a value
     /// type. The bridges append the callback's raw return into `List<R>`
     /// verbatim, and `R` elements are `Any`-handled — so a raw Boolean/Char/Int
     /// result would surface as `0`/`1`/code points instead of `true`/`a`
     /// (KUU-1434). Reference-returning callables already deliver object
     /// handles and pass through unchanged.
-    ///
     /// `existingEnvPtrID` is the closureRaw slot that already belongs to
     /// `callableArgID` when the caller received a pre-split pair (e.g. via
     /// `addCollectionHOFClosureArguments`). Opaque callables that carry no
     /// compile-time `callableValueInfo` — such as a `kk_function_create_N`
     /// box resolved through `kk_function_value_fn_ptr`/`_closure_raw` — must
     /// keep that existing pair: re-running the runtime resolution on an
-    /// already-resolved fnPtr loses the captured environment.
     func splitErasedTransformBridgeArgument(
         _ callableArgID: KIRExprID,
         existingEnvPtrID: KIRExprID? = nil,
@@ -416,7 +385,7 @@ extension CallLowerer {
         return false
     }
 
-    private func isNonNullEnumType(_ type: TypeID, sema: SemaModule) -> Bool {
+    func isNonNullEnumType(_ type: TypeID, sema: SemaModule) -> Bool {
         guard case let .classType(classType) = sema.types.kind(of: type),
               classType.nullability == .nonNull,
               let symbol = sema.symbols.symbol(classType.classSymbol)

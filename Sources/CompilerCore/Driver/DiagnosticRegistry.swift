@@ -1,9 +1,7 @@
 import Foundation
 
 public struct DiagnosticTextEdit: Hashable, Sendable {
-    /// An empty range represents insertion.
     public let range: SourceRange
-    /// The replacement text, or an empty string for deletion.
     public let newText: String
 
     public init(range: SourceRange, newText: String) {
@@ -14,7 +12,6 @@ public struct DiagnosticTextEdit: Hashable, Sendable {
 
 public struct DiagnosticCodeAction: Hashable, Sendable {
     public let title: String
-    /// LSP code action kind (e.g. "quickfix", "refactor").
     public let kind: String
     public let edits: [DiagnosticTextEdit]
 
@@ -55,10 +52,6 @@ struct DiagnosticDescriptor: Equatable, Sendable, CustomStringConvertible {
     }
 }
 
-/// Every diagnostic follows the `KSWIFTK-{PASS}-{CODE}` naming convention where
-/// `{PASS}` identifies the compiler pass (LEX, PARSE, SEMA, TYPE, LIB, KIR,
-/// CORO, BACKEND, LINK, PIPELINE, ICE) and `{CODE}` is a numeric or mnemonic
-/// identifier unique within that pass.
 enum DiagnosticRegistry {
     static let descriptors: [String: DiagnosticDescriptor] = {
         var map: [String: DiagnosticDescriptor] = [:]
@@ -165,30 +158,15 @@ enum DiagnosticRegistry {
         "ARGUMENT_TYPE_MISMATCH": [
             "KSWIFTK-SEMA-ANNOTATION-ARGUMENT-TYPE", "KSWIFTK-SEMA-0473",
         ],
-        // kotlinc K2 checks an explicit accessor visibility against the
-        // property's effective visibility with two distinct names (verified
-        // against kotlinc 2.4.20 @Suppress): the getter must spell the same
-        // visibility while the setter may only be narrower.
         "GETTER_VISIBILITY_DIFFERS_FROM_PROPERTY_VISIBILITY": ["KSWIFTK-SEMA-0476"],
         "SETTER_VISIBILITY_INCONSISTENT_WITH_PROPERTY_VISIBILITY": ["KSWIFTK-SEMA-0477"],
-        // kotlinc K2 checks an `override` accessor's effective visibility
-        // against the overridden accessor's with two distinct names: a
-        // strictly narrower visibility is CANNOT_WEAKEN_ACCESS_PRIVILEGE while
-        // an unordered `protected`/`internal` pairing is
-        // CANNOT_CHANGE_ACCESS_PRIVILEGE.
         "CANNOT_WEAKEN_ACCESS_PRIVILEGE": ["KSWIFTK-SEMA-0478"],
         "CANNOT_CHANGE_ACCESS_PRIVILEGE": ["KSWIFTK-SEMA-0479"],
         "TOO_MANY_ARGUMENTS": ["KSWIFTK-SEMA-ANNOTATION-ARGUMENT-ARITY"],
-        // The JS-annotation arity path reports both shapes under
-        // KSWIFTK-SEMA-ANNOTATION-ARGUMENT-ARITY; ordinary calls and
-        // annotation constructors report a missing value as SEMA-0480
-        // (KUU-4168), matching the upstream NO_VALUE_FOR_PARAMETER name.
         "NO_VALUE_FOR_PARAMETER": [
             "KSWIFTK-SEMA-ANNOTATION-ARGUMENT-ARITY", "KSWIFTK-SEMA-0480",
         ],
         "DATA_CLASS_COPY_VISIBILITY": ["KSWIFTK-SEMA-DATA-COPY-VISIBILITY"],
-        // kotlinc gates local `inline` functions behind this diagnostic name;
-        // the local-function modifier check reports it as KSWIFTK-SEMA-0400.
         "NOT_YET_SUPPORTED_LOCAL_INLINE_FUNCTION": ["KSWIFTK-SEMA-0400"],
     ]
 
@@ -404,6 +382,12 @@ enum DiagnosticRegistry {
             pass: "PARSE",
             defaultSeverity: .error,
             summary: "Context parameters must be named or declared anonymous with '_'."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0031",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Getter cannot have parameters."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-PARSE-TYPE-DEPTH",

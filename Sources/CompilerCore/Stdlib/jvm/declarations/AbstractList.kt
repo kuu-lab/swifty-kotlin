@@ -2,7 +2,7 @@ package kotlin.collections
 
 abstract class AbstractList<out E> protected constructor() : List<E>, Collection<E>, Iterable<E> {
     abstract override val size: Int
-    abstract override fun get(index: Int): E
+    abstract override operator fun get(index: Int): E
     override fun isEmpty(): Boolean = null!!
     override fun contains(element: @UnsafeVariance E): Boolean = null!!
     override fun containsAll(elements: Collection<@UnsafeVariance E>): Boolean = null!!

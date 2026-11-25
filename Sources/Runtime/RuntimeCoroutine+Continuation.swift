@@ -50,7 +50,6 @@ private final class RuntimeDirectSuspendCompletion: @unchecked Sendable {
     private var hasReturned = false
     private var outcome: (result: Int, thrown: Int)?
 
-    /// Record completion and report whether the caller already returned.
     func record(result: Int, thrown: Int) -> Bool {
         lock.lock()
         outcome = (result, thrown)
@@ -59,8 +58,6 @@ private final class RuntimeDirectSuspendCompletion: @unchecked Sendable {
         return shouldSignal
     }
 
-    /// Mark the initial invocation as returned and return a completion that
-    /// happened before that point, if any.
     func markReturned() -> (result: Int, thrown: Int)? {
         lock.lock()
         hasReturned = true
@@ -70,14 +67,6 @@ private final class RuntimeDirectSuspendCompletion: @unchecked Sendable {
     }
 }
 
-/// STDLIB-CORO-BUG-01: runtime support for a suspend function calling another
-/// suspend function directly (not through launch/async/withContext). The
-/// callee runs on its own fresh continuation (childContinuation) via the
-/// standard entry loop; its completion is relayed into the caller's own
-/// continuation (callerContinuationRaw) instead of being dropped, so the
-/// caller's entry loop -- already about to suspend on this call -- gets woken
-/// up with the real result. A synchronously completed child returns its result
-/// directly; only a child that remains suspended schedules a caller resume.
 @_cdecl("kk_coroutine_call_direct_suspend")
 public func kk_coroutine_call_direct_suspend(
     _ entryPointRaw: Int,
@@ -203,8 +192,6 @@ public func kk_suspend_coroutine_orreturn(
     }
 }
 
-/// Source suspend wrappers relay to an active caller instead of nesting a
-/// blocking event-loop drain. Ordinary callers retain the blocking bridge.
 @_cdecl("kk_coroutine_call_suspend_wrapper")
 public func kk_coroutine_call_suspend_wrapper(
     _ entryPointRaw: Int,
@@ -296,19 +283,10 @@ private let runtimeErasedSuspendFunctionEntryPoint: KKSuspendEntryPoint = { cont
     return result
 }
 
-/// The erased-suspend thunk's address as a suspend entry point raw value.
-/// Continuations driving the erased shape carry it as their `functionID`, so
-/// `kk_coroutine_state_enter` sees a stable identity across resume hops.
 let runtimeErasedSuspendFunctionEntryPointRaw = unsafeBitCast(
     runtimeErasedSuspendFunctionEntryPoint, to: Int.self
 )
 
-/// KUU-3884: whether a `suspend (P1..Pn) -> R` value is a plain erased
-/// `Function{n+1}` — a `RuntimeFunctionValueBox` without a CPS entry point
-/// whose arity is n+1 (`(P1..Pn, Continuation<R>) -> Any?`), or a nominal
-/// `Function{n+1}` implementor. Such values take the generic erased-suspend
-/// entry point above instead of a callable-box `suspendEntryPoint` or a
-/// nominal `SuspendFunctionN` invoke launcher.
 func runtimeErasedSuspendShape(functionRaw: Int, arity: Int) -> Bool {
     guard functionRaw != 0, (0 ... 21).contains(arity) else {
         return false
@@ -319,12 +297,6 @@ func runtimeErasedSuspendShape(functionRaw: Int, arity: Int) -> Bool {
     return runtimeCallableObjectPair(from: functionRaw, arity: arity + 1) != nil
 }
 
-/// The `(continuation, outThrown)` entry point for a dynamic suspend function
-/// value: the callable box's suspend entry, or — for a nominal
-/// `SuspendFunctionN` implementor (KUU-3802) — the invoke launcher thunk
-/// codegen registered in the interface's reserved itable slot. The value's
-/// leading launcher argument is also returned: the box's captured closure, or
-/// the object itself as `invoke`'s receiver.
 private func suspendCoroutineFunctionEntry(
     functionRaw: Int,
     arity: Int
@@ -339,23 +311,12 @@ private func suspendCoroutineFunctionEntry(
     if objectEntryRaw != 0 {
         return (objectEntryRaw, functionRaw)
     }
-    // KUU-3884: an erased `Function{n+1}` value (`(P1..Pn, Continuation<R>)
-    // -> Any?`, the JVM shape) driven as `suspend (P1..Pn) -> R` goes through
-    // the generic erased-suspend entry point. Launcher slot 0 spills the
-    // value itself so the thunk resolves its invoke pair at call time.
     if runtimeErasedSuspendShape(functionRaw: functionRaw, arity: arity) {
         return (runtimeErasedSuspendFunctionEntryPointRaw, functionRaw)
     }
     return nil
 }
 
-/// KUU-3808 / KT-66098: reports whether `raw` can serve as the completion
-/// continuation passed as the last argument of a suspend function value
-/// invoked through its erased non-suspend `FunctionN` view. The check mirrors
-/// the resolution order `__kk_coroutine_continuation_resume_with` uses to
-/// deliver the final `Result` — a source-level `Continuation` object (itable
-/// `resumeWith` slot), a runtime callback/native continuation, or an internal
-/// continuation-state handle — without dereferencing unregistered raws.
 func runtimeIsContinuationArgument(_ raw: Int) -> Bool {
     if kk_itable_lookup_dynamic(
         raw, Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.Continuation")), 0
@@ -376,8 +337,6 @@ func runtimeIsContinuationArgument(_ raw: Int) -> Bool {
     return Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue() is KKContinuation
 }
 
-/// Dynamic suspend function values keep their CPS entry point in the callable
-/// box. Known symbols are still rewritten directly by coroutine lowering.
 private func createCoroutineFromFunctionValue(_ functionRaw: Int, arguments: [Int], completion: Int) -> Int {
     guard let entry = suspendCoroutineFunctionEntry(functionRaw: functionRaw, arity: arguments.count) else {
         preconditionFailure("Coroutine builder requires a boxed suspend callable")
@@ -398,8 +357,6 @@ public func kk_create_coroutine_unintercepted_no_receiver(
     createCoroutineFromFunctionValue(functionRaw, arguments: [], completion: completionContinuation)
 }
 
-/// Coroutine lowering rewrites calls whose function is a known entry point;
-/// dynamic function values fall through to this entry.
 @_cdecl("kk_start_coroutine_unintercepted_or_return_no_receiver")
 public func kk_start_coroutine_unintercepted_or_return_no_receiver(
     _ functionRaw: Int,
@@ -549,8 +506,6 @@ private func startCoroutineUninterceptedOrReturn(
         thrownValue = 0
         state.consumeCancellableDelivery()
         result = entryPoint(continuation, &thrownValue)
-        // Immediate child failures return the sentinel to reach the caller's catch label.
-        // Deliver that pending exception inline instead of manufacturing a suspension.
         if thrownValue == 0 && result == suspendedToken && state.consumePendingExceptionalResume() {
             resumedPendingException = true
             continue
@@ -749,97 +704,94 @@ public func __kk_coroutine_continuation_resume_with(
     _ resultRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) {
-    outThrown?.pointee = 0
-    let resultAccess = runtimeResultAccessFromRaw(resultRaw)
-    defer { withExtendedLifetime(resultAccess) {} }
-    let sourceResume = kk_itable_lookup_dynamic(
-        continuation, Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.Continuation")), 0
-    )
-    if sourceResume != 0 {
-        let resume = unsafeBitCast(sourceResume, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Void).self)
-        var thrown = 0
-        resume(continuation, resultRaw, &thrown)
-        if let outThrown {
-            outThrown.pointee = thrown
-        } else if thrown != 0 {
-            _ = kk_native_processUnhandledException(thrown, nil)
-        }
-        return
-    }
-    guard let continuationPtr = UnsafeMutableRawPointer(bitPattern: continuation) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_coroutine_continuation_resume_with received invalid continuation handle")
-    }
-    if let callbackContinuation = tryCast(continuationPtr, to: RuntimeCallbackContinuation.self) {
-        callbackContinuation.resumeWith(UnsafeMutableRawPointer(bitPattern: resultRaw), outThrown: outThrown)
-        return
-    }
-    if isRegisteredRuntimeObjectPointer(continuation),
-       let nativeContinuation = Unmanaged<AnyObject>.fromOpaque(continuationPtr).takeUnretainedValue() as? KKContinuation
-    {
-        nativeContinuation.resumeWith(UnsafeMutableRawPointer(bitPattern: resultRaw))
-        return
-    }
-    guard let state = runtimeContinuationState(from: continuation) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_coroutine_continuation_resume_with received invalid continuation handle")
-    }
-
-    if let start = state.takeUninterceptedCoroutineStart() {
-        if let access = resultAccess, !access.box.isSuccess
-        {
-            state.releaseInterception(continuationRaw: continuation)
-            if start.completionContinuation != 0 {
-                __kk_coroutine_continuation_resume_with(
-                    start.completionContinuation,
-                    runtimeResultFailure(access.box.exception),
-                    outThrown
-                )
-            }
-            _ = kk_coroutine_state_exit(continuation, 0)
-            return
-        }
-        // KUU-2689: a MODE_CANCELLABLE start whose context Job is no longer
-        // active at this resume boundary (inline or on the dispatcher queue)
-        // completes the continuation with the job's CancellationException
-        // without running the block.
-        if start.cancellableStart,
-           let cancellationException = state.unstartedCoroutineCancellationException()
-        {
-            state.releaseInterception(continuationRaw: continuation)
-            if start.completionContinuation != 0 {
-                __kk_coroutine_continuation_resume_with(
-                    start.completionContinuation,
-                    runtimeResultFailure(cancellationException),
-                    outThrown
-                )
-            }
-            _ = kk_coroutine_state_exit(continuation, 0)
-            return
-        }
-        startUninterceptedCoroutineFromResume(
-            entryPointRaw: start.entryPointRaw,
-            continuation: continuation,
-            completionContinuation: start.completionContinuation,
-            outThrown: outThrown
+    runtimeThrowingBridge(outThrown) {
+        let resultAccess = runtimeResultAccessFromRaw(resultRaw)
+        defer { withExtendedLifetime(resultAccess) {} }
+        let sourceResume = kk_itable_lookup_dynamic(
+            continuation, Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.Continuation")), 0
         )
-        return
-    }
-
-    if let access = resultAccess {
-        let resultBox = access.box
-        let ise: Int?
-        if resultBox.isSuccess {
-            ise = state.resume(with: resultBox.value, outThrown: outThrown)
-        } else {
-            ise = state.resume(withException: resultBox.exception, outThrown: outThrown)
+        if sourceResume != 0 {
+            let resume = unsafeBitCast(sourceResume, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Void).self)
+            var thrown = 0
+            resume(continuation, resultRaw, &thrown)
+            if let outThrown {
+                outThrown.pointee = thrown
+            } else if thrown != 0 {
+                _ = kk_native_processUnhandledException(thrown, nil)
+            }
+            return
         }
-        if let ise {
+        guard let continuationPtr = UnsafeMutableRawPointer(bitPattern: continuation) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_coroutine_continuation_resume_with received invalid continuation handle")
+        }
+        if let callbackContinuation = tryCast(continuationPtr, to: RuntimeCallbackContinuation.self) {
+            callbackContinuation.resumeWith(UnsafeMutableRawPointer(bitPattern: resultRaw), outThrown: outThrown)
+            return
+        }
+        if isRegisteredRuntimeObjectPointer(continuation),
+           let nativeContinuation = Unmanaged<AnyObject>.fromOpaque(continuationPtr).takeUnretainedValue() as? KKContinuation
+        {
+            nativeContinuation.resumeWith(UnsafeMutableRawPointer(bitPattern: resultRaw))
+            return
+        }
+        guard let state = runtimeContinuationState(from: continuation) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_coroutine_continuation_resume_with received invalid continuation handle")
+        }
+
+        if let start = state.takeUninterceptedCoroutineStart() {
+            if let access = resultAccess, !access.box.isSuccess
+            {
+                state.releaseInterception(continuationRaw: continuation)
+                if start.completionContinuation != 0 {
+                    __kk_coroutine_continuation_resume_with(
+                        start.completionContinuation,
+                        runtimeResultFailure(access.box.exception),
+                        outThrown
+                    )
+                }
+                _ = kk_coroutine_state_exit(continuation, 0)
+                return
+            }
+            if start.cancellableStart,
+               let cancellationException = state.unstartedCoroutineCancellationException()
+            {
+                state.releaseInterception(continuationRaw: continuation)
+                if start.completionContinuation != 0 {
+                    __kk_coroutine_continuation_resume_with(
+                        start.completionContinuation,
+                        runtimeResultFailure(cancellationException),
+                        outThrown
+                    )
+                }
+                _ = kk_coroutine_state_exit(continuation, 0)
+                return
+            }
+            startUninterceptedCoroutineFromResume(
+                entryPointRaw: start.entryPointRaw,
+                continuation: continuation,
+                completionContinuation: start.completionContinuation,
+                outThrown: outThrown
+            )
+            return
+        }
+
+        if let access = resultAccess {
+            let resultBox = access.box
+            let ise: Int?
+            if resultBox.isSuccess {
+                ise = state.resume(with: resultBox.value, outThrown: outThrown)
+            } else {
+                ise = state.resume(withException: resultBox.exception, outThrown: outThrown)
+            }
+            if let ise {
+                state.deliverDoubleResumeException(ise)
+            }
+            return
+        }
+
+        if let ise = state.resume(with: resultRaw, outThrown: outThrown) {
             state.deliverDoubleResumeException(ise)
         }
-        return
-    }
-
-    if let ise = state.resume(with: resultRaw, outThrown: outThrown) {
-        state.deliverDoubleResumeException(ise)
     }
 }
 
@@ -933,7 +885,6 @@ public func kk_kxmini_launch(_ entryPointRaw: Int, _ functionID: Int) -> Int {
         state.jobHandle = job
     }
 
-    // CORO-003: Capture caller's scope from context (not TLS) and register child
     let callerScope = RuntimeCoroutineScope.current
     if let callerScope {
         callerScope.registerChild(Int(bitPattern: jobPtr))

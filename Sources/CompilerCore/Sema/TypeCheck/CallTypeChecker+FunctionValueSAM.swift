@@ -38,8 +38,6 @@ extension CallTypeChecker {
         return parameterType
     }
 
-    /// Record adaptation only after overload resolution has selected a target.
-    /// Preserve the expression's function type for loading the original value.
     func bindResolvedFunctionValueSamArguments(
         _ id: ExprID,
         chosen: SymbolID,

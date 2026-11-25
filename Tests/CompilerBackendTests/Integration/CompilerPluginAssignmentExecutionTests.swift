@@ -1,5 +1,4 @@
 @testable import CompilerCore
-@testable import CompilerBackend
 import Foundation
 import Testing
 

@@ -54,6 +54,51 @@ extension JVMBackendTests {
         return root.appendingPathComponent("nested-annotations.jar")
     }
 
+    private func externalKotlinTargetAnnotationLibraryJar(_ root: URL) throws -> URL {
+        try """
+        package fixture
+        @Target(AnnotationTarget.FILE)
+        annotation class FileOnly
+        @Target(AnnotationTarget.PROPERTY)
+        annotation class PropertyOnly
+        @Target(AnnotationTarget.PROPERTY, AnnotationTarget.CLASS)
+        annotation class PropertyOrClass
+        """.write(to: root.appendingPathComponent("TargetAnnotations.kt"), atomically: true, encoding: .utf8)
+        _ = try jvmTool("kotlinc", ["TargetAnnotations.kt", "-d", "target-annotations.jar"], root: root)
+        return root.appendingPathComponent("target-annotations.jar")
+    }
+
+    private func externalJavaPartialAnnotationJar(_ root: URL) throws -> URL {
+        let fixture = root.appendingPathComponent("fixture", isDirectory: true)
+        try FileManager.default.createDirectory(at: fixture, withIntermediateDirectories: true)
+        try """
+        package fixture;
+        public enum MissingEnum { ONE }
+        """.write(to: fixture.appendingPathComponent("MissingEnum.java"), atomically: true, encoding: .utf8)
+        try """
+        package fixture;
+        public @interface OptionalAnnotation {
+            MissingEnum value();
+            int count() default 1;
+        }
+        """.write(to: fixture.appendingPathComponent("OptionalAnnotation.java"), atomically: true, encoding: .utf8)
+        _ = try jvmTool("javac", ["--release", "21", "-d", "annotation-classes", "fixture/MissingEnum.java", "fixture/OptionalAnnotation.java"], root: root)
+        _ = try jvmTool("jar", ["cf", "partial-annotations.jar", "-C", "annotation-classes", "fixture/OptionalAnnotation.class"], root: root)
+        return root.appendingPathComponent("partial-annotations.jar")
+    }
+
+    private func externalJavaMarkerKtAnnotationJar(_ root: URL) throws -> URL {
+        let fixture = root.appendingPathComponent("fixture", isDirectory: true)
+        try FileManager.default.createDirectory(at: fixture, withIntermediateDirectories: true)
+        try """
+        package fixture;
+        public @interface MarkerKt {}
+        """.write(to: fixture.appendingPathComponent("MarkerKt.java"), atomically: true, encoding: .utf8)
+        _ = try jvmTool("javac", ["--release", "21", "-d", "annotation-classes", "fixture/MarkerKt.java"], root: root)
+        _ = try jvmTool("jar", ["cf", "marker-kt-annotations.jar", "-C", "annotation-classes", "."], root: root)
+        return root.appendingPathComponent("marker-kt-annotations.jar")
+    }
+
     private func externalJavaValueAnnotationJar(_ root: URL) throws -> URL {
         let fixture = root.appendingPathComponent("fixture", isDirectory: true)
         try FileManager.default.createDirectory(at: fixture, withIntermediateDirectories: true)
@@ -159,6 +204,72 @@ extension JVMBackendTests {
     }
 
     @Test
+    func kotlinClasspathAnnotationTargetsPreserveKotlinUseSites() throws {
+        try withWorkspace { root in
+            let library = try externalKotlinTargetAnnotationLibraryJar(root)
+            let valid = """
+            @file:fixture.FileOnly
+            import fixture.PropertyOnly
+            import fixture.PropertyOrClass
+
+            @PropertyOrClass
+            class Holder {
+                @PropertyOnly val value: Int = 1
+                @PropertyOrClass val computed: Int get() = 2
+            }
+            @PropertyOnly val top: Int = 3
+
+            fun main() { println(Holder().value + Holder().computed + top) }
+            """
+            let compiled = try compile(valid, root: root, mode: .jvmJar, classpath: [library.path])
+            try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
+
+            let invalid = """
+            import fixture.PropertyOnly
+            @PropertyOnly fun invalid(): Int = 0
+            fun main() {}
+            """
+            let rejected = try compile(invalid, root: root, mode: .jvmJar, classpath: [library.path])
+            #expect(rejected.0 != 0)
+            #expect(rejected.1.contains {
+                $0.severity == .error && $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET"
+            }, "\(rejected.1.map(\.message))")
+        }
+    }
+
+    @Test
+    func javaPartialClasspathAnnotationOmitsUnavailableElementTypes() throws {
+        try withWorkspace { root in
+            let annotations = try externalJavaPartialAnnotationJar(root)
+            let compiled = try compile("""
+            import fixture.OptionalAnnotation
+
+            @OptionalAnnotation(count = 2)
+            class Example
+
+            fun main() {}
+            """, root: root, mode: .jvmJar, classpath: [annotations.path])
+            try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
+        }
+    }
+
+    @Test
+    func javaMarkerAnnotationNamedKtRemainsAnnotation() throws {
+        try withWorkspace { root in
+            let annotations = try externalJavaMarkerKtAnnotationJar(root)
+            let compiled = try compile("""
+            import fixture.MarkerKt
+
+            @MarkerKt
+            class Example
+
+            fun main() {}
+            """, root: root, mode: .jvmJar, classpath: [annotations.path])
+            try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
+        }
+    }
+
+    @Test
     func javaValueArrayAnnotationUsesVarargBindingAndLongMinDefault() throws {
         try withWorkspace { root in
             let annotations = try externalJavaValueAnnotationJar(root)
@@ -185,6 +296,22 @@ extension JVMBackendTests {
             #expect(inspection.stdout.contains("fixture.JavaValue("))
             #expect(inspection.stdout.contains("value=[\"x\"]"))
             #expect(inspection.stdout.contains("count=2"))
+        }
+    }
+
+    @Test
+    func explicitKotlinSuppressImportResolvesFromJvmStdlibClasspath() throws {
+        try withWorkspace { root in
+            let classpath = try m11Runtime().components(separatedBy: ":")
+            let result = try compile("""
+            import kotlin.Suppress
+
+            @Suppress("UNCHECKED_CAST")
+            class WitnessSuppress
+
+            fun main() { println("ok") }
+            """, root: root, mode: .jvmJar, classpath: classpath)
+            #expect(result.0 == 0, "\(result.1.map { $0.message })")
         }
     }
 

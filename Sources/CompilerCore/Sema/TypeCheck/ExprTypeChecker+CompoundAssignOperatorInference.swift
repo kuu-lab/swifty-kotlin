@@ -70,9 +70,6 @@ extension ExprTypeChecker {
         }
 
         if inferCandidateReturnTypes {
-            // A bare object operator can be an expression-bodied member whose
-            // return type is still the header's `Any` placeholder. Infer only
-            // on this path before deciding whether `plusAssign` returns Unit.
             driver.inferFunctionReturnTypesIfNeeded(for: operatorCandidates)
         }
 
@@ -110,9 +107,6 @@ extension ExprTypeChecker {
             return nil
         }
 
-        // Record the implicit receiver that supplies a member extension's
-        // dispatch receiver so KIR lowering can emit `this@Owner` ahead of
-        // the operator receiver (KUU-4420).
         if let dispatchOwner = sema.symbols.memberExtensionOwnerSymbol(for: chosen) {
             let dispatchReceiver = ctx.implicitReceiverMemberLookupEntries().first { entry in
                 driver.helpers.allNominalSymbols(
@@ -183,8 +177,6 @@ extension ExprTypeChecker {
         return sema.types.unitType
     }
 
-    /// A missing overload returns `nil` so primitive targets can continue through
-    /// the existing builtin compound-assignment path.
     private func bindIncrementDecrementOperatorCall(
         exprID: ExprID,
         op: CompoundAssignOp,
@@ -271,9 +263,6 @@ extension ExprTypeChecker {
             resolved: resolved,
             sema: sema
         )
-        // Resolve the operator against the flow-refined read type, but check its
-        // result against the declared storage type. The implicit write clears
-        // the old narrowing instead of adopting the operator's return type.
         guard sema.types.isSubtype(returnType, assignmentType) else {
             ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0303",
@@ -339,8 +328,6 @@ extension ExprTypeChecker {
         guard ctx.ast.arena.isIncrementDecrement(exprID) else {
             return nil
         }
-        // Numeric primitives (everything but Char) keep `++` / `--` on the builtin path even
-        // though explicit `x.inc()` calls now resolve to the bundled extensions.
         let usesBuiltinIncrement = isBuiltinNumericIncrementDecrementTarget(receiverType, sema: ctx.sema)
         if !usesBuiltinIncrement,
            let resolvedType = bindIncrementDecrementOperatorCall(
@@ -385,8 +372,6 @@ extension ExprTypeChecker {
             guard ctx.ast.arena.incrementDecrementReturnsValue(exprID) else {
                 return nil
             }
-            // Prefix `++` / `--` evaluates to the updated numeric value. Other
-            // synthetic assignments keep compound-assignment's Unit result.
             ctx.sema.bindings.bindExprType(exprID, type: receiverType)
             return IncrementDecrementInferenceResult(
                 expressionType: receiverType,
@@ -456,8 +441,6 @@ extension ExprTypeChecker {
         if op == .plusAssign, sema.types.makeNonNullable(lhs) == sema.types.stringType {
             return true
         }
-        // Dedicated user operators have already been considered. The builtin
-        // arithmetic fallback can read a final numeric upper bound on the RHS.
         let primitiveRHS = resolvePrimitiveArithmeticUpperBound(
             of: rhs, types: sema.types, symbols: sema.symbols
         ) ?? rhs
@@ -571,6 +554,13 @@ extension ExprTypeChecker {
         return sema.types.errorType
     }
 
+    private func isStableMutableLocalDeclaration(_ id: ExprID, ast: ASTModule) -> Bool {
+        guard let expression = ast.arena.expr(id),
+              case let .localDecl(_, isMutable, _, initializer, isDelegated, _, _) = expression
+        else { return false }
+        return isMutable && initializer != nil && !isDelegated
+    }
+
     func inferCompoundAssignExpr(
         _ id: ExprID,
         op: CompoundAssignOp,
@@ -661,6 +651,16 @@ extension ExprTypeChecker {
                     )
                     sema.bindings.bindExprType(id, type: sema.types.errorType)
                     return sema.types.errorType
+                }
+                if resolvedType != sema.types.errorType,
+                   let declaration = ctx.dataFlow.localDeclarations[local.symbol]
+                {
+                    ctx.dataFlow.localStability.markCompoundAssignmentAsInPlace(id, declaration: declaration)
+                    if ctx.dataFlow.localStability.isNeverReassigned(declaration),
+                       isStableMutableLocalDeclaration(declaration, ast: ctx.ast)
+                    {
+                        ctx.dataFlow.stableMutableReceivers.insert(local.symbol)
+                    }
                 }
                 return resolvedType
             }
@@ -764,9 +764,6 @@ extension ExprTypeChecker {
             else {
                 continue
             }
-            // A member on a nullable implicit receiver is unsafe: a safe
-            // member on an outer receiver outranks it, and a lone unsafe
-            // match binds with UNSAFE_CALL (KUU-4501, KUU-4504).
             if sema.types.nullability(of: receiverType) == .nullable {
                 if implicitReceiverMember == nil {
                     implicitReceiverMember = (memberSymbol, member.type, member.writeSymbol != nil)
@@ -985,7 +982,7 @@ extension ExprTypeChecker {
             default:
                 propType
             }
-            _ = resultType // top-level property type not updated in locals
+            _ = resultType
             sema.bindings.bindExprType(id, type: sema.types.unitType)
             return sema.types.unitType
         }
@@ -1029,8 +1026,6 @@ extension ExprTypeChecker {
         return sema.types.errorType
     }
 
-    /// Reserve the expression's call binding for its arithmetic operator;
-    /// lowering reads and writes the selected property.
     private func resolveExtensionPropertyForCompoundAssignment(
         id: ExprID,
         named calleeName: InternedString,
@@ -1084,10 +1079,6 @@ extension ExprTypeChecker {
         let originalValueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: nil)
 
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
-        // Same companion-scope routing as `inferMemberAssignExpr`: a bare
-        // class name resolves writes through `$CompanionBlocks`/`companion
-        // object` members, extensions on the companion object type, then
-        // `companion`-marked extension properties on the owner nominal.
         let classNameOwnerNominal = driver.helpers.classNameReceiverNominalSymbol(
             forReceiverExpr: receiverExpr, ctx: ctx
         )
@@ -1111,10 +1102,6 @@ extension ExprTypeChecker {
             }
         }
         if propResult == nil, let ownerNominal = classNameOwnerNominal {
-            // Extensions on a source `companion object` type apply to the
-            // `A.x` qualifier (`var A.Companion.x`, `var Any.x`), mirroring
-            // the read path. A `companion { }` block is not a value receiver
-            // and gets no unfiltered probe.
             let sourceCompanionSymbol = sema.symbols.companionObjectSymbol(for: ownerNominal)
                 ?? sema.symbols.actualSymbol(for: ownerNominal).flatMap {
                     sema.symbols.companionObjectSymbol(for: $0)
@@ -1136,9 +1123,6 @@ extension ExprTypeChecker {
                     sema.bindings.bindExprType(receiverExpr, type: companionObjectType)
                 }
             }
-            // `companion`-marked extensions (`companion var A.x`) resolve
-            // against the owner nominal; the filter keeps a plain `var A.x`
-            // from binding where Kotlin reports unresolved.
             if propResult == nil {
                 let ownerReceiverType = sema.types.make(.classType(ClassType(
                     classSymbol: ownerNominal, args: [], nullability: .nonNull
@@ -1259,9 +1243,6 @@ extension ExprTypeChecker {
             return resolvedType
         }
 
-        // A successful `plusAssign` mutates the value returned by the getter
-        // without invoking the property setter. Setter visibility only gates
-        // the binary-operator fallback that writes a replacement value.
         if isMutable, !checkPropertySetterAccessibility(propertyID: writeSymbol, name: calleeName, range: range, ctx: ctx) {
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
@@ -1290,8 +1271,6 @@ extension ExprTypeChecker {
             return sema.types.unitType
         }
 
-        // Unlike a bare local, a property's declared type doesn't get narrowed
-        // per-assignment, so there is nothing to propagate back into `locals` here.
         if rejectInvalidBuiltinCharCompoundAssignment(
             id, op: op, lhs: propType, rhs: valueType, range: range, ctx: ctx
         ) {

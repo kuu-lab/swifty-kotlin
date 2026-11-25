@@ -397,8 +397,8 @@ JVM 呼び出しの owner として利用できる。非公開の型や protecte
 import alias、オーバーロード、参照型の引数・戻り値も使用できる。
 公式 Kotlin が生成したクラスも Java の JVM signature として読み込める。
 KSwiftK 生成のファイル facade は `import demo.ApiKt` → `ApiKt.add(...)` で再利用できる。
-外部 Kotlin JAR の metadata は import 時には解釈せず、Java の公開 ABI として扱うため、
-トップレベル関数も facade クラスを介して呼び出す。
+外部 Kotlin JAR では kotlin.Metadata を読み、Kotlin の関数 signature（parameter 名とデフォルト引数の有無を含む）を
+復元する。metadata による復元がない宣言は Java の公開 ABI として扱う。トップレベル関数は facade クラスを介して呼び出せる。
 
 Java の参照 signature は platform 型として扱い、推論した公開戻り型にも flexible 型を記録する。
 非 nullable のローカルや戻り値へ変換する境界と `!!` は NPE 検査を行う。
@@ -447,8 +447,8 @@ constructor を生成し、metadata に既定値フラグを記録する。全 p
 Java 用 noarg constructor も生成する（inner／enum と、明示的な noarg constructor がある場合を除く）。
 Java は通常の全引数メソッド／constructor を呼べる。公式 Kotlin は名前付き引数と省略引数を利用できる。
 suspend の default bridge では Continuation が mask より前に位置する。
-外部 JAR の import は従来通り erased JVM signature であり、その Kotlin metadata から parameter 名や
-デフォルト式を取り込む機能は含まない。
+外部 JAR の import では Kotlin metadata から parameter 名とデフォルト引数の有無を取り込む。
+デフォルト式そのものは取り込まず、省略可能な parameter には `= null!!` の placeholder を付けた宣言を合成する。
 
 ## クラス委譲・委譲プロパティ・lazy・lateinit（M10）
 
@@ -1106,10 +1106,12 @@ Signature 属性はクラスの superclass を先頭にし、interface と型引
 `StackMapTable` frame を出力する。これは JVM verifier のための初期化であり、ソースでの
 初期化前の読み出しを許可する機能ではなく、ソースの definite assignment は Sema が検証する。条件分岐は反転した短距離 test と `goto_w` を組み合わせ、
 大きなメソッドでも分岐 offset を切り詰めない。
-コンストラクタの `new` は引数より前に評価し、初期化前の参照は allocation offset とともに
-frame に記録する。引数から break／continue する辺では未完了の allocation slot を null に戻す。256 以上のローカルスロットには `wide` を使う。
+コンストラクタは引数を評価してから receiver を確保する。引数の評価前には Class.forName で
+owner の class initializer（companion object の初期化を含む）を強制し、kotlinc と同じく
+companion の初期化が引数の副作用より先に走る順序を保つ。初期化前の参照は allocation offset
+とともに frame に記録する。break／continue で loop を抜ける辺では、その loop の内側で
+確保された未完了の allocation slot を null に戻す。256 以上のローカルスロットには `wide` を使う。
 公開 inline entry の constructor は外部 Kotlin inliner が解釈できる NEW／DUP／invokespecial 形式にする。
-引数の評価前には Class.forName による初期化を行い、JVM class initializer の実行順を保持する。
 
 文字列定数は modified UTF-8、Long／Double 定数は constant pool の 2 slot を使用する。
 定数長、constant pool、method code 長の上限超過は `KSWIFTK-JVM-0002` で診断する。

@@ -3,20 +3,7 @@ final class DeclTypeChecker {
     unowned let driver: TypeCheckDriver
     var annotationConstantEvaluator: ConstPropertyEvaluator?
     var pendingAnnotationConstants: [(ExprID, TypeInferenceContext, Bool)] = []
-    /// When set, constructor calls whose result type is pinned without reading
-    /// their arguments (non-generic classes and explicit type-argument lists)
-    /// must still prove every argument is safe to precheck. `canSafelyPrecheck
-    /// InferredProperty` raises this so a pinned result cannot smuggle an
-    /// argument that only resolves on the source-order pass into an early
-    /// full-declaration check; type-publication probes leave it clear so the
-    /// pinned type can still be published ahead of the arguments' own pass
-    /// (KUU-4280).
     var requiresSafePrecheckCallArguments = false
-    /// `as`/`as?` result types come from the cast target alone, so type
-    /// publication probes may skip the operand. When the probe decides whether
-    /// a whole declaration can run the authoritative check early, the operand
-    /// must still be safe — the real inference would otherwise meet the same
-    /// placeholder types the probe declined to validate (KUU-4193).
     var requiresSafePrecheckCastOperands = false
 
     init(driver: TypeCheckDriver) {
@@ -62,8 +49,6 @@ final class DeclTypeChecker {
         for parameterType in signature.parameterTypes {
             validateOptInTypeUsage(parameterType, ctx: ctx, range: range)
         }
-        // An inferred return type is validated by its body usages. Rechecking
-        // the refined signature after speculative inference would duplicate them.
         if hasExplicitReturnType {
             validateOptInTypeUsage(signature.returnType, ctx: ctx, range: range)
         }
@@ -76,8 +61,6 @@ final class DeclTypeChecker {
         let range = ctx.sema.symbols.symbol(symbol)?.declSite
         if let binding = ctx.sema.bindings.primaryConstructorPropertyParameters[symbol],
            let propertyType = ctx.sema.symbols.propertyType(for: symbol) {
-            // Kotlin 2.3.10 also accepts the corresponding parameter's consent
-            // for a generated property header. Keep it out of bodies and callers.
             driver.helpers.checkPrimaryConstructorPropertyHeaderOptIn(
                 parameter: binding.parameter, parameterType: binding.type,
                 propertyType: propertyType, constructor: binding.constructor,
@@ -154,9 +137,6 @@ final class DeclTypeChecker {
                     _ = driver.inferExpr(exprID, ctx: bodyCtx, locals: &locals, expectedType: nil, isStatementContext: true)
                     continue
                 }
-                // Pass expectedType to return expressions (so the return value is
-                // checked against the function return type), but NOT to the last
-                // expression of a block body (where it's just a statement).
                 let exprExpectedType: TypeID? = if let expr = bodyCtx.ast.arena.expr(exprID),
                                                    case .returnExpr = expr
                 {
@@ -233,10 +213,6 @@ final class DeclTypeChecker {
                         interner: ctx.interner
                     )
                 {
-                    // Range expressions keep their runtime representation separate
-                    // from the source-level range interface, so accept a matching
-                    // range-like or plain Iterable annotation without forcing a
-                    // nominal subtype check (mirrors inferLocalDeclExpr).
                 } else {
                     driver.emitSubtypeConstraint(
                         left: initializerType, right: declaredType,
@@ -249,11 +225,6 @@ final class DeclTypeChecker {
             } else {
                 inferredPropertyType = initializerType
             }
-            // Propagate the initializer's value marks onto the property symbol,
-            // mirroring inferLocalDeclExpr: reads of this property must keep the
-            // range/collection/flow classification so `x in range`, `r.isEmpty()`
-            // and member probes resolve to the typed runtime bridges instead of
-            // the generic interface path (KUU-2942).
             let declaredOpenEndRange = inferredPropertyType.map {
                 driver.helpers.isOpenEndRangeType($0, sema: sema, interner: ctx.interner)
             } ?? false
@@ -372,8 +343,6 @@ final class DeclTypeChecker {
             }
         }
 
-        // Preserve the extension receiver and its property-name label across
-        // nested receiver lambdas in getter/setter bodies.
         let extRecv = sema.symbols
             .extensionPropertyReceiverType(for: symbol)
         var accessorCtx: TypeInferenceContext = if let extRecv {
@@ -393,10 +362,6 @@ final class DeclTypeChecker {
             )
         }
 
-        // A custom accessor body may reference members still waiting on the
-        // source-order pass. When this run only publishes the inferred type,
-        // accessor bodies stay deferred and are re-checked in source order;
-        // they cannot change the type an initializer already determines.
         if checkAccessorBodies, let getter = property.getter {
             inferredPropertyType = typeCheckGetter(
                 getter, property: property, symbol: symbol,
@@ -407,9 +372,6 @@ final class DeclTypeChecker {
         }
 
         if let delegateExpr = property.delegateExpression {
-            // A delegated property expression has the same initializer scope as
-            // an ordinary property initializer, including bare primary
-            // constructor parameters.
             var delegateLocals: LocalBindings = initialLocals
             // DEBT-KIR-008/BUG-170: a stdlib delegate factory's trailing lambda
             // (delegateBody) is parsed as a separate FunctionBody from
@@ -460,7 +422,7 @@ final class DeclTypeChecker {
         }
     }
 
-    private func validateLateinitProperty(
+    func validateLateinitProperty(
         _ property: PropertyDecl,
         finalPropertyType: TypeID,
         diagnostics: DiagnosticEngine,

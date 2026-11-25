@@ -9,13 +9,6 @@ enum AnnotationParsingSupport {
         let invalidUseSiteTargetRange: SourceRange?
     }
 
-    /// - Parameter typeContext: Pass `true` when parsing an annotation in
-    ///   type position (`val x: @A () -> Unit`, `typealias F = @A (T) -> R`).
-    ///   Mirrors kotlinc's TYPE_CONTEXT rule: a `(` after the annotation name
-    ///   opens the argument list unless the token inside is `val`/`var`, or —
-    ///   only when whitespace or a comment precedes it — its matching `)` is
-    ///   followed by `->`. In those cases it is the parameter list of the
-    ///   function type being annotated.
     static func parseAnnotation(
         from tokens: [Token],
         start: Int,
@@ -62,6 +55,10 @@ enum AnnotationParsingSupport {
             name += "."
             name += nextPart
             index += 2
+        }
+
+        if let typeArgumentsEnd = endOfTypeArguments(in: tokens, at: index) {
+            index = typeArgumentsEnd
         }
 
         var arguments: [String] = []
@@ -115,18 +112,79 @@ enum AnnotationParsingSupport {
         )
     }
 
+    static func endOfTypeArguments(in tokens: [Token], at start: Int) -> Int? {
+        guard start < tokens.count, tokens[start].kind == .symbol(.lessThan) else {
+            return nil
+        }
+        var angleDepth = 0
+        var parenDepth = 0
+        var bracketDepth = 0
+        var braceDepth = 0
+        var templateDepth = 0
+        var index = start
+        while index < tokens.count {
+            let kind = tokens[index].kind
+            let inExpressionGroup = parenDepth > 0 || bracketDepth > 0 || braceDepth > 0 || templateDepth > 0
+            if !inExpressionGroup {
+                if kind == .symbol(.lessThan) {
+                    angleDepth += 1
+                } else if kind == .symbol(.greaterThan) {
+                    angleDepth -= 1
+                    if angleDepth == 0 {
+                        return index + 1
+                    }
+                }
+            }
+            switch kind {
+            case .symbol(.lParen): parenDepth += 1
+            case .symbol(.rParen): parenDepth = max(0, parenDepth - 1)
+            case .symbol(.lBracket): bracketDepth += 1
+            case .symbol(.rBracket): bracketDepth = max(0, bracketDepth - 1)
+            case .symbol(.lBrace): braceDepth += 1
+            case .symbol(.rBrace): braceDepth = max(0, braceDepth - 1)
+            case .templateExprStart: templateDepth += 1
+            case .templateExprEnd: templateDepth = max(0, templateDepth - 1)
+            default: break
+            }
+            index += 1
+        }
+        return nil
+    }
+
+    static func constructionArgumentListStart(in tokens: [Token], name: String) -> Int? {
+        var index = min(qualifiedNameTokenCount(for: name), tokens.count)
+        if let typeArgumentsEnd = endOfTypeArguments(in: tokens, at: index) {
+            index = typeArgumentsEnd
+        }
+        guard index < tokens.count, tokens[index].kind == .symbol(.lParen) else {
+            return nil
+        }
+        return index
+    }
+
+    static func qualifiedNameTokenCount(for name: String) -> Int {
+        max(name.split(separator: ".").count * 2 - 1, 0)
+    }
+
     /// Decides whether a `(` following an annotation name opens its argument
     /// list or the parameter list of the function type the annotation applies
     /// to (`typealias F = @Composable (navigator: Navigator) -> Unit`).
     /// Outside type position a `(` is always the argument list.
     ///
     /// kotlinc first parses `(...)` as the argument list and, only when that
-    /// ends abnormally — a `)` directly followed by `->` — retries the
+    /// ends abnormally — a `)` directly followed by `->`, or contents that
+    /// cannot be an expression such as a function type — retries the
     /// annotation in a whitespace-significant mode. The `(` therefore opens
-    /// the function type's parameter list only when whitespace or a comment
-    /// precedes it: `@A (x: Int) -> Unit` annotates a function type while
-    /// `@A(x: Int) -> Unit` keeps `(x: Int)` as arguments and errors on the
-    /// dangling `->`.
+    /// the function type's parameter list or a parenthesized type group only
+    /// when whitespace or a comment precedes it: `@A (x: Int) -> Unit` and
+    /// `@A (() -> Unit)?` annotate types while `@A(x: Int) -> Unit` and
+    /// `@A(() -> Unit)?` keep the parentheses as arguments and error.
+    ///
+    /// A `->` inside the parentheses marks a parenthesized type group unless
+    /// it is nested in `<>`, `{}`, `[]` or a string template, where it belongs
+    /// to a type argument or an expression: the `->` in
+    /// `@A (List<() -> Unit>)` keeps the group an argument list, matching
+    /// kotlinc.
     private static func consumesArgumentList(
         in tokens: [Token], at lParenIndex: Int, typeContext: Bool
     ) -> Bool {
@@ -140,26 +198,29 @@ enum AnnotationParsingSupport {
         {
             return false
         }
-        var depth = 0
+        var depth = BuildASTPhase.BracketDepth()
+        var hasFunctionTypeArrow = false
         for index in lParenIndex ..< tokens.count {
-            switch tokens[index].kind {
-            case .symbol(.lParen):
-                depth += 1
-            case .symbol(.rParen):
-                depth -= 1
-                if depth == 0 {
-                    let next = index + 1
-                    if next >= tokens.count || tokens[next].kind != .symbol(.arrow) {
-                        return true
-                    }
-                    return tokens[lParenIndex].leadingTrivia.isEmpty
+            let kind = tokens[index].kind
+            if kind == .symbol(.arrow),
+               depth.paren > 0,
+               depth.angle == 0, depth.bracket == 0,
+               depth.brace == 0, depth.template == 0
+            {
+                hasFunctionTypeArrow = true
+            }
+            depth.track(kind)
+            if kind == .symbol(.rParen), depth.paren == 0 {
+                if hasFunctionTypeArrow, !tokens[lParenIndex].leadingTrivia.isEmpty {
+                    return false
                 }
-            default:
-                break
+                let next = index + 1
+                if next >= tokens.count || tokens[next].kind != .symbol(.arrow) {
+                    return true
+                }
+                return tokens[lParenIndex].leadingTrivia.isEmpty
             }
         }
-        // An unbalanced `(` cannot start a function type; treat it as the
-        // argument list so diagnostics land on the unclosed annotation.
         return true
     }
 
@@ -190,7 +251,7 @@ enum AnnotationParsingSupport {
             while index < tokens.count, tokens[index].kind != opening {
                 guard case let .stringSegment(segment) = tokens[index].kind else { return nil }
                 let text = interner.resolve(segment)
-                segments.append(isRaw ? KotlinStringSurrogateEncoding.encode(text) : decodeKotlinStringEscapes(text))
+                segments.append(isRaw ? KotlinStringSurrogateEncoding.encode(normalizeKotlinRawStringLineEndings(text)) : decodeKotlinStringEscapes(text))
                 index += 1
             }
             guard index < tokens.count else { return nil }

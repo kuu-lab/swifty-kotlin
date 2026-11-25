@@ -301,6 +301,62 @@ struct GenericCallableReferenceInferenceTests {
         #expect(errors.isEmpty, "Expected constructor reference to defer to enclosing call inference, got: \(errors)")
     }
 
+    @Test(arguments: [
+        // A generic callable reference whose type parameter occurs only in
+        // return position has no input evidence for the enclosing call's
+        // solver; binding it to its upper bound (`Any?`) here would break the
+        // sibling arguments' inference (Arrow Core `Either.catch`).
+        """
+        fun <A, B> combine(block: () -> A, transform: (A) -> B, recover: (Throwable) -> B): B = TODO()
+        fun <R> right(value: R): R = value
+        fun <R> left(error: Throwable): R = throw error
+        fun catchIt(f: () -> Int): Int = combine(f, ::right, ::left)
+        """,
+        // Same shape with the result type parameter owned by the enclosing
+        // generic function.
+        """
+        fun <A, B> combine(block: () -> A, transform: (A) -> B, recover: (Throwable) -> B): B = TODO()
+        fun <R> right(value: R): R = value
+        fun <R> left(error: Throwable): R = throw error
+        fun <R> catchIt(f: () -> R): R = combine(f, ::right, ::left)
+        """,
+        // Return-only parameter in the transform position while a lambda
+        // sibling pins the result type.
+        """
+        fun <A, B> combine(block: () -> A, transform: (A) -> B, recover: (Throwable) -> B): B = TODO()
+        fun <T> retOnly(value: Int): T = TODO()
+        fun catchIt(f: () -> Int): Int = combine(f, ::retOnly, { error: Throwable -> 0 })
+        """,
+        // An explicit nullable `Any?` bound accepts every type, so it defers
+        // like an unbounded parameter.
+        """
+        fun <A, B> combine(block: () -> A, transform: (A) -> B, recover: (Throwable) -> B): B = TODO()
+        fun <R> right(value: R): R = value
+        fun <R : Any?> left(error: Throwable): R = throw error
+        fun catchIt(f: () -> Int): Int = combine(f, ::right, ::left)
+        """,
+    ])
+    func defersGenericCallableReferenceReturnParameterToEnclosingCall(source: String) throws {
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Expected callable reference return parameter to defer to enclosing call inference, got: \(errors)")
+    }
+
+    @Test
+    func keepsCompoundReturnParameterOnDeferredUpperBoundFallback() throws {
+        // The return type parameter nested inside `Box<T>` is not the whole
+        // expected return, so it must not be identified with the enclosing
+        // call's inference parameter; the upper-bound fallback still applies
+        // and the call solver verifies `Box<Any?>` from the lambda sibling.
+        _ = try semaContext(from: """
+        class Box<T>(val value: T)
+        fun <T> makeBox(): Box<T> = TODO()
+        fun <B> choose(factory: () -> B, fallback: () -> B): B = fallback()
+        fun test(): Box<Any?> = choose(::makeBox, { Box<Any?>(null) })
+        """)
+    }
+
     @Test
     func stillRejectsAmbiguousConstructorReferenceWithoutExpectedType() throws {
         // `::C` with multiple constructors and no expected function type must

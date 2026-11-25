@@ -11,14 +11,6 @@ import CompilerCore
 final class LinkPhase: CompilerPhase {
     static let name = "Link"
 
-    /// Linux links emit a Swift autolink stub that pulls in runtime dependencies. The stub is
-    /// written to a per-`LinkPhase` private temporary directory. Because every compilation
-    /// uses its own directory, parallel `kswiftc` processes and Swift test workers never share
-    /// the same stub path. The complete link operation is still guarded by a per-target
-    /// cross-process toolchain lock on Linux because concurrent `swiftc` invocations can
-    /// interfere on self-hosted runners. The directory is created with `mkdir(0700)` and
-    /// validated to be owned by the current user with no group/other permissions, so a local
-    /// attacker cannot tamper with the build input.
     private static let linuxAutolinkStubContents = """
     import Dispatch
     import Foundation
@@ -31,17 +23,12 @@ final class LinkPhase: CompilerPhase {
     }
     """
 
-    private let stubLock = NSLock()
-    private var stubDirectory: URL?
-
     private let session: LLVMBackendSession?
 
     init(session: LLVMBackendSession? = nil) { self.session = session }
 
     func run(_ ctx: CompilationContext) throws {
         guard ctx.options.emit == .executable else { return }
-        // The wasm backend emits the final module itself; there is no host
-        // object link step.
         guard !ctx.options.target.isWasm else { return }
         let objectPaths = ctx.generatedObjectPaths.isEmpty
             ? ctx.generatedObjectPath.map { [$0] } ?? []
@@ -163,9 +150,6 @@ final class LinkPhase: CompilerPhase {
                    phaseTimer: ctx.phaseTimer
                ) {
                 var finalInputs = linkInputs
-                // Force-loaded archives carry no user-referenced symbols, so a
-                // successful partial link absorbs them; the final link then
-                // drops the pairs instead of rescanning the archives.
                 let forceLoadPaths = plan.forceLoadedPaths ?? []
                 var dropForceLoads = false
                 let prelinked = withSubPhaseTiming("prelinkedObjects", timer: ctx.phaseTimer) {
@@ -212,26 +196,16 @@ final class LinkPhase: CompilerPhase {
             return nil
         }
 
-        stubLock.lock()
-        defer { stubLock.unlock() }
-
-        let stubDirectory = try secureStubDirectory()
+        let stubDirectory = try makeSecureStubDirectory()
 
         let targetKey = CodegenRuntimeSupport.stableFNV1a64Hex(CodegenRuntimeSupport.targetTripleString(target))
         let stubName = "runtime-autolink-\(targetKey).swift"
         let stubURL = stubDirectory.appendingPathComponent(stubName)
-        let currentContents = try? String(contentsOf: stubURL, encoding: .utf8)
-        if currentContents != Self.linuxAutolinkStubContents {
-            try Self.linuxAutolinkStubContents.write(to: stubURL, atomically: true, encoding: .utf8)
-        }
+        try Self.linuxAutolinkStubContents.write(to: stubURL, atomically: true, encoding: .utf8)
         return stubURL.path
     }
 
-    private func secureStubDirectory() throws -> URL {
-        if let cached = stubDirectory {
-            return cached
-        }
-
+    private func makeSecureStubDirectory() throws -> URL {
         let uid = getuid()
         let pid = getpid()
         let uuid = UUID().uuidString
@@ -256,7 +230,6 @@ final class LinkPhase: CompilerPhase {
             throw LinkPhaseStubError.insecurePath(path, "group/other permissions are not allowed")
         }
 
-        self.stubDirectory = stubDirectory
         return stubDirectory
     }
 
@@ -341,16 +314,12 @@ final class LinkPhase: CompilerPhase {
     func linkerDriverArgs(for target: TargetTriple) -> [String] {
         var args = ["-target", linkerTargetTriple(target)]
         if target.os.hasPrefix("linux") {
-            // ELF dead stripping requires section-level garbage collection. Runtime functions
-            // referenced by direct calls or generated dispatch tables remain reachable.
             args.append(contentsOf: [
                 "-Xlinker", "--gc-sections",
                 "-Xlinker", "-no-pie",
                 "-parse-as-library",
             ])
         } else if target.vendor == "apple", target.os == "macosx" {
-            // Keep functions reached through generated vtable/itable data while removing
-            // unreferenced runtime atoms from the executable.
             args.append(contentsOf: ["-Xlinker", "-dead_strip"])
         }
         return args
@@ -425,9 +394,6 @@ final class LinkPhase: CompilerPhase {
         var seen: Set<String> = []
         var includesRuntime = false
         for libraryDir in libraryDirs {
-            // objectPaths already resolves symlinks and verifies containment
-            // and regular-file status. Repeating that work for every returned
-            // object made large imported libraries needlessly expensive.
             let libraryObjects = objectPaths(
                 from: libraryDir,
                 target: target,

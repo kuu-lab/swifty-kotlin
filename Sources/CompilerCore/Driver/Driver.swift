@@ -35,6 +35,13 @@ public final class CompilerDriver {
         }
     }
 
+    /// Android Java sources compile before Sema against the `-include-runtime`
+    /// jar, whose provider the backend installs when its phases are created.
+    /// Both the full pipeline and `runFrontend` create them up front then.
+    func backendPhasesForJavaSources(_ options: CompilerOptions) -> [CompilerPhase]? {
+        !options.android.javaSources.isEmpty && options.includeJVMRuntime ? backendPhases() : nil
+    }
+
     func runForTesting(options: CompilerOptions) -> (exitCode: Int, diagnostics: [Diagnostic]) {
         runInternal(options: options, printDiagnostics: false)
     }
@@ -98,6 +105,7 @@ public final class CompilerDriver {
             }
         }
 
+        let earlyBackend = backendPhasesForJavaSources(options)
         let syntaxPhases: [CompilerPhase] = [LoadSourcesPhase()]
             + (options.emit.isJVM ? [JVMPreparationPhase()] : []) + [
             LexPhase(),
@@ -124,7 +132,7 @@ public final class CompilerDriver {
             } else if ctx.options.runsImmediately {
                 runExitCode = runImmediately(ctx: ctx)
             } else {
-                let backend = backendPhases()
+                let backend = earlyBackend ?? backendPhases()
                 executePhases(ctx: ctx, phases: backend, incrementalEnabled: false)
             }
         }
@@ -301,21 +309,22 @@ public final class CompilerDriver {
     ) -> (exitCode: Int, diagnostics: [Diagnostic]) {
         if !ctx.diagnostics.hasError, let cache = ctx.incrementalCache, !ctx.incrementalOutputRestored {
             let depGraph = buildDependencyGraph(ctx: ctx)
-            if let ast = ctx.ast {
+            // The declaration dependency graph only feeds the `incremental-stats`
+            // diagnostic; building it (per-declaration source hashing and identifier
+            // scans) is expensive, so skip it unless that flag is enabled.
+            if ctx.options.frontendFlags.contains("incremental-stats"), let ast = ctx.ast {
                 let declarations = DeclarationGraphBuilder.build(
                     ast: ast, sourceManager: ctx.sourceManager, interner: ctx.interner
                 )
                 depGraph.declarationGraph = declarations
-                if ctx.options.frontendFlags.contains("incremental-stats") {
-                    let line: String
-                    if let previous = cache.dependencyGraph?.declarationGraph {
-                        let invalidated = declarations.invalidated(since: previous).count
-                        line = "declarations: total=\(declarations.units.count) invalidated=\(invalidated)\n"
-                    } else {
-                        line = "declarations: total=\(declarations.units.count) invalidated=all (no previous graph)\n"
-                    }
-                    FileHandle.standardError.write(Data(line.utf8))
+                let line: String
+                if let previous = cache.dependencyGraph?.declarationGraph {
+                    let invalidated = declarations.invalidated(since: previous).count
+                    line = "declarations: total=\(declarations.units.count) invalidated=\(invalidated)\n"
+                } else {
+                    line = "declarations: total=\(declarations.units.count) invalidated=all (no previous graph)\n"
                 }
+                FileHandle.standardError.write(Data(line.utf8))
             }
             let buildHash = cache.buildConfigurationHash(for: ctx.options)
             let frontendState = IncrementalFrontendState(context: ctx, buildConfigurationHash: buildHash)

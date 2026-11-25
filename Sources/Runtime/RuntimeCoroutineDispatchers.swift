@@ -64,24 +64,25 @@ private func runtimeInvokeRunnable(_ raw: Int, outThrown: UnsafeMutablePointer<I
 }
 
 private let runtimeRunnableRun: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
-    outThrown?.pointee = 0
-    guard isRegisteredRuntimeObjectPointer(raw),
-          let pointer = UnsafeMutableRawPointer(bitPattern: raw),
-          let box = tryCast(pointer, to: RuntimeRunnableBox.self)
-    else {
-        outThrown?.pointee = runtimeAllocateIllegalStateException(message: "Invalid native Runnable")
+    runtimeThrowingBridge(outThrown) {
+        guard isRegisteredRuntimeObjectPointer(raw),
+              let pointer = UnsafeMutableRawPointer(bitPattern: raw),
+              let box = tryCast(pointer, to: RuntimeRunnableBox.self)
+        else {
+            outThrown?.pointee = runtimeAllocateIllegalStateException(message: "Invalid native Runnable")
+            return 0
+        }
+        let savedDispatcher = RuntimeDispatcher.current
+        if let dispatcher = box.dispatcher {
+            RuntimeDispatcher.current = dispatcher
+        }
+        defer {
+            RuntimeDispatcher.current = savedDispatcher
+            _ = runtimeReleaseObject(raw)
+        }
+        box.work()
         return 0
     }
-    let savedDispatcher = RuntimeDispatcher.current
-    if let dispatcher = box.dispatcher {
-        RuntimeDispatcher.current = dispatcher
-    }
-    defer {
-        RuntimeDispatcher.current = savedDispatcher
-        _ = runtimeReleaseObject(raw)
-    }
-    box.work()
-    return 0
 }
 
 private func runtimeReportAsyncThrowable(_ thrown: Int) {
@@ -100,9 +101,6 @@ private func runtimeReleaseRunnableBoxIfOwned(_ raw: Int) {
     _ = runtimeReleaseObject(raw)
 }
 
-/// A runtime view of a source-defined CoroutineDispatcher. Its bridge method
-/// enters the Kotlin override, while RuntimeRunnableBox restores the runtime's
-/// dispatcher identity when the executor eventually invokes the task.
 private final class RuntimeSourceCoroutineDispatcher: RuntimeDispatcher, @unchecked Sendable {
     let sourceHandle: Int
     private let sourcePin: RuntimeObjectPin
@@ -187,11 +185,6 @@ func runtimeIsSourceCoroutineDispatcher(_ raw: Int) -> Bool {
     ) != nil
 }
 
-/// KUU-3719: resolves a `ContinuationInterceptor` element to a
-/// `RuntimeDispatcher` when the interceptor is dispatcher-backed (a
-/// `CoroutineDispatcher` object, a dispatcher tag, or a native dispatcher).
-/// Returns nil for user-defined interceptors so their custom interception
-/// still runs through `interceptContinuation`.
 func runtimeInterceptorDispatcher(_ interceptorRaw: Int) -> RuntimeDispatcher? {
     guard interceptorRaw != 0 else {
         return nil
@@ -223,26 +216,27 @@ private final class RuntimeDispatcherExecutorBox: @unchecked Sendable {
 
 private let runtimeDispatcherExecutorExecute: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
     executorRaw, runnableRaw, outThrown in
-    outThrown?.pointee = 0
-    guard isRegisteredRuntimeObjectPointer(executorRaw),
-          let pointer = UnsafeMutableRawPointer(bitPattern: executorRaw),
-          let executor = tryCast(pointer, to: RuntimeDispatcherExecutorBox.self)
-    else {
-        outThrown?.pointee = runtimeAllocateIllegalStateException(message: "Invalid dispatcher Executor")
+    runtimeThrowingBridge(outThrown) {
+        guard isRegisteredRuntimeObjectPointer(executorRaw),
+              let pointer = UnsafeMutableRawPointer(bitPattern: executorRaw),
+              let executor = tryCast(pointer, to: RuntimeDispatcherExecutorBox.self)
+        else {
+            outThrown?.pointee = runtimeAllocateIllegalStateException(message: "Invalid dispatcher Executor")
+            return 0
+        }
+        let dispatcher = runtimeResolveDispatcher(from: executor.dispatcherHandle)
+        let runnablePin = RuntimeObjectPin(raw: runnableRaw)
+        dispatcher.dispatchAsync {
+            defer {
+                runnablePin.release()
+                runtimeReleaseRunnableBoxIfOwned(runnableRaw)
+            }
+            var thrown = 0
+            _ = runtimeInvokeRunnable(runnableRaw, outThrown: &thrown)
+            runtimeReportAsyncThrowable(thrown)
+        }
         return 0
     }
-    let dispatcher = runtimeResolveDispatcher(from: executor.dispatcherHandle)
-    let runnablePin = RuntimeObjectPin(raw: runnableRaw)
-    dispatcher.dispatchAsync {
-        defer {
-            runnablePin.release()
-            runtimeReleaseRunnableBoxIfOwned(runnableRaw)
-        }
-        var thrown = 0
-        _ = runtimeInvokeRunnable(runnableRaw, outThrown: &thrown)
-        runtimeReportAsyncThrowable(thrown)
-    }
-    return 0
 }
 
 @_cdecl("__kk_dispatcher_as_executor")
@@ -269,15 +263,16 @@ public func __kk_dispatcher_as_executor(
 
 private let runtimeExecutorToString: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
     raw, outThrown in
-    outThrown?.pointee = 0
-    if isRegisteredRuntimeObjectPointer(raw),
-       let pointer = UnsafeMutableRawPointer(bitPattern: raw),
-       let executor = tryCast(pointer, to: RuntimeDispatcherExecutorBox.self) {
-        let dispatcher = runtimeResolveDispatcher(from: executor.dispatcherHandle)
-        let name = dispatcher.displayName ?? "CoroutineDispatcher"
-        return runtimeMakeStringRaw("Executor(\(name))")
+    runtimeThrowingBridge(outThrown) {
+        if isRegisteredRuntimeObjectPointer(raw),
+           let pointer = UnsafeMutableRawPointer(bitPattern: raw),
+           let executor = tryCast(pointer, to: RuntimeDispatcherExecutorBox.self) {
+            let dispatcher = runtimeResolveDispatcher(from: executor.dispatcherHandle)
+            let name = dispatcher.displayName ?? "CoroutineDispatcher"
+            return runtimeMakeStringRaw("Executor(\(name))")
+        }
+        return runtimeMakeStringRaw("Executor")
     }
-    return runtimeMakeStringRaw("Executor")
 }
 
 private final class RuntimeThreadPoolExecutorBox: @unchecked Sendable {
@@ -357,79 +352,86 @@ private final class RuntimeThreadPoolExecutorBox: @unchecked Sendable {
 
 private let runtimeThreadPoolExecute: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
     executorRaw, runnableRaw, outThrown in
-    outThrown?.pointee = 0
-    guard isRegisteredRuntimeObjectPointer(executorRaw),
-          let pointer = UnsafeMutableRawPointer(bitPattern: executorRaw),
-          let executor = tryCast(pointer, to: RuntimeThreadPoolExecutorBox.self)
-    else {
-        outThrown?.pointee = runtimeAllocateIllegalStateException(message: "Invalid thread pool Executor")
+    runtimeThrowingBridge(outThrown) {
+        guard isRegisteredRuntimeObjectPointer(executorRaw),
+              let pointer = UnsafeMutableRawPointer(bitPattern: executorRaw),
+              let executor = tryCast(pointer, to: RuntimeThreadPoolExecutorBox.self)
+        else {
+            outThrown?.pointee = runtimeAllocateIllegalStateException(message: "Invalid thread pool Executor")
+            return 0
+        }
+        executor.execute(runnableRaw, outThrown: outThrown)
         return 0
     }
-    executor.execute(runnableRaw, outThrown: outThrown)
-    return 0
 }
 
 private let runtimeThreadPoolShutdown: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
     executorRaw, outThrown in
-    outThrown?.pointee = 0
-    guard let executor = runtimeThreadPool(from: executorRaw) else {
-        outThrown?.pointee = runtimeAllocateIllegalStateException(message: "Invalid thread pool Executor")
+    runtimeThrowingBridge(outThrown) {
+        guard let executor = runtimeThreadPool(from: executorRaw) else {
+            outThrown?.pointee = runtimeAllocateIllegalStateException(message: "Invalid thread pool Executor")
+            return 0
+        }
+        executor.shutdown()
         return 0
     }
-    executor.shutdown()
-    return 0
 }
 
 private let runtimeThreadPoolShutdownNow: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
     executorRaw, outThrown in
-    outThrown?.pointee = 0
-    guard let executor = runtimeThreadPool(from: executorRaw) else {
-        outThrown?.pointee = runtimeAllocateIllegalStateException(message: "Invalid thread pool Executor")
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        guard let executor = runtimeThreadPool(from: executorRaw) else {
+            outThrown?.pointee = runtimeAllocateIllegalStateException(message: "Invalid thread pool Executor")
+            return 0
+        }
+        executor.shutdown(cancelPending: true)
+        return registerRuntimeObject(
+            RuntimeListBox(elements: []),
+            typeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.List")
+        )
     }
-    executor.shutdown(cancelPending: true)
-    return registerRuntimeObject(
-        RuntimeListBox(elements: []),
-        typeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.List")
-    )
 }
 
 private let runtimeThreadPoolIsShutdown: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
     executorRaw, outThrown in
-    outThrown?.pointee = 0
-    guard let executor = runtimeThreadPool(from: executorRaw) else {
-        outThrown?.pointee = runtimeAllocateIllegalStateException(message: "Invalid thread pool Executor")
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        guard let executor = runtimeThreadPool(from: executorRaw) else {
+            outThrown?.pointee = runtimeAllocateIllegalStateException(message: "Invalid thread pool Executor")
+            return 0
+        }
+        return executor.isShutdown ? 1 : 0
     }
-    return executor.isShutdown ? 1 : 0
 }
 
 private let runtimeThreadPoolIsTerminated: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
     executorRaw, outThrown in
-    outThrown?.pointee = 0
-    guard let executor = runtimeThreadPool(from: executorRaw) else {
-        outThrown?.pointee = runtimeAllocateIllegalStateException(message: "Invalid thread pool Executor")
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        guard let executor = runtimeThreadPool(from: executorRaw) else {
+            outThrown?.pointee = runtimeAllocateIllegalStateException(message: "Invalid thread pool Executor")
+            return 0
+        }
+        return executor.isTerminated ? 1 : 0
     }
-    return executor.isTerminated ? 1 : 0
 }
 
 private let runtimeThreadPoolClose: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
     executorRaw, outThrown in
-    outThrown?.pointee = 0
-    guard let executor = runtimeThreadPool(from: executorRaw) else {
-        outThrown?.pointee = runtimeAllocateIllegalStateException(message: "Invalid thread pool Executor")
+    runtimeThrowingBridge(outThrown) {
+        guard let executor = runtimeThreadPool(from: executorRaw) else {
+            outThrown?.pointee = runtimeAllocateIllegalStateException(message: "Invalid thread pool Executor")
+            return 0
+        }
+        executor.shutdown()
         return 0
     }
-    executor.shutdown()
-    return 0
 }
 
 private let runtimeThreadPoolToString: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
     executorRaw, outThrown in
-    outThrown?.pointee = 0
-    return runtimeThreadPool(from: executorRaw).map { runtimeMakeStringRaw($0.description) }
-        ?? runtimeMakeStringRaw("ThreadPoolExecutor")
+    runtimeThrowingBridge(outThrown) {
+        return runtimeThreadPool(from: executorRaw).map { runtimeMakeStringRaw($0.description) }
+            ?? runtimeMakeStringRaw("ThreadPoolExecutor")
+    }
 }
 
 private func runtimeThreadPool(from raw: Int) -> RuntimeThreadPoolExecutorBox? {
