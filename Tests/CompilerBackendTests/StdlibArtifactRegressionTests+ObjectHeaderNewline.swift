@@ -4,7 +4,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-3740: a local anonymous object keeps its next-line body.
     @Test(arguments: [false, true], [0, 2])
     func testObjectHeaderKeepsNextLineBody(fromSource: Bool, optimization: Int) throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
