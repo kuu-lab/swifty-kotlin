@@ -17,6 +17,9 @@ extension JVMBackendTests {
                     System.out.println(Charsets.UTF_16.name());
                     System.out.println(Charsets.UTF_16BE.name());
                     System.out.println(Charsets.UTF_16LE.name());
+                    System.out.println(Charsets.UTF_32.name());
+                    System.out.println(Charsets.UTF_32BE.name());
+                    System.out.println(Charsets.UTF_32LE.name());
                     System.out.println(Charsets.US_ASCII.name());
                     System.out.println(Charsets.ISO_8859_1.name());
                 }
@@ -26,7 +29,7 @@ extension JVMBackendTests {
             try #require(compiled.exitCode == 0, "\(compiled.stderr)")
             let output = try jvmTool("java", ["-Xverify:all", "-cp", root.path + ":" + library.path, "CharsetConsumer"], root: root)
             #expect(output.exitCode == 0, "\(output.stderr)")
-            #expect(output.stdout == "UTF-8\nUTF-16\nUTF-16BE\nUTF-16LE\nUS-ASCII\nISO-8859-1\n")
+            #expect(output.stdout == "UTF-8\nUTF-16\nUTF-16BE\nUTF-16LE\nUTF-32\nUTF-32BE\nUTF-32LE\nUS-ASCII\nISO-8859-1\n")
         }
     }
 }
