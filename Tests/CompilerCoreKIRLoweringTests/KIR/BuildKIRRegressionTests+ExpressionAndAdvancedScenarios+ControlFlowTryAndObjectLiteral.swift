@@ -6,13 +6,6 @@ import Testing
 
 extension BuildKIRRegressionTests {
 
-    /// All ten `sampleN` snippets compile into one context, so every test here
-    /// shares it; `ctx.options.inputs[n]` recovers `sampleN`'s path for the one
-    /// test that scopes an AST search to a single file.
-    /// Built once per process: `static let` initializes under `swift_once`, so
-    /// parallel tests share a single compile. The previous check-then-set over
-    /// a mutable static allowed concurrent tests to each miss the cache and
-    /// re-pay the bundled-stdlib compile.
     private static let _sharedControlFlowCtx = Result<CompilationContext, any Error> {
         let sources: [String] = [
             """
@@ -140,7 +133,6 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "test0", in: module, interner: ctx.interner)
 
-        // .select was removed; verify control flow guards side-effect branches
         let sideEffectCallsCount = extractCallees(from: body, interner: ctx.interner).count { $0 == "sideEffect0" }
         #expect(sideEffectCallsCount == 2, "Both branches should have sideEffect0 calls in IR")
 
@@ -157,7 +149,6 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "earlyReturn1", in: module, interner: ctx.interner)
 
-        // .select was removed; return-in-branch uses control flow with labels/jumps
         let labelCount = body.count { if case .label = $0 { return true }; return false }
         #expect(labelCount >= 2, "return-in-branch needs labels for control flow")
 
@@ -174,7 +165,6 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "test2", in: module, interner: ctx.interner)
 
-        // .select was removed; verify control flow guards side-effect2 branches
         let effectCallsCount = extractCallees(from: body, interner: ctx.interner).count { $0 == "effect2" }
         #expect(effectCallsCount == 3, "All 3 branches should have effect2 calls in IR")
 
@@ -332,10 +322,6 @@ extension BuildKIRRegressionTests {
     }
 
 
-    // CODE-002: Verify that when exception type token is UNKNOWN (0), catch clause
-    // matching uses kk_op_is for precise runtime type checking instead of blindly
-    // matching all catch clauses.
-
     @Test
     func testTryCatchUnknownTokenUsesRuntimeTypeCheck() throws {
         let runtime = try RuntimeNames()
@@ -344,26 +330,17 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "demo4", in: module, interner: ctx.interner)
 
-        // Verify that kk_op_is is called for runtime type checking fallback.
-        // Use >= to be resilient against future lowering changes that may also emit
-        // kk_op_is for other reasons in the same function body.
         let opIsCalls = body.filter { instruction in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
             return callee == ctx.interner.intern(runtime[.isType])
         }
         #expect(opIsCalls.count >= 1, "Expected at least one kk_op_is call for runtime type check fallback on UNKNOWN token.")
 
-        // Verify the kk_op_is call receives the exception slot and the type token
         let firstOpIsCall = try #require(opIsCalls.first)
         if case let .call(_, _, arguments, _, _, _, _, _) = firstOpIsCall {
             #expect(arguments.count == 2, "Runtime type tests should receive exception value and type token.")
         }
 
-        // Verify that the UNKNOWN-token (0) comparison gates the kk_op_is call:
-        // Find the constValue(0) that serves as the UNKNOWN-token sentinel and
-        // correlate it with a binary(.equal) that uses it as the rhs operand.
-        // This ensures the test is tied to the specific CODE-002 pattern rather
-        // than matching unrelated comparisons/constants.
         let zeroSentinelIDs: [KIRExprID] = body.compactMap { instruction in
             guard case let .constValue(result, value) = instruction,
                   value == .intLiteral(0) else { return nil }
@@ -371,8 +348,6 @@ extension BuildKIRRegressionTests {
         }
         #expect(zeroSentinelIDs.count >= 1, "Expected at least one constValue(0) for the UNKNOWN-token sentinel.")
 
-        // Verify a binary(.equal) uses one of the zero sentinel IDs as its rhs,
-        // confirming the exceptionTypeSlot == 0 check exists.
         let zeroCompareExists = body.contains { instruction in
             guard case let .binary(op, _, rhs, _) = instruction,
                   op == .equal else { return false }
@@ -382,8 +357,6 @@ extension BuildKIRRegressionTests {
     }
 
 
-    // CODE-002: Verify multi-catch generates kk_op_is for each typed catch clause.
-
     @Test
     func testTryCatchMultipleClausesUnknownTokenUsesRuntimeTypeCheck() throws {
         let runtime = try RuntimeNames()
@@ -392,14 +365,10 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "demo5", in: module, interner: ctx.interner)
 
-        // Verify that kk_op_is is called for each typed catch clause.
-        // Use >= numberOfTypedClauses to be resilient against future lowering changes.
         let opIsCount = extractCallees(from: body, interner: ctx.interner).count { $0 == runtime[.isType] }
         #expect(opIsCount >= 2, "Expected at least one kk_op_is call per typed catch clause for runtime type check fallback.")
     }
 
-
-    // CODE-002: Verify catch-all clause (catch (e: Any)) does NOT emit kk_op_is.
 
     @Test
     func testTryCatchCatchAllDoesNotEmitRuntimeTypeCheck() throws {
@@ -409,20 +378,12 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "demo6", in: module, interner: ctx.interner)
 
-        // catch-all should not require runtime type checking
         let opIsCount = extractCallees(from: body, interner: ctx.interner).count { $0 == runtime[.isType] }
         #expect(opIsCount == 0, "catch-all (Any) should not emit kk_op_is runtime type check.")
     }
 
 
 
-    // KSP-CAP-018: `object : Marker {}` -- an object literal whose body
-    // declares no members -- used to get no `ObjectDecl` from the parser and so
-    // lowered through a separate generated `kk_object_literal_N` factory whose
-    // body allocated with `classID = 0` and no `NominalLayout`: no supertype
-    // edges, no itable/vtable registration, and no superclass constructor call.
-    // It now takes the same inline path as a literal with members, allocating
-    // with its own stable nominal type ID.
     @Test
     func testBuildKIRLowersEmptyBodyObjectLiteralToInlineRuntimeObjectEntity() throws {
         let runtime = try RuntimeNames()
@@ -453,9 +414,6 @@ extension BuildKIRRegressionTests {
             return
         }
 
-        // `kk_object_new(slotCount, classID)`. The old factory path hardcoded
-        // `classID` to 0, which left runtime type checks and dispatch with no
-        // way to identify the literal's type.
         #expect(arguments.count == 2)
         if case let .intLiteral(classID)? = module.arena.expr(arguments[1]) {
             #expect(classID != 0, "Expected the object literal's own stable nominal type ID.")
@@ -469,9 +427,6 @@ extension BuildKIRRegressionTests {
             Issue.record("Object literal must not lower to unit.")
         }
 
-        // The literal now has an anonymous class type of its own (it used to
-        // just take on its supertype), and that nominal is emitted and
-        // reachable from the module's file decl list.
         let objectValueType = try #require(sema.bindings.exprTypes[makeExprID])
         guard case let .classType(objectClassType) = sema.types.kind(of: objectValueType) else {
             Issue.record("Expected the object literal to have its own anonymous class type.")
@@ -510,12 +465,6 @@ extension BuildKIRRegressionTests {
 
 
     @Test
-    // KSP-CAP-018: this test only checked that the *call site* named `get`,
-    // never what the accessor it calls actually does — so it kept passing while
-    // Sema left the getter body's `seed` unbound and KIR lowered it to `.unit`,
-    // making `instance.value` return 1 instead of 8. The emitted accessor's own
-    // body is now checked too: it must load `seed` from the instance and must
-    // not contain a `.unit` constant standing in for an unresolved identifier.
     func testBuildKIRObjectLiteralCustomGetterUsesAccessorCall() throws {
         let runtime = try RuntimeNames()
         let ctx = try sharedControlFlowCtx()
@@ -526,10 +475,6 @@ extension BuildKIRRegressionTests {
         #expect(!(callNames.contains(runtime[.arrayGet])))
         #expect(callNames.contains("get"))
 
-        // Every accessor this fixture emits is a one-parameter `get` function.
-        // Check their bodies, not just the call site: the bug left the getter
-        // body with a `.unit` constant standing in for the unresolved `seed`,
-        // and no instance read at all.
         let getterBodies = module.arena.declarations.compactMap { decl -> [KIRInstruction]? in
             guard case let .function(function) = decl,
                   function.name == KnownCompilerNames(interner: ctx.interner).get,
@@ -572,6 +517,5 @@ extension BuildKIRRegressionTests {
     }
 
 
-    // MARK: - Lambda / CallableRef Lowering (P5-20)
 }
 #endif
