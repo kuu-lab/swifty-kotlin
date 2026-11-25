@@ -34,6 +34,11 @@ internal class MapWithDefaultImpl<K, V>(
     override fun hashCode(): Int = map.hashCode()
     override fun toString(): String = map.toString()
 
+    fun put(key: K, value: V): V? = throw UnsupportedOperationException("Operation is not supported for read-only collection")
+    fun remove(key: K): V? = throw UnsupportedOperationException("Operation is not supported for read-only collection")
+    fun putAll(values: Map<out K, V>) { throw UnsupportedOperationException("Operation is not supported for read-only collection") }
+    fun clear() { throw UnsupportedOperationException("Operation is not supported for read-only collection") }
+
     override fun getOrImplicitDefault(key: K): V {
         val value = map[key]
         if (value != null || map.containsKey(key)) {
