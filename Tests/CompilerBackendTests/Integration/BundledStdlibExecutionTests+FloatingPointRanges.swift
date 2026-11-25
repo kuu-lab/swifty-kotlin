@@ -1,9 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    // KUU-574 regression: floating-point ranges use opaque runtime handles while
-    // their source-level expression type remains scalar. Membership, emptiness,
-    // and string conversion must therefore all select the floating-point bridge.
     @Test
     func testFloatingPointRangesMembershipAndStringification() throws {
         try compileAndRunKotlin(
