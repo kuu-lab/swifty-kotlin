@@ -25,17 +25,21 @@ extension JVMProgramBuilder {
                 case let .call(_, _, args, _), let .memberCall(_, _, _, args, _):
                     if let argument = args.first {
                         // A bare name resolves through the enclosing declarations first
-                        // (an object's `const val` shadows a top-level one).
+                        // (an object's or companion's `const val` shadows a top-level one).
                         var value: JVMAnnotationValue?
                         if case let .nameRef(name, _) = ast.arena.expr(argument.expr) {
                             var owner = sema.symbols.parentSymbol(for: symbol)
                             while let current = owner, value == nil {
-                                if let fqName = sema.symbols.symbol(current)?.fqName,
-                                   let found = sema.symbols.lookup(fqName: fqName + [name]),
-                                   let declaration = declarationIDsBySymbol[found]?.first,
-                                   case let .propertyDecl(property) = ast.arena.decl(declaration),
-                                   property.modifiers.contains(.const), let initial = property.initializer {
-                                    value = try annotationConstant(initial)
+                                // The enclosing declaration's own members come first, then
+                                // its companion object's (reachable unqualified from the body).
+                                for scope in [current, sema.symbols.companionObjectSymbol(for: current)].compactMap({ $0 }) where value == nil {
+                                    if let fqName = sema.symbols.symbol(scope)?.fqName,
+                                       let found = sema.symbols.lookup(fqName: fqName + [name]),
+                                       let declaration = declarationIDsBySymbol[found]?.first,
+                                       case let .propertyDecl(property) = ast.arena.decl(declaration),
+                                       property.modifiers.contains(.const), let initial = property.initializer {
+                                        value = try annotationConstant(initial)
+                                    }
                                 }
                                 owner = sema.symbols.parentSymbol(for: current)
                             }

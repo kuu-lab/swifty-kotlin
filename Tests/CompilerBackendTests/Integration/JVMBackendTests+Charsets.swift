@@ -59,6 +59,14 @@ extension JVMBackendTests {
                 @get:JvmName(CONST_NAME)
                 val value: Int = 5
             }
+            object Outer {
+                const val CONST_NAME = "fromOuter"
+                class Inner {
+                    companion object { const val CONST_NAME = "fromCompanion" }
+                    @get:JvmName(CONST_NAME)
+                    val value: Int = 6
+                }
+            }
             const val CONST_NAME = "constName"
             fun main() {
                 println(Holder.UTF_32)
@@ -84,6 +92,9 @@ extension JVMBackendTests {
             let shadow = try jvmTool("javap", ["-cp", app.path + ":" + runtime, "Shadow"], root: root)
             #expect(shadow.stdout.contains("fromObject()"))
             #expect(!shadow.stdout.contains("constName()"))
+            let inner = try jvmTool("javap", ["-cp", app.path + ":" + runtime, "Outer$Inner"], root: root)
+            #expect(inner.stdout.contains("fromCompanion()"))
+            #expect(!inner.stdout.contains("fromOuter()"))
             #expect(listing.stdout.contains("readJoined()"))
             #expect(listing.stdout.contains("readCount()"))
             #expect(listing.stdout.contains("writeCount(int)"))
