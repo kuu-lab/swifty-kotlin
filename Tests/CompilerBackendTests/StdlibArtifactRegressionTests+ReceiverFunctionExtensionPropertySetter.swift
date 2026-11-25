@@ -4,7 +4,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2456: extension setter parameter types contextualize receiver-function lambdas.
     @Test
     func testReceiverFunctionExtensionPropertySetterLambdaAcrossStdlibSurfaces() throws {
         let repoRoot = URL(fileURLWithPath: #filePath)
