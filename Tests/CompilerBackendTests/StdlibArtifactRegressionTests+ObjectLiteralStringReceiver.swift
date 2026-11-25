@@ -5,7 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2050: anonymous members must capture the selected String receiver.
     @Test
     func testObjectLiteralImplicitStringReceiverAcrossStdlibSurfaces() throws {
         let cases = [
