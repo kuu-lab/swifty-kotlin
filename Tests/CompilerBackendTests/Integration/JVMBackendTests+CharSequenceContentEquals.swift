@@ -25,10 +25,12 @@ extension JVMBackendTests {
                 println("".contentEquals(null))
                 println("".contentEquals(""))
                 println("abc".contentEquals("abcd", true))
+                println("\\uD801\\uDC00".contentEquals("\\uD801\\uDC28", true))
+                println("\\uD801\\uDC00".contentEquals("\\uD801\\uDC28", false))
             }
 
             fun sameText(left: CharSequence, right: CharSequence?): Boolean = left contentEquals right
-            """, expected: "true\nfalse\nfalse\nfalse\ntrue\nfalse\ntrue\nfalse\nfalse\ntrue\nfalse\n", mode: mode, root: root)
+            """, expected: "true\nfalse\nfalse\nfalse\ntrue\nfalse\ntrue\nfalse\nfalse\ntrue\nfalse\ntrue\nfalse\n", mode: mode, root: root)
         }
     }
 }

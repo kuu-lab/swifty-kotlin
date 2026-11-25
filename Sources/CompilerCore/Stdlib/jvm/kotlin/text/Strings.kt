@@ -1,6 +1,7 @@
 package kotlin.text
 
 import kotlin.contracts.contract
+import kotlin.jvm.internal.__jvmEqualsIgnoreCase
 import kotlin.jvm.internal.__jvmParseByte
 import kotlin.jvm.internal.__jvmParseShort
 import kotlin.jvm.internal.__jvmParseInt
@@ -298,6 +299,7 @@ public fun CharSequence?.contentEquals(other: CharSequence?, ignoreCase: Boolean
     val left: CharSequence = value
     val right: CharSequence = other
     if (left.length != right.length) return false
+    if (ignoreCase && left is String && right is String) return __jvmEqualsIgnoreCase(left, right)
     return regionMatches(left, 0, right, ignoreCase)
 }
 
