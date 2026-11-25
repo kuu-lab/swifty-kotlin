@@ -4,11 +4,6 @@ import Testing
 @testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
-    // Regression coverage for compound assignment / increment and plain
-    // assignment through explicit-receiver property targets whose accessors are
-    // only partially custom, interface-typed, or extension-declared. Each used
-    // to emit a call to a symbol that does not exist (`get`/`set`/the bare
-    // property name), which failed KIR verification or linking.
 
     private func mainCalleeNames(_ source: String) throws -> (callees: [String], virtualCallees: [String], calls: [(SymbolID?, String)], ctx: CompilationContext) {
         let ctx = makeContextFromSource(source)
