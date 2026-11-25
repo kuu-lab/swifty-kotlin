@@ -91,9 +91,6 @@ struct RuntimeCallableReferenceIdentity {
     let isSuspend: Bool
     let modifierFlags: Int
     let captures: [Int]
-    /// Non-zero when this identity belongs to a `fun interface` SAM-adapter
-    /// wrapper: the stable nominal type ID of the implemented interface.
-    /// Plain callable references carry 0.
     var samInterfaceTypeID: Int64 = 0
 }
 
@@ -228,13 +225,6 @@ private func runtimeIsFunctionObject(_ rawValue: Int) -> Bool {
 /// the method-slot range any declared interface member can occupy.
 let runtimeSuspendInvokeEntryMethodSlot = Int(UInt32.max)
 
-/// A nominal class instance implementing a suspend function type
-/// (`class C : suspend () -> T`) is not a `RuntimeFunctionValueBox` — its
-/// constructor registers a `kotlin.coroutines.SuspendFunction{arity}` itable
-/// whose reserved method slot carries the invoke launcher thunk. Resolving it
-/// lets suspend-function call sites and the coroutine builders drive the
-/// object through the same child-continuation state-machine machinery a
-/// boxed suspend callable uses.
 func runtimeSuspendInvokeEntryPoint(objectRaw: Int, arity: Int) -> Int {
     guard objectRaw != 0, (0 ... 22).contains(arity) else {
         return 0
@@ -287,7 +277,6 @@ func runtimeResolveClosureInvocation(
         guard let pair = runtimeFunctionInvocationPair(fnPtr, arity: arity, outThrown: outThrown) else { return nil }
         return (pair.fnPtr, pair.closureRaw, runtimeCallableObjectPair(from: fnPtr) != nil)
     }
-    // splitCallableLambdaArgument may already have resolved the object's pair.
     let object = runtimeCallableObjectPair(from: closureRaw)
     if let object, object.fnPtr == fnPtr, object.arity != arity {
         outThrown?.pointee = runtimeFunctionInvokeInvalidArity(expected: arity, actual: object.arity)
@@ -410,11 +399,6 @@ func runtimeInvokeSuspendFunction(
             return kk_kxmini_run_blocking_with_cont(box.suspendEntryPoint, child, outThrown)
         }
 
-        // KUU-3802: a nominal `SuspendFunctionN` implementor has no callable box —
-        // codegen recorded the invoke launcher thunk in the interface's reserved
-        // itable slot. Drive it through the same child-continuation machinery the
-        // boxed path uses so suspensions, results, and thrown exceptions flow
-        // identically to a boxed suspend callable.
         let objectEntryRaw = runtimeSuspendInvokeEntryPoint(
             objectRaw: functionRaw,
             arity: arguments.count
@@ -430,11 +414,6 @@ func runtimeInvokeSuspendFunction(
             return kk_kxmini_run_blocking_with_cont(objectEntryRaw, child, outThrown)
         }
 
-        // KUU-3884: an erased `Function{n+1}` value (`(P1..Pn, Continuation<R>)
-        // -> Any?`, the JVM shape) has no CPS entry of its own. Drive it through
-        // the generic erased-suspend entry point, which appends the child
-        // continuation as the last invoke argument and reads the return like a
-        // suspend call. Slot 0 spills the value itself.
         if runtimeErasedSuspendShape(functionRaw: functionRaw, arity: arguments.count) {
             let entryRaw = runtimeErasedSuspendFunctionEntryPointRaw
             let child = kk_coroutine_continuation_new(entryRaw)
@@ -447,7 +426,6 @@ func runtimeInvokeSuspendFunction(
             return kk_kxmini_run_blocking_with_cont(entryRaw, child, outThrown)
         }
 
-        // Legacy raw thunks and synchronous callbacks retain their ordinary ABI.
         let callerState = runtimeContinuationState(from: continuation)
         var thrown = 0
         let result: Int

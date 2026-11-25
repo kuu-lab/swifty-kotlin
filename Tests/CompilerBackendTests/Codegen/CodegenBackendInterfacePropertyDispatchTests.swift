@@ -5,20 +5,11 @@
 import Foundation
 import Testing
 
-// BUG-141 regression coverage: reading an interface's stored/abstract property
-// through an interface-typed receiver (object expression, named class, function
-// parameter, or a custom getter) must dispatch to the implementing getter via
-// the interface itable. Before the fix, the caller emitted a direct call to an
-// undefined `<propertyName>` symbol and the program failed to link
-// (`KSWIFTK-LINK-0001`); the object-side getters were never registered in the
-// itable either.
-
 @Suite
 struct CodegenBackendInterfacePropertyDispatchTests {
 
     @Test
     func testObjectExpressionStoredPropertyReadThroughInterface() throws {
-        // The canonical minimal repro from TODO.md BUG-141.
         let source = """
         interface Holder { val value: Int }
         fun make(): Holder = object : Holder { override val value: Int = 42 }
@@ -90,10 +81,6 @@ struct CodegenBackendInterfacePropertyDispatchTests {
         )
     }
 
-    // BUG-187: an implicit-receiver read inside an interface default method body
-    // (`value` meaning `this.value`) must dispatch through the itable as well;
-    // previously it called the interface's own abstract getter, whose placeholder
-    // body returns null, so the default method observed 0.
     @Test
     func testImplicitReceiverPropertyReadInsideInterfaceDefaultMethod() throws {
         let source = """
@@ -147,9 +134,6 @@ struct CodegenBackendInterfacePropertyDispatchTests {
         )
     }
 
-    // BUG-211: CharSequence.length must use the interface-property dispatch
-    // path from bundled Kotlin extension bodies. The receiver may be a flat
-    // String, the runtime-backed StringBuilder, or a user-defined class.
     @Test
     func testBug211CharSequenceLengthDispatchAcrossImplementations() throws {
         let source = """
@@ -195,8 +179,6 @@ struct CodegenBackendInterfacePropertyDispatchTests {
         )
     }
 
-    // KSP-817: CharSequence.get must dispatch through the interface itable for
-    // flat Strings, runtime-backed StringBuilders, and user implementations.
     @Test
     func testKsp817CharSequenceGetDispatchAcrossImplementations() throws {
         let source = """

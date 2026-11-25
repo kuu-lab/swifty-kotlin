@@ -6,26 +6,6 @@ import Testing
 @Suite
 struct CodegenBackendGenericFunctionValueFieldSIGBUSRegressionTests {
 
-    /// Regression coverage for KUU-548: calling a generic function value
-    /// `(T1) -> Unit` crashed with SIGBUS whenever the value bound to `T1`
-    /// was read back out of a generic container's field (`Pair.first`,
-    /// `Triple.first`, a user-defined generic class property, a `List`/`Set`
-    /// element) rather than passed as a direct call argument, and only when
-    /// `T1` was instantiated with a reference type -- a primitive-typed
-    /// instantiation (`Int`) never crashed.
-    ///
-    /// Root cause: `Pair`/`Triple`'s constructors, `listOf`/`setOf`'s
-    /// collection-factory lowering, `arrayOf`'s vararg packing, and
-    /// `MutableList.add`/`MutableSet.add`/`MutableMap.put` (etc.) each store a
-    /// function-typed argument into an erased `Any?` slot without wrapping it
-    /// via `kk_function_create_N` first. A non-capturing lambda
-    /// constant-folds to a bare `symbolRef`, so the raw lambda pointer
-    /// (compiled with its declared, natural-ABI signature) ends up stored
-    /// directly. Reading it back out and invoking it goes through
-    /// `kk_function_invoke`'s raw i64 calling convention instead, which only
-    /// happens to line up with the natural ABI for a primitive `T1` -- a
-    /// reference-typed `T1` diverges, jumping into the lambda with mismatched
-    /// argument representations.
     @Test
     func testCodegenGenericFunctionValueFromPairFieldStringRegression() throws {
         let source = """
@@ -49,8 +29,6 @@ struct CodegenBackendGenericFunctionValueFieldSIGBUSRegressionTests {
         )
     }
 
-    /// Canary: the primitive-typed instantiation that already worked before
-    /// the fix. Must keep passing so the `Pair` fix doesn't regress it.
     @Test
     func testCodegenGenericFunctionValueFromPairFieldIntRegression() throws {
         let source = """
@@ -97,8 +75,6 @@ struct CodegenBackendGenericFunctionValueFieldSIGBUSRegressionTests {
         )
     }
 
-    /// Confirms the fix generalizes to a user-defined generic class, not
-    /// just the stdlib's `Pair`/`Triple` runtime-factory constructors.
     @Test
     func testCodegenGenericFunctionValueFromUserDefinedGenericClassFieldRegression() throws {
         let source = """
@@ -186,9 +162,6 @@ struct CodegenBackendGenericFunctionValueFieldSIGBUSRegressionTests {
         )
     }
 
-    /// Two distinct lambda elements in the same `listOf(...)` call must each
-    /// get their own synthesized `kk_function_value_adapter_*` wrapper --
-    /// this guards against a symbol collision in that naming scheme.
     @Test
     func testCodegenGenericFunctionValueFromListOfMultipleElementsRegression() throws {
         let source = """
@@ -209,9 +182,6 @@ struct CodegenBackendGenericFunctionValueFieldSIGBUSRegressionTests {
         )
     }
 
-    /// `arrayOf` packs its vararg elements through a separate lowering path
-    /// (`CallSupportLowerer`'s `kk_array_of` branch) from `listOf`/`setOf`,
-    /// with its own function-value materialization step.
     @Test
     func testCodegenGenericFunctionValueFromArrayOfRegression() throws {
         let source = """
@@ -230,9 +200,6 @@ struct CodegenBackendGenericFunctionValueFieldSIGBUSRegressionTests {
         )
     }
 
-    /// Canary: ordinary (non-function-value) `arrayOf` elements must keep
-    /// working now that its vararg-packing branch also checks each element
-    /// for a function value.
     @Test
     func testCodegenArrayOfOrdinaryElementsRegression() throws {
         let source = """
@@ -251,10 +218,6 @@ struct CodegenBackendGenericFunctionValueFieldSIGBUSRegressionTests {
         )
     }
 
-    /// The gate in `materializeSourceBackedFunctionValueArguments` that skips
-    /// runtime bridges now also lets `typeParamBoxingBoundaryCallees` through
-    /// (KUU-548) -- this covers a mutable-collection bridge in that set, not
-    /// just the Pair/Triple constructors exercised above.
     @Test
     func testCodegenGenericFunctionValueFromMutableListAddRegression() throws {
         let source = """

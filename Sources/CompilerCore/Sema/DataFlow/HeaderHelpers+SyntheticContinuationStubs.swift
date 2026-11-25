@@ -93,9 +93,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         if !bundledIndex.contains(ownerFQName: coroutinesPkg, name: interner.intern("currentCoroutineContext"), arity: 0) {
-            // kotlinx.coroutines.currentCoroutineContext() is the suspend-function
-            // equivalent of the kotlin.coroutines.coroutineContext property above;
-            // both read the same ambient context, so they share a backing primitive.
             registerSyntheticCoroutineTopLevelFunction(
                 named: "currentCoroutineContext",
                 packageFQName: coroutinesPkg,

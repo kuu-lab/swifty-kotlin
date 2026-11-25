@@ -3,12 +3,6 @@ package kotlin.collections
 import kotlin.contracts.contract
 import kotlin.random.Random
 
-// KSP-435
-// Generic Collection<T> conversions migrated from the Swift runtime
-// `kk_collection_*` bridges. `size` / `isEmpty()` stay native because they are
-// abstract interface members whose implementation depends on the runtime box
-// type tag; they are reachable through the `__kk_collection_*` bridges.
-
 @Suppress("UNCHECKED_CAST")
 public inline fun <reified T> Collection<T>.toTypedArray(): Array<T> {
     val result = arrayOfNulls<T>(size)

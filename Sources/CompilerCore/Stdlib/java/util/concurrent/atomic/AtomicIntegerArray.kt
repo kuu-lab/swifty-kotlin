@@ -2,14 +2,6 @@ package java.util.concurrent.atomic
 
 import kotlin.internal.KsSymbolName
 
-// KUU-3059: java.util.concurrent.atomic.AtomicIntegerArray shares the
-// `__kk_atomic_int_array_*` runtime boxes with kotlin.concurrent's
-// AtomicIntArray family (see Stdlib/kotlin/concurrent/AtomicArrayCompatMigration.kt).
-// The synthetic registration supplies the class shell, the
-// `AtomicIntegerArray(size: Int)` constructor and the `size` property; the
-// `*At` boundary layer and the JVM-named members live here in Kotlin so the
-// bounds checks and raw bridges stay in one implementation.
-
 @KsSymbolName("__kk_atomic_int_array_load")
 private external fun AtomicIntegerArray.__kk_load(index: Int): Int
 

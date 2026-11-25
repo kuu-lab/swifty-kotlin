@@ -1,8 +1,6 @@
 @testable import CompilerCore
 import Foundation
 
-/// Ownership/origin classification for Sema golden output (RF-GOLDEN-002).
-///
 /// The classification deliberately does NOT trust `declSite` or the
 /// `synthetic` flag as identity: reused compatibility shells for bundled
 /// nominals keep `declSite == nil` while still tracking a bundled
@@ -21,28 +19,12 @@ import Foundation
 ///   5. `parentSymbol` chains for parameters / accessors / nested decls.
 ///   6. Package membership: a nil-site symbol under a package whose declared
 ///      members come from bundled sources is a bundled synthetic stub.
-///
-/// Anything unresolvable becomes `.unknown` — never silently folded into an
-/// "external" bucket.
 enum GoldenSymbolOrigin: String, Sendable {
-    /// Declared in a user input file — includes fixture-synthesized
-    /// declarations (data-class members, object literals, accessors, locals)
-    /// whose site/file is the user's own source.
     case fixture
-    /// Declared in bundled or residual stdlib source (`SourceOrigin
-    /// .bundledStdlib` / `.residualStdlib`) — even when `declSite` is nil.
     case bundledSource
-    /// No source anywhere: a synthetic stdlib stub produced by the bundled
-    /// declaration machinery (e.g. residual `kk_*` runtime shells).
     case stdlibStub
-    /// Nil-site synthetic member alias of a source-backed bundled declaration
-    /// (KSP-443 runtime-link aliases).
     case sourceBackedAlias
-    /// Loaded from a compiled library (`.importedLibrary`), including stdlib
-    /// artifacts — distinct from bundled *source*.
     case importedLibrary
-    /// Origin could not be determined. Callers must surface this rather than
-    /// treat it as external.
     case unknown
 }
 
@@ -61,20 +43,12 @@ final class GoldenSymbolOriginClassifier {
         if let cached = memo[symbolID.rawValue] {
             return cached
         }
-        // Recursion guard: mark in-flight symbols as unknown so a cyclic
-        // parent chain terminates instead of recursing forever.
         memo[symbolID.rawValue] = .unknown
         let resolved = resolveOrigin(of: symbolID)
         memo[symbolID.rawValue] = resolved
         return resolved
     }
 
-    /// Returns the unique bundled-source declaration represented by a
-    /// source-backed member alias. The relationship is intentionally exposed
-    /// separately from `origin(of:)`: callers may project an alias to the
-    /// declaration's public FQName, but only when the evidence identifies one
-    /// canonical sibling. Ambiguous siblings are left unprojected rather than
-    /// being collapsed by an implementation detail such as an ABI link name.
     func sourceBackedAliasTarget(of symbolID: SymbolID) -> SymbolID? {
         guard origin(of: symbolID) == .sourceBackedAlias,
               let symbol = sema.symbols.symbol(symbolID)
@@ -92,8 +66,6 @@ final class GoldenSymbolOriginClassifier {
             return .unknown
         }
 
-        // Registration-time file membership, then the declared range's
-        // file. Both map through `SourceOrigin`, not decl-site presence.
         if let fileID = sema.symbols.sourceFileID(for: symbolID) ?? symbol.declSite?.start.file {
             switch sourceManager.origin(of: fileID) {
             case .user:
@@ -122,8 +94,6 @@ final class GoldenSymbolOriginClassifier {
             }
         }
 
-        // A package whose members are user-declared does not produce nil-site
-        // symbols, so this never misclassifies a `package kotlin` fixture.
         if case let packageOrigin = packageHomeOrigin(of: Array(symbol.fqName.dropLast())),
            packageOrigin == .bundledSource {
             return .stdlibStub
@@ -152,9 +122,6 @@ final class GoldenSymbolOriginClassifier {
         return !sourceBackedAliasCandidates(for: symbol).isEmpty
     }
 
-    /// Finds declarations that have the exact shape HeaderCollection uses for
-    /// a source-backed member alias. The explicit origin check keeps a
-    /// user-declared declaration with the same shape out of the alias proof.
     private func sourceBackedAliasCandidates(for symbol: SemanticSymbol) -> [SemanticSymbol] {
         guard let parent = sema.symbols.parentSymbol(for: symbol.id),
               let signature = sema.symbols.functionSignature(for: symbol.id),

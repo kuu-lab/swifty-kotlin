@@ -4,8 +4,6 @@ public extension RuntimeABISpec {
     static let fileIOFunctions: [RuntimeABIFunctionSpec] = [
         abi.nt("__kk_input_stream_reader_new", "streamRaw"),
         abi.nt("__kk_buffered_reader_new", "readerRaw"),
-        // KUU-3077 reason code: memory representation. StringWriter shares its
-        // mutable buffer with BufferedWriter through runtime-owned boxes.
         abi.nt("__kk_string_writer_new_default"),
         abi.th("__kk_string_writer_new", "initialSize outThrown"),
         abi.nt("__kk_string_writer_to_string", "writerRaw"),
@@ -63,15 +61,11 @@ public extension RuntimeABISpec {
         // slot `readerReadChars`, Kotlin subclasses land their override in
         // the same slot.
         abi.th("__kk_reader_read_range", "readerRaw bufferRaw offsetRaw lengthRaw outThrown"),
-        // `java.io.Reader.read(CharArray)` (KUU-4044) — concrete overload
-        // delegating to `read(cbuf, 0, cbuf.length)` through the same
-        // char-source contract; forwards to `__kk_reader_read_range`.
         abi.th("__kk_reader_read", "readerRaw bufferRaw outThrown"),
         abi.th("__kk_output_stream_buffered_sized", "streamRaw bufferSize"),
         abi.th("__kk_io_stream_to_string", "stream outThrown"),
         abi.th("__kk_sequence_input_stream_available_throwing", "stream outThrown"),
         abi.th("__kk_sequence_input_stream_close_throwing", "stream outThrown"),
-        // KUU1762: foreign stream range/closure storage and error channels only.
         abi.nt("__kk_kotlin_source_input_stream", "readFn readClosure rangeFn rangeClosure availableFn availableClosure closeFn closeClosure descriptionFn descriptionClosure"),
         abi.nt("__kk_kotlin_sink_output_stream_range", "writeFn writeClosure flushFn flushClosure closeFn closeClosure descriptionFn descriptionClosure"),
         abi.th("__kk_input_stream_read_range", "streamRaw bytesRaw offset count outThrown"),
@@ -79,10 +73,6 @@ public extension RuntimeABISpec {
         abi.th("__kk_input_stream_available_throwing", "streamRaw outThrown"),
         abi.th("__kk_input_stream_close_throwing", "streamRaw outThrown"),
         abi.th("__kk_output_stream_close_throwing", "streamRaw outThrown"),
-        // KSP-1553: kotlinx.io Sink.asOutputStream() — the write/flush/close
-        // Kotlin lambdas arrive as (fnPtr, closureRaw) pairs expanded by
-        // KIRLowering, same convention as `__kk_synchronized` /
-        // `kk_worker_execute`.
         abi.nt("__kk_kotlin_sink_output_stream", "writeFnPtr writeClosureRaw flushFnPtr flushClosureRaw closeFnPtr closeClosureRaw"),
         abi.th("__kk_native_filechannel_open", "pathRaw options outThrown"),
         abi.th("__kk_native_filechannel_write", "descriptor bytesRaw offset count outThrown"),

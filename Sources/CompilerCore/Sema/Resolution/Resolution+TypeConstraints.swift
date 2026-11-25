@@ -81,19 +81,11 @@ private func comparableArgument(of subtype: TypeID, typeSystem: TypeSystem) -> T
 
 struct CallArgumentMappings {
     let parameterMapping: [Int: Int]
-    /// Maps source argument indices to context-parameter indices.
     let contextParameterArgumentMapping: [Int: Int]
 }
 
-/// Why binding call arguments to a signature's parameters failed. The
-/// missing-value case is distinguished because kotlinc reports it as
-/// NO_VALUE_FOR_PARAMETER ("no value passed for parameter 'x'") rather than
-/// the generic no-viable-overload diagnostic (KUU-4168); every other shape
-/// stays on that generic path.
 enum CallArgumentMappingResult {
     case success(CallArgumentMappings)
-    /// A required parameter received no argument. The associated name is the
-    /// parameter's declared name when the signature exposes stable names.
     case missingParameterValue(InternedString?)
     case failure
 }
@@ -310,17 +302,10 @@ extension OverloadResolver {
                     continue
                 }
                 if isVararg[positionalCursor] {
-                    // A vararg already supplied by name holds the whole array
-                    // and takes no further positional arguments; the call
-                    // continues binding at the next parameter in declaration
-                    // order (Kotlin 1.4+ mixed named/positional arguments).
                     if boundNamedVarargParams.contains(positionalCursor) {
                         positionalCursor += 1
                         continue
                     }
-                    // Source positional arguments remain vararg elements;
-                    // later ordinary parameters must be supplied by name.
-                    // A trailing lambda is mapped separately below.
                     if callArgs[argIndex].isTrailingLambda != nil { break }
                     let trailingRequiredCount = trailingRequiredParameterCount(after: positionalCursor)
                     if callArgs.count - argIndex <= trailingRequiredCount {
@@ -407,10 +392,6 @@ extension OverloadResolver {
             }
 
             if sawNamedArgument {
-                // Positional arguments after named arguments must retain
-                // declaration order, including ordinary callable arguments.
-                // Trailing lambdas are also allowed after named arguments when
-                // they map to the final function-typed parameter.
                 if let trailingLambdaParamIndex = trailingLambdaParameterIndex(for: argIndex),
                    trailingLambdaParamIndex >= maxBoundParamIndex
                 {
@@ -447,9 +428,6 @@ extension OverloadResolver {
                 return .failure
             }
 
-            // Trailing lambda: a lambda outside parentheses can be bound to a later
-            // function-typed parameter when the intervening parameters have
-            // default values.
             let paramIndex: Int
             if argIndex == callArgs.count - 1,
                let trailingIndex = trailingLambdaParameterIndex(for: argIndex) {
@@ -575,27 +553,6 @@ extension OverloadResolver {
         }
     }
 
-    /// Decomposes `subtype <: supertype` into fine-grained constraints that expose
-    /// type variables nested inside generic class types and function types.
-    ///
-    /// For example, given `List<Int> <: List<T>` where `T` is a type variable, this
-    /// produces the equality constraint `Int == T` (for invariant type arguments).
-    /// For `out` positions it produces `Int <: T`, and for `in` positions `T <: Int`.
-    ///
-    /// When the supertype is a direct type parameter, it produces a single
-    /// `subtype <: variable` constraint, matching the previous `operand()` behavior.
-    ///
-    /// Falls back to a simple `subtype <: supertype` type constraint when no
-    /// decomposition is possible (different class symbols, non-generic types, etc.).
-    ///
-    /// `rigidSubtypeTypeParameters` marks symbols whose subtype-side occurrences are
-    /// rigid caller types rather than the candidate's fresh inference variables. A
-    /// call argument or implicit receiver inside a generic declaration can mention
-    /// the enclosing `T`, which shares its symbol with the candidate's own `T` when
-    /// the call is recursive (or simply collides through `typeVarBySymbol`). Mapping
-    /// it to the variable would misread `T <: KProperty0<V>` as a `V <: KProperty0<V>`
-    /// self-bound — a constraint that "solves" as `V := KProperty0<V>` instead of
-    /// rejecting the candidate (KUU-3960).
     func decomposeSubtypeConstraint(
         subtype: TypeID,
         supertype: TypeID,
@@ -627,7 +584,6 @@ extension OverloadResolver {
         rigidSubtypeTypeParameters: Set<SymbolID> = [],
         rigidSupertypeTypeParameters: Set<SymbolID> = []
     ) -> [VariableConstraint] {
-        // Guard against infinite recursion in cyclic type hierarchies.
         if depth > 20 {
             return [VariableConstraint(
                 kind: .subtype,
@@ -642,9 +598,6 @@ extension OverloadResolver {
            !rigidSupertypeTypeParameters.contains(typeParam.symbol),
            let variable = typeVarBySymbol[typeParam.symbol]
         {
-            // Contextual lambda inputs can still refer to the candidate's
-            // own parameters. Keep their relationship in the inference graph
-            // rather than treating the left parameter as an opaque Any value.
             if case let .typeParam(subParameter) = typeSystem.kind(of: subtype),
                subParameter.capture == nil,
                !rigidSubtypeTypeParameters.contains(subParameter.symbol),
@@ -726,8 +679,6 @@ extension OverloadResolver {
             return [VariableConstraint(kind: .equal, left: .variable(variable), right: .type(captured), blameRange: blameRange)]
         }
 
-        // Case 1.5: supertype is an intersection. Decompose into all parts:
-        // `A <: (B & C)` => `A <: B` and `A <: C`.
         if case let .intersection(parts) = supertypeKind {
             var result: [VariableConstraint] = []
             for part in parts {
@@ -747,10 +698,6 @@ extension OverloadResolver {
             }
         }
 
-        // `T & Any` is the definitely-non-null view of T. Preserve an
-        // expected return type as an upper bound on T with nullable allowance;
-        // the final substituted intersection removes null before subtype
-        // validation (for example, String? & Any <: String).
         if case let .intersection(parts) = typeSystem.kind(of: subtype),
            parts.count == 2,
            parts.contains(where: { typeSystem.kind(of: $0) == .any(.nonNull) }),
@@ -774,11 +721,6 @@ extension OverloadResolver {
             )]
         }
 
-        // Comparable is a compiler-backed conformance for primitive values and
-        // type parameters whose upper bound is Comparable<Self>. Those receivers
-        // do not always have a classType that the generic decomposition below can
-        // lift, so recover the concrete Comparable argument before solving the
-        // member's class type parameter.
         if case let .classType(superClass) = supertypeKind,
            superClass.classSymbol == typeSystem.comparableInterfaceSymbol,
            superClass.args.count == 1,
@@ -830,10 +772,6 @@ extension OverloadResolver {
             }
         }
 
-        // Case 2: supertype is a generic class type with inferable variables or
-        // use-site projections. Projections such as `Comparator<in Char>` are
-        // otherwise left to the nominal subtype check, which cannot distinguish
-        // a valid projected argument from an invariant one.
         if case let .classType(superClass) = supertypeKind,
            !typeSystem.allTypeArguments(for: superClass).isEmpty,
            (containsTypeVariable(supertype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
@@ -871,10 +809,6 @@ extension OverloadResolver {
                     )
                 }
             }
-            // Kotlin function types are represented as `Function<R>` in source
-            // declarations such as `callsInPlace` and `holdsIn`. Preserve the
-            // lambda return-type constraint when the source-backed interface is
-            // generic, even though the lambda itself is modeled as a function type.
             if superClass.classSymbol == typeSystem.functionInterfaceSymbol,
                case let .functionType(subFunction) = subtypeKind,
                superClass.args.count == 1,
@@ -1033,7 +967,6 @@ extension OverloadResolver {
             }
         }
 
-        // Invariant KClass arguments constrain T in both directions.
         if case let .kClassType(superKClass) = supertypeKind,
            containsTypeVariable(supertype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem),
            case let .kClassType(subKClass) = typeSystem.kind(of: subtype),
@@ -1078,13 +1011,6 @@ extension OverloadResolver {
             }
             let superEffectiveParams = superFunc.contextReceivers
                 + (superFunc.receiver.map { [$0] } ?? []) + superFunc.params
-            // A caller-side type parameter whose declared bounds include a
-            // function type (`F : (T) -> R, F : KCallable<R>`) satisfies a
-            // function-typed parameter through that bound: decompose the
-            // bound's shape against the expected type so its components bind
-            // the inference variables (KUU-4457). Only an unambiguous single
-            // function bound qualifies — multiple matches stay with the
-            // opaque fallback below.
             if case let .typeParam(subParameter) = subtypeKind,
                subParameter.capture == nil
             {
@@ -1115,16 +1041,11 @@ extension OverloadResolver {
             }
             if case let .functionType(subFunc) = subtypeKind,
                effectiveParams.count == superEffectiveParams.count,
-               // A non-suspend function is usable wherever a suspend one is
-               // expected (`() -> T <: suspend () -> T`), but not vice versa.
                superFunc.isSuspend || !subFunc.isSuspend,
                !(superFunc.isCallableReference && !subFunc.isCallableReference),
                typeSystem.nullabilitySubtype(subFunc.nullability, superFunc.nullability)
             {
                 var result: [VariableConstraint] = []
-                // Function types are contravariant in the receiver and
-                // parameter types: `ProducerScope<Int>.() -> Unit <:
-                // ProducerScope<E>.() -> Unit` binds E to Int.
                 for (subParam, superParam) in zip(effectiveParams, superEffectiveParams) {
                     result.append(contentsOf: decomposeSubtypeConstraintImpl(
                         subtype: superParam,
@@ -1208,10 +1129,6 @@ extension OverloadResolver {
                 }
                 return result
             }
-            // Generic subtype against a concrete supertype instantiation
-            // (e.g. `MutableSharedFlow<T> <: SharedFlow<Int>`): lift the
-            // subtype to the supertype's nominal symbol so the type variables
-            // inside its arguments stay inferable.
             if case let .classType(superClass) = supertypeKind,
                subClass.classSymbol != superClass.classSymbol,
                let liftedSubtype = liftClassType(
@@ -1296,12 +1213,6 @@ extension OverloadResolver {
         )
     }
 
-    /// KUU-1195: a nominal subtype that reaches a regular or suspend function
-    /// interface through inheritance decomposes against a variable-bearing
-    /// function supertype the same way a literal function interface does.
-    /// Only the subtype side looks through inheritance: a plain function value
-    /// is not an arbitrary nominal subtype, so the supertype direction keeps
-    /// the direct `nominalFunctionType` check.
     private func nominalFunctionTypeThroughInheritance(
         _ subtype: TypeID,
         matchingArityOf function: FunctionType,
@@ -1392,10 +1303,6 @@ extension OverloadResolver {
             )
 
         case let (.star, .invariant(superInner)), let (.star, .out(superInner)):
-            // Subtype is star (e.g. receiver `Box<*>` against signature `Box<T>`).
-            // A star projection is equivalent to `out TUpperBound`, where the
-            // upper bound comes from the declaration of the projected type.
-            // Use Any? only for an unbounded type parameter.
             let starUpperBound = subStarUpperBound
                 ?? starProjectionUpperBound(for: superInner, typeSystem: typeSystem)
             return decomposeSubtypeConstraintImpl(
@@ -1427,9 +1334,6 @@ extension OverloadResolver {
             )
 
         case let (.in(_), .out(superInner)):
-            // Mirror image: `Context<in X>` <: `Context<out T>` requires
-            // `CAP <: T` where the `in` projection captures with upper bound
-            // `Any?` — i.e. `Any? <: T`.
             return decomposeSubtypeConstraintImpl(
                 subtype: typeSystem.nullableAnyType, supertype: superInner,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
@@ -1439,8 +1343,6 @@ extension OverloadResolver {
             )
 
         default:
-            // Incompatible variance combinations (e.g. .out vs .in) – conservatively
-            // treat as invariant so the original subtype relation is still enforced.
             let subInner: TypeID
             let superInner: TypeID
             switch subArg {

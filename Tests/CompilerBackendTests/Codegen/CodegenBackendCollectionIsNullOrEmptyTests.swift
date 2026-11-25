@@ -33,8 +33,6 @@ struct CodegenBackendCollectionIsNullOrEmptyTests {
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
             #expect(throwFlags[try runtimeABICallee("list_is_empty")]?.allSatisfy { $0 == false } == true)
             #expect(throwFlags[try runtimeABICallee("set_is_empty")]?.allSatisfy { $0 == false } == true)
-            // Map.isNullOrEmpty is source-backed; after inlining it may reach the
-            // Map.isEmpty ABI, but never through the symbol-less legacy bridge.
             let sema = try #require(ctx.sema)
             let mapIsEmptyCallee = try runtimeABICallee("map_is_empty")
             let mapIsEmptyCalls = body.compactMap { instruction -> (symbol: SymbolID?, canThrow: Bool)? in

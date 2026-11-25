@@ -193,5 +193,201 @@ extension JVMBackendTests {
             }
         }
     }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func contractLambdaReturnInsideTryFinallyRejectsUninitializedRead(mode: EmitMode) throws {
+        // The early return inside try skips the assignment after the
+        // try-with-finally, and finally does not assign x, so stock kotlinc
+        // rejects the read. Compile-only, like the buildList test above.
+        let buildListReturn = """
+        fun main() {
+            var x: Int
+            buildList lit@{
+                try {
+                    if (isEmpty()) return@lit
+                } finally {
+                    println("f")
+                }
+                x = 5
+            }
+            println(x)
+        }
+        """
+        let takeUnlessCatchReturn = """
+        fun main() {
+            var x: Int
+            "hi".takeUnless lit@{
+                try {
+                    println(it)
+                } catch (e: Exception) {
+                    return@lit false
+                } finally {
+                    println("f")
+                }
+                x = 5
+                true
+            }
+            println(x)
+        }
+        """
+        let nestedTryFinallyReturn = """
+        fun main() {
+            var x: Int
+            "hi".takeUnless lit@{
+                try {
+                    try {
+                        if (it.isEmpty()) return@lit false
+                    } finally {
+                        println("inner")
+                    }
+                } finally {
+                    println("outer")
+                }
+                x = 5
+                true
+            }
+            println(x)
+        }
+        """
+        try withWorkspace { root in
+            for source in [buildListReturn, takeUnlessCatchReturn, nestedTryFinallyReturn] {
+                let result = try compile(source, root: root, mode: mode)
+                try #require(result.0 != 0, "expected definite-assignment failure")
+                #expect(result.1.contains { $0.message.contains("must be initialized") })
+            }
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func contractLambdaReturnInsideNestedTryFinallyAcceptsOuterFinallyAssignment(mode: EmitMode) throws {
+        let source = """
+        fun main() {
+            var x: Int
+            "hi".takeUnless lit@{
+                try {
+                    try {
+                        if (it.isEmpty()) return@lit false
+                    } finally {
+                        println("inner")
+                    }
+                } finally {
+                    x = 5
+                }
+                true
+            }
+            println(x)
+        }
+        """
+        try withWorkspace { root in
+            let result = try compile(source, root: root, mode: mode)
+            #expect(result.0 == 0, "\(result.1.map(\.message))")
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func contractLambdaReturnInFinallyIsNotCreditedWithThatFinallyAssignment(mode: EmitMode) throws {
+        // The return inside the inner finally's inline lambda leaves the
+        // outer lambda before the inner finally's later assignment runs.
+        let source = """
+        fun main() {
+            var x: Int
+            "hi".takeUnless lit@{
+                try {
+                    try {
+                        println(it)
+                    } finally {
+                        "a".let { if (it.isEmpty()) return@lit false }
+                        x = 5
+                    }
+                } finally {
+                    println("cleanup")
+                }
+                true
+            }
+            println(x)
+        }
+        """
+        try withWorkspace { root in
+            let result = try compile(source, root: root, mode: mode)
+            try #require(result.0 != 0, "expected definite-assignment failure")
+            #expect(result.1.contains { $0.message.contains("must be initialized") })
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func contractLambdaReturnCancelledByThrowingFinallyIsNotACompletionPath(mode: EmitMode) throws {
+        let source = """
+        fun main() {
+            var x: Int
+            "hi".takeUnless lit@{
+                try {
+                    if (it.isEmpty()) return@lit false
+                } finally {
+                    throw IllegalStateException("boom")
+                }
+                x = 5
+                true
+            }
+            println(x)
+        }
+        """
+        try withWorkspace { root in
+            let result = try compile(source, root: root, mode: mode)
+            #expect(result.0 == 0, "\(result.1.map(\.message))")
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func contractLambdaReturnKeptWhenFinallyOnlyLooksNonCompletingOnNormalPath(mode: EmitMode) throws {
+        // `token = null` only happens on the normal path, so `token!!` infers
+        // as Nothing there, but the early-return path reaches finally with a
+        // non-null token and still leaves the lambda before `x = 5`.
+        let source = """
+        fun f(input: String) {
+            var x: Int
+            input.takeUnless lit@{
+                var token: String? = input
+                try {
+                    if (it.isEmpty()) return@lit false
+                    token = null
+                } finally {
+                    token!!
+                }
+                x = 5
+                true
+            }
+            println(x)
+        }
+        fun main() { f("hi") }
+        """
+        try withWorkspace { root in
+            let result = try compile(source, root: root, mode: mode)
+            try #require(result.0 != 0, "expected definite-assignment failure")
+            #expect(result.1.contains { $0.message.contains("must be initialized") })
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func contractLambdaReturnCancelledByNothingCallInFinallyIsNotACompletionPath(mode: EmitMode) throws {
+        let source = """
+        fun main() {
+            var x: Int
+            "hi".takeUnless lit@{
+                try {
+                    if (it.isEmpty()) return@lit false
+                } finally {
+                    error("boom")
+                }
+                x = 5
+                true
+            }
+            println(x)
+        }
+        """
+        try withWorkspace { root in
+            let result = try compile(source, root: root, mode: mode)
+            #expect(result.0 == 0, "\(result.1.map(\.message))")
+        }
+    }
 }
 #endif

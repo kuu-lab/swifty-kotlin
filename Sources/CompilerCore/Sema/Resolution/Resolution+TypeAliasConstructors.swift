@@ -1,6 +1,4 @@
 extension OverloadResolver {
-    /// Specialize only this candidate, retaining the original callable symbol
-    /// and its parameter labels/defaults for binding and code generation.
     func typeAliasConstructorSignature(
         _ alias: TypeAliasConstructorContext,
         original: FunctionSignature,

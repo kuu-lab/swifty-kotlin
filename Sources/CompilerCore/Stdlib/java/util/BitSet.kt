@@ -2,7 +2,6 @@
 
 package java.util
 
-/** A Java-shaped bit set backed by the existing native bit-set implementation. */
 public class BitSet private constructor(private val storage: kotlin.native.BitSet) {
     public constructor() : this(kotlin.native.BitSet())
 

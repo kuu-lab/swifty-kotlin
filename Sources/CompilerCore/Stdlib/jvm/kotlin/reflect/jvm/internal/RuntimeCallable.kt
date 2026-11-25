@@ -47,9 +47,6 @@ internal class RuntimeClassType(
     constructor(owner: Any, isMarkedNullable: Boolean, arguments: List<KTypeProjection> = emptyList()) :
         this(owner, null, isMarkedNullable, arguments)
     override val annotations: List<Annotation> get() = emptyList()
-    // A constructor's class reference still carries the class's type
-    // parameters, so `Box<T>::class` arguments surface `T` rather than
-    // collapsing to an empty list.
     override val arguments: List<KTypeProjection> get() {
         explicitArguments?.let { return it }
         val meta = metadata ?: return emptyList()

@@ -4,9 +4,6 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-/// KSP-1122: the canonical `kotlin.concurrent.atomics.AtomicReference(T)`
-/// constructor is represented by a source-backed factory linked directly to
-/// the runtime allocation for the canonical nominal type.
 @Suite(.serialized)
 struct AtomicReferenceSourceMigrationTests {
     @Test

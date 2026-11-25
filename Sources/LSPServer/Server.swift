@@ -60,7 +60,7 @@ public final class Server: @unchecked Sendable {
     /// should terminate.
     func handle(_ message: [String: Any]) -> Int? {
         guard let method = message["method"] as? String else {
-            return nil // A response to a server-originated request; ignored.
+            return nil
         }
         let id = message["id"]
         let params = message["params"]
@@ -101,7 +101,7 @@ public final class Server: @unchecked Sendable {
 
     private func handleInitialize(id: Any?) {
         let capabilities = ServerCapabilities(
-            textDocumentSync: 1, // full document sync
+            textDocumentSync: 1,
             hoverProvider: true,
             definitionProvider: true,
             documentSymbolProvider: true,

@@ -15,10 +15,6 @@ internal external fun __kkSelectIsCompleted(job: Any): Int
 @KsSymbolName("__kk_select_start_job")
 internal external fun __kkSelectStart(job: Any): Boolean
 
-// `ready` receives the clause registration token minted by
-// SelectBuilder.registerClause; channel and mutex polls commit their
-// outcome against that token so the same rendezvous cannot feed two
-// clauses.
 internal class SelectClause0Impl(val ready: (Any) -> Boolean) : SelectClause0 {
     override fun <R> registerSelectClause0(select: SelectBuilder<R>, block: suspend () -> R) {
         select.registerClause(ready, block)

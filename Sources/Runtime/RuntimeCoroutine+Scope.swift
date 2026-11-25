@@ -1,34 +1,20 @@
 import Dispatch
 import Foundation
 
-/// Stable nominal type ID of `kotlinx.coroutines.CoroutineScope`, used to tag
-/// `RuntimeCoroutineScope` objects so runtime `is`/`as` checks against the
-/// interface succeed on raw scope handles (KUU-1416).
 private let runtimeCoroutineScopeInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlinx.coroutines.CoroutineScope"
 )
 
-/// CORO-003: Scope is no longer stored in Thread Local Storage. Instead it is
-/// carried inside `RuntimeContinuationState.scope` (the coroutine context),
-/// so it survives suspend/resume across different GCD threads. A lightweight
-/// per-task accessor (`RuntimeCoroutineScope.current`)
-/// bridges the gap for the few call-sites that don't have a continuation handle.
 final class RuntimeCoroutineScope: @unchecked Sendable {
     private let lock = NSLock()
-    private var children: [Int] = [] // opaque handles (RuntimeJobHandle or RuntimeAsyncTask)
+    private var children: [Int] = []
     private var firstChildFailure = 0
     private(set) var isCancelled = false
     private(set) var cancellationMessage: String = "CancellationException"
     private(set) var cancellationCause: Int = 0
     let isSupervisor: Bool
     let context: RuntimeCoroutineContext
-    /// Opt-in inherited scheduling for children of context-aware runBlocking.
     var blockingScheduler: RuntimeBlockingScheduler?
-    /// The Job this scope installs into its block's coroutine context
-    /// (KUU-964). `coroutineScope { }`/`supervisorScope { }` create a fresh
-    /// child job at scope entry so `currentCoroutineContext().job` resolves
-    /// inside the block; scopes built around an explicit context adopt the
-    /// context's Job element instead.
     private(set) var job: RuntimeJobHandle?
     // Task-backed Jobs use the task pointer as their source identity. An
     // escaped receiver must keep that object alive after its parent joins it.
@@ -37,9 +23,6 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     fileprivate var enclosingJob: RuntimeJobHandle?
     var name: String?
 
-    /// Handle of the `kotlinx.coroutines.test.TestCoroutineScheduler` lazily
-    /// minted for this scope (KSP-1583); 0 while unrequested so plain scopes
-    /// pay nothing.
     private var testSchedulerHandle = 0
 
     func schedulerForTest() -> Int {
@@ -51,8 +34,6 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
         return testSchedulerHandle
     }
 
-    /// Returns the test scheduler only when the scope already represents a
-    /// test scope. Ordinary coroutine scopes keep using wall-clock delays.
     func testSchedulerIfPresent() -> RuntimeTestScheduler? {
         lock.lock()
         let handle = testSchedulerHandle
@@ -66,17 +47,10 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
         return parentScope?.testSchedulerIfPresent()
     }
 
-    // CORO-003: Task-local scope registry (replaces TLS).
-    // Maps an opaque task token (assigned by the suspend-entry loop on entry) to
-    // the scope that is current for that execution context. This allows
-    // `RuntimeCoroutineScope.current` to work from code that runs inside a
-    // suspend-entry loop without an explicit continuation handle.
     private static let taskScopeLock = NSLock()
     // Protected by taskScopeLock — all accesses go through installScope/removeScope/scopeForTask.
     nonisolated(unsafe) private static var taskScopeMap: [RuntimeTaskKey: RuntimeCoroutineScope] = [:]
 
-    /// Called at the top of the suspend-entry loop so that launched children can
-    /// discover their parent scope.
     static func installScope(_ scope: RuntimeCoroutineScope?, forTask key: RuntimeTaskKey) {
         taskScopeLock.lock()
         if let scope {
@@ -99,9 +73,6 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
         return taskScopeMap[key]
     }
 
-    /// NOTE: This is *not* TLS for the scope itself -- the scope lives on the
-    /// continuation.  The task key is only used to *find* which continuation's
-    /// scope is active on this thread right now.
     static var current: RuntimeCoroutineScope? {
         get {
             let key = RuntimeCoroutineScopeTaskKey.currentTaskKey
@@ -135,16 +106,9 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
         RuntimeLiveHandles.unregister(self)
     }
 
-    /// KUU-964: create this scope's own Job — the element `coroutineContext.job`
-    /// resolves to inside the scope's block — mark it started, and parent it to
-    /// the job currently in force so a parent cancellation reaches this scope's
-    /// children. The job is kept alive for the process lifetime (same bounded
-    /// leak `kk_job_new` accepts) so a `CoroutineContext` handle that outlives
-    /// the scope still resolves to a valid job object.
     @discardableResult
     func installJob(defaultCancellationMessage: String = "CancellationException") -> RuntimeJobHandle {
         let scopeJob = RuntimeJobHandle(defaultCancellationMessage: defaultCancellationMessage)
-        // KUU-1352: kotlinx names these ScopeCoroutine / SupervisorCoroutine.
         scopeJob.debugName = isSupervisor ? "SupervisorCoroutine" : "ScopeCoroutine"
         scopeJob.propagatesFailureToParent = false
         scopeJob.isSupervisorMarker = isSupervisor
@@ -156,9 +120,6 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
         return scopeJob
     }
 
-    /// Adopt `existing` (e.g. the Job element a `CoroutineScope(context)` was
-    /// built around) as this scope's job so scope cancellation and a cancel
-    /// reaching the job propagate both ways.
     func adoptJob(_ existing: RuntimeJobHandle) {
         job = existing
         adoptedTaskIdentity = runtimeAsyncTask(from: existing.identityHandle)
@@ -194,7 +155,6 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     }
 
     func recordBodyFailure(_ exception: Int) {
-        // A supervisor isolates child failures, but its own body still fails.
         guard exception != 0, exception != runtimeNullSentinelInt,
               kk_is_cancellation_exception(exception) == 0 else { return }
         lock.lock()
@@ -219,7 +179,6 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
         if let job {
             job.registerChild(handle)
         } else {
-            // ContextScope without an explicit Job still owns its children.
             _ = childJob?.addCompletionHandler(onCancelling: false) { [weak self] cause in
                 guard let self, !self.isSupervisor, cause != 0, cause != runtimeNullSentinelInt,
                       kk_is_cancellation_exception(cause) == 0 else { return }
@@ -260,8 +219,6 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
         }
     }
 
-    /// Cancel with a specific message and cause so that a materialised
-    /// CancellationException carries the correct values.
     func cancel(message: String, cause: Int) {
         lock.lock()
         if isCancelled {
@@ -280,9 +237,6 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
         }
     }
 
-    /// KUU-2688: descriptions of the scope's still-active child coroutines,
-    /// rendered the way kotlinx-coroutines-test lists them inside
-    /// `UncompletedCoroutinesError` (kotlinx's `toDebugString()` shape).
     /// kotlinx `Job.isActive` covers every non-terminal state including
     /// `Cancelling`, so `!completedSnapshot()` — not `isActiveSnapshot()` —
     /// is the matching filter.
@@ -303,8 +257,6 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
     func waitForChildren(releaseOriginalHandles: Bool = true) -> Int {
         var firstFailure = 0
         var cancelledRemainingChildren = false
-        // A child can register more work while we join it. Drain successive
-        // batches so those descendants also finish before the scope returns.
         while true {
             lock.lock()
             let currentChildren = children
@@ -343,9 +295,6 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
             lock.unlock()
             for child in currentChildren {
                 if let ptr = UnsafeMutableRawPointer(bitPattern: child) {
-                    // Check the per-handle flag to see if user code already consumed the passRetained.
-                    // This is scope-independent: the flag lives on the handle object itself,
-                    // so it works correctly even with nested scopes or cross-thread joins.
                     let consumed: Bool
                     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
                     switch RuntimeJobOrTask(obj) {
@@ -356,10 +305,7 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
                     case .other:
                         consumed = false
                     }
-                    // Release the extra retain taken in registerChild
                     Unmanaged<AnyObject>.fromOpaque(ptr).release()
-                    // Release the original passRetained only if user code hasn't already consumed it
-                    // (via kk_job_join or kk_kxmini_async_await)
                     if !consumed, releaseOriginalHandles {
                         Unmanaged<AnyObject>.fromOpaque(ptr).release()
                         runtimeStorage.withGCLock { state in
@@ -422,8 +368,6 @@ private func runtimeCoroutineScopeNew(pushAmbient: Bool) -> Int {
         state.objectPointers.insert(UInt(bitPattern: ptr))
     }
 
-    // KUU-964: the scope's own Job — installed into the block's context so
-    // `currentCoroutineContext().job` resolves there.
     scope.installJob(defaultCancellationMessage: "ScopeCoroutine was cancelled")
 
     scope.parent = RuntimeCoroutineScope.current
@@ -461,14 +405,8 @@ public func kk_supervisor_scope_new() -> Int {
         state.objectPointers.insert(UInt(bitPattern: ptr))
     }
 
-    // KUU-964: the scope's own SupervisorJob — installed into the block's
-    // context so `currentCoroutineContext().job` resolves there. Children's
-    // failures never complete this job (supervisor failure isolation).
     scope.installJob(defaultCancellationMessage: "SupervisorCoroutine was cancelled")
 
-    // Push: save parent scope and set this as current via the task-scope map,
-    // mirroring kk_coroutine_scope_new so the running continuation observes
-    // the same ambient scope the task-scope map reports.
     scope.parent = RuntimeCoroutineScope.current
     scope.enclosingJob = RuntimeContinuationState.current?.jobHandle ?? RuntimeJobHandle.current
     enterScopeOnCurrentContinuation(scope, job: scope.job)
@@ -485,8 +423,6 @@ public func kk_coroutine_scope_cancel(_ scopeHandle: Int) -> Int {
     return 0
 }
 
-/// Records a scoped builder's body failure before cancelling and joining its
-/// children, preserving the first non-cancellation cause across cleanup.
 @_cdecl("kk_coroutine_scope_fail")
 public func kk_coroutine_scope_fail(_ scopeHandle: Int, _ exception: Int) -> Int {
     guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
@@ -504,11 +440,6 @@ public func kk_coroutine_scope_wait(_ scopeHandle: Int) -> Int {
     }
     let firstFailure = scope.waitForChildren()
 
-    // KUU-964: settle the scope's own Job as the scope tears down. A cancelled
-    // scope leaves the job cancelled (the complete() below settles the
-    // intermediate .cancelling state into .cancelled); every other outcome —
-    // a supervisor observing a child failure included — completes the job
-    // normally, matching kotlinx's scope-coroutine lifecycle.
     if let scopeJob = scope.job {
         let parentJob = scopeJob.parentSnapshot()
         if scope.isCancelled {
@@ -550,8 +481,6 @@ public func __kk_coroutine_scope_is_runtime(_ handle: Int) -> Int {
     runtimeCoroutineScope(from: handle) == nil ? 0 : 1
 }
 
-/// An escaped builder receiver keeps its own context when read inside a
-/// different coroutine. Producer/actor channel handles resolve to their scope.
 @_cdecl("__kk_coroutine_scope_context")
 public func __kk_coroutine_scope_context(_ handle: Int) -> Int {
     guard let scope = runtimeCoroutineScope(from: handle) else {
@@ -564,10 +493,6 @@ public func __kk_coroutine_scope_context(_ handle: Int) -> Int {
 @_cdecl("kk_coroutine_scope_is_active")
 public func kk_coroutine_scope_is_active(_ scopeHandle: Int) -> Int {
     guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
-        // Builder lambdas use a no-receiver ABI. Older lowering can still name
-        // the CoroutineScope property bridge for a bare `isActive` read, but
-        // provides no scope handle; in that shape the Kotlin meaning is the
-        // currently running job's active state.
         return kk_coroutine_current_is_active()
     }
     return scope.isCancelled ? 0 : 1
@@ -575,7 +500,7 @@ public func kk_coroutine_scope_is_active(_ scopeHandle: Int) -> Int {
 
 public func kk_coroutine_scope_is_cancelled(_ scopeHandle: Int) -> Int {
     guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
-        return 1 // invalid handle → treat as cancelled
+        return 1
     }
     return scope.isCancelled ? 1 : 0
 }
@@ -598,10 +523,6 @@ public func kk_coroutine_scope_register_child(_ scopeHandle: Int, _ childHandle:
 // the NOTE on `kk_job_join` -- must NOT be released here, since a live Kotlin reference can
 // keep calling members on it indefinitely.
 
-/// Backing for the top-level `CoroutineScope(context: CoroutineContext): CoroutineScope`
-/// factory function. Reads a `SupervisorJob()` element in `context` (if any) to decide
-/// whether children launched into this scope get supervisor (sibling-failure-isolated)
-/// semantics, matching `kotlinx.coroutines.ContextScope`.
 @_cdecl("kk_coroutine_scope_new_with_context")
 public func kk_coroutine_scope_new_with_context(_ contextRaw: Int) -> Int {
     let ctx = resolveToCoroutineContext(contextRaw)
@@ -613,9 +534,6 @@ public func kk_coroutine_scope_new_with_context(_ contextRaw: Int) -> Int {
     }
     let scope = RuntimeCoroutineScope(isSupervisor: isSupervisor, context: ctx)
     if let job {
-        // The scope's job is the context's Job element: scope.cancel() cancels
-        // it (kotlinx's CoroutineScope.cancel contract), and a cancel reaching
-        // it takes this scope's children down with it.
         scope.adoptJob(job)
     }
     return runtimeRegisterObject(scope)
@@ -641,9 +559,6 @@ public func kk_coroutine_scope_async_with_cont(
     else { runtimeStructuredPanic("CoroutineScope.async received an invalid scope or continuation") }
     let plan = runtimeScopeChildContextPlan(scope: scope, contextRaw: contextRaw)
     let context = plan.context
-    // The block's coroutineContext gains the async task's Job (kotlinx's
-    // DeferredCoroutine contract), so `this` and any nested builder observe a
-    // child scope whose Job is the task's — not the receiver scope's.
     let childScope = RuntimeCoroutineScope(context: context)
     childScope.blockingScheduler = scope.blockingScheduler
     childScope.parent = scope
@@ -691,13 +606,6 @@ public func kk_coroutine_scope_async(
     let plan = runtimeScopeChildContextPlan(scope: scope, contextRaw: contextRaw)
     let context = plan.context
 
-    // The block is a `suspend CoroutineScope.() -> T` value whose thunk keeps
-    // the ordinary captured-lambda layout `(cap0..capN, receiver, outThrown)`.
-    // Expand the env slot into positional captures the same way
-    // `__kk_produce_launch` does — boxed value → its env, 0 → none, packed
-    // env object (kk_object_new(2+N, classID: 0), captures at slots 2..) → N
-    // captures, anything else → a single raw capture — and pass the receiver
-    // scope as the trailing receiver (the block's `this`).
     let captures: [Int]
     let resolvedEntryPointRaw: Int
     if let functionValue = runtimeFunctionValueBox(from: entryPointRaw) {
@@ -719,8 +627,6 @@ public func kk_coroutine_scope_async(
         resolvedEntryPointRaw = entryPointRaw
         captures = [closureRaw]
     }
-    // Same DeferredCoroutine contract as the continuation path: the block runs
-    // on a child scope whose context Job is this task's job.
     let childScope = RuntimeCoroutineScope(context: context)
     childScope.blockingScheduler = scope.blockingScheduler
     childScope.parent = scope
@@ -769,8 +675,6 @@ private func runtimeFinishScopedAsyncTask(
     runtimeAsyncTaskCompletion(task)(result, failure)
 }
 
-// Launch shares the task scheduling/Job ABI with async, but owns a child
-// scope and reports uncaught failures instead of exposing a deferred result.
 @_cdecl("__kk_coroutine_scope_launch_context")
 public func __kk_coroutine_scope_launch_context(
     _ scopeHandle: Int, _ contextRaw: Int, _ start: Int,
@@ -826,11 +730,6 @@ private func runtimeScopeReceiverBlock(_ entry: Int, _ closure: Int) -> (entry: 
     return (entry, [closure])
 }
 
-/// Shared context/parent resolution for scope children (`launch`, `async`):
-/// a builder receiver's adopted Job supersedes the inherited context Job,
-/// and an explicit Job in the builder argument still wins over the receiver —
-/// kotlinx's `scope.launch(context)`/`async(context)` parent the new coroutine
-/// to the context's Job element (KUU-4414).
 private func runtimeScopeChildContextPlan(
     scope: RuntimeCoroutineScope, contextRaw: Int
 ) -> (context: RuntimeCoroutineContext, parent: RuntimeJobHandle?, registerWithScope: Bool) {
@@ -842,9 +741,6 @@ private func runtimeScopeChildContextPlan(
     let contextParent = runtimeJobHandle(from: context.jobHandleRaw)
         ?? runtimeAsyncTask(from: context.jobHandleRaw)?.completionJob ?? scope.job
     let parent = contextParent === runtimeNonCancellableJob ? nil : contextParent
-    // Whether the child is additionally registered into `scope` for
-    // waitForChildren tracking — a scope that observes the failure can absorb
-    // it even when the declared parent (`parent`) is nil or a supervisor.
     let registerWithScope = additionalContext.jobHandleRaw == 0 || (parent != nil && parent === scope.job)
     return (context, parent, registerWithScope)
 }
@@ -900,8 +796,6 @@ private func runtimeScopeLaunch(
         scope: scope, context: context, start: start,
         registerWithScope: registerWithScope,
         prepare: { task, handle in
-            // The receiver's context contains the child Job, so nested builders
-            // inherit the child's name/dispatcher and attach to the child.
             context.installJobHandle(handle)
             childScope.adoptJob(task.completionJob)
             parent?.registerChild(handle)
@@ -920,9 +814,6 @@ private func runtimeScopeAsync(
     prepare: ((RuntimeAsyncTask, Int) -> Void)? = nil,
     body: @escaping @Sendable (RuntimeAsyncTask) -> Void
 ) -> Int {
-    // KUU-1352: the kotlinx coroutine class this builder mints —
-    // (Lazy)DeferredCoroutine for `async`, (Lazy)StandaloneCoroutine for
-    // `launch`; the LAZY start mode owns the `Lazy` prefix.
     let task = RuntimeAsyncTask(
         atomicStart: start == 2,
         debugName: yieldsDeferredResult
@@ -930,8 +821,6 @@ private func runtimeScopeAsync(
             : (start == 1 ? "LazyStandaloneCoroutine" : "StandaloneCoroutine")
     )
     task.isDeferredResult = yieldsDeferredResult
-    // KUU-1352: a scheduled (non-LAZY) coroutine is Active from the moment the
-    // builder returns — kotlinx has no `New` state for it.
     if start != 1 { task.markScheduledForLaunch() }
     let handle = Int(bitPattern: Unmanaged.passRetained(task).toOpaque())
     prepare?(task, handle)
@@ -1006,18 +895,12 @@ public func kk_coroutine_scope_launch(_ scopeHandle: Int, _ entryPointRaw: Int, 
     if let state = runtimeContinuationState(from: continuation) {
         job.continuationState = state
         state.jobHandle = job
-        // Propagate the explicit receiver scope (not whatever is ambient) to the
-        // child continuation's context so nested launch/async inside the block
-        // discover `scope`, matching kotlinx.coroutines' CoroutineScope.launch.
         state.scope = scope
     }
     scope.registerChild(Int(bitPattern: jobPtr))
     scope.job?.registerChild(Int(bitPattern: jobPtr))
 
     KxMiniRuntime.launch {
-        // See the identical guard in kk_kxmini_launch: a cancel() that races in
-        // between this function returning and the dispatched closure actually
-        // running must skip the body entirely (CoroutineStart.DEFAULT semantics).
         if job.cancellationSnapshot() {
             _ = job.complete(with: 0)
             return
@@ -1055,9 +938,6 @@ public func kk_coroutine_scope_launch_with_cont(_ scopeHandle: Int, _ entryPoint
     if let state = runtimeContinuationState(from: continuation) {
         job.continuationState = state
         state.jobHandle = job
-        // Propagate the explicit receiver scope (not whatever is ambient) to the
-        // child continuation's context so nested launch/async inside the block
-        // discover `scope`, matching kk_coroutine_scope_launch above.
         state.scope = scope
     }
     scope.registerChild(Int(bitPattern: jobPtr))

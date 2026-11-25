@@ -1,9 +1,6 @@
 import Foundation
 
 
-// KSP-413: equals(other, ignoreCase) is bundled Kotlin source
-// (Stdlib/kotlin/text/StringComparison.kt).
-
 public func kk_string_equals(_ strRaw: Int, _ otherRaw: Int) -> Int {
     if otherRaw == runtimeNullSentinelInt {
         return kk_box_bool(0)
@@ -30,9 +27,6 @@ public func __kk_string_equals_flat(
     return runtimeStringsEqual(source, other) ? 1 : 0
 }
 
-// KSP-405: takeWhile/takeLastWhile/dropWhile are bundled Kotlin source
-// (StringTakeDrop.kt); their runtime bridges were removed.
-
 @_cdecl("__kk_string_splitToSequence")
 public func kk_string_splitToSequence(_ strRaw: Int, _ delimRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
@@ -43,8 +37,6 @@ public func kk_string_splitToSequence(_ strRaw: Int, _ delimRaw: Int) -> Int {
     return registerRuntimeObject(seq)
 }
 
-// Retained as a private compatibility bridge for older bundled stdlib
-// artifacts. Current List/Array join APIs are source-backed and do not use it.
 @_cdecl("__kk_string_joinToString")
 public func __kk_string_joinToString(
     _ listRaw: Int,

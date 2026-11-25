@@ -544,12 +544,6 @@ struct CodegenBackendSequenceEdgeCasesTests {
 
     @Test
     func testSequenceZipWithNextTransformReturnsAdjacentResults() throws {
-        // zipWithNext(transform) on a Sequence receiver returns a lazy
-        // Sequence<R>, not a List<R> — .toList() is required to inspect
-        // contents. Printing the Sequence directly (as an earlier version of
-        // this test did) prints an opaque object identity on both kotlinc and
-        // this compiler; only the exact opaque representation differs, so
-        // that isn't a meaningful comparison either way.
         let source = """
         fun main() {
             val transformed = sequenceOf(1, 2, 4, 8)
@@ -860,8 +854,6 @@ struct CodegenBackendSequenceEdgeCasesTests {
         try assertKotlinOutput(source, moduleName: "SequenceMinByOrNull", expected: "3\ntrue\n")
     }
 
-    // KSP-441 / BUG-155 regression: object-expression Sequence/Iterator pipelines must
-    // support for-in iteration and virtual dispatch of the overridden iterator().
     @Test
     func testCodegenSequenceObjectExpressionIteratorSupportsForIn() throws {
         let source = """
@@ -889,8 +881,6 @@ struct CodegenBackendSequenceEdgeCasesTests {
         try assertKotlinOutput(source, moduleName: "SequenceObjectExpressionForIn", expected: "1\n2\n3\n")
     }
 
-    // KSP-441 regression: flatMap/flatMapIndexed on source Sequence objects must
-    // traverse nested source Iterators and accept Iterable sub-collections.
     @Test
     func testCodegenSequenceFlatMapAndFlatMapIndexedOverSourceSequence() throws {
         let source = """

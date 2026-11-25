@@ -11,7 +11,6 @@ private fun parseUnsignedBits(input: String, radix: Int): Long? {
     var index = if (input[0] == '+') 1 else 0
     if (index == input.length) return null
 
-    // Divide 2 * Long.MAX_VALUE + 1 by the radix without overflowing a signed Long.
     val base = radix.toLong()
     val doubledRemainder = 2L * (Long.MAX_VALUE % base) + 1L
     val maxBeforeMultiply = 2L * (Long.MAX_VALUE / base) + doubledRemainder / base

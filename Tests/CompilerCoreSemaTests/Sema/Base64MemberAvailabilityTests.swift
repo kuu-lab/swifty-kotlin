@@ -3,14 +3,6 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-/// KUU-1396: JVM-parity surface for `kotlin.io.encoding.Base64`. The issue
-/// reported `decodeIntoArray`/`encodeIntoByteArray`/`paddingOption` as missing
-/// members. On JVM the destination-writing members are `encodeIntoByteArray`
-/// and `decodeIntoByteArray` (there is no `decodeIntoArray`), and
-/// `paddingOption` exists but is `internal`, so kotlinc rejects it with
-/// "cannot access ... it is internal". KSwiftK must resolve the public members
-/// and keep rejecting the non-public ones instead of drifting from the JVM
-/// surface in either direction.
 @Suite
 struct Base64MemberAvailabilityTests {
     @Test

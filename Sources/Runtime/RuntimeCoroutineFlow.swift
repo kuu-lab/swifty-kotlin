@@ -5,8 +5,6 @@ import Foundation
 
 private let runtimeFlowCollectStackPthreadKey: pthread_key_t = makePthreadKey()
 
-/// Wrapper class so the flow collect stack can be stored as a single AnyObject
-/// in the pthread thread-local slot.
 private final class RuntimeFlowCollectStackBox {
     var stack: [RuntimeFlowCollectStackEntry] = []
 }
@@ -30,9 +28,6 @@ private enum RuntimeFlowTag: Int {
     case catchHandler = 6
     case retry = 7
     case retryWhen = 8
-    // KUU-1351: tags 9/10 (onErrorReturn/onErrorResume) and 19 (delayEach) are
-    // retired — they backed Flow operators that do not exist in
-    // kotlinx-coroutines, and the compiler no longer emits them.
     case transform = 11
     case takeWhile = 12
     case dropWhile = 13
@@ -54,8 +49,6 @@ private struct RuntimeFlowOp {
     let argument: Int
 }
 
-/// The template continuation is kept alive only to retain captured values;
-/// every collection receives a fresh continuation and channel.
 private final class RuntimeChannelProducer {
     let emitterFnPtr: Int
     let functionID: Int
@@ -67,9 +60,6 @@ private final class RuntimeChannelProducer {
         self.templateState = state
         self.functionID = state.map { Int($0.functionID) } ?? 0
 
-        // The producer flow owns the state through `templateState`; release
-        // the opaque continuation's original runtime retain now that it is
-        // no longer used as an executable continuation.
         if state != nil, templateContinuation != 0 {
             _ = kk_coroutine_state_exit(templateContinuation, 0)
         }
@@ -141,8 +131,6 @@ private func runtimeFlowFinishChannelProducer(
     return stopped ? 0 : channelCause
 }
 
-/// Buffer/flowOn preserve event order in this runtime. They need not drain
-/// the producer before take/takeWhile can observe their stopping condition.
 private func runtimeFlowChannelNeedsEventBatch(_ ops: [RuntimeFlowOp]) -> Bool {
     ops.contains { $0.kind == .conflate || $0.kind == .debounce || $0.kind == .sample }
 }
@@ -222,7 +210,6 @@ final class RuntimeFlowCollectContext {
     // collector is invoked recursively until the stack overflows.
     var invokingCollector = false
     var emitHandler: ((Int) -> Int)?
-    // Restore the enclosing builder when this context is popped after a nested collect.
     var previousContinuationContext: RuntimeFlowCollectContext?
 
     init() {
@@ -230,8 +217,6 @@ final class RuntimeFlowCollectContext {
     }
 }
 
-/// Immutable operation chain; source emitter is re-executed
-/// for every collect to guarantee cold-stream semantics.
 private final class RuntimeFlowHandle {
     let source: RuntimeFlowSource
     let opChain: [RuntimeFlowOp]
@@ -409,9 +394,6 @@ private func runtimeFlowWithContinuationContext<T>(
     return body()
 }
 
-/// A flow collector can collect a nested source, so the top stack frame may
-/// belong to the source being consumed rather than to the builder that is
-/// currently executing `emit`.
 private func runtimeFlowCurrentEmitContext() -> RuntimeFlowCollectContext? {
     var context = RuntimeContinuationState.current?.flowCollectContext
     if context != nil {
@@ -603,8 +585,6 @@ private func runtimeFlowBuildStages(_ ops: [RuntimeFlowOp]) -> [RuntimeFlowStage
     return stages
 }
 
-/// `takeCounters` tracks remaining elements for each take op index and is
-/// mutated across successive calls within a single collect invocation.
 private func runtimeFlowApplyOpsLazy(
     _ value: Int,
     ops: [RuntimeFlowOp],
@@ -637,7 +617,6 @@ private func runtimeFlowApplyOpsInFrame(
     for (index, op) in ops.enumerated() {
         switch op.kind {
         case .emit:
-            // Emit ops are handled during flow construction; skip.
             continue
 
         case .map:
@@ -653,8 +632,6 @@ private func runtimeFlowApplyOpsInFrame(
             if thrown != 0 {
                 return .thrown(thrown)
             }
-            // Element payload: keep the transform result's Any-erased box
-            // (KUU-4133 — see runtimeFlowMaybeUnbox).
             current = transformed
             kk_gc_shadow_set(0, current)
 
@@ -682,10 +659,7 @@ private func runtimeFlowApplyOpsInFrame(
                 return .done
             }
             takeCounters[index] = remaining - 1
-            // If this was the last allowed element, signal done after delivery.
             if remaining - 1 <= 0 {
-                // Still emit the current value but mark context for cancellation
-                // after this element is delivered.
             }
 
         case .onEach:
@@ -713,8 +687,6 @@ private func runtimeFlowApplyOpsInFrame(
                 return .filtered
             }
             // transform blocks have ABI (value, outThrown) — two args, not three.
-            // Push a temporary collect context so that emit() calls inside the
-            // transform block are captured rather than leaking to the outer context.
             let transformFn = unsafeBitCast(
                 op.argument,
                 to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
@@ -722,7 +694,6 @@ private func runtimeFlowApplyOpsInFrame(
             let transformCtx = RuntimeFlowCollectContext()
             var transformedValues: [RuntimeGCRootedValue] = []
             transformCtx.emitHandler = { v in
-                // Element payload: preserve Any-erased boxes (KUU-4133).
                 transformedValues.append(RuntimeGCRootedValue(v))
                 return v
             }
@@ -733,9 +704,6 @@ private func runtimeFlowApplyOpsInFrame(
             if thrown != 0 {
                 return .thrown(thrown)
             }
-            // Use the first emitted value as `current` for the remainder of
-            // the op chain.  Additional values are lost in this single-element
-            // path.
             guard let first = transformedValues.first else {
                 return .filtered
             }
@@ -781,7 +749,6 @@ private func runtimeFlowApplyOpsInFrame(
             continue
 
         case .onCompletion:
-            // onCompletion is a completion-only handler; pass elements through unchanged.
             continue
 
         case .buffer, .conflate, .flowOn, .debounce, .sample:
@@ -791,7 +758,6 @@ private func runtimeFlowApplyOpsInFrame(
     return .emit(current)
 }
 
-/// Called after delivering each element.
 private func runtimeFlowTakeExhausted(
     ops: [RuntimeFlowOp],
     takeCounters: [Int: Int]
@@ -863,8 +829,6 @@ private func runtimeFlowRunSourceStage(
     }
 
     let processValue: (Int) -> Int = { rawValue in
-        // Element payload: pass the value (and any Any-erased box) through to
-        // ops and collectors — only operator arguments get unboxed (KUU-4133).
         let result = runtimeFlowApplyOpsLazy(
             rawValue,
             ops: ops,
@@ -972,8 +936,6 @@ private func runtimeFlowHasErrorHandlers(_ ops: [RuntimeFlowOp]) -> Bool {
     ops.contains { runtimeFlowErrorHandler(for: $0) != nil || $0.kind == .onCompletion }
 }
 
-/// `failure`: nil on success, non-zero exception pointer on error.
-/// Returns the first exception thrown by a handler, or nil if all handlers completed normally.
 @discardableResult
 private func runtimeFlowFireCompletionHandlers(_ ops: [RuntimeFlowOp], failure: Int?) -> Int? {
     let failureRoot = failure.map(RuntimeGCRootedValue.init)
@@ -1155,8 +1117,6 @@ private func runtimeFlowEvaluate(flow: RuntimeFlowHandle) -> RuntimeFlowExecutio
     runtimeFlowExecuteStages(flow: flow, stages: runtimeFlowBuildStages(flow.opChain))
 }
 
-/// Simple `.emitter` and `.fixed` sources can use the faster streaming path;
-/// advanced sources must go through runtimeFlowEvaluate.
 private func runtimeFlowHasAdvancedSource(_ flow: RuntimeFlowHandle) -> Bool {
     switch flow.source {
     case .emitter, .channelProducer, .fixed:
@@ -1284,8 +1244,6 @@ private func runtimeFlowCollectChannelProducer(
                         )
                         return failure == 0 ? .more : .failed(failure)
                     }
-                    // Element payload: keep the Any-erased box so erased
-                    // collectors observe the declared type (KUU-4133).
                     let delivery = emit(value)
                     switch delivery {
                     case .more: continue
@@ -1303,9 +1261,6 @@ private func runtimeFlowCollectChannelProducer(
                 collectionScope.cancel(message: "Flow collection finished", cause: delivery.completionCause)
             }
             _ = collectionScope.waitForChildren(releaseOriginalHandles: false)
-            // CoroutineScope(currentCoroutineContext()) owns another Scope's
-            // child list but registers its launches with this same Job. Drain
-            // the Job hierarchy too, including descendants added while joining.
             var joinedChildren: Set<Int> = []
             while true {
                 let children = collectionJob.registeredChildrenSnapshot().filter { !joinedChildren.contains($0) }
@@ -1469,10 +1424,6 @@ private func runtimeFlowCollectInFrame(
             collectorEnvPtr: collectorEnvPtr, continuation: continuation
         )
     }
-    // Advanced sources (flatMapConcat, flatMapMerge, merge, zip, combine, etc.)
-    // are not handled by runtimeFlowCollectStreaming which only processes
-    // .emitter and .fixed sources.  Route them through runtimeFlowEvaluate so
-    // that they produce values correctly.
     if !runtimeFlowHasErrorHandlers(flow.opChain) && !runtimeFlowHasAdvancedSource(flow) {
         let retVal = runtimeFlowCollectStreaming(
             flow,
@@ -1704,8 +1655,6 @@ private func runtimeFlowCollectStreaming(
         return outThrown
     }
 
-    // If the op chain contains a transform op, use a specialised path that
-    // correctly fans out the 1-to-many transform semantics.
     let transformIndex = ops.firstIndex(where: { $0.kind == .transform })
     let preOps = transformIndex.map { Array(ops[..<$0]) } ?? []
     let postOps = transformIndex.map { Array(ops[($0 + 1)...]) } ?? []
@@ -1714,8 +1663,6 @@ private func runtimeFlowCollectStreaming(
     var preLastValues: [Int: RuntimeGCRootedValue] = [:]
 
     context.emitHandler = { emittedValue in
-        // Element payload: ops and downstream consumers see the Any-erased
-        // box; only operator arguments are unboxed (KUU-4133).
         let rawValue = emittedValue
         if let transformIdx = transformIndex {
             let transformFnPtr = ops[transformIdx].argument
@@ -1739,8 +1686,6 @@ private func runtimeFlowCollectStreaming(
                 return rawValue
             }
 
-            // Call the transform block with the correct 2-arg ABI and collect
-            // all values it emits.
             guard transformFnPtr != 0 else { return rawValue }
             let transformFn = unsafeBitCast(
                 transformFnPtr,
@@ -1749,7 +1694,6 @@ private func runtimeFlowCollectStreaming(
             var transformedValues: [RuntimeGCRootedValue] = []
             let transformCtx = RuntimeFlowCollectContext()
             transformCtx.emitHandler = { v in
-                // Element payload: preserve Any-erased boxes (KUU-4133).
                 transformedValues.append(RuntimeGCRootedValue(v))
                 return v
             }
@@ -1839,8 +1783,6 @@ private func runtimeFlowCollectStreaming(
     return failure
 }
 
-/// Runs one suspend collector invocation as a child coroutine. The initial
-/// burst runs inline, while any later resume is delivered asynchronously.
 private func runtimeFlowLatestCollectorBody(
     _ continuation: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
@@ -2019,8 +1961,6 @@ private func runtimeFlowLatestCollectorReceiver(
     return value
 }
 
-/// Returns true on success, false if the collector threw (signalling the flow
-/// should stop).
 private func runtimeFlowDeliverValue(
     _ value: Int,
     collectorFnPtr: Int,
@@ -2104,17 +2044,11 @@ public func kk_channel_flow_create(_ emitterFnPtr: Int, _ emitterContinuation: I
     )
 }
 
-/// `callbackFlow` shares the channel-backed implementation with `channelFlow`;
-/// the distinct entry point preserves the public ABI surface.
 @_cdecl("kk_callback_flow_create")
 public func kk_callback_flow_create(_ emitterFnPtr: Int, _ emitterContinuation: Int) -> Int {
     kk_channel_flow_create(emitterFnPtr, emitterContinuation)
 }
 
-/// Return the flow-stop sentinel pointer. This is a unique object pointer that
-/// cannot collide with any legitimate `Int` value (unlike the previous `Int.min`
-/// approach). Emitters should compare the return value of `kk_flow_emit` against
-/// `__kk_flow_stopped()` to detect pipeline termination.
 @_cdecl("__kk_flow_stopped")
 public func __kk_flow_stopped() -> Int {
     let ptr = UnsafeMutableRawPointer(Unmanaged.passUnretained(runtimeStorage.flowStopSentinelBox).toOpaque())
@@ -2125,8 +2059,6 @@ public func __kk_flow_stopped() -> Int {
     return Int(bitPattern: ptr)
 }
 
-/// Sentinel value returned by `kk_flow_emit` to signal that the pipeline has
-/// terminated (e.g. a `.take` counter was exhausted or the collector threw).
 /// This uses a unique heap-allocated object pointer so it cannot collide with
 /// any legitimate emitted `Int` value (including `Int.min`).
 /// Cached as a static let to avoid repeated lock acquisition and dictionary
@@ -2143,8 +2075,6 @@ public func kk_flow_emit(_ flowHandle: Int, _ value: Int, _ tag: Int, _ outThrow
                 return runtimeFlowStopSentinel
             }
             if let context, !context.cancelled {
-                // Element payload: emitted values keep their Any-erased box so
-                // erased consumers observe the declared type (KUU-4133).
                 let timestamp = DispatchTime.now().uptimeNanoseconds - context.startedAt
                 context.emittedValues.append(value)
                 context.emittedEvents.append(RuntimeFlowEvent(value: value, timestamp: timestamp))
@@ -2176,7 +2106,6 @@ public func __kk_flow_emit_with_timestamp(_ flowHandle: Int, _ value: Int, _ tag
     if tag == RuntimeFlowTag.emit.rawValue {
         let context = runtimeFlowCurrentEmitContext()
         if let context, !context.cancelled {
-            // Element payload: preserve Any-erased boxes (KUU-4133).
             context.emittedValues.append(value)
             context.emittedEvents.append(RuntimeFlowEvent(value: value, timestamp: timestamp))
             if let emitHandler = context.emitHandler {
@@ -2205,8 +2134,6 @@ public func kk_flow_collect(_ flowHandle: Int, _ collectorFnPtr: Int, _ collecto
     }
 }
 
-// Runs each `collectLatest` action in its own child Job so a new upstream value
-// can cancel a suspended collector before waiting for the last action at EOF.
 @_cdecl("__kk_flow_collectLatest")
 public func __kk_flow_collectLatest(_ flowHandle: Int, _ collectorFnPtr: Int, _ collectorEnvPtr: Int, _ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
     return runtimeThrowingBridge(outThrown) {
@@ -2384,8 +2311,6 @@ public func __kk_flow_fold(_ flowHandle: Int, _ initial: Int, _ operationFnPtr: 
     var accumulator = initial
     for value in result.values {
         var thrown = 0
-        // Element payload: the accumulator keeps any Any-erased box so
-        // erased-R folds observe the declared type (KUU-4133).
         accumulator = operation(0, accumulator, value, &thrown)
         if thrown != 0 {
             runtimeFlowFireCompletionHandlers(flow.opChain, failure: thrown)
@@ -2419,7 +2344,6 @@ public func __kk_flow_reduce(_ flowHandle: Int, _ operationFnPtr: Int, _: Int) -
     var thrownOnReduce: Int?
     for value in values.dropFirst() {
         var thrown = 0
-        // Element payload: preserve Any-erased boxes (KUU-4133).
         accumulator = operation(0, accumulator, value, &thrown)
         if thrown != 0 {
             thrownOnReduce = thrown
@@ -2429,15 +2353,6 @@ public func __kk_flow_reduce(_ flowHandle: Int, _ operationFnPtr: Int, _: Int) -
     runtimeFlowFireCompletionHandlers(flow.opChain, failure: thrownOnReduce)
     return accumulator
 }
-
-// KSP-674: kk_flow_of / kk_flow_empty / kk_flow_as_flow removed. flowOf /
-// emptyFlow / Iterable.asFlow are now Kotlin source (kotlinx.coroutines.flow)
-// composed from `flow { }` (kk_flow_create) + `emit` (kk_flow_emit).
-
-// KSP-676: StateFlow / MutableStateFlow and Flow.stateIn are now Kotlin source
-// (Stdlib/kotlinx/coroutines/flow/StateFlow.kt), so the runtime handle and
-// kk_mutable_state_flow_* / kk_state_flow_value / kk_flow_state_in C bridges
-// have been removed.
 
 private func runtimeFlowEvaluateFlatMapConcat(
     sourceHandle: Int,
@@ -2481,7 +2396,6 @@ private func runtimeFlowEvaluateFlatMapMerge(
     mapperFnPtr: Int,
     ops: [RuntimeFlowOp]
 ) -> RuntimeFlowExecutionResult {
-    // In the synchronous cold-stream model, merge degenerates to concat.
     runtimeFlowEvaluateFlatMapConcat(sourceHandle: sourceHandle, mapperFnPtr: mapperFnPtr, ops: ops)
 }
 
@@ -2541,8 +2455,6 @@ private func runtimeFlowEvaluateFlatMapLatest(
     return runtimeFlowRunNormalStage(latestResult, ops: ops)
 }
 
-/// Collects each flatMapLatest inner flow in a child Job so a newer upstream
-/// value can cancel it while preserving values emitted before cancellation.
 private final class RuntimeFlowLatestFlatMapState: @unchecked Sendable {
     static let innerFlowArgument = Int64.min
     static let stateArgument = Int64.min + 1
@@ -2767,7 +2679,6 @@ private func runtimeFlowLatestInnerCollectContext(
     var lastValues: [Int: RuntimeGCRootedValue] = [:]
     context.emitHandler = { [weak context] emittedValue in
         guard let context else { return runtimeFlowStopSentinel }
-        // Element payload: preserve Any-erased boxes (KUU-4133).
         let result = runtimeFlowApplyOpsLazy(
             emittedValue,
             ops: flow.opChain,
@@ -2804,7 +2715,6 @@ private func runtimeFlowLatestFlatMapInnerReceiver(
     return runtimeThrowingBridge(outThrown) {
         guard let pointer = UnsafeMutableRawPointer(bitPattern: stateHandle) else { return 0 }
         let state = Unmanaged<RuntimeFlowLatestFlatMapState>.fromOpaque(pointer).takeUnretainedValue()
-        // Element payload: preserve Any-erased boxes (KUU-4133).
         state.append(value)
         return value
     }
@@ -2866,7 +2776,6 @@ private func runtimeFlowEvaluateZip(
         if thrown != 0 {
             return RuntimeFlowExecutionResult(values: all, failure: thrown)
         }
-        // Element payload: preserve Any-erased boxes (KUU-4133).
         all.append(combined)
     }
     return runtimeFlowRunNormalStage(RuntimeFlowExecutionResult(values: all, failure: nil), ops: ops)
@@ -2905,7 +2814,6 @@ private func runtimeFlowEvaluateCombine(
         if thrown != 0 {
             return RuntimeFlowExecutionResult(values: all, failure: thrown)
         }
-        // Element payload: preserve Any-erased boxes (KUU-4133).
         all.append(combined)
     }
     return runtimeFlowRunNormalStage(RuntimeFlowExecutionResult(values: all, failure: nil), ops: ops)
@@ -2955,7 +2863,6 @@ public func __kk_flow_flat_map_latest_external(
     }
 }
 
-/// flowArrayHandle: handle to an array of flow handles; count: element count.
 @_cdecl("__kk_flow_merge")
 public func __kk_flow_merge(_ flowArrayHandle: Int, _ count: Int, _: Int) -> Int {
     var handles: [Int] = []

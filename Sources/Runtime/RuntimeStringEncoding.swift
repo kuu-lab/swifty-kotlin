@@ -80,10 +80,6 @@ public func __kk_charset_name(_ charsetTag: Int) -> Int {
     return runtimeMakeStringRaw(name)
 }
 
-// java.lang.String charset encoding replaces each malformed UTF-16 unit;
-// valid surrogate pairs represent one scalar, including one replacement byte
-// for charsets that cannot encode that scalar. This private byte codec keeps
-// the existing List bridge and flat ByteArray bridge representations separate.
 func runtimeCharsetEncodedBytes(_ source: String, tag: CharsetTag) -> [Int] {
     let units = runtimeKotlinStringUTF16CodeUnits(source)
     guard !units.isEmpty else { return [] }
@@ -138,7 +134,6 @@ func runtimeCharsetEncodedBytes(_ source: String, tag: CharsetTag) -> [Int] {
 public func __kk_string_toByteArray_charset(_ strRaw: Int, _ charsetTag: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let tag = CharsetTag(rawValue: charsetTag) else {
-        // Unknown charset — fall back to UTF-8. Sema types this as List<Int>.
         return runtimeMakeListRaw(KotlinStringSurrogateEncoding.unicodeString(source).utf8.map { runtimeSignedByteValue(Int($0)) })
     }
     return runtimeMakeListRaw(runtimeCharsetEncodedBytes(source, tag: tag).map(runtimeSignedByteValue))
@@ -168,7 +163,6 @@ public func __kk_string_encodeToByteArray_flat(
     __kk_string_toByteArray_flat(data, length, byteCount, hash)
 }
 
-// Slices by UTF-16 code unit range to match Kotlin String indexing semantics.
 @_cdecl("__kk_string_encodeToByteArray_range_flat")
 public func __kk_string_encodeToByteArray_range_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -272,11 +266,7 @@ public func __kk_bytearray_decodeToString(_ arrRaw: Int) -> Int {
     guard let elements = runtimeByteArrayElements(from: arrRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_bytearray_decodeToString received invalid byte array handle \(arrRaw)")
     }
-    // Use truncating conversion to match Kotlin's signed-byte semantics:
-    // negative values (e.g. -1) become their unsigned equivalent (255).
     let bytes = elements.map { UInt8(truncatingIfNeeded: $0) }
-    // Use String(decoding:as:) for UTF-8 replacement decoding: malformed
-    // sequences produce U+FFFD instead of returning nil/empty.
     let decoded = String(decoding: bytes, as: UTF8.self)
     return runtimeMakeStringRaw(KotlinStringSurrogateEncoding.encode(decoded))
 }
@@ -316,8 +306,6 @@ public func __kk_bytearray_decodeToString_range_throw(
     )
 }
 
-// Same UTF-8 decode semantics as decodeToString — toKString is cinterop's
-// historical name for the identical operation.
 @_cdecl("__kk_byteArray_toKString")
 public func __kk_byteArray_toKString(
     _ arrRaw: Int,
@@ -378,7 +366,6 @@ private func runtimeDecodeJavaCharsetUTF8(_ bytes: [UInt8]) -> String {
     return String(decoding: units, as: UTF16.self)
 }
 
-// Charset IDs follow CharsetTag: UTF-8, Latin-1, ASCII, and endian-aware UTF-16/32.
 @_cdecl("__kk_bytearray_decodeToString_charset")
 public func __kk_bytearray_decodeToString_charset(_ arrRaw: Int, _ charsetId: Int) -> Int {
     guard let elements = runtimeByteArrayElements(from: arrRaw) else {
@@ -414,7 +401,6 @@ public func __kk_bytearray_decodeToString_charset(_ arrRaw: Int, _ charsetId: In
             let first = unit(at: offset)
             offset += 2
             if (0xd800...0xdbff).contains(first) {
-                // JVM UTF-16 decoders replace an invalid surrogate pair as one malformed unit.
                 guard offset + 1 < bytes.count else {
                     units.append(0xfffd)
                     offset = bytes.count

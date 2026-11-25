@@ -162,6 +162,7 @@ struct JVMStdlibCatalogTests {
                     key = key.replacingOccurrences(of: #"\b(out|in)\s+"#, with: "", options: .regularExpression)
                     key = key.replacingOccurrences(of: "?", with: "")
                     key = key.replacingOccurrences(of: " ", with: "")
+                    key = key.replacingOccurrences(of: #"\bkotlin\.(?:collections\.|sequences\.|ranges\.|text\.)?(?=[A-Z])"#, with: "", options: .regularExpression)
                     if let owner = seen[key] {
                         duplicates.append(key + " in " + declaration.path + " duplicates " + owner)
                     } else {

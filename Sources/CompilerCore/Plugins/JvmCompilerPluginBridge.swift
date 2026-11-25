@@ -1,6 +1,5 @@
 import Foundation
 
-/// Describes a configuration option accepted by a kotlinc compiler plugin JAR.
 public struct JvmPluginOption: Codable, Sendable {
     public let name: String
     public let description: String
@@ -13,7 +12,6 @@ public struct JvmPluginOption: Codable, Sendable {
     }
 }
 
-/// Metadata extracted from a kotlinc compiler plugin JAR by the JVM host.
 public struct JvmPluginInspectionResult: Codable, Sendable {
     public let pluginId: String
     public let commandLineProcessor: String
@@ -33,7 +31,6 @@ public struct JvmPluginInspectionResult: Codable, Sendable {
     }
 }
 
-/// Errors occurring during JVM compiler plugin hosting and inspection.
 public enum JvmPluginError: Error, LocalizedError, Sendable {
     case javaNotFound
     case hostRunnerNotFound
@@ -50,8 +47,6 @@ public enum JvmPluginError: Error, LocalizedError, Sendable {
         }
     }
 }
-
-// MARK: - IPC Payloads for Phase 2 & 3
 
 public struct JvmSemaClassPayload: Codable, Sendable {
     public let fqName: String
@@ -191,9 +186,6 @@ public struct JvmSemaTransformPlan: Codable, Sendable {
     }
 }
 
-// MARK: - Client
-
-/// Client that manages communication with the external JVM plugin host runner.
 public final class JvmPluginHostClient: @unchecked Sendable {
     public static let shared = JvmPluginHostClient()
 
@@ -360,14 +352,11 @@ public final class JvmPluginHostClient: @unchecked Sendable {
     }
 }
 
-// MARK: - JvmCompilerPlugin
-
 final class JvmPluginPlanBox: @unchecked Sendable {
     var plan: JvmSemaTransformPlan?
     var syntheticMethodSymbols: [SymbolID: JvmSyntheticMethodPlan] = [:]
 }
 
-/// Adapter wrapping an external kotlinc compiler plugin JAR as a KSwiftK `CompilerPlugin`.
 final class JvmCompilerPlugin: CompilerPlugin, @unchecked Sendable {
     let id: String
     let jarPath: String
@@ -381,25 +370,18 @@ final class JvmCompilerPlugin: CompilerPlugin, @unchecked Sendable {
     }
 
     func applySemaTransform(_ context: CompilerPluginSemaContext) {
-        // Validate configured options against declared CommandLineProcessor options
         validateConfiguredOptions(context)
 
-        // Query JVM host for Phase 2 transformation plan
         let plan = fetchOrComputePlan(context)
 
-        // Apply classesToOpen and membersToOpen
         applyOpenPlan(plan, context: context)
 
-        // Apply synthetic methods (e.g. describeContents, writeToParcel)
         applySyntheticMethods(plan, context: context)
 
-        // Apply sam-with-receiver interfaces
         applySamWithReceiverInterfaces(plan, context: context)
 
-        // Apply assignment overload targets
         applyAssignmentOverloadTargets(plan, context: context)
 
-        // Apply power-assert target functions
         applyPowerAssertFunctions(plan, context: context)
 
         if plan.composeEnabled == true {
@@ -419,8 +401,6 @@ final class JvmCompilerPlugin: CompilerPlugin, @unchecked Sendable {
     var loweringPasses: [any LoweringPass] {
         [JvmPluginLoweringPass(pluginId: id, planBox: planBox)]
     }
-
-    // MARK: - Private Helpers
 
     private func validateConfiguredOptions(_ context: CompilerPluginSemaContext) {
         let knownOptions = Set(descriptor.options.map(\.name))
@@ -611,7 +591,6 @@ final class JvmCompilerPlugin: CompilerPlugin, @unchecked Sendable {
 
             let ctorFQName = classInfo.fqName + [initName]
 
-            // Super constructor delegation
             var superCtor: SymbolID? = nil
             var supertypeTypeArguments: [TypeArg] = []
             if let edgeSupertype = symbols.directSupertypes(for: classSymbol).first(where: {
@@ -772,8 +751,6 @@ final class JvmCompilerPlugin: CompilerPlugin, @unchecked Sendable {
     }
 }
 
-// MARK: - Phase 3 Lowering Pass
-
 final class JvmPluginLoweringPass: LoweringPass {
     static let name = "JvmPluginLowering"
     static let requiredStage: KIRStage = .raw
@@ -797,7 +774,6 @@ final class JvmPluginLoweringPass: LoweringPass {
             return
         }
 
-        // 1. Synthesize KIRFunctions for synthetic methods that were not emitted during class lowering
         for (symbol, plan) in planBox.syntheticMethodSymbols {
             if module.arena.function(for: symbol) == nil {
                 guard let signature = sema.symbols.functionSignature(for: symbol),
@@ -832,7 +808,6 @@ final class JvmPluginLoweringPass: LoweringPass {
             }
         }
 
-        // 2. For any pre-existing function declarations whose body is empty, populate instructions
         module.arena.transformFunctions { function in
             guard let plan = self.planBox.syntheticMethodSymbols[function.symbol],
                   function.body.isEmpty

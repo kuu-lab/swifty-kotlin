@@ -1,6 +1,5 @@
 package java.security
 
-/** Message digest facade over the algorithms used by the bundled JVM APIs. */
 public class MessageDigest private constructor(
     public val algorithm: String,
     private val normalizedAlgorithm: String,
@@ -338,8 +337,6 @@ private val SHA256_IV = intArrayOf(
     0x510e527f, 0x9b05688c.toInt(), 0x1f83d9ab, 0x5be0cd19
 )
 
-// SHA-224 (FIPS 180-4) reuses the SHA-256 compression function with a
-// different initial value and a 28-byte truncation.
 private val SHA224_IV = intArrayOf(
     0xc1059ed8.toInt(), 0x367cd507, 0x3070dd17, 0xf70e5939.toInt(),
     0xffc00b31.toInt(), 0x68581511, 0x64f98fa7, 0xbefa4fa4.toInt()
@@ -477,23 +474,10 @@ private fun resolveAlgorithmName(algorithm: String): String? = when (algorithm.u
     "SHA3-256", "OID.2.16.840.1.101.3.4.2.8", "2.16.840.1.101.3.4.2.8" -> "SHA3256"
     "SHA3-384", "OID.2.16.840.1.101.3.4.2.9", "2.16.840.1.101.3.4.2.9" -> "SHA3384"
     "SHA3-512", "OID.2.16.840.1.101.3.4.2.10", "2.16.840.1.101.3.4.2.10" -> "SHA3512"
-    // SHAKE128/SHAKE256 are aliases of the SHAKE128-256/SHAKE256-512
-    // services; "SHAKE128"/"SHAKE256" and the "-256"/"-512" spellings all
-    // resolve to the same XOF with the JDK's fixed default digest length.
     "SHAKE128", "SHAKE128-256", "OID.2.16.840.1.101.3.4.2.11", "2.16.840.1.101.3.4.2.11" -> "SHAKE128256"
     "SHAKE256", "SHAKE256-512", "OID.2.16.840.1.101.3.4.2.12", "2.16.840.1.101.3.4.2.12" -> "SHAKE256512"
     else -> null
 }
-
-// MARK: - SHA-512 family (FIPS 180-4)
-//
-// SHA-512, SHA-384, SHA-512/224 and SHA-512/256 share the same 128-byte
-// block compression function and 128-bit big-endian length padding; they
-// differ only in the initial chaining value and the output truncation.
-// All 64-bit word arithmetic is done on `Long`, whose operators wrap
-// modulo 2^64 exactly like the spec requires. Constants that exceed
-// Int64/UInt64-positive range are written as `ULong` literals converted
-// with `toLong()` so the bit pattern is preserved.
 
 private val SHA512_K = longArrayOf(
     0x428a2f98d728ae22uL.toLong(), 0x7137449123ef65cduL.toLong(),
@@ -575,8 +559,6 @@ private fun sha512_224(input: ByteArray): ByteArray = sha512Digest(input, SHA512
 private fun sha512_256(input: ByteArray): ByteArray = sha512Digest(input, SHA512_256_IV, 32)
 
 private fun sha512Digest(input: ByteArray, initialState: LongArray, outputLength: Int): ByteArray {
-    // 128-byte blocks; the length field is a 128-bit big-endian bit count.
-    // input.size is an Int, so the high 64 bits of the length are always 0.
     val paddedLength = ((input.size + 16) / 128 + 1) * 128
     val padded = ByteArray(paddedLength)
     input.copyInto(padded)
@@ -672,9 +654,6 @@ private fun sha512Digest(input: ByteArray, initialState: LongArray, outputLength
     return result
 }
 
-// MARK: - MD2 (RFC 1319)
-
-// 256-byte permutation constructed from the digits of pi.
 private val MD2_S = intArrayOf(
     41, 46, 67, 201, 162, 216, 124, 1, 61, 54, 84, 161, 236, 240, 6, 19,
     98, 167, 5, 243, 192, 199, 115, 140, 152, 147, 43, 217, 188, 76, 130, 202,
@@ -695,8 +674,6 @@ private val MD2_S = intArrayOf(
 )
 
 private fun md2(input: ByteArray): ByteArray {
-    // Pad with i bytes of value i until the length is a multiple of 16;
-    // padding is always applied (1..16 bytes).
     val padLength = 16 - (input.size % 16)
     val paddedLength = input.size + padLength
     val padded = ByteArray(paddedLength)
@@ -707,7 +684,6 @@ private fun md2(input: ByteArray): ByteArray {
         padIndex++
     }
 
-    // 16-byte checksum over the padded message.
     val checksum = IntArray(16)
     var offset = 0
     while (offset < paddedLength) {
@@ -765,8 +741,6 @@ private fun md2Block(x: IntArray, block: ByteArray, offset: Int) {
     }
 }
 
-// MARK: - SHA-3 family (FIPS 202)
-
 // Keccak-f[1600] round constants (RC) and rotation offsets indexed as
 // lane = x + 5 * y.
 private val KECCAK_ROUND_CONSTANTS = longArrayOf(
@@ -795,7 +769,6 @@ private val KECCAK_ROTATION_OFFSETS = intArrayOf(
 private fun keccakF1600(state: LongArray, scratch: LongArray) {
     var round = 0
     while (round < 24) {
-        // Theta: column parities and the D offsets.
         var x = 0
         while (x < 5) {
             scratch[x] = state[x] xor state[x + 5] xor state[x + 10] xor
@@ -812,7 +785,6 @@ private fun keccakF1600(state: LongArray, scratch: LongArray) {
             }
             x++
         }
-        // Rho + Pi: rotated lanes permuted to their new positions.
         x = 0
         while (x < 5) {
             var y = 0
@@ -825,7 +797,6 @@ private fun keccakF1600(state: LongArray, scratch: LongArray) {
             }
             x++
         }
-        // Chi: nonlinear row mixing.
         x = 0
         while (x < 5) {
             var y = 0
@@ -837,7 +808,6 @@ private fun keccakF1600(state: LongArray, scratch: LongArray) {
             }
             x++
         }
-        // Iota: round constant into lane (0, 0).
         state[0] = state[0] xor KECCAK_ROUND_CONSTANTS[round]
         round++
     }

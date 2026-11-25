@@ -170,7 +170,6 @@ struct CodegenBackendMutableListDispatchTests {
         let path = "__bundled_kotlin/collections/ArrayList/ArrayList.kt"
         let file = try #require(ctx.sourceManager.fileID(forPath: path))
         var source = String(decoding: ctx.sourceManager.contents(of: file), as: UTF8.self)
-        // Model the source guard prerequisite without implementing ArrayList.build guards.
         let external = "override external fun remove(element: E): Boolean"
         let signature = "override fun remove(element: E): Boolean"
         let declaration = try #require(source.range(of: external) ?? source.range(of: signature))

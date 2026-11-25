@@ -7,7 +7,6 @@
 
 package kotlin.contracts
 
-/** Compatibility root for the historical contract effect hierarchy. */
 @ExperimentalContracts
 @SinceKotlin("1.3")
 public interface ContractEffect

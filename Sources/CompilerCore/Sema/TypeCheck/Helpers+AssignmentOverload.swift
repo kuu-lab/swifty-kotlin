@@ -1,6 +1,4 @@
 extension TypeCheckHelpers {
-    /// Returns whether the assignment target type or property symbol is opted in
-    /// to assignment overloading via `org.jetbrains.kotlin.assignment`.
     func isAssignmentOverloadEligible(
         targetType: TypeID,
         targetSymbol: SymbolID?,
@@ -35,9 +33,6 @@ extension TypeCheckHelpers {
 }
 
 extension ExprTypeChecker {
-    /// Attempts to rewrite `lhs = rhs` into `lhs.assign(rhs)` when the target type or
-    /// property is annotated for the `assignment` compiler plugin and has a matching
-    /// `assign` function for `valueType`.
     func tryResolvePluginOverloadedAssignment(
         exprID: ExprID,
         targetType: TypeID,

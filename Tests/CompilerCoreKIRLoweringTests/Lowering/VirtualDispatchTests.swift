@@ -4,12 +4,8 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-/// Tests for virtual dispatch (vtable/itable) lowering, codegen, and backend emission (P5-25).
 @Suite struct VirtualDispatchTests {
-    // MARK: - Helpers
 
-    /// Build a minimal symbol table + KIR module for an open class with a virtual method.
-    /// Returns all symbols and the KIR module so tests can assert on lowered IR.
     func makeVtableFixture() -> (
         interner: StringInterner,
         arena: KIRArena,
@@ -29,7 +25,6 @@ import Testing
 
         let anyType = types.anyType
 
-        // Define class "Animal"
         let classSym = symbols.define(
             kind: .class,
             name: interner.intern("Animal"),
@@ -37,7 +32,6 @@ import Testing
             declSite: nil,
             visibility: .public
         )
-        // Define subclass "Dog"
         let subclassSym = symbols.define(
             kind: .class,
             name: interner.intern("Dog"),
@@ -45,10 +39,8 @@ import Testing
             declSite: nil,
             visibility: .public
         )
-        // Register Dog as subtype of Animal
         symbols.setDirectSupertypes([classSym], for: subclassSym)
 
-        // Define method "speak" on Animal
         let methodSym = symbols.define(
             kind: .function,
             name: interner.intern("speak"),
@@ -58,7 +50,6 @@ import Testing
         )
         symbols.setParentSymbol(classSym, for: methodSym)
 
-        // Receiver parameter
         let receiverParamSym = symbols.define(
             kind: .local,
             name: interner.intern("this"),
@@ -80,7 +71,6 @@ import Testing
             for: methodSym
         )
 
-        // NominalLayout for Animal with vtable
         symbols.setNominalLayout(
             NominalLayout(
                 objectHeaderWords: 2,
@@ -93,7 +83,6 @@ import Testing
             for: classSym
         )
 
-        // Build KIR: caller function that invokes speak on Animal receiver
         let callerSym = symbols.define(
             kind: .function,
             name: interner.intern("callSpeak"),
@@ -112,7 +101,6 @@ import Testing
         let receiverExpr = arena.appendExpr(.symbolRef(callerParamSym), type: anyType)
         let resultExpr = arena.appendExpr(.temporary(1), type: types.unitType)
 
-        // Build a virtualCall instruction directly (as if BuildKIRPass emitted it)
         let methodFn = KIRFunction(
             symbol: methodSym,
             name: interner.intern("speak"),
@@ -151,8 +139,6 @@ import Testing
         return (interner, arena, types, symbols, classSym, subclassSym, methodSym, receiverParamSym, callerSym, module)
     }
 
-    // MARK: - 1. KIRDispatchKind enum tests
-
     @Test func testKIRDispatchKindVtableEquality() {
         let firstKind = KIRDispatchKind.vtable(slot: 3)
         let secondKind = KIRDispatchKind.vtable(slot: 3)
@@ -177,8 +163,6 @@ import Testing
         #expect(vtable != itable, "vtable and itable should never be equal")
     }
 
-    // MARK: - 2. virtualCall instruction construction
-
     @Test func testVirtualCallInstructionStoresReceiverSeparately() {
         let arena = KIRArena()
         let types = TypeSystem()
@@ -196,7 +180,6 @@ import Testing
             dispatch: .vtable(slot: 0)
         )
 
-        // Verify receiver is NOT in arguments
         guard case let .virtualCall(_, _, receiver, arguments, _, _, _, _) = instruction else {
             Issue.record("Expected virtualCall instruction")
             return
@@ -206,8 +189,6 @@ import Testing
         #expect(arguments[0] == argExpr, "First argument should be the method arg, not receiver")
         #expect(arguments[0] != receiverExpr, "Receiver should not be in arguments array")
     }
-
-    // MARK: - 3. ABILoweringPass boxing for virtualCall
 
     @Test func testABILoweringBoxesIntArgumentForVirtualCall() throws {
         let interner = StringInterner()
@@ -265,7 +246,6 @@ import Testing
         try runLowering(module: module, interner: interner, moduleName: "ABIBoxVirtual", sema: sema)
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
-        // Check that boxing call was inserted before the virtualCall
         let callees = lowered.body.compactMap { instruction -> String? in
             switch instruction {
             case let .call(_, callee, _, _, _, _, _, _):

@@ -1,6 +1,5 @@
 package java.time
 
-/** A clock providing access to the current instant and time-zone. */
 public class Clock private constructor(
     public val zone: ZoneId,
 ) {

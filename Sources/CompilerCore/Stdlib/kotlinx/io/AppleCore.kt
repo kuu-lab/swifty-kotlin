@@ -15,13 +15,6 @@ import platform.Foundation.NSStreamStatusClosed
 import platform.Foundation.NSStreamStatusNotOpen
 import platform.posix.uint8_tVar
 
-/**
- * Returns [RawSink] that writes to an output stream.
- *
- * Use [RawSink.buffered] to create a buffered sink from it.
- *
- * @sample kotlinx.io.samples.KotlinxIoSamplesApple.outputStreamAsSink
- */
 public fun NSOutputStream.asSink(): RawSink = NSOutputStreamSink(this)
 
 private open class NSOutputStreamSink(
@@ -44,7 +37,7 @@ private open class NSOutputStreamSink(
                 val toCopy = minOf(remaining, (limit - pos).toLong()).toInt()
                 bytesWritten = data.usePinned {
                     val bytes = it.addressOf(pos).reinterpret<UByteVar>()
-                    @Suppress("REDUNDANT_CALL_OF_CONVERSION_METHOD") // https://youtrack.jetbrains.com/issue/KT-81896
+                    @Suppress("REDUNDANT_CALL_OF_CONVERSION_METHOD")
                     out.write(bytes, toCopy.toULong()).toLong()
                 }
                 0
@@ -59,7 +52,6 @@ private open class NSOutputStreamSink(
     }
 
     override fun flush() {
-        // no-op
     }
 
     override fun close() = out.close()
@@ -67,13 +59,6 @@ private open class NSOutputStreamSink(
     override fun toString() = "RawSink($out)"
 }
 
-/**
- * Returns [RawSource] that reads from an input stream.
- *
- * Use [RawSource.buffered] to create a buffered source from it.
- *
- * @sample kotlinx.io.samples.KotlinxIoSamplesApple.inputStreamAsSource
- */
 public fun NSInputStream.asSource(): RawSource = NSInputStreamSource(this)
 
 private open class NSInputStreamSource(
@@ -95,7 +80,7 @@ private open class NSInputStreamSource(
             val maxToCopy = minOf(byteCount, (limit - pos).toLong())
             val read: Long = data.usePinned { ba ->
                 val bytes = ba.addressOf(pos).reinterpret<UByteVar>()
-                @Suppress("REDUNDANT_CALL_OF_CONVERSION_METHOD") // https://youtrack.jetbrains.com/issue/KT-81896
+                @Suppress("REDUNDANT_CALL_OF_CONVERSION_METHOD")
                 input.read(bytes, maxToCopy.toULong()).toLong()
             }
             maxOf(read.toInt(), 0)

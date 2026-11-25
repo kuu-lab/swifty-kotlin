@@ -4,8 +4,6 @@ extension CallTypeChecker {
         let functionType: FunctionType
     }
 
-    /// Factory applicability is determined from argument mapping and callable
-    /// input shape. Lambda body results are checked only after overload selection.
     func samFactoryShapes(
         _ candidates: [SymbolID],
         calleeName: InternedString,
@@ -15,7 +13,6 @@ extension CallTypeChecker {
         locals: LocalBindings,
         explicitTypeArgs: [TypeID]
     ) -> [SymbolID: SamFactoryShape] {
-        // Only a single argument can compete with the synthetic SAM constructor.
         guard args.count == 1 else { return [:] }
         let sema = ctx.sema
         let argument = args[0]
@@ -57,8 +54,6 @@ extension CallTypeChecker {
                     if case .functionType = sema.types.kind(of: parameter) {
                         argumentType = annotatedFunction
                     } else {
-                        // Preserve the nominal SAM argument while propagating its
-                        // annotated inputs into the factory's type-variable bounds.
                         let typeVars = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
                         let constraints = ctx.resolver.decomposeSubtypeConstraint(
                             subtype: annotatedFunction, supertype: sema.types.make(.functionType(function)),
@@ -99,8 +94,6 @@ extension CallTypeChecker {
         return shapes
     }
 
-    /// Return-type refinement remains on the ordinary resolver path when the
-    /// overloads have the same lambda inputs and explicitly opt into refinement.
     func samFactoryAllowsReturnTypeRefinement(
         _ candidates: [SymbolID], shapes: [SymbolID: SamFactoryShape], sema: SemaModule
     ) -> Bool {

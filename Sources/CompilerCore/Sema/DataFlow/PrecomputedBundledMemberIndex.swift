@@ -1,8 +1,5 @@
 import Foundation
 
-/// A compact, sorted view of the stdlib artifact's imported member keys.
-/// Keeping keys as UTF-8 ranges avoids rebuilding tens of thousands of
-/// `BundledMemberKey` and `InternedString` values on every compilation.
 struct PrecomputedBundledMemberIndex: Sendable {
     private struct Entry: Sendable {
         let ownerComponents: Range<Int>

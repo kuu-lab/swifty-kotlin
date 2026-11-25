@@ -4,15 +4,6 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-/// KUU-3899: a `.nullAssert` (`x!!`, `as`-implied asserts, `implicitNotNull`)
-/// whose operand's static type is non-null AND whose runtime slot cannot
-/// encode a null value must not emit `kk_op_notnull`. That probe compares the
-/// raw slot against the null-sentinel bit pattern, which is a legitimate
-/// value for these operands — `Long.MIN_VALUE`/`ULong` 2^63/`-0.0` for raw
-/// primitives, and `V(null)` or a sentinel-colliding payload for a value
-/// class kept unboxed — never a null reference. Nullable, platform, erased,
-/// and reference slots keep the probe, and so do value classes that stay
-/// boxed (interface supertypes → a real object handle).
 extension LoweringPassRegressionTests {
     @Test
     func testNullAssertOnNonNullUnboxedValueClassSkipsProbe() throws {

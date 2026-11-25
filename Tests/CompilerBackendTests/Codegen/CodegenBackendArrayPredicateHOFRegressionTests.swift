@@ -4,14 +4,6 @@
 import Foundation
 import Testing
 
-// BUG-164 regression: `Array<T>.any`/`all`/`none` with a predicate have real,
-// `inline` Kotlin-source declarations (Stdlib/kotlin/collections/ArrayAnyNoneHOF.kt)
-// that take the predicate as an ordinary inline-callable parameter. But
-// CallLowerer+LegacyMemberLikeCalls.swift's old array bridge shortcut emitted a
-// direct native kk_array_any/all/none call with the raw, un-adapted lambda
-// argument instead of letting the source declaration run. The compiled lambda
-// body was then invoked with the wrong argument shape and crashed. The runtime
-// bridge path is removed; this test keeps the source-backed call behavior fixed.
 @Suite
 struct CodegenBackendArrayPredicateHOFRegressionTests {
 

@@ -4,8 +4,6 @@ import Testing
 
 @Suite
 struct CollectionCountPredicateResolutionTests {
-    /// Invalid predicate and argument shapes must be rejected during Sema,
-    /// rather than inferred as Int and left as an unresolved link target.
     @Test(arguments: [
         "values.count { it + 1 }",
         "values.count(1)",

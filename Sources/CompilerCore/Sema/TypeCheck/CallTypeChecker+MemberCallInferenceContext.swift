@@ -45,8 +45,6 @@ extension CallTypeChecker {
         var diagnostics: DiagnosticEngine { ctx.sema.diagnostics }
         var interner: StringInterner { ctx.interner }
         var isExplicitCall: Bool { ctx.ast.arena.isExplicitCall(id) }
-        /// Member-property captures are shared by reads through one declared
-        /// receiver, while same-typed declarations retain independent captures.
         var receiverDeclaration: SymbolID? {
             guard case .nameRef = ast.arena.expr(receiverID),
                   let symbol = bindings.identifierSymbol(for: receiverID)
@@ -119,9 +117,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    /// Resolves a property or classifier reached through a package-qualified
-    /// path before receiver inference tries to interpret the leading package
-    /// name as a value.
     func tryInferFQNQualifiedValue(
         _ request: MemberCallInferenceRequest,
         locals: LocalBindings
@@ -225,9 +220,6 @@ extension CallTypeChecker {
             return nil
         }
         if receiverIsClassifier {
-            // A nested object reached through a package-qualified classifier
-            // is a singleton value, even when the owner has no companion.
-            // Preserve ordinary receiver inference for other classifier paths.
             guard classifierSymbol.kind == .object,
                   !request.ctx.cachedScopeLookup(receiverPath[0]).contains(where: {
                       guard let root = request.symbols.symbol($0) else { return false }
@@ -291,7 +283,6 @@ extension CallTypeChecker {
         return classifierType
     }
 
-    /// Fires before receiver inference to avoid SEMA-0022 on unresolvable package identifiers.
     func tryInferFQNPackageTopLevelCall(
         _ request: MemberCallInferenceRequest,
         locals: inout LocalBindings
@@ -393,24 +384,6 @@ extension CallTypeChecker {
             return !symbol.flags.contains(.expectDeclaration)
                 || request.sema.symbols.actualSymbol(for: $0) == nil
         }), let classSymbol = request.ctx.cachedSymbol(classSymbolID) {
-            // Merge constructors with same-name factory functions, just as
-            // unqualified call resolution does. fqnPath may name both a class
-            // and a top-level function
-            // (e.g. `kotlin.text.StringBuilder` in `kotlin.text.StringBuilder()`,
-            // or `kotlin.Pair` in `kotlin.Pair(1, 2)`): the class's own
-            // declaration symbol lives at fqnPath, while its constructor(s)
-            // live one level deeper at fqnPath + ["<init>"] (see
-            // HeaderCollection's constructor registration). Mirrors the
-            // unqualified-name constructor merging in CallTypeChecker.swift,
-            // minus `.object`: a singleton `object` is never callable as
-            // `Obj()` in real Kotlin (verified against kotlinc), unlike a
-            // bare class/enum-class/annotation-class reference.
-            // A class qualifier and a zero-argument constructor call share the
-            // same `.memberCall` shape. The AST arena records whether parentheses
-            // were written, so a parenthesis-less class/enum/annotation reference
-            // must remain a classifier for further nested access (for example,
-            // `HexFormat.Builder`); an explicit call must continue through
-            // constructor resolution.
             if request.args.isEmpty, !request.ast.arena.isExplicitCall(request.id) {
                 let classifierType = request.sema.types.make(.classType(ClassType(
                     classSymbol: classSymbolID,
@@ -433,8 +406,6 @@ extension CallTypeChecker {
             }
             let ctorFQName = fqnPath + [request.interner.intern("<init>")]
             if !classSymbol.flags.contains(.abstractType) {
-                // Constructor symbols carry their declaring class as parent;
-                // filter out the linked expect class's duplicate constructors.
                 fqnCandidates.append(contentsOf: request.sema.symbols.lookupAll(fqName: ctorFQName).filter { candidate in
                     request.ctx.cachedSymbol(candidate)?.kind == .constructor
                         && request.sema.symbols.parentSymbol(for: candidate) == classSymbolID
@@ -442,10 +413,6 @@ extension CallTypeChecker {
             }
         }
 
-        // Imported aliases are expanded during regular call candidate
-        // collection. Fully-qualified constructor calls need the same path so
-        // an alias like `java.io.IOException` does not fall back to resolving
-        // `java` as a value receiver.
         var typeAliasConstructor: TypeAliasConstructorContext?
         if fqnCandidates.isEmpty,
            let aliasID = request.sema.symbols.lookupAll(fqName: fqnPath).first(where: {
@@ -524,10 +491,6 @@ extension CallTypeChecker {
             }
         }
 
-        // Pass the use-site range so a covering @Suppress (expression or
-        // declaration level) can expose bundled-internal declarations the
-        // way unqualified calls do (KUU-3920: ktor-utils calls
-        // `kotlinx.coroutines.internal.recoverStackTrace` by FQN).
         let (vis, _) = request.ctx.filterByVisibility(fqnCandidates, usageRange: request.range)
         guard !vis.isEmpty else { return nil }
 
@@ -550,9 +513,6 @@ extension CallTypeChecker {
             request.sema.bindings.markFQNTopLevelCallExpr(request.id)
             return builderResult
         }
-        // A package qualifier is not a value receiver, but its arguments need
-        // the same signature context as an imported top-level call. This also
-        // contextualizes builders with explicit element type arguments.
         let argumentContextTypeArgs = typeAliasConstructor.map {
             aliasConstructorArgumentContextTypes($0, explicitTypeArgs: request.explicitTypeArgs, sema: request.sema)
         } ?? request.explicitTypeArgs
@@ -648,13 +608,7 @@ extension CallTypeChecker {
             diagnostics: request.ctx.sema.diagnostics
         )
         markSourceBackedCoroutineLauncherArguments(chosen, args: request.args, ctx: request.ctx)
-        // The receiver chain (e.g. `kotlin.math`, `kotlin.text`) is a bare
-        // namespace path, never type-checked above, so KIR lowering must not
-        // treat it as a real value — see tryLowerFQNTopLevelResolvedCall.
         request.sema.bindings.markFQNTopLevelCallExpr(request.id)
-        // KSP-1323: fully-qualified `kotlin.reflect.typeOf<T>()` expands
-        // through the same intrinsic as the unqualified spelling instead of
-        // calling the bundled declaration body.
         if request.args.isEmpty,
            request.sema.wellKnownSymbols.reflectIntrinsic(for: chosen) == .typeOf
         {

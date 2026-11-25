@@ -2,8 +2,6 @@ package java.util
 
 import kotlin.internal.KsSymbolName
 
-// Native storage preserves reference identity while the source class owns
-// constructors, generic MutableMap conformance, and public member dispatch.
 @KsSymbolName("__kk_identity_hash_map_init")
 private external fun <K, V> __identityMapInit(map: IdentityHashMap<K, V>)
 

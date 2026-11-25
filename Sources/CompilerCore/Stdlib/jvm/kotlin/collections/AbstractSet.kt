@@ -2,8 +2,6 @@ package kotlin.collections
 
 import kotlin.jvm.internal.markers.KMappedMarker
 
-// The JDK base supplies the complete Collection ABI and set equality/hashCode.
-// The Kotlin marker and mutators retain the read-only AbstractSet contract.
 public abstract class AbstractSet<out E> protected constructor(): java.util.AbstractSet<@UnsafeVariance E>(), Set<E>, Collection<E>, Iterable<E>, KMappedMarker {
     abstract override val size: Int
     abstract override fun iterator(): Iterator<E>
