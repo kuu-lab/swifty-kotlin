@@ -18,7 +18,6 @@ public fun <T> MutableList<T>.removeLast(): T {
     return removeAt(size - 1)
 }
 
-// Preserve Kotlin's function-type API for JVM MutableList receivers.
 public fun <T> MutableList<T>.replaceAll(transform: (T) -> T) {
     var index = 0
     while (index < size) {
