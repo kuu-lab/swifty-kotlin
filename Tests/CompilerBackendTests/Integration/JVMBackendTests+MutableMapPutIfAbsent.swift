@@ -20,6 +20,10 @@ extension JVMBackendTests {
                     return backing.put(key, value)
                 }
             }
+            open class BaseMap : MutableMap<String, String> by mutableMapOf()
+            class ChildMap : BaseMap() {
+                fun addMissing() = super.putIfAbsent("super", "inserted")
+            }
 
             fun main() {
                 val values = linkedMapOf<String, String?>("null" to null, "present" to "old")
@@ -36,10 +40,15 @@ extension JVMBackendTests {
                 println(delegated.putIfAbsent("key", "first"))
                 println(delegated.putIfAbsent("key", "replacement"))
 
+                println(ChildMap().addMissing())
+
                 val referenceMap: MutableMap<String, String> = linkedMapOf()
                 val reference: (String, String) -> String? = referenceMap::putIfAbsent
                 println(reference("reference", "first"))
                 println(reference("reference", "replacement"))
+                val unitReference: (String, String) -> Unit = referenceMap::putIfAbsent
+                unitReference("unit", "inserted")
+                println(referenceMap.get("unit"))
             }
             """
             let result = try compile(source, root: root, mode: mode, classpath: [library.path])
@@ -60,7 +69,9 @@ extension JVMBackendTests {
             get override
             first
             null
+            null
             first
+            inserted
             """ + "\n"
             #expect(execution.stdout == expected)
             #expect(execution.stderr.isEmpty)
@@ -71,6 +82,28 @@ extension JVMBackendTests {
             let referenceExecution = try java(["-cp", root.appendingPathComponent("reference.jar").path + ":" + runtime, "HelloKt"])
             #expect(referenceExecution.stdout == expected)
             #expect(referenceExecution.stderr.isEmpty)
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func mutableMapPutIfAbsentCallableReflectionExposesJavaParameters(mode: EmitMode) throws {
+        let library = try ownStdlibRuntime()
+        try withWorkspace { root in
+            let result = try compile("""
+            fun main() {
+                val map = linkedMapOf<String, String>()
+                val reference = map::putIfAbsent
+                println(reference.parameters.size)
+                println(reference.callBy(mapOf(reference.parameters[0] to "key", reference.parameters[1] to "first")))
+                println(reference.callBy(mapOf(reference.parameters[0] to "key", reference.parameters[1] to "replacement")))
+            }
+            """, root: root, mode: mode, classpath: [library.path])
+            try #require(result.0 == 0, "\(result.1.map(\.message))")
+
+            let artifact = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path
+            let execution = try java(["-cp", artifact + ":" + library.path, "HelloKt"])
+            #expect(execution.stdout == "2\nnull\nfirst\n")
+            #expect(execution.stderr.isEmpty)
         }
     }
 
