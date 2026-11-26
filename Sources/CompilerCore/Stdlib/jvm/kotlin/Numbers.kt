@@ -142,10 +142,6 @@ public inline fun Long.rotateRight(bitCount: Int): Long {
     return (this ushr shift) or (this shl (64 - shift))
 }
 
-// Bit-reinterpretation helpers. On the JVM these are lowered by the backend to
-// java.lang.Float/Double's floatToRawIntBits/floatToIntBits/doubleToRawLongBits/
-// doubleToLongBits intrinsics (see memberExpression), matching how kotlinc
-// inlines the kotlin-stdlib @InlineOnly actuals. The bodies are never emitted.
 public fun Float.toRawBits(): Int = 0
 public fun Float.toBits(): Int = 0
 public fun Double.toRawBits(): Long = 0L

@@ -3,9 +3,6 @@ import Foundation
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// false compiles the original producer and consumer together from source.
-    /// true emits a real user .kklib first, then compiles only the separate
-    /// consumer with that library and the explicit published stdlib artifact.
     @Test(arguments: [false, true], [0, 2])
     func testHexFormatSetterProducerRoundTripRuntime(useProducerLibrary: Bool, optimization: Int) throws {
         let optLevel = try #require(OptimizationLevel(rawValue: optimization))

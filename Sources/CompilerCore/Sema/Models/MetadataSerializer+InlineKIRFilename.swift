@@ -1,8 +1,6 @@
 import Foundation
 
 extension String {
-    /// FNV-1a 64-bit hash used to derive a stable, filesystem-safe filename
-    /// from an arbitrary mangled name.
     package var fnv1a64Hash: UInt64 {
         let offset: UInt64 = 14695981039346656037
         let prime: UInt64 = 1099511628211
@@ -16,8 +14,6 @@ extension String {
 }
 
 extension MetadataEncoder {
-    /// Long or non-alphanumeric mangled names are hashed to avoid exceeding
-    /// filesystem path limits.
     package static func inlineKIRFileName(for mangledName: String) -> String {
         let safePattern = "^[A-Za-z0-9_-]+$"
         let isSafe = mangledName.range(of: safePattern, options: .regularExpression) != nil

@@ -2,10 +2,6 @@ package java.util.concurrent.atomic
 
 import kotlin.internal.KsSymbolName
 
-// KUU-3059: java.util.concurrent.atomic.AtomicLongArray shares the
-// `__kk_atomic_long_array_*` runtime boxes with kotlin.concurrent's
-// AtomicLongArray family. See AtomicIntegerArray.kt for the layout notes.
-
 @KsSymbolName("__kk_atomic_long_array_load")
 private external fun AtomicLongArray.__kk_load(index: Int): Long
 

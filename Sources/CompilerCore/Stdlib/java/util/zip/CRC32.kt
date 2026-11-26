@@ -1,6 +1,5 @@
 package java.util.zip
 
-/** CRC-32 checksum using the polynomial specified by RFC 1952. */
 public class CRC32 : Checksum {
     private var crc = -1
 

@@ -49,9 +49,6 @@ extension LambdaLowerer {
         return false
     }
 
-    /// A nested inner class's super-constructor arguments run in its `<init>`
-    /// function, where enclosing locals are available only through the `$outer`
-    /// chain and the local nominal's capture fields.
     private func canLoadCapturedLocalFromEnclosingInnerInstance(
         _ symbol: SymbolID,
         sema: SemaModule
@@ -78,11 +75,6 @@ extension LambdaLowerer {
         return false
     }
 
-    /// An object literal may key its enclosing `this` capture by the synthetic
-    /// receiver parameter of the declaration whose initializer contains it.
-    /// While lowering that initializer, the active receiver belongs to the
-    /// generated constructor instead, but both declarations share the same
-    /// class owner and therefore refer to the same instance.
     func activeImplicitReceiverValue(
         forCapturedReceiver symbol: SymbolID,
         sema: SemaModule
@@ -122,9 +114,6 @@ extension LambdaLowerer {
         return roots
     }
 
-    /// Object literal property initializers and `init` blocks execute inline
-    /// at the construction site, so an enclosing lambda must forward their
-    /// references through its own capture list.
     func objectLiteralInlineInitializerRootExprs(_ objectDecl: ObjectDecl, ast: ASTModule) -> [ExprID] {
         var roots: [ExprID] = []
         for propertyID in objectDecl.memberProperties {
@@ -167,9 +156,6 @@ extension LambdaLowerer {
         return ordered
     }
 
-    /// A backing-field identifier names storage rather than its receiver.
-    /// Capture the owning instance so nested lambdas keep reading the
-    /// accessor's field even when another implicit receiver has the same type.
     func backingFieldOwnerCaptureSymbols(
         from referencedSymbols: [SymbolID],
         sema: SemaModule
@@ -244,15 +230,10 @@ extension LambdaLowerer {
     ) {
         if let symbol = sema.bindings.identifierSymbols[exprID], seen.insert(symbol).inserted {
             referenced.append(symbol)
-            // Accessing a delegated local also calls its convention functions.
-            // Capture local operators so their environments survive the fresh
-            // scope used by a lambda or nested local function body.
             var conventions = [
                 sema.symbols.delegateGetValueSymbol(for: symbol),
                 sema.symbols.delegateSetValueSymbol(for: symbol),
             ]
-            // A declaration inside the nested body runs provideDelegate there;
-            // reading an already-created delegate does not call it again.
             if case .localDecl(_, _, _, _, true, _, _) = ast.arena.expr(exprID) {
                 conventions.append(sema.symbols.delegateProvideDelegateSymbol(for: symbol))
             }
@@ -263,8 +244,6 @@ extension LambdaLowerer {
                 referenced.append(convention)
             }
         }
-        // Named local calls may bind only the call, leaving the callee name
-        // without an identifier binding. Their environments are still captures.
         if let symbol = sema.bindings.callBinding(for: exprID)?.chosenCallee,
            sema.symbols.symbol(symbol)?.flags.contains(.localFunction) == true,
            seen.insert(symbol).inserted
@@ -364,10 +343,6 @@ extension LambdaLowerer {
             return
         }
 
-        // Array factories such as the non-reified `emptyArray<T>()` still
-        // need a reified caller's component token to describe the allocation.
-        // The callee itself does not advertise a reified type parameter, so
-        // collect the reified parameters carried by its Array result type.
         if case .call = expr,
            let resultType = sema.bindings.exprTypes[exprID],
            let interner = sema.interner,
@@ -429,8 +404,6 @@ extension LambdaLowerer {
                     in: rootExprID, ast: ast, sema: sema, referenced: &referenced, seen: &seen
                 )
             }
-            // KSP-CAP-018: accessor captures are materialized into the
-            // literal's fields during construction and must reach this lambda.
             for propertyID in objectDecl.memberProperties {
                 guard let propertyDecl = ast.arena.decl(propertyID),
                       case let .propertyDecl(property) = propertyDecl
@@ -447,12 +420,6 @@ extension LambdaLowerer {
                 }
             }
 
-        // KUU-555: a named local nominal's captured values are stored into
-        // instance fields at its construction call site — which executes in
-        // whatever enclosing context holds this decl — so every body that can
-        // reference an outer local (member functions too, unlike an object
-        // literal: the class's captures materialize at `Local(...)`) must
-        // contribute bound identifiers here.
         case let .localNominalDecl(declID, _):
             guard let decl = ast.arena.decl(declID) else {
                 return
@@ -571,25 +538,16 @@ extension LambdaLowerer {
             collectBoundIdentifierSymbols(in: valueExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
 
         case let .call(calleeExpr, _, args, _):
-            // A call bound to an outer implicit receiver reads the captured
-            // enclosing `this`, which a nested lambda must capture to reach it.
             if let symbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
                seen.insert(symbol).inserted
             {
                 referenced.append(symbol)
             }
-            // A member-extension call whose extension receiver Sema picked
-            // from an outer tower entry reads that receiver value; a nested
-            // lambda must capture it the same way.
             if let symbol = sema.bindings.implicitExtensionReceiver(for: exprID),
                seen.insert(symbol).inserted
             {
                 referenced.append(symbol)
             }
-            // A local nominal's constructor materializes its captured values
-            // at the call site. A nested callable that constructs one must
-            // therefore carry those values in its own environment even when
-            // none of them appears as a direct name reference in the body.
             if let constructor = sema.bindings.callBinding(for: exprID)?.chosenCallee,
                sema.symbols.symbol(constructor)?.kind == .constructor,
                let owner = sema.symbols.parentSymbol(for: constructor)
@@ -723,10 +681,6 @@ extension LambdaLowerer {
             }
 
         case let .localFunDecl(_, _, valueParams, _, functionBody, _, _, _, _):
-            // Parameter default expressions run inside the lifted function's
-            // scope at call time — an outer local referenced only there
-            // (`fun bar(y: T = x)`) must reach the nested function through the
-            // enclosing callable's environment (KUU-3182).
             for valueParam in valueParams {
                 guard let defaultValue = valueParam.defaultValue else { continue }
                 collectBoundIdentifierSymbols(
@@ -830,16 +784,10 @@ extension LambdaLowerer {
             }) {
                 return true
             }
-            // KSP-CAP-018: see the accessor-body note in
-            // `collectBoundIdentifierSymbols`.
             return objectLiteralAccessorRootExprs(objectDecl, ast: ast).contains {
                 containsImplicitReceiverReference(in: $0, ast: ast)
             }
 
-        // KUU-555: every body that runs inside a local nominal's `<init>` or
-        // member functions can hold an implicit `this`/`super` reference —
-        // include member functions and init blocks beyond the object-literal
-        // set (construction happens inside this enclosing context).
         case let .localNominalDecl(declID, _):
             guard let decl = ast.arena.decl(declID) else {
                 return false

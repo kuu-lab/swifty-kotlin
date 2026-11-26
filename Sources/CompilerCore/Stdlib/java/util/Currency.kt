@@ -4,8 +4,6 @@ public class Currency private constructor(
     public val currencyCode: String,
     public val defaultFractionDigits: Int,
 ) {
-    // Symbols mirror the JDK default-locale table (CLDR root/en); locales are
-    // not modeled, so getSymbol(locale) returns the same value.
     public fun getSymbol(): String = symbolFor(currencyCode)
 
     public fun getSymbol(locale: Locale): String = symbolFor(currencyCode)

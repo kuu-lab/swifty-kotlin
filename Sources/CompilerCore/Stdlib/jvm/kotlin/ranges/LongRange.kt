@@ -56,13 +56,11 @@ public open class LongProgression(public val first: Long, last: Long, public val
     }
 }
 
-// a mod b (in arithmetical sense)
 private fun progressionMod(a: Long, b: Long): Long {
     val mod = a % b
     return if (mod >= 0L) mod else mod + b
 }
 
-// (a - b) mod c
 private fun progressionDifferenceModulo(a: Long, b: Long, c: Long): Long =
     progressionMod(progressionMod(a, c) - progressionMod(b, c), c)
 

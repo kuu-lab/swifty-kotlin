@@ -1,8 +1,4 @@
 extension CallLowerer {
-    /// Returns the `StringBuilder` class symbol when `symbolID` is one of its
-    /// constructors, so callers can both gate on "is this a StringBuilder
-    /// construction" and reuse the owner symbol for itable registration
-    /// without a second lookup.
     private func stringBuilderConstructorOwner(
         _ symbolID: SymbolID?,
         sema: SemaModule,
@@ -19,9 +15,6 @@ extension CallLowerer {
         return ownerSymbol
     }
 
-    /// True for the compiler-provided `kotlin.Any.<init>()`. Its constructor
-    /// has no body; the normal constructor path already allocates and registers
-    /// the object, so emitting a second call would create an undefined callee.
     private func isSyntheticAnyConstructor(
         _ symbolID: SymbolID?,
         sema: SemaModule
@@ -113,8 +106,6 @@ extension CallLowerer {
         return result
     }
 
-    /// True for runtime-backed factory constructors that allocate
-    /// their own object (atomic scalar/array boxes and built-in exception classes).
     private func isAtomicScalarConstructor(
         _ symbolID: SymbolID?,
         sema: SemaModule,
@@ -160,16 +151,11 @@ extension CallLowerer {
             .flatMap { name in name.isEmpty ? nil : interner.intern(name) }
             ?? interner.intern("__kk_atomic_unknown_create")
         let canThrow = sema.symbols.functionSignature(for: constructorSymbol)?.canThrow ?? false
-        // Keep the constructor symbol on the call so ABI lowering can resolve the
-        // FunctionSignature (e.g. type-parameter parameters for Pair/Triple) while
-        // the runtime factory callee handles allocation directly.
         instructions.append(.call(symbol: constructorSymbol, callee: callee, arguments: finalArgIDs, result: result, canThrow: canThrow))
         appendRuntimeRangeItableRegistrations(
             objectValue: result, factoryName: callee,
             sema: sema, arena: arena, interner: interner, instructions: &instructions
         )
-        // Native reader constructors bypass kk_object_new. Register their
-        // source-backed Closeable/AutoCloseable methods for erased calls and use().
         if let owner = sema.symbols.parentSymbol(for: constructorSymbol),
            let fqName = sema.symbols.symbol(owner)?.fqName.map(interner.resolve),
            fqName == ["java", "io", "InputStreamReader"]
@@ -203,19 +189,6 @@ extension CallLowerer {
         return result
     }
 
-    /// Emits the call/allocation instructions for an already-resolved call
-    /// target: the callee (function, constructor, or callable value) and its
-    /// arguments are already lowered by the time this runs. Shared by
-    /// `lowerCallExpr` (plain `.call` nodes, which supply
-    /// `loweredCalleeExprID`/`loweredCallable`/`callableValueCallBinding`
-    /// derived from lowering `calleeExpr`) and
-    /// `tryLowerFQNTopLevelResolvedCall` (namespace-qualified function/
-    /// constructor calls reached via `.memberCall`, e.g.
-    /// `kotlin.math.abs(x)` or `kotlin.text.StringBuilder()`, which have no
-    /// callee expression to lower at all — `chosen` and `callBinding` come
-    /// directly from Sema's FQN top-level resolution, so
-    /// `loweredCalleeExprID`/`loweredCallable`/`callableValueCallBinding` are
-    /// always nil there).
     // swiftlint:disable:next cyclomatic_complexity
     func lowerResolvedCallBody(
         _ exprID: ExprID,
@@ -263,6 +236,18 @@ extension CallLowerer {
                 ? sema.types.nullableAnyType
                 : (boundType ?? sema.types.anyType)
         )
+        // Compiler-generated lambdas/local functions use the compiler ABI
+        // (including the hidden thrown channel), so route them through their
+        // lowered symbol directly instead of Swift closure helpers.
+        let callableInvokeCallee: InternedString? = if loweredCallable == nil {
+            runtimeCallableInvokeCallee(
+                callableValueCallBinding: callableValueCallBinding,
+                sema: sema,
+                interner: interner
+            )
+        } else {
+            nil
+        }
         var callableArguments = loweredArgIDs
         if loweredCallable != nil,
            let binding = callableValueCallBinding,
@@ -294,6 +279,52 @@ extension CallLowerer {
                 default:
                     break
                 }
+            }
+        } else if callableInvokeCallee != nil,
+                  let binding = callableValueCallBinding,
+                  case let .functionType(functionType) = sema.types.kind(
+                      of: sema.types.makeNonNullable(binding.functionType)
+                  ),
+                  functionType.receiver == nil,
+                  functionType.contextReceivers.isEmpty,
+                  !functionType.isSuspend,
+                  functionType.params.count <= 6,
+                  functionType.params.count == callableArguments.count
+        {
+            // Erased FunctionN.invoke slots are Any-typed, so non-null
+            // primitive parameters must be boxed with the non-null callee;
+            // otherwise sentinel-bit values (for example -0.0) reach the
+            // adapter as null.
+            for index in callableArguments.indices {
+                let parameterIndex = binding.parameterMapping[index] ?? index
+                guard functionType.params.indices.contains(parameterIndex) else {
+                    continue
+                }
+                let parameterType = functionType.params[parameterIndex]
+                guard case let .primitive(parameterPrimitive, .nonNull) = sema.types.kind(of: parameterType) else {
+                    continue
+                }
+                let sourceType = arena.exprType(callableArguments[index])
+                let boxSourceType: TypeID = if let sourceType,
+                                                case let .primitive(sourcePrimitive, .nonNull) = sema.types.kind(of: sourceType),
+                                                sourcePrimitive == parameterPrimitive
+                {
+                    sourceType
+                } else {
+                    parameterType
+                }
+                callableArguments[index] = boxValueForAnySlot(
+                    callableArguments[index],
+                    sourceType: boxSourceType,
+                    types: sema.types,
+                    symbols: sema.symbols,
+                    interner: interner,
+                    arena: arena,
+                    resultType: sema.types.anyType,
+                    requireNonNull: true,
+                    sema: sema,
+                    into: &instructions
+                )
             }
         }
         let callNormalized: NormalizedCallResult
@@ -363,18 +394,6 @@ extension CallLowerer {
         }
         var implicitReceiverDispatch: (receiver: KIRExprID, kind: KIRDispatchKind)?
         var implicitReceiverRuntimeCallee: InternedString?
-        // Compiler-generated lambdas/local functions use the compiler ABI
-        // (including the hidden thrown channel), so route them through their
-        // lowered symbol directly instead of Swift closure helpers.
-        let callableInvokeCallee: InternedString? = if loweredCallable == nil {
-            runtimeCallableInvokeCallee(
-                callableValueCallBinding: callableValueCallBinding,
-                sema: sema,
-                interner: interner
-            )
-        } else {
-            nil
-        }
         let isAtomicFactory = chosen.map {
             isAtomicScalarConstructor($0, sema: sema, knownNames: knownNames)
         } ?? false
@@ -450,9 +469,6 @@ extension CallLowerer {
                     : []
                 finalArgIDs.insert(contentsOf: contextArguments, at: 1)
                 if functionType.receiver != nil, callableValueCallBinding.receiverArgumentOffset == 0 {
-                    // A receiver-function value invoked without a positional
-                    // receiver uses the active implicit receiver. Context
-                    // arguments precede that receiver in the callable ABI.
                     let implicitReceiver = sema.bindings.implicitExtensionReceiver(for: exprID)
                         .flatMap { driver.ctx.localValue(for: $0) }
                         ?? driver.ctx.activeImplicitReceiverExprID()
@@ -528,9 +544,6 @@ extension CallLowerer {
                 }
             }
             if let localFunctionCaptureArguments {
-                // A generated adapter already has these captures as parameters.
-                // Use its local expression IDs instead of resolving the same
-                // symbols in the enclosing function's scope.
                 finalArgIDs.insert(contentsOf: localFunctionCaptureArguments, at: 0)
             } else {
                 // A local function may be called from a lifted constructor lambda
@@ -557,8 +570,6 @@ extension CallLowerer {
                   !isAtomicFactory,
                   sema.symbols.symbol(chosen)?.kind == .constructor
         {
-            // Constructor calls need an allocated object as the implicit receiver.
-            // Resolve an inner class's enclosing instance from the active receiver.
             let allocatedObj = allocateAndRegisterConstructedObject(
                 chosen: chosen,
                 boundType: boundType,
@@ -606,8 +617,6 @@ extension CallLowerer {
             }
             finalArgIDs.insert(allocatedObj, at: 0)
             if isSyntheticAnyConstructor(chosen, sema: sema) {
-                // Any's implicit constructor is represented by allocation only;
-                // there is no source or runtime constructor body to call.
                 instructions.append(.copy(from: allocatedObj, to: result))
                 return result
             }
@@ -714,10 +723,6 @@ extension CallLowerer {
                     implicitReceiver = capturedReceiver
                 }
             }
-            // An inherited member imported through an object keeps its declaring
-            // class as the function owner, so the owner check below cannot find
-            // the singleton from the chosen symbol alone. Sema records the
-            // imported object on the call binding for this lowering path.
             if memberExtensionOwnerSymbol(for: chosen, sema: sema) == nil,
                let importedObject = callBinding?.dispatchReceiverSymbol,
                sema.symbols.symbol(importedObject)?.kind == .object,
@@ -740,9 +745,6 @@ extension CallLowerer {
                 instructions.append(.constValue(result: receiver, value: .symbolRef(importedObject)))
                 implicitReceiver = receiver
             }
-            // Object member imports bind the singleton even in a scope with
-            // an unrelated active receiver. Match only ordinary members;
-            // member extensions keep their separately selected receivers.
             if memberExtensionOwnerSymbol(for: chosen, sema: sema) == nil,
                let owner = sema.symbols.parentSymbol(for: chosen),
                sema.symbols.symbol(owner)?.kind == .object,
@@ -1056,8 +1058,6 @@ extension CallLowerer {
                || sourceCalleeName == knownNames.async
                || sourceCalleeName == knownNames.produce
             {
-                // A leading dispatcher (only valid for `launch`) pushes the
-                // entry reference to index 1; otherwise it is index 0.
                 let entryIndex = finalArgIDs.indices.first { index in
                     driver.ctx.callableValueInfo(for: finalArgIDs[index]) != nil
                 }
@@ -1079,11 +1079,6 @@ extension CallLowerer {
         {
             finalArgIDs.insert(contentsOf: callableInfo.captureArguments, at: 2)
         }
-        // KUU-938: a direct call to this synthetic identity conversion is just
-        // a copy (`kk_primitive_identity` exists for callable references, which
-        // reach it by name). The receiver has already been inserted above,
-        // including for an outer implicit receiver; preserve its raw primitive
-        // representation.
         if let chosen,
            sema.symbols.symbol(chosen)?.flags.contains(.synthetic) == true,
            sema.symbols.externalLinkName(for: chosen) == "kk_primitive_identity",
@@ -1092,9 +1087,6 @@ extension CallLowerer {
             instructions.append(.copy(from: finalArgIDs[0], to: result))
             return result
         }
-        // KUU-655: an override that inherits its defaults never has its own
-        // stub; resolve to the base declaration's stub instead (see
-        // `defaultStubOwnerSymbol`).
         let defaultStubOwner = chosen.map { driver.callSupportLowerer.defaultStubOwnerSymbol(for: $0, sema: sema, callBinding: callBinding) }
         if callNormalized.hasOmittedDefaultArguments,
            let chosen,
@@ -1176,9 +1168,6 @@ extension CallLowerer {
             } else if loweredCalleeName == interner.intern("kk_coroutine_cancel_current"),
                       finalArgIDs.count == 1
             {
-                // The synthetic one-argument `cancel(message)` overload lowers
-                // to the same runtime ABI as the two-argument overload and
-                // supplies a null cause implicitly.
                 let nullCauseExpr = arena.appendExpr(
                     .intLiteral(0),
                     type: sema.types.intType
@@ -1219,9 +1208,6 @@ extension CallLowerer {
             } else {
                 result
             }
-            // When calling a callable value (function-type local/parameter),
-            // use its symbol so InlineLoweringPass can match it against lambda
-            // parameter symbols and expand the lambda body in place.
             let callSymbol: SymbolID? = (chosen ?? loweredCallable?.symbol ?? {
                 if let binding = callableValueCallBinding,
                    case let .localValue(sym) = binding.target
@@ -1241,11 +1227,6 @@ extension CallLowerer {
                     thrownResult: thrownResult,
                     dispatch: implicitReceiverDispatch.kind
                 )
-                // KUU-763: an unqualified member call on an implicit `this`
-                // receiver dispatches through the same itable lookup as an
-                // explicit `r.contains(x)` call, so a floating-point range box
-                // (no registered itable) needs the same runtime probe before
-                // falling through to virtual dispatch.
                 if let probeEndLabel = emitFloatingPointRangeMemberProbe(
                     chosenCallee: chosen,
                     receiverID: implicitReceiverDispatch.receiver,
@@ -1278,10 +1259,6 @@ extension CallLowerer {
             if let arrayResultTypeID {
                 let taggedResult: KIRExprID
                 if loweredCalleeName == interner.intern("kk_array_of_nulls") {
-                    // This intrinsic allocates a fresh reference array, so its
-                    // call-site result type is reliable component metadata.
-                    // Inlined collection bridges such as toTypedArray() reach
-                    // this path through arrayOfNulls<T>.
                     taggedResult = appendRuntimeArrayComponentTag(
                         callResult,
                         arrayType: boundType ?? arena.exprType(result),
@@ -1308,9 +1285,6 @@ extension CallLowerer {
                         canThrow: false
                     ))
                 }
-                // Nominal return tagging is existing erased-Array behavior.
-                // Actual components belong to allocation/copy sites: an
-                // untagged legacy/erased array cannot be proven by return type.
                 instructions.append(.copy(from: taggedResult, to: result))
             }
             if let thrownResult,

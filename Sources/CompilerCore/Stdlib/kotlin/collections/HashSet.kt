@@ -9,29 +9,15 @@ package kotlin.collections
 
 import kotlin.internal.KsSymbolName
 
-// Direct instances are tagged RuntimeSetBoxes produced by the `HashSet(...)` /
-// `hashSetOf` constructor lowering (`CollectionLiteralLoweringPass`). Members
-// bind to the shared set storage bridges, which also support the backing boxes
-// attached to source-allocated HashSet subclasses. The Kotlin/Native
-// `KonanSet` marker interface and its backing `HashMap` storage are platform
-// internals that KSwiftK does not model.
-
 @KsSymbolName("__kk_set_size")
 private external fun <E> __kkHashSetSize(set: HashSet<E>): Int
 
 @KsSymbolName("__kk_builder_set_freeze")
 private external fun <E> __kkHashSetBuild(set: HashSet<E>): Set<E>
 
-// The shared initializer attaches set storage without replacing the source
-// object's nominal identity or its subclass fields.
 @KsSymbolName("__kk_linked_hash_set_init")
 private external fun <E> __kkHashSetInit(set: HashSet<E>)
 
-/**
- * The Kotlin/Native `KonanSet` marker is an internal platform type that is not
- * modeled by KSwiftK. The public nominal hierarchy is preserved here while
- * the shared runtime set box supplies storage and collection operations.
- */
 public open class HashSet<E> : AbstractMutableSet<E>, MutableSet<E> {
     init {
         __kkHashSetInit(this)
@@ -85,10 +71,6 @@ public open class HashSet<E> : AbstractMutableSet<E>, MutableSet<E> {
     @PublishedApi
     internal fun build(): Set<E> = __kkHashSetBuild(this)
 
-    /**
-     * Returns the element stored in this set that is equal to [element]
-     * (the `KonanSet.getElement` contract, used for ObjC interop upstream).
-     */
     @Deprecated("This function is not supposed to be used directly.")
     @DeprecatedSinceKotlin(warningSince = "1.9", errorSince = "2.1")
     fun getElement(element: E): E? {

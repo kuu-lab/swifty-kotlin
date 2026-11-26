@@ -37,7 +37,6 @@ extension JVMProgramBuilder {
             let jvmName: String
             if case .unsignedArray? = extensionReceiver,
                ["kotlin/collections/ArraysKt", "kotlin/collections/unsigned/UArraysKt"].contains(owner) {
-                // Kotlin's array facades hash the receiver and parameters, excluding the return type.
                 let hashArguments = params.map(valueClassMangleElement).joined()
                 jvmName = explicitName ?? name + "-" + JVMNameHash.suffix(hashArguments)
             } else if params.contains(where: { $0.unsignedName != nil }) {
@@ -94,7 +93,6 @@ extension JVMProgramBuilder {
                         && receiverType != nil
                         && receiverType?.unsignedName == nil
                     if arrayContentToString {
-                        // The official Kotlin wrapper is private and inline-only on the JVM.
                         owner = "java/util/Arrays"
                     }
                     if path.contains("m21-") { owner = "kotlin/sequences/SequencesKt" }
@@ -273,10 +271,15 @@ extension JVMProgramBuilder {
             ].contains(path) {
                 try visit(file.topLevelDecls, path: path)
             }
+            if path == "<kswiftk-jvm>/grouping.kt" {
+                // Inline Grouping helpers (e.g. foldTo) call sourceIterator/keyOf
+                // on kotlin.collections.Grouping, so bind its interface members.
+                try visit(file.topLevelDecls.filter { id in
+                    if case .interfaceDecl = ast.arena.decl(id) { return true }
+                    return false
+                }, path: path)
+            }
             if path == "<kswiftk-jvm>/string-constructors.kt" {
-                // Top-level `String(...)` shims lower directly to the matching
-                // java.lang.String <init> descriptors instead of a kotlin
-                // facade method.
                 for id in file.topLevelDecls {
                     guard case let .funDecl(declaration) = ast.arena.decl(id),
                           context.interner.resolve(declaration.name) == "String",
@@ -286,8 +289,6 @@ extension JVMProgramBuilder {
                 }
             }
             if path == "<kswiftk-jvm>/charsets.kt" {
-                // kotlin.text.Charsets members are JDK StandardCharsets static
-                // fields, not a kotlin object instance.
                 for id in file.topLevelDecls {
                     guard case let .objectDecl(declaration) = ast.arena.decl(id),
                           context.interner.resolve(declaration.name) == "Charsets" else { continue }
@@ -295,7 +296,13 @@ extension JVMProgramBuilder {
                         guard case let .propertyDecl(property) = ast.arena.decl(member),
                               let symbol = sema.bindings.declSymbol(for: member),
                               let valueType = sema.symbols.propertyType(for: symbol) else { continue }
-                        textLibraryFields[symbol] = JVMField(owner: "java/nio/charset/StandardCharsets", name: context.interner.resolve(property.name), type: try type(valueType), access: 0x19)
+                        let propertyName = context.interner.resolve(property.name)
+                        if propertyName.hasPrefix("UTF_32") {
+                            // JDK StandardCharsets has no UTF_32 fields; resolve via Charset.forName.
+                            textLibraryCharsetNames[symbol] = propertyName.replacingOccurrences(of: "_", with: "-")
+                            continue
+                        }
+                        textLibraryFields[symbol] = JVMField(owner: "java/nio/charset/StandardCharsets", name: propertyName, type: try type(valueType), access: 0x19)
                     }
                 }
             }
@@ -310,7 +317,7 @@ extension JVMProgramBuilder {
                     else { continue }
                     try registerMapEntryComponent(id)
                 }
-                let factories: Set<String> = ["arrayListOf", "listOf", "listOfNotNull", "setOf", "mapOf", "mutableListOf", "mutableSetOf", "linkedSetOf", "mutableMapOf", "emptyList", "emptySet", "emptyMap"]
+                let factories: Set<String> = ["arrayListOf", "listOf", "listOfNotNull", "setOf", "setOfNotNull", "mapOf", "mutableListOf", "mutableSetOf", "linkedSetOf", "mutableMapOf", "emptyList", "emptySet", "emptyMap"]
                 try visit(file.topLevelDecls.filter { id in if case let .funDecl(f) = ast.arena.decl(id) { return factories.contains(context.interner.resolve(f.name)) }; return false }, path: "<kswiftk-jvm>/m20-factories-runtime.kt")
             }
             if path.hasPrefix("<kswiftk-jvm>/m19-") || path.hasPrefix("<kswiftk-jvm>/m20-") || path.hasPrefix("<kswiftk-jvm>/m21-") { try visit(file.topLevelDecls, path: path) }
@@ -355,7 +362,6 @@ extension JVMFunctionBuilder {
             let arguments = [try convert(receiver, to: receiverType), try convert(values[0], to: receiverType)]
             return try jdkCall("java/lang/Math", "copySign", [receiverType, receiverType], receiverType, arguments: arguments, resolved: resultType)
         case "abs":
-            // java.lang.Math.abs has matching int/long/float/double overloads.
             guard values.count == 1, entry.method.parameters.count == 1,
                   entry.method.result == entry.method.parameters[0],
                   [.int, .long, .float, .double].contains(entry.method.parameters[0]) else { return nil }
@@ -367,7 +373,6 @@ extension JVMFunctionBuilder {
                   [.int, .long, .float, .double].contains(entry.method.parameters[0]) else { return nil }
             return try jdkCall("java/lang/Math", name, entry.method.parameters, entry.method.result, arguments: values, resolved: resultType)
         case "sqrt":
-            // java.lang.Math.sqrt only takes double; widen Float through double.
             guard values.count == 1 else { return nil }
             if entry.method.result == .float {
                 let argument = try convert(values[0], to: .double)
@@ -376,7 +381,6 @@ extension JVMFunctionBuilder {
             }
             return try jdkCall("java/lang/Math", "sqrt", entry.method.parameters, entry.method.result, arguments: values, resolved: resultType)
         case "pow":
-            // java.lang.Math.pow only takes double; widen Float/Int operands through double.
             guard let receiver, values.count == 1, entry.method.result.unsignedName == nil else { return nil }
             let base = try convert(receiver, to: .double)
             let exponent = try convert(values[0], to: .double)
@@ -388,7 +392,6 @@ extension JVMFunctionBuilder {
     }
 
     func textMatchComponent(_ object: JVMValue, index: Int) throws -> JVMValue {
-        // Destructured.componentN is private @InlineOnly in the official stdlib.
         let list = try jdkCall("kotlin/text/MatchResult$Destructured", "toList", [], .reference("java/util/List", nullable: false), receiver: object)!
         return try jdkCall("java/util/List", "get", [.int], .reference("java/lang/Object", nullable: true), receiver: list, arguments: [constant(.int(Int32(index)), .int)], interface: true, resolved: .string)!
     }
@@ -423,6 +426,18 @@ extension JVMFunctionBuilder {
             let unit = try value(unitType)
             instructions.append(.getStatic(JVMField(owner: "kotlin/time/DurationUnit", name: context.interner.resolve(fqName[4]).uppercased(), type: unitType, access: 0x4019), unit))
             return try jdkCall("kotlin/time/DurationKt", "toDuration", [source.type, unitType], .long, arguments: [source, unit], resolved: program.expressionType(id))
+        }
+        if let charsetName = program.textLibraryCharsetNames[symbol] {
+            // A receiver that is a value expression (e.g. `loadCharsets().UTF_32`)
+            // still has to run for its side effects; a plain `Charsets` type
+            // reference has nothing to evaluate.
+            if let receiver {
+                let target = program.sema.bindings.identifierSymbol(for: receiver).flatMap { program.sema.symbols.symbol($0) }
+                let isTypeReference = target.map { $0.kind == .object && $0.fqName.map(context.interner.resolve) == ["kotlin", "text", "Charsets"] } ?? false
+                if !isTypeReference { _ = try requireValue(receiver) }
+            }
+            let name = try constant(.string(charsetName), .string)
+            return try jdkCall("java/nio/charset/Charset", "forName", [.string], .reference("java/nio/charset/Charset", nullable: false), arguments: [name], resolved: program.expressionType(id))
         }
         // kotlin.math.absoluteValue is @InlineOnly in kotlin-stdlib, so its facade
         // getter is private. Lower it to java.lang.Math.abs like the abs() function.
@@ -514,10 +529,6 @@ extension JVMFunctionBuilder {
         guard let binding = program.sema.bindings.callBinding(for: id),
               program.inlineDeclarations[binding.chosenCallee] == nil,
               let entry = program.textLibraryMethods[binding.chosenCallee] else { return nil }
-        // Float/Double.toRawBits()/toBits() are @InlineOnly in kotlin-stdlib, so the
-        // kotlin.NumbersKt facade has no callable method. Lower them to the
-        // java.lang.Float/Double bit intrinsics, resolving the implicit receiver
-        // for receiver-less calls like `fun Double.bits() = toBits()`.
         if let isRaw = stdlibBitReinterpretIsRaw(binding.chosenCallee, args: args),
            let receiver = try receiverValue ?? receiver.map(requireValue) ?? implicitExtensionReceiver(id),
            let emitted = try emitBitReinterpret(callee: binding.chosenCallee, receiver: receiver, isRaw: isRaw, id: id) {
@@ -537,7 +548,6 @@ extension JVMFunctionBuilder {
            (evaluatedOperands[receiver]?.type ?? (try? program.expressionType(receiver)))?.numericCarrier != nil {
             return try scalarMember(receiver, name: "compareTo", args: args, id: id)
         }
-        // The intrinsic path preserves the collection factories' concrete types and singleton identity.
         if entry.adaptation == "collectionFactory", ["kotlin/collections/CollectionsKt", "kotlin/collections/SetsKt", "kotlin/collections/MapsKt"].contains(method.owner),
            ["listOf", "mutableListOf", "setOf", "mutableSetOf", "emptyList", "emptySet", "mutableMapOf", "mapOf", "emptyMap"].contains(method.name),
            args.allSatisfy({ !$0.isSpread && $0.label == nil }) { return nil }
@@ -577,7 +587,6 @@ extension JVMFunctionBuilder {
         if entry.adaptation == "regexExtension" {
             var actual = Array(values.dropFirst()), params = Array(parameters.dropFirst())
             if ordered.masks.contains(where: { $0 != 0 }) {
-                // Text extension wrappers default only their final limit to zero.
                 actual[actual.count - 1] = try constant(.int(0), .int)
             }
             actual.insert(object!, at: 0); params.insert(.reference("java/lang/CharSequence", nullable: false), at: 0)

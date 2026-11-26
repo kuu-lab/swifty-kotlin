@@ -66,10 +66,6 @@ struct ValueClassSecondaryConstructorExecutionTests {
         #expect(execution.stderr.isEmpty)
     }
 
-    /// KUU-3830: a delegation argument built by a collection literal emits a
-    /// `kk_array_set` on the temporary container — not on `this`. The
-    /// underlying-field extraction must keep the real field offset instead of
-    /// adopting the literal's index and reading the box header.
     @Test
     func secondaryConstructorsDelegatingWithCollectionLiteralsReturnTheirUnderlyingValue() throws {
         let source = """

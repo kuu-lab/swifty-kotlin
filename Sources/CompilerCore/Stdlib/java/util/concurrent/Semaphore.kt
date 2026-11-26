@@ -7,12 +7,6 @@ import kotlinx.atomicfu.locks.ParkingSupport
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlin.concurrent.Volatile
 
-// KUU-3059: java.util.concurrent.Semaphore. Permits are guarded by an
-// atomicfu recursive lock; blocked acquirers park on their per-thread handle
-// and re-check after every unpark, which keeps the woken set FIFO and makes
-// spurious wakeups harmless. The `fair` flag is accepted for signature parity
-// — wakeups are always FIFO here.
-
 public class Semaphore(permits: Int, fair: Boolean = false) {
     private val guard = SynchronizedObject()
     private val waiters = ArrayList<ParkingHandle>()

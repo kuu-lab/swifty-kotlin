@@ -266,9 +266,6 @@ struct ScopeCallablePropertyPriorityTests {
 
     @Test
     func unqualifiedImplicitReceiverCallablePropertyPrecedesExtension() throws {
-        // KUU-4347: `apply()` inside `with(Outer())` must bind the implicit
-        // receiver's function-typed property through its implicit `invoke`,
-        // not the inapplicable `block` parameter of `kotlin.apply`/`Outer.apply`.
         let source = """
         class Outer(val seed: Int) { val apply: () -> Int = { 7 } }
         class Scope { val apply: () -> Int = { 42 } }
@@ -296,10 +293,6 @@ struct ScopeCallablePropertyPriorityTests {
 
     @Test
     func localFunctionCapturingBoxedFunctionValueInvokesThroughBox() throws {
-        // Regression: a local function capturing a `kk_function_create_N`
-        // boxed function value used to trap in BuildKIRPhase while remapping
-        // the box's packed environment object, which has no body-side expr.
-        // The captured box must instead invoke through kk_function_invoke.
         let source = """
         fun main() {
             var count = 5

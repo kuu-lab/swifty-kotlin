@@ -45,10 +45,6 @@ extension CoroutineLoweringPass {
                   let function = rewrite.module.arena.function(for: collectorSymbol),
                   !function.isInlineOnly
         {
-            // Non-suspend collector that has already been adapted to the
-            // `(closureRaw, value, outThrown) -> result` ABI used by the
-            // runtime (e.g. a local `val` lambda that CallLowerer wrapped in
-            // a collection-HOF adapter).
             collectorEntryPoint = rewrite.module.arena.appendExpr(
                 .symbolRef(collectorSymbol),
                 type: rewrite.intType
@@ -63,13 +59,6 @@ extension CoroutineLoweringPass {
                 into: &prefixInstructions
             )
         } else {
-            // BUG-134: the collector expression is a boxed `Function1` value
-            // (e.g. a lambda passed through a function parameter or a variable)
-            // rather than a raw closure-aware function pointer. The runtime ABI
-            // needs a `(closureRaw, value, outThrown) -> result` entry point and
-            // its closure, so recover them with the same `kk_function_value_*`
-            // accessors `CallLowerer.splitCallableLambdaArgument` uses for
-            // ordinary collection HOF arguments.
             let fnPtrResult = rewrite.module.arena.appendTemporary(type: rewrite.intType)
             prefixInstructions.append(.call(
                 callee: rewrite.ctx.interner.intern("kk_function_value_fn_ptr"),
@@ -130,10 +119,6 @@ extension CoroutineLoweringPass {
         let captureArguments = (rewrite.module.arena.callableValueInfo(for: call.arguments[0])
             ?? functionValueInfoByExprRaw[call.arguments[0].rawValue])?.captureArguments ?? []
 
-        // A non-capturing builder still suspends (`delay`, `emit` backpressure),
-        // so it must ride the suspend-entry path too: with no parameters the
-        // lowered target is directly callable as the entry point, matching the
-        // `channelFlow`/`callbackFlow` rewrite below.
         let entryPointSymbol: SymbolID
         let targetArity = rewrite.suspendFunctionArityBySymbol[loweredTarget.symbol] ?? 0
         if targetArity == 0 {
@@ -188,9 +173,6 @@ extension CoroutineLoweringPass {
         return rewritten
     }
 
-    /// The runtime bridge uses the same launcher-continuation layout
-    /// as `produce { }`, but stores the channel handle in slot zero so the
-    /// lowered `ProducerScope` receiver is reconstructed by the launcher thunk.
     func rewriteProducerFlowCreateCall(
         call: CallRewriteInput,
         symbolByExprRaw: [Int32: SymbolID],
@@ -279,9 +261,6 @@ extension CoroutineLoweringPass {
         return rewritten
     }
 
-    /// Matches the `(fnPtr, envPtr)` convention ordinary HOF callees use
-    /// (e.g. `kk_list_map`); multiple captures are packed into a closure object
-    /// the same way `CallLowerer.splitCallableLambdaArgument` does.
     func flowCollectorEnvironmentPointerExpr(
         for lambdaID: KIRExprID,
         using rewrite: SuspendRewriteContext,

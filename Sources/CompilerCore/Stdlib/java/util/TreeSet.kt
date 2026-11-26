@@ -4,18 +4,6 @@ import kotlin.collections.Collection
 import kotlin.collections.MutableIterator
 import kotlin.internal.KsSymbolName
 
-// Construction is lowered to the runtime sorted-set entry points
-// (`__kk_tree_set_new` for the empty/comparator forms,
-// `__kk_tree_set_new_collection`/`__kk_tree_set_new_sorted_set` for the copy
-// forms) by `CollectionLiteralLoweringPass`. Boxes carry
-// `treeSetRuntimeTypeID`, so constructed instances answer
-// `is java.util.TreeSet<*>` / `is java.util.SortedSet<*>` /
-// `is java.util.NavigableSet<*>` / `is MutableSet<*>`.
-//
-// The `init` block additionally attaches a sorted backing `RuntimeSetBox` to
-// source-allocated instances (including user subclasses) so `MutableSet`
-// member calls operate on real storage — the LinkedHashSet.kt precedent.
-
 @KsSymbolName("__kk_tree_set_init")
 private external fun <E> __kkTreeSetInit(set: TreeSet<E>, comparator: Comparator<in E>?)
 

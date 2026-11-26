@@ -26,7 +26,6 @@ struct RuntimeReflectionMetadataEmitterTests {
         let magic = data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 0, as: UInt32.self) }
         #expect(UInt32(littleEndian: magic) == RuntimeReflectionMetadataEmitter.magic)
 
-        // Read version
         let version = data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4, as: UInt32.self) }
         #expect(UInt32(littleEndian: version) == 1)
     }
@@ -122,7 +121,6 @@ struct RuntimeReflectionMetadataEmitterTests {
 
     @Test
     func testFlagsBitEncoding() {
-        // dataClass=1, sealedClass=1, valueClass=1, suspend=1, inline=1
         let record = MetadataRecord(
             kind: .class,
             mangledName: "_KK",
@@ -151,7 +149,6 @@ struct RuntimeReflectionMetadataEmitterTests {
 
     @Test
     func testKindOrdinalForAllKinds() {
-        // Verify unique ordinals for all kinds.
         let allKinds: [SymbolKind] = [
             .package, .class, .interface, .object, .enumClass,
             .annotationClass, .typeAlias, .function, .constructor,
@@ -169,7 +166,6 @@ struct RuntimeReflectionMetadataEmitterTests {
 
     @Test
     func testStringTableDeduplicates() {
-        // Two records with the same fqName should share a string table entry.
         let records = [
             MetadataRecord(kind: .class, mangledName: "m1", fqName: "test.Same"),
             MetadataRecord(kind: .interface, mangledName: "m2", fqName: "test.Same"),
@@ -182,7 +178,6 @@ struct RuntimeReflectionMetadataEmitterTests {
         #expect(decoded?[0].fqName == "test.Same")
         #expect(decoded?[1].fqName == "test.Same")
 
-        // Both should have the same simpleName.
         #expect(decoded?[0].simpleName == "Same")
         #expect(decoded?[1].simpleName == "Same")
     }
@@ -193,7 +188,6 @@ struct RuntimeReflectionMetadataEmitterTests {
             kind: .function,
             mangledName: "_KK",
             fqName: "test.fn",
-            // No superFQName, fieldCount, instanceSizeWords
         )
         let data = RuntimeReflectionMetadataEmitter.serialize([record])
         let decoded = RuntimeReflectionMetadataDecoder.decode(data)
@@ -209,7 +203,6 @@ struct RuntimeReflectionMetadataEmitterTests {
 
     @Test
     func testRecordSizeIs24Bytes() {
-        // Each record in the binary format should be exactly 24 bytes.
         #expect(RuntimeReflectionMetadataEmitter.recordSize == 24)
     }
 
@@ -235,7 +228,6 @@ struct RuntimeReflectionMetadataEmitterTests {
     @Test
     func testDecodeRejectsWrongMagic() {
         var data = Data(count: 20)
-        // Wrong magic
         data[0] = 0x00
         data[1] = 0x00
         data[2] = 0x00
@@ -247,7 +239,6 @@ struct RuntimeReflectionMetadataEmitterTests {
     @Test
     func testDecodeRejectsWrongVersion() {
         var data = RuntimeReflectionMetadataEmitter.serialize([])
-        // Overwrite version field with 99
         let versionOffset = 4
         data[versionOffset] = 99
         data[versionOffset + 1] = 0
@@ -273,7 +264,6 @@ struct RuntimeReflectionMetadataEmitterTests {
         let data = RuntimeReflectionMetadataEmitter.serialize([record])
         let decoded = RuntimeReflectionMetadataDecoder.decode(data)
 
-        // When there's no dot, simpleName == fqName.
         #expect(decoded?[0].simpleName == "main")
         #expect(decoded?[0].fqName == "main")
     }
@@ -314,7 +304,6 @@ struct RuntimeReflectionMetadataEmitterTests {
 
     @Test
     func testArityClampedToU16Max() {
-        // Arity larger than UInt16.max should be clamped.
         let record = MetadataRecord(
             kind: .function,
             mangledName: "_KK",

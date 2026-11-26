@@ -4,17 +4,6 @@
 import Foundation
 import Testing
 
-/// BUG-182: an enum constant widened to `Any` was boxed as a raw ordinal Int
-/// (or, after BUG-177, as a RuntimeIntBox with only a display name). Because
-/// the box carried no stable nominal type ID and the enum class had no runtime
-/// supertype edges, `is`/`as`/`as?`/`!is`/`KClass.isInstance` against the
-/// enum class (or `kotlin.Enum`/`kotlin.Comparable`) failed or panicked.
-///
-/// Fixed by passing the stable nominal type ID to `kk_enum_box_ordinal` and
-/// by having `__enum_static_init_*` register the enum class's supertype edges
-/// (`kotlin.Enum` and `kotlin.Comparable`) so the runtime assignability walk
-/// can answer checks correctly.
-
 @Suite
 struct CodegenBackendEnumAnyTypeChecksTests {
 
@@ -87,9 +76,6 @@ struct CodegenBackendEnumAnyTypeChecksTests {
         )
     }
 
-    /// BUG-225: enum values use raw ordinal Ints internally, but a type check
-    /// needs a nominally tagged box so the enum class and its interfaces can
-    /// be recognized by `kk_op_is`/`kk_op_cast`.
     @Test
     func testCodegenStaticallyTypedEnumAnswersTypeChecks() throws {
         let source = try diffCaseSource("bug225_enum_type_checks.kt")

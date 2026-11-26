@@ -106,7 +106,6 @@ extension DeclTypeChecker {
                interner: ctx.interner
            ).isEmpty
         {
-            // Do not infer from an extension while a member may take priority.
             return nil
         }
 
@@ -119,9 +118,6 @@ extension DeclTypeChecker {
             ctx: ctx
         )
         guard !factoryTiers.isEmpty else { return nil }
-        // Multi-overload factories are allowed through: candidates whose
-        // delegate cannot serve the declared property type fail to infer, and
-        // the single-result guard below still rejects genuine ambiguity.
 
         var inferredTypes: Set<TypeID> = []
         for factoryTier in factoryTiers {
@@ -174,9 +170,6 @@ extension DeclTypeChecker {
                     }
                 }
 
-                // A delegate without provideDelegate uses getValue directly on the
-                // factory result. Fall back when no complete provider/getter tier
-                // supplies a usable context.
                 if factoryInferredTypes.isEmpty {
                     let getValueTiers = delegateConventionCandidateTiers(
                         named: ctx.interner.intern("getValue"),
@@ -328,10 +321,6 @@ extension DeclTypeChecker {
         guard factoryArguments.count <= factory.signature.parameterTypes.count else {
             return nil
         }
-        // Arguments that constrain factory type parameters must participate in
-        // inference; do not derive a partial expected type without them. Bare
-        // class constructors contribute their nominal directly, and literal
-        // arguments have a trivially known type that cannot mislead the solver.
         for (argument, parameterType) in zip(factoryArguments, factory.signature.parameterTypes) {
             if factory.signature.typeParameterSymbols.contains(where: {
                 sema.types.typeContainsTypeParam(parameterType, symbol: $0)
@@ -432,13 +421,6 @@ extension DeclTypeChecker {
             }
         }
         if unboundResultParameter() {
-            // Convention contracts can leave a factory type parameter without
-            // direct argument evidence while a convention function's declared
-            // parameter bounds still tie it to the property type (for example
-            // `val x: Int by mapOf()`, where Map.getValue's `V1 : V` bound
-            // chains the property type to the factory's V). Re-run the solve
-            // with those dependent bounds and propagate concrete solutions
-            // along variable edges until every result parameter is bound.
             guard let refined = refinedDelegateFactorySubstitution(
                 signatures: signatures,
                 typeVarBySymbol: typeVarBySymbol,
@@ -468,16 +450,6 @@ extension DeclTypeChecker {
         return result
     }
 
-    /// Second-chance solve for delegate factories whose type parameters are
-    /// only reachable through convention bounds (for example `val x: Int by
-    /// mapOf()`, where `Map.getValue`'s `V1 : V` bound chains the property type
-    /// to the factory's `V`). The primary solve mirrors regular call inference
-    /// but omits declared type-parameter bounds; this variant adds the
-    /// dependent parameter-to-parameter edges the regular inference graph
-    /// carries, then propagates already-solved concrete types along variable
-    /// edges until every reachable parameter is bound or no progress is made.
-    /// It runs only when the primary solve left a result parameter unbound, so
-    /// delegates that already infer keep their existing behavior.
     private func refinedDelegateFactorySubstitution(
         signatures: [FunctionSignature],
         typeVarBySymbol: [SymbolID: TypeVarID],

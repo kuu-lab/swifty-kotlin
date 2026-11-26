@@ -67,8 +67,6 @@ extension CoroutineLoweringPass {
         if let thunk = rewrite.launcherThunkByOriginalSymbol[original] {
             entryPointSymbol = thunk.symbol
         } else if rewrite.module.arena.function(for: original)?.params.isEmpty == true {
-            // A zero-argument suspend function already has the continuation-only
-            // ABI after lowering, so its lowered entry point needs no launcher thunk.
             entryPointSymbol = loweredTarget.symbol
         } else {
             return nil
@@ -110,8 +108,6 @@ extension CoroutineLoweringPass {
         // callee's completion still reaches the caller's suspend point; a bare
         // entry-point call would orphan the child continuation.
         guard let callerContinuationSymbol else {
-            // Restore a value-class result from the erased continuation
-            // completion before an itable bridge boxes it for its slot.
             let resultUnboxing = call.result
                 .flatMap { rewrite.module.arena.exprType($0) }
                 .flatMap { suspendWrapperValueClassResultUnboxing(for: $0, using: rewrite) }
@@ -223,9 +219,6 @@ extension CoroutineLoweringPass {
             return instructions
         }
 
-        // STDLIB-CORO-BUG-01: a direct call from one suspend function's body to
-        // another must relay the callee's completion back into this function's
-        // own suspend point through kk_coroutine_call_direct_suspend.
         let childContinuationTemp = rewrite.module.arena.appendTemporary(type: rewrite.continuationTypeByLoweredSymbol[loweredTarget.symbol] ?? rewrite.anyType
         )
 
@@ -375,8 +368,6 @@ extension CoroutineLoweringPass {
         else {
             return call.arguments
         }
-        // Suspend functions are never constructor calls; mirror the member and
-        // member-extension receiver offsets ABILoweringPass applies.
         let receiverOffset: Int = {
             guard signature.receiverType != nil else { return 0 }
             if sema.symbols.memberExtensionOwnerSymbol(for: originalSymbol) != nil {

@@ -11,37 +11,23 @@ package kotlin.js
 
 import kotlin.reflect.KClass
 
-/**
- * The marker alone does not export a declaration.
- */
 @RequiresOptIn(level = RequiresOptIn.Level.WARNING)
 @MustBeDocumented
 @Retention(AnnotationRetention.BINARY)
 @SinceKotlin("1.4")
 public annotation class ExperimentalJsExport
 
-/**
- * The marker is available to declarations that opt into the common API.
- * The Kotlin/JS actual JsFileName annotation itself does not require opt-in.
- */
 @RequiresOptIn(level = RequiresOptIn.Level.WARNING)
 @MustBeDocumented
 @Retention(AnnotationRetention.BINARY)
 @SinceKotlin("1.9")
 public annotation class ExperimentalJsFileName
 
-/**
- * This annotation is accepted for source compatibility. JavaScript per-file
- * emission is provided by the Kotlin/JS backend and is not performed here.
- */
 @Target(AnnotationTarget.FILE)
 @Retention(AnnotationRetention.SOURCE)
 @SinceKotlin("1.9")
 public annotation class JsFileName(val name: String)
 
-/**
- * JavaScript module emission is provided by the Kotlin/JS backend.
- */
 @ExperimentalJsExport
 @Retention(AnnotationRetention.BINARY)
 @Target(
@@ -52,10 +38,6 @@ public annotation class JsFileName(val name: String)
 )
 @SinceKotlin("1.3")
 public annotation class JsExport {
-    /**
-     * Prevents a member of an exported class from being exported; the
-     * Kotlin/JS backend performs the actual exclusion.
-     */
     @ExperimentalJsExport
     @Retention(AnnotationRetention.BINARY)
     @Target(
@@ -67,10 +49,6 @@ public annotation class JsExport {
     @SinceKotlin("1.8")
     public annotation class Ignore
 
-    /**
-     * Marks the exported declaration as the ES `default` export; the
-     * Kotlin/JS backend performs the actual export emission.
-     */
     @ExperimentalJsExport
     @Retention(AnnotationRetention.BINARY)
     @Target(
@@ -82,20 +60,12 @@ public annotation class JsExport {
     public annotation class Default
 }
 
-/**
- * Opting in allows source-compatible use of @JsStatic; the marker alone does
- * not create a JavaScript static member.
- */
 @RequiresOptIn(level = RequiresOptIn.Level.WARNING)
 @MustBeDocumented
 @Retention(AnnotationRetention.BINARY)
 @SinceKotlin("2.0")
 public annotation class ExperimentalJsStatic
 
-/**
- * Marks the experimental Kotlin/JS reflection API for creating an instance of a [KClass].
- * The API can be removed completely in any further release.
- */
 @RequiresOptIn(level = RequiresOptIn.Level.WARNING)
 @Retention(AnnotationRetention.BINARY)
 @Target(
@@ -115,9 +85,6 @@ public annotation class ExperimentalJsStatic
 @SinceKotlin("1.9")
 public annotation class ExperimentalJsReflectionCreateInstance
 
-/**
- * JavaScript static entry emission is provided by the Kotlin/JS backend.
- */
 @ExperimentalJsStatic
 @Retention(AnnotationRetention.BINARY)
 @Target(

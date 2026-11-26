@@ -6,8 +6,6 @@ import Testing
 
 @Suite(.serialized)
 struct SiblingLocalFunctionCaptureTests {
-    // Source-stdlib O2 currently fails LLVM verification even for println("OK")
-    // (KUU-2387); exercise O2 using a newly built stdlib artifact instead.
     @Test(arguments: [(true, 0), (false, 0), (false, 2)])
     func siblingCallsForwardCalleeCaptures(lane: (Bool, Int)) throws {
         try compileAndRun(

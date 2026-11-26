@@ -6,11 +6,7 @@ import Testing
 
 @Suite
 struct BlockExpressionTests {
-    // Every case below must compile to KIR without errors. Since they share a
-    // single pipeline run, per-case test functions would all fail identically
-    // on any error — so assertions are grouped by what they check instead.
     private static let blockCaseSources: [String] = [
-        // if-branch with multi-statement block (return pattern)
         """
         package blockcase0
         fun compute0(): Int {
@@ -24,7 +20,6 @@ struct BlockExpressionTests {
         }
         fun main0() = compute0()
         """,
-        // if-branch with multi-statement block and String trailing expr
         """
         package blockcase1
         fun greet1(): String {
@@ -37,7 +32,6 @@ struct BlockExpressionTests {
         }
         fun main1() = greet1()
         """,
-        // when-branch with multi-statement block
         """
         package blockcase2
         fun classify2(x: Int): Int {
@@ -54,7 +48,6 @@ struct BlockExpressionTests {
         }
         fun main2() = classify2(1)
         """,
-        // try/catch with multi-statement block
         """
         package blockcase3
         fun compute3(): Int {
@@ -68,7 +61,6 @@ struct BlockExpressionTests {
         }
         fun main3() = compute3()
         """,
-        // empty block has Unit type
         """
         package blockcase4
         fun doNothing4(): Unit {
@@ -78,7 +70,6 @@ struct BlockExpressionTests {
         }
         fun main4() = doNothing4()
         """,
-        // block with only declarations (no trailing expr -> Unit)
         """
         package blockcase5
         fun main5(): Unit {
@@ -88,7 +79,6 @@ struct BlockExpressionTests {
             }
         }
         """,
-        // three val declarations and trailing expr
         """
         package blockcase6
         fun compute6(): Int {
@@ -103,7 +93,6 @@ struct BlockExpressionTests {
         }
         fun main6() = compute6()
         """,
-        // multi-statement block with var reassignment
         """
         package blockcase7
         fun compute7(): Int {
@@ -117,7 +106,6 @@ struct BlockExpressionTests {
         }
         fun main7() = compute7()
         """,
-        // if-branch with single val and trailing expr
         """
         package blockcase8
         fun compute8(): Int {
@@ -130,7 +118,6 @@ struct BlockExpressionTests {
         }
         fun main8() = compute8()
         """,
-        // try/catch both branches with multi-statement blocks
         """
         package blockcase9
         fun compute9(): Int {
@@ -145,7 +132,6 @@ struct BlockExpressionTests {
         }
         fun main9() = compute9()
         """,
-        // when expression-body with multi-statement branches
         """
         package blockcase10
         fun classify10(x: Int): Int = when (x) {
@@ -202,7 +188,6 @@ struct BlockExpressionTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runFrontend(ctx)
             let ast = try #require(ctx.ast)
-            // After removing single-expression re-parse, even { 42 } should be a blockExpr
             let foundBlockExpr = ast.arena.exprs.contains { expr in
                 if case .blockExpr = expr { return true }
                 return false
@@ -256,10 +241,6 @@ struct BlockExpressionTests {
         }
     }
 
-    // MARK: - Local function bodies must preserve semicolon splits inside nested blocks
-
-    /// Compiles `source`, finds the top-level function `outerName`, and returns
-    /// the body of the local function declared as its first statement.
     private func localFunBodyInOuterDecl(
         outerName: String,
         source: String
@@ -377,7 +358,6 @@ struct BlockExpressionTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runFrontend(ctx)
             let ast = try #require(ctx.ast)
-            // Find a blockExpr with non-empty statements and a trailing expression
             var foundMultiStmtBlock = false
             for expr in ast.arena.exprs {
                 if case let .blockExpr(stmts, trailing, _) = expr,

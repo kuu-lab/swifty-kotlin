@@ -1,14 +1,3 @@
-/// Inference for the KClass-receiver member-call expressions that remain
-/// compiler special cases after KSP-496:
-/// - `T::class.java / .js / .javaClass` platform interop properties, and
-/// - `T::class.findAssociatedObject<A>()`, which take
-///   a reified type argument this compiler only supports via a small
-///   compiler-side allowlist (like `typeOf<T>()`).
-///
-/// `simpleName`/`qualifiedName`/`isInstance`/`cast`/`safeCast`/the 12 boolean
-/// class-kind flags now resolve as ordinary Kotlin extension declarations
-/// (Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt)
-/// through normal overload resolution.
 extension CallTypeChecker {
     func tryInferClassRefMemberCall(
         _ id: ExprID,
@@ -134,6 +123,38 @@ extension CallTypeChecker {
         } else {
             nativeArgumentType = kClassArgumentType
         }
+        if calleeName == interner.intern("isInstance"), args.count == 1, sema.types.nullability(of: receiverType) == .nonNull {
+            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            let isInvariantKClass: Bool
+            if case .kClassType = sema.types.kind(of: nonNullReceiverType) {
+                isInvariantKClass = true
+            } else if let classType = resolveClassType(nonNullReceiverType, sema: sema),
+                      case .invariant = classType.args.first {
+                isInvariantKClass = true
+            } else {
+                isInvariantKClass = false
+            }
+            if isInvariantKClass,
+               let kClassSymbol = sema.types.kClassInterfaceSymbol,
+               let owner = sema.symbols.symbol(kClassSymbol),
+               let functionSymbol = sema.symbols.lookup(fqName: owner.fqName + [calleeName])
+            {
+                for argument in args {
+                    _ = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+                }
+                sema.bindings.bindCall(
+                    id,
+                    binding: CallBinding(
+                        chosenCallee: functionSymbol,
+                        substitutedTypeArguments: [],
+                        parameterMapping: [0: 0]
+                    )
+                )
+                sema.bindings.bindCallableTarget(id, target: .symbol(functionSymbol))
+                sema.bindings.bindExprType(id, type: sema.types.booleanType)
+                return sema.types.booleanType
+            }
+        }
         if args.isEmpty, let propertyType = bindKClassNativeProperty(
             id, name: calleeName, argument: nativeArgumentType, sema: sema, interner: interner
         ) {
@@ -258,8 +279,6 @@ extension CallTypeChecker {
             else { return false }
             return signature.receiverType != nil && signature.parameterTypes.isEmpty
         }) {
-            // Generic source-backed extension properties are represented as
-            // zero-argument functions, including the native KClass.java view.
             sema.bindings.bindIdentifier(id, symbol: functionSymbol)
             sema.bindings.bindCall(
                 id,
@@ -321,8 +340,6 @@ extension CallTypeChecker {
         return returnType
     }
 
-    /// Native KClass boxes have no source itable; preserve the source property's
-    /// generic contract while binding the dedicated KClass representation.
     private func bindKClassNativeProperty(
         _ id: ExprID, name: InternedString, argument: TypeID,
         sema: SemaModule, interner: StringInterner

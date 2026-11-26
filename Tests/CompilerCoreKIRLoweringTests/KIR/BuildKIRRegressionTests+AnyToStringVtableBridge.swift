@@ -5,8 +5,6 @@ import TestStdlibCache
 @testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
-    /// All `kk_object_register_vtable_method` registrations in the module:
-    /// (slot, methodSymbol) pairs resolved from their constant expressions.
     private func allVtableMethodRegistrations(
         in module: KIRModule,
         interner: StringInterner
@@ -51,13 +49,6 @@ extension BuildKIRRegressionTests {
         return Int64(slot)
     }
 
-    // KUU-4487: the `kotlin.Any.toString` vtable slot keeps the uniform raw
-    // `(Int, Int*) -> Int` handle ABI (`kk_any_member_to_string`) even when
-    // concrete subclasses override `toString`, so a `Base`-typed receiver
-    // dispatches consistently and `kk_any_member_to_string` routes to the
-    // override via `kk_object_register_any_to_string`. The raw
-    // `kk_any_to_string_bridge_*` thunk must never be stored in the vtable
-    // slot itself.
     @Test
     func toStringOverrideRegistersFlatImplementationInVtableSlot() throws {
         TestStdlibCache.shared.prepare()
@@ -107,11 +98,6 @@ extension BuildKIRRegressionTests {
         #expect(anyBridgeRegistrations.contains("kk_object_register_any_to_string"))
     }
 
-    // A class that does not override `toString` keeps the runtime
-    // `kotlin.Any.toString` entry registered directly. Direct `.toString()`
-    // calls on such receivers never emit a vtable dispatch (the
-    // `kk_any_member_to_string` fallback handles them), so the raw runtime
-    // ABI is never reached through the flat-typed indirect call.
     @Test
     func inheritedToStringKeepsRuntimeSymbolInVtableSlot() throws {
         TestStdlibCache.shared.prepare()
@@ -138,13 +124,6 @@ extension BuildKIRRegressionTests {
         )
     }
 
-    // KUU-4487: explicit Any-member calls on a base-typed receiver must use
-    // the kk_any_member_* bridges (the runtime override registry), never a
-    // vtable slot. Subclass vtables do not share a consistent slot for
-    // kotlin.Any members — nominals rooted at an empty-vtable superclass
-    // (e.g. bundled-stdlib kotlinx.serialization.json.JsonElement) number
-    // their own members from slot 0, so a slot resolved from Any's layout
-    // indexes an unrelated method on the concrete receiver.
     @Test
     func anyMemberCallsOnBaseReceiverUseBridgeNotVtable() throws {
         TestStdlibCache.shared.prepare()

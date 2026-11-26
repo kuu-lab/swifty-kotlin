@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4078: deprecated sumByDouble on Array<out T> and primitive/unsigned arrays.
 @OptIn(ExperimentalUnsignedTypes::class)
 fun main() {

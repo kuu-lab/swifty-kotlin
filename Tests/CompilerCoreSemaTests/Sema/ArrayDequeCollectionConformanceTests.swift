@@ -30,12 +30,6 @@ struct ArrayDequeCollectionConformanceTests {
         }
     }
 
-    /// KUU-4100: `toCollection`'s destination parameter is bounded by
-    /// `C : MutableCollection<in T>`. An argument-less `ArrayDeque()` has no
-    /// own argument to fix `E`, so the collection-flow special must hand the
-    /// nested call the `MutableCollection<in E>` bound as its expected type —
-    /// otherwise inference fails outright or silently collapses the element
-    /// to `Nothing`/`Any` the way `mutableListOf()`/`ArrayList()` did.
     @Test
     func toCollectionDestinationInfersElementTypeFromReceiver() throws {
         let source = """

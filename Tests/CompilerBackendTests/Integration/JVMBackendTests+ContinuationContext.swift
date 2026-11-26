@@ -56,10 +56,6 @@ extension JVMBackendTests {
         }
     }
 
-    /// Kotlin repro of the runtime bug: a real suspend function's generated
-    /// ContinuationImpl must capture the completion's context at
-    /// construction. Reading `continuation.context` after the completion
-    /// stops serving `context` (post-installation re-entry) must not throw.
     @Test
     func kotlinSuspendContinuationCapturesContextAtConstruction() throws {
         let library = try ownStdlibLibrary()

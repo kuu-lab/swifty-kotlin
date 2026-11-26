@@ -1,25 +1,37 @@
 extension JVMProgramBuilder {
     func coroutineIntrinsics() -> [JVMFunction] {
-        guard needsSuspendCoroutine else { return [] }
         let object: JVMValueType = .reference("java/lang/Object", nullable: true)
         let block = JVMValue(slot: 0, type: .reference("kotlin/jvm/functions/Function1", nullable: false))
         let completion = JVMValue(slot: 1, type: .reference("kotlin/coroutines/Continuation", nullable: false))
-        let safe = JVMValue(slot: 2, type: .reference("kotlin/coroutines/SafeContinuation", nullable: false))
-        let argument = JVMValue(slot: 3, type: object), returned = JVMValue(slot: 4, type: object)
-        let ctor = JVMForeignMethod(owner: "kotlin/coroutines/SafeContinuation", name: "<init>", descriptor: "(Lkotlin/coroutines/Continuation;)V", parameters: [completion.type], result: safe.type, isStatic: false, isInterface: false, isAbstract: false)
         let invoke = JVMForeignMethod(owner: "kotlin/jvm/functions/Function1", name: "invoke", descriptor: "(Ljava/lang/Object;)Ljava/lang/Object;", parameters: [object], result: object, isStatic: false, isInterface: true, isAbstract: true)
-        let get = JVMForeignMethod(owner: ctor.owner, name: "getOrThrow", descriptor: "()Ljava/lang/Object;", parameters: [], result: object, isStatic: false, isInterface: false, isAbstract: false)
-        return [rawFunction(coroutineIntrinsicOwner, name: "$suspendCoroutine", parameters: [block.type, completion.type], result: object, access: 0x1009, locals: [block, completion, safe, argument, returned], instructions: [.allocate(ctor.owner, safe), .foreignCall(ctor, receiver: safe, arguments: [completion], result: nil), .copy(safe, argument), .foreignCall(invoke, receiver: block, arguments: [argument], result: nil), .foreignCall(get, receiver: safe, arguments: [], result: returned), .returnValue(returned)])]
+        var functions: [JVMFunction] = []
+        if needsSuspendCoroutine {
+            let safe = JVMValue(slot: 2, type: .reference("kotlin/coroutines/SafeContinuation", nullable: false))
+            let argument = JVMValue(slot: 3, type: object), returned = JVMValue(slot: 4, type: object)
+            let ctor = JVMForeignMethod(owner: "kotlin/coroutines/SafeContinuation", name: "<init>", descriptor: "(Lkotlin/coroutines/Continuation;)V", parameters: [completion.type], result: safe.type, isStatic: false, isInterface: false, isAbstract: false)
+            let get = JVMForeignMethod(owner: ctor.owner, name: "getOrThrow", descriptor: "()Ljava/lang/Object;", parameters: [], result: object, isStatic: false, isInterface: false, isAbstract: false)
+            functions.append(rawFunction(coroutineIntrinsicOwner, name: "$suspendCoroutine", parameters: [block.type, completion.type], result: object, access: 0x1009, locals: [block, completion, safe, argument, returned], instructions: [.allocate(ctor.owner, safe), .foreignCall(ctor, receiver: safe, arguments: [completion], result: nil), .copy(safe, argument), .foreignCall(invoke, receiver: block, arguments: [argument], result: nil), .foreignCall(get, receiver: safe, arguments: [], result: returned), .returnValue(returned)]))
+        }
+        if needsSuspendCoroutineUninterceptedOrReturn {
+            let argument = JVMValue(slot: 2, type: object), returned = JVMValue(slot: 3, type: object)
+            functions.append(rawFunction(coroutineIntrinsicOwner, name: "$suspendCoroutineUninterceptedOrReturn", parameters: [block.type, completion.type], result: object, access: 0x1009, locals: [block, completion, argument, returned], instructions: [.copy(completion, argument), .foreignCall(invoke, receiver: block, arguments: [argument], result: returned), .returnValue(returned)]))
+        }
+        return functions
     }
 }
 
 extension JVMFunctionBuilder {
     func coroutineCall(_ symbol: SemanticSymbol, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
         let name = symbol.fqName.map(context.interner.resolve)
-        guard args.count == 1, name == ["kotlin", "coroutines", "suspendCoroutine"] || context.options.stdlibOnly && name == ["kotlin", "jvm", "internal", "__jvmSuspendCoroutine"] else { return nil }
+        let isSuspendCoroutine = name == ["kotlin", "coroutines", "suspendCoroutine"]
+            || context.options.stdlibOnly && name == ["kotlin", "jvm", "internal", "__jvmSuspendCoroutine"]
+        let isSuspendCoroutineUninterceptedOrReturn = name == ["kotlin", "coroutines", "intrinsics", "suspendCoroutineUninterceptedOrReturn"]
+            || context.options.stdlibOnly && name == ["kotlin", "jvm", "internal", "__jvmSuspendCoroutineUninterceptedOrReturn"]
+        guard args.count == 1, isSuspendCoroutine || isSuspendCoroutineUninterceptedOrReturn else { return nil }
         let callback = try requireValue(args[0].expr)
-        program.needsSuspendCoroutine = true
-        var method = JVMForeignMethod(owner: program.coroutineIntrinsicOwner, name: "$suspendCoroutine", descriptor: "(" + callback.type.descriptor + ")Ljava/lang/Object;", parameters: [callback.type], result: .reference("java/lang/Object", nullable: true), isStatic: true, isInterface: false, isAbstract: false)
+        if isSuspendCoroutine { program.needsSuspendCoroutine = true }
+        if isSuspendCoroutineUninterceptedOrReturn { program.needsSuspendCoroutineUninterceptedOrReturn = true }
+        var method = JVMForeignMethod(owner: program.coroutineIntrinsicOwner, name: isSuspendCoroutine ? "$suspendCoroutine" : "$suspendCoroutineUninterceptedOrReturn", descriptor: "(" + callback.type.descriptor + ")Ljava/lang/Object;", parameters: [callback.type], result: .reference("java/lang/Object", nullable: true), isStatic: true, isInterface: false, isAbstract: false)
         method.isSuspend = true
         let result = try program.expressionType(id), returned = result == .unit ? nil : try value(result)
         instructions.append(.foreignCall(method, receiver: nil, arguments: [callback], result: returned))

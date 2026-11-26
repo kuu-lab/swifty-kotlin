@@ -46,7 +46,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    // KUU-1256: exercise both imported metadata and bundled source resolution.
     @Test(arguments: [true, false])
     func testArrayIterableExtensions(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(

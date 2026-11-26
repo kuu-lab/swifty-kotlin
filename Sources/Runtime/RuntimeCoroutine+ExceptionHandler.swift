@@ -2,10 +2,6 @@ import Dispatch
 import Foundation
 
 
-/// A heap-allocated box holding a Swift closure that acts as a CoroutineExceptionHandler.
-/// The closure receives the raw CoroutineContext and throwable pointers and
-/// handles them, mirroring `CoroutineExceptionHandler.handleException(context,
-/// exception)`.
 final class RuntimeExceptionHandlerBox: @unchecked Sendable {
     let handler: @Sendable (Int, Int) -> Void
     init(handler: @escaping @Sendable (Int, Int) -> Void) {
@@ -13,7 +9,6 @@ final class RuntimeExceptionHandlerBox: @unchecked Sendable {
     }
 }
 
-/// Returns an opaque handle to a RuntimeExceptionHandlerBox.
 public func kk_exception_handler_new() -> Int {
     let box = RuntimeExceptionHandlerBox { _, throwableRaw in
         var message = "Unknown exception"
@@ -47,8 +42,6 @@ func runtimeHandleUncaughtCoroutineException(
     context: RuntimeCoroutineContext?,
     exception exceptionRaw: Int
 ) {
-    // A thrown CancellationException is cancellation, not a reportable failure
-    // (kotlinx filters it before handleCoroutineException as well).
     guard exceptionRaw != 0, exceptionRaw != runtimeNullSentinelInt,
           !runtimeCoroutineIsCancellationResult(exceptionRaw)
     else { return }
@@ -97,12 +90,6 @@ public func kk_handle_coroutine_exception(_ contextRaw: Int, _ exceptionRaw: Int
     return 0
 }
 
-/// Length of the common SUFFIX shared by `trace` and `enclosingTrace`,
-/// compared from the end — the KSwiftK analog of the JVM
-/// `printEnclosedStackTrace` frame-counting loop. Frames are rendered
-/// `"\tat <symbol>"` strings rather than `StackTraceElement`s, so string
-/// equality is the available identity; throwables created on the same call
-/// path share identical native frame symbols for their common tail.
 private func runtimeThrowableCommonFrameSuffix(_ trace: [String], _ enclosingTrace: [String]) -> Int {
     var count = 0
     var i = trace.count - 1
@@ -131,19 +118,6 @@ private func runtimeUncaughtThrowableHeader(from throwableRaw: Int) -> String? {
     return nil
 }
 
-/// Append a throwable's header + saved native frames, then its `Suppressed:`
-/// and `Caused by:` chains (same order as the Kotlin-side
-/// `collectThrowableTraceLines` used by `Throwable.stackTraceToString`), to
-/// `lines`. Mirrors `java.lang.Throwable#printEnclosedStackTrace`: [indent]
-/// is the JVM `prefix` (suppressed children indent one `"\t"` deeper than
-/// their parent, cause children keep the parent's indent), [caption] is
-/// `"Suppressed: "`/`"Caused by: "` (nil for the outermost throwable), and
-/// [enclosingTrace] is the parent throwable's `"\tat ..."` lines used to fold
-/// the shared tail into a single `"\t... N more"` line. `visited` mirrors the
-/// JVM `dejaVu` identity set: a throwable already emitted anywhere in this
-/// report — a true cycle or a diamond reachable through two branches —
-/// collapses to a single `[CIRCULAR REFERENCE: ...]` line, so recursion
-/// always terminates.
 private func runtimeUncaughtThrowableLines(
     from throwableRaw: Int,
     indent: String,
@@ -168,7 +142,6 @@ private func runtimeUncaughtThrowableLines(
         header = synthesized
         trace = []
     } else {
-        // allLines[0] is the rendered header; the rest are "\tat ..." lines.
         header = allLines[0]
         trace = Array(allLines.dropFirst())
     }
@@ -181,13 +154,6 @@ private func runtimeUncaughtThrowableLines(
         lines.append(indent + "\t... \(shared) more")
     }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw) else { return }
-    // Kotlin classes extending Throwable — user-defined ones and the
-    // source-backed bundled exceptions alike — arrive as RuntimeObjectBox via
-    // kk_object_new and keep the chain in throwableCause/throwableSuppressed
-    // (KUU-4301). Non-throwable object boxes leave both fields empty, so an
-    // unconditional read is safe — the same contract __kk_throwable_cause and
-    // __kk_throwable_suppressedRaw use, the latter applying the same
-    // suppressionEnabled gate before exposing the list.
     let suppressed: [Int]
     let cause: Int
     if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
@@ -243,19 +209,11 @@ func runtimeJobAbsorbsChildFailure(_ job: RuntimeJobHandle) -> Bool {
     return current != nil
 }
 
-/// Whether `scope` absorbs a registered child's failure. Only a jobful
-/// scope can absorb (through `runtimeJobAbsorbsChildFailure`); a jobless
-/// scope — a fresh handle minted for `GlobalScope.launch`, a
-/// `CoroutineScope(context)` without a Job — has no Job parent for the
-/// child, which makes the launch a root coroutine on the JVM as well.
 func runtimeScopeAbsorbsChildFailure(_ scope: RuntimeCoroutineScope) -> Bool {
     guard let job = scope.job else { return false }
     return runtimeJobAbsorbsChildFailure(job)
 }
 
-/// `parentJob`/`parentScope` are the job and scope linkages the launch
-/// registered into; a failure is absorbed when a non-supervisor parent exists
-/// on either axis (it re-surfaces through that parent's wait instead).
 func runtimeCompleteLaunchJobExceptionally(
     _ job: RuntimeJobHandle,
     with exception: Int,
@@ -274,7 +232,6 @@ func runtimeCompleteLaunchJobExceptionally(
     _ = job.completeExceptionally(with: exception)
 }
 
-/// handlerRaw is an opaque RuntimeExceptionHandlerBox handle (or 0 for no handler).
 public func kk_kxmini_launch_with_exception_handler(_ entryPointRaw: Int, _ functionID: Int, _ handlerRaw: Int) -> Int {
     let job = RuntimeJobHandle()
     job.debugName = "StandaloneCoroutine"
@@ -300,8 +257,6 @@ public func kk_kxmini_launch_with_exception_handler(_ entryPointRaw: Int, _ func
         contState.scope = callerScope
     }
 
-    // Resolve the exception handler into a `let` so the completion closure
-    // below, which is @Sendable, can capture it as a value.
     let exceptionHandler: RuntimeExceptionHandlerBox? = {
         guard handlerRaw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: handlerRaw) else {
             return nil
@@ -314,8 +269,6 @@ public func kk_kxmini_launch_with_exception_handler(_ entryPointRaw: Int, _ func
     }()
 
     let workItem = DispatchWorkItem {
-        // See kk_kxmini_launch: mark the body as started on the dispatch thread
-        // and re-check cancellation so a racing cancel() can skip the body.
         job.markStarted()
         if job.cancellationSnapshot() {
             _ = job.complete(with: 0)
@@ -332,10 +285,6 @@ public func kk_kxmini_launch_with_exception_handler(_ entryPointRaw: Int, _ func
             // integer box, ...) that happens to be registered would be
             // misidentified as an exception.
             if thrownException != 0 {
-                // A CoroutineExceptionHandler consumes an uncaught exception for
-                // this fire-and-forget launch path. Without a handler, preserve
-                // the failure on the job instead of silently reporting normal
-                // completion.
                 if let handler = exceptionHandler {
                     // KUU-CORO-101: this fire-and-forget launch path has no
                     // CoroutineContext object handy to pass as the handler's
@@ -422,8 +371,6 @@ public func kk_kxmini_async_await(_ handle: Int, _ continuation: Int) -> Int {
         }
     }
 
-    // Non-suspend context: block until complete without consuming the passRetained
-    // (`takeUnretainedValue` reads the object without taking ownership of the retain).
     let task2 = Unmanaged<RuntimeAsyncTask>.fromOpaque(handlePtr).takeUnretainedValue()
     return task2.awaitResult()
 }

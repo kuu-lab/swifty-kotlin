@@ -1,5 +1,3 @@
-// KUU-1728: bridge retained C11 reference cells to the managed object domains.
-// This is not box mark/sweep: objectPointers retains its existing owner model.
 // Call only with the collector lock held. Reference-cell mutations use that
 // same lock, and matching uses the already-locked registry (no recursive lock).
 func collectRetainedAtomicPayloadRootsLocked(

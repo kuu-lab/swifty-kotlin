@@ -2,7 +2,6 @@ package java.time
 
 import java.util.Calendar
 
-/** A date without a time-zone in the ISO-8601 calendar system. */
 public class LocalDate private constructor(
     public val year: Int,
     public val monthValue: Int,

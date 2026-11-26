@@ -83,7 +83,7 @@ extension JVMFunctionBuilder {
         return JVMIntrinsicResult(value: result)
     }
 
-    func collectionIsNullOrEmpty(_ receiverID: ExprID, owner: String, id: ExprID) throws -> JVMIntrinsicResult {
+    func collectionIsNullOrEmpty(_ receiverID: ExprID, owner: String) throws -> JVMIntrinsicResult {
         let receiver = try requireValue(receiverID)
         let result = try value(.boolean)
         let object: JVMValueType = .reference("java/lang/Object", nullable: true)

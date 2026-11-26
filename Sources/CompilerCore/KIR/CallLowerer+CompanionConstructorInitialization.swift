@@ -1,5 +1,4 @@
 extension CallLowerer {
-    /// Keep the JVM's constructor ordering when argument lowering later inlines a function call.
     func shouldDeferCompanionInitializationUntilArgumentsAreEvaluated(
         exprID: ExprID,
         args: [CallArgument],

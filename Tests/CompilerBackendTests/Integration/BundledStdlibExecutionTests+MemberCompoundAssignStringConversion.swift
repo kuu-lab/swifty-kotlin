@@ -1,11 +1,5 @@
 import Testing
 
-// End-to-end (compiled and run) counterpart of the KIR-structural checks in
-// CompilerCoreTests/Lowering/LoweringPassRegressionTests+MemberCompoundAssignStringConversion.swift.
-// `receiver.field += x` where `field: String` and `x` is not itself a String
-// used to skip Any-to-String conversion entirely: a class instance silently
-// vanished from the result and a primitive value crashed the process. See
-// that file's header comment for the full root-cause writeup.
 extension BundledStdlibExecutionTests {
     @Test
     func testMemberFieldCompoundAssignConvertsPrimitiveAndClassRHS() throws {

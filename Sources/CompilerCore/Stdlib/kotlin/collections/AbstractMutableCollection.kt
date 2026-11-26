@@ -7,9 +7,6 @@
 
 package kotlin.collections
 
-// The compiler-side shell in `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift`
-// remains the fallback for contexts without the bundled stdlib.
-
 public abstract class AbstractMutableCollection<E> protected constructor() : AbstractCollection<E>(), MutableCollection<E> {
     abstract override fun add(element: E): Boolean
 
@@ -72,10 +69,6 @@ public abstract class AbstractMutableCollection<E> protected constructor() : Abs
         }
     }
 }
-
-// KSP-1019: these are top-level MutableCollection extensions. They are kept
-// separate from the nominal AbstractMutableCollection class above, matching
-// the kotlin-stdlib source ownership and preserving member dispatch.
 
 @IgnorableReturnValue
 @Suppress("UNCHECKED_CAST")

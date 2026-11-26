@@ -1,7 +1,5 @@
 package kotlin
 
-// KSP-763: Keep the initializer overload source-backed while the size-only
-// primitive-array constructor remains a compiler-provided allocation primitive.
 @ExperimentalUnsignedTypes
 public inline fun ULongArray(size: Int, init: (Int) -> ULong): ULongArray {
     val result = ULongArray(size)
@@ -13,10 +11,6 @@ public inline fun ULongArray(size: Int, init: (Int) -> ULong): ULongArray {
     return result
 }
 
-/**
- * Kotlin exposes this constructor only to the stdlib implementation. The
- * signed and unsigned arrays intentionally share the same backing storage.
- */
 @ExperimentalUnsignedTypes
 @PublishedApi
 internal fun ULongArray(storage: LongArray): ULongArray = storage.asULongArray()

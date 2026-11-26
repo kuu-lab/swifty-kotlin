@@ -1,7 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// KUU-3404: evaluate constructor arguments before initializing the companion.
     @Test(arguments: [true, false])
     func companionInitializationFollowsConstructorArgumentEvaluation(
         allowDefaultStdlibLibrary: Bool

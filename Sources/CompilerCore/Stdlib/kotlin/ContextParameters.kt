@@ -16,12 +16,6 @@ package kotlin
 @kotlin.SinceKotlin("2.2")
 public annotation class ExperimentalContextParameters
 
-// KSP-603: `context` / `contextOf` are compiler intrinsics: `CallTypeChecker`
-// binds the call to the declaration below and `CallLowerer` inline-expands it,
-// substituting the context arguments for the block's context receivers and
-// resolving `contextOf` against them. The bodies here only give the
-// declarations a well-formed Kotlin shape; they are never executed.
-//
 // Upstream dropped `@ExperimentalContextParameters` from `context`/`contextOf`
 // once the feature left the experimental gate: kotlin-stdlib 2.4.20 metadata
 // carries only `InlineOnly`/`SinceKotlin` on these overloads, while the marker

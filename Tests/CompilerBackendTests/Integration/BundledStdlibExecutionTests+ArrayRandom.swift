@@ -1,9 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    // KUU-1392: random()/randomOrNull() on Array<out T>, the eight primitive
-    // arrays, and the four unsigned arrays — with and without a Random seed.
-    // Assertions stay membership/contract based so output is deterministic.
     @Test(arguments: [true, false])
     func testArrayRandomOverloads(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(

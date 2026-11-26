@@ -167,7 +167,6 @@ final class OperatorLoweringPass: LoweringPass {
         symbols: SymbolTable?,
         newBody: inout KIRLoweringEmitContext
     ) {
-        // Preserve source overrides for CoroutineContext's + operator.
         if op == .add, isCoroutineContextType(lhs, arena: arena, types: types, interner: interner)
             || isCoroutineContextType(rhs, arena: arena, types: types, interner: interner)
         {
@@ -358,10 +357,9 @@ final class OperatorLoweringPass: LoweringPass {
                 effectiveRhs = converted
             }
         }
-        // For unsigned int/long: add/sub/mul/eq/ne use same callees; div/rem/lt/le/gt/ge use u-prefix
         let useUnsignedRank0 = isUnsigned && rank == 0
         let divModCmpPrefix = useUnsignedRank0 ? "u" : prefix
-        let divModOp = useUnsignedRank0 ? "rem" : "mod" // unsigned uses urem (LLVM), signed uses mod
+        let divModOp = useUnsignedRank0 ? "rem" : "mod"
         let callee: InternedString = switch op {
         case .add: interner.intern("kk_op_\(prefix)add")
         case .subtract: interner.intern("kk_op_\(prefix)sub")
@@ -413,10 +411,6 @@ final class OperatorLoweringPass: LoweringPass {
         return boxed
     }
 
-    /// Returns true when the expression's static type is a nullable primitive
-    /// (`Boolean?`, `Int?`, `Char?`, ...). Its raw representation may be the
-    /// runtime null sentinel or a boxed pointer, neither of which kk_op_eq/ne
-    /// can compare directly against a non-null peer's raw value.
     private func isNullablePrimitive(_ exprID: KIRExprID, arena: KIRArena, types: TypeSystem?) -> Bool {
         nullablePrimitiveKind(exprID, arena: arena, types: types) != nil
     }
@@ -467,12 +461,6 @@ final class OperatorLoweringPass: LoweringPass {
         return nil
     }
 
-    /// True when the expression's static type may hold null at runtime
-    /// (`.nullable` or `.platformType`). Any such value is represented as
-    /// either the null sentinel or a registered heap handle, so
-    /// `kk_nullable_primitive_eq/ne` can determine its nullness via the
-    /// object-pointer registry regardless of the specific type kind
-    /// (`Nothing?` null literals, `Any?`, nullable references, `T?`).
     private func isNullableOrPlatform(
         _ exprID: KIRExprID,
         arena: KIRArena,
@@ -502,8 +490,6 @@ final class OperatorLoweringPass: LoweringPass {
         guard let types, let typeID = arena.exprType(exprID) else { return false }
         switch types.kind(of: typeID) {
         case .classType, .any, .functionType:
-            // A non-null value class reuses its underlying representation; a
-            // String-backed one is a flat aggregate, not a single word.
             if case .stringStruct = resolveValueClassKind(
                 types.kind(of: typeID), types: types, symbols: symbols
             ) {
@@ -529,7 +515,6 @@ final class OperatorLoweringPass: LoweringPass {
         }
     }
 
-    /// String is a compiler aggregate, so pointer comparison is insufficient.
     private func isReferenceType(
         _ exprID: KIRExprID,
         arena: KIRArena,

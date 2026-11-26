@@ -88,11 +88,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// A `KType.classifier` KClass is interned during module init by the
-    /// per-nominal reflection initializer. When no `T::class` literal ever
-    /// registers metadata for that type, `qualifiedName` must still resolve
-    /// the qualified name from the interned box's hint rather than the
-    /// simple name the initializer used to pass.
     @Test(arguments: [false, true])
     func supertypeClassifierQualifiedName(fromArtifact: Bool) throws {
         try compileAndRunKotlin(

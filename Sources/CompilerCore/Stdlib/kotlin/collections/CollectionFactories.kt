@@ -2,9 +2,6 @@ package kotlin.collections
 
 import kotlin.internal.KsSymbolName
 
-// MIGRATION-COL-001
-// Migration source: Sources/Runtime/RuntimeCollections.swift, RuntimeSetAndMap.swift
-
 // These map directly to @_cdecl functions in RuntimeCollections.swift and
 // RuntimeSetAndMap.swift. Each external declaration matches the Swift-side
 // parameter layout: null array + count=0 produces a fresh collection. Map's
@@ -81,9 +78,6 @@ public fun <T> mutableListOf(vararg elements: T): MutableList<T> {
     return result
 }
 
-// The declaration carries ArrayList's nominal identity while the shared
-// factory lowering keeps element boxing and tracked collection IDs.
-
 @SinceKotlin("1.1")
 public inline fun <T> arrayListOf(): ArrayList<T> = ArrayList()
 
@@ -135,8 +129,6 @@ public fun <T> mutableSetOf(): MutableSet<T> = __kk_linked_hash_set_of(null, 0)
 public fun <T> mutableSetOf(vararg elements: T): MutableSet<T> =
     __kk_linked_hash_set_of(elements, elements.size)
 
-// KUU-1361: JVM `sortedSetOf`/`sortedMapOf` — the concrete instances are
-// TreeSet/TreeMap; the declared return types match upstream.
 public fun <T> sortedSetOf(vararg elements: T): java.util.TreeSet<T> {
     val result = java.util.TreeSet<T>()
     for (element in elements) result.add(element)
@@ -151,10 +143,6 @@ public fun <T> sortedSetOf(comparator: Comparator<in T>, vararg elements: T): ja
 
 public fun <K, V> mapOf(): Map<K, V> = emptyMap()
 
-/**
- * Keep this overload distinct from the vararg overload so overload resolution
- * matches the Kotlin stdlib API while reusing the shared map runtime path.
- */
 @Suppress("UNCHECKED_CAST")
 public fun <K, V> mapOf(pair: Pair<K, V>): Map<K, V> {
     val result: MutableMap<K, V> = __kk_linked_hash_map_of(null, null, 0)

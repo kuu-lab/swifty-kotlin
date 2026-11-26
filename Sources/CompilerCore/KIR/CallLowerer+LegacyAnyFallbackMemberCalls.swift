@@ -1,8 +1,3 @@
-/// `Any` member fallbacks (`toString`/`hashCode`/`equals`) for receivers
-/// Sema did not bind to a concrete member: nullable-Any unbound calls,
-/// KClass receivers, primitives, type parameters, and erased `Any`
-/// values.
-
 extension CallLowerer {
 
     func lowerLegacyAnyFallbackMemberCall(
@@ -39,17 +34,11 @@ extension CallLowerer {
             case .primitive:
                 true
             case .typeParam:
-                // All type parameters have an implicit upper bound of Any? in Kotlin,
-                // so Any methods (toString, hashCode, equals) are always available on
-                // type parameter receivers (STDLIB-GEN-055).
                 true
             default:
                 nonNullAnyFallbackReceiverType == sema.types.anyType
             }
         }
-        // Use the member-dispatch bridge so a Throwable override remains
-        // visible after erasure to Any. Keep the tagged helper for primitive
-        // and type-parameter fallback values.
         if args.isEmpty, calleeNameStr == "toString", allowsAnyFallback {
             if nonNullAnyFallbackReceiverType == sema.types.anyType {
                 instructions.append(.call(

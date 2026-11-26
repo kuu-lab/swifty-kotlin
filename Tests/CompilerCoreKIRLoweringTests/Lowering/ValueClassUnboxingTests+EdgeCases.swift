@@ -4,11 +4,7 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-// MARK: - Value class edge case coverage (TEST-VAL-001)
-
 extension ValueClassUnboxingTests {
-
-    // MARK: - Payload type variants
 
     @Test
     func testValueClassWithStringPayload() throws {
@@ -30,7 +26,6 @@ extension ValueClassUnboxingTests {
         #expect(underlyingType != nil, "value class with String payload should record an underlying type")
         if let underlyingType {
             if case .stringStruct = sema.types.kind(of: underlyingType) {
-                // Expected
             } else {
                 Issue.record("Expected underlying type to be String, got \(sema.types.kind(of: underlyingType))")
             }
@@ -57,7 +52,6 @@ extension ValueClassUnboxingTests {
         #expect(underlyingType != nil, "value class with Long payload should record an underlying type")
         if let underlyingType {
             if case .primitive(.long, _) = sema.types.kind(of: underlyingType) {
-                // Expected
             } else {
                 Issue.record("Expected underlying type to be Long, got \(sema.types.kind(of: underlyingType))")
             }
@@ -84,14 +78,11 @@ extension ValueClassUnboxingTests {
         #expect(underlyingType != nil, "value class with Double payload should record an underlying type")
         if let underlyingType {
             if case .primitive(.double, _) = sema.types.kind(of: underlyingType) {
-                // Expected
             } else {
                 Issue.record("Expected underlying type to be Double, got \(sema.types.kind(of: underlyingType))")
             }
         }
     }
-
-    // MARK: - Unboxing lowering with different payload types
 
     @Test
     func testValueClassLoweringEdgeCases() throws {
@@ -161,8 +152,6 @@ extension ValueClassUnboxingTests {
         }
     }
 
-    // MARK: - @JvmInline annotation is inert (no additional effects beyond valueType flag)
-
     @Test
     func testJvmInlineAnnotationIsInertBeyondValueTypeFlag() throws {
         let sourceWithAnnotation = """
@@ -187,7 +176,6 @@ extension ValueClassUnboxingTests {
             $0.kind == .class && $0.name == ctxWithout.interner.intern("UserId")
         }))
 
-        // Both should have the valueType flag — @JvmInline adds no extra flags
         #expect(symWith.flags.contains(.valueType))
         #expect(symWithout.flags.contains(.valueType))
         #expect(
@@ -195,8 +183,6 @@ extension ValueClassUnboxingTests {
             "@JvmInline should not introduce extra SymbolFlags beyond valueType"
         )
     }
-
-    // MARK: - Single-property constraint diagnostics
 
     @Test
     func testValueClassWithZeroParamsEmitsDiagnostic() throws {
@@ -228,11 +214,6 @@ extension ValueClassUnboxingTests {
         )
     }
 
-    /// kotlinc rejects `@JvmInline value class` with more than one primary
-    /// constructor parameter ("value class must have exactly one primary
-    /// constructor parameter"). Previously the declaration was silently
-    /// lowered to a regular class (the MFVC path), accepting code kotlinc
-    /// rejects.
     @Test
     func testJvmInlineValueClassWithTwoParamsEmitsDiagnostic() throws {
         let source = """
@@ -280,8 +261,6 @@ extension ValueClassUnboxingTests {
         )
     }
 
-    // MARK: - Upcast / boxing transition: stored as supertype
-
     @Test
     func testValueClassUpcastedToAnyUnboxed() throws {
         let source = """
@@ -290,14 +269,11 @@ extension ValueClassUnboxingTests {
         fun toAny(m: Meter): Any = m
         """
         let ctx = makeContextFromSource(source)
-        // Sema should succeed without errors even when value class is upcast to Any
         try runSema(ctx)
 
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.isEmpty, "Upcasting value class to Any should not produce errors; got: \(errors.map { $0.message })")
     }
-
-    // MARK: - Nullable value class
 
     @Test
     func testNullableValueClassIsRecognizedAsValueType() throws {
@@ -315,11 +291,8 @@ extension ValueClassUnboxingTests {
         let tokenSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
             symbol.kind == .class && symbol.name == interner.intern("Token")
         }))
-        // The Token class itself still has the valueType flag regardless of nullable usage
         #expect(tokenSymbol.flags.contains(.valueType), "Token value class should retain valueType flag when used as nullable")
     }
-
-    // MARK: - Member functions on value class
 
     @Test
     func testValueClassMemberFunctionIsRegistered() throws {
@@ -339,14 +312,11 @@ extension ValueClassUnboxingTests {
         }))
         #expect(meterSymbol.flags.contains(.valueType))
 
-        // The member function 'doubled' should exist in the symbol table
         let doubledExists = sema.symbols.allSymbols().contains(where: { symbol in
             symbol.kind == .function && symbol.name == interner.intern("doubled")
         })
         #expect(doubledExists, "Member function 'doubled' should be registered in the symbol table for value class Meter")
     }
-
-    // MARK: - Value class implementing interface
 
     @Test
     func testValueClassImplementingInterfaceHasValueTypeFlag() throws {
@@ -371,8 +341,6 @@ extension ValueClassUnboxingTests {
         #expect(meterSymbol.flags.contains(.valueType), "value class implementing interface should retain valueType flag")
     }
 
-    // MARK: - Companion object in value class
-
     @Test
     func testValueClassWithCompanionObjectDoesNotAffectValueFlag() throws {
         let source = """
@@ -394,8 +362,6 @@ extension ValueClassUnboxingTests {
         #expect(scoreSymbol.flags.contains(.valueType), "value class with companion object should retain valueType flag")
     }
 
-    // MARK: - toString / default representation
-
     @Test
     func testValueClassToStringFunctionParsesWithoutError() throws {
         let source = """
@@ -412,8 +378,6 @@ extension ValueClassUnboxingTests {
             "value class with overridden toString should compile without errors; got: \(errors.map { $0.message })"
         )
     }
-
-    // MARK: - Value class used in when-expression
 
     @Test
     func testValueClassUsedInWhenExpressionCompiles() throws {
@@ -438,8 +402,6 @@ extension ValueClassUnboxingTests {
         )
     }
 
-    // MARK: - Multiple distinct value classes coexist
-
     @Test
     func testMultipleValueClassesAreIndependentlyTracked() throws {
         let source = """
@@ -460,7 +422,6 @@ extension ValueClassUnboxingTests {
         #expect(names.contains("ScoreId"), "ScoreId should be registered as a value class")
         #expect(valueTypeSymbols.count >= 2, "Both value classes should be independently tracked")
 
-        // Each must have an underlying type recorded
         for sym in valueTypeSymbols {
             let underlying = sema.symbols.valueClassUnderlyingType(for: sym.id)
             #expect(underlying != nil, "\(interner.resolve(sym.name)) should have an underlying type recorded")

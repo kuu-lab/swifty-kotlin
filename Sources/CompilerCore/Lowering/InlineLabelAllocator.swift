@@ -20,8 +20,6 @@
 /// caller body, where they can alias a label the caller cursor already handed
 /// out (or one a later `relocate(_:)` is about to reuse).
 struct InlineLabelAllocator {
-    /// The maximum label ID permitted from untrusted inputs (e.g. imported KIR artifacts).
-    /// Leaves ample room (over 1 billion IDs) below `Int32.max` for expansion and relocation cursors.
     static let maxSupportedLabel: Int32 = 1_000_000_000
 
     /// Floor for scratch IDs. It preserves the numbering this pass used before

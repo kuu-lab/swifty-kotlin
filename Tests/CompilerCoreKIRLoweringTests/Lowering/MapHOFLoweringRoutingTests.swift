@@ -4,46 +4,8 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-/// RF-LOWER-CALL-012: pin the *production* routing of the Map `map` /
-/// `filter` / `filterNot` / `mapNotNull` / `forEach` / `mapValues` /
-/// `mapValuesTo` / `mapKeys` / `mapKeysTo` / `filterKeys` / `filterValues` /
-/// `flatMap` / `any` / `all` / `none` family.
-///
-/// KSP-430 moved these APIs to `Stdlib/kotlin/collections/MapHOF.kt`, and
-/// `Sources/Runtime` has no `@_cdecl` left for any `kk_map_map` /
-/// `kk_map_filter` / `kk_map_forEach` / `kk_map_mapValues` / `kk_map_mapKeys`
-/// / `kk_map_filterKeys` / `kk_map_filterValues` / `kk_map_flatMap` /
-/// `kk_map_any` / `kk_map_all` / `kk_map_none` / `kk_map_maxByOrNull` /
-/// `kk_map_minByOrNull` — only `Tests/RuntimeTests/RuntimeCollectionHOF430MapShims.swift`
-/// still declares them, as test doubles. A lowering rewrite that redirected a
-/// resolved Kotlin declaration to one of those names would therefore not fail
-/// a Core test — it would fail at link time. Nothing pinned that before this
-/// suite.
-///
-/// RF-LOWER-CALL-012 found the Map-receiver branches in
-/// `+CallRewriteHOFCore.swift`, `+CallRewriteHandlers.swift`
-/// (`rewriteCollectionHOFCall`'s Map arm plus `mapHOFRuntimeName` /
-/// `mapHOFReturnsList` / `mapHOFReturnsMap`) and
-/// `+VirtualCallRewrite.swift` (`rewriteMapHOF`) to be unreachable: every one
-/// of these names, once resolved to the bundled `MapHOF.kt` declaration, is
-/// short-circuited by the source-backed preservation gates before the
-/// dispatcher that owned
-/// those branches ever ran, and removing all three branches left post-lowering
-/// KIR byte-identical (checked with `--emit kir` on both the
-/// `--stdlib-from-source` and default-artifact stdlib paths, plus an
-/// executable run, for every name below). These tests are what keeps that
-/// from regressing: they assert the routing directly rather than the
-/// presence of a name in an allowlist.
-///
-/// `maxByOrNull` / `minByOrNull` are already pinned by
-/// `ListSortExtremaLoweringRoutingTests.mapExtremaKeepTheirSourceCallAndNotTheMapRuntimeRewrite`
-/// (they are shared with the List sort/extrema group that test suite owns),
-/// so this suite does not duplicate them.
 @Suite
 struct MapHOFLoweringRoutingTests {
-    /// The `kk_map_*` names the deleted `mapHOFRuntimeName` switch in
-    /// `+CallRewriteHandlers.swift` used to produce. None has a `@_cdecl` in
-    /// `Sources/Runtime` any more.
     static let legacyMapHOFRuntimeOperations: Set<String> = [
         "map_map", "map_filter", "map_forEach",
         "map_mapValues", "map_mapKeys",
@@ -52,11 +14,6 @@ struct MapHOFLoweringRoutingTests {
         "map_maxByOrNull", "map_minByOrNull",
     ]
 
-    /// Every name the removed Map branches used to match, exercised on a
-    /// `Map` receiver. `mapValuesTo` / `mapKeysTo` / `filterNot` /
-    /// `mapNotNull` were never in the deleted `mapHOFRuntimeName` switch (so
-    /// they have no corresponding `legacyMapHOFRuntimeOperations` entry), but
-    /// they shared the same dead outer gates and are worth pinning too.
     static let expectedSourceCallees: Set<String> = [
         "map", "filter", "filterNot", "mapNotNull", "forEach",
         "mapValues", "mapValuesTo", "mapKeys", "mapKeysTo",
@@ -89,9 +46,6 @@ struct MapHOFLoweringRoutingTests {
     }
     """
 
-    /// `.call` / `.virtualCall` callees across *every* function in the
-    /// module, not just `main`: a rewrite that fired inside an injected
-    /// stdlib body would otherwise go unnoticed.
     static func allCallees(in module: KIRModule, interner: StringInterner) -> [String] {
         findAllKIRFunctions(in: module).flatMap { function in
             function.body.compactMap { instruction -> String? in
@@ -107,8 +61,6 @@ struct MapHOFLoweringRoutingTests {
         }
     }
 
-    /// The calls in `body` whose callee is one of the Map HOF names, with the
-    /// symbol the frontend resolved them to.
     static func mapHOFCalls(
         in body: [KIRInstruction],
         interner: StringInterner
@@ -120,8 +72,6 @@ struct MapHOFLoweringRoutingTests {
             return (name, symbol)
         }
     }
-
-    // MARK: - the no-redirect contract
 
     @Test
     func mapForEachResolvesMatchingCallbackArity() throws {
@@ -184,9 +134,6 @@ struct MapHOFLoweringRoutingTests {
         }
     }
 
-    /// All 15 names survive `CollectionLiteralLoweringPass` as resolved
-    /// source calls, and no legacy `kk_map_*` name reaches the lowered
-    /// module.
     @Test
     func sourceBackedMapHOFCallsSurviveCollectionLiteralLowering() throws {
         try withTemporaryFile(contents: Self.mapHOFSource) { path in
@@ -216,9 +163,6 @@ struct MapHOFLoweringRoutingTests {
         }
     }
 
-    /// Why the rewrite must not fire: each name resolves to a non-synthetic,
-    /// source-backed declaration in the bundled Kotlin stdlib with no
-    /// `externalLinkName` to bridge through.
     @Test
     func mapHOFCalleesResolveToBundledKotlinSource() throws {
         try withTemporaryFile(contents: Self.mapHOFSource) { path in
@@ -257,9 +201,6 @@ struct MapHOFLoweringRoutingTests {
         }
     }
 
-    /// A user function that merely shares one of the names — including on a
-    /// `Map` receiver, which is what the policy keys off — must be left
-    /// alone and must never pick up a `kk_map_*` callee.
     @Test
     func userDefinedMapHOFNamedFunctionsAreNotRewritten() throws {
         let source = """
@@ -296,18 +237,6 @@ struct MapHOFLoweringRoutingTests {
         }
     }
 
-    // MARK: - the removed virtual-dispatch branch never fired
-
-    /// `rewriteMapHOF` in `+VirtualCallRewrite.swift` matched a `.virtualCall`
-    /// with a Map HOF callee, but Map HOF names are bundled Kotlin extension
-    /// functions, so Sema always resolves a call to them statically:
-    /// CallLowerer never emits `.virtualCall` for these names, only `.call`
-    /// — even when the *receiver* is reached through genuine virtual
-    /// dispatch (an interface property, an abstract-class method). This
-    /// source forces both of those (`HasMap.data` reads through an itable,
-    /// `AbstractHolder.useIt` through a vtable), confirmed by the presence of
-    /// `.virtualCall` instructions for `get`/`useIt` below, while the Map HOF
-    /// calls on the result stay direct.
     @Test
     func mapHOFCallsStayDirectCallsThroughVirtualDispatchedReceivers() throws {
         let source = """

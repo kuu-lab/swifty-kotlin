@@ -48,11 +48,6 @@ private func runtimeTakeObjectForRelease(_ rawValue: Int) -> UnsafeMutableRawPoi
     return pointer
 }
 
-/// The registry entry is removed before ARC is released, so concurrent handle
-/// resolution cannot observe a freed object. The operation is idempotent: a
-/// stale or already-released handle returns `false` and performs no release.
-/// Managed `kk_alloc` objects are intentionally outside this path; they belong
-/// to `heapObjects` and are reclaimed by mark-and-sweep.
 @discardableResult
 func runtimeReleaseObject(_ rawValue: Int) -> Bool {
     guard let pointer = runtimeTakeObjectForRelease(rawValue) else {
@@ -65,15 +60,11 @@ func runtimeReleaseObject(_ rawValue: Int) -> Bool {
     removeRuntimeObjectMetadata(forObjectKey: key)
     runtimeForgetFrozenObject(rawValue)
     unregisterActiveWorker(handle: rawValue)
-    // Primitive box handles are tagged (kk_box_* / registerTaggedPrimitiveBox):
-    // the registry key is the tagged bits, but ARC release needs the base object.
     let basePointer = runtimePrimitiveBoxBasePointer(from: rawValue) ?? pointer
     Unmanaged<AnyObject>.fromOpaque(basePointer).release()
     return true
 }
 
-/// Returns `1` when the retained allocation was released and `0` when the
-/// handle was null, stale, borrowed, pinned, or already released.
 public func kk_object_release(_ objectRaw: Int) -> Int {
     runtimeReleaseObject(objectRaw) ? 1 : 0
 }

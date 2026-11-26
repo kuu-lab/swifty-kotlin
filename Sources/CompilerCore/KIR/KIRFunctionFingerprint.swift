@@ -22,19 +22,12 @@ import Foundation
 /// Source ranges are deliberately excluded; a consumer that embeds locations
 /// in generated code must key on them separately.
 public struct KIRFunctionFingerprint: Equatable, Sendable {
-    /// Canonical identity of the function (symbol key, see above).
     public let key: String
-    /// Hex SHA-256 of the canonical rendering.
     public let hash: String
-    /// Canonical keys of the symbols the body calls or reads. Parameter
-    /// symbols of the function itself are excluded.
     public let references: Set<String>
 }
 
 extension KIRModule {
-    /// Fingerprints every function in the module, keyed by canonical key.
-    /// If two functions still share a key after disambiguation (this should not
-    /// happen), the later one is stored under `key#<n>` rather than dropped.
     public func functionFingerprints(
         interner: StringInterner,
         symbols: SymbolTable,
@@ -57,8 +50,6 @@ extension KIRModule {
     }
 }
 
-/// Renders KIR into a numbering-independent text form. One instance is shared
-/// across a module so symbol and type renderings are computed once.
 final class KIRCanonicalizer {
     private let arena: KIRArena
     private let interner: StringInterner
@@ -66,7 +57,6 @@ final class KIRCanonicalizer {
     private let types: TypeSystem
     private var symbolKeys: [SymbolID: String] = [:]
     private var typeKeys: [TypeID: String] = [:]
-    /// Types currently being rendered; guards against cyclic captured bounds.
     private var typesInProgress: Set<TypeID> = []
 
     init(arena: KIRArena, interner: StringInterner, symbols: SymbolTable, types: TypeSystem) {
@@ -82,8 +72,6 @@ final class KIRCanonicalizer {
         let hash = FileFingerprint.sha256Hex(Data(text.utf8))
         return KIRFunctionFingerprint(key: symbolKey(function.symbol), hash: hash, references: body.references)
     }
-
-    // MARK: - Symbols
 
     func symbolKey(_ id: SymbolID) -> String {
         if let cached = symbolKeys[id] { return cached }
@@ -113,10 +101,6 @@ final class KIRCanonicalizer {
         return "\(base)#\(ordinal)"
     }
 
-    /// Symbols that might share a key with one named `fqName`: those registered
-    /// under the exact FQ name plus those with the same short name (the FQ
-    /// name of some symbols contains an ID-derived part, and constructors are
-    /// not in the short-name index).
     func candidates(fqName: [InternedString], shortName: InternedString) -> Set<SymbolID> {
         var result = Set(symbols.lookupAll(fqName: fqName))
         result.formUnion(symbols.lookupByShortName(shortName))
@@ -129,9 +113,6 @@ final class KIRCanonicalizer {
         return baseKey(of: symbol)
     }
 
-    /// Name components embed raw IDs for some compiler-created symbols (a class
-    /// type parameter's FQ name contains `$class<SymbolID>`); drop the digits
-    /// so the key does not move when unrelated declarations are added.
     static func normalizedComponent(_ component: String) -> String {
         guard component.hasPrefix("$") else { return component }
         var trimmed = Substring(component)
@@ -162,12 +143,8 @@ final class KIRCanonicalizer {
         return key
     }
 
-    // MARK: - Types
-
     func typeKey(_ id: TypeID) -> String {
         if let cached = typeKeys[id] { return cached }
-        // A cycle can only come through captured-type bounds; cut it with the
-        // raw id's structural kind so rendering always terminates.
         guard typesInProgress.insert(id).inserted else { return "<cycle>" }
         defer { typesInProgress.remove(id) }
         let key = renderType(types.kind(of: id))
@@ -205,7 +182,6 @@ final class KIRCanonicalizer {
         case let .typeParam(typeParam):
             var rendered = "tp:" + symbolKey(typeParam.symbol)
             if let capture = typeParam.capture {
-                // `identity` is a per-inference counter; bounds carry the meaning.
                 rendered += "{capture \(typeKey(capture.lower))..\(typeKey(capture.upper)) wf=\(capture.writeForbidden)}"
             }
             return rendered + nullabilityKey(typeParam.nullability)
@@ -233,10 +209,6 @@ final class KIRCanonicalizer {
         }
     }
 
-    // MARK: - Function bodies
-
-    /// Renders one function. Mutable because ids, labels and parameters are
-    /// numbered as they are first met.
     struct FunctionRenderer {
         let canonicalizer: KIRCanonicalizer
         let function: KIRFunction
@@ -270,8 +242,6 @@ final class KIRCanonicalizer {
             return lines.joined(separator: "\n")
         }
 
-        // Expressions are numbered by first appearance, so the printed number
-        // is a property of the body, not of the module-wide arena.
         private mutating func expr(_ id: KIRExprID) -> String {
             if id == .invalid { return "r!" }
             if let number = exprNumbers[id] { return "r\(number)" }
@@ -291,8 +261,6 @@ final class KIRCanonicalizer {
             return "L\(number)"
         }
 
-        /// Type and arena-recorded kind of an expression the first time it is
-        /// seen in an instruction operand position it defines.
         private mutating func annotatedExpr(_ id: KIRExprID) -> String {
             let isNew = exprNumbers[id] == nil
             let name = expr(id)
@@ -302,7 +270,6 @@ final class KIRCanonicalizer {
             let index = Int(id.rawValue)
             if index >= 0, index < canonicalizer.arena.expressions.count {
                 let kind = canonicalizer.arena.expressions[index]
-                // A bare `.temporary(n)` stores the id itself; it carries no meaning.
                 if case .temporary = kind {} else { annotation += "=" + valueKey(kind) }
             }
             return annotation

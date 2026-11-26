@@ -7,10 +7,7 @@ import Testing
 @Suite
 struct BuildASTBodyParsingRegressionTests {
 
-    // Every case below must reach KIR without errors. They share one pipeline
-    // run, so per-case test functions would all fail identically on any error.
     private static let bodyParsingSources: [String] = [
-        // local function with expression body
         """
         package buildast.kir0
         fun outer0(): Int {
@@ -19,7 +16,6 @@ struct BuildASTBodyParsingRegressionTests {
         }
         fun main0() = outer0()
         """,
-        // nested local function
         """
         package buildast.kir1
         fun outer1(): Int {
@@ -31,7 +27,6 @@ struct BuildASTBodyParsingRegressionTests {
         }
         fun main1() = outer1()
         """,
-        // suspend local function
         """
         package buildast.kir2
         suspend fun delayed2(value: Int): Int = value
@@ -40,7 +35,6 @@ struct BuildASTBodyParsingRegressionTests {
             return 1
         }
         """,
-        // block body with multiple statements
         """
         package buildast.kir3
         fun compute3(a: Int, b: Int): Int {
@@ -51,7 +45,6 @@ struct BuildASTBodyParsingRegressionTests {
         }
         fun main3() = compute3(5, 3)
         """,
-        // string template in body
         """
         package buildast.kir4
         fun greet4(name: String): String {
@@ -60,7 +53,6 @@ struct BuildASTBodyParsingRegressionTests {
         }
         fun main4() = greet4("World")
         """,
-        // multi-line function call merges into a single statement
         """
         package buildast.kir5
         fun add5(a: Int, b: Int, c: Int): Int = a + b + c
@@ -72,7 +64,6 @@ struct BuildASTBodyParsingRegressionTests {
             return result
         }
         """,
-        // multi-line binary expression merges into a single statement
         """
         package buildast.kir6
         fun main6(): Int {
@@ -82,7 +73,6 @@ struct BuildASTBodyParsingRegressionTests {
             return x
         }
         """,
-        // multi-line string concat merges correctly
         """
         package buildast.kir7
         fun main7(): String {
@@ -92,7 +82,6 @@ struct BuildASTBodyParsingRegressionTests {
             return s
         }
         """,
-        // chained member calls across lines merge
         """
         package buildast.kir8
         fun main8(): String {
@@ -102,7 +91,6 @@ struct BuildASTBodyParsingRegressionTests {
             return s
         }
         """,
-        // closing paren on a separate line merges with the call
         """
         package buildast.kir9
         fun pair9(a: Int, b: Int): Int = a + b
@@ -127,9 +115,6 @@ struct BuildASTBodyParsingRegressionTests {
         return ctx
     }
 
-    // MARK: - Frontend body parsing cases
-
-    /// Frontend-only cases share one source manager while retaining per-file checks.
     @Test
     func testFrontendBodyParsingRegression() throws {
         let sources = [
@@ -388,10 +373,6 @@ struct BuildASTBodyParsingRegressionTests {
         }
     }
 
-    /// A newline-leading `::` starts a new statement: `x\n::prop` parses as
-    /// `x; ::prop` (unbound callable reference), never `x::prop`. Kotlin only
-    /// continues `.`/`?.` across a newline, so the statement splitter must not
-    /// glue a `::`-led line onto the previous expression (KUU-1083).
     @Test
     func testLeadingCallableReferenceStartsNewStatement() throws {
         let sources = [
@@ -447,17 +428,9 @@ struct BuildASTBodyParsingRegressionTests {
         }
     }
 
-    /// KUU-3795: an unqualified call receiver before an infix name
-    /// (`f() op operand`) must stay a *single* operand in the
-    /// pending-infix parity count. Counting `f` and `()` as separate
-    /// elements flipped the parity so a complete statement looked like a
-    /// dangling infix call, and the next line's `val` was merged into —
-    /// and swallowed by — that statement group, so the local never
-    /// reached the function body AST.
     @Test
     func testCallReceiverInfixDoesNotSwallowNextStatement() throws {
         let sources = [
-            // The ticket scenario: `rootSize() shr LOG` then `val x`.
             """
             package buildast.infixcall0
             class B {
@@ -470,8 +443,6 @@ struct BuildASTBodyParsingRegressionTests {
                 companion object { const val LOG: Int = 4 }
             }
             """,
-            // A parenthesized infix operand keeps the infix *name* in the
-            // name slot: `a or (b)` is complete and must not merge `val x`.
             """
             package buildast.infixcall1
             fun g(): Int {
@@ -480,8 +451,6 @@ struct BuildASTBodyParsingRegressionTests {
                 return x
             }
             """,
-            // `!!` is a postfix on its operand, not an alternation
-            // element: `n!! or 2` is complete.
             """
             package buildast.infixcall2
             fun g(): Int {
@@ -490,8 +459,6 @@ struct BuildASTBodyParsingRegressionTests {
                 return x
             }
             """,
-            // A genuinely pending infix name still continues on the next
-            // line: `a or\nb` stays one statement.
             """
             package buildast.infixcall3
             fun g(): Int {
@@ -501,9 +468,6 @@ struct BuildASTBodyParsingRegressionTests {
                 return x
             }
             """,
-            // KUU-3938: same boundary with a file-top-level `val` as the
-            // infix operand — `h() shr LOG` inside a non-main function
-            // must not drop the following `val x`.
             """
             package buildast.infixcall4
             val LOG = 5
@@ -514,8 +478,6 @@ struct BuildASTBodyParsingRegressionTests {
                 return x
             }
             """,
-            // KUU-3938 variant: the operand is a file-top-level
-            // `const val`.
             """
             package buildast.infixcall5
             const val LOGC = 4
@@ -572,8 +534,6 @@ struct BuildASTBodyParsingRegressionTests {
             }
         }
     }
-
-    // MARK: - Shared KIR fixture
 
     @Test
     func testBodyParsingSourcesCompileWithoutErrors() throws {

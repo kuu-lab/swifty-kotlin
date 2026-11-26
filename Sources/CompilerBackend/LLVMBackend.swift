@@ -12,6 +12,7 @@ final class LLVMBackend {
     private let reusableContext: LLVMCAPIBindings.LLVMContextRef?
     private let phaseTimer: PhaseTimer?
     private let parallelJobs: Int
+    private let maxInstructionsPerObjectPartition: Int
 
     init(
         target: TargetTriple,
@@ -21,12 +22,14 @@ final class LLVMBackend {
         moduleName: String = "main",
         phaseTimer: PhaseTimer? = nil,
         parallelJobs: Int = 1,
+        maxInstructionsPerObjectPartition: Int = CompilerOptions.defaultCodegenPartitionInstructions,
         session: LLVMBackendSession = LLVMBackendSession()
     ) throws {
         self.target = target
         self.moduleName = moduleName
         self.phaseTimer = phaseTimer
         self.parallelJobs = parallelJobs
+        self.maxInstructionsPerObjectPartition = maxInstructionsPerObjectPartition
         self.optLevel = optLevel
         self.debugInfo = debugInfo
         self.diagnostics = diagnostics
@@ -209,6 +212,7 @@ final class LLVMBackend {
             reflectionMetadataSymbolPrefix: reflectionMetadataSymbolPrefix,
             linkOnceODRSymbols: linkOnceODRSymbols,
             parallelJobs: parallelJobs,
+            maxInstructionsPerObjectPartition: maxInstructionsPerObjectPartition,
             phaseTimer: phaseTimer
         )
     }

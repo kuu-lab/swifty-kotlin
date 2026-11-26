@@ -1,6 +1,3 @@
-// Residual ABI specs not yet assigned to a categorized RuntimeABISpec section.
-// Runtime-backed entries below are generated from Sources/Runtime exported C symbols.
-
 private let abiParity = RuntimeABISectionBuilder("ABIParity")
 
 public extension RuntimeABISpec {
@@ -73,21 +70,11 @@ public extension RuntimeABISpec {
         callableRefCall1Spec,
         callableRefCall2Spec,
         callableRefCall3Spec,
-        // KSP-678: these Channel residuals are bridged from bundled Kotlin
-        // (Channels.kt) and return a plain Int handle/flag; they do not use the
-        // outThrown ABI lowering path.
         abiParity.nt("kk_channel_is_closed_for_receive", "handle"),
         abiParity.nt("kk_channel_is_closed_for_send", "handle"),
         abiParity.nt("kk_channel_iterator", "handle"),
-        // KUU-1404: hasNext on a cancelled channel throws CancellationException
-        // through the outThrown channel (JVM parity); plain close still
-        // terminates iteration with a 0 return.
         abiParity.th("kk_channel_iterator_hasNext", "iterHandle outThrown"),
         abiParity.nt("kk_channel_iterator_next", "iterHandle"),
-        // KSP-1571: same KSP-678 pattern — close-cause retention, isEmpty, and
-        // cancel are bridged from bundled Kotlin (Channel.kt /
-        // ChannelResult.kt) as plain Int-token residuals; they do not use the
-        // outThrown ABI lowering path.
         abiParity.nt("kk_channel_is_empty", "handle"),
         abiParity.nt("__kk_channel_close_cause", "handle cause"),
         abiParity.nt("__kk_channel_cancel", "handle"),
@@ -190,7 +177,6 @@ public extension RuntimeABISpec {
         flowOnErrorReturnSpec,
         flowRetrySpec,
         flowRetryWhenSpec,
-        // KSP-676: kk_flow_state_in removed — Flow.stateIn is bundled Kotlin source.
         abiParity.th("kk_freeze_object", "objectRaw"),
         abiParity.th("kk_future_complete", "futureHandle valueRaw"),
         abiParity.th("kk_future_consume", "futureHandle"),
@@ -199,9 +185,6 @@ public extension RuntimeABISpec {
         abiParity.th("__kk_input_stream_mark", "streamRaw readLimitRaw"),
         abiParity.th("__kk_input_stream_mark_supported", "streamRaw"),
         abiParity.th("__kk_input_stream_reset", "streamRaw outThrown"),
-        // kotlin.io.createTempDir/createTempFile (Deprecated(level=ERROR)):
-        // real stdlib functions, not File's own facade. Restored after being
-        // dropped as an unintended side effect of CLEANUP-STUB-107.
         abiParity.th("__kk_io_createTempDir", "prefixRaw suffixRaw directoryRaw outThrown"),
         abiParity.th("__kk_io_createTempDir_default", "outThrown"),
         abiParity.th("__kk_io_createTempDir_prefix", "prefixRaw outThrown"),
@@ -230,10 +213,7 @@ public extension RuntimeABISpec {
         memScopeAllocSpec,
         memScopeEnterSpec,
         memScopeExitSpec,
-        // KSP-676: MutableStateFlow is bundled Kotlin source; these C bridges are gone.
         nativeAllocBytesSpec,
-        // KSP-717: __kk_normalization_form_nfc/nfd/nfkc/nfkd removed. Their
-        // tag values are plain Kotlin constants now (StringNormalize.kt).
         abiParity.th("kk_pin_object", "objectRaw"),
         abiParity.th("kk_pinned_get", "pinnedHandle"),
         abiParity.nt("__kk_range_average", "rangeRaw"),
@@ -247,8 +227,6 @@ public extension RuntimeABISpec {
         abiParity.nt("kk_stable_ref_create", "objectRaw"),
         abiParity.nt("kk_stable_ref_deref", "pointerHandle"),
         abiParity.nt("kk_stable_ref_dispose", "pointerHandle"),
-        // KSP-413: kk_string_contentEquals_flat / kk_string_contentEquals_ignoreCase_flat
-        // removed; contentEquals is bundled Kotlin source (StringComparison.kt).
         // KSP-717: both bridges are plain (non-throwing) flat-string helpers
         // in RuntimeStringStdlib.swift (no outThrown parameter) — explicit
         // isThrowing: false overrides abiParitySpec's throwing-by-default,

@@ -16,11 +16,6 @@ extension ControlFlowTypeChecker {
         let interner = ctx.interner
         let boolType = sema.types.booleanType
 
-        // Mirrors `inferIfExpr`'s sibling retry: a branch body can leave a
-        // type variable unresolved because it is only pinned by the sibling
-        // branches' types — kotlinc checks all branches under one constraint
-        // system. Block bodies qualify through their value-producing tail
-        // expression, so `else -> { ...; TN(...) }` retries too.
         func retriableBranchBody(_ expr: ExprID) -> Bool {
             var candidate = expr
             while case let .blockExpr(_, trailingExpr, _) = ast.arena.expr(candidate),
@@ -36,11 +31,6 @@ extension ControlFlowTypeChecker {
             }
         }
 
-        // When no expected type was available, re-infers each branch body
-        // that produced an error type against the join of the successful
-        // sibling types, so `when { c -> this else -> TN(...) }` fixes TN's
-        // type variables from `this`. A retry that still fails is rolled
-        // back, keeping the original diagnostics.
         func retryFailedBranchesAgainstSiblings(
             _ retries: [(body: ExprID, ctx: TypeInferenceContext, locals: LocalBindings, index: Int)],
             branchTypes: inout [TypeID],
@@ -56,11 +46,6 @@ extension ControlFlowTypeChecker {
             for retry in retries where retriableBranchBody(retry.body) {
                 let original = branchTypes[retry.index]
                 let wasError = original == sema.types.errorType
-                // The retry target is the join of the *other* branches'
-                // types: identical to `siblingExpected` for a failed branch
-                // (error types were already filtered out), but different for
-                // the under-constrained case below, where the branch's own
-                // unspecialized type must not contaminate the target.
                 let retryExpected = {
                     let others = branchTypes.indices.compactMap { index -> TypeID? in
                         guard index != retry.index else { return nil }
@@ -73,41 +58,14 @@ extension ControlFlowTypeChecker {
                     return others.isEmpty ? siblingExpected : sema.types.lub(others)
                 }()
                 guard retryExpected != sema.types.errorType else { continue }
-                // Drop the first pass's error diagnostics inside the branch
-                // range up front: re-inference re-emits the ones that stay
-                // genuine (e.g. an unrelated bad statement inside a block
-                // body), while inference-dependent ones prove stale when the
-                // retry succeeds. Removing first also defeats the duplicate
-                // suppression that would otherwise hide the re-emission —
-                // the same restore pattern call-site reinference uses
-                // (KUU-3750). The removed set also marks branches whose
-                // inference reported errors even though their stuck type
-                // conforms — `listOf()` stays `List<out Nothing>` with
-                // SEMA-INFER when nothing pins its type argument (KUU-4481).
                 var removedDiagnostics: [Diagnostic] = []
                 if let bodyRange = ast.arena.exprRange(retry.body) {
                     removedDiagnostics = ctx.sema.diagnostics.removeErrorDiagnostics(containedIn: bodyRange)
                 }
                 let conforms = !wasError && sema.types.isSubtype(original, retryExpected)
-                // A successfully inferred call branch can still leave its
-                // type arguments at the unconstrained default (`ArrayList()`
-                // → `ArrayList<Any>`) when nothing pinned them — under
-                // kotlinc's single constraint system the sibling types would
-                // have. The unspecialized result then forces the join into a
-                // use-site `out` projection (`MutableList<out W>`) whose
-                // `in`-position members become unusable (KUU-4472). Retry
-                // whenever the branch does not conform to the sibling join
-                // or it reported errors on the first pass; a retried result
-                // is adopted only when it actually conforms.
                 guard wasError || !conforms || !removedDiagnostics.isEmpty else {
                     continue
                 }
-                // The sibling join itself can be unsatisfiable for the
-                // call's declared return nominal — `listOf()` can never
-                // produce a `MutableList<Int>`. Joining the branch's own
-                // first-pass type with the sibling join yields the common
-                // nominal both can reach (`List<Int>`), matching the
-                // shared-constraint result kotlinc reports.
                 var expectedCandidates = [retryExpected]
                 if !wasError, !conforms {
                     let bridged = sema.types.lub([original, retryExpected])
@@ -238,10 +196,6 @@ extension ControlFlowTypeChecker {
             } else {
                 nil
             }
-            // When the subject is the implicit receiver `this`, narrowing must
-            // also update `ctx.implicitReceiverType` so bare-name member
-            // access (e.g. `v`, not just `this.v`) resolves against the
-            // narrowed type inside each branch.
             let subjectIsImplicitReceiverThis: Bool = {
                 guard let subjectExpr = ast.arena.expr(subjectID),
                       case let .thisRef(label, _) = subjectExpr
@@ -271,10 +225,6 @@ extension ControlFlowTypeChecker {
             var hasFalseCase = false
             var allBranchLocals: [LocalBindings] = []
             let subjectNominalSymbol = driver.helpers.nominalSymbol(of: subjectType, types: sema.types)
-            // Tracks all condition "keys" seen across the entire when expression
-            // for cross-branch duplicate detection.  A key is a string that
-            // uniquely identifies a condition value (e.g. "int:42", "bool:true",
-            // "name:Red", "null", "is:TypeName").
             var allSeenConditionKeys: Set<String> = []
             var nextBranchFlowState = ctx.flowState.includingMembers(from: locals)
 
@@ -365,15 +315,6 @@ extension ControlFlowTypeChecker {
                     recordResolvedConditionSymbol(conditionSymbolID, fallbackName: calleeName)
 
                 case let .isCheck(checkedExprID, _, negated, _):
-                    // The parser desugars a bare `is Type` when-branch condition to
-                    // `.isCheck(expr: subject, ...)`, reusing the exact subject
-                    // ExprID -- so identity comparison is both equivalent to, and
-                    // (for synthetic subjects such as `this` or a lambda parameter,
-                    // which never get an `identifierSymbols` binding) more reliable
-                    // than resolving the checked expression through
-                    // `identifierSymbols` and comparing symbols. Qualified or
-                    // computed subjects do not have a local binding either, but
-                    // their `is` conditions still cover sealed subclasses.
                     guard checkedExprID == subjectID,
                           let targetType = sema.bindings.isCheckTargetType(for: conditionID)
                     else {
@@ -397,8 +338,6 @@ extension ControlFlowTypeChecker {
                 var isNullBranch = false
                 var branchLocals = locals
                 var branchCtx = ctx
-                // The branch runs on its own locals copy, so narrowing inside
-                // cannot leak to the enclosing conditional path.
                 branchCtx.isConditionallyEvaluated = false
                 var trueFlowStates: [DataFlowState] = []
                 var cumulativeFalseState = nextBranchFlowState
@@ -410,8 +349,6 @@ extension ControlFlowTypeChecker {
                     conditionCtx.whenConditionSubject = subjectID
                     if let binding = subjectLocalBinding, binding.isStable,
                        let narrowed = ctx.dataFlow.resolvedTypeFromFlowState(cumulativeFalseState, reference: binding.symbol, types: sema.types) {
-                        // Conditions share the original subject ExprID. Keep
-                        // the refinement local to the condition.
                         conditionCtx.whenSubjectTypes[subjectID] = narrowed
                     }
                     let condType = driver.inferExpr(cond, ctx: conditionCtx, locals: &branchLocals)
@@ -440,10 +377,6 @@ extension ControlFlowTypeChecker {
                         if driver.exprChecker.equalityHasIncompatibleBuiltinTypes(
                             equalitySubjectType, equalityConditionType, sema: sema
                         ) {
-                            // kotlinc reports the subject/condition type
-                            // mismatch as INCOMPATIBLE_TYPES; give it the
-                            // dedicated code so @Suppress can target it
-                            // without silencing unrelated overload failures.
                             ctx.sema.diagnostics.error(
                                 "KSWIFTK-SEMA-0466",
                                 "Incompatible types in when branch condition.",
@@ -567,8 +500,6 @@ extension ControlFlowTypeChecker {
                     }
                 }
 
-                // The guard is checked within the narrowed context so smart casts from
-                // `is` checks are available.
                 if let guardExpr = branch.guard_ {
                     if branch.conditions.count > 1 {
                         ctx.sema.diagnostics.error(
@@ -578,8 +509,6 @@ extension ControlFlowTypeChecker {
                         )
                     }
                     let guardType = driver.inferExpr(guardExpr, ctx: branchCtx, locals: &branchLocals)
-                    // `Nothing` guards (`return`/`throw`/`break`/`continue`) never
-                    // fall through, so any `Nothing` subtype of Boolean is legal.
                     if !sema.types.isSubtype(guardType, boolType), guardType != sema.types.errorType {
                         ctx.sema.diagnostics.error(
                             "KSWIFTK-SEMA-0074",
@@ -656,19 +585,12 @@ extension ControlFlowTypeChecker {
                 valueFacts: subjectValueFacts
             )
             sema.bindings.bindWhenExhaustiveness(id, isExhaustive: isExhaustive)
-            // A subject-ful `when` used as a statement (its value discarded) only
-            // needs to be exhaustive when the subject is Boolean, enum, or sealed —
-            // for any other subject type, Kotlin requires exhaustiveness only when
-            // the when's value is actually used (see the subjectless `when` path
-            // below, which already applies this rule).
             let allowsLegacyStatement = driver.compilationContext?.options.frontendFlags
                 .contains(CompilerOptions.legacyNonExhaustiveWhenFlag) == true
             if !isExhaustive,
                isStatementContext,
                allowsLegacyStatement || !ctx.dataFlow.subjectRequiresStatementExhaustiveness(subjectType: subjectType, sema: sema)
             {
-                // Not exhaustive, but legal as a statement: fall through without
-                // diagnosing, matching the subjectless `when` statement behavior.
             } else if !isExhaustive {
                 let hasQualifiedObjectCondition = branches.contains { branch in
                     branch.conditions.contains { conditionID in
@@ -705,10 +627,6 @@ extension ControlFlowTypeChecker {
                 }
             }
 
-            // A branch whose body never completes normally (`return`/`throw`/
-            // `break`/`continue`, typed `Nothing`) vacuously satisfies any
-            // initialization requirement: control can only reach the code after
-            // the `when` through a branch that does complete normally.
             if isExhaustive {
                 let completingBranchLocals = zip(branchTypes, allBranchLocals)
                     .filter { type, _ in type != sema.types.nothingType }
@@ -733,8 +651,6 @@ extension ControlFlowTypeChecker {
                 }
             }
 
-            // A non-exhaustive statement-position `when` can fall through with no value,
-            // so its result is Unit even when its branches produce other values.
             let completingLocals = zip(branchTypes, allBranchLocals)
                 .filter { $0.0 != sema.types.nothingType }.map(\.1)
             mergeNullableBranchAssignments(
@@ -776,10 +692,6 @@ extension ControlFlowTypeChecker {
                 condCtx.isConditionallyEvaluated = false
                 driver.exprChecker.applyFlowStateToLocals(cumulativeFalseState, locals: &branchLocals, sema: sema)
                 var branchCtx = condCtx
-                // Collect all true-states and merge them (join) for the body context,
-                // since the body executes when ANY condition is true.
-                // condCtx is updated after each condition so subsequent conditions see
-                // the narrowing from prior conditions being false (short-circuit OR semantics).
                 var trueStates: [DataFlowState] = []
                 for cond in branch.conditions {
                     let condType = driver.inferExpr(cond, ctx: condCtx, locals: &branchLocals, expectedType: boolType)
@@ -795,7 +707,6 @@ extension ControlFlowTypeChecker {
                         ast: ast, sema: sema, interner: interner, scope: ctx.scope
                     )
                     trueStates.append(condBranch.trueState)
-                    // Chain false-state: branch is false only when ALL conditions are false
                     cumulativeFalseState = condBranch.falseState
                     condCtx = ctx.copying(flowState: cumulativeFalseState)
                     driver.exprChecker.applyFlowStateToLocals(cumulativeFalseState, locals: &branchLocals, sema: sema)
@@ -821,9 +732,6 @@ extension ControlFlowTypeChecker {
                 }
 
                 if let guardExpr = branch.guard_ {
-                    // Kotlin reports WHEN_GUARD_WITHOUT_SUBJECT here: branch
-                    // conditions of a subject-less `when` are already full
-                    // Boolean expressions, so a guard is never allowed.
                     ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0448",
                         "When branch guards are only allowed in 'when' with a subject.",
@@ -875,8 +783,6 @@ extension ControlFlowTypeChecker {
             )
             let isExhaustive = ctx.dataFlow.isWhenExhaustive(subjectType: boolType, branches: summary, sema: sema)
             sema.bindings.bindWhenExhaustiveness(id, isExhaustive: isExhaustive)
-            // A subject-less `when` used as a statement (its value discarded) does not
-            // require exhaustiveness in Kotlin - only `when` used as an expression does.
             if !isExhaustive, !isStatementContext {
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0004",
@@ -885,10 +791,6 @@ extension ControlFlowTypeChecker {
                 )
             }
 
-            // A branch whose body never completes normally (`return`/`throw`/
-            // `break`/`continue`, typed `Nothing`) vacuously satisfies any
-            // initialization requirement: control can only reach the code after
-            // the `when` through a branch that does complete normally.
             if isExhaustive {
                 let completingBranchLocals = zip(branchTypes, allBranchLocals)
                     .filter { type, _ in type != sema.types.nothingType }
@@ -913,8 +815,6 @@ extension ControlFlowTypeChecker {
                 }
             }
 
-            // A non-exhaustive statement-position `when` can fall through with no value,
-            // so its result is Unit even when its branches produce other values.
             let completingLocals = zip(branchTypes, allBranchLocals)
                 .filter { $0.0 != sema.types.nothingType }.map(\.1)
             mergeNullableBranchAssignments(

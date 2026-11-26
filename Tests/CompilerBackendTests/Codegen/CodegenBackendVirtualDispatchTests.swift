@@ -288,9 +288,6 @@ struct CodegenBackendVirtualDispatchTests {
 
     @Test
     func testOpenClassToStringOverrideKeepsFlatStringVtableABI() throws {
-        // The vtable slot's root is the runtime-builtin `Any.toString`, which
-        // has no emitted Kotlin ABI; the virtual call must not adopt its raw
-        // Int return and drop the override's flat String result (as `null`).
         let source = """
         open class Base(val value: Int) {
             override fun toString(): String = "b" + value
@@ -310,8 +307,6 @@ struct CodegenBackendVirtualDispatchTests {
 
     @Test
     func testSuperCallThroughTwoLevelGenericSuperclassUsesSpecializedOverrideBridge() throws {
-        // The matching diff case keeps the exact println/String-concatenation
-        // reproducer. This variant skips stdlib setup while exercising dispatch.
         let source = """
         open class A<R> {
             open fun foo(r: R): R = r
@@ -371,9 +366,6 @@ struct CodegenBackendVirtualDispatchTests {
         }
     }
 
-    // BUG-156: the interface method implemented by the abstract base must be
-    // reachable through the concrete subclass' itable, and the base's
-    // unqualified `compute()` must reach the subclass override.
     @Test
     func testInterfaceMethodInheritedFromAbstractBaseDispatchesThroughItable() throws {
         let source = """
@@ -484,15 +476,6 @@ struct CodegenBackendVirtualDispatchTests {
         )
     }
 
-    // KSP-496 byproduct bug: a property callable reference consumed as a
-    // plain function value (assigned to a function-typed variable, or passed
-    // to a higher-order function) reached the generic callable-value path,
-    // which used the *property* symbol as the call target. A property symbol
-    // has no emitted function behind it, so codegen fell back to declaring an
-    // external function named after the property and the program failed to
-    // link (`Undefined symbols: "_v"`). The reference must call the generated
-    // property-reference accessor instead — the same one the KProperty0/1
-    // wrapper objects use. Linking is the failure mode, so this has to run.
     @Test
     func testPropertyReferenceInFunctionPositionCallsTheAccessor() throws {
         let source = """
@@ -538,17 +521,6 @@ struct CodegenBackendVirtualDispatchTests {
         )
     }
 
-    // KSP-496 byproduct bug (same root shape, different consumer): a property
-    // callable reference in a fun-interface argument position was typed as the
-    // interface by Sema but never marked as a SAM conversion — only the
-    // function-reference branch did that (BUG-164). Without the mark,
-    // lowerCallableRefExpr skipped the wrapper object that carries the itable
-    // entry and handed the raw tagged callable to the interface parameter, so
-    // the interface call panicked at runtime ("Virtual dispatch failed: method
-    // not found in vtable/itable"). A lambda and a function reference in the
-    // same position are included as the contrast cases that already worked;
-    // the bound `instance::member` shape is the one that exercises the SAM
-    // thunk with a captured receiver *and* the substituted accessor target.
     @Test
     func testPropertyReferenceSamConversionDispatchesThroughTheInterface() throws {
         let source = """

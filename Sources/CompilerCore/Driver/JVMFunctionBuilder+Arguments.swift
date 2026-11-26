@@ -187,7 +187,10 @@ extension JVMFunctionBuilder {
         let plan = method.flatMap { m in program.classes.values.first { $0.name == m.owner } }
         if constructor, plan?.isEnum == true { throw fail("JVM enum constructors can only initialize enum entries.", id) }
         let extensionCall = program.extensionSymbols.contains(symbol) || context.jvmImports?.isExtension(symbol) == true
+        let valueCarrierCall = method?.isStatic == true
+            && (method?.kotlinFunction?.valueOperatorParameterDescriptors != nil || method?.kotlinFunction?.valueMemberParameterDescriptors != nil)
         var dispatch: JVMValue?, prefix: [JVMValue] = []
+        var carrierReceiver: JVMValue?
         if constructor, let plan, plan.isLocalNominal, !plan.captures.isEmpty {
             prefix = try localFunctionCaptureValues(plan.captures)
             if plan.isInner, let outer = plan.outer { prefix.append(try receiverValue ?? receiver.map(requireValue) ?? enclosingInstance(outer)) }
@@ -204,7 +207,10 @@ extension JVMFunctionBuilder {
             let isTypeQualifier = program.sema.bindings.identifierSymbol(for: receiver)
                 .flatMap { program.sema.symbols.symbol($0)?.kind }
                 .map { [.class, .interface, .enumClass, .annotationClass].contains($0) } ?? false
-            if !isTypeQualifier { _ = try requireValue(receiver) }
+            if !isTypeQualifier {
+                let evaluated = try requireValue(receiver)
+                if valueCarrierCall { carrierReceiver = evaluated }
+            }
         }
         if let method, context.jvmImports?.composeContentSymbols.contains(symbol) == true {
             guard let dispatch, args.count == 1 else { throw fail("Invalid JVM ComposeView.setContent call.", id) }
@@ -217,8 +223,8 @@ extension JVMFunctionBuilder {
             let before = prefix.count
             prefix += try importedContextArguments(binding, method: method, id: id)
             importedContextCount = prefix.count - before
-            if method.kotlinFunction?.valueOperatorParameterDescriptors != nil {
-                prefix.append(try receiverValue ?? receiver.map(requireValue) ?? instance(id))
+            if valueCarrierCall {
+                prefix.append(try receiverValue ?? carrierReceiver ?? receiver.map(requireValue) ?? instance(id))
             }
         }
         if extensionCall {
@@ -271,7 +277,7 @@ extension JVMFunctionBuilder {
             composableParameters: composableParameters,
             importedDefaults: importedDefaults
         )
-        for contextIndex in contextParameterTypes.indices {
+        for contextIndex in contextParameterTypes.indices.dropFirst(importedContextCount) {
             let contextValue: JVMValue
             if let explicit = ordered.contextValues[contextIndex] {
                 contextValue = explicit
@@ -345,7 +351,12 @@ extension JVMFunctionBuilder {
             }
         } else if var method {
             if let receiver, isSuper(receiver) { method = try superMethod(method, receiver: receiver) }
-            instructions.append(.foreignCall(method, receiver: object ?? dispatch, arguments: values, result: result))
+            if let clone = try reifiedClone(of: method, binding: binding, id: id) {
+                let receiverArgument = try (object ?? dispatch).map { [try convert($0, to: .reference(method.owner, nullable: false))] } ?? []
+                instructions.append(.foreignCall(clone, receiver: nil, arguments: receiverArgument + values, result: result))
+            } else {
+                instructions.append(.foreignCall(method, receiver: object ?? dispatch, arguments: values, result: result))
+            }
         } else if let reference {
             instructions.append(.call(reference, values, result))
         }

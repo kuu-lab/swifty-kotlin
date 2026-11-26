@@ -6,7 +6,6 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
-    /// KUU-2794: java.util.ArrayDeque imports and Java deque members work from the shared stdlib artifact.
     @Test
     func testJavaUtilArrayDequeThroughSharedStdlibArtifact() throws {
         let source = try diffCaseSource("java_util_array_deque.kt", file: #filePath)

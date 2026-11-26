@@ -8,9 +8,6 @@ import Testing
 @Suite
 struct CodegenBackendMultilineOperatorContinuationTests {
 
-    /// A declaration whose line ends with a binary operator continues on the next
-    /// line. The parser used to end the declaration at the newline, silently
-    /// dropping the continuation (or turning it into a stray top-level statement).
     @Test
     func testCodegenCompilesTopLevelDeclarationsWithTrailingOperatorContinuation() throws {
         let source = """

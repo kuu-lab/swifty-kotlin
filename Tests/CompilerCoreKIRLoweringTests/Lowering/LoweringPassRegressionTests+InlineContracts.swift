@@ -261,11 +261,6 @@ extension LoweringPassRegressionTests {
         #expect(first == second)
     }
 
-    /// A `kk_function_invoke` left in the caller body is expanded on a
-    /// different code path than an ordinary inline call. Both splice labels
-    /// into the same caller, so both have to draw them from the same
-    /// allocator: numbering them independently made the second expansion
-    /// reuse the label IDs the first one had just emitted.
     @Test
     func testDirectLambdaInvokeAndInlineCallDoNotReuseLabelIDs() throws {
         let interner = StringInterner()
@@ -276,8 +271,6 @@ extension LoweringPassRegressionTests {
         let inlineSymbol = SymbolID(rawValue: 2)
         let invokeCallee = interner.intern(RuntimeCall.functionInvoke.name)
 
-        // Both callees branch and return twice, so each expansion needs the
-        // callee's own label plus a merge label for the two exits.
         func branchingBody(
             param: KIRExprID,
             zero: KIRExprID,
@@ -361,8 +354,6 @@ extension LoweringPassRegressionTests {
             Issue.record("Missing expanded caller")
             return
         }
-        // Both calls really were expanded, so both expansions contributed
-        // labels to the body being checked.
         #expect(!lowered.body.contains { instruction in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
             return callee == invokeCallee || callee == inlineCallee.name
@@ -376,7 +367,6 @@ extension LoweringPassRegressionTests {
         #expect(definedLabels.count >= 4)
         #expect(Set(definedLabels).count == definedLabels.count)
         #expect(Set(referencedLabels).isSubset(of: Set(definedLabels)))
-        // The caller's own label keeps its ID; no expansion may take it.
         #expect(definedLabels.filter { $0 == 10000 }.count == 1)
     }
 }

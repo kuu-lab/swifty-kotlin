@@ -46,10 +46,6 @@ extension KlibFormatError: CustomStringConvertible {
     }
 }
 
-/// Pure-Swift DEFLATE decoder (RFC 1951 raw stream, as stored in zip method-8
-/// entries and inside zlib/gzip wrappers). No external dependencies — the
-/// compiler must run anywhere SwiftPM runs, including Linux CI without
-/// libz assumptions.
 package enum Inflater {
     package static func inflate(_ bytes: ArraySlice<UInt8>, uncompressedSize: Int? = nil) throws -> [UInt8] {
         var reader = BitReader(bytes: bytes)
@@ -273,7 +269,6 @@ package enum Inflater {
         }
     }
 
-    /// The fixed literal/length code from RFC 1951 §3.2.6.
     private static let fixedLiteralTable: HuffmanTable = {
         var lengths = [Int](repeating: 0, count: 288)
         for i in 0 ... 143 { lengths[i] = 8 }

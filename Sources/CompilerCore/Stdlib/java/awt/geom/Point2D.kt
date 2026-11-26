@@ -1,6 +1,5 @@
 package java.awt.geom
 
-/** `java.awt.geom.Point2D` — abstract double-precision point base. */
 public abstract class Point2D {
     public abstract fun getX(): kotlin.Double
     public abstract fun getY(): kotlin.Double
@@ -9,7 +8,6 @@ public abstract class Point2D {
         throw UnsupportedOperationException()
     }
 
-    /** `java.awt.geom.Point2D.Double`. */
     public open class Double(public var x: kotlin.Double = 0.0, public var y: kotlin.Double = 0.0) : Point2D() {
         override fun getX(): kotlin.Double = x
         override fun getY(): kotlin.Double = y

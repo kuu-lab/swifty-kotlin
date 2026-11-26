@@ -50,9 +50,6 @@ extension BuildKIRRegressionTests {
         let lambdaArgs = try #require(lambdaCallArguments.first)
         #expect(lambdaArgs.count == parameterCount + 2)
         #expect(lambdaArgs[0] == captureLoad)
-        // KUU-3535: the erased invoke ABI hands the adapter the raw receiver
-        // bits, so the receiver reaches the lambda through a checked-cast
-        // temporary rather than the bare parameter symbolRef.
         let receiverCastOperand = try #require(adapter.body.compactMap { instruction -> KIRExprID? in
             guard case let .call(_, callee, args, result, _, _, _, _) = instruction,
                   callee == ctx.interner.intern("kk_op_cast"),
@@ -153,11 +150,6 @@ extension BuildKIRRegressionTests {
         try runToKIR(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         let module = try #require(ctx.kir)
-        // Since KUU-1771 the source-backed `runBlocking` lowers its block as an
-        // ordinary `suspend CoroutineScope.() -> Unit` value: `this` binds to
-        // the declared receiver parameter (supplied by the launcher through
-        // the suspend-entry receiver slot), not to a synthetic
-        // `coroutineCurrentScope` read — and still occupies no capture slot.
         let lambda = try #require(findKIRLambdaFunctions(in: ctx).first { function in
             function.body.contains { instruction in
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }

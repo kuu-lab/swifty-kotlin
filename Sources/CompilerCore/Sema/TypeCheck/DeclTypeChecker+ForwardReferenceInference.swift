@@ -42,8 +42,6 @@ extension DeclTypeChecker {
         ctx: TypeInferenceContext
     ) -> (classType: TypeID, classContext: TypeInferenceContext, primaryConstructorLocals: LocalBindings) {
         let sema = ctx.sema
-        // Match the header pass's generic receiver: member property initializers
-        // and accessors need C<T>, not the raw class type C.
         let classTypeArgs: [TypeArg] = sema.types.nominalTypeParameterSymbols(for: symbol).map {
             .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0))))
         }
@@ -60,7 +58,6 @@ extension DeclTypeChecker {
             ctx: ctx
         )
         let classLabel = sema.symbols.symbol(symbol)?.name ?? ctx.interner.intern("")
-        // Keep the class receiver addressable to nested lambdas that use `this@Class`.
         let classContext = ctx.withoutSuspensionContext()
             .withOuterReceiver(label: classLabel, type: classType, symbol: symbol)
             .copying(
@@ -73,10 +70,6 @@ extension DeclTypeChecker {
             classDecl: classDecl,
             ctx: classContext
         )
-        // Property initializers run with the class receiver but do not pass
-        // through the member-function local-binding setup. Give `this` the
-        // same synthetic receiver identity so data-flow narrowing (for
-        // example, `this is Subtype`) is visible inside initializer branches.
         primaryConstructorLocals[ctx.interner.intern("this")] = (
             classType,
             SyntheticSymbolScheme.receiverParameterSymbol(for: symbol),
@@ -124,11 +117,6 @@ extension DeclTypeChecker {
         )
     }
 
-    /// Interfaces carry the same inferred member-property placeholders as
-    /// classes — `val isZero get() = signum == 0` on an interface is read by
-    /// earlier declarations long before the interface's own source-order pass
-    /// runs. Precheck them under the interface receiver so the concrete type
-    /// is published ahead of those reads (KUU-4101).
     func precheckIndependentInterfaceMemberProperties(
         _ interfaceDecl: InterfaceDecl,
         symbol: SymbolID,
@@ -181,9 +169,6 @@ extension DeclTypeChecker {
             ctx: ctx
         )
         let objectLabel = sema.symbols.symbol(symbol)?.name ?? ctx.interner.intern("")
-        // Named objects are static: they never capture an enclosing class
-        // instance, so only enclosing singleton-object receivers survive —
-        // the same rule `nestedClassContext(isInner: false)` applies (KUU-4388).
         return ctx.withoutSuspensionContext()
             .copying(outerReceiverTypes: ctx.singletonObjectOuterReceivers)
             .withOuterReceiver(label: objectLabel, type: objectType)
@@ -202,8 +187,6 @@ extension DeclTypeChecker {
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine
     ) {
-        // Use the same receiver and visibility scope as the authoritative pass.
-        // Companion initializers must not inherit constructor parameter locals.
         let objectContext = makeObjectTypeCheckContext(objectDecl: objectDecl, symbol: symbol, ctx: ctx)
         precheckIndependentMemberProperties(
             objectDecl.memberProperties, ctx: objectContext,
@@ -275,10 +258,6 @@ extension DeclTypeChecker {
             driver.precheckedPropertyDecls.insert(declID)
         }
 
-        // Revisit member properties until their dependencies resolve. Calls and
-        // member reads are eligible only when their referenced signatures or
-        // property types are already concrete; inferred-return calls and cycles
-        // stay on the normal pass.
         var didPrecheckProperty: Bool
         repeat {
             didPrecheckProperty = false
@@ -336,8 +315,6 @@ extension DeclTypeChecker {
                         diagnostics: diagnostics,
                         checkAccessorBodies: false
                     )
-                    // Publish only the inferred type; diagnostics belong to the
-                    // authoritative pass, which re-emits them in source order.
                     diagnostics.truncate(to: diagnosticSnapshot)
                     driver.markLocalNominalRechecks(since: nominalDeclsCheckedBefore)
                     didPrecheckProperty = true
@@ -359,12 +336,6 @@ extension DeclTypeChecker {
                     driver.publishedInferredPropertyDecls.insert(declID)
                     didPrecheckProperty = true
                 }
-                // A getter-only `val x get() = ...` derives its type from the
-                // accessor body, so the initializer paths above never apply.
-                // When that body probes to a concrete type, publish it while
-                // the header placeholder is in place; the source-order pass
-                // still re-checks the whole declaration, accessor included
-                // (KUU-4193).
                 if !driver.publishedInferredPropertyDecls.contains(declID),
                    canPublishInferredGetterPropertyType(
                        property,
@@ -381,10 +352,6 @@ extension DeclTypeChecker {
                     driver.publishedInferredPropertyDecls.insert(declID)
                     didPrecheckProperty = true
                 }
-                // Delegated and extension properties are not registered for
-                // demand inference, so publish their probed type without
-                // running the full declaration check ahead of source order
-                // (KUU-4610).
                 if !allowFullInferredPrecheck,
                    !driver.publishedInferredPropertyDecls.contains(declID),
                    property.type == nil,
@@ -403,13 +370,6 @@ extension DeclTypeChecker {
         } while didPrecheckProperty
     }
 
-    /// A `var` with a real custom setter cannot run its bound declaration
-    /// check early — the setter body may reference declarations that are only
-    /// checked later — but its property type comes solely from the
-    /// initializer. When that initializer is safe to precheck, publish just
-    /// the inferred type so earlier bodies see the concrete type; the
-    /// authoritative declaration pass still rechecks the whole property,
-    /// including the accessors (KUU-3799).
     func canSafelyPrecheckInferredPropertyInitializerType(
         _ property: PropertyDecl,
         in ctx: TypeInferenceContext,
@@ -470,10 +430,6 @@ extension DeclTypeChecker {
         )
     }
 
-    /// A member `val x get() = ...` has no initializer, so its type can only
-    /// come from probing the accessor body. When that probe reaches a concrete
-    /// type, the property may publish it ahead of source order; the
-    /// authoritative pass still rechecks the accessor body itself (KUU-4193).
     func canPublishInferredGetterPropertyType(
         _ property: PropertyDecl,
         in ctx: TypeInferenceContext,
@@ -532,10 +488,6 @@ extension DeclTypeChecker {
         )
     }
 
-    /// Probe the inferred type of a delegated or extension member property
-    /// without running the full declaration check. The strict precheck flags
-    /// stay raised for the probe so unresolved members cannot select a
-    /// placeholder overload (KUU-4610).
     private func safePrecheckInferredDelegatedOrExtensionPropertyType(
         _ property: PropertyDecl,
         symbol: SymbolID,
@@ -747,8 +699,6 @@ extension DeclTypeChecker {
             return false
         }
 
-        // Make a simple inferred extension getter's receiver available during
-        // prechecking so earlier function bodies see its concrete return type.
         if let receiverType = ctx.sema.symbols.extensionPropertyReceiverType(for: symbol) {
             guard !property.isVar,
                   property.setter == nil,
@@ -782,11 +732,6 @@ extension DeclTypeChecker {
             return type != ctx.sema.types.nullableNothingType
         }
 
-        // A non-extension `val x get() = ...` derives its type from the getter
-        // body — the same inference the declaration pass performs in source
-        // order. When that body is safe to precheck, let the property publish
-        // its type before earlier declarations observe the placeholder
-        // (KUU-3912).
         if let getter = property.getter {
             guard property.receiverType == nil,
                   !property.isVar,
@@ -804,8 +749,6 @@ extension DeclTypeChecker {
             return type != ctx.sema.types.nullableNothingType
         }
 
-        // A visibility-only setter such as `internal set` has no body and does
-        // not change the initializer's inferred property type.
         guard property.getter == nil,
               property.setter == nil || property.setter?.body == .unit,
               property.receiverType == nil
@@ -847,12 +790,6 @@ extension DeclTypeChecker {
         return type != ctx.sema.types.nullableNothingType
     }
 
-    /// An inferred property with a custom accessor body still derives its type
-    /// from a safe initializer — the accessor bodies only constrain that type,
-    /// they cannot replace it. Such a property may publish its inferred type
-    /// ahead of source order so earlier declarations see the concrete type
-    /// instead of the nullable-Any placeholder; the accessor bodies themselves
-    /// stay on the source-order pass, which re-checks the whole declaration.
     func canPublishInferredPropertyTypeEarly(
         _ property: PropertyDecl,
         in ctx: TypeInferenceContext,
@@ -923,9 +860,6 @@ extension DeclTypeChecker {
         case let .nameRef(name, _):
             return safePrecheckNameReference(name, in: ctx, locals: locals)
         case let .thisRef(label, _):
-            // `this` names the innermost implicit receiver; `this@Label`
-            // names an outer one. Both feed explicit member reads such as
-            // `this.makeInt()` in a property initializer.
             let thisType: TypeID? = if let label {
                 ctx.resolveQualifiedThis(label: label)
             } else {
@@ -954,10 +888,6 @@ extension DeclTypeChecker {
                 in: ctx, locals: locals
             )
         case let .nullAssert(operand, _):
-            // `expr!!` keeps the operand's type minus nullability — the same
-            // narrowing the authoritative pass records, so an inferred member
-            // property such as `val line = getLine(n)!!` can still publish
-            // its type ahead of source order (KUU-4014).
             guard let operandType = safePrecheckExpressionType(operand, in: ctx, locals: locals) else {
                 return nil
             }
@@ -977,19 +907,10 @@ extension DeclTypeChecker {
         case .safeMemberCall:
             return safePrecheckSafeMemberCall(exprID, in: ctx, locals: locals)
         default:
-            // Arbitrary control flow, mutation, and delegates are deliberately
-            // left on the normal declaration-order path.
             return nil
         }
     }
 
-    /// `as`/`as?` result types come from the cast target alone — the
-    /// authoritative pass computes the same type even when the operand fails
-    /// to resolve — so only the target has to resolve here. Type-publication
-    /// probes may therefore skip an unsafe operand (a legitimate `Any?` read
-    /// such as `_closeCause.value as Throwable?`, KUU-4193); the full-check
-    /// gate raises `requiresSafePrecheckCastOperands` so the real inference
-    /// never runs against operand types the probe declined to validate.
     private func safePrecheckCastType(
         operand: ExprID,
         typeRefID: TypeRefID,
@@ -1014,9 +935,6 @@ extension DeclTypeChecker {
             allowBareGenericTypeAliasProjection: true
         )
         guard targetType != ctx.sema.types.errorType else { return nil }
-        // A bare generic target borrows its arguments from a class-typed
-        // operand in the authoritative pass; without that operand type the
-        // result cannot be pinned, so keep the normal pass.
         if case let .classType(targetClass) = ctx.sema.types.kind(of: targetType),
            targetClass.args.isEmpty,
            !ctx.sema.types.nominalTypeParameterSymbols(for: targetClass.classSymbol).isEmpty
@@ -1081,15 +999,9 @@ extension DeclTypeChecker {
            let companion = ctx.sema.symbols.companionObjectSymbolIfKnown(for: symbol.id),
            let companionSymbol = ctx.sema.symbols.symbol(companion)
         {
-            // A classifier name in expression position denotes its companion
-            // object instance (`TrieNode.EMPTY` reads companion member `EMPTY`),
-            // so receiver expressions must see the companion's singleton type
-            // before member reads can publish their result types (KUU-4280).
             valueSymbol = companionSymbol
         }
         if valueSymbol.kind == .object {
-            // Singleton receivers already have a nominal type from their header.
-            // Their member reads still wait for concrete property types below.
             if valueSymbol.id == ctx.sema.types.unitClassSymbol {
                 return ctx.sema.types.unitType
             }
@@ -1129,11 +1041,6 @@ extension DeclTypeChecker {
         ) {
             return arrayType
         }
-        // Default imports can surface one nominal under several spellings —
-        // `kotlin.IllegalStateException` arrives together with the
-        // `java.lang.IllegalStateException` typealias that aliases it, so the
-        // raw candidate count is not one even though every candidate denotes
-        // the same class and pins the same constructor result (KUU-4502).
         var effectiveClassSymbol: SymbolID?
         var candidatesShareOneClass = true
         for candidate in namedCandidates {
@@ -1161,26 +1068,11 @@ extension DeclTypeChecker {
                 return nil
             }
             let typeParameters = ctx.sema.types.nominalTypeParameterSymbols(for: symbol.id)
-            // Every constructor of this non-generic class returns the same
-            // header-resolved type. The property checker still resolves the
-            // overload and validates argument types and visibility once.
-            // Neither this result nor an explicit type-argument list's result
-            // depends on the argument expressions, so calls like
-            // `TrieNode<Nothing>(0, emptyArray())` publish their type even
-            // when an argument cannot be typed before its own declaration
-            // pass — only the argument-driven inference path below needs
-            // every argument to be independently safe (KUU-4280).
             if typeArgs.isEmpty && typeParameters.isEmpty {
                 return ctx.sema.types.make(.classType(ClassType(
                     classSymbol: symbol.id, args: [], nullability: .nonNull
                 )))
             }
-            // Argument values can also pin a generic class's parameters when
-            // every applicable constructor binds the same class type
-            // arguments — `Pair("k", 1)` is `Pair<String, Int>` regardless of
-            // which `Pair` ctor overload resolution would pick. Constructors
-            // whose parameters mention a nested or unbound type parameter, or
-            // that disagree on the result, stay on the normal pass (KUU-3912).
             let initName = ctx.interner.intern("<init>")
             let constructorSymbols = ctx.sema.symbols.lookupAll(fqName: symbol.fqName + [initName])
             if typeArgs.isEmpty {
@@ -1232,11 +1124,6 @@ extension DeclTypeChecker {
                     classSymbol: symbol.id, args: resolvedClassArgs, nullability: .nonNull
                 )))
             }
-            // An explicit argument list pins a generic class's parameters, so
-            // a companion singleton such as `Node<Nothing, Nothing>(0)` is as
-            // safe to infer early as a non-generic constructor call. Default
-            // parameters may still read placeholder types; require every
-            // constructor to declare all of its parameters.
             guard typeArgs.count == typeParameters.count, !typeArgs.isEmpty,
                   !constructorSymbols.isEmpty,
                   constructorSymbols.allSatisfy({ ctor in
@@ -1261,11 +1148,6 @@ extension DeclTypeChecker {
             )))
         }
         guard typeArgs.isEmpty else { return nil }
-        // Calls with positional arguments — `listOf("")`, `makeToken(seed)` —
-        // are stable when every argument has a safe type and the surviving
-        // overloads agree on a concrete return type. Bare type parameters in
-        // the parameter list bind to the least upper bound of the arguments,
-        // which keeps single-parameter factories resolvable (KUU-3912).
         if !args.isEmpty {
             guard args.allSatisfy({ $0.label == nil && !$0.isSpread }) else {
                 return nil
@@ -1280,13 +1162,6 @@ extension DeclTypeChecker {
                 }
                 argumentTypes.append(argumentType)
             }
-            // An unqualified call with arguments can still bind an implicit
-            // receiver member — `val x = pub(n)` inside an inner class reads
-            // the enclosing instance's `pub`. Members shadow lexical
-            // functions, so walk the receiver tower like the zero-argument
-            // path does; only when no receiver supplies an applicable member
-            // or a same-named property do the lexical candidates apply
-            // (KUU-4014).
             for receiver in ctx.implicitReceiverMemberLookupEntries() {
                 let receiverType = ctx.sema.types.makeNonNullable(receiver.type)
                 let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
@@ -1295,8 +1170,6 @@ extension DeclTypeChecker {
                     sema: ctx.sema,
                     interner: ctx.interner
                 ).filter { candidate in
-                    // Member extensions still need a separate extension
-                    // receiver the unqualified call cannot supply.
                     guard ctx.sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
                           let signature = ctx.sema.symbols.functionSignature(for: candidate)
                     else {
@@ -1316,8 +1189,6 @@ extension DeclTypeChecker {
                         in: ctx
                     ) != nil
                 }
-                // An inapplicable member does not stop resolution: the call
-                // continues to outer receivers and the lexical scope.
                 if !applicableMembers.isEmpty {
                     return safePrecheckCallResultType(
                         applicableMembers,
@@ -1326,10 +1197,6 @@ extension DeclTypeChecker {
                         in: ctx
                     )
                 }
-                // A member property named `name` still binds the callee at
-                // this receiver through `invoke`; with arguments that result
-                // is not statically safe to guess, and the member shadows
-                // outer scopes — keep the call on the normal pass.
                 if driver.helpers.lookupMemberProperty(
                     named: name,
                     receiverType: receiver.type,
@@ -1338,16 +1205,6 @@ extension DeclTypeChecker {
                     return nil
                 }
             }
-            // `cachedScopeLookup` stops at the innermost scope binding
-            // `name` — including member tiers the receiver tower cannot
-            // see, such as the class member scope itself or a companion
-            // scope. Walk the chain like the zero-argument path: a level
-            // binding `name` only to member functions yields them as
-            // implicit-dispatch candidates when an implicit receiver
-            // supplies the dispatch receiver and the arguments fit;
-            // inapplicable members continue outward instead of hiding the
-            // lexical candidates. Any other binding kind keeps its normal
-            // shadowing (KUU-4293).
             var scopeLevel = ctx.scope as? BaseScope
             var scopeCandidates: [SymbolID] = []
             while let level = scopeLevel {
@@ -1384,12 +1241,6 @@ extension DeclTypeChecker {
                     else {
                         continue
                     }
-                    // A receiver-typed function at a lexical tier is callable
-                    // only when an implicit receiver supplies its dispatch
-                    // receiver — the enclosing nominal or one of its
-                    // companion objects. This keeps a same-named extension on
-                    // an unrelated type (e.g. `fun String.f()` at package
-                    // scope) from being treated as applicable here.
                     for entry in ctx.implicitReceiverMemberLookupEntries() {
                         guard case let .classType(receiverClass) = ctx.sema.types.kind(
                             of: ctx.sema.types.makeNonNullable(entry.type)
@@ -1418,9 +1269,6 @@ extension DeclTypeChecker {
                     }
                 }
                 if !applicableMembers.isEmpty {
-                    // Members bound at one tier can be supplied by different
-                    // receivers; resolve each receiver group on its own and
-                    // publish only when they agree on one concrete type.
                     var grouped: [TypeID: [SymbolID]] = [:]
                     var receiverOrder: [TypeID] = []
                     for member in applicableMembers {
@@ -1467,23 +1315,9 @@ extension DeclTypeChecker {
                     in: ctx
                 )
             }
-            // The tier that stopped the walk bound `name` only to
-            // non-function declarations or to member functions that do not
-            // apply. A property or object there can still answer `name(...)`
-            // through `invoke`, but invoke-with-arguments is not guessed
-            // here — the call stays on the normal pass, which keeps any
-            // same-named member property shadowing the outer scopes.
             return nil
         }
 
-        // An unqualified call inside a class or object can resolve to a
-        // member function on an implicit receiver (`val x = makeInt()`).
-        // Member signatures store their dispatch receiver in
-        // `signature.receiverType`, so the lexical filter below rejects them
-        // even though the enclosing receiver satisfies the call. Walk the
-        // receiver tower like `safePrecheckNameReference` does: the nearest
-        // receiver exposing an applicable member wins over lexical
-        // candidates, matching the normal call resolver's ordering.
         for receiver in ctx.implicitReceiverMemberLookupEntries() {
             let receiverType = ctx.sema.types.makeNonNullable(receiver.type)
             let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
@@ -1492,8 +1326,6 @@ extension DeclTypeChecker {
                 sema: ctx.sema,
                 interner: ctx.interner
             ).filter { candidate in
-                // Member extensions still need a separate extension receiver
-                // the unqualified call cannot supply.
                 guard ctx.sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
                       let signature = ctx.sema.symbols.functionSignature(for: candidate)
                 else {
@@ -1502,8 +1334,6 @@ extension DeclTypeChecker {
                 return signature.contextReceiverTypes.isEmpty
                     && canBeCalledWithoutArguments(signature)
             }
-            // An inapplicable member does not stop resolution: the call
-            // continues to outer receivers and the lexical scope.
             if !memberCandidates.isEmpty {
                 return safePrecheckCallResultType(
                     memberCandidates,
@@ -1511,11 +1341,6 @@ extension DeclTypeChecker {
                     in: ctx
                 )
             }
-            // A member property named `name` still binds the callee at this
-            // receiver: `name()` can only resolve through `invoke` on the
-            // property's type — or not at all. Either way the member shadows
-            // outer scopes, so the search stops rather than falling through
-            // to a same-named top-level function.
             if let property = driver.helpers.lookupMemberProperty(
                 named: name,
                 receiverType: receiver.type,
@@ -1530,15 +1355,6 @@ extension DeclTypeChecker {
             }
         }
 
-        // The receiver tower covered the implicit-receiver member scopes,
-        // but `scope.lookup` still stops at the innermost level binding
-        // `name` — including member tiers the tower cannot see, such as the
-        // companion-object scope. Walk the chain so those members get their
-        // turn: a level binding `name` only to member functions yields them
-        // as implicit-dispatch candidates; when none apply, the call
-        // continues to the next level instead of being shadowed by an
-        // inapplicable member. Any other binding kind (a same-named
-        // property or classifier) keeps its normal shadowing.
         var scopeLevel = ctx.scope as? BaseScope
         var scopeCandidates: [SymbolID] = []
         while let level = scopeLevel {
@@ -1575,12 +1391,6 @@ extension DeclTypeChecker {
                 else {
                     return false
                 }
-                // A receiver-typed function at a lexical tier is callable
-                // only when an implicit receiver supplies its dispatch
-                // receiver — the enclosing nominal or one of its companion
-                // objects. This keeps a same-named extension on an unrelated
-                // type (e.g. `fun String.f()` at package scope) from being
-                // treated as applicable here.
                 return ctx.implicitReceiverMemberLookupEntries().contains { entry in
                     guard case let .classType(receiverClass) = ctx.sema.types.kind(
                         of: ctx.sema.types.makeNonNullable(entry.type)
@@ -1621,10 +1431,6 @@ extension DeclTypeChecker {
         if !candidates.isEmpty {
             return safePrecheckCallResultType(candidates, in: ctx)
         }
-        // The tier that stopped the walk bound `name` only to non-function
-        // declarations. A property or object there can still answer `name()`
-        // through `invoke`; a binding that cannot produce one shadows the
-        // outer scopes all the same, so the first bound value ends the search.
         for candidate in scopeCandidates {
             guard let symbol = ctx.cachedSymbol(candidate) else { continue }
             let calleeType: TypeID?
@@ -1653,12 +1459,6 @@ extension DeclTypeChecker {
         return nil
     }
 
-    /// The class a scope candidate denotes for constructor-result prechecking:
-    /// a class or enum candidate is itself, while a typealias candidate
-    /// resolves through its underlying type so aliased spellings of one
-    /// nominal (the `java.lang` exception aliases of `kotlin` classes, all
-    /// default imports) collapse to a single class symbol (KUU-4502).
-    /// Non-classifier candidates return nil.
     private func precheckEffectiveClassSymbol(
         for candidate: SymbolID,
         in ctx: TypeInferenceContext
@@ -1684,16 +1484,11 @@ extension DeclTypeChecker {
         }
     }
 
-    /// `callee()` on a property or object resolves through `invoke` on its
-    /// type. Function-typed callees answer with their declared return type —
-    /// their `invoke` has no nominal member to collect — while nominal
-    /// callees resolve `invoke` like any other zero-argument member call.
     private func safePrecheckInvokeCall(
         on calleeType: TypeID,
         in ctx: TypeInferenceContext
     ) -> TypeID? {
         let receiverType = ctx.sema.types.makeNonNullable(calleeType)
-        // Only a non-nullable callee can be invoked without `?.`.
         guard receiverType == calleeType else { return nil }
         if case let .functionType(functionType) = ctx.sema.types.kind(of: receiverType) {
             guard !functionType.isSuspend,
@@ -1712,8 +1507,6 @@ extension DeclTypeChecker {
             sema: ctx.sema,
             interner: ctx.interner
         ).filter { candidate in
-            // A member or top-level `invoke` extension still needs the
-            // extension receiver the unqualified call cannot supply.
             guard ctx.sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
                   let signature = ctx.sema.symbols.functionSignature(for: candidate)
             else {
@@ -1752,8 +1545,6 @@ extension DeclTypeChecker {
             return nil
         }
 
-        // A non-empty arrayOf call has a stable element LUB when each argument
-        // is independently safe to type-check before its declaration body.
         let elementTypes = args.compactMap { argument -> TypeID? in
             safePrecheckExpressionType(argument.expr, in: ctx, locals: locals)
         }
@@ -1767,9 +1558,6 @@ extension DeclTypeChecker {
         )))
     }
 
-    /// `receiver?.property` has the same statically known property type as a
-    /// member read, made nullable by the safe call. Only zero-argument property
-    /// reads are probed here; calls stay on the normal pass.
     private func safePrecheckSafeMemberCall(
         _ exprID: ExprID,
         in ctx: TypeInferenceContext,
@@ -1814,12 +1602,6 @@ extension DeclTypeChecker {
             ), isSafePrecheckValueType(property.type, in: ctx) {
                 return property.type
             }
-            // The bundled kotlin.<Name>Array classes declare no `size`
-            // member — the runtime answers it through the intrinsic array
-            // member fallback — so member lookup cannot see it here. Mirror
-            // the fallback's statically known result type so an inferred
-            // member property such as `val size get() = data.size` still
-            // publishes its type ahead of earlier declarations (KUU-4101).
             return intrinsicArrayMemberPrecheckType(
                 named: name,
                 receiverType: receiverType,
@@ -1827,11 +1609,6 @@ extension DeclTypeChecker {
             )
         }
 
-        // Calls with arguments — `x.f(y)`, infix `x or y` — are also stable
-        // when every positional argument has a safe type and the surviving
-        // candidates agree on a concrete return type. Labeled arguments can
-        // reorder parameters and spreads carry whole arrays, so they stay on
-        // the normal pass (KUU-3912).
         var argumentTypes: [TypeID]? = nil
         if !args.isEmpty {
             guard args.allSatisfy({ $0.label == nil && !$0.isSpread }) else {
@@ -1851,8 +1628,6 @@ extension DeclTypeChecker {
         }
 
         let nonNullReceiverType = ctx.sema.types.makeNonNullable(receiverType)
-        // Kotlin requires the `infix` modifier for `a op b` calls, so an
-        // infix-shaped call only admits candidates carrying the flag.
         let requiresInfix = ctx.ast.arena.isInfixCall(exprID)
         func isAdmissibleCandidate(_ candidate: SymbolID) -> Bool {
             !requiresInfix
@@ -1870,9 +1645,6 @@ extension DeclTypeChecker {
             argumentTypes: argumentTypes,
             in: ctx
         ).filter(isAdmissibleCandidate))
-        // Bundled source extensions are not always present in the lexical
-        // scope (the regular member-call resolver also falls back to the
-        // symbol table by short name for these declarations).
         candidates.append(contentsOf: ctx.sema.symbols.lookupByShortName(name).filter { candidate in
             isAdmissibleCandidate(candidate)
                 && isSafePrecheckExtensionCandidate(
@@ -1890,12 +1662,6 @@ extension DeclTypeChecker {
         )
     }
 
-    /// Statically known result types of the intrinsic array-member fallback
-    /// (`tryArrayMemberFallback`/`arrayMemberResultType`) for zero-argument
-    /// reads whose type does not depend on the element type — currently just
-    /// `size`. Returns nil for non-array receivers and members the fallback
-    /// does not answer unconditionally (e.g. `contains` is hidden on
-    /// FloatArray/DoubleArray, and `toList`/`get` need the element type).
     private func intrinsicArrayMemberPrecheckType(
         named name: InternedString,
         receiverType: TypeID,
@@ -1915,11 +1681,6 @@ extension DeclTypeChecker {
         }
     }
 
-    /// Enum-entry initializers can appear as a classifier-qualified chain
-    /// such as `Parser.ValueOrigin.UNSET`. The ordinary member-call precheck
-    /// treats the first classifier as a value receiver, so it cannot infer
-    /// this chain and leaves an enclosing inferred property at its `Any?`
-    /// header type.
     private func safePrecheckQualifiedEnumEntryType(
         _ exprID: ExprID,
         in ctx: TypeInferenceContext,
@@ -2086,25 +1847,13 @@ extension DeclTypeChecker {
         }
     }
 
-    /// One overload that survived positional-argument fitting during a safe
-    /// precheck, with everything `isMoreSpecificPrecheckCallCandidate` needs
-    /// to compare it against its siblings without re-running resolution.
     private struct PrecheckApplicableCallCandidate {
         let symbol: SymbolID
         let signature: FunctionSignature
         let boundArguments: PrecheckArgumentBindings
-        /// Declared parameter types with the owner's type parameters already
-        /// substituted for the call-site receiver (identity for top-level
-        /// functions). Function type parameters remain as `.typeParam`.
         let declaredParameterTypes: [TypeID]
-        /// The declared parameter type bound to each call argument, in call
-        /// argument order, with function type parameters substituted by the
-        /// argument-derived bindings.
         let argumentParameterTypes: [TypeID]
-        /// The candidate's substituted return type.
         let returnType: TypeID
-        /// Whether the call routes at least one argument through a `vararg`
-        /// parameter.
         let usesVararg: Bool
     }
 
@@ -2125,8 +1874,6 @@ extension DeclTypeChecker {
                 bindings: [:], substitution: [:], typeVarBySymbol: [:]
             )
             if let argumentTypes {
-                // Overload resolution discards candidates that cannot accept
-                // the arguments, so inapplicable ones do not veto the result.
                 guard let accepted = precheckArgumentFitsSignature(
                     signature,
                     candidate: candidate,
@@ -2161,8 +1908,6 @@ extension DeclTypeChecker {
                     substitution: boundArguments.substitution,
                     typeVarBySymbol: boundArguments.typeVarBySymbol
                 )
-                // A surviving function type parameter means the arguments could
-                // not pin the result (e.g. `listOf()`): stay conservative.
                 let functionTypeParameters = Set(
                     signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)
                 )
@@ -2182,11 +1927,6 @@ extension DeclTypeChecker {
                 return nil
             }
             if let resultType, resultType != candidateReturnType {
-                // Applicable overloads can disagree on the result type —
-                // `atomic(0)` is both `atomic(Int): AtomicInt` and
-                // `atomic<T>(T): AtomicRef<Int>`. Keep the candidates so a
-                // most-specific winner can still pin the published type
-                // (KUU-4270); only a unique winner resolves the call.
                 sawReturnTypeDisagreement = true
             } else {
                 resultType = candidateReturnType
@@ -2206,9 +1946,6 @@ extension DeclTypeChecker {
         guard sawReturnTypeDisagreement else {
             return resultType
         }
-        // Receiver-sensitive disambiguation (member overrides, extension
-        // receivers) stays on the conservative path: only plain top-level
-        // calls compare candidates here.
         guard receiverType == nil else {
             return nil
         }
@@ -2218,10 +1955,6 @@ extension DeclTypeChecker {
         )
     }
 
-    /// Builds the comparison record for one applicable candidate: declared
-    /// parameter types with owner type parameters specialized for the
-    /// call-site receiver, and the per-argument bound parameter types with
-    /// function type parameters substituted by the fitted bindings.
     private func makePrecheckApplicableCallCandidate(
         _ candidate: SymbolID,
         signature: FunctionSignature,
@@ -2273,11 +2006,6 @@ extension DeclTypeChecker {
         )
     }
 
-    /// Picks the return type when exactly one applicable candidate is more
-    /// specific than every sibling — the same shape `pickMostSpecific` uses in
-    /// the real resolver, restricted to the criteria a side-effect-free
-    /// precheck can verify. Anything unverifiable leaves the expression on
-    /// the normal source-order pass.
     private func mostSpecificPrecheckCallResult(
         _ candidates: [PrecheckApplicableCallCandidate],
         in ctx: TypeInferenceContext
@@ -2293,8 +2021,6 @@ extension DeclTypeChecker {
             }
             guard beatsAll else { continue }
             if winner != nil {
-                // Two candidates each more specific than all others cannot
-                // happen for a strict order, but stay conservative anyway.
                 return nil
             }
             winner = candidate
@@ -2302,22 +2028,12 @@ extension DeclTypeChecker {
         return winner?.returnType
     }
 
-    /// Mirrors `Resolution.isMoreSpecificCandidate` for the subset a safe
-    /// precheck can decide without constraint solving or call bindings:
-    /// declared-shape-over-bare-type-parameter vetoes, instantiated parameter
-    /// specificity, the optional-parameter arity tiebreak, then the
-    /// signature-level tiebreaks (genericness, own type-parameter count,
-    /// vararg use). Type-parameter-bound specificity is not modeled, so a
-    /// pair that only differs there stays unresolved.
     private func isMoreSpecificPrecheckCallCandidate(
         _ lhs: PrecheckApplicableCallCandidate,
         than rhs: PrecheckApplicableCallCandidate,
         in ctx: TypeInferenceContext
     ) -> Bool {
         let types = ctx.sema.types
-        // A declared-shape parameter beats a bare type parameter on the other
-        // side; when rhs already wins that comparison lhs cannot be more
-        // specific (KUU-3960).
         if precheckDeclaredShapePreferred(rhs, over: lhs, in: ctx) {
             return false
         }
@@ -2328,10 +2044,6 @@ extension DeclTypeChecker {
         ) {
             return true
         }
-        // When every argument-position parameter of lhs is at least as
-        // specific as rhs's, the candidate binding the same arguments to
-        // fewer parameters wins if the larger one's extra parameters are all
-        // unbound and optional (default or vararg).
         if lhs.argumentParameterTypes.count == rhs.argumentParameterTypes.count,
            zip(lhs.argumentParameterTypes, rhs.argumentParameterTypes).allSatisfy({
                types.isSubtype($0, $1)
@@ -2366,8 +2078,6 @@ extension DeclTypeChecker {
         if precheckDeclaredShapePreferred(lhs, over: rhs, in: ctx) {
             return true
         }
-        // From here on only pairwise-equivalent instantiated parameter lists
-        // can still order the candidates.
         guard lhs.argumentParameterTypes.count == rhs.argumentParameterTypes.count,
               zip(lhs.argumentParameterTypes, rhs.argumentParameterTypes).allSatisfy({
                   types.isSubtype($0, $1) && types.isSubtype($1, $0)
@@ -2393,9 +2103,6 @@ extension DeclTypeChecker {
         return false
     }
 
-    /// Parameter indices a positional call binds on `candidate`: argument
-    /// `i` maps to parameter `min(i, count - 1)` so a vararg tail absorbs the
-    /// overflow, matching `precheckArgumentFitsSignature`.
     private func precheckBoundParameterIndices(
         for candidate: PrecheckApplicableCallCandidate,
         argumentCount: Int
@@ -2410,9 +2117,6 @@ extension DeclTypeChecker {
         return indices
     }
 
-    /// `isMoreSpecific` from the real resolver minus the literal-widening
-    /// arms: every pair must be a strict-or-equal subtype in the lhs-to-rhs
-    /// direction with at least one strict step.
     private func precheckParameterListMoreSpecific(
         _ lhs: [TypeID],
         than rhs: [TypeID],
@@ -2430,10 +2134,6 @@ extension DeclTypeChecker {
         return sawStrict
     }
 
-    /// `prefersDeclaredShapeOverBareTypeParameter`: lhs is preferred over rhs
-    /// when their declared parameter lists have equal length, every position
-    /// is either identical concrete types or a bare-type-parameter-vs-shape
-    /// pair, and at least one position is strictly shape-over-parameter.
     private func precheckDeclaredShapePreferred(
         _ lhs: PrecheckApplicableCallCandidate,
         over rhs: PrecheckApplicableCallCandidate,
@@ -2466,8 +2166,6 @@ extension DeclTypeChecker {
         return sawStrict
     }
 
-    /// `signatureContainsTypeParameter`: any `.typeParam` occurring in the
-    /// declared parameter or receiver types marks the signature generic.
     private func precheckSignatureContainsTypeParameter(
         _ signature: FunctionSignature,
         in ctx: TypeInferenceContext
@@ -2488,25 +2186,12 @@ extension DeclTypeChecker {
         return false
     }
 
-    /// Substitution bindings collected while checking that positional
-    /// arguments fit a candidate signature. `bindings` keeps the resolved
-    /// type per type-parameter symbol so class-level parameters can become
-    /// constructor type arguments; `substitution`/`typeVarBySymbol` drive
-    /// `substituteTypeParameters` on the result type.
     private struct PrecheckArgumentBindings {
         var bindings: [SymbolID: TypeID]
         var substitution: [TypeVarID: TypeID]
         var typeVarBySymbol: [SymbolID: TypeVarID]
     }
 
-    /// Positional argument fitting for a candidate call: arity must satisfy
-    /// the parameter list (a defaulted or vararg tail may absorb the
-    /// difference), each concrete parameter type must accept its argument as a
-    /// subtype, and a bare function type parameter accumulates a
-    /// least-upper-bound binding so factories like `listOf(x)` can pin `T`.
-    /// Anything unverifiable — nested type parameters in a parameter or an
-    /// upper bound — returns nil and keeps the expression on the normal pass
-    /// (KUU-3912).
     private func precheckArgumentFitsSignature(
         _ signature: FunctionSignature,
         candidate: SymbolID,
@@ -2574,7 +2259,6 @@ extension DeclTypeChecker {
                 symbols: typeParameterSet,
                 types: types
             ) {
-                // `Pair<K, V>`-style parameters need real constraint solving.
                 return nil
             }
             guard types.isSubtype(argumentType, parameterType) else {
@@ -2588,9 +2272,6 @@ extension DeclTypeChecker {
         )
     }
 
-    /// A bare `T` parameter may only bind an argument inside `T`'s declared
-    /// upper bounds. Bounds still mentioning another function type parameter
-    /// cannot be checked here, so they reject the binding conservatively.
     private func precheckArgumentRespectsTypeParameterBounds(
         _ argumentType: TypeID,
         typeParameterSymbol: SymbolID,
@@ -2618,12 +2299,6 @@ extension DeclTypeChecker {
         return true
     }
 
-    /// A member signature's return type is stored in terms of the declaring
-    /// owner's type parameters. Substitute the call-site receiver's lifted
-    /// supertype arguments so `map.hashMap.builder()` on
-    /// `PersistentHashMap<K, LinkedValue<V>>` yields
-    /// `PersistentHashMapBuilder<K, LinkedValue<V>>` rather than the
-    /// owner's raw `PersistentHashMapBuilder<K, V>` (KUU-3799).
     private func specializedPrecheckMemberReturnType(
         _ returnType: TypeID,
         candidate: SymbolID,
@@ -2685,8 +2360,6 @@ extension DeclTypeChecker {
             }
             return function.returnType != nil
         }
-        // Precompiled stdlib and dependency symbols already carry a resolved
-        // signature and have no source declaration in this AST.
         return true
     }
 
@@ -2771,10 +2444,6 @@ extension DeclTypeChecker {
                let subjectSymbol = safePrecheckReferenceSymbol(subject, in: ctx, locals: locals),
                let targetType = safePrecheckTypeRef(targetTypeRef, in: ctx)
             {
-                // Header-time bindings for implicit member properties do not
-                // yet exist, so DataFlowAnalyzer cannot identify this stable
-                // reference. Mirror the positive `is` refinement from the AST
-                // for the right-hand side of `&&`.
                 rhsState.variables[subjectSymbol] = VariableFlowState(
                     possibleTypes: [targetType],
                     nullability: types.nullability(of: targetType),
@@ -2821,11 +2490,6 @@ extension DeclTypeChecker {
         case .subtract, .multiply, .divide, .modulo:
             return safePrecheckNumericBinaryType(op, lhs: lhsType, rhs: rhsType, in: ctx)
         case .elvis:
-            // `lhs ?: rhs` joins the definitely-non-null lhs with the rhs —
-            // the same lub the authoritative pass computes — so a getter-only
-            // property such as `sendException get() = closeCause ?:
-            // ClosedSendChannelException(...)` can publish a concrete type
-            // ahead of source order (KUU-4194).
             let result = types.lub([
                 types.definitelyNonNullForm(of: lhsType),
                 rhsType,

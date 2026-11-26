@@ -289,7 +289,6 @@ extension JVMBackendTests {
         #"fun main() { println("x".replace("a")) }"#,
         #"fun main() { println("x".substring(unknown = 1)) }"#,
         #"fun main() { println("x" + 1) trailing }"#,
-        #"class Text: CharSequence { override val length: Int get() = 0; override fun get(index: Int): Char = 'a'; override fun subSequence(startIndex: Int, endIndex: Int): CharSequence = "" }"#,
     ])
     func m18InvalidTextProgramsPreserveOutput(source: String) throws {
         try withWorkspace { root in

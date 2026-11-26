@@ -3,15 +3,8 @@
 import Testing
 @testable import CompilerTestSupport
 
-// STDLIB-004: Codegen coverage for primitive array factory calls and
-// lambda constructors.  These tests verify the KIR lowering output so
-// that any regression in the array-creation code path is caught early.
 extension BuildKIRRegressionTests {
 
-    /// Built once per process: `static let` initializes under `swift_once`, so
-    /// parallel tests share a single compile. The previous check-then-set over
-    /// a mutable static allowed concurrent tests to each miss the cache and
-    /// re-pay the bundled-stdlib compile.
     private static let _sharedPrimitiveArrayCtx = Result<CompilationContext, any Error> {
         let sources: [String] = [
             """
@@ -438,8 +431,6 @@ extension BuildKIRRegressionTests {
             "List<Int>.toIntArray() must lower to a single call of the bundled declaration; got: \(callNames)"
         )
 
-        // The call must carry a resolved declaration symbol (bundled stdlib),
-        // not an unresolved name that would only be matched at link time.
         let calleeSymbol = try #require(convertBody.compactMap { instruction -> SymbolID? in
             guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
                   callee == KnownCompilerNames(interner: ctx.interner).toIntArray

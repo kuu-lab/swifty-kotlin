@@ -4,10 +4,6 @@
 import Foundation
 import Testing
 
-/// KUU-4071: member `equals(other: Any?)` on a non-null scalar receiver must
-/// box through its wrapper and dispatch `java/util/Objects.equals`, matching
-/// kotlinc. Previously the JVM backend rejected it with
-/// `KSWIFTK-JVM-0001: Unsupported JVM member: equals`.
 extension JVMBackendTests {
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func scalarMemberEqualsBoxesReceiverAndArgument(mode: EmitMode) throws {

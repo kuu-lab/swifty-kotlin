@@ -90,7 +90,6 @@ struct CodegenBackendKotlinTextSearchEdgeCasesTests {
         )
     }
 
-    // STDLIB-TEXT-EDGE-003: indexOf / lastIndexOf with ignoreCase (positional 3-arg API)
     @Test func testKotlinTextIndexOfIgnoreCaseEdgeCases() throws {
         let source = """
         fun main() {
@@ -217,7 +216,6 @@ struct CodegenBackendKotlinTextSearchEdgeCasesTests {
         )
     }
 
-    // STDLIB-TEXT-FN-021: indexOfAny with default arguments (startIndex=0, ignoreCase=false)
     @Test func testKotlinTextIndexOfAnyDefaultArgs() throws {
         let source = """
         fun main() {

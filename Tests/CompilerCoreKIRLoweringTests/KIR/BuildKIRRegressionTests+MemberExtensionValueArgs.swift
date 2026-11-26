@@ -4,13 +4,6 @@
 import Testing
 
 extension BuildKIRRegressionTests {
-    /// KUU-962: member-extension calls carry TWO leading receiver slots in the
-    /// lowered arguments -- [dispatch, extension, ...valueArgs] -- while the
-    /// callee signature only counts the extension receiver. Materializing
-    /// function-typed value arguments must start past both slots; otherwise
-    /// parameter 0 maps onto the extension receiver and a `suspend (E) -> R`
-    /// block is passed as a bare `symbolRef`, whose aggregate-parameter thunk
-    /// ABI the callee's kk_suspend_function_invoke cannot drive.
     @Test func testMemberExtensionFunctionArgumentIsMaterializedPastBothReceivers() throws {
         let source = """
         class Box
@@ -22,8 +15,6 @@ extension BuildKIRRegressionTests {
         }
         """
 
-        // The block must return `R`; `{ it + 1 }` was ill-typed and only
-        // lowered because the test never checked diagnostics.
         let ctx = makeContextFromSource(source)
         try runToKIR(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
@@ -33,9 +24,6 @@ extension BuildKIRRegressionTests {
         let callNames = extractCallees(from: testBody, interner: ctx.interner)
         #expect(callNames.contains(runtimeCallee(.functionCreate1)))
 
-        // The materialized function value (the kk_function_create_1 result)
-        // must be the argument handed to the member-extension callee -- not a
-        // raw `symbolRef` of the lambda thunk.
         var createResult: KIRExprID?
         var memberCallArguments: [KIRExprID]?
         for instruction in testBody {

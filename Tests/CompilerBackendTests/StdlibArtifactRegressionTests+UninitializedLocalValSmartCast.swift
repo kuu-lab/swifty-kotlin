@@ -4,7 +4,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2293: first assignment to an uninitialized local val narrows its flow type.
     @Test(arguments: [true, false], [0, 2])
     func testUninitializedLocalValSmartCastThroughSourceAndFreshArtifact(
         fromSource: Bool,

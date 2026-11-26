@@ -185,7 +185,10 @@ bound/unbound reference の呼出し結果に対する `.kklib` generic metadata
 
 この表は **後続実装が満たす契約** で、現行 KSwiftK の実装済み一覧ではない。
 [stdlib-pipeline §9](stdlib-pipeline.md#9-合成スタブ-3-分類棚卸し-rf-stub-001) と
-[DEBT-DIFF-001](diff-skip-inventory.md#debt-diff-001-reference-target--classpath--runtime-only) の
+DEBT-DIFF-001（`docs/diff-skip-inventory.md` は #8170 以降 git 管理外のローカル生成物。
+現行の分類は [`Scripts/diff_cases/`](../Scripts/diff_cases/README.md) の
+`SKIP-DIFF` / candidate-only directive に記録され、
+`rg -l 'SKIP-DIFF|DIFF_CANDIDATE_ONLY|CANDIDATE-ONLY' Scripts/diff_cases/` で再集計できる）の
 JS/Wasm target-out 方針を維持する。対象 issue が要求する限定的な native source
 compatibility を、JS backend/外部 object ABI のサポートへ拡大しない。
 

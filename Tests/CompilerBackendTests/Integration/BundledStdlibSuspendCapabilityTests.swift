@@ -4,12 +4,6 @@
 import Foundation
 import Testing
 
-/// KSP-CAP-012: bundled ソース（`SourceManager` に `__bundled_` prefix で登録されるファイル）内で
-/// 宣言された suspend fun が、ユーザーソースと同じ経路でコンパイル・実行できることを固定する回帰テスト。
-/// 2026-07-08 に一時ファイルで実機確認済みだったが（TODO.md KSP-CAP-012 参照）永続的な回帰テストとして
-/// 固定されていなかったため追加する。ジェネリック型引数 + suspend 関数型パラメータ + 実際の suspension
-/// point（`delay`）を含み、bundled 側の関数からユーザー側の suspend ラムダを呼び出す形（KSP-674/KSP-679
-/// が実際に必要とする形）を再現する。
 @Suite
 struct BundledStdlibSuspendCapabilityTests {
     // suspension point (`delay`) はジェネリック suspend fun 自体の本体に置く。ラムダ本体は
@@ -31,18 +25,14 @@ struct BundledStdlibSuspendCapabilityTests {
     }
     """
 
-    // bundled ソースとして注入する際は、ファイル単体で自己完結した import を持たせる。
     private var probeSource: String {
         "import kotlinx.coroutines.delay\n\n" + probeDecl
     }
 
-    // ユーザーソースとして使う際、`kspCap012Probe` は同一(root)パッケージの bundled
-    // ファイルから import 無しで解決される想定 — 実際に解決できることも本テストの検証対象。
     private var callerSource: String {
         "import kotlinx.coroutines.runBlocking\n\n" + callerDecl
     }
 
-    /// 対照群: 同じ実装をユーザーソースに置いた場合（既に動作実測済みの経路）。
     @Test
     func testSuspendFunDeclaredInUserSourceCompilesAndExecutes() throws {
         let combinedSource = """
@@ -79,7 +69,6 @@ struct BundledStdlibSuspendCapabilityTests {
         }
     }
 
-    /// 本題: 同じ実装を bundled ソース（`__bundled_` prefix）に置いた場合。KSP-CAP-012 が検証対象とする経路。
     @Test
     func testSuspendFunDeclaredInBundledSourceCompilesAndExecutes() throws {
         let bundledPath = "__bundled_ksp_cap_012_probe.kt"
@@ -105,7 +94,6 @@ struct BundledStdlibSuspendCapabilityTests {
             try runToLowering(ctx)
             try assertNoDiagnosticErrors(ctx)
 
-            // セットアップそのものが意図通り bundled 経路を通っていることを確認する。
             let probeFileID = try #require(ctx.sourceManager.fileID(forPath: bundledPath))
             #expect(ctx.sourceManager.path(of: probeFileID).hasPrefix("__bundled_"))
 

@@ -1,6 +1,3 @@
-/// External object-property getters use the singleton as a dispatch receiver,
-/// just like an explicitly qualified member read. Package properties have no
-/// receiver. Keep bare reads and generated global initializers on the same ABI.
 func externalGlobalPropertyGetterArguments<C: RangeReplaceableCollection>(
     for property: SymbolID,
     sema: SemaModule,
@@ -36,10 +33,6 @@ func emitNonThrowingCall<C: RangeReplaceableCollection>(
     return result
 }
 
-/// Resolves value classes/enums to their underlying representation first
-/// (`resolveValueClassKind`) so a value class or enum boxes via the correct
-/// callee instead of being silently skipped (`.classType` never matches
-/// `BoxingCalleeTable`'s primitive-only lookup on its own).
 func boxValueForAnySlot<C: RangeReplaceableCollection>(
     _ value: KIRExprID,
     sourceType: TypeID,
@@ -136,9 +129,6 @@ func emitNonThrowingCall<C: RangeReplaceableCollection>(
     instructions.append(.call(symbol: symbol, callee: callee, arguments: [arg], result: result, canThrow: false))
 }
 
-/// Emits a runtime bridge call whose trailing `outThrown` channel must be
-/// present even when the enclosing Kotlin function has no local catch block.
-/// Try-lowering may route the call to its local exception slot later.
 func emitThrowingCall<C: RangeReplaceableCollection>(
     callee: InternedString,
     arg: KIRExprID,
@@ -148,12 +138,6 @@ func emitThrowingCall<C: RangeReplaceableCollection>(
     instructions.append(.call(callee: callee, arguments: [arg], result: result, canThrow: true))
 }
 
-/// External members lower to their runtime link name; the resolved symbol is
-/// carried along so that source-defined members (e.g. bundled `kotlin.Pair`)
-/// dispatch to the compiled function instead of a same-named runtime export,
-/// and so that ABI lowering can unbox generic component results. `candidate`
-/// is the resolved member itself, which `emitDestructuringComponentCall`
-/// needs for virtual dispatch even when `symbol` is withheld from a direct call.
 func resolveDestructuringComponentCallee(
     componentName: InternedString,
     receiverType: TypeID,
@@ -180,11 +164,6 @@ func resolveDestructuringComponentCallee(
 }
 
 extension CallLowerer {
-    /// An open `componentN` overridden in a subclass must dispatch on the
-    /// receiver's runtime type (`val (x, y): P = Q(...)` calls `Q.component1`),
-    /// while member extensions dispatch on their enclosing receiver and local
-    /// component functions need their captured environment at the call site.
-    /// Other non-virtual members fall back to the direct `symbol`/`callee` call.
     func emitDestructuringComponentCall(
         candidate: SymbolID?,
         symbol: SymbolID?,
@@ -254,18 +233,6 @@ extension CallLowerer {
     }
 }
 
-/// Enum constants are raw ordinal Ints everywhere except when they round-trip
-/// through an Any-erased slot (e.g. an element read out of
-/// `values()`/`entries`, see `kk_enum_box_ordinal`), which leaves them as a
-/// boxed handle. `kk_unbox_int` is a no-op pass-through on an
-/// already-raw ordinal, so calling this on both operands of an enum
-/// `==`/`when` comparison normalizes either representation to a raw ordinal
-/// without needing to know which side (if either) is actually boxed.
-///
-/// Nullable enums are unboxed too: `kk_unbox_int` passes the null sentinel
-/// through unchanged (and unwraps boxed handles to their ordinals), so a
-/// null subject compares unequal to every raw ordinal instead of aliasing
-/// the first entry. Non-enum static types are still passed through.
 func unboxIfEnumTyped<C: RangeReplaceableCollection>(
     _ exprID: KIRExprID,
     staticType: TypeID?,
@@ -291,10 +258,6 @@ func unboxIfEnumTyped<C: RangeReplaceableCollection>(
     )
 }
 
-/// Resolves the enum class symbol of an equality operand's static type,
-/// ignoring nullability (`E` and `E?` both resolve). `==`/`!=` and `when`
-/// entry matching pick each operand's erased comparison form from this
-/// (KUU-3027).
 func enumEqualityOperandClassSymbol(_ staticType: TypeID?, sema: SemaModule) -> SymbolID? {
     guard let staticType,
           case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(staticType)),
@@ -305,10 +268,6 @@ func enumEqualityOperandClassSymbol(_ staticType: TypeID?, sema: SemaModule) -> 
     return classType.classSymbol
 }
 
-/// `kk_unbox_int` on an enum operand yields its ordinal and passes the null
-/// sentinel through unchanged (the sentinel is not a registered pointer), so
-/// a nullable enum slot still compares unequal to every entry and equal to
-/// another null slot.
 func unboxEnumOperandForEquality<C: RangeReplaceableCollection>(
     _ exprID: KIRExprID,
     sema: SemaModule,
@@ -326,12 +285,6 @@ func unboxEnumOperandForEquality<C: RangeReplaceableCollection>(
     )
 }
 
-/// Boxes a *non-null* enum operand into the canonical enum-tagged box so a
-/// structural `==` against an erased peer compares nominal enum identity
-/// instead of aliasing the bare ordinal against a boxed scalar of the same
-/// value (KUU-3027: `E.A == (0 as Any)` must be false while
-/// `(E.A as Any) == E.A` stays true). A nullable enum operand already holds
-/// the box-or-sentinel form, so callers leave it untouched.
 func boxEnumOperandForEquality<C: RangeReplaceableCollection>(
     _ exprID: KIRExprID,
     staticType: TypeID?,
@@ -363,16 +316,6 @@ func boxEnumOperandForEquality<C: RangeReplaceableCollection>(
     return boxed
 }
 
-/// Normalizes both sides of an enum-aware `==`/`!=` (and `when` entry match,
-/// which desugars to `==`) into a consistent erased form before the
-/// structural-compare emission (KUU-3027):
-///   - same enum class on both sides, either side nullable: unbox both to
-///     ordinals — `kk_unbox_int` passes the null sentinel through, so `null`
-///     still compares unequal to any entry and equal to another null slot.
-///   - otherwise a *non-null* enum operand is boxed into its canonical
-///     enum-tagged form, so `E.A == (0 as Any)` is false while
-///     `(E.A as Any) == E.A` stays true. A nullable enum operand already
-///     holds that box-or-sentinel form.
 func normalizeEnumEqualityOperands<C: RangeReplaceableCollection>(
     lhsID: KIRExprID,
     lhsType: TypeID?,
@@ -411,18 +354,6 @@ func normalizeEnumEqualityOperands<C: RangeReplaceableCollection>(
     return (effectiveLhsID, effectiveRhsID)
 }
 
-/// A value class whose *underlying representation can itself be null* — e.g.
-/// `@JvmInline value class V(val x: String?)` — cannot reuse the payload
-/// pointer for its `V?` slot: a null payload and a null wrapper would be
-/// indistinguishable (KUU-3115). For such classes `V` keeps the raw payload
-/// representation while `V?`/`Any`/interface/type-parameter slots carry a
-/// nominal `RuntimeObjectBox` allocated by `kk_value_class_box`, tagged with
-/// the class's stable nominal type ID.
-///
-/// Returns the class symbol when `kind` is exactly such a non-null
-/// value-class type; nil otherwise. Uses `effectiveValueClassUnderlyingType`
-/// so interface-implementing value classes — which stay boxed through the
-/// ordinary `kk_object_new` path — are excluded the same way everywhere.
 func nullableUnderlyingValueClassSymbol(
     of kind: TypeKind?,
     types: TypeSystem,
@@ -446,10 +377,6 @@ func nullableUnderlyingValueClassSymbol(
         : nil
 }
 
-/// Whether a value-class underlying type's runtime representation can carry
-/// null — i.e. the underlying type is itself nullable, is an erased type
-/// parameter, or chains to another value class whose own payload can be null
-/// (`@JvmInline value class V2(val x: V)` where `V`'s payload is nullable).
 private func valueClassReprCanBeNull(
     _ type: TypeID,
     types: TypeSystem,
@@ -458,7 +385,6 @@ private func valueClassReprCanBeNull(
 ) -> Bool {
     switch types.kind(of: type) {
     case .typeParam:
-        // Erased generic slots can hold null regardless of the bound.
         return true
     case let .classType(classType) where classType.nullability == .nonNull:
         guard let sym = symbols.symbol(classType.classSymbol),
@@ -477,32 +403,18 @@ private func valueClassReprCanBeNull(
     }
 }
 
-/// True when `kind` is a slot type whose runtime value is a pointer that may
-/// carry a `V?`-style nominal box — i.e. the `V` -> box conversion must run
-/// `kk_value_class_box` (KUU-3115). `V` itself is the raw payload, so a
-/// non-null slot of the same value class is *not* a box target.
 func valueClassBoxTargetIsBoxed(_ kind: TypeKind, symbols: SymbolTable?) -> Bool {
     switch kind {
     case .any, .typeParam:
         return true
     case let .classType(classType):
         if classType.nullability != .nonNull { return true }
-        // A different non-null classifier (e.g. an interface the value class
-        // implements) is an object slot; the same value class is the payload.
         return symbols?.symbol(classType.classSymbol)?.flags.contains(.valueType) != true
     default:
         return false
     }
 }
 
-/// True when `kind` is a slot type whose runtime value may hold a nominal
-/// value-class box that `kk_value_class_unbox` must unwrap back to the `V`
-/// payload (KUU-3115). `Any`, type parameters, nullable `V?`, and foreign
-/// reference classifiers all carry box-shaped values. A *non-null* slot of
-/// the same value class is the exception: it holds the raw payload — which
-/// may itself legitimately be a box of the same class (`VC(VC(5))` stores a
-/// boxed inner `VC` as `v`) — so unboxing it would strip a real value layer
-/// (KUU-4086).
 func valueClassUnboxSourceIsBoxed(_ kind: TypeKind, targetClassSymbol: SymbolID) -> Bool {
     switch kind {
     case .any, .typeParam:
@@ -539,10 +451,6 @@ public func nullAssertProbeCannotBeNull(
     }
 }
 
-/// True when `kind` is a non-null value class whose slot carries the flat
-/// (unboxed) payload representation. Value classes implementing an interface
-/// stay boxed — a real object handle that never is the sentinel — and keep
-/// the raw probe.
 func isNonNullUnboxedValueClassOperand(
     _ kind: TypeKind?,
     symbols: SymbolTable?
@@ -555,10 +463,6 @@ func isNonNullUnboxedValueClassOperand(
     return symbols.effectiveValueClassUnderlyingType(for: classType.classSymbol) != nil
 }
 
-/// Emits `kk_value_class_box(value, classID) -> result` — wraps a
-/// nullable-underlying value class's raw payload in its nominal
-/// `RuntimeObjectBox` so `V?`/`Any`/interface slots observe wrapper nullness
-/// separately from payload nullness (KUU-3115).
 func emitValueClassBoxCall<C: RangeReplaceableCollection>(
     value: KIRExprID,
     classSymbol: SymbolID,
@@ -578,10 +482,6 @@ func emitValueClassBoxCall<C: RangeReplaceableCollection>(
     instructions.append(.call(callee: interner.intern("kk_value_class_box"), arguments: [value, classIDExpr], result: result, canThrow: false))
 }
 
-/// Emits `kk_value_class_unbox(value, classID) -> result` — unwraps a
-/// `V?`-slot nominal box back to the payload a `V`-typed slot expects
-/// (KUU-3115). The call is idempotent: payloads and the null sentinel pass
-/// through unchanged.
 func emitValueClassUnboxCall<C: RangeReplaceableCollection>(
     value: KIRExprID,
     classSymbol: SymbolID,
@@ -601,30 +501,6 @@ func emitValueClassUnboxCall<C: RangeReplaceableCollection>(
     instructions.append(.call(callee: interner.intern("kk_value_class_unbox"), arguments: [value, classIDExpr], result: result, canThrow: false))
 }
 
-/// Normalizes a possibly-boxed value-class receiver back to the
-/// representation the class's own member implementations expect.
-///
-/// `V`-typed member bodies consume the *unboxed* underlying representation,
-/// while `V?`/erased slots carry a wrapper: a nominal `RuntimeObjectBox` for
-/// nullable-underlying or reference-backed payloads (`V(val x: String?)`,
-/// `V(val s: Any)`), or the tagged `kk_box_*` product for primitive-backed
-/// ones. Calling an implementation directly with the slot value hands it the
-/// box, and a synthesized `toString()` that inspects its payload re-renders
-/// the wrapper — `IC(s=IC(s=…))` — and used to recurse through the nominal
-/// Any bridge instead (KUU-3902).
-///
-/// Emits `kk_value_class_unbox` for nominal boxes — plus the erased-generic
-/// primitive unbox the Any `toString` bridge applies — or the matching
-/// `kk_unbox_*` for tagged primitive boxes. Both callees are idempotent:
-/// payloads and unrelated objects pass through unchanged, so the result is
-/// always a receiver the implementation accepts. `String`-backed value
-/// classes need no unbox: their `V`/`V?` slots already carry the flat
-/// aggregate (a `String?` slot flattens null to a nil data pointer, so the
-/// tagged `StringBox` only exists across erased boundaries, where the Any
-/// bridge's `kk_string_to_flat` handles it).
-///
-/// Returns `value` unchanged when `receiverType` is not a non-null value
-/// class or its slots never carry a box.
 func unboxedValueClassReceiverExpr<C: RangeReplaceableCollection>(
     value: KIRExprID,
     receiverType: TypeID,
@@ -671,9 +547,6 @@ func unboxedValueClassReceiverExpr<C: RangeReplaceableCollection>(
             arena: arena,
             into: &instructions
         )
-        // Erased-generic value classes may carry a tagged primitive box
-        // inside the nominal wrapper; extract the scalar the implementation
-        // ABI expects — the same sub-step the Any `toString` bridge applies.
         if let declaredUnderlyingType = symbols.effectiveValueClassUnderlyingType(for: valueClassSymbol) {
             let underlyingType = types.substituteNominalTypeParameters(
                 in: declaredUnderlyingType,
@@ -704,9 +577,6 @@ func unboxedValueClassReceiverExpr<C: RangeReplaceableCollection>(
         }
         return unboxedReceiver
     }
-    // Primitive-backed value classes carry the tagged `kk_box_*` product in
-    // `V?` slots; `kk_unbox_*` extracts it and passes the already-raw payload
-    // through.
     let resolvedReceiverKind = resolveValueClassKind(rawReceiverKind, types: types, symbols: symbols)
     if case .primitive = resolvedReceiverKind,
        let unboxCallee = BoxingCalleeTable(interner: interner).unboxCallee(
@@ -824,11 +694,6 @@ func emitBoxCallWithValueClassTag<C: RangeReplaceableCollection>(
     instructions.append(.call(callee: tagCallee, arguments: [boxedTemp, classIDExpr], result: result, canThrow: false))
 }
 
-/// True when `emitEnumOrdinalBoxCall` can resolve the entry name for this
-/// enum class: source-backed enums always synthesize `$enumOrdinalToName$`,
-/// while `.synthetic` header-only symbols (platform enums like
-/// `RegexOption`/`OsFamily`, `.kklib` imports) may use it only when the
-/// helper symbol is actually present (KUU-1364).
 func enumBoxingHasOrdinalNameHelper(
     _ sym: SemanticSymbol,
     symbols: SymbolTable,
@@ -842,18 +707,6 @@ func enumBoxingHasOrdinalNameHelper(
     }
 }
 
-/// Boxes an enum ordinal via `kk_enum_box_ordinal(ordinal, name, classID)`
-/// (BUG-177 / BUG-182), resolving `name` at runtime through the enum class's
-/// `$enumOrdinalToName$<encodedFqName>` helper and tagging the box with the
-/// enum class's stable nominal type ID so `is`/`as`/`as?`/`KClass.isInstance`
-/// work after widening to `Any`.
-///
-/// The helper is called by `SymbolID` when available (e.g. for a precompiled
-/// `.kklib` enum) and by bare name otherwise: boxing can be lowered *before*
-/// DataEnumSealedSynthesisPass has run for source enums, so the Sema symbol
-/// may not exist yet. Codegen resolves unnamed calls by scanning every KIR
-/// function for one whose name and arity match (`resolveUnnamedInternalFunction`),
-/// which by then includes the synthesized helper regardless of pass order.
 func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
     ordinal: KIRExprID,
     classSymbol: SymbolID,
@@ -891,8 +744,6 @@ func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
     let normalizedOrdinal = arena.appendTemporary(type: intType)
     instructions.append(.call(callee: interner.intern("kk_unbox_int"), arguments: [ordinal], result: normalizedOrdinal, canThrow: false))
 
-    // Master registers overridden toString implementations separately for
-    // erased rendering, while enum.name continues to use the declared entry name.
     let nameHelperCallee = NameMangler.enumOrdinalToNameHelperName(for: classSym, interner: interner)
     let helperSymbol = symbols.lookupAll(fqName: classSym.fqName + [nameHelperCallee]).first { id in
         symbols.symbol(id).map { $0.kind == .function } ?? false
@@ -941,8 +792,6 @@ func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
     )
 }
 
-/// Registers the producer-owned renderer for every box with this enum's nominal ID.
-/// Imported enums must retain the producer's private entry dispatcher.
 func appendEnumAnyToStringRegistration<C: RangeReplaceableCollection>(
     classSymbol: SemanticSymbol,
     sema: SemaModule,
@@ -966,8 +815,6 @@ func appendEnumAnyToStringRegistration<C: RangeReplaceableCollection>(
     instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
     let registerResult = arena.appendTemporary(type: intType)
     instructions.append(.call(
-        // This ABI registers raw-string renderers by nominal ID, independent
-        // of whether their payload is a value-class primitive or enum ordinal.
         callee: interner.intern("kk_value_class_register_any_to_string"),
         arguments: [classIDExpr, bridgeExpr], result: registerResult,
         canThrow: false
@@ -1060,14 +907,6 @@ private func appendEnumBoxItableRegistrations<C: RangeReplaceableCollection>(
     }
 }
 
-/// An enum-owned implementation -- the enum class's own override, or the
-/// `$enumEntryDispatch$` helper that switches on the ordinal to reach
-/// entry-body overrides -- takes the raw ordinal as its receiver, so it is
-/// registered through an `itableBridgeSymbolForMethod` bridge that unboxes the
-/// dispatched box. An interface default body keeps the box as its receiver and
-/// is registered as-is; anything else (an abstract member with no enum-owned
-/// override, or an implementation inherited from `kotlin.Enum`) stays
-/// unregistered as before.
 private func appendEnumBoxItableMethodRegistrations<C: RangeReplaceableCollection>(
     boxedValue: KIRExprID,
     classSymbol: SymbolID,
@@ -1110,9 +949,6 @@ private func appendEnumBoxItableMethodRegistrations<C: RangeReplaceableCollectio
             let implementation = cache.itableImplementation(
                 for: methodSymbol, in: classSymbol, sema: sema, interner: interner
             )
-            // `registerEnumEntryDispatchFunctions` keys a helper on every
-            // base an entry body overrides: the interface method itself, or
-            // the enum's own override of it when the enum declares one.
             let target = entryDispatchHelper(for: methodSymbol)
                 ?? entryDispatchHelper(for: implementation)
                 ?? implementation

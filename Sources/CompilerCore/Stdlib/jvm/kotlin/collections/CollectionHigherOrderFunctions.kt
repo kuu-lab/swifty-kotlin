@@ -61,6 +61,8 @@ inline fun <T> Iterable<T>.forEachIndexed(action: (Int, T) -> Unit) {
     }
 }
 inline fun <T, R> Iterable<T>.fold(initial: R, operation: (R, T) -> R): R { var result = initial; for (item in this) result = operation(result, item); return result }
+inline fun <T> Iterable<T>.sumBy(selector: (T) -> Int): Int { var sum = 0; for (item in this) sum += selector(item); return sum }
+inline fun <T> Iterable<T>.sumByDouble(selector: (T) -> Double): Double { var sum = 0.0; for (item in this) sum += selector(item); return sum }
 inline fun <T, K> kotlin.Array<out T>.groupBy(keySelector: (T) -> K): Map<K, List<T>> { val result = mutableMapOf<K, MutableList<T>>(); for (item in this) { val key = keySelector(item); val list = result[key]; if (list == null) { val created = mutableListOf<T>(); result[key] = created; created.add(item) } else list.add(item) }; return result }
 inline fun <T, K, V> kotlin.Array<out T>.groupBy(keySelector: (T) -> K, valueTransform: (T) -> V): Map<K, List<V>> { val result = mutableMapOf<K, MutableList<V>>(); for (item in this) { val key = keySelector(item); var list = result[key]; if (list == null) { list = mutableListOf<V>(); result[key] = list }; list.add(valueTransform(item)) }; return result }
 inline fun <T, K, V> kotlin.Array<out T>.associate(transform: (T) -> Pair<K, V>): Map<K, V> { val result = mutableMapOf<K, V>(); for (item in this) { val pair = transform(item); result[pair.first] = pair.second }; return result }
@@ -78,6 +80,32 @@ inline fun <T, R> kotlin.Array<out T>.map(transform: (T) -> R): List<R> { val re
 inline fun <T> kotlin.Array<out T>.filter(predicate: (T) -> Boolean): List<T> { val result = mutableListOf<T>(); for (item in this) if (predicate(item)) result.add(item); return result }
 inline fun <T> kotlin.Array<out T>.forEach(action: (T) -> Unit): Unit { for (item in this) action(item) }
 inline fun <T, R> kotlin.Array<out T>.fold(initial: R, operation: (R, T) -> R): R { var result = initial; for (item in this) result = operation(result, item); return result }
+inline fun <T> kotlin.Array<out T>.sumBy(selector: (T) -> Int): Int { var sum = 0; for (item in this) sum += selector(item); return sum }
+inline fun kotlin.ByteArray.sumBy(selector: (Byte) -> Int): Int { var sum = 0; for (item in this) sum += selector(item); return sum }
+inline fun kotlin.ShortArray.sumBy(selector: (Short) -> Int): Int { var sum = 0; for (item in this) sum += selector(item); return sum }
+inline fun kotlin.IntArray.sumBy(selector: (Int) -> Int): Int { var sum = 0; for (item in this) sum += selector(item); return sum }
+inline fun kotlin.LongArray.sumBy(selector: (Long) -> Int): Int { var sum = 0; for (item in this) sum += selector(item); return sum }
+inline fun kotlin.FloatArray.sumBy(selector: (Float) -> Int): Int { var sum = 0; for (item in this) sum += selector(item); return sum }
+inline fun kotlin.DoubleArray.sumBy(selector: (Double) -> Int): Int { var sum = 0; for (item in this) sum += selector(item); return sum }
+inline fun kotlin.BooleanArray.sumBy(selector: (Boolean) -> Int): Int { var sum = 0; for (item in this) sum += selector(item); return sum }
+inline fun kotlin.CharArray.sumBy(selector: (Char) -> Int): Int { var sum = 0; for (item in this) sum += selector(item); return sum }
+inline fun kotlin.UByteArray.sumBy(selector: (UByte) -> UInt): UInt { var sum = 0u; for (item in this) sum += selector(item); return sum }
+inline fun kotlin.UShortArray.sumBy(selector: (UShort) -> UInt): UInt { var sum = 0u; for (item in this) sum += selector(item); return sum }
+inline fun kotlin.UIntArray.sumBy(selector: (UInt) -> UInt): UInt { var sum = 0u; for (item in this) sum += selector(item); return sum }
+inline fun kotlin.ULongArray.sumBy(selector: (ULong) -> UInt): UInt { var sum = 0u; for (item in this) sum += selector(item); return sum }
+inline fun <T> kotlin.Array<out T>.sumByDouble(selector: (T) -> Double): Double { var sum = 0.0; for (item in this) sum += selector(item); return sum }
+inline fun kotlin.ByteArray.sumByDouble(selector: (Byte) -> Double): Double { var sum = 0.0; for (item in this) sum += selector(item); return sum }
+inline fun kotlin.ShortArray.sumByDouble(selector: (Short) -> Double): Double { var sum = 0.0; for (item in this) sum += selector(item); return sum }
+inline fun kotlin.IntArray.sumByDouble(selector: (Int) -> Double): Double { var sum = 0.0; for (item in this) sum += selector(item); return sum }
+inline fun kotlin.LongArray.sumByDouble(selector: (Long) -> Double): Double { var sum = 0.0; for (item in this) sum += selector(item); return sum }
+inline fun kotlin.FloatArray.sumByDouble(selector: (Float) -> Double): Double { var sum = 0.0; for (item in this) sum += selector(item); return sum }
+inline fun kotlin.DoubleArray.sumByDouble(selector: (Double) -> Double): Double { var sum = 0.0; for (item in this) sum += selector(item); return sum }
+inline fun kotlin.BooleanArray.sumByDouble(selector: (Boolean) -> Double): Double { var sum = 0.0; for (item in this) sum += selector(item); return sum }
+inline fun kotlin.CharArray.sumByDouble(selector: (Char) -> Double): Double { var sum = 0.0; for (item in this) sum += selector(item); return sum }
+inline fun kotlin.UByteArray.sumByDouble(selector: (UByte) -> Double): Double { var sum = 0.0; for (item in this) sum += selector(item); return sum }
+inline fun kotlin.UShortArray.sumByDouble(selector: (UShort) -> Double): Double { var sum = 0.0; for (item in this) sum += selector(item); return sum }
+inline fun kotlin.UIntArray.sumByDouble(selector: (UInt) -> Double): Double { var sum = 0.0; for (item in this) sum += selector(item); return sum }
+inline fun kotlin.ULongArray.sumByDouble(selector: (ULong) -> Double): Double { var sum = 0.0; for (item in this) sum += selector(item); return sum }
 inline fun <K> kotlin.IntArray.groupBy(keySelector: (Int) -> K): Map<K, List<Int>> { val result = mutableMapOf<K, MutableList<Int>>(); for (item in this) { val key = keySelector(item); val list = result[key]; if (list == null) { val created = mutableListOf<Int>(); result[key] = created; created.add(item) } else list.add(item) }; return result }
 inline fun <K, V> kotlin.IntArray.groupBy(keySelector: (Int) -> K, valueTransform: (Int) -> V): Map<K, List<V>> { val result = mutableMapOf<K, MutableList<V>>(); for (item in this) { val key = keySelector(item); var list = result[key]; if (list == null) { list = mutableListOf<V>(); result[key] = list }; list.add(valueTransform(item)) }; return result }
 inline fun <K, V> kotlin.IntArray.associate(transform: (Int) -> Pair<K, V>): Map<K, V> { val result = mutableMapOf<K, V>(); for (item in this) { val pair = transform(item); result[pair.first] = pair.second }; return result }

@@ -8,8 +8,6 @@ func resolvePrimitiveArithmeticUpperBound(
         case let .primitive(_, nullability) where nullability == .nonNull || definitelyNonNull:
             return types.makeNonNullable(type)
         case let .intersection(parts):
-            // Null assertions and non-null flow checks represent T as T & Any.
-            // That evidence removes nullability from T's declared upper bound.
             let nonNull = definitelyNonNull || parts.contains(types.anyType)
             let primitiveBounds = parts.compactMap { resolve($0, definitelyNonNull: nonNull, visited: &visited) }
             let uniqueBounds = Set(primitiveBounds)
@@ -33,11 +31,6 @@ func resolvePrimitiveArithmeticUpperBound(
     return resolve(type, visited: &visited)
 }
 
-/// Resolves a primitive upper bound while preserving whether it may be null.
-/// Equality lowering uses this to select the null-aware IEEE path for a
-/// `T : Double?`/`T : Float?` operand; arithmetic and relational operators
-/// continue to use `resolvePrimitiveArithmeticUpperBound`, which requires
-/// non-null evidence.
 func resolvePrimitiveValueUpperBound(
     of type: TypeID,
     types: TypeSystem,

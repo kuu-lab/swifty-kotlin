@@ -61,10 +61,8 @@ public extension PrimitiveType {
 public enum Nullability: Hashable, Sendable, Codable {
     case nonNull
     case nullable
-    case platformType // T! — nullability unknown (from external declarations)
+    case platformType
 
-    /// Nullability used by legacy link-name/signature encodings with two
-    /// states. Library metadata can separately preserve platform types as P<T>.
     public var erasedForMetadata: Nullability {
         switch self {
         case .nonNull:
@@ -78,8 +76,6 @@ public enum Nullability: Hashable, Sendable, Codable {
 public struct ClassType: Hashable, Sendable, Codable {
     public let classSymbol: SymbolID
     public let args: [TypeArg]
-    /// Type arguments captured from enclosing owners of an `inner` class,
-    /// ordered from the outermost owner to the immediate owner.
     public let enclosingTypeArgs: [TypeArg]
     public let nullability: Nullability
 
@@ -123,8 +119,6 @@ extension TypeArg {
 public struct TypeParamType: Hashable, Sendable, Codable {
     public let symbol: SymbolID
     public let nullability: Nullability
-    /// An existential parameter captured from a use-site projection. Its identity
-    /// is local to inference; the declaration symbol still supplies ABI erasure.
     public let capture: CapturedTypeBounds?
 
     public init(symbol: SymbolID, nullability: Nullability = .nonNull, capture: CapturedTypeBounds? = nil) {
@@ -134,13 +128,8 @@ public struct TypeParamType: Hashable, Sendable, Codable {
     }
 }
 
-/// Identifies a projected receiver conversion that can be materialized at
-/// multiple member-call sites while denoting the same captured type.
 public struct CapturedTypeOrigin: Hashable, Sendable, Codable {
     public let receiverType: TypeID
-    /// Identifies the receiver declaration when multiple values have the same
-    /// interned type. A missing symbol keeps type-only origins used by
-    /// receiver conversions that do not have a source expression.
     public let receiverDeclaration: SymbolID?
     public let parameter: SymbolID
     public let argumentIndex: Int
@@ -221,8 +210,6 @@ public struct FunctionType: Hashable, Sendable, Codable, CustomStringConvertible
     }
 }
 
-/// Represents invariant `kotlin.reflect.KClass<T>`, including `T::class`.
-/// Use-site projections remain nominal `ClassType` arguments.
 public struct KClassType: Hashable, Sendable, Codable {
     public let argument: TypeID
     public let nullability: Nullability
@@ -236,9 +223,7 @@ public struct KClassType: Hashable, Sendable, Codable {
 public enum TypeKind: Hashable, Codable {
     case error
     case unit
-    /// A value-bearing Unit slot that can also contain the null sentinel.
     case nullableUnit
-    /// A flexible Java Unit value with lower bound Unit and upper bound Unit?.
     case platformUnit
     case nothing(Nullability)
     case any(Nullability)
@@ -253,7 +238,6 @@ public enum TypeKind: Hashable, Codable {
 }
 
 extension TypeKind {
-    /// Rewrites nested TypeIDs while preserving nominal SymbolIDs.
     func mapTypes(_ transform: (TypeID) -> TypeID) -> TypeKind {
         switch self {
         case .error, .unit, .nullableUnit, .platformUnit, .nothing, .any, .stringStruct, .primitive:

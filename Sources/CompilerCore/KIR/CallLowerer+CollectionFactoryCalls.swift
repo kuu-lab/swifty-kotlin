@@ -387,10 +387,6 @@ extension CallLowerer {
         instructions: inout [KIRInstruction],
         identityCheckFunctionType: FunctionType? = nil
     ) -> KIRExprID? {
-        // Prefer the Sema-recorded type of the original source argument over
-        // the lowered KIR expr's arena type -- see the identical comment in
-        // materializeSourceBackedFunctionValueArguments's `.typeParam` case
-        // for why the arena type can't be trusted here.
         let functionTypeCandidates = [
             sema.bindings.exprTypes[sourceArgExprID],
             arena.exprType(argID),

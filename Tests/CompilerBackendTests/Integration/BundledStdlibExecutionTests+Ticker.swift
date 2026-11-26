@@ -1,8 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// KUU-1676: the obsolete public ticker API remains source-compatible and
-    /// returns a channel whose producer stops when the channel is cancelled.
     @Test(arguments: [true, false])
     func testTickerThroughBundledStdlib(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(

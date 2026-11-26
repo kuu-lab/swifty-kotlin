@@ -17,8 +17,6 @@ extension KIRLoweringDriver {
         )
         var startupInitializers = allTopLevelInitInstructions
         if entrySymbol != nil, !startupInitializers.isEmpty {
-            // Kotlin can call the selected main again as an ordinary function.
-            // Publish the guard before initialization to cover reentrant calls.
             let flagName = interner.intern("$startupInitialized")
             let flagSymbol = sema.symbols.define(
                 kind: .field, name: flagName,
@@ -76,8 +74,6 @@ extension KIRLoweringDriver {
         bodyLocations: [SourceRange?],
         inits: KIRLoweringEmitContext
     ) -> KIRLoweringEmitContext {
-        // The initializers were lowered under their own function scopes, so
-        // their labels restart from the same base as `main`'s own body.
         let relocatedInits = KIRLabelRelocation.relocatingLabels(
             of: inits.instructions,
             toAvoidCollisionsWith: body
@@ -105,13 +101,6 @@ extension KIRLoweringDriver {
     }
 
 
-    /// Rewrites top-level delegated-property access sites (read/write, outside
-    /// the property's own module) to call the synthesized `get`/`set`
-    /// accessor functions instead of touching `$delegate_x`'s storage global
-    /// directly. Every delegate kind (`lazy`/`Delegates.observable/vetoable/
-    /// notNull`/custom) shares this path since KSP-491: they all resolve
-    /// `getValue`/`setValue` through the same operator convention and get the
-    /// same synthesized accessors (`emitDelegateAccessorsIfCustom`).
     private func rewriteDelegateAccesses(
         body: [KIRInstruction],
         bodyLocations: [SourceRange?],
@@ -195,8 +184,6 @@ extension KIRLoweringDriver {
                propertyByStorageSymbol[storageSymbol] != nil,
                callee == getValueName || callee == setValueName
             {
-                // Already a well-formed getValue/setValue call emitted by the
-                // delegate's own accessor function -- nothing to rewrite.
                 result.append(instruction)
                 continue
             }
@@ -254,24 +241,12 @@ extension KIRLoweringDriver {
         return result
     }
 
-    /// The exception-routing channels of a `begin/endFinallyGuard` region:
-    /// the slot each throwing call writes into, the slot carrying the thrown
-    /// type token, and the catch/finally dispatch label.
     struct FinallyGuardThrowContext {
         var exceptionSlot: KIRExprID
         var exceptionTypeSlot: KIRExprID
         var thrownTarget: Int32
     }
 
-    /// `appendThrowAwareInstructions` tags every wrapped call
-    /// with `thrownResult: exceptionSlot` and the `copy(0 -> typeSlot)` +
-    /// `jumpIfNotNull(slot -> target)` follow-up, so a sibling call inside the
-    /// region exposes the routing directly. When the region holds no wired
-    /// call (the delegated access was its only throwing call), the slots are
-    /// recovered from the slot-init block the region's producer emitted just
-    /// before the guard and the dispatch label is the first label after the
-    /// region's matching end marker. Returns nil when neither holds — the
-    /// caller then leaves the exception to propagate.
     func resolveGuardRegionThrowContext(
         body: [KIRInstruction],
         beginIndex: Int
@@ -365,11 +340,6 @@ extension KIRLoweringDriver {
 }
 
 extension KIRLoweringDriver {
-    /// A class-member delegate body (`lazy { }`, `Delegates.observable(...) { }`)
-    /// may reference other instance fields by bare name (e.g. `initCount += 1`,
-    /// DEBT-KIR-008/BUG-170). The generated function is invoked later through
-    /// the delegate's stored function pointer (`LazyImpl`'s `initializer` for
-    /// `.lazy`, or the callback captured by the source-backed observable and
     /// vetoable delegate objects). These callbacks cannot simply gain an extra
     /// KIR parameter because the runtime side always invokes them through a
     /// fixed dispatch entry point
@@ -380,8 +350,6 @@ extension KIRLoweringDriver {
     /// unboxing through the same arity-tagged `RuntimeFunctionValueBox` the
     /// general closure-invocation path uses). Captured outer values are
     /// threaded in by materializing a closure object instead, mirroring
-    /// `LambdaLowerer.materializeEscapingCallableValue`'s `(closureRaw) -> T`
-    /// adapter pattern.
     func lowerDelegateLambdaBody(
         delegateBody: FunctionBody?,
         delegateBodyParams: [InternedString] = [],
@@ -394,8 +362,6 @@ extension KIRLoweringDriver {
         let sema = shared.sema
         let arena = shared.arena
         let interner = shared.interner
-        // Top-level delegate properties have no enclosing receiver. Local
-        // delegate lambdas can still carry value-parameter captures below.
         let outerReceiver = ctx.activeImplicitReceiver()
 
         let scopeSnapshot = ctx.saveScope()
@@ -450,12 +416,6 @@ extension KIRLoweringDriver {
             lambdaBody.append(.constValue(result: captureExpr, value: .symbolRef(param.symbol)))
             ctx.setLocalValue(captureExpr, for: capture.symbol)
         }
-        // BUG-267: a delegate body on an object-literal member (e.g.
-        // `object { val x by lazy { outerLocal } }`) is lowered as its own KIR
-        // function, so outer locals it references must be reloaded from the
-        // capture fields materialized on the object instance — the same
-        // mechanism object-literal member functions use. No-op for named-class
-        // and top-level delegates (no objectLiteralCaptureSymbols registered).
         objectLiteralLowerer.restoreObjectLiteralCaptures(
             forMemberFunction: propertySymbol,
             sema: sema,
@@ -463,11 +423,6 @@ extension KIRLoweringDriver {
             interner: interner,
             instructions: &lambdaBody.instructions
         )
-        // Names the callback lambda declared for its parameters
-        // (`{ property, old, new -> ... }`) must resolve to the synthetic
-        // parameters below while the body is lowered. `resetScopeForFunction`/
-        // `restoreScope` above already isolate this from the enclosing scope,
-        // so no manual save/restore of individual bindings is needed here.
         let underscore = interner.intern("_")
         for (index, param) in numberedParams.enumerated() {
             let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
@@ -596,11 +551,6 @@ extension KIRLoweringDriver {
         }
     }
 
-    /// Wraps `innerLambdaSymbol` (a plain `(numberedParams...) -> T` function,
-    /// no closure parameter) in a trivial adapter of shape
-    /// `(closureRaw, numberedParams...) -> T` that ignores `closureRaw` and
-    /// forwards the rest -- the shape `kk_function_create_N`'s boxed value
-    /// expects its `fnPtr` to already have (see `boxDelegateLambdaAsClosure`).
     private func boxableDelegateLambdaAdapter(
         innerLambdaSymbol: SymbolID,
         innerLambdaName: InternedString,
@@ -637,13 +587,6 @@ extension KIRLoweringDriver {
         return adapterSymbol
     }
 
-    /// Boxes a raw delegate-lambda thunk reference (no outer receiver to
-    /// capture) into a genuine `FunctionN` closure value via
-    /// `kk_function_create_N` with an empty (`0`) closure environment, so
-    /// ordinary Kotlin closure-call syntax (`onChange(a, b, c)`) can invoke
-    /// it -- mirroring the tail of `materializeCapturingDelegateLambda`
-    /// below, minus the capture-loading adapter this receiverless case
-    /// doesn't need.
     private func boxDelegateLambdaAsClosure(
         lambdaRefExpr: KIRExprID,
         paramCount: Int,
@@ -668,17 +611,6 @@ extension KIRLoweringDriver {
         return materializedExpr
     }
 
-    /// Wraps `innerLambdaSymbol` (a `([receiver, captures], [property, old, new]) -> T`
-    /// function) into a boxed `Function0`/`Function3` closure value carrying
-    /// its outer values as captured state, so it can be invoked through
-    /// `kk_function_invoke_0`'s (arity 0, `.lazy`) or `kk_function_invoke_3`'s
-    /// (arity 3, `.observable`/`.vetoable`) boxed-closure path with only the
-    /// numbered arguments (if any) at the call site — the receiver arrives via
-    /// the closure object, not as a visible argument. See
-    /// `lowerDelegateLambdaBody` for why this indirection (rather than a
-    /// plain extra KIR parameter on the inner lambda) is needed: the runtime
-    /// dispatch entry points invoke a fixed, arity-tagged function-pointer
-    /// shape that has no room for one.
     private func materializeCapturingDelegateLambda(
         innerLambdaSymbol: SymbolID,
         innerLambdaName: InternedString,
@@ -695,10 +627,6 @@ extension KIRLoweringDriver {
         let adapterName = interner.intern("kk_delegate_lambda_adapter_\(adapterSymbol.rawValue)")
         let closureParam = KIRParameter(symbol: ctx.allocateSyntheticGeneratedSymbol(), type: sema.types.intType)
         let firstCaptureOffset = Int64(2)
-        // The adapter needs its own parameter symbols for the numbered
-        // (property/old/new) arguments — KIR functions can't share parameter
-        // symbols with the inner lambda — but forwards the same values through
-        // unchanged, so the types match.
         let adapterNumberedParams = numberedParams.map {
             KIRParameter(symbol: ctx.allocateSyntheticGeneratedSymbol(), type: $0.type)
         }

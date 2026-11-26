@@ -1,6 +1,5 @@
 
 struct RangeLookupNames {
-    // Range iterator names (emitted by ForLoweringPass)
     let kkRangeIteratorName: InternedString
     let kkRangeHasNextName: InternedString
     let kkRangeNextName: InternedString

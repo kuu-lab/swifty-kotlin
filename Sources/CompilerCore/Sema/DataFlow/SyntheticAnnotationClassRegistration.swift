@@ -1,8 +1,3 @@
-/// Registers a synthetic `kind: .annotationClass` symbol under `packageFQName`
-/// if one is not already present. Either way the resulting symbol's parent is
-/// set to `packageSymbol` when valid, so the caller can use the same helper to
-/// re-anchor an existing annotation class that was registered without a parent
-/// (this matters when a stub registration runs after a partial load).
 func registerSyntheticAnnotationClass(
     named name: String,
     packageFQName: [InternedString],

@@ -7,7 +7,6 @@
 // only separates user code from bundled stdlib and cannot tell two user sources
 // apart, which is why these take the source `path` explicitly.
 
-/// First expression in `path` matching `predicate`, in arena order.
 func firstExprID(
     in ast: ASTModule,
     path: String,
@@ -25,7 +24,6 @@ func firstExprID(
     return nil
 }
 
-/// Every expression in `path` matching `predicate`, in arena order.
 func allExprIDs(
     in ast: ASTModule,
     path: String,
@@ -44,7 +42,6 @@ func allExprIDs(
     return results
 }
 
-/// Member calls named `name` in `path`.
 func memberCallExprIDs(
     named name: String,
     in ast: ASTModule,
@@ -66,7 +63,6 @@ func memberCallExprIDs(
     }
 }
 
-/// Declaration backing the first object literal written in `path`.
 func firstUserObjectLiteralDeclID(
     in ast: ASTModule,
     path: String,
@@ -85,7 +81,6 @@ func firstUserObjectLiteralDeclID(
     return nil
 }
 
-/// Statements in the body of `fun main` declared in `path`.
 func findMainBodyStatements(
     in ast: ASTModule,
     path: String,

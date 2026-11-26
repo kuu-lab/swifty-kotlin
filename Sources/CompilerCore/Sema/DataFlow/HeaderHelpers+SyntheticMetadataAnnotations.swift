@@ -5,8 +5,6 @@ extension DataFlowSemaPhase {
         to symbol: SymbolID,
         symbols: SymbolTable
     ) {
-        // KUU-2673: reading annotations of an imported shell decodes it;
-        // re-run once it materializes instead.
         if symbols.deferUntilAfterImportedShellMaterializes(symbol, work: { [self] in
             appendSyntheticMetadataAnnotations(records, to: symbol, symbols: symbols)
         }) {

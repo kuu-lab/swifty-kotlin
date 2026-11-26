@@ -10,12 +10,8 @@ public final class BindingTable {
 
     public private(set) var annotationFactoryExpressions: [SymbolID: ExprID] = [:]
 
-    /// Primary-constructor annotations selected for the synthesized property
-    /// after annotation targets are resolved. Preserve tokens for factories.
     var primaryConstructorPropertyAnnotations: [SymbolID: [AnnotationNode]] = [:]
 
-    /// Source parameter corresponding to each synthesized property. Its consent
-    /// is available to header checks without changing property metadata.
     var primaryConstructorPropertyParameters: [SymbolID: (parameter: ValueParamDecl, type: TypeID, constructor: SymbolID)] = [:]
 
     public func bindAnnotationFactory(_ symbol: SymbolID, expression: ExprID) {
@@ -53,7 +49,6 @@ public final class BindingTable {
     public func bindPlatformNullAssertion(_ expr: ExprID, targetType: TypeID?) {
         platformNullAssertionTypes[expr] = targetType
     }
-    /// JVM Unit returns evaluate their expression, then produce the singleton.
     public private(set) var unitReturnCoercionExprs: Set<ExprID> = []
 
     public func markUnitReturnCoercion(_ expr: ExprID) {
@@ -61,15 +56,11 @@ public final class BindingTable {
     }
     public private(set) var whenExhaustiveness: [ExprID: Bool] = [:]
     public private(set) var identifierSymbols: [ExprID: SymbolID] = [:]
-    /// Actual lambda destination and the boundaries crossed to reach it.
-    /// Validated after overload resolution has bound the containing calls.
     public private(set) var lambdaReturnTargets: [ExprID: ExprID] = [:]
     public private(set) var lambdaReturnLambdaPaths: [ExprID: [ExprID]] = [:]
     public private(set) var functionReturnLambdaPaths: [ExprID: [ExprID]] = [:]
-    /// Inline parameter eligibility is known only after overload resolution.
     public private(set) var loopJumpLambdaPaths: [ExprID: [ExprID]] = [:]
     public private(set) var callBindings: [ExprID: CallBinding] = [:]
-    /// Specializations of callable references are separate from ordinary calls.
     public private(set) var callableReferenceBindings: [ExprID: CallBinding] = [:]
 
     public func bindCallableReference(_ expression: ExprID, binding: CallBinding?) {
@@ -80,8 +71,6 @@ public final class BindingTable {
         callableReferenceBindings[expression]
     }
 
-    /// Local nominal checks and field targets needing resolved accessor bindings
-    /// run after expression inference.
     private var pendingAnnotationTargets: [DeclID: [[InternedString]]] = [:]
 
     func deferAnnotationTargets(_ declaration: DeclID, lexicalEnclosingFQNames: [[InternedString]]) {
@@ -95,12 +84,10 @@ public final class BindingTable {
         pendingAnnotationTargets.removeAll(keepingCapacity: false)
         return pending
     }
-    /// Bundled Worker.execute entries whose jobs require a static environment.
     public private(set) var workerExecuteCallees: Set<SymbolID> = []
     public private(set) var workerExecuteJobRanges: [ExprID: SourceRange] = [:]
 
     public private(set) var loopIterationBindings: [ExprID: LoopIterationBinding] = [:]
-    /// Explicitly declared type of a single for-loop variable (`for (x: T in xs)`), keyed by the for expression.
     public private(set) var loopVariableTypes: [ExprID: TypeID] = [:]
     public private(set) var indexedCompoundAssignOperatorBindings: [ExprID: IndexedCompoundAssignOperatorBinding] = [:]
     public private(set) var indexedCompoundAssignElementOperatorBindings: [ExprID: IndexedCompoundAssignElementOperatorBinding] = [:]
@@ -110,12 +97,7 @@ public final class BindingTable {
     /// this rather than re-deriving the target via FQ-name lookup, which cannot
     /// distinguish sibling overloads or exclude the constructor being lowered.
     public private(set) var constructorDelegationTargets: [SymbolID: SymbolID] = [:]
-    /// Full call binding (argument -> parameter mapping) of the same delegation
-    /// call, so KIR lowering can apply named-argument / default / vararg
-    /// normalization exactly like an ordinary constructor call.
     public private(set) var constructorDelegationCallBindings: [SymbolID: CallBinding] = [:]
-    /// Constructor selected for each enum entry, keyed by the entry field
-    /// symbol because enum-entry arguments have no standalone call ExprID.
     public private(set) var enumEntryConstructorBindings: [SymbolID: CallBinding] = [:]
     public private(set) var enumEntryInvokeReceiverSymbols: [ExprID: SymbolID] = [:]
     public private(set) var callableValueCalls: [ExprID: CallableValueCallBinding] = [:]
@@ -125,17 +107,7 @@ public final class BindingTable {
     public private(set) var catchClauseBindings: [ExprID: CatchClauseBinding] = [:]
     public private(set) var captureSymbolsByExpr: [ExprID: [SymbolID]] = [:]
     public private(set) var localFunctionCaptureSymbolsBySymbol: [SymbolID: [SymbolID]] = [:]
-    /// STDLIB-592 definite assignment: outer-scope symbols a lambda literal's body
-    /// unconditionally initializes, keyed by the lambda literal's own `ExprID`.
-    /// Populated by `inferLambdaLiteralExpr` and consumed by `applyContractEffects`
-    /// when the enclosing call's callee has a `callsInPlace(param, EXACTLY_ONCE/AT_LEAST_ONCE)`
-    /// contract on that lambda parameter.
     public private(set) var contractCallsInPlaceInitializedSymbolsByExpr: [ExprID: [SymbolID]] = [:]
-    /// Cached union of `contractCallsInPlaceInitializedSymbolsByExpr`'s values,
-    /// computed once Sema has finished (mirrors `ExprLowerer.lambdaCapturedSymbols`).
-    /// Lets KIR lowering ask "is this symbol EVER guaranteed-initialized by some
-    /// callsInPlace lambda" without conflating it with any *other* reason a
-    /// mutable local's `localValue` might transiently read as unset.
     private var cachedContractCallsInPlaceInitializedSymbolsUnion: Set<SymbolID>?
     public private(set) var declSymbols: [DeclID: SymbolID] = [:]
     public private(set) var superCallExprs: Set<ExprID> = []
@@ -176,19 +148,10 @@ public final class BindingTable {
     public private(set) var deferredElementTypesByExpr: [ExprID: TypeID] = [:]
     public private(set) var deferredElementTypesBySymbol: [SymbolID: TypeID] = [:]
     public private(set) var objectLiteralPropertySymbolIDs: Set<SymbolID> = []
-    /// Maps `T::class` callable-ref expression IDs to the resolved type that
-    /// `T` refers to.  Used by KIR lowering to emit the correct type token
-    /// and name hint for `T::class.simpleName` / `.qualifiedName`.
     public private(set) var classRefTargetTypes: [ExprID: TypeID] = [:]
     public private(set) var boundClassRefExprs: Set<ExprID> = []
-    /// Maps expression IDs to their compile-time constant values when the
-    /// expression references a `const val` property.  This allows downstream
-    /// passes (KIR lowering, codegen) to fold constant references without
-    /// re-querying the symbol table.
     public private(set) var constExprValues: [ExprID: KIRExprKind] = [:]
     public private(set) var samConversionExprs: Set<ExprID> = []
-    /// Maps SAM-converted lambda expressions to their underlying function type,
-    /// so KIR lowering can generate the correct callable signature.
     public private(set) var samUnderlyingFunctionTypes: [ExprID: TypeID] = [:]
     /// Maps SAM-converted expressions to the target functional interface type.
     /// Lambda literals bind the interface type as their expression type, but
@@ -198,7 +161,6 @@ public final class BindingTable {
     public private(set) var scopeFunctionExprIDs: Set<ExprID> = []
     public private(set) var scopeFunctionKinds: [ExprID: ScopeFunctionKind] = [:]
     public private(set) var collectionHOFLambdaExprIDs: Set<ExprID> = []
-    /// Contextual function type to use when a lambda escapes as a boxed function value.
     public private(set) var functionValueExpectedTypes: [ExprID: TypeID] = [:]
     /// Tracks lambda literals that are the callee of a direct invocation
     /// (`{ ... }()`). `inferCallExpr` synthesizes `() -> Any` for them, which
@@ -211,9 +173,6 @@ public final class BindingTable {
     /// chain is a bare namespace path, not a real value, so it is never type
     /// -checked and must not be lowered as one.
     public private(set) var fqnTopLevelCallExprIDs: Set<ExprID> = []
-    /// Tracks namespace-qualified property and classifier expressions resolved
-    /// before their package-path receiver is type-checked. The receiver is a
-    /// qualifier such as `kotlin.math` or `kotlin`, not a runtime value.
     public private(set) var fqnQualifiedValueExprIDs: Set<ExprID> = []
     /// Tracks `.memberCall` expressions resolved as constructors of a static
     /// nested class (for example, `Outer.Inner()`): the type qualifier is not
@@ -226,15 +185,8 @@ public final class BindingTable {
     /// `__kk_comparable_compareTo` dispatch for `kk_char_compareTo` on
     /// `nameRef` receivers bound to these symbols.
     public private(set) var nonEscapingComparableCharLocals: Set<SymbolID> = []
-    /// Tracks lambda literals passed to a KIR-level coroutine launcher
-    /// (`runBlocking`/`launch`/`async`/`produce`) whose captures are forwarded
-    /// via CoroutineLoweringPass's dedicated launcher-continuation rewrite
-    /// (CoroutineLoweringPass+LauncherSupport.swift) rather than the generic
-    /// escaping-callable-value (`kk_function_create_N`) ABI.
     public private(set) var coroutineLauncherLambdaExprIDs: Set<ExprID> = []
-    /// Runtime trampolines require a raw suspend entry, not a nested boxed adapter.
     public private(set) var rawSuspendEntryLambdaExprIDs: Set<ExprID> = []
-    /// Receivers supplied by the running continuation, not by launcherArgs.
     public private(set) var coroutineScopeLambdaReceiverTypes: [ExprID: TypeID] = [:]
     /// Tracks expressions whose expected type comes from a type annotation
     /// written in source (a property or local declaration's `: Type`), as
@@ -242,40 +194,16 @@ public final class BindingTable {
     /// call. Only source-declared expected types are authoritative enough to
     /// contradict an explicit lambda parameter annotation with `Any`.
     public private(set) var sourceDeclaredExpectedTypeExprIDs: Set<ExprID> = []
-    /// Callable literals checked against nominal FunctionN still infer a
-    /// function type, but must materialize their closure ABI before escaping.
     public private(set) var nominalFunctionExpectedTypes: [ExprID: TypeID] = [:]
     public private(set) var stdlibSpecialCallExprIDs: Set<ExprID> = []
     public private(set) var stdlibSpecialCallKinds: [ExprID: StdlibSpecialCallKind] = [:]
     public private(set) var implicitReceiverMemberNames: [ExprID: InternedString] = [:]
-    /// Static or flow-refined receiver type selected by implicit-member lookup.
-    /// The KIR receiver value can retain its declaration type after a smart cast.
     public private(set) var implicitReceiverMemberReceiverTypes: [ExprID: TypeID] = [:]
-    /// For member accesses that resolved on an *outer* implicit receiver (e.g. an
-    /// enclosing class's member called unqualified from an object literal's
-    /// member body), the enclosing function's receiver parameter symbol. KIR
-    /// lowering reads the receiver through the captured value of that symbol
-    /// instead of the innermost implicit receiver.
     public private(set) var implicitReceiverOuterReceiverSymbols: [ExprID: SymbolID] = [:]
-    /// For implicit member-extension calls, the receiver-tower entry whose
-    /// value supplies the declared extension receiver argument: e.g. `bump()`
-    /// inside `with("s") { ... }` nested in `fun Int.gapProbe()` picks the
-    /// enclosing `Int` receiver parameter, which capture analysis then routes
-    /// into the lambda so KIR lowering reads the real Int value rather than
-    /// the lambda's own `String` receiver. `implicitReceiverOuterReceiver`
-    /// names the *dispatch* side; this names the *extension* side.
     public private(set) var implicitExtensionReceiverSymbols: [ExprID: SymbolID] = [:]
-    /// Calls resolved through the ambient CoroutineScope of a coroutine builder
-    /// need a runtime receiver even though the builder lambda keeps a no-receiver
-    /// function ABI.
     public private(set) var coroutineScopeImplicitReceiverCallExprs: Set<ExprID> = []
-    /// Maps callable reference expression IDs to their kind (function vs property)
-    /// so that KIR lowering can emit KFunction / KProperty type identity (REFL-003).
     public private(set) var callableRefKinds: [ExprID: CallableRefKind] = [:]
     public var inferredCallableReferenceSymbols: Set<SymbolID> = []
-    /// Tracks callable reference expressions that are unbound type references
-    /// (e.g. `Type::member`).  The receiver is not captured; instead it
-    /// becomes a parameter of the resulting function type (REFL-003).
     public private(set) var unboundCallableRefs: Set<ExprID> = []
     /// REFL-PRIMOP: primitive arithmetic operators (`Int.plus`/`times`, ...)
     /// have no real member symbol -- CallTypeChecker's
@@ -293,13 +221,7 @@ public final class BindingTable {
     /// is a real declaration), so KIR lowering synthesizes a wrapper that
     /// stringifies its argument the way a literal `x.toString()` does.
     public private(set) var anyToStringCallableRefs: Set<ExprID> = []
-    /// KSP-CAP-001: outer local variables/parameters captured by an object
-    /// literal's member function bodies, keyed by the object literal's
-    /// synthesized class symbol. Populated during Sema so KIR lowering can
-    /// materialize each captured symbol as an instance field.
     public private(set) var objectLiteralCaptureSymbolsByOwner: [SymbolID: [SymbolID]] = [:]
-    /// Mutable outer receiver properties are accessed through the enclosing
-    /// instance, so object literals that use them capture that receiver here.
     public private(set) var objectLiteralCapturedReceiversByOwner: [SymbolID: (receiverSymbol: SymbolID, ownerSymbol: SymbolID)] = [:]
     /// Static type of a captured local/parameter symbol at the point it was
     /// captured, keyed by the captured symbol itself. `LocalBindings` (where
@@ -518,7 +440,6 @@ public final class BindingTable {
         return true
     }
 
-    /// Joins the closed scalar delta at its original declaration position.
     func mergeIndependentScalarExpressions(
         types: [ExprID: TypeID], identifiers: [ExprID: SymbolID], typeMapping: [TypeID: TypeID],
         compoundAssignReceiverTypes: [ExprID: TypeID] = [:],
@@ -534,10 +455,6 @@ public final class BindingTable {
         sourceDeclaredExpectedTypeExprIDs.formUnion(sourceDeclaredExpectedTypeExpressions)
     }
 
-    /// Value-owned snapshot of every binding side table, including pending
-    /// annotation checks and cached unions. Mutating a worker never changes
-    /// the module's dictionary storage. General snapshots remain isolated;
-    /// only an explicitly supported delta may be joined.
     func makeSemaWorkerBindings() -> BindingTable {
         let worker = BindingTable()
         worker.validatedAnnotationOptInMarkers = validatedAnnotationOptInMarkers
@@ -800,9 +717,6 @@ public final class BindingTable {
         castTargetTypes[expr] = type
     }
 
-    /// STDLIB-REFLECT-065: Records the reified `T` argument of a
-    /// `KClass<*>.findAnnotation<T>()` call so KIR lowering can compute the
-    /// runtime search name (see `__kk_kclass_find_annotation_typed`).
     public func bindFindAnnotationSearchType(_ expr: ExprID, type: TypeID) {
         findAnnotationSearchTypes[expr] = type
     }

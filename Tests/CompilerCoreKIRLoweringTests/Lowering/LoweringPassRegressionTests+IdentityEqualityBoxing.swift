@@ -4,15 +4,6 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-/// KUU-3861: `===`/`!==` across the boxing boundary must box the primitive
-/// operand through the JVM-compatible identity callees (`kk_box_*_static` —
-/// cached for Int/Long/Byte/Short/Boolean/Char, fresh for Double/Float and
-/// unsigned kinds) and compare handles, matching `if_acmp` on boxed values.
-/// Previously the reference operand was unboxed back to raw bits and compared
-/// with `kk_op_eq` on words: a boxed `-0.0` in `Any` compared equal to the
-/// `-0.0` literal's bit pattern, and a null `Any?` aliased the same word.
-/// Two non-null primitive operands keep value equality (JVM folds same-type
-/// pairs to `==`; distinct primitive types are rejected in Sema).
 extension LoweringPassRegressionTests {
     private func loweredCallees(for source: String, function functionName: String, includeStdlib: Bool = true) throws -> [String] {
         var callees: [String] = []
@@ -104,8 +95,6 @@ extension LoweringPassRegressionTests {
 
     @Test
     func testIdentityEqualityBetweenNullableAndNonNullIntStillBoxesBoth() throws {
-        // KUU-1385 route, kept unchanged: `Int? === Int` boxes both operands so
-        // in-cache values converge on the shared JVM-identity box.
         let source = """
         fun compare(a: Int?, b: Int): Boolean = a === b
         """

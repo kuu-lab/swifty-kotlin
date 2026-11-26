@@ -5,7 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-3482: fully-qualified BigDecimal construction must resolve like BigInteger.
     @Test(arguments: [false, true])
     func testBigDecimalFullyQualifiedConstructorAcrossStdlibSurfaces(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try BigDecimalZeroArtifact.path.get() : nil
@@ -26,14 +25,11 @@ extension StdlibArtifactRegressionTests {
             do {
                 try runSema(context)
             } catch {
-                // Assert on diagnostics below so the failure reports the unresolved name.
             }
             #expect(!context.diagnostics.hasError, "Unexpected diagnostics: \(context.diagnostics.diagnostics)")
         }
     }
 
-    /// KUU-2232: resolve BigDecimal constants from source and fresh metadata at O0/O2.
-    /// This is compile-only coverage; it intentionally does not execute generated functions.
     @Test(arguments: [false, true], [0, 2])
     func testBigDecimalConstantsAcrossStdlibSurfaces(
         useArtifact: Bool,
@@ -75,7 +71,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// A consumer must not be able to assign to the public ZERO property.
     @Test(arguments: [false, true])
     func testBigDecimalZeroRejectsReassignment(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try BigDecimalZeroArtifact.path.get() : nil
@@ -93,7 +88,6 @@ extension StdlibArtifactRegressionTests {
             do {
                 try runSema(context)
             } catch {
-                // Require the specific diagnostic, not just pipeline failure.
             }
             let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
             #expect(errors.map(\.code) == ["KSWIFTK-SEMA-0014"])
@@ -101,7 +95,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-2233: BigDecimal's Number conversions survive a fresh .kklib and O0/O2 consumers.
     @Test(arguments: [0, 2])
     func testBigDecimalNumberConversionsThroughFreshStdlibArtifact(optLevelRawValue: Int) throws {
         let optLevel = try #require(OptimizationLevel(rawValue: optLevelRawValue))
@@ -135,7 +128,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-3061: arithmetic and scale rounding work through a fresh stdlib artifact at O0/O2.
     @Test(arguments: [0, 2])
     func testBigDecimalArithmeticThroughFreshStdlibArtifact(optLevelRawValue: Int) throws {
         let optLevel = try #require(OptimizationLevel(rawValue: optLevelRawValue))
@@ -169,7 +161,83 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-3367: the public Double constructor preserves Java's exact binary-to-decimal value.
+    @Test(arguments: [0, 2])
+    func testBigDecimalRemUnaryMinusIncDecOperatorsThroughFreshStdlibArtifact(optLevelRawValue: Int) throws {
+        let optLevel = try #require(OptimizationLevel(rawValue: optLevelRawValue))
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        import java.math.BigDecimal
+
+        var stored = BigDecimal("1.0")
+
+        fun main() {
+            val a = BigDecimal("1.10")
+            val b = BigDecimal("2.2")
+            println(a % b)
+            println(BigDecimal("7.5") % BigDecimal("2"))
+            println(-a)
+            var x = BigDecimal("1.0")
+            println(x++)
+            println(x)
+            println(++x)
+            println(x--)
+            println(--x)
+            println(stored++)
+            println(++stored)
+            println(stored--)
+            println(stored)
+            println(a == BigDecimal("1.10"))
+            println(a == BigDecimal("1.1"))
+            println(a.equals("1.10"))
+            println(a.hashCode())
+            println(BigDecimal("-1.10").hashCode())
+        }
+        """
+        let expected = """
+        1.10
+        1.5
+        -1.10
+        1.0
+        2.0
+        3.0
+        3.0
+        1.0
+        1.0
+        3.0
+        3.0
+        2.0
+        true
+        false
+        false
+        3412
+        -3408
+
+        """
+
+        try withTemporaryFile(contents: source) { inputPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: outputBase) }
+            let context = try runCodegenPipeline(
+                inputPath: inputPath,
+                moduleName: "BigDecimalOperators_\(optLevel.rawValue)",
+                outputPath: outputBase,
+                optLevel: optLevel,
+                allowDefaultStdlibLibrary: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try assertNoDiagnosticErrors(context)
+            try LinkPhase().run(context)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "\(optLevel): \(result.stderr)")
+            #expect(result.stderr.isEmpty, "\(optLevel): \(result.stderr)")
+            #expect(
+                result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == expected,
+                "Unexpected output at \(optLevel): \(String(reflecting: result.stdout))"
+            )
+        }
+    }
+
     @Test(arguments: [0, 2])
     func testBigDecimalDoubleConstructorThroughFreshStdlibArtifact(optLevelRawValue: Int) throws {
         let optLevel = try #require(OptimizationLevel(rawValue: optLevelRawValue))
@@ -203,7 +271,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-3400: primitive numbers convert to BigDecimal through the bundled stdlib.
     @Test(arguments: [0, 2])
     func testPrimitiveToBigDecimalThroughFreshStdlibArtifact(optLevelRawValue: Int) throws {
         let optLevel = try #require(OptimizationLevel(rawValue: optLevelRawValue))
@@ -220,6 +287,79 @@ extension StdlibArtifactRegressionTests {
             let context = try runCodegenPipeline(
                 inputPath: inputPath,
                 moduleName: "KUU3400_PrimitiveBigDecimal_\(optLevel.rawValue)",
+                outputPath: outputBase,
+                optLevel: optLevel,
+                allowDefaultStdlibLibrary: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try assertNoDiagnosticErrors(context)
+            try LinkPhase().run(context)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "\(optLevel): \(result.stderr)")
+            #expect(result.stderr.isEmpty, "\(optLevel): \(result.stderr)")
+            #expect(
+                result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == expected,
+                "Unexpected output at \(optLevel): \(String(reflecting: result.stdout))"
+            )
+        }
+    }
+
+    /// Nullable `BigDecimal?` `==`/`!=` must apply `BigDecimal.equals` semantics
+    /// (same scale and value), not runtime reference identity.
+    @Test(arguments: [0, 2])
+    func testNullableBigDecimalEqualityThroughFreshStdlibArtifact(optLevelRawValue: Int) throws {
+        let optLevel = try #require(OptimizationLevel(rawValue: optLevelRawValue))
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        import java.math.BigDecimal
+
+        fun sameValue(a: BigDecimal?, b: BigDecimal?): Boolean = a == b
+        fun differentValue(a: BigDecimal?, b: BigDecimal?): Boolean = a != b
+
+        fun main() {
+            val x = BigDecimal("1.10")
+            val y = BigDecimal("1.10")
+            val z = BigDecimal("1.1")
+            val w = BigDecimal("1.100")
+            println(sameValue(x, y))
+            println(sameValue(x, z))
+            println(sameValue(x, w))
+            println(sameValue(x, null))
+            println(sameValue(null, null))
+            println(sameValue(BigDecimal("-1.10"), BigDecimal("-1.10")))
+            println(differentValue(x, y))
+            println(differentValue(x, z))
+            println(differentValue(x, null))
+            println(differentValue(null, null))
+            val p: BigDecimal? = BigDecimal("2.50")
+            val q: BigDecimal? = BigDecimal("2.50")
+            println(p == q)
+            println(p != q)
+        }
+        """
+        let expected = """
+        true
+        false
+        false
+        false
+        true
+        true
+        false
+        true
+        true
+        false
+        true
+        false
+
+        """
+
+        try withTemporaryFile(contents: source) { inputPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: outputBase) }
+            let context = try runCodegenPipeline(
+                inputPath: inputPath,
+                moduleName: "NullableBigDecimalEquality_\(optLevel.rawValue)",
                 outputPath: outputBase,
                 optLevel: optLevel,
                 allowDefaultStdlibLibrary: false,
@@ -264,7 +404,6 @@ private func bigDecimalZeroContext(
 }
 
 private enum BigDecimalZeroArtifact {
-    /// Build a fresh artifact for this test without preparing the default cache.
     static let path: Result<String, Error> = Result {
         let outputBase = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString).path

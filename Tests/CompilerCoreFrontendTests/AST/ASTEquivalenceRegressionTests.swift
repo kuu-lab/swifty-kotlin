@@ -6,9 +6,7 @@ import Testing
 
 @Suite
 struct ASTEquivalenceRegressionTests {
-    // MARK: - Helpers
 
-    // Compiling the probe source is expensive (bundled stdlib), so cache it.
     private static nonisolated(unsafe) var _bundledStdlibDeclarationCount: Int?
 
     private var bundledStdlibDeclarationCount: Int {
@@ -53,8 +51,6 @@ struct ASTEquivalenceRegressionTests {
         }
     }
 
-    // MARK: - Simple function
-
     @Test
     func testSimpleFunctionDeclAndExprCounts() throws {
         let source = """
@@ -76,8 +72,6 @@ struct ASTEquivalenceRegressionTests {
         }
     }
 
-    // MARK: - Block body with locals
-
     @Test
     func testBlockBodyDeclExprCounts() throws {
         let source = """
@@ -97,8 +91,6 @@ struct ASTEquivalenceRegressionTests {
         assertAllExprRangesValid(in: ast)
     }
 
-    // MARK: - Class with members
-
     @Test
     func testClassDeclAndExprCounts() throws {
         let source = """
@@ -111,7 +103,6 @@ struct ASTEquivalenceRegressionTests {
         """
         let (ast, ctx) = try buildAST(from: source)
 
-        // classDecl + funDecl(main) + bundled stdlib declarations
         #expect(ast.declarationCount == 2 + bundledStdlibDeclarationCount)
 
         let classDecls = userClassDecls(in: ast, ctx: ctx)
@@ -122,8 +113,6 @@ struct ASTEquivalenceRegressionTests {
         #expect(counterClass.memberFunctions.count >= 2)
         #expect(counterClass.memberProperties.count >= 1)
     }
-
-    // MARK: - Control flow
 
     @Test
     func testControlFlowExprCounts() throws {
@@ -148,8 +137,6 @@ struct ASTEquivalenceRegressionTests {
 
         assertAllExprRangesValid(in: ast)
     }
-
-    // MARK: - Lambda and when expression
 
     @Test
     func testLambdaAndWhenExprCounts() throws {
@@ -176,8 +163,6 @@ struct ASTEquivalenceRegressionTests {
         assertAllExprRangesValid(in: ast)
     }
 
-    // MARK: - Interface and inheritance
-
     @Test
     func testInterfaceDeclCounts() throws {
         let source = """
@@ -191,7 +176,6 @@ struct ASTEquivalenceRegressionTests {
         """
         let (ast, ctx) = try buildAST(from: source)
 
-        // interface + class + fun(main) + bundled stdlib declarations
         #expect(ast.declarationCount == 3 + bundledStdlibDeclarationCount)
 
         let userInterfaceDecls = ast.arena.declarations().compactMap { decl -> InterfaceDecl? in
@@ -202,8 +186,6 @@ struct ASTEquivalenceRegressionTests {
         #expect(userInterfaceDecls.count == 1)
         assertValidSourceRange(userInterfaceDecls[0].range, label: "Shape interface")
     }
-
-    // MARK: - Properties with accessors
 
     @Test
     func testPropertyDeclCounts() throws {
@@ -220,8 +202,6 @@ struct ASTEquivalenceRegressionTests {
 
         assertAllExprRangesValid(in: ast)
     }
-
-    // MARK: - All source ranges are valid across a complex file
 
     @Test
     func testAllSourceRangesValidForComplexInput() throws {
@@ -270,8 +250,6 @@ struct ASTEquivalenceRegressionTests {
         assertAllExprRangesValid(in: ast)
     }
 
-    // MARK: - Script mode
-
     @Test
     func testScriptModeDeclExprCounts() throws {
         let source = """
@@ -284,7 +262,6 @@ struct ASTEquivalenceRegressionTests {
             try runFrontend(ctx)
             let ast = try #require(ctx.ast)
 
-            // Script wraps body into a synthetic main function
             #expect(ast.declarationCount >= 1)
             #expect(ast.arena.exprs.count >= 2)
         }

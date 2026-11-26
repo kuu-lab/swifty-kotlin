@@ -4,8 +4,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2460: a star-projected FunctionN result supplies its readable upper
-    /// bound to lambda inference while star-projected inputs remain rejected.
     @Test(arguments: [false, true], [0, 2])
     func testKUU2460StarProjectedFunctionReturn(fromSource: Bool, optimization: Int) throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

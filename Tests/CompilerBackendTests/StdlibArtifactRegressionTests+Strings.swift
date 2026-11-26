@@ -50,11 +50,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// STDLIB-ARTIFACT-009: synthetic operator extension functions (e.g.
-    /// `CharSequence.get`) must not shadow source-backed member functions
-    /// (e.g. `StringBuilder.get`) in the default-import scope. Inside
-    /// `buildString { append(get(1)) }`, `get(1)` must resolve to the real
-    /// `StringBuilder.get` member and print the correct character.
     @Test
     func testBuildStringReceiverGetSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -89,12 +84,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// STDLIB-ARTIFACT-011: synthetic `String.contains` extension must bind a real
-    /// call symbol through the shared stdlib artifact so KIR lowering emits the
-    /// dedicated `kk_string_contains_str_flat` helper instead of a generic
-    /// `kk_op_contains` dispatch. This regresses when pure synthetic operator
-    /// extensions are excluded from the default-import scope and the string
-    /// fallback returns a type without a `CallBinding`.
     @Test
     func testStringContainsSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -130,14 +119,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// STDLIB-ARTIFACT-CHARSEQUENCE-SUBSEQUENCE: `subSequence` reached through a
-    /// value statically typed as `CharSequence` (backed by `String`) must resolve
-    /// to bundled Kotlin source (`Stdlib/kotlin/text/StringSubstringSlice.kt`) when
-    /// compiling against a prebuilt stdlib artifact, not the removed
-    /// `kk_string_subSequence_flat` runtime ABI (KSP-406). This is the shared-path
-    /// analogue of `Scripts/diff_cases/char_sequence_member_access.kt`: the flake it
-    /// guards only surfaced through `--no-stdlib --stdlib-library` linking, where an
-    /// undefined reference to `kk_string_subSequence_flat` failed the link.
     @Test
     func testCharSequenceSubSequenceThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -168,16 +149,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// STDLIB-ARTIFACT-STRING-INDENT: the indent-formatting family
-    /// (`trimIndent`/`trimMargin`/`prependIndent`/`replaceIndent`/
-    /// `replaceIndentByMargin`) must resolve to bundled Kotlin source
-    /// (`Stdlib/kotlin/text/StringIndentFormat.kt`) when compiling against a
-    /// prebuilt stdlib artifact, not the removed `kk_string_*_flat` runtime ABI.
-    /// This is the shared-path analogue of the `raw_string_basic`,
-    /// `string_indent`, `trim_margin` and `string_replaceindentbymargin` diff
-    /// cases, whose failure mode was an undefined reference to
-    /// `kk_string_trimIndent_flat` (and friends) at link time under
-    /// `--no-stdlib --stdlib-library`.
     @Test
     func testStringIndentFormattingThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -288,13 +259,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// STDLIB-ARTIFACT-INLINE-ONLY-LAMBDA: `joinToString(separator) { ... }` is
-    /// an auto-inline overload of the bundled `kotlin.collections` source, so no
-    /// standalone body reaches the stdlib artifact. When such a call sits inside
-    /// a lambda that is itself spliced into its caller (here the `let` body),
-    /// the spliced instructions must be re-scanned for inline expansion;
-    /// otherwise the consumer keeps an undefined reference to `kk_fn_joinToString_*`
-    /// at link time (the `compiler_plugin_api` diff case failure mode).
     @Test
     func testInlineOnlyCallInsideSplicedLambdaThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()

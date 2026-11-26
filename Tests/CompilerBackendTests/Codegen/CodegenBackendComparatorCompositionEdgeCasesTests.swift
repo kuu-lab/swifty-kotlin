@@ -122,11 +122,6 @@ struct CodegenBackendComparatorCompositionEdgeCasesTests {
         try assertKotlinOutput(source, moduleName: "CompareByVarargSelectors", expected: "[121, 132, 221, 231]\n")
     }
 
-    // The fixed-arity 2/3-selector compareBy overloads were missing from the old
-    // closure-argument expansion switch entirely, so selectors were passed as bare
-    // fnPtrs with no closureRaw slot, desyncing every argument after the first
-    // selector and crashing at runtime (SIGSEGV). KSP-461 moved every overload to
-    // bundled Kotlin source; these tests keep the behavior covered.
     @Test
     func testCodegenCompilesCompareByFixedTwoSelectors() throws {
         let source = """
@@ -185,13 +180,6 @@ struct CodegenBackendComparatorCompositionEdgeCasesTests {
         )
     }
 
-    // A selector bound to a local variable (rather than an inline lambda literal at the
-    // call site) lowers to a boxed Function1 value (kk_function_create_1) instead of a bare
-    // fnPtr symbolRef. makeCollectionHOFSelectorArgument used to return that boxed reference
-    // as-is instead of re-pointing it at the resolved callableInfo's raw fnPtr symbol, so the
-    // runtime trampoline tried to invoke the boxed object as a function pointer and crashed
-    // (SIGBUS). This affects every fixed-arity compareBy/compareValuesBy selector helper, not
-    // just the 1-selector case exercised here.
     @Test
     func testCodegenCompilesCompareValuesByFixedOneSelectorCapturingVariable() throws {
         let source = """
@@ -269,11 +257,6 @@ struct CodegenBackendComparatorCompositionEdgeCasesTests {
 
         try assertKotlinOutput(source, moduleName: "CompareByComparatorSelector", expected: "[fig, pear, apple]\n")
     }
-
-    // The 1-arg composition variants (thenByDescending { selector }, thenDescending { a, b -> },
-    // thenComparator { a, b -> }) now lower through bundled Kotlin comparator source and are
-    // consumed by sortedWith as Comparator objects. These tests keep the composition behavior
-    // covered after the old kk_comparator_then_* runtime helpers were removed.
 
     @Test
     func testCodegenCompilesComparatorThenByDescendingSelector() throws {
