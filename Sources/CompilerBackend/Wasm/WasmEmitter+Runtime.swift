@@ -2477,22 +2477,22 @@ enum WasmRuntimeHelpers {
             emitStringToBooleanBody(&code, argumentCount: argumentCount)
         case "__kk_wasm_string_to_double", "__kk_string_toDouble",
              "__kk_string_toDouble_flat":
-            extraLocals = 4
+            extraLocals = 5
             emitStringParseFpBody(&code, ctx: ctx, wide: true, orNull: false,
                                   argumentCount: argumentCount)
         case "__kk_wasm_string_to_float", "__kk_string_toFloat",
              "__kk_string_toFloat_flat":
-            extraLocals = 4
+            extraLocals = 5
             emitStringParseFpBody(&code, ctx: ctx, wide: false, orNull: false,
                                   argumentCount: argumentCount)
         case "__kk_wasm_string_to_double_or_null",
              "__kk_string_toDoubleOrNull", "__kk_string_toDoubleOrNull_flat":
-            extraLocals = 4
+            extraLocals = 5
             emitStringParseFpBody(&code, ctx: ctx, wide: true, orNull: true,
                                   argumentCount: argumentCount)
         case "__kk_wasm_string_to_float_or_null",
              "__kk_string_toFloatOrNull", "__kk_string_toFloatOrNull_flat":
-            extraLocals = 4
+            extraLocals = 5
             emitStringParseFpBody(&code, ctx: ctx, wide: false, orNull: true,
                                   argumentCount: argumentCount)
         case "__kk_wasm_string_substring_after",
@@ -13749,6 +13749,7 @@ enum WasmRuntimeHelpers {
     ) {
         let len = argumentCount, data = argumentCount + 1
         let scratch = argumentCount + 2, bits = argumentCount + 3
+        let heapBefore = argumentCount + 4
         emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
         code.localSet(len)
         emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
@@ -13756,7 +13757,11 @@ enum WasmRuntimeHelpers {
 
         // wasm_decimal_parse.c lays scratch out as the length-byte digit copy,
         // 8-byte alignment padding, nine (length + 1024)-limb u32 big integers,
-        // and 64 bytes of slack.
+        // and 64 bytes of slack. The generated parser performs no allocations,
+        // so the scratch allocation is always the heap top and can be rewound
+        // immediately after use.
+        code.globalGet(ctx.heapGlobal)
+        code.localSet(heapBefore)
         code.localGet(len)
         code.i64Const(7)
         code.op(WasmOpcode.i64Add)
@@ -13777,6 +13782,8 @@ enum WasmRuntimeHelpers {
         code.i64Const(wide ? 0 : 1)
         code.call(ctx.emittedHelperIndex(for: "__kk_wasm_decimal_parse_exact", argumentCount: 4))
         code.localSet(bits)
+        code.localGet(heapBefore)
+        code.globalSet(ctx.heapGlobal)
         code.localGet(bits)
         code.i64Const(-1)
         code.op(WasmOpcode.i64Eq)
