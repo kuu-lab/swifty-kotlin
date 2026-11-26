@@ -267,6 +267,7 @@ extension JVMBackendTests {
                 @JvmField val x: Int = foo() + first
                 @JvmField val y: Int = x + 1
                 @JvmField val items: List<String> = listOf("a")
+                @JvmField val maybeItems: List<String>? = listOf("b")
                 init { foo() }
                 private fun foo(): Int = 3
             }
@@ -289,14 +290,16 @@ extension JVMBackendTests {
                 Field x = owner.getDeclaredField("x");
                 Field y = owner.getDeclaredField("y");
                 Field items = owner.getDeclaredField("items");
+                Field maybeItems = owner.getDeclaredField("maybeItems");
                 System.out.println("first=" + modifiers(first) + ":" + first.getInt(null));
                 System.out.println("x=" + modifiers(x) + ":" + x.getInt(null));
                 System.out.println("y=" + modifiers(y) + ":" + y.getInt(null));
                 System.out.println("items=" + items.getGenericType().getTypeName() + ":" + ((java.util.List<?>) items.get(null)).size());
+                System.out.println("maybeItems=" + maybeItems.getGenericType().getTypeName() + ":" + ((java.util.List<?>) maybeItems.get(null)).size());
 
                 Class<?> companion = Class.forName("ITest$Companion");
                 boolean companionHasExposedField = false;
-                for (String name : new String[] {"first", "x", "y", "items"}) {
+                for (String name : new String[] {"first", "x", "y", "items", "maybeItems"}) {
                     try {
                         companion.getDeclaredField(name);
                         companionHasExposedField = true;
@@ -304,7 +307,7 @@ extension JVMBackendTests {
                     }
                 }
                 boolean companionHasAccessors = false;
-                for (String name : new String[] {"getFirst", "getX", "getY", "getItems"}) {
+                for (String name : new String[] {"getFirst", "getX", "getY", "getItems", "getMaybeItems"}) {
                     try {
                         companion.getDeclaredMethod(name);
                         companionHasAccessors = true;
@@ -338,6 +341,7 @@ extension JVMBackendTests {
             x=true:true:true:13
             y=true:true:true:14
             items=java.util.List<java.lang.String>:1
+            maybeItems=java.util.List<java.lang.String>:1
             companionHasExposedField=false
             companionHasAccessors=false
             """ + "\n")
@@ -346,12 +350,26 @@ extension JVMBackendTests {
             fun main() {
                 println(ITest.x)
                 println(ITest.Companion.x)
+                val items: List<String> = ITest.items
+                println(items.size)
+                println(ITest.Companion.items.first())
+                val maybeItems: List<String>? = ITest.maybeItems
+                println(maybeItems?.size)
             }
             """, root: root, mode: .jvmJar, classpath: [interfaceArtifact.path])
             #expect(consumer.0 == 0, "\(consumer.1.map(\.message))")
             let consumerExecution = try java(["-cp", artifact + ":" + interfaceArtifact.path + ":" + runtime, "HelloKt"])
-            #expect(consumerExecution.stdout == "13\n13\n")
+            #expect(consumerExecution.stdout == "13\n13\n1\na\n1\n")
             #expect(consumerExecution.stderr.isEmpty)
+
+            let nonNullConsumer = try compile("""
+            fun main() {
+                val items: List<String> = ITest.maybeItems
+                println(items.size)
+            }
+            """, root: root, mode: .jvmJar, classpath: [interfaceArtifact.path])
+            #expect(nonNullConsumer.0 == 1, "\(nonNullConsumer.1.map(\.message))")
+            #expect(nonNullConsumer.1.contains { $0.severity == .error && $0.message.contains("type mismatch") }, "\(nonNullConsumer.1.map(\.message))")
 
             #expect(reference.stderr.isEmpty)
             #expect(candidate.stderr.isEmpty)
@@ -430,6 +448,7 @@ extension JVMBackendTests {
                 fun main() {}
                 """, root: root, mode: .jvmJar)
                 #expect(compiled.0 == 1, "\(name): \(compiled.1.map(\.message))")
+                #expect(compiled.1.contains { $0.severity == .error && $0.message.contains("interface companions") }, "\(name): \(compiled.1.map(\.message))")
             }
         }
     }

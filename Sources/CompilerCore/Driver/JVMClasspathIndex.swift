@@ -364,7 +364,7 @@ final class JVMClasspathIndex {
                 if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
                 source += " {\n"
                 if let outer = classes[owner] {
-                    source += staticFieldDeclarations(outer)
+                    source += staticFieldDeclarations(outer, excluding: Set(info.kotlinMemberProperties.keys))
                 }
                 source += memberDeclarations(info: info, members: info.methods, allowsCompanion: false)
                 source += nestedClassDeclarations(of: entry.name, indentation: indentation + "    ")
@@ -422,14 +422,21 @@ final class JVMClasspathIndex {
         return source
     }
 
-    private func staticFieldDeclarations(_ info: JVMClassInfo) -> String {
+    private func staticFieldDeclarations(_ info: JVMClassInfo, excluding: Set<String> = []) -> String {
         info.fields.compactMap { field -> String? in
-            guard field.isPublic, field.isStatic, field.access & 0x4000 == 0,
+            guard !excluding.contains(field.name),
+                  field.isPublic, field.isStatic, field.access & 0x4000 == 0,
                   field.constantValue == nil, JVMProgramBuilder.isIdentifier(field.name),
-                  let type = try? JVMDescriptor.parse("()" + field.descriptor).1, expose(type),
-                  field.descriptor != "L\(info.name)$\(field.name);" else { return nil }
+                  let type = try? JVMDescriptor.parse("()" + field.descriptor).1,
+                  field.descriptor != "L\(info.name)$\(field.name);",
+                  expose(type) || field.isFinal && type.referenceName.map(Self.jdkToKotlinTypeNames.keys.contains) == true
+            else { return nil }
+            var accessor = JVMForeignMethod(owner: info.name, name: field.name, descriptor: "()" + field.descriptor,
+                parameters: [], result: type, isStatic: true, isInterface: info.isInterface, isAbstract: false)
+            accessor.genericSignature = field.genericSignature.map { "()" + $0 }
+            let sourceType = javaGenericTypes(accessor, forceJavaSignature: true)?.result ?? kotlinType(type)
             let setter = field.isFinal ? "" : " set(value) {}"
-            return (field.isFinal ? "val " : "var ") + "`\(field.name)`: " + kotlinType(type) + " get() = null!!\(setter)\n"
+            return (field.isFinal ? "val " : "var ") + "`\(field.name)`: " + sourceType + " get() = null!!\(setter)\n"
         }.joined()
     }
 

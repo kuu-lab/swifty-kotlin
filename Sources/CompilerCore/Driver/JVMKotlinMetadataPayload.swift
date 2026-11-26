@@ -68,6 +68,8 @@ struct JVMKotlinClassProperty {
     let name: String
     let getterName: String
     let getterDescriptor: String
+    let fieldName: String?
+    let fieldDescriptor: String?
     let isNullable: Bool
     let isVar: Bool
     let setterName: String?
@@ -372,21 +374,37 @@ struct JVMKotlinMetadataPayload {
         return try declaration.messages(10).compactMap { property in
             guard let name = try names.resolve(property.int32(2)), JVMProgramBuilder.isIdentifier(name),
                   let type = try types.resolve(property, inline: 3, indexed: 9),
-                  let signature = try property.message(100),
-                  let getter = try signature.message(3),
-                  let getterName = try names.resolve(getter.int32(1)),
-                  let descriptor = try names.resolve(getter.int32(2))
+                  let signature = try property.message(100)
             else { return nil }
+            let field = try signature.message(1)
+            let fieldName = try names.resolve(field?.int32(1)) ?? (field != nil ? name : nil)
+            let encodedFieldDescriptor = try names.resolve(field?.int32(2))
+            let metadataFieldType = try Self.resultType(type, types: types, names: names)
+            let fieldDescriptor = encodedFieldDescriptor ?? (field != nil ? metadataFieldType?.descriptor : nil)
+            let getterName: String
+            let descriptor: String
+            if let getter = try signature.message(3),
+               let encodedName = try names.resolve(getter.int32(1)),
+               let encodedDescriptor = try names.resolve(getter.int32(2)) {
+                getterName = encodedName
+                descriptor = encodedDescriptor
+            } else {
+                guard let fieldDescriptor else { return nil }
+                getterName = "get" + String(name.prefix(1)).uppercased() + name.dropFirst()
+                descriptor = "()" + fieldDescriptor
+            }
             let setter = try signature.message(4)
             let setterName = try names.resolve(setter?.int32(1))
             let setterDescriptor = try names.resolve(setter?.int32(2))
             let flags = property.int32(11) ?? 6
             let visibility = (flags >> 1) & 7
+            let sourceType = try Self.sourceType(type, types: types, names: names)
             return JVMKotlinClassProperty(name: name, getterName: getterName, getterDescriptor: descriptor,
+                                           fieldName: fieldName, fieldDescriptor: fieldDescriptor,
                                            isNullable: type.nullable, isVar: flags & (1 << 8) != 0 || setter != nil,
                                            setterName: setterName, setterDescriptor: setterDescriptor,
                                            isSourceVisible: visibility == 2 || visibility == 3,
-                                           sourceType: try Self.sourceType(type, types: types, names: names))
+                                           sourceType: sourceType)
         }
     }
 

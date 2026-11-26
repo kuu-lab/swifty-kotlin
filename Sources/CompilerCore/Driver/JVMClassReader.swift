@@ -913,9 +913,20 @@ struct JVMClassReader {
            }),
            let properties = try? metadata.classPropertyCandidates(byteLimit: bytes.count) {
             for property in properties {
-                guard let getter = methods.first(where: {
+                var getter = methods.first(where: {
                     !$0.isProtected && $0.name == property.getterName && $0.descriptor == property.getterDescriptor && $0.result != .unit
-                }) else { continue }
+                })
+                if getter == nil, property.fieldName != nil, let fieldDescriptor = property.fieldDescriptor,
+                   let result = try? JVMDescriptor.parse("()" + fieldDescriptor).1 {
+                    // @JvmField properties have no accessor method, but their
+                    // metadata still carries the Kotlin property and type.
+                    var syntheticGetter = JVMForeignMethod(owner: name, name: property.getterName,
+                        descriptor: "()" + fieldDescriptor, parameters: [], result: result,
+                        isStatic: false, isInterface: false, isAbstract: false)
+                    syntheticGetter.isFinal = true
+                    getter = syntheticGetter
+                }
+                guard let getter else { continue }
                 // Kotlin metadata keeps @get:JvmSynthetic properties callable from Kotlin unless HIDDEN-deprecated.
                 let isHiddenByDeprecation = Self.isHiddenByDeprecation(propertyGetter: getter, methods: methods)
                 let isJvmSyntheticPropertyGetter = property.isSourceVisible && getter.isSynthetic && !isHiddenByDeprecation
