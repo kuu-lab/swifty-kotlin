@@ -116,15 +116,18 @@ enum WasmRuntimeHelpers {
         }
     }
 
-    /// Double/Float boxes are real heap objects (`{typeID@-16, bits@16}`) so
-    /// `is`/generic-element dispatch can read the nominal tag — every other
-    /// `kk_box_*` stays identity under the uniform raw-i64 model.
+    /// Floating-point boxes and sentinel-colliding Long/ULong values use
+    /// nominal heap boxes; the other `kk_box_*` callees keep the raw-i64 form.
     private static func boxHelperName(for name: String) -> String? {
         switch name {
         case "kk_box_double", "kk_box_double_static":
             return "__kk_wasm_box_double_nullable"
         case "kk_box_double_nonnull", "kk_box_double_nonnull_static":
             return "__kk_wasm_box_double"
+        case "kk_box_long_nonnull", "kk_box_long_nonnull_static":
+            return "__kk_wasm_box_long_sentinel"
+        case "kk_box_ulong_nonnull", "kk_box_ulong_nonnull_static":
+            return "__kk_wasm_box_ulong_sentinel"
         case "kk_box_float", "kk_box_float_static":
             return "__kk_wasm_box_float"
         default:
@@ -137,6 +140,12 @@ enum WasmRuntimeHelpers {
         case "kk_unbox_double", "kk_unbox_double_static",
              "kk_unbox_double_nonnull", "kk_unbox_double_nonnull_static":
             return "__kk_wasm_unbox_double"
+        case "kk_unbox_long", "kk_unbox_long_static",
+             "kk_unbox_long_nonnull", "kk_unbox_long_nonnull_static":
+            return "__kk_wasm_unbox_long"
+        case "kk_unbox_ulong", "kk_unbox_ulong_static",
+             "kk_unbox_ulong_nonnull", "kk_unbox_ulong_nonnull_static":
+            return "__kk_wasm_unbox_ulong"
         case "kk_unbox_float", "kk_unbox_float_static":
             return "__kk_wasm_unbox_float"
         default:
@@ -418,6 +427,9 @@ enum WasmRuntimeHelpers {
         "kk_structural_ne",
         "kk_nullable_primitive_eq",
         "kk_nullable_primitive_ne",
+        "kk_tag_value_class_box",
+        "kk_value_class_box",
+        "kk_value_class_unbox",
         "kk_throwable_is_cancellation",
         "kk_object_type_id",
         "kk_object_register_vtable_method",
@@ -678,13 +690,13 @@ enum WasmRuntimeHelpers {
         "kk_iterable_iterator", "__kk_collection_size",
         "kk_string_from_flat", "kk_string_to_flat",
         "kk_op_notnull", "kk_op_notnull_msg", "kk_op_elvis",
-        // Double/Float primitive boxes (`RuntimeBoxing.swift` equivalents):
-        // a real heap object `{typeID@-16, bits@16}` so `is`/generic-element
-        // dispatch reads the nominal tag — the raw i64 ABI stays in force for
-        // every other box kind.
+        // Floating-point boxes and sentinel-colliding Long/ULong boxes carry
+        // nominal type IDs; other primitive boxes keep the raw i64 ABI.
         "__kk_wasm_box_double", "__kk_wasm_box_double_nullable",
+        "__kk_wasm_box_long_sentinel", "__kk_wasm_box_ulong_sentinel",
         "__kk_wasm_box_float",
-        "__kk_wasm_unbox_double", "__kk_wasm_unbox_float",
+        "__kk_wasm_unbox_double", "__kk_wasm_unbox_long",
+        "__kk_wasm_unbox_ulong", "__kk_wasm_unbox_float",
         "__kk_double_to_int", "__kk_double_to_long",
         "__kk_float_to_int", "__kk_float_to_long",
         "kk_int_to_double", "kk_int_to_double_bits", "kk_long_to_double",
@@ -911,6 +923,15 @@ enum WasmRuntimeHelpers {
             emitNullablePrimitiveEqualityBody(
                 &code, ctx: ctx,
                 negate: name == "kk_nullable_primitive_ne")
+        case "kk_tag_value_class_box":
+            extraLocals = 1
+            emitValueClassTagBody(&code, ctx: ctx)
+        case "kk_value_class_box":
+            extraLocals = 1
+            emitValueClassBoxBody(&code, ctx: ctx)
+        case "kk_value_class_unbox":
+            extraLocals = 0
+            emitValueClassUnboxBody(&code, ctx: ctx)
         case "kk_throwable_is_cancellation":
             extraLocals = 0
             emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
@@ -1983,6 +2004,14 @@ enum WasmRuntimeHelpers {
                     : Self.stableNominalTypeID("kotlin.Double"),
                 nullable: name.hasSuffix("_nullable")
             )
+        case "__kk_wasm_box_long_sentinel", "__kk_wasm_box_ulong_sentinel":
+            extraLocals = 1
+            emitNonNullSentinelBoxBody(
+                &code, ctx: ctx,
+                typeID: Self.stableNominalTypeID(
+                    name.contains("ulong") ? "kotlin.ULong" : "kotlin.Long"
+                )
+            )
         case "__kk_wasm_unbox_double", "__kk_wasm_unbox_float":
             extraLocals = 0
             emitNumericUnboxBody(
@@ -1990,6 +2019,14 @@ enum WasmRuntimeHelpers {
                 typeID: name.contains("float")
                     ? Self.stableNominalTypeID("kotlin.Float")
                     : Self.stableNominalTypeID("kotlin.Double")
+            )
+        case "__kk_wasm_unbox_long", "__kk_wasm_unbox_ulong":
+            extraLocals = 0
+            emitNumericUnboxBody(
+                &code, ctx: ctx,
+                typeID: Self.stableNominalTypeID(
+                    name.contains("ulong") ? "kotlin.ULong" : "kotlin.Long"
+                )
             )
         case "__kk_double_to_int":
             extraLocals = 0
@@ -4360,6 +4397,8 @@ enum WasmRuntimeHelpers {
     /// signed-decimal rendering of the raw i64 (Float/Double bit patterns
     /// included — full numeric formatting is a stdlib milestone).
     private static func emitAnyToStringBody(_ code: inout WasmCode, ctx: WasmModuleContext) {
+        code.i64Const(0)
+        code.localSet(2)
         // Tags 5/6/7 carry raw scalar payloads and decode before every
         // object/null check — the lowering pre-guards nullable receivers (see
         // CallLowerer.emitAnyToStringWithNullGuard).
@@ -4385,6 +4424,49 @@ enum WasmRuntimeHelpers {
         code.openIf()
         code.localGet(0)
         code.op(WasmOpcode.return)
+        code.end()
+        code.localGet(0)
+        code.globalGet(ctx.dataEndGlobal)
+        code.op(WasmOpcode.i64GeU)
+        code.localGet(0)
+        code.globalGet(ctx.heapGlobal)
+        code.op(WasmOpcode.i64LtU)
+        code.op(WasmOpcode.i32And)
+        code.localGet(0)
+        code.i64Const(7)
+        code.op(WasmOpcode.i64And)
+        code.op(WasmOpcode.i64Eqz)
+        code.op(WasmOpcode.i32And)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.i64Const(Self.stableNominalTypeID("kotlin.Long"))
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.i64Const(L.nullSentinel)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.localSet(0)
+        code.i64Const(1)
+        code.localSet(2)
+        code.end()
+        code.elseBranch()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.i64Const(Self.stableNominalTypeID("kotlin.ULong"))
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.i64Const(L.nullSentinel)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.localSet(0)
+        code.i64Const(7)
+        code.localSet(1)
+        code.end()
+        code.end()
+        code.end()
         code.end()
         // Heap string object: aligned pointers inside
         // [dataEnd, heap) carrying the string typeID are already their own
@@ -4629,6 +4711,9 @@ enum WasmRuntimeHelpers {
         code.i64Const(7)
         code.op(WasmOpcode.i64Ne)
         code.op(WasmOpcode.i32And)
+        code.localGet(2)
+        code.op(WasmOpcode.i64Eqz)
+        code.op(WasmOpcode.i32And)
         code.openIf()
         emitLiteralString(&code, ctx: ctx, "null")
         code.op(WasmOpcode.return)
@@ -4855,6 +4940,125 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64Eq)
         code.openIf(result: .i64)
         emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.elseBranch()
+        code.localGet(0)
+        code.end()
+        code.elseBranch()
+        code.localGet(0)
+        code.end()
+        code.elseBranch()
+        code.localGet(0)
+        code.end()
+    }
+
+    private static func emitNonNullSentinelBoxBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        typeID: Int64
+    ) {
+        code.localGet(0)
+        code.i64Const(L.nullSentinel)
+        code.op(WasmOpcode.i64Ne)
+        code.openIf(result: .i64)
+        code.localGet(0)
+        code.elseBranch()
+        emitNumericBoxBody(&code, ctx: ctx, typeID: typeID, nullable: false)
+        code.end()
+    }
+
+    private static func emitValueClassBoxAllocation(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext
+    ) {
+        code.i64Const(32)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
+        code.localSet(2)
+        emitStoreAt(&code, baseLocal: 2, byteOffset: L.typeIDOffset, valueLocal: 1)
+        emitStoreAtConst(
+            &code, baseLocal: 2, byteOffset: L.valueClassBoxMarkerOffset,
+            value: L.valueClassBoxMarker
+        )
+        emitStoreAt(
+            &code, baseLocal: 2, byteOffset: L.valueClassBoxPayloadOffset,
+            valueLocal: 0
+        )
+        code.localGet(2)
+    }
+
+    private static func emitValueClassTagBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext
+    ) {
+        code.localGet(0)
+        code.i64Const(L.nullSentinel)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf(result: .i64)
+        code.localGet(0)
+        code.elseBranch()
+        code.localGet(0)
+        code.globalGet(ctx.dataEndGlobal)
+        code.op(WasmOpcode.i64GeU)
+        code.localGet(0)
+        code.globalGet(ctx.heapGlobal)
+        code.op(WasmOpcode.i64LtU)
+        code.op(WasmOpcode.i32And)
+        code.localGet(0)
+        code.i64Const(7)
+        code.op(WasmOpcode.i64And)
+        code.op(WasmOpcode.i64Eqz)
+        code.op(WasmOpcode.i32And)
+        code.openIf(result: .i64)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.localGet(1)
+        code.op(WasmOpcode.i64Eq)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.valueClassBoxMarkerOffset)
+        code.i64Const(L.valueClassBoxMarker)
+        code.op(WasmOpcode.i64Eq)
+        code.op(WasmOpcode.i32And)
+        code.openIf(result: .i64)
+        code.localGet(0)
+        code.elseBranch()
+        emitValueClassBoxAllocation(&code, ctx: ctx)
+        code.end()
+        code.elseBranch()
+        emitValueClassBoxAllocation(&code, ctx: ctx)
+        code.end()
+        code.end()
+    }
+
+    private static func emitValueClassBoxBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext
+    ) {
+        emitValueClassBoxAllocation(&code, ctx: ctx)
+    }
+
+    private static func emitValueClassUnboxBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext
+    ) {
+        code.localGet(0)
+        code.globalGet(ctx.dataEndGlobal)
+        code.op(WasmOpcode.i64GeU)
+        code.localGet(0)
+        code.globalGet(ctx.heapGlobal)
+        code.op(WasmOpcode.i64LtU)
+        code.op(WasmOpcode.i32And)
+        code.localGet(0)
+        code.i64Const(7)
+        code.op(WasmOpcode.i64And)
+        code.op(WasmOpcode.i64Eqz)
+        code.op(WasmOpcode.i32And)
+        code.openIf(result: .i64)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.localGet(1)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf(result: .i64)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.valueClassBoxMarkerOffset)
+        code.i64Const(L.valueClassBoxMarker)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf(result: .i64)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.valueClassBoxPayloadOffset)
         code.elseBranch()
         code.localGet(0)
         code.end()
@@ -9081,9 +9285,8 @@ enum WasmRuntimeHelpers {
         code.i64Const(1)
         code.op(WasmOpcode.return)
         code.end()
-        // Two heap objects sharing the Double/Float typeID compare their
-        // `{bits@16}` payload numerically (`listOf(1.5).contains(1.5)`);
-        // bit-equality is wrong here — it would separate +0.0/-0.0.
+        // Boxed floating-point equality matches Kotlin equals: NaNs compare
+        // equal and the sign bit distinguishes zero.
         code.localGet(aHeap)
         code.localGet(bHeap)
         code.op(WasmOpcode.i64And)
@@ -9098,30 +9301,45 @@ enum WasmRuntimeHelpers {
         code.localGet(paL)
         code.op(WasmOpcode.i64Eq)
         code.openIf()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.valueClassBoxMarkerOffset)
+        code.i64Const(L.valueClassBoxMarker)
+        code.op(WasmOpcode.i64Eq)
+        emitLoadAt(&code, baseLocal: 1, byteOffset: L.valueClassBoxMarkerOffset)
+        code.i64Const(L.valueClassBoxMarker)
+        code.op(WasmOpcode.i64Eq)
+        code.op(WasmOpcode.i32And)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.valueClassBoxPayloadOffset)
+        emitLoadAt(&code, baseLocal: 1, byteOffset: L.valueClassBoxPayloadOffset)
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_elem_eq", argumentCount: 2))
+        code.op(WasmOpcode.return)
+        code.end()
+        code.localGet(paL)
+        code.i64Const(Self.stableNominalTypeID("kotlin.Long"))
+        code.op(WasmOpcode.i64Eq)
+        code.localGet(paL)
+        code.i64Const(Self.stableNominalTypeID("kotlin.ULong"))
+        code.op(WasmOpcode.i64Eq)
+        code.op(WasmOpcode.i32Or)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        emitLoadAt(&code, baseLocal: 1, byteOffset: 16)
+        code.op(WasmOpcode.i64Eq)
+        code.i64ExtendFromComparison()
+        code.op(WasmOpcode.return)
+        code.end()
         code.localGet(paL)
         code.i64Const(Self.stableNominalTypeID("kotlin.Double"))
         code.op(WasmOpcode.i64Eq)
         code.openIf()
-        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
-        code.op(WasmOpcode.f64ReinterpretI64)
-        emitLoadAt(&code, baseLocal: 1, byteOffset: 16)
-        code.op(WasmOpcode.f64ReinterpretI64)
-        code.op(WasmOpcode.f64Eq)
-        code.i64ExtendFromComparison()
+        emitBoxedFloatingEquality(&code, isFloat: false)
         code.op(WasmOpcode.return)
         code.end()
         code.localGet(paL)
         code.i64Const(Self.stableNominalTypeID("kotlin.Float"))
         code.op(WasmOpcode.i64Eq)
         code.openIf()
-        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
-        code.op(WasmOpcode.i32WrapI64)
-        code.op(WasmOpcode.f32ReinterpretI32)
-        emitLoadAt(&code, baseLocal: 1, byteOffset: 16)
-        code.op(WasmOpcode.i32WrapI64)
-        code.op(WasmOpcode.f32ReinterpretI32)
-        code.op(WasmOpcode.f32Eq)
-        code.i64ExtendFromComparison()
+        emitBoxedFloatingEquality(&code, isFloat: true)
         code.op(WasmOpcode.return)
         code.end()
         code.end()
@@ -9413,7 +9631,93 @@ enum WasmRuntimeHelpers {
             code.end()
         }
         code.end()
+        code.localGet(aHeap)
+        code.localGet(bHeap)
+        code.op(WasmOpcode.i64Ne)
+        code.openIf(result: .i64)
+        code.localGet(aHeap)
         code.i64Const(0)
+        code.op(WasmOpcode.i64Ne)
+        code.openIf(result: .i64)
+        emitPrimitiveBoxRawEquality(&code, boxLocal: 0, rawLocal: 1)
+        code.elseBranch()
+        emitPrimitiveBoxRawEquality(&code, boxLocal: 1, rawLocal: 0)
+        code.end()
+        code.elseBranch()
+        code.i64Const(0)
+        code.end()
+        code.end()
+    }
+
+    private static func emitBoxedFloatingEquality(
+        _ code: inout WasmCode,
+        isFloat: Bool
+    ) {
+        if isFloat {
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+            code.op(WasmOpcode.i32WrapI64)
+            emitLoadAt(&code, baseLocal: 1, byteOffset: 16)
+            code.op(WasmOpcode.i32WrapI64)
+            code.op(WasmOpcode.i32Eq)
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+            code.op(WasmOpcode.i32WrapI64)
+            code.op(WasmOpcode.f32ReinterpretI32)
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+            code.op(WasmOpcode.i32WrapI64)
+            code.op(WasmOpcode.f32ReinterpretI32)
+            code.op(WasmOpcode.f32Ne)
+            emitLoadAt(&code, baseLocal: 1, byteOffset: 16)
+            code.op(WasmOpcode.i32WrapI64)
+            code.op(WasmOpcode.f32ReinterpretI32)
+            emitLoadAt(&code, baseLocal: 1, byteOffset: 16)
+            code.op(WasmOpcode.i32WrapI64)
+            code.op(WasmOpcode.f32ReinterpretI32)
+            code.op(WasmOpcode.f32Ne)
+        } else {
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+            emitLoadAt(&code, baseLocal: 1, byteOffset: 16)
+            code.op(WasmOpcode.i64Eq)
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+            code.op(WasmOpcode.f64ReinterpretI64)
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+            code.op(WasmOpcode.f64ReinterpretI64)
+            code.op(WasmOpcode.f64Ne)
+            emitLoadAt(&code, baseLocal: 1, byteOffset: 16)
+            code.op(WasmOpcode.f64ReinterpretI64)
+            emitLoadAt(&code, baseLocal: 1, byteOffset: 16)
+            code.op(WasmOpcode.f64ReinterpretI64)
+            code.op(WasmOpcode.f64Ne)
+        }
+        code.op(WasmOpcode.i32And)
+        code.op(WasmOpcode.i32Or)
+        code.i64ExtendFromComparison()
+    }
+
+    private static func emitPrimitiveBoxRawEquality(
+        _ code: inout WasmCode,
+        boxLocal: Int,
+        rawLocal: Int
+    ) {
+        emitLoadAt(&code, baseLocal: boxLocal, byteOffset: L.typeIDOffset)
+        code.i64Const(Self.stableNominalTypeID("kotlin.Long"))
+        code.op(WasmOpcode.i64Eq)
+        code.openIf(result: .i64)
+        emitLoadAt(&code, baseLocal: boxLocal, byteOffset: 16)
+        code.localGet(rawLocal)
+        code.op(WasmOpcode.i64Eq)
+        code.i64ExtendFromComparison()
+        code.elseBranch()
+        emitLoadAt(&code, baseLocal: boxLocal, byteOffset: L.typeIDOffset)
+        code.i64Const(Self.stableNominalTypeID("kotlin.ULong"))
+        code.op(WasmOpcode.i64Eq)
+        code.openIf(result: .i64)
+        emitLoadAt(&code, baseLocal: boxLocal, byteOffset: 16)
+        code.localGet(rawLocal)
+        code.op(WasmOpcode.i64Eq)
+        code.i64ExtendFromComparison()
+        code.elseBranch()
+        code.i64Const(0)
+        code.end()
         code.end()
     }
 
