@@ -147,41 +147,40 @@ private fun durationJvmParseNumber(text: String, startIndex: Int, end: Int, allo
 private fun durationJvmApplySign(raw: Long, sign: Int): Long =
     if (sign >= 0) raw else ((-(raw shr 1)) shl 1) or (raw and 1L)
 
-private fun durationJvmRoundedFractionNanos(digits: String, scale: Long): Long {
-    if (digits.isEmpty()) return 0L
-    val digitCount = digits.length
-    val product = IntArray(digitCount + 15)
-    var writeIndex = product.size - 1
-    var carry = 0L
-    var index = digitCount - 1
-    while (index >= 0) {
-        val value = (digits[index] - '0').toLong() * scale + carry
-        product[writeIndex] = (value % 10L).toInt()
-        carry = value / 10L
-        writeIndex -= 1
-        index -= 1
-    }
-    while (carry > 0L) {
-        product[writeIndex] = (carry % 10L).toInt()
-        carry /= 10L
-        writeIndex -= 1
-    }
+private fun durationJvmFractionMultiplier(unit: DurationUnit): Double = when (unit) {
+    DurationUnit.NANOSECONDS -> 0.000000000000001
+    DurationUnit.MICROSECONDS -> 0.000000000001
+    DurationUnit.MILLISECONDS -> 0.000000001
+    DurationUnit.SECONDS -> 0.000001
+    DurationUnit.MINUTES -> 0.00006
+    DurationUnit.HOURS -> 0.0036
+    DurationUnit.DAYS -> 0.0864
+}
 
-    val quotientEnd = product.size - 1 - digitCount
-    var quotient = 0L
-    var productIndex = writeIndex + 1
-    while (productIndex <= quotientEnd) {
-        quotient = quotient * 10L + product[productIndex]
-        productIndex += 1
+private fun durationJvmScaledFractionDigits(digits: String): Long {
+    var result = 0L
+    var index = 0
+    while (index < 15) {
+        result *= 10L
+        if (index < digits.length) result += (digits[index] - '0').toLong()
+        index += 1
     }
-    if (product[quotientEnd + 1] >= 5) quotient += 1
-    return quotient
+    return result
+}
+
+private fun durationJvmRoundPositive(value: Double): Long = (value + 0.5).toLong()
+
+private fun durationJvmRoundedFractionNanos(digits: String, unit: DurationUnit): Long {
+    if (digits.isEmpty()) return 0L
+    if (digits.length > 15 && (unit == DurationUnit.MINUTES || unit == DurationUnit.HOURS || unit == DurationUnit.DAYS)) {
+        return durationJvmRoundPositive(("0." + digits).toDouble() * durationUnitScale(unit).toDouble())
+    }
+    return durationJvmRoundPositive(durationJvmScaledFractionDigits(digits).toDouble() * durationJvmFractionMultiplier(unit))
 }
 
 private fun durationJvmComponentRaw(number: DurationJvmParsedNumber, unit: DurationUnit): Long {
-    val scale = durationUnitScale(unit)
     val whole = durationRawFromLong(number.whole, unit)
-    val fraction = if (number.hasFraction) durationRawOfNanos(durationJvmRoundedFractionNanos(number.fractionDigits, scale)) else 0L
+    val fraction = if (number.hasFraction) durationRawOfNanos(durationJvmRoundedFractionNanos(number.fractionDigits, unit)) else 0L
     return durationJvmApplySign(addDurationRaw(whole, fraction), number.sign)
 }
 

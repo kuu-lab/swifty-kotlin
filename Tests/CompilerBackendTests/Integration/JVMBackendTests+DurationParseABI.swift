@@ -18,6 +18,7 @@ extension JVMBackendTests {
                 println(Duration.parseIsoString("PT-1H"))
                 println(Duration.parseIsoString("PT4.005S"))
                 println(Duration.parseIsoString("PT0.0000000075S"))
+                println(Duration.parse("0.9251628080083333m"))
                 println(Duration.parseIsoStringOrNull("P999999999999999999999999999999DT-999999999999999999999999999999H") == null)
                 println(Duration.parseOrNull("INFINITY"))
                 println(Duration.parse("0.5s"))
@@ -25,7 +26,7 @@ extension JVMBackendTests {
                 println(Duration.parseOrNull("+1h 30m") == null)
             }
             """
-            let expected = "1h 30m\ntrue\ntrue\n-1h\n4.005s\n8ns\ntrue\nInfinity\n500ms\n-(1h 30m)\ntrue\n"
+            let expected = "1h 30m\ntrue\ntrue\n-1h\n4.005s\n8ns\n55.509768481s\ntrue\nInfinity\n500ms\n-(1h 30m)\ntrue\n"
 
             let own = try m22Build(root: root, sources: [("consumer.kt", source)], name: "own-consumer.jar", mode: .jvmJar, classpath: [library.path])
             try #require(own.1 == 0, "\(own.2.map(\.message))")
