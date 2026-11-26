@@ -127,8 +127,15 @@ extension BuildASTPhase {
 
             let shouldMergeWithPrevious: Bool
             if let previousFiltered = groups.last?.filtered {
+                // CST statement nodes already preserve contextual anonymous
+                // functions across their newline. The token-level compatibility
+                // merge is only for expression-owned block token streams, where
+                // semicolons are not pre-filtered; applying it here could hide
+                // an explicit semicolon stripped from `filtered`.
                 shouldMergeWithPrevious = Self.isContinuationBoundary(
-                    previousTail: previousFiltered, nextHead: filtered[...]
+                    previousTail: previousFiltered,
+                    nextHead: filtered[...],
+                    allowsContextualAnonymousFunctionContinuation: false
                 )
             } else {
                 shouldMergeWithPrevious = false
@@ -146,7 +153,8 @@ extension BuildASTPhase {
 
     static func isContinuationBoundary<Prev: BidirectionalCollection, Next: Collection>(
         previousTail: Prev,
-        nextHead: Next
+        nextHead: Next,
+        allowsContextualAnonymousFunctionContinuation: Bool = true
     ) -> Bool where Prev.Element == Token, Next.Element == Token {
         guard let last = previousTail.last else {
             return false
@@ -187,7 +195,8 @@ extension BuildASTPhase {
         guard let first = nextHead.first else {
             return false
         }
-        if previousTail.last?.kind == .symbol(.rParen),
+        if allowsContextualAnonymousFunctionContinuation,
+           previousTail.last?.kind == .symbol(.rParen),
            canStartModifiedAnonymousFunction(first.kind),
            isContextualAnonymousFunctionContinuation(
                previousTail: previousTail,
@@ -264,7 +273,19 @@ extension BuildASTPhase {
                     guard cursor != previousTail.startIndex else {
                         return false
                     }
-                    return previousTail[previousTail.index(before: cursor)].kind == .softKeyword(.context)
+                    let contextIndex = previousTail.index(before: cursor)
+                    guard previousTail[contextIndex].kind == .softKeyword(.context) else {
+                        return false
+                    }
+                    if contextIndex != previousTail.startIndex {
+                        let receiverSeparatorIndex = previousTail.index(before: contextIndex)
+                        if previousTail[receiverSeparatorIndex].kind == .symbol(.dot)
+                            || previousTail[receiverSeparatorIndex].kind == .symbol(.questionDot)
+                        {
+                            return false
+                        }
+                    }
+                    return true
                 }
             default:
                 break

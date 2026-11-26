@@ -60,12 +60,38 @@ struct AnonymousFunctionBodyParsingTests {
         let (_, context) = try buildASTModule(from: """
         @file:OptIn(kotlin.ExperimentalContextParameters::class)
         fun main() {
-            val f = context(a: String)
-            fun(y: String): String = a + y
+            with("O") {
+                val f = context(a: String)
+                fun(y: String): String = a + y
+            }
         }
         """, includeStdlib: false)
 
         #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func newlineBetweenContextPrefixAndAnonymousFunctionParsesInTopLevelInitializer() throws {
+        let (_, context) = try buildASTModule(from: """
+        @file:OptIn(kotlin.ExperimentalContextParameters::class)
+        val f = context(a: String)
+        fun(y: String): String = a + y
+        """, includeStdlib: false)
+
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func semicolonBetweenContextPrefixAndAnonymousFunctionDoesNotParseAsContextualFunction() throws {
+        let (_, context) = try buildASTModule(from: """
+        @file:OptIn(kotlin.ExperimentalContextParameters::class)
+        fun main() {
+            val f = context(a: String);
+            fun(y: String): String = a + y
+        }
+        """, includeStdlib: false)
+
+        #expect(context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
     }
 
     @Test(arguments: [
