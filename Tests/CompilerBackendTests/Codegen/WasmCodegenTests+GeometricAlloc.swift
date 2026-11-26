@@ -2,9 +2,6 @@
 import Testing
 
 extension WasmCodegenTests {
-    // Regression: `$__kk_wasm_alloc` must grow linear memory geometrically
-    // (at least 16 pages / doubling) rather than 1 page at a time, so repeated
-    // allocations do not stall or hit VMA/SIGSEGV limits under Node/V8.
     @Test
     func repeatedAllocationsCompleteUnderNodeWithoutPageByPageGrow() throws {
         let arena = KIRArena()

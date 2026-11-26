@@ -33,7 +33,6 @@ struct CallableReferenceExplicitInvokeTests {
             guard callee == invoke else { return nil }
             return id
         }
-        // Includes nominal Operator.invoke, which must keep ordinary dispatch.
         let bound = calls.compactMap { sema.bindings.callableValueCalls[$0] }
         #expect(calls.count == 25)
         #expect(bound.count == 24)

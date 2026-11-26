@@ -27,6 +27,11 @@ public value class Duration internal constructor(private val rawValue: Long) : C
         public val ZERO: Duration get() = Duration(0L)
         public val INFINITE: Duration get() = Duration(0L)
 
+        public fun parse(value: String): Duration = null!!
+        public fun parseOrNull(value: String): Duration? = null
+        public fun parseIsoString(value: String): Duration = null!!
+        public fun parseIsoStringOrNull(value: String): Duration? = null
+
         public val Int.nanoseconds: Duration get() = Duration(0L)
         public val Long.nanoseconds: Duration get() = Duration(0L)
         public val Double.nanoseconds: Duration get() = Duration(0L)

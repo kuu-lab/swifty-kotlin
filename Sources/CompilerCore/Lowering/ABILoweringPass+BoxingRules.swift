@@ -1,20 +1,3 @@
-/// Resolves a value class's `TypeKind` to the `TypeKind` of its underlying
-/// primitive, so the caller's boxing-callee lookup treats a value class like
-/// its underlying representation (value classes are unboxed everywhere
-/// except at reference-type boundaries — ValueClassUnboxingPass — and except
-/// when the value class implements an interface, in which case it stays
-/// boxed for polymorphic dispatch; see `effectiveValueClassUnderlyingType`).
-/// Non-null enum classes resolve the same way, to `Int`: enum constants are
-/// raw ordinal Ints everywhere outside Any-erased slots (see
-/// `emitBoxCallWithValueClassTag`, which boxes them via
-/// `kk_enum_box_ordinal` instead of the plain `kk_box_int` this resolution
-/// would otherwise imply).
-///
-/// Shared as a free function (rather than an `ABILoweringPass` method) so
-/// `CollectionLiteralLoweringPass`'s `listOf`/`setOf`/array-literal boxing —
-/// which must stay in sync with ABILoweringPass's typeParam boxing boundary,
-/// per `typeParamBoxingBoundaryCallees` below — can resolve value classes the
-/// same way.
 func resolveValueClassKind(
     _ kind: TypeKind,
     types: TypeSystem,
@@ -67,13 +50,6 @@ func referenceBackedValueClassSymbol(
 }
 
 extension ABILoweringPass {
-    /// Callees whose `typeParam`-typed parameter stores the argument verbatim into a
-    /// generic container. Because type parameters are erased to Any at runtime, a
-    /// primitive argument to one of these must be boxed so it carries its concrete
-    /// type (notably `Char`, which would otherwise be stored as a bare code point and
-    /// render as a number). This mirrors the collection-literal lowering path, so an
-    /// element inserted via `add`/`set` is boxed identically to one created by
-    /// `listOf(...)` / `setOf(...)` / `toMutableList()`.
     static let typeParamBoxingBoundaryCallees: Set<String> = [
         "__kk_pair_new",
         "__kk_triple_new",
@@ -104,12 +80,6 @@ extension ABILoweringPass {
         "__kk_iterator_builder_yield",
     ]
 
-    /// True when the call target is a declaration compiled from Kotlin source —
-    /// bundled stdlib source in this compilation (no external link name) or the
-    /// same declaration imported from a library artifact (`kk_fn_*`). Such a
-    /// callee follows the compiler's own generic ABI, where type-parameter
-    /// slots carry boxed values; every other `kk_*` symbol is a hand-written
-    /// runtime bridge whose raw parameter convention must be left alone.
     func isKotlinSourceCallee(_ callSymbol: SymbolID?, symbols: SymbolTable?) -> Bool {
         guard let callSymbol, let symbols, let symbol = symbols.symbol(callSymbol),
               (symbol.kind == .function || symbol.kind == .constructor),
@@ -123,9 +93,6 @@ extension ABILoweringPass {
         return linkName.hasPrefix("kk_fn_")
     }
 
-    /// True when a `kk_array_get` receiver is the generic `kotlin.Array` class
-    /// (whose elements are stored boxed) rather than one of the primitive array
-    /// classes (`DoubleArray`, `IntArray`, ...) which store raw values.
     func isGenericArrayReceiver(
         _ receiver: KIRExprID?,
         module: KIRModule,
@@ -167,7 +134,6 @@ extension ABILoweringPass {
         let rawParamKind = types.kind(of: paramType)
         let paramKind = resolveValueClassKind(rawParamKind, types: types, symbols: symbols)
 
-        // Type parameters are erased to Any at runtime, so primitives must be boxed.
         let isReferenceBoxingBoundary: Bool = {
             if isAnyOrNullableAny(paramKind) {
                 return true
@@ -379,15 +345,10 @@ extension ABILoweringPass {
 
     func isNonValueClassReference(_ kind: TypeKind, symbols: SymbolTable?) -> Bool {
         guard case let .classType(classType) = kind else { return false }
-        // Non-null enum values use their raw ordinal representation outside
-        // Any-erased and nullable slots, just like value classes use their
-        // underlying primitive. Keep an enum-typed copy from being mistaken
-        // for a reference boundary and boxed unnecessarily.
         if let symbols, let sym = symbols.symbol(classType.classSymbol) {
             if classType.nullability == .nonNull, sym.kind == .enumClass {
                 return false
             }
-            // Nullable value classes carry a box or the null sentinel.
             if classType.nullability == .nonNull, sym.flags.contains(.valueType) {
                 return false
             }
@@ -409,7 +370,6 @@ extension ABILoweringPass {
             }
             return false
         }
-        // Non-value-class reference type → primitive: unbox (e.g. interface → value class)
         if isNonValueClassReference(sourceKind, symbols: symbols) {
             if case .primitive(_, .nonNull) = targetKind {
                 return true
@@ -422,7 +382,6 @@ extension ABILoweringPass {
             return true
         }
 
-        // Nullable → non-null always needs unboxing (box pointer or null sentinel).
         if case let .primitive(sourcePrimitive, .nullable) = sourceKind,
            case let .primitive(targetPrimitive, .nonNull) = targetKind,
            sourcePrimitive == targetPrimitive
@@ -454,8 +413,6 @@ extension ABILoweringPass {
         return false
     }
 
-    /// Unbox a binary operand if its intrinsic type is Any/reference but the
-    /// result expression expects a primitive (smart-cast scenario).
     func unboxBinaryOperandIfNeeded(
         operand: KIRExprID,
         resultExpr: KIRExprID,
@@ -502,17 +459,6 @@ extension ABILoweringPass {
         return unboxed
     }
 
-    /// Used for comparison operators (==, !=, <, etc.) where the result type is
-    /// Boolean and cannot be used to infer the unboxing target.  If the operand's
-    /// declared type is `.primitive(.int, .nonNull)` we emit `kk_unbox_int`;
-    /// `kk_unbox_int` is idempotent for already-unboxed values (it checks the
-    /// object-pointer registry and returns the raw value unchanged if not found).
-    ///
-    /// When the operand has no type info in the arena (e.g. the result of an
-    /// arithmetic sub-expression whose Sema type was not recorded), `hint` is
-    /// used as the target primitive kind instead.  This covers patterns like
-    /// `x + 0 == x` where the `+` result has nil arena type but the `x` parameter
-    /// has a known Int type.
     func unboxOperandToOwnType(
         _ operand: KIRExprID,
         hint: TypeKind? = nil,
@@ -572,8 +518,6 @@ extension ABILoweringPass {
         boxingCalleeTable: BoxingCalleeTable,
         preferStaticPrimitive: Bool = false
     ) -> InternedString? {
-        // Unit is a builtin value rather than a PrimitiveType, but it still
-        // needs a heap representation when it crosses an erased Any boundary.
         boxingCalleeTable.boxCallee(
             for: kind,
             requireNonNull: true,

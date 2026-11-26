@@ -4,7 +4,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2375: Java Class selects a no-argument constructor from source stdlib.
     @Test func testJavaClassDeclaredConstructorNoArgFromSource() throws {
         let source = """
         class Sample
@@ -22,7 +21,6 @@ extension StdlibArtifactRegressionTests {
         )
     }
 
-    /// KUU-2375: Java Class selects a no-argument constructor from a fresh stdlib artifact.
     @Test func testJavaClassDeclaredConstructorNoArgFromArtifact() throws {
         let source = """
         class Sample
@@ -41,7 +39,6 @@ extension StdlibArtifactRegressionTests {
         )
     }
 
-    /// Keep the existing Java Class member working across stdlib surfaces and optimization levels.
     @Test func testJavaClassDesiredAssertionStatusControlFromSourceAndArtifact() throws {
         let source = """
         class Sample
@@ -60,7 +57,6 @@ extension StdlibArtifactRegressionTests {
         )
     }
 
-    /// KUU-2375: Enum lookup matches the JVM name, ordinal, and declared String parameters.
     @Test func testJavaClassDeclaredConstructorEnumJvmParametersFromSource() throws {
         let source = """
         enum class A(val OK: String) {
@@ -81,7 +77,6 @@ extension StdlibArtifactRegressionTests {
         )
     }
 
-    /// KUU-2375: Enum lookup matches the JVM name, ordinal, and declared String parameters.
     @Test func testJavaClassDeclaredConstructorEnumJvmParametersFromArtifact() throws {
         let source = """
         enum class A(val OK: String) {

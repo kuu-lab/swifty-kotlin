@@ -3,13 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// KUU-4453: `Array<T>.copyInto`/`copyOf`/`copyOfRange`/`contains` used to fall
-/// through the raw array-member fallback, which never checked argument types.
-/// Type-mismatched calls were accepted by Sema and only failed at link time
-/// with an unresolved `_copyInto`-style symbol. These members now resolve
-/// against the bundled `kotlin.collections` declarations like the other
-/// source-backed array members, so mismatches are Sema errors and correct
-/// calls keep compiling.
 @Suite
 struct ArrayMemberSourceBackedValidationTests {
     private func runSemaOn(_ source: String) -> CompilationContext {
@@ -17,7 +10,6 @@ struct ArrayMemberSourceBackedValidationTests {
         do {
             try runSema(ctx)
         } catch {
-            // Each test asserts the expected diagnostics.
         }
         return ctx
     }

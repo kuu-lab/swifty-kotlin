@@ -14,13 +14,6 @@ final class RuntimeTestScheduler: @unchecked Sendable {
     private var nextTaskOrder: UInt64 = 0
     private var scheduledTasks: [ScheduledTask] = []
     private weak var boundEventLoop: RuntimeEventLoop?
-    /// KUU-2688: while a `runTest` run is in flight, virtual-time tasks pump
-    /// themselves through the bound event loop's idle hook — the way
-    /// upstream's TestDispatcher auto-advances when the queue would
-    /// otherwise idle — so the test body's own `delay` completes without
-    /// wall-clock waiting. The hook is consulted only when the loop is
-    /// about to block on an empty queue, so a synchronous burst still
-    /// observes tasks in ordinary FIFO order.
     private var autoPumpArmed = false
 
     init() {
@@ -69,14 +62,11 @@ final class RuntimeTestScheduler: @unchecked Sendable {
         if armed { loop?.wake() }
     }
 
-    /// Arms/disarms the runTest auto-pump described on `autoPumpArmed`.
     func setAutoPump(_ armed: Bool) {
         lock.lock()
         autoPumpArmed = armed
         let loop = boundEventLoop
         lock.unlock()
-        // Install on the bound loop so `run(until:)` consults the pump only
-        // while it is actually draining.
         if armed {
             loop?.installIdleAction { [weak self] in self?.autoPumpStep() ?? false }
         } else {
@@ -84,9 +74,6 @@ final class RuntimeTestScheduler: @unchecked Sendable {
         }
     }
 
-    /// Idle hook: runs the earliest pending task — advancing virtual time to
-    /// it — and reports whether progress was made. Only ever called from
-    /// `RuntimeEventLoop.run(until:)` on an empty queue.
     private func autoPumpStep() -> Bool {
         lock.lock()
         let armed = autoPumpArmed
@@ -235,9 +222,6 @@ public func kk_test_scheduler_run_current(_ schedulerHandle: Int) -> Int {
     return 0
 }
 
-/// KUU-2688: the error `runTest` reports through `outThrown` when its
-/// `timeout` budget elapses. Upstream's `UncompletedCoroutinesError` is a
-/// `kotlin.AssertionError` subtype in package `kotlinx.coroutines.test`.
 final class RuntimeUncompletedCoroutinesErrorBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
         "kotlinx.coroutines.test.UncompletedCoroutinesError"
@@ -264,25 +248,6 @@ func runtimeAllocateUncompletedCoroutinesError(message: String, suppressed: [Int
     return runtimeRegisterThrowable(box)
 }
 
-/// KUU-2688: real-time watchdog enforcing `runTest`'s `timeout` argument.
-///
-/// Upstream `TestScopeImpl.runTest` wraps its scope join in
-/// `withTimeout(timeout)`: the budget is wall-clock, so virtual scheduler
-/// time does not consume it. On expiry the test scope is cancelled with
-/// `CancellationException("The test timed out")` and the caller receives an
-/// `UncompletedCoroutinesError` in place of the body's outcome; the message
-/// distinguishes "the test body did not run to completion" from a body that
-/// finished while children were still active.
-///
-/// Upstream `withTimeout` raises a TimeoutCancellationException immediately
-/// for a non-positive duration — before runTest's completion handler that
-/// would record the timeout is installed — so the scope is never cancelled
-/// and the join simply finishes the body: a non-positive (or effectively
-/// infinite, e.g. `Duration.INFINITE`) timeout is never enforced. Both are
-/// modelled by leaving the watchdog disarmed.
-///
-/// Internal (not private) so RuntimeTests can drive the budget decode and
-/// the fire/disarm lifecycle directly.
 final class RuntimeTestRunTimeout {
     private let lock = NSLock()
     private var workItem: DispatchWorkItem?
@@ -329,8 +294,6 @@ final class RuntimeTestRunTimeout {
         )
     }
 
-    /// Records that the test body reached a terminal state (returned or
-    /// threw), mirroring upstream's `testBodyFinished` flag.
     func markBodyFinished() {
         lock.lock()
         bodyFinished = true
@@ -347,15 +310,9 @@ final class RuntimeTestRunTimeout {
     }
 }
 
-/// Decodes the `timeout: Duration` argument into a wall-clock millisecond
-/// budget plus the Kotlin `Duration.toString()` text used in diagnostics.
-/// A nil budget means upstream never enforces it (non-positive or
-/// effectively-infinite durations).
 func runtimeRunTestTimeoutBudget(_ timeoutRaw: Int) -> (millis: Int64?, text: String) {
     let text = extractString(from: UnsafeMutableRawPointer(bitPattern: kk_duration_toString(timeoutRaw)))
         ?? "\(kk_duration_inWholeMilliseconds(timeoutRaw))ms"
-    // Upstream `Duration.toDelayMillis()` clamps a positive duration to at
-    // least one millisecond; non-positive durations are never armed.
     let nanos = runtimeDurationNanosecondsValue(from: timeoutRaw) ?? 0
     guard nanos > 0 else {
         return (nil, text)
@@ -367,9 +324,6 @@ func runtimeRunTestTimeoutBudget(_ timeoutRaw: Int) -> (millis: Int64?, text: St
     return (millis, text)
 }
 
-/// Builds the `UncompletedCoroutinesError` upstream's completion handler
-/// produces when the timeout fires: the message branch depends on whether
-/// the body finished and whether child jobs were still active at fire time.
 func runtimeRunTestTimeoutError(
     watchdog: RuntimeTestRunTimeout,
     timeoutText: String,
@@ -391,12 +345,6 @@ func runtimeRunTestTimeoutError(
     )
 }
 
-/// Stable nominal type ID of `kotlinx.coroutines.test.TestScope`. TestScope
-/// values are `RuntimeCoroutineScope` handles, but `as TestScope` receiver
-/// checkcasts inside `suspend TestScope.() -> Unit` function values (e.g. a
-/// `TestScope::fnBody` callable reference passed to `runTest`) require the
-/// handle's nominal identity to be TestScope itself — the same retag +
-/// supertype-edge pattern `ActorScope` uses (KUU-4592).
 private let runtimeTestScopeTypeID = runtimeStableNominalTypeID(
     fqName: "kotlinx.coroutines.test.TestScope"
 )
@@ -405,10 +353,6 @@ private let runtimeTestScopeCoroutineScopeTypeID = runtimeStableNominalTypeID(
     fqName: "kotlinx.coroutines.CoroutineScope"
 )
 
-/// Mints a scope handle tagged as `TestScope`: still a real
-/// RuntimeCoroutineScope (the `kk_coroutine_scope_*` members keep working),
-/// but its nominal identity is TestScope with a registered edge to
-/// CoroutineScope so `is`/`as` checks answer correctly in both directions.
 private func runtimeMintTestScope(contextRaw: Int) -> Int {
     let handle = kk_coroutine_scope_new_with_context(contextRaw)
     runtimeRegisterObjectType(rawValue: handle, classID: runtimeTestScopeTypeID)
@@ -419,16 +363,11 @@ private func runtimeMintTestScope(contextRaw: Int) -> Int {
     return handle
 }
 
-/// Backing for the stdlib `TestScope(context)` factory — same mint as
-/// `kk_coroutine_scope_new_with_context` but tagged as TestScope so
-/// `TestScope() is TestScope` holds.
 @_cdecl("kk_test_scope_new_with_context")
 public func kk_test_scope_new_with_context(_ contextRaw: Int) -> Int {
     return runtimeMintTestScope(contextRaw: contextRaw)
 }
 
-/// Backing for `kotlinx.coroutines.test.runTest` — mints a `TestScope` (a
-/// real RuntimeCoroutineScope over `context`) and invokes `testBody` with
 /// `this` bound to it. Two block shapes reach this boundary, mirroring
 /// `__kk_produce_launch`:
 ///  - A suspend *literal* the call-site rewrite resolves routes to
@@ -442,8 +381,6 @@ public func kk_test_scope_new_with_context(_ contextRaw: Int) -> Int {
 ///    trailing receiver (`(cap0..capN, receiver, outThrown)`). Blocks
 ///    that DO resolve — literals and variable-held lambdas alike — route
 ///    to `kk_test_run_blocking_with_cont` instead, which seeds the scope
-///    into the receiver launcher slot. `timeoutRaw` is enforced as a
-///    wall-clock budget by `RuntimeTestRunTimeout`.
 @_cdecl("kk_test_run_blocking")
 public func kk_test_run_blocking(
     _ contextRaw: Int,
@@ -461,11 +398,6 @@ public func kk_test_run_blocking(
             fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_test_run_blocking failed to create test scope")
         }
         _ = scope.schedulerForTest()
-        // KUU-2688: the TestScope's own Job is the element `coroutineContext.job`
-        // resolves to inside the body and the handle the watchdog cancels. A Job
-        // element the context carried was adopted as `scope.job` — upstream it
-        // becomes the scope job's parent, so re-seat it that way rather than
-        // letting a timeout cancel a caller-supplied Job directly.
         let contextJob = scope.job
         let scopeJob = scope.installJob(defaultCancellationMessage: "TestScope was cancelled")
         contextJob?.registerChild(runtimeRegisterObject(scopeJob))
@@ -477,12 +409,6 @@ public func kk_test_run_blocking(
         }
         defer { watchdog.disarm() }
 
-        // Children launched inside the test body discover the test scope as
-        // their parent (upstream runTest semantics), so install it as ambient
-        // for the duration of the blocking run. An event loop is installed the
-        // same way: children queue on it (the thunk's nested blocking run
-        // reuses the current loop), and `waitForChildren`'s joins keep
-        // draining it until they complete.
         let previousScope = RuntimeCoroutineScope.current
         RuntimeCoroutineScope.current = scope
         defer { RuntimeCoroutineScope.current = previousScope }
@@ -536,20 +462,12 @@ public func kk_test_run_blocking(
         }
         watchdog.markBodyFinished()
         var suppressed: [Int] = []
-        // Upstream suppresses the body's completion exception only when it is
-        // not the CancellationException the timeout itself installed; a body
-        // unwinding with exactly that exception adds nothing.
         if thrown != 0, thrown != scope.cancellationCause {
             suppressed.append(thrown)
         }
         if thrown != 0 {
-            // runTest semantics: a body failure cancels the scope's children.
             scope.cancel()
         }
-        // Children launched inside the body parent to the test scope — join
-        // them the way a blocking runBlocking scope would. First advance the
-        // test scheduler so delayed children can complete without wall-clock
-        // waits, then surface the first child failure to the runTest caller.
         if thrown == 0 {
             scope.testSchedulerIfPresent()?.advanceUntilIdle()
         }
@@ -558,9 +476,6 @@ public func kk_test_run_blocking(
             suppressed.append(childThrown)
         }
         if watchdog.fired {
-            // Timeout precedence: the UncompletedCoroutinesError replaces the
-            // body's own outcome; whatever the body/children completed with
-            // becomes a suppressed exception on it.
             outThrown?.pointee = runtimeRunTestTimeoutError(
                 watchdog: watchdog, timeoutText: timeoutText, suppressed: suppressed
             )
@@ -582,14 +497,6 @@ public func kk_test_run_blocking(
     }
 }
 
-/// Literal-lambda counterpart to `kk_test_run_blocking`: the call-site
-/// rewrite built a launcher continuation holding the block's captures in
-/// launcherArgs; `scopeSlotRaw` names the suspend-entry receiver slot —
-/// 0 for launcher-marked (receiver-first) lambdas, `params.count - 1`
-/// for unmarked (captures-first) suspend values — and the freshly minted
-/// test scope lands there so `this` inside the body binds to the real
-/// RuntimeCoroutineScope. The nested runBlocking drains the suspend entry
-/// loop on this thread, matching `runTest`'s blocking contract.
 @_cdecl("kk_test_run_blocking_with_cont")
 public func kk_test_run_blocking_with_cont(
     _ contextRaw: Int,
@@ -630,9 +537,6 @@ public func kk_test_run_blocking_with_cont(
         let previousScope = RuntimeCoroutineScope.current
         RuntimeCoroutineScope.current = scope
         defer { RuntimeCoroutineScope.current = previousScope }
-        // Install the event loop the nested blocking run will reuse; it stays
-        // current after that run returns so `waitForChildren`'s joins can keep
-        // draining children that are still queued on it.
         let previousLoop = RuntimeEventLoop.current
         let loop = previousLoop ?? RuntimeEventLoop()
         RuntimeEventLoop.current = loop

@@ -1,6 +1,3 @@
-// The capacity is a reservation hint; the Kotlin layer validates negatives.
-
-// A frozen builder keeps the same mutable interface identity but rejects writes.
 let runtimeListBuilderTypeID: Int64 = {
     let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.__KSwiftKListBuilder")
     runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: mutableListRuntimeTypeID)
@@ -23,7 +20,6 @@ let runtimeSetBuilderTypeID: Int64 = {
     return id
 }()
 
-/// Reinstall the builder identity edges cleared by a metadata reset.
 func runtimeRegisterBuilderTypeEdges() {
     runtimeRegisterTypeEdge(childTypeID: runtimeListBuilderTypeID, parentTypeID: mutableListRuntimeTypeID)
     runtimeRegisterTypeEdge(

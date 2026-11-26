@@ -1,14 +1,12 @@
 import Foundation
 import CompilerCore
 
-/// JVM classfile output with verifier frames for the typed JVM CFG.
 enum JVMClassFile {
     static func emit(_ program: JVMProgram, target: JVMTarget = .java8, javaParameters: Bool = false, classIndex: ClassIndex) throws -> Data {
         let pool = JVMConstantPool()
         guard program.functions.count < 65_535 else { throw JVMEmissionError.limit("JVM class exceeds the method-count limit.") }
         var methods = try program.functions.map { try emitMethod($0, owner: program.internalClassName, javaParameters: javaParameters, pool: pool) }
         let launcherDescriptor = JVMProgram.launcherDescriptor
-        // A declared main(String[]) already occupies the launcher signature.
         let hasArrayMain = program.functions.contains {
             $0.reference.name == "main" && $0.reference.descriptor == launcherDescriptor
         }
@@ -30,7 +28,9 @@ enum JVMClassFile {
             return try emit(facade, target: target, javaParameters: javaParameters, classIndex: classIndex)
         }
         let pool = JVMConstantPool()
-        let methods = try type.functions.map { try emitMethod($0, owner: type.name, javaParameters: javaParameters, pool: pool) }
+        if let source = type.reifiedClones.first { try pool.seed(try source.body.analyze().pool) }
+        var methods = try type.functions.map { try emitMethod($0, owner: type.name, javaParameters: javaParameters, pool: pool) }
+        methods += try type.reifiedClones.map { try JVMReifiedCloneEmitter.emit($0, owner: type.name, pool: pool) }
         return try write(name: type.name, superclass: type.superclass, interfaces: type.interfaces, access: type.access, fields: type.properties.compactMap(\.field) + type.extraFields, fieldSignatures: Dictionary(uniqueKeysWithValues: type.properties.compactMap { property in property.field.flatMap { field in (property.fieldGenericSignature ?? property.genericSignature).flatMap { $0 == field.type.descriptor ? nil : (field.name, $0) } } }), methods: methods, sourceFile: type.sourceFileName ?? program.sourceFileName, metadata: type.emitMetadata ? try JVMMetadata.annotation(program, type: type, pool: pool) : nil, annotations: type.annotations, signature: type.genericSignature, typeParameters: type.typeParameters, recordComponents: type.recordComponents, classIndex: classIndex, rootClassName: program.internalClassName, enclosingMethod: type.enclosingMethod, majorVersion: target.classFileMajorVersion, pool: pool)
     }
     private static func emitMethod(_ function: JVMFunction, owner: String, javaParameters: Bool, pool: JVMConstantPool) throws -> JVMMethodCode {

@@ -21,8 +21,6 @@ extension DeclTypeChecker {
         ) {
             return arrayType
         }
-        // Local functions use the source-visible generic array directly so
-        // their call boundary and body agree on the vararg representation.
         if referenceVarargAsArray,
            let arraySymbol = sema.symbols.lookupNominal(fqName: [
                interner.intern("kotlin"),
@@ -50,17 +48,6 @@ extension DeclTypeChecker {
         )))
     }
 
-    /// Type-checks each parameter's default-value expression (if any) against its
-    /// declared type, visiting parameters in declaration order and revealing each
-    /// parameter symbol to `locals` only after its own default has been checked.
-    /// This mirrors the visibility that `CallSupportLowerer.generateDefaultStubFunction`
-    /// assumes when it lowers these same expressions: a default value may reference
-    /// the current or an earlier parameter, but not a later one.
-    ///
-    /// Without this, default-value expressions are never visited by Sema at all, so
-    /// `sema.bindings` (call bindings, expr types, ...) stay empty for them and KIR
-    /// lowering silently mis-resolves anything beyond a literal (constructor calls,
-    /// property reads, ...).
     func typeCheckParameterDefaultValues(
         _ valueParams: [ValueParamDecl],
         signature: FunctionSignature,
@@ -82,8 +69,6 @@ extension DeclTypeChecker {
                 at: index, signature: signature, sema: sema, interner: ctx.interner
             )
             if index < valueParams.count, let defaultExprID = valueParams[index].defaultValue {
-                // A vararg declaration default is the whole source array,
-                // even when the non-local body's existing storage uses List.
                 let defaultExpectedType = localTypeForParameter(
                     at: index, signature: signature, sema: sema, interner: ctx.interner,
                     referenceVarargAsArray: true
@@ -108,9 +93,6 @@ extension DeclTypeChecker {
         }
     }
 
-    /// Primary constructor parameters never go through `typeCheckSecondaryConstructors`
-    /// or a function body check, so without this call their defaults would never be
-    /// visited by Sema at all (see `typeCheckParameterDefaultValues`).
     func typeCheckPrimaryConstructorDefaultValues(
         _ classDecl: ClassDecl,
         ctx: TypeInferenceContext,
@@ -140,18 +122,6 @@ extension DeclTypeChecker {
         )
     }
 
-    /// The arguments live in the primary constructor's scope, so they are
-    /// checked with the primary constructor parameters seeded as locals — the
-    /// same scope `typeCheckClassDelegation` builds for `by` expressions.
-    /// `extraLocals` seeds the delegation-argument scope with bindings that
-    /// outrank nothing but sit alongside the ctor params — used by local
-    /// classes and their nested inner classes, where `Base(x)` can reference
-    /// an outer local captured by the local class.
-    /// `outerReceiversToKeep` lets a local class or inner member class resolve
-    /// members on its enclosing `this`, which is captured into an instance
-    /// field and available before superclass delegation. Non-inner named
-    /// classes keep the default `nil` → `[]`: their supertype arguments cannot
-    /// see an outer instance.
     func typeCheckPrimaryConstructorSuperDelegation(
         _ classDecl: ClassDecl,
         symbol: SymbolID,
@@ -160,14 +130,7 @@ extension DeclTypeChecker {
         outerReceiversToKeep: [(label: InternedString, type: TypeID, symbol: SymbolID?)]? = nil
     ) {
         let sema = ctx.sema
-        // Enum's name/ordinal superclass arguments are synthesized during lowering.
         guard sema.symbols.symbol(symbol)?.kind != .enumClass else { return }
-        // Expect declarations never run a supertype constructor themselves —
-        // initialization belongs to the matching actual declaration, so a
-        // bare `Base` supertype must not be resolved as a `Base()` call
-        // (KUU-4337). `Inheritance.swift` already rejects explicit `()`
-        // entries on expect classes, so no constructor arguments can reach
-        // this point for them anyway.
         guard sema.symbols.symbol(symbol)?.flags.contains(.expectDeclaration) != true else { return }
         guard let superclassSymbol = superclassSymbol(of: symbol, sema: sema),
               let superclassInfo = sema.symbols.symbol(superclassSymbol),
@@ -196,9 +159,6 @@ extension DeclTypeChecker {
                     isInitialized: true
                 )
             }
-            // Supertype initializer arguments run before `this` (and any outer
-            // instance) is available, so instance members must not resolve —
-            // except receivers a local class can capture (see above).
             delegationCtx = ctx.copying(
                 scope: ctorScope,
                 implicitReceiverType: .some(nil),
@@ -390,9 +350,6 @@ extension DeclTypeChecker {
         return actual
     }
 
-    /// Secondary `super(...)` delegates to the class-kind superclass from the
-    /// header. With no explicit class superclass, inheritance binding makes
-    /// `kotlin.Any` the delegation target.
     func constructorSuperclassSymbol(
         _ classDecl: ClassDecl,
         ctx: TypeInferenceContext
@@ -426,8 +383,6 @@ extension DeclTypeChecker {
                 continue
             }
         }
-        // Enums extend kotlin.Enum and annotation classes extend kotlin.Annotation;
-        // neither takes kotlin.Any as its constructor delegation target.
         guard !classDecl.modifiers.contains(.enumModifier),
               !classDecl.modifiers.contains(.annotationClass)
         else {
@@ -439,11 +394,6 @@ extension DeclTypeChecker {
         ])
     }
 
-    /// Kotlin scopes primary constructor parameters declared without `val`/`var`
-    /// to property initializers and `init {}` blocks only — not to regular
-    /// member functions. Property-backed parameters (`val`/`var`) are already
-    /// reachable as members through `classScope`, so only the non-property
-    /// parameters need to be threaded through here as `locals`.
     func primaryConstructorParameterLocals(
         classDecl: ClassDecl,
         ctx: TypeInferenceContext
@@ -504,8 +454,6 @@ extension DeclTypeChecker {
                 returnTargetIsInitBlock: true
             )
             initCtx.allowsValPropertyInitialization = true
-            // `return` inside `init {}` has no function target, even when a
-            // local class appears inside another function.
             initCtx.enclosingFunctionProhibitsExpressionBodyReturn = false
             _ = inferFunctionBodyType(block, ctx: initCtx, locals: &locals, expectedType: nil)
             runningLocals.memberFlow = locals.memberFlow
@@ -535,9 +483,6 @@ extension DeclTypeChecker {
             var constructorCtx = ctx.copying(scope: constructorScope)
             if let ctorSymbol = ctorSymbols.first {
                 if let signature = sema.symbols.functionSignature(for: ctorSymbol.id) {
-                    // Leading class type parameters stay reachable through the
-                    // enclosing class scope; the constructor's own parameters
-                    // must shadow them by name (KUU-3825).
                     for typeParameterSymbol in signature.typeParameterSymbols
                         .dropFirst(signature.classTypeParameterCount)
                     {
@@ -583,9 +528,6 @@ extension DeclTypeChecker {
             }
 
             constructorCtx.allowsValPropertyInitialization = true
-            // Secondary constructors of `expect` classes — including classes
-            // nested inside an `expect` owner — are bodiless declarations;
-            // the actual declaration supplies the delegation.
             let ownerIsExpectDeclaration = [ownerSymbol, currentCtorSymbolID]
                 .compactMap { $0 }
                 .contains { sema.symbols.symbol($0)?.flags.contains(.expectDeclaration) == true }
@@ -659,7 +601,6 @@ extension DeclTypeChecker {
         let sema = ctx.sema
         guard let delegation = ctor.delegationCall else { return }
 
-        // Resolve candidates and their expected superclass type with the same owner.
         let linkedSuperclassSymbol = superclassSymbol.map { superclass in
             linkedActualConstructorOwner(superclass, sema: sema)
         }
@@ -683,14 +624,6 @@ extension DeclTypeChecker {
             if candidates.isEmpty {
                 emitUnresolvedDelegation(delegation: delegation, sema: sema)
             } else {
-                // Delegation arguments evaluate before the delegating instance
-                // exists, so `this` and the class's own members stay out of
-                // scope — the same treatment primary-constructor supertype
-                // arguments get in `typeCheckPrimaryConstructorSuperDelegation`.
-                // Enclosing receivers that survive construction (singleton
-                // objects, capturable outer `this` values) remain visible, so
-                // `object Host { class C : B { init() : super(this.f()) } }`
-                // resolves `this` to Host (KUU-3595).
                 var delegationArgCtx = ctx.copying(
                     implicitReceiverType: .some(nil),
                     outerReceiverTypes: ctx.outerReceiverTypes.filter { entry in
@@ -909,9 +842,6 @@ extension DeclTypeChecker {
         )))
     }
 
-    /// A secondary `super(...)` delegates to the instantiated superclass in
-    /// the class header. Its type arguments are known even when none of the
-    /// constructor arguments mention them.
     func constructorSuperclassType(
         ownerSymbol: SymbolID?,
         superclassSymbol: SymbolID?,
@@ -919,7 +849,6 @@ extension DeclTypeChecker {
     ) -> TypeID? {
         guard let ownerSymbol, let superclassSymbol else { return nil }
         let directSupertypes = ctx.sema.symbols.directSupertypes(for: ownerSymbol)
-        // Local classes and object literals can retain the expect edge's key.
         let registeredSuperclass = directSupertypes.contains(superclassSymbol)
             ? superclassSymbol
             : directSupertypes.first {
@@ -970,12 +899,6 @@ extension DeclTypeChecker {
         )
     }
 
-    /// - Parameter baseLocals: Seeds the function body's local-name resolution
-    ///   with bindings from an enclosing scope. Empty for ordinary member
-    ///   functions (a named class has no enclosing local scope to capture).
-    ///   Object-literal member functions pass the enclosing function's
-    ///   `locals` here so the body can resolve captured outer variables the
-    ///   same way lambda bodies do (KSP-CAP-001).
     func typeCheckFunctionDecl(
         _ function: FunDecl,
         symbol: SymbolID,
@@ -984,8 +907,6 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine,
         baseLocals: LocalBindings = [:]
     ) {
-        // A generated classpath declaration with no body supplies its
-        // signature to callers. It has no body or defaults to check here.
         if function.body == .unit, function.annotations.isEmpty, function.modifiers.contains(.external),
            function.valueParams.allSatisfy({ $0.defaultValue == nil }),
            driver.compilationContext?.jvmImports?.classpathStubFiles.contains(ctx.currentFileID) == true {
@@ -1071,11 +992,6 @@ extension DeclTypeChecker {
             if driver.helpers.isOpenEndRangeType(receiverType, sema: sema, interner: ctx.interner) {
                 sema.bindings.markRangeSymbol(syntheticThisSymbol)
             }
-            // A named `context(name: Type)` parameter addresses the same value as
-            // the first context receiver: alias it to the receiver parameter so
-            // `name.member` resolves identically to `this.member`. Member functions
-            // keep their owner as the signature receiver, so the alias only applies
-            // to context declarations whose receiver came from the context clause.
             if ctx.enclosingClassSymbol == nil,
                signature.receiverType != nil,
                function.contextReceivers.first?.isContextParameter != true,
@@ -1087,11 +1003,6 @@ extension DeclTypeChecker {
         }
 
         let functionScope = FunctionScope(parent: ctx.scope, symbols: sema.symbols)
-        // The signature prepends the enclosing class's type parameters for
-        // overload inference; they are already bound by the parent class
-        // scope, so only the function's own parameters are inserted here.
-        // That keeps a function type parameter correctly shadowing a
-        // same-named class type parameter (KUU-3825).
         for typeParameterSymbol in signature.typeParameterSymbols
             .dropFirst(signature.classTypeParameterCount)
         {
@@ -1146,9 +1057,6 @@ extension DeclTypeChecker {
                 )
             }
         }
-        // A member extension's dispatch receiver is distinct from bare `this`.
-        // Keep its owner symbol on the tower so nested local nominals capture
-        // the enclosing instance rather than the extension receiver.
         if function.receiverType != nil, let owner = ctx.enclosingClassSymbol {
             var outerReceivers = functionCtx.outerReceiverTypes
             for index in outerReceivers.indices where outerReceivers[index].symbol == nil {
@@ -1179,8 +1087,6 @@ extension DeclTypeChecker {
                 enabled: function.modifiers.contains(.companion)
             )
         }
-        // Propagate suppression flag so that individual `return` statements inside
-        // functions with inferred return types also skip the platform-type warning.
         functionCtx.suppressPlatformReturnWarning = (function.returnType == nil)
 
         typeCheckParameterDefaultValues(
@@ -1192,33 +1098,22 @@ extension DeclTypeChecker {
             baseLocals: defaultValueBaseLocals
         )
 
-        // Bodyless declarations use .unit as their sentinel. Abstract and expect
-        // functions declare a contract only, while runtime bridges lower to a
-        // symbol outside the Kotlin body via their header metadata.
         let symbolFlags = sema.symbols.symbol(symbol)?.flags ?? []
         let isAbstract = function.body == .unit
             && symbolFlags.contains(.abstractType)
         if isAbstract { return }
         if function.body == .unit {
-            // Members of an `expect` class / object / interface (including
-            // companion and nested declarations) are contracts as well: the
-            // `actual` counterpart supplies the bodies.
             if hasRuntimeBridge || symbolFlags.contains(.expectDeclaration)
                 || isNestedInExpectDeclaration(ctx.enclosingClassSymbol, sema: sema)
             {
                 return
             }
-            // kotlinc phrases a bodiless member as 'without a body must be
-            // abstract' (abstract is what would make it legal), while a
-            // top-level function 'must have a body'.
             let isMember = sema.symbols.parentSymbol(for: symbol) != nil
             diagnostics.error(
                 "KSWIFTK-SEMA-0009",
                 isMember
                     ? "function '\(ctx.interner.resolve(function.name))' without a body must be abstract."
                     : "function '\(ctx.interner.resolve(function.name))' must have a body.",
-                // kotlinc underlines the `fun` keyword, not leading
-                // modifiers.
                 range: function.declarationKeywordRange ?? function.range
             )
             return
@@ -1248,8 +1143,6 @@ extension DeclTypeChecker {
                sema: sema
            )
         {
-            // An inferred function returning a bare classifier exposes the
-            // companion value, matching local initializer inference.
             inferredBodyType = companionValueType
         } else {
             inferredBodyType = bodyType
@@ -1319,8 +1212,6 @@ extension DeclTypeChecker {
                 solver: solver,
                 sema: sema,
                 diagnostics: diagnostics,
-                // Suppress platform warning when return type is inferred (not explicitly declared):
-                // the placeholder anyType is not a user-declared non-null constraint.
                 suppressPlatformWarning: function.returnType == nil,
                 diagnosticCode: "KSWIFTK-SEMA-0469",
                 failureMessage: "Return type mismatch."
@@ -1353,10 +1244,6 @@ extension DeclTypeChecker {
         )
     }
 
-    /// An inline declaration only guarantees that its lambda does not escape;
-    /// it may still invoke the lambda zero or several times. Infer the stronger
-    /// EXACTLY_ONCE effect only for a body consisting solely of a direct call to
-    /// that parameter. Explicit contracts take precedence over this inference.
     private func recordDirectInlineLambdaInvocation(
         function: FunDecl,
         symbol: SymbolID,
@@ -1456,9 +1343,6 @@ extension DeclTypeChecker {
         guard case .block = function.body else { return }
         guard let signature = ctx.sema.symbols.functionSignature(for: symbol) else { return }
         let scope = FunctionScope(parent: ctx.scope, symbols: ctx.sema.symbols)
-        // Same shadowing rule as the function-body scope: class type
-        // parameters come from the parent scope, the function's own
-        // parameters must win same-name lookups (KUU-3825).
         for parameter in signature.typeParameterSymbols
             .dropFirst(signature.classTypeParameterCount)
         {
@@ -1548,8 +1432,6 @@ extension DeclTypeChecker {
            case let .nameRef(returnsName, _) = returnsCalleeExpr,
            ["returns", "returnsNotNull"].contains(interner.resolve(returnsName))
         {
-            // Determine the returns constraint: nil = any return,
-            // true/false = when the function returns that specific Boolean.
             let returnsValue: Bool?
             let returnCondition: ContractReturnCondition
             if returnsName == knownNames.returnsNotNull, returnsArgs.isEmpty {
@@ -1598,9 +1480,6 @@ extension DeclTypeChecker {
            returnsName == knownNames.returns
         {
             if returnsArgs.isEmpty {
-                // A more specific effect (e.g. `returns(true)`) should not be
-                // overwritten by a bare `returns()` when multiple effects appear
-                // in the same block.
                 if sema.symbols.contractReturnsEffect(for: symbol) == nil {
                     sema.symbols.setContractReturnsEffect(
                         .returnsNormally,
@@ -1608,12 +1487,8 @@ extension DeclTypeChecker {
                     )
                 }
             } else if returnsArgs.count == 1 {
-                // Only valid when the function's return type is Boolean; ignore
-                // the effect for non-Boolean-returning functions to prevent
-                // encoding an invalid contract.
                 guard signature.returnType == sema.types.booleanType else { return }
                 if let boolValue = extractBooleanLiteral(returnsArgs[0].expr, ast: ast, interner: interner) {
-                    // Heuristic: find the first Boolean parameter for smart-cast binding.
                     let conditionIndex = signature.parameterTypes.firstIndex { typeID in
                         typeID == sema.types.booleanType
                     }
@@ -1684,8 +1559,6 @@ extension DeclTypeChecker {
             return
         }
 
-        // Every conjunct is guaranteed by the same return condition. An OR
-        // does not guarantee either operand independently.
         if case let .binary(.logicalAnd, lhs, rhs, _) = conditionExpr {
             for operand in [lhs, rhs] {
                 recordReturnsImpliesEffect(
@@ -1697,7 +1570,6 @@ extension DeclTypeChecker {
             return
         }
 
-        // Record the type in the declaration scope, not the caller's scope.
         if case let .isCheck(operand, typeRef, negated, _) = conditionExpr,
            !negated
         {
@@ -1726,8 +1598,6 @@ extension DeclTypeChecker {
         }
 
         if case let .binary(.notEqual, lhsExprID, rhsExprID, _) = conditionExpr {
-            // `this != null` (or `this@fn != null`) guarantees the extension
-            // receiver is non-null — e.g. `isNullOrEmpty` on `CharSequence?`.
             if (isExtensionReceiverThisRef(lhsExprID, function: function, signature: signature, ast: ast)
                 && isNullLiteralExpr(rhsExprID, ast: ast))
                 || (isExtensionReceiverThisRef(rhsExprID, function: function, signature: signature, ast: ast)
@@ -1759,8 +1629,6 @@ extension DeclTypeChecker {
             else {
                 return
             }
-            // For bare `returns() implies (param != null)`, also record the legacy
-            // ContractNonNullEffect for backward compatibility.
             sema.symbols.addContractImplicationEffect(
                 ContractImplicationEffect(parameterIndex: parameterIndex, returnCondition: returnCondition, argumentCondition: .nonNull),
                 for: symbol
@@ -1777,8 +1645,6 @@ extension DeclTypeChecker {
             return
         }
 
-        // A negated Boolean parameter guarantees the argument's false branch.
-        // The legacy ContractConditionEffect only represents true conditions.
         if case let .unaryExpr(.not, operandID, _) = conditionExpr,
            case let .nameRef(paramName, _) = ast.arena.expr(operandID),
            let parameterIndex = function.valueParams.firstIndex(where: { $0.name == paramName }),
@@ -1792,9 +1658,6 @@ extension DeclTypeChecker {
             return
         }
 
-        // `returns() implies param` where param is Boolean.
-        // This means the argument expression passed for this parameter is guaranteed
-        // true after normal return, enabling smart casts on the call-site expression.
         if case let .nameRef(paramName, _) = conditionExpr,
            let parameterIndex = function.valueParams.firstIndex(where: { $0.name == paramName }),
            parameterIndex < signature.parameterTypes.count,
@@ -1815,8 +1678,6 @@ extension DeclTypeChecker {
         }
     }
 
-    /// The AST represents `InvocationKind.EXACTLY_ONCE` as a zero-arg `.memberCall` or
-    /// as a plain `.nameRef` when already resolved.
     private func resolveInvocationKindArg(
         _ exprID: ExprID,
         ast: ASTModule,
@@ -1866,8 +1727,6 @@ extension DeclTypeChecker {
         return false
     }
 
-    /// `this` (or the labeled `this@fn`) inside a contract condition refers to
-    /// the extension receiver when the function declares one.
     private func isExtensionReceiverThisRef(
         _ exprID: ExprID,
         function: FunDecl,
@@ -1884,9 +1743,6 @@ extension DeclTypeChecker {
         return true
     }
 
-    /// A member declared without a body inside an `expect` class/object/interface
-    /// is a contract, not a missing body — the `actual` counterpart supplies the
-    /// implementation.
     private func isNestedInExpectDeclaration(_ classSymbol: SymbolID?, sema: SemaModule) -> Bool {
         var current: SymbolID? = classSymbol
         var guardCount = 0

@@ -6,10 +6,6 @@ import Foundation
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// Compile `source` to an executable and run it, returning the full
-    /// `CommandResult` (including stderr and a non-zero exit captured rather
-    /// than thrown). These cases need stderr access because uncaught launch
-    /// failures are JVM-style `Exception in thread ...` reports there.
     private func compileAndRunCapturingAll(
         _ source: String,
         moduleName: String = "UncaughtLaunch"
@@ -42,11 +38,6 @@ extension BundledStdlibExecutionTests {
         return runResult
     }
 
-    /// KUU-1422: an uncaught `launch` failure inside `supervisorScope` must
-    /// produce a JVM-style uncaught report on stderr — not the quiet
-    /// `CoroutineExceptionHandler:` print that made it look handled — while
-    /// supervisor semantics still hold: the sibling finishes, the caller
-    /// continues, and the process exits 0 (verified JVM behavior).
     @Test
     func testSupervisorScopeUncaughtLaunchReportsOnStderr() throws {
         let result = try compileAndRunCapturingAll(
@@ -72,8 +63,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-1601: the factory callback exposes `Throwable`, and a handler in
-    /// the launch context consumes a supervisor child failure.
     @Test
     func testExplicitCoroutineExceptionHandlerStillConsumes() throws {
         let result = try compileAndRunCapturingAll(
@@ -100,9 +89,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-4301: a Kotlin-defined exception (RuntimeObjectBox) thrown from an
-    /// uncaught launch must report its cause chain — the walker previously
-    /// only recursed into RuntimeThrowableBox instances.
     @Test
     func testUncaughtLaunchReportsSourceExceptionCauseChain() throws {
         let result = try compileAndRunCapturingAll(
@@ -134,8 +120,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-1422: `async` keeps deferred semantics — an unawaited failure stays
-    /// silent on the JVM too, so no report may fire here.
     @Test
     func testUnawaitedAsyncFailureStaysSilent() throws {
         let result = try compileAndRunCapturingAll(
@@ -159,9 +143,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-1422: `GlobalScope.launch` is a root coroutine — the JVM reports
-    /// its uncaught failure on stderr and keeps running (exit 0). Previously
-    /// the failure was absorbed by a scope nobody ever waits on.
     @Test
     func testGlobalScopeLaunchFailureReportsOnStderr() throws {
         let result = try compileAndRunCapturingAll(
@@ -183,9 +164,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-1422: a stored `CoroutineScope(Job())` launch is a root coroutine
-    /// whose failure the JVM reports — the bare Job() chain has no
-    /// `handlesException` ancestor — while siblings and the caller continue.
     @Test
     func testStoredCoroutineScopeRootJobLaunchReports() throws {
         let result = try compileAndRunCapturingAll(
@@ -208,13 +186,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-1422: non-supervisor propagation is unchanged — a child failure in
-    /// a plain `runBlocking` reaches the top-level panic path (exit 1). The
-    /// launch itself stays silent because runBlocking's job absorbs the
-    /// failure; KUU-3991 routes the propagated exception through the entry
-    /// wrapper's JVM-style uncaught report, so `Exception in thread "main"`
-    /// appears exactly once — matching the JVM, which reports the rethrown
-    /// failure once via `main`.
     @Test
     func testPlainRunBlockingLaunchStillPropagates() throws {
         let result = try compileAndRunCapturingAll(
@@ -238,8 +209,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-1600: a child handler must not intercept a failure that propagates
-    /// to an ordinary `runBlocking` parent.
     @Test
     func testCaughtRunBlockingLaunchDoesNotReport() throws {
         let result = try compileAndRunCapturingAll(

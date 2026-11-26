@@ -85,8 +85,6 @@ extension DataFlowSemaPhase {
                 )
             }
             symbols.setParentSymbol(enumSymbol, for: entrySymbol)
-            // KUU-2673: the record supplies the entry type when the imported
-            // shell materializes; patch it then instead of decoding eagerly.
             if symbols.deferUntilAfterImportedShellMaterializes(entrySymbol, work: {
                 if symbols.propertyType(for: entrySymbol) == nil {
                     symbols.setPropertyType(enumType, for: entrySymbol)
@@ -194,8 +192,6 @@ extension DataFlowSemaPhase {
 
         let initName = interner.intern("<init>")
         let constructorFQName = ownerFQName + [initName]
-        // KUU-2673: re-run once the first lazy imported candidate materializes
-        // instead of decoding its signature eagerly for the dedup check.
         if symbols.deferWorkUntilImportedMemberMaterializes(at: constructorFQName, work: { [self] in
             registerSyntheticStringAnnotationPropertyAndConstructor(
                 ownerSymbol: ownerSymbol,

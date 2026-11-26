@@ -9,9 +9,6 @@ import Testing
 struct LoweringCodegenRegressionTests {
     @Test
     func testKxMiniRunBlockingDelayExecutableProducesSuspendResult() throws {
-        // The suspend result is observed on stdout rather than through the
-        // process status: `main`'s own value is discarded by the entry wrapper
-        // (see `testEntryWrapperDiscardsNonUnitMainResult`).
         let source = """
         import kotlinx.coroutines.delay
         import kotlinx.coroutines.runBlocking

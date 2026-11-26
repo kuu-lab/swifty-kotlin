@@ -2,7 +2,6 @@
 @testable import CompilerBackend
 import Testing
 
-/// KSP-1195: BitSet's source-backed implementation reaches executable code without runtime bridges.
 @Suite
 struct CodegenBackendBitSetTests {
     @Test

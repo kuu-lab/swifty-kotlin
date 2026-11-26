@@ -4,7 +4,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-3051: File path accessors and kotlin.io.path.Path survive source and library modes.
     @Test
     func testJavaIoFilePathApisAcrossSourceAndFreshLibrary() throws {
         let artifactPath = try Self.buildStdlibArtifact()

@@ -32,7 +32,6 @@ struct CodegenBackendUserDefinedListTests {
     }
     """
 
-    /// KUU-3116: preserve the constructor owner for the upstream kt707 case.
     @Test(arguments: [(true, 0), (true, 2), (false, 0), (false, 2)])
     func testJetBrainsKt707(stdlibFromSource: Bool, optimization: Int) throws {
         try assertProgramOutput(
@@ -44,7 +43,6 @@ struct CodegenBackendUserDefinedListTests {
         )
     }
 
-    /// KUU-3116: a different primary property on a user-defined `List` still resolves.
     @Test(arguments: [(true, 0), (false, 0)])
     func testListValuePropertyControl(stdlibFromSource: Bool, optimization: Int) throws {
         try assertProgramOutput(
@@ -56,7 +54,6 @@ struct CodegenBackendUserDefinedListTests {
         )
     }
 
-    /// KUU-3116: resolving the constructor owner must not make absent members valid.
     @Test(arguments: [true, false])
     func testMissingUserDefinedListPropertyIsRejected(stdlibFromSource: Bool) throws {
         let artifactPath = stdlibFromSource

@@ -1,10 +1,3 @@
-// Typed RuntimeThrowableBox subclasses enable proper type-discriminated catch
-// blocks in compiled Kotlin code (e.g., `catch (e: IllegalArgumentException)`).
-//
-// The message stored in each box is the *user-visible* message (without the
-// exception-type prefix). The `renderedMessage` property adds the type prefix
-// for stack-trace / toString() output, matching Kotlin JVM behaviour.
-
 final class RuntimeFreezingExceptionBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
         "kotlin.native.concurrent.FreezingException"
@@ -599,7 +592,6 @@ final class RuntimeNullPointerExceptionBox: RuntimeThrowableBox {
 }
 
 
-/// Allocates a `FreezingException` with Kotlin/Native's exact constructor message.
 func runtimeAllocateFreezingException(toFreezeRaw: Int, blockerRaw: Int) -> Int {
     let message = "freezing of \(runtimeRenderAnyForPrint(toFreezeRaw)) has failed, first blocker is \(runtimeRenderAnyForPrint(blockerRaw))"
     return runtimeRegisterThrowable(RuntimeFreezingExceptionBox(message: message))
@@ -653,7 +645,6 @@ func runtimeAllocateIOException(message: String?, cause: Int = 0, messageRaw: In
     return runtimeRegisterThrowable(RuntimeIOExceptionBox(message: message, cause: cause, messageRaw: messageRaw))
 }
 
-/// Message used by `MalformedInputException` for a one-byte invalid sequence.
 let runtimeMalformedInputExceptionDefaultMessage = "Input length = 1"
 
 func runtimeAllocateMalformedInputException(
@@ -745,13 +736,10 @@ func runtimeJVMExceptionFQName(from kotlinFQName: String) -> String {
     case "kotlin.Throwable":
         return "java.lang.Throwable"
     default:
-        // Preserve unknown or user-defined FQ names instead of guessing java.lang.
         return kotlinFQName
     }
 }
 
-// Shared by typed exception bridges and the source-backed Throwable(cause)
-// constructor. The JVM constructor derives its message from cause.toString().
 func runtimeCauseToString(from raw: Int) -> String? {
     guard raw != 0,
           raw != runtimeNullSentinelInt,

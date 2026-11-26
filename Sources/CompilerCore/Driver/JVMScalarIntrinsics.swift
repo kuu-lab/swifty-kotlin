@@ -6,6 +6,12 @@ extension JVMFunctionBuilder {
         "toLong": .long, "toFloat": .float, "toDouble": .double,
         "toUByte": .ubyte, "toUShort": .ushort, "toUInt": .uint, "toULong": .ulong,
     ]
+    // The consumer contracts declare these as `null!!` stubs, so they must be inlined.
+    static let charSurrogateConstants: [String: Int32] = [
+        "MIN_HIGH_SURROGATE": 0xD800, "MAX_HIGH_SURROGATE": 0xDBFF,
+        "MIN_LOW_SURROGATE": 0xDC00, "MAX_LOW_SURROGATE": 0xDFFF,
+        "MIN_SURROGATE": 0xD800, "MAX_SURROGATE": 0xDFFF,
+    ]
 
     func charFromCode(_ input: JVMValue) throws -> JVMValue {
         let code = try convert(input, to: .int), check = try value(.boolean), result = try value(.char)
@@ -49,6 +55,9 @@ extension JVMFunctionBuilder {
             }
             return try constant(type == .float ? .float(Float(number)) : .double(number), type)
         }
+        if type == .char, let surrogate = Self.charSurrogateConstants[member] {
+            return try constant(.int(surrogate), .char)
+        }
         guard member == "MIN_VALUE" || member == "MAX_VALUE" else { return nil }
         let minimum = member == "MIN_VALUE"
         let unsigned = type.unsignedName != nil || type == .char
@@ -57,7 +66,6 @@ extension JVMFunctionBuilder {
         else if bits == 64 { number = minimum ? Int64.min : Int64.max }
         else { number = minimum ? -(Int64(1) << (bits - 1)) : (Int64(1) << (bits - 1)) - 1 }
         if type.width == 2 { return try constant(.long(number), type) }
-        // Narrow signed JVM carriers also back UByte and UShort constants.
         let raw = type == .ubyte ? Int32(Int8(truncatingIfNeeded: number)) : (type == .ushort ? Int32(Int16(truncatingIfNeeded: number)) : Int32(truncatingIfNeeded: number))
         return try constant(.int(raw), type)
     }
@@ -121,9 +129,6 @@ extension JVMFunctionBuilder {
                 }
             }
             if name == "equals", args.count == 1 {
-                // `x.equals(y)` on a non-null scalar boxes the receiver into its
-                // wrapper; nullable receivers reach Any?.equals instead, whose
-                // null-safe semantics the same Objects.equals call provides.
                 let source = try requireValue(receiver), argument = try requireValue(args[0].expr)
                 return JVMIntrinsicResult(value: try jdkCall("java/util/Objects", "equals", [object, object], .boolean, arguments: [source, argument]))
             }
@@ -155,8 +160,6 @@ extension JVMFunctionBuilder {
             if let op = binaryOps[name], args.count == 1 {
                 let resultType: JVMValueType
                 if case .safeMemberCall = arena.expr(id), let semantic = program.sema.bindings.exprType(for: id) {
-                    // Scalar arithmetic runs before the safe-call join boxes
-                    // its primitive result into the nullable expression type.
                     resultType = try program.type(program.sema.types.makeNonNullable(semantic))
                 } else { resultType = try program.expressionType(id) }
                 let result = try value(resultType), source = try convert(requireValue(receiver), to: result.type), argument = try convert(requireValue(args[0].expr), to: [.shl, .shr, .ushr].contains(op) ? .int : result.type)

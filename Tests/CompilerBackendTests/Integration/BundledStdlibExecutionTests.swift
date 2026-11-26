@@ -2,9 +2,6 @@
 import Foundation
 import Testing
 
-/// KSP-INF-006: bundled `.kt` 自己完結実行テストハーネス。
-/// Kotlin ソースを executable までコンパイルし、実行後の stdout を期待値と比較する。
-/// kotlinc を使わない第二 oracle として機能する。
 @Suite
 struct BundledStdlibExecutionTests {
     @Test(arguments: [true, false])
@@ -106,9 +103,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    // KUU-2691: GC.lastGCInfo must surface the recorded pass statistics
-    // end-to-end — null before any pass, an immutable snapshot after, and an
-    // epoch bump per collection (including via GC.schedule()).
     @Test(arguments: [true, false])
     func testGCLastGCInfoReportsRecordedPass(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
@@ -208,8 +202,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    // KSP-INF-011 regression: List<Int>.joinToString must render integers, not
-    // fall back to the string-only runtime fast path and produce empty output.
     @Test
     func testListIntJoinToStringWithTransformPrintsExpectedOutput() throws {
         try compileAndRunKotlin(
@@ -222,8 +214,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    // KSP-INF-011 regression: Array<Int>.joinToString must also render generic
-    // element types through the guarded default overload.
     @Test
     func testArrayIntJoinToStringPrintsExpectedOutput() throws {
         try compileAndRunKotlin(
@@ -236,10 +226,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    // KSP-677 regression: a generic higher-order function `fun <T> f(action: () -> T): T`
-    // must infer `T` from the lambda body, including a Unit-valued body. The type checker
-    // previously pushed the unresolved type parameter down as the body's expected type,
-    // which made a Unit-bodied lambda produce an error type and fail overload resolution.
     @Test
     func testGenericHigherOrderFunctionInfersUnitAndValueLambdaReturnType() throws {
         try compileAndRunKotlin(
@@ -256,9 +242,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    // KSP-677 regression: Mutex.withLock is bundled Kotlin source (a generic suspend
-    // extension composing the c-soft lock/unlock kernel). Repeated Unit-bodied calls and
-    // a value-returning call must all type-check and run.
     @Test
     func testMutexWithLockMigratedToKotlinSource() throws {
         try compileAndRunKotlin(
@@ -280,10 +263,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    // KSP-618 regression: kotlin.synchronized is bundled Kotlin source delegating to the
-    // demoted __kk_synchronized bridge. The block reaches the wrapper as a boxed function
-    // value, so the closure-thunk expansion must recover its (fnPtr, closureRaw) pair —
-    // otherwise a capturing block either crashes or loses its captures.
     @Test
     func testSynchronizedMigratedToKotlinSource() throws {
         try compileAndRunKotlin(
@@ -311,7 +290,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    // KUU-2791: synchronized is inline, so a bare return inside its block exits the caller.
     @Test(arguments: [true, false])
     func testSynchronizedAllowsNonLocalReturn(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
@@ -337,9 +315,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    // KSP-781 regression: PUBLICATION may evaluate an initializer more than
-    // once under contention, but every read must observe the first published
-    // value rather than a later initializer result.
     @Test
     func testLazyPublicationKeepsPublishedValue() throws {
         try compileAndRunKotlin(
@@ -360,8 +335,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    // KSP-677 regression: Semaphore.withPermit is bundled Kotlin source (a generic suspend
-    // extension composing the c-soft acquire/release kernel).
     @Test
     func testSemaphoreWithPermitMigratedToKotlinSource() throws {
         try compileAndRunKotlin(
@@ -381,10 +354,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    // KSP-612: DeepRecursiveFunction / DeepRecursiveScope は bundled Kotlin source。
-    // block は receiver ラムダ `DeepRecursiveScope<T, R>.(T) -> R` として lower され、
-    // 暗黙 `it` / 明示パラメータ / 外側変数キャプチャの3形とも runtime トランポリン経由で
-    // 正しく再帰することを end-to-end で検証する。
     @Test
     func testDeepRecursiveFunctionMigratedToKotlinSource() throws {
         try compileAndRunKotlin(
@@ -409,10 +378,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    // KUU-642: block exceptions must propagate to the invoke caller instead
-    // of fatalError, and callRecursive must route through the runtime
-    // trampoline. The deep sumTo(20_000) assertion lives in
-    // testDeepRecursiveFunctionTrampolineDeepSum.
     @Test
     func testDeepRecursiveFunctionTrampolineAndExceptionPropagation() throws {
         try compileAndRunKotlin(
@@ -445,12 +410,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    // KUU-642: the trampoline must keep native stack usage O(1) at depth
-    // 20_000. The intermittent wrong sums on Linux CI (#7143, KUU-857) were
-    // a kk_box_int pass-through collision — a raw scalar equal to a live
-    // RuntimeIntBox address was passed through unboxed and unboxed as the
-    // other box's value; primitive boxing now registers tagged handles so
-    // the collision class is closed.
     @Test
     func testDeepRecursiveFunctionTrampolineDeepSum() throws {
         try compileAndRunKotlin(
@@ -466,9 +425,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    // KSP-661: Char 判定系は bundled Kotlin (kotlin.text.CharPredicates) で実装され、
-    // Unicode テーブル参照だけを __kk_char_* ブリッジ経由で行う。移行後の述語が
-    // 実際にコンパイル・実行され正しい結果を返すことを end-to-end で検証する。
     @Test
     func testCharPredicatesExecuteThroughBundledKotlin() throws {
         try compileAndRunKotlin(
@@ -508,10 +464,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    /// KSP-614: `print`/`println` are Kotlin declarations in
-    /// `Stdlib/kotlin/io/Console.kt` on top of the single `__kk_print_raw`
-    /// bridge; every overload (including the argument-less ones) must resolve
-    /// and the newline must be appended on the Kotlin side.
     @Test
     func testConsolePrintOverloadsAreKotlinBacked() throws {
         try compileAndRunKotlin(
@@ -544,11 +496,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-4156: `kotlin.io.print`/`println` lower straight to `__kk_print_raw`
-    /// but must still follow `java.lang.System.out`'s closed state like the
-    /// JVM — `PrintStream.close()` on the console sink marks the raw bridge
-    /// closed, so later console writes drop instead of reaching stdout.
-    /// `System.err.close()` must not touch stdout.
     @Test(arguments: [true, false])
     func testSystemOutCloseDropsKotlinIoPrintln(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
@@ -572,11 +519,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-4162: `kotlin.io.readLine`/`readln`/`readlnOrNull` lower straight to
-    /// `__kk_readline_raw` but must still follow `java.lang.System.in`'s
-    /// closed state like the JVM — closing `System.in` makes later console
-    /// reads (and `System.in.read()`) throw `java.io.IOException` with
-    /// "Stream closed" instead of silently returning null.
     @Test(arguments: [true, false])
     func testSystemInCloseThrowsOnReadLine(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
@@ -618,8 +560,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    // KSP-625: The public ArrayDeque surface is bundled Kotlin. Empty and bounds checks
-    // and toString stay in Kotlin; only ring-buffer mutation crosses the __kk_arraydeque_* bridges.
     @Test
     func testArrayDequeMigratedToKotlinSource() throws {
         try compileAndRunKotlin(
@@ -667,8 +607,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    // KSP-662: Char conversions are bundled in kotlin.text.CharConversions.
-    // Only Unicode case mapping and digit-table lookup cross the __kk_char_* bridges.
     @Test
     func testCharConversionsExecuteThroughBundledKotlin() throws {
         try compileAndRunKotlin(
@@ -720,8 +658,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    // KUU-623: Int.toString(radix) and Long.toString(radix) must reject
-    // radices outside Kotlin's valid 2..36 range instead of clamping them.
     @Test
     func testSignedToStringRadixRejectsInvalidRadix() throws {
         try compileAndRunKotlin(
@@ -763,8 +699,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    /// KSP-643: count* functions now execute through the bundled Kotlin implementation.
-    /// This also covers BUG-015, where Long variants passed Sema but disappeared during KIR lowering.
     @Test
     func testBitCountFunctionsExecuteThroughBundledKotlin() throws {
         try compileAndRunKotlin(
@@ -802,8 +736,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    /// KSP-644: one-bit operations are implemented by bundled Kotlin source for both
-    /// Int and Long, including zero, negative values, sign boundaries, and mixed bits.
     @Test
     func testOneBitFunctionsExecuteThroughBundledKotlin() throws {
         try compileAndRunKotlin(
@@ -857,9 +789,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-1098: the bit-count and one-bit extensions execute through bundled
-    /// Kotlin on the remaining integer receivers, including zero, all-ones,
-    /// sign/high-bit boundaries, and mixed values.
     @Test
     func testSmallAndUnsignedBitFunctionsExecuteThroughBundledKotlin() throws {
         try compileAndRunKotlin(
@@ -1035,8 +964,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    /// KSP-635: Exercise the bundled Kotlin abs/sign/min/max and PI/E
-    /// implementations across overflow, NaN, and signed-zero edge cases.
     @Test
     func testMathAbsSignMinMaxExecuteThroughBundledKotlin() throws {
         try compileAndRunKotlin(
@@ -1096,8 +1023,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    /// KSP-637: Exercise Kotlin-source transcendental wrappers and their libm
-    /// bridges through the complete compiler and runtime pipeline.
     @Test
     func testMathTranscendentalFunctionsExecuteThroughBundledKotlin() throws {
         try compileAndRunKotlin(
@@ -1147,8 +1072,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    // KSP-472: measureTime / measureTimedValue が bundled Kotlin の inline 関数として
-    // 展開され、ラムダ・関数参照・例外伝播のいずれでも正しく動くことを検証する。
     @Test
     func testMeasureTimeExecutesThroughBundledKotlin() throws {
         try compileAndRunKotlin(
@@ -1193,8 +1116,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    // KSP-625 regression: implicit size/isEmpty reads on user classes must use their
-    // declared properties rather than collection runtime shortcuts.
     @Test
     func testImplicitReceiverSizeReadsUserDefinedProperty() throws {
         try compileAndRunKotlin(
@@ -1218,9 +1139,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    // KSP-642: rotateLeft / rotateRight は bundled Kotlin (kotlin.Numbers) で
-    // shl / ushr / or だけを使って実装される。シフト量のマスク（Int は 5bit、
-    // Long は 6bit）に依存するため、0 / 幅ちょうど / 幅超過 / 負値の境界を検証する。
     @Test
     func testRotateExecutesThroughBundledKotlin() throws {
         try compileAndRunKotlin(
@@ -1262,7 +1180,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-1257: unsigned rotations preserve all bits and use Kotlin shift masking.
     @Test(arguments: [true, false])
     func testUnsignedRotationsExecuteThroughBundledKotlin(allowDefaultStdlibLibrary: Bool) throws {
         let repoRoot = URL(fileURLWithPath: #filePath)
@@ -1334,10 +1251,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    // KSP-496 regression: KClass.cast/safeCast are bundled Kotlin extensions
-    // calling the throwing `__kk_kclass_cast` / non-throwing
-    // `__kk_kclass_safeCast` runtime ABI, so both the success and the
-    // ClassCastException paths must survive the ordinary call lowering.
     @Test
     func testKClassCastAndSafeCastExecuteThroughBundledExtensions() throws {
         try compileAndRunKotlin(
@@ -1375,10 +1288,6 @@ struct BundledStdlibExecutionTests {
             """
         )
     }
-    // KSP-646: Double/Float isNaN, isInfinite, and isFinite are implemented in
-    // bundled Kotlin (kotlin/util/Numbers.kt) using IEEE 754 bit-pattern checks.
-    // Verify signed zero, subnormal values, computed NaNs, and payload NaNs
-    // end to end.
     @Test
     func testFloatingPointPredicatesExecuteThroughBundledKotlin() throws {
         try compileAndRunKotlin(
@@ -1434,9 +1343,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    // KSP-647: public floating-point bit conversions are Kotlin wrappers around
-    // six __kk_* bridges. Verify raw/canonical NaN bits and exact edge-case
-    // round-trips through the bundled source path.
     @Test
     func testFloatingPointBitConversionsExecuteThroughBundledKotlin() throws {
         try compileAndRunKotlin(
@@ -1480,8 +1386,6 @@ struct BundledStdlibExecutionTests {
     }
 
 
-    // KSP-417: These APIs use private runtime bridges. This also guards the
-    // flat-string return ABI for __kk_string_normalize_flat.
     @Test
     func testUnicodeNormalizationAndCodePointBridgesExecute() throws {
         try compileAndRunKotlin(
@@ -1541,9 +1445,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    // Regression for a lambda-capture lowering bug: `let` / `?.let` blocks that
-    // capture an outer variable must forward the lambda parameter (`it`)
-    // correctly instead of shadowing it with the capture.
     @Test
     func testLetLambdaForwardsItWhenCapturingOuterVariable() throws {
         try compileAndRunKotlin(
@@ -1563,8 +1464,6 @@ struct BundledStdlibExecutionTests {
         )
     }
 
-    // KSP-641 regression: generic Comparable coercion and the
-    // ClosedFloatingPointRange overload must be source-backed and executable.
     @Test
     func testComparableCoercionExecutesThroughBundledKotlin() throws {
         try compileAndRunKotlin(

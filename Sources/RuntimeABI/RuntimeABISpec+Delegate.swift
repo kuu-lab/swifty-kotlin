@@ -9,11 +9,6 @@ public extension RuntimeABISpec {
     static let suspendFunctionInvoke3Spec: RuntimeABIFunctionSpec = abiCoroutine.th("kk_suspend_function_invoke_3", "functionRaw arg1 arg2 arg3 continuation outThrown")
 
     static let delegateFunctions: [RuntimeABIFunctionSpec] = [
-        // Lazy(SYNCHRONIZED) locking (KSP-491). `lazy`/`Delegates.observable/vetoable/notNull`
-        // themselves are bundled Kotlin source (Stdlib/kotlin/Lazy.kt,
-        // Stdlib/kotlin/properties/{ObservableProperty,Delegates}.kt); this pair is the
-        // only runtime bridge they still need (reason code: GC/continuation-adjacent
-        // per-object locking, same rationale as `__kk_synchronized`).
         abi.nt("__kk_lazy_sync_lock", "handle"),
         abi.nt("__kk_lazy_sync_unlock", "handle"),
         abi.nt("kk_function_value_tag_arity", "functionRaw functionTypePayload"),

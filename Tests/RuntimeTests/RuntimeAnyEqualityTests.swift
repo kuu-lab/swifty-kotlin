@@ -699,5 +699,29 @@ struct RuntimeAnyEqualityTests {
         #expect(charKey != RuntimeElementKey(value: kk_box_long(97)))
         #expect(Set([charKey, RuntimeElementKey(value: kk_box_int(97))]).count == 2)
     }
+
+    @Test
+    func testBigDecimalBoxesUseScaleAndValueEquality() {
+        func decimal(_ text: String) -> Int {
+            registerRuntimeObject(RuntimeBigNumberBox(value: text, kind: .decimal))
+        }
+        let same = decimal("1.10")
+        let equal = decimal("1.10")
+        let differentScale = decimal("1.1")
+        let differentScaleUp = decimal("1.100")
+        let differentValue = decimal("1.11")
+        let negative = decimal("-1.10")
+
+        #expect(kk_structural_eq(same, equal) == 1)
+        #expect(kk_structural_ne(same, equal) == 0)
+        #expect(runtimeValuesEqual(same, equal))
+        #expect(kk_structural_eq(same, differentScale) == 0)
+        #expect(kk_structural_eq(same, differentScaleUp) == 0)
+        #expect(kk_structural_eq(same, differentValue) == 0)
+        #expect(kk_structural_eq(negative, decimal("-1.10")) == 1)
+        #expect(kk_structural_eq(negative, same) == 0)
+        #expect(kk_structural_eq(same, runtimeNullSentinelInt) == 0)
+        #expect(kk_structural_eq(runtimeNullSentinelInt, runtimeNullSentinelInt) == 1)
+    }
 }
 #endif

@@ -3,9 +3,6 @@ import Foundation
 func __kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> Int {
     let token = Int64(truncatingIfNeeded: typeToken)
     let base = token & RuntimeTypeTokenEncoding.baseMask
-    // KUU-1084: function-type names derive from the token payload itself so
-    // they stay stable regardless of which call site interned the KClass or
-    // what name hint it passed.
     if base == RuntimeTypeTokenEncoding.functionBase {
         let payload = (token >> RuntimeTypeTokenEncoding.payloadShift) & RuntimeTypeTokenEncoding.payloadMask
         let (arity, isSuspend) = RuntimeTypeTokenEncoding.functionPayloadParts(payload)
@@ -19,8 +16,6 @@ func __kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> Int {
        let simpleName = name.split(separator: ".").last {
         return runtimeMakeStringRaw(String(simpleName))
     }
-    // Class literals carry the qualified name so reflection works even when
-    // no class metadata has been registered. Keep simpleName unqualified.
     if nameHint != 0, nameHint != runtimeNullSentinelInt {
         if let hint = extractString(from: UnsafeMutableRawPointer(bitPattern: nameHint)),
            let name = hint.split(separator: ".").last {
@@ -35,8 +30,6 @@ func __kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> Int {
     }
 }
 
-/// Simple names of the builtin type-token bases; their qualified names are
-/// `kotlin.` + the simple name.
 private func runtimeBuiltinTokenSimpleName(_ base: Int64) -> String? {
     switch base {
     case RuntimeTypeTokenEncoding.anyBase:
@@ -77,8 +70,6 @@ private func runtimeBuiltinTokenSimpleName(_ base: Int64) -> String? {
 }
 
 private func runtimeKClassQualifiedName(_ name: String) -> String {
-    // These Kotlin platform classifiers are JVM typealiases. Keep the Kotlin
-    // type identity in metadata, but expose the JVM reflection names.
     switch name {
     case "kotlin.RuntimeException":
         "java.lang.RuntimeException"
@@ -97,8 +88,6 @@ private func runtimeKClassQualifiedName(_ name: String) -> String {
     }
 }
 
-/// For nominal (user-defined) types registered metadata takes precedence over
-/// the compiler-supplied qualified name hint.
 func __kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) -> Int {
     let token = Int64(truncatingIfNeeded: typeToken)
     let base = token & RuntimeTypeTokenEncoding.baseMask
@@ -157,21 +146,11 @@ private func runtimeAmbiguousKClassNameHint(typeToken: Int, nameHint: Int) -> St
     return extractString(from: UnsafeMutableRawPointer(bitPattern: nameHint))
 }
 
-/// KClass boxes are interned: repeated calls with the same `typeToken`
-/// return the same pointer without allocating a new box. This avoids
-/// unbounded memory growth when `T::class` is evaluated in a loop.
 @_cdecl("__kk_kclass_create")
 public func __kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
     runtimeInternKClassBox(typeToken: typeToken, nameHint: nameHint, arrayComponent: 0)
 }
 
-/// `Array<E>::class` — same interning as `__kk_kclass_create`, but the cache
-/// key also carries E's interned component descriptor id so the JVM
-/// per-component array Class identity holds (`Integer[].class !=
-/// String[].class` while `simpleName`/`qualifiedName` stay `Array`/
-/// `kotlin.Array`). `component` comes from `__kk_array_component_type` or
-/// `__kk_array_component_element`; an unknown id degrades to the erased
-/// `kotlin.Array` box.
 @_cdecl("__kk_kclass_create_array")
 public func __kk_kclass_create_array(_ typeToken: Int, _ nameHint: Int, _ component: Int) -> Int {
     let validComponent = component != 0 && runtimeArrayComponentDescriptorIsValid(component)
@@ -212,16 +191,11 @@ public func __kk_kclass_of(_ value: Int, _ fallbackToken: Int, _ nameHint: Int) 
         if annotation.annotationClassRaw != 0 {
             return annotation.annotationClassRaw
         }
-        // Reflected annotations are metadata boxes rather than nominal objects.
-        // Recover their declared class identity instead of the static Annotation bound.
         let typeID = runtimeStableNominalTypeID(fqName: annotation.annotationFQName)
         let token = (typeID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift
             | RuntimeTypeTokenEncoding.nominalBase
         return __kk_kclass_create(Int(truncatingIfNeeded: token), runtimeMakeStringRaw(annotation.annotationFQName))
     }
-    // Unit stays as the raw zero value when it crosses an erased Any boundary;
-    // other erased primitives are boxed. Recover Unit before falling back to
-    // the statically supplied Any token, while preserving raw Boolean/Int zero.
     let fallbackBase = Int64(truncatingIfNeeded: fallbackToken) & RuntimeTypeTokenEncoding.baseMask
     if value == 0, fallbackBase == RuntimeTypeTokenEncoding.anyBase {
         return __kk_kclass_create(Int(RuntimeTypeTokenEncoding.unitBase), 0)
@@ -229,18 +203,11 @@ public func __kk_kclass_of(_ value: Int, _ fallbackToken: Int, _ nameHint: Int) 
     if let array = runtimeArrayBoxExcludingObjects(from: value),
        let arrayClass = runtimeArrayKClassIdentity(rawValue: value)
     {
-        // The tagged component descriptor (installed at allocation by
-        // `__kk_array_tag_component`) gives `x::class` the same per-element
-        // KClass identity as the `Array<E>::class` literal: both key on the
-        // element descriptor, so `arrayOf(1)::class == Array<Int>::class`.
         return __kk_kclass_create_array(
             arrayClass.typeToken, arrayClass.nameHint, array.componentType ?? 0
         )
     }
     if let typeID = runtimeObjectTypeID(rawValue: value) {
-        // KUU-3963: runtime collection boxes reflect their JVM implementation
-        // class (java.util.Collections.SingletonList, LinkedHashSet, anonymous
-        // iterators, ...) instead of the erased interface tag.
         if let identity = runtimeReflectedCollectionClass(rawValue: value, typeID: typeID) {
             runtimeEnsureReflectedClassMetadata(identity)
             let implTypeID: Int64
@@ -264,16 +231,12 @@ public func __kk_kclass_of(_ value: Int, _ fallbackToken: Int, _ nameHint: Int) 
     }
     if let ptr = UnsafeMutableRawPointer(bitPattern: value),
        runtimeStorage.withGCLock({ $0.objectPointers.contains(UInt(bitPattern: ptr)) }) {
-        // Range factories retain their classifier in the kind tag, not nominal
-        // object metadata. Supply its name even before reflection registration.
         if let range = tryCast(ptr, to: RuntimeRangeBox.self) {
             let typeID = runtimeRangeBoxNominalTypeID(range.kind)
             let token = (typeID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift
                 | RuntimeTypeTokenEncoding.nominalBase
             return __kk_kclass_create(Int(truncatingIfNeeded: token), runtimeMakeStringRaw(range.kind.qualifiedName))
         }
-        // Runtime-created throwables are boxes without nominal object tags.
-        // Their declared exception identity must override the catch variable's type.
         if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
             let typeID = runtimeStableNominalTypeID(fqName: throwable.exceptionFQName)
             let token = (typeID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift
@@ -315,13 +278,6 @@ public func __kk_kclass_of(_ value: Int, _ fallbackToken: Int, _ nameHint: Int) 
     return __kk_kclass_create(fallbackToken, nameHint)
 }
 
-// Unlike `__kk_type_token_simple_name`/`__kk_type_token_qualified_name` (which take
-// a bare type token + name hint known at the `T::class` call site), these take
-// the KClass box handle itself so the Kotlin-source `simpleName`/`qualifiedName`
-// properties (Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt) can
-// be ordinary extension properties dispatched on `this`, without requiring
-// reified static type information at the call site.
-
 @_cdecl("__kk_kclass_simple_name")
 public func __kk_kclass_simple_name(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw) else {
@@ -332,8 +288,6 @@ public func __kk_kclass_simple_name(_ kclassRaw: Int) -> Int {
         return runtimeMakeStringRaw(String(simpleName))
     }
     if let metadata = box.metadata {
-        // KUU-3828: anonymous object literals have no simple name on the JVM
-        // even though the compiler registers a synthetic internal name.
         return metadata.isAnonymous
             ? runtimeNullSentinelInt
             : runtimeMakeStringRaw(metadata.simpleName)
@@ -410,8 +364,6 @@ func __kk_kclass_register_metadata_v2(
 ) -> Int {
     let qualifiedName = extractString(from: UnsafeMutableRawPointer(bitPattern: qualifiedNameRaw)) ?? "Unknown"
     let simpleName = extractString(from: UnsafeMutableRawPointer(bitPattern: simpleNameRaw)) ?? "Unknown"
-    // The compiler joins all direct supertype display names with '|'; Kotlin
-    // qualified type names never contain that character.
     let supertypeDisplayNames: [String]
     if supertypeNameRaw != 0, supertypeNameRaw != runtimeNullSentinelInt,
        let joined = extractString(from: UnsafeMutableRawPointer(bitPattern: supertypeNameRaw)),
@@ -460,7 +412,6 @@ func __kk_kclass_register_metadata_v2(
     return 0
 }
 
-/// Adds one declared type parameter to the metadata for a KClass.
 @_cdecl("__kk_kclass_register_type_parameter")
 public func __kk_kclass_register_type_parameter(
     _ typeToken: Int,
@@ -529,7 +480,6 @@ public func __kk_kclass_register_enclosing_metadata(
     return 0
 }
 
-/// Registers a compiler-derived JVM binary name without changing qualifiedName.
 @_cdecl("__kk_kclass_register_display_name")
 public func __kk_kclass_register_display_name(_ typeToken: Int, _ displayNameRaw: Int) -> Int {
     if let displayName = extractString(from: UnsafeMutableRawPointer(bitPattern: displayNameRaw)) {
@@ -638,7 +588,6 @@ public func __kk_kclass_is_abstract(_ kclassRaw: Int) -> Int {
 }
 
 
-/// A class is final if it is not abstract, not open, and not an interface.
 @_cdecl("__kk_kclass_is_final")
 public func __kk_kclass_is_final(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),
@@ -676,8 +625,6 @@ public func __kk_kclass_visibility(_ kclassRaw: Int) -> Int {
     )
 }
 
-/// Returns the type parameters of this KClass as runtime KTypeParameter boxes.
-/// Returns an empty list if no type parameters.
 @_cdecl("__kk_kclass_type_parameters")
 public func __kk_kclass_type_parameters(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw),

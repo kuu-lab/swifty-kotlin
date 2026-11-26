@@ -349,8 +349,6 @@ struct LexerParserEdgeCaseTests {
         #expect(kinds.contains(.typeArgs))
         #expect(kinds.contains(.enumEntry))
 
-        // `fun ()` starts an anonymous function, so it no longer ends the
-        // unterminated `broken(` group (#11651); the group itself is reported.
         assertHasDiagnostic("KSWIFTK-PARSE-0004", in: parsed.diagnostics.diagnostics)
 
         let parserForTypeArgs = KotlinParser(tokens: parsed.tokens, interner: parsed.interner, diagnostics: DiagnosticEngine())
@@ -416,15 +414,10 @@ struct LexerParserEdgeCaseTests {
             .symbol(.star), .symbol(.greaterThan), .symbol(.colon),
         ]
 
-        // `<T>(`
         #expect(canStartTypeArguments([.symbol(.lessThan), typeT, .symbol(.greaterThan), .symbol(.lParen)]))
-        // `<in T, out R, *>:` — variance modifiers and a star projection
         #expect(canStartTypeArguments([.symbol(.lessThan)] + variancePrefix))
-        // a second `<` straight after the first is not a type argument list
         #expect(!canStartTypeArguments([.symbol(.lessThan), .symbol(.lessThan)] + variancePrefix))
-        // `<>(` — an empty list
         #expect(!canStartTypeArguments([.symbol(.lessThan), .symbol(.greaterThan), .symbol(.lParen)]))
-        // `<.T>(` — a leading `.` cannot start a type argument
         #expect(!canStartTypeArguments([
             .symbol(.lessThan), .symbol(.dot), typeT, .symbol(.greaterThan), .symbol(.lParen),
         ]))
@@ -597,8 +590,6 @@ struct LexerParserEdgeCaseTests {
 
     @Test
     func testLexerUnknownByteFloodIsBoundedByDiagnosticLimit() {
-        // Each control byte produces a distinct-ranged KSWIFTK-LEX-0001 error;
-        // the engine stores at most the per-file limit plus one truncation notice.
         let source = String(repeating: "\u{1}", count: DiagnosticEngine.defaultMaxDiagnosticsPerFile + 500)
         let result = lex(source)
         let stored = result.diagnostics.diagnostics
@@ -610,7 +601,6 @@ struct LexerParserEdgeCaseTests {
 
     @Test(arguments: ["\n", "\r"])
     func testLexerRejectsRawLineBreakAsCharLiteralContent(lineBreak: String) {
-        // kotlinc reports the unterminated `'` and the orphaned closing `'` separately.
         let result = lex("val c = '\(lineBreak)'")
 
         assertDiagnosticCount("KSWIFTK-LEX-0002", expected: 2, in: result.diagnostics.diagnostics)

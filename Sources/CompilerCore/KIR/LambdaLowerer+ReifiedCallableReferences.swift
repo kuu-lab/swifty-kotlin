@@ -1,6 +1,4 @@
 extension LambdaLowerer {
-    /// Hidden type tokens are values of the reference's environment. The thunk
-    /// takes them before logical arguments and forwards them last to the target.
     func reifiedCallableReferenceThunk(
         _ exprID: ExprID,
         targetSymbol: SymbolID,

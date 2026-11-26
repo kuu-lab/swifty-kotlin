@@ -18,12 +18,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    // KUU-3242: `Map.entries`/`keys`/`values` (and `MutableMap.entries`)
-    // resolve to the runtime ABI properties registered during stdlib
-    // artifact builds. When the nested `Map.Entry`/`MutableEntry` shells are
-    // absent at residual-registration time, `entries` ships without its
-    // `__kk_map_entries` link and the runtime map box cannot answer the
-    // virtual call. These views must stay iterable through the library path.
     @Test(arguments: [true, false])
     func testMapViewIterationUsesRuntimeLinks(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(

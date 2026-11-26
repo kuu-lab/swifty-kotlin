@@ -3,7 +3,6 @@ package kotlin.time
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
-import kotlin.internal.KsSymbolName
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
@@ -309,22 +308,16 @@ public val Duration.Companion.ZERO: Duration get() = Duration(0L)
 
 public val Duration.Companion.INFINITE: Duration get() = Duration(Long.MAX_VALUE)
 
-@KsSymbolName("kk_duration_parse")
-private external fun __kk_duration_parse(value: String): Long
+public fun Duration.Companion.parse(value: String): Duration =
+    durationParseRawOrNull(value, strictIso = false)?.let { Duration(it) }
+        ?: throw IllegalArgumentException("Invalid duration string format: '$value'.")
 
-@KsSymbolName("kk_duration_parseOrNull")
-private external fun __kk_duration_parseOrNull(value: String): Long?
+public fun Duration.Companion.parseOrNull(value: String): Duration? =
+    durationParseRawOrNull(value, strictIso = false)?.let { Duration(it) }
 
-@KsSymbolName("kk_duration_parseIsoString")
-private external fun __kk_duration_parseIsoString(value: String): Long
+public fun Duration.Companion.parseIsoString(value: String): Duration =
+    durationParseRawOrNull(value, strictIso = true)?.let { Duration(it) }
+        ?: throw IllegalArgumentException("Invalid ISO duration string format: '$value'.")
 
-@KsSymbolName("kk_duration_parseIsoStringOrNull")
-private external fun __kk_duration_parseIsoStringOrNull(value: String): Long?
-
-public fun Duration.Companion.parse(value: String): Duration = Duration(__kk_duration_parse(value))
-
-public fun Duration.Companion.parseOrNull(value: String): Duration? = __kk_duration_parseOrNull(value)?.let { Duration(it) }
-
-public fun Duration.Companion.parseIsoString(value: String): Duration = Duration(__kk_duration_parseIsoString(value))
-
-public fun Duration.Companion.parseIsoStringOrNull(value: String): Duration? = __kk_duration_parseIsoStringOrNull(value)?.let { Duration(it) }
+public fun Duration.Companion.parseIsoStringOrNull(value: String): Duration? =
+    durationParseRawOrNull(value, strictIso = true)?.let { Duration(it) }

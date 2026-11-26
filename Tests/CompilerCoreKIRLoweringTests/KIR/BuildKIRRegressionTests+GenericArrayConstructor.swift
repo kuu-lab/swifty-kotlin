@@ -28,8 +28,6 @@ extension BuildKIRRegressionTests {
         let sizedCallees = extractCallees(from: sizedBody, interner: ctx.interner)
         #expect(initializedCallees.contains(runtimeCallee(.arrayNewChecked)))
         #expect(initializedCallees.contains(runtimeCallee(.arraySet)))
-        // Allocation is followed by the array's Cloneable/Serializable ancestry
-        // registration (#11647) and its runtime component tag (#8313).
         #expect(sizedCallees == [
             runtimeCallee(.arrayNewChecked),
             runtimeCallee(.arrayTagType),

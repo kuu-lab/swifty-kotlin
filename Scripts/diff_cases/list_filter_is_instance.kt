@@ -5,6 +5,9 @@ fun main() {
     val ints = mixed.filterIsInstance<Int>()
     println(ints)
 
+    val collection: Collection<Any> = listOf(1, "hello", 2, "world", 3)
+    println(collection.filterIsInstance<String>())
+
     val empty: List<Any> = listOf()
     println(empty.filterIsInstance<String>())
 }

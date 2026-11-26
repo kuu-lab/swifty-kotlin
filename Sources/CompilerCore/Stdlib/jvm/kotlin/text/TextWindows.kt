@@ -1,7 +1,7 @@
 @file:kotlin.jvm.JvmName("StringsKt")
 package kotlin.text
-fun CharSequence.windowed(size: Int, step: Int = 1, partialWindows: Boolean = false): List<String> = windowed(size, step, partialWindows) { it.toString() }
-fun <R> CharSequence.windowed(size: Int, step: Int = 1, partialWindows: Boolean = false, transform: (CharSequence) -> R): List<R> {
+
+private fun checkTextWindowSizeStep(size: Int, step: Int) {
     if (size <= 0 || step <= 0) {
         val message = if (size != step) {
             "Both size $size and step $step must be greater than zero."
@@ -10,6 +10,11 @@ fun <R> CharSequence.windowed(size: Int, step: Int = 1, partialWindows: Boolean 
         }
         throw IllegalArgumentException(message)
     }
+}
+
+fun CharSequence.windowed(size: Int, step: Int = 1, partialWindows: Boolean = false): List<String> = windowed(size, step, partialWindows) { it.toString() }
+fun <R> CharSequence.windowed(size: Int, step: Int = 1, partialWindows: Boolean = false, transform: (CharSequence) -> R): List<R> {
+    checkTextWindowSizeStep(size, step)
     val result = mutableListOf<R>()
     val inputLength = this.length
     var start = 0
@@ -23,5 +28,38 @@ fun <R> CharSequence.windowed(size: Int, step: Int = 1, partialWindows: Boolean 
     }
     return result
 }
+
+fun CharSequence.windowedSequence(size: Int, step: Int = 1, partialWindows: Boolean = false): kotlin.sequences.Sequence<String> =
+    windowedSequence(size, step, partialWindows) { it.toString() }
+
+fun <R> CharSequence.windowedSequence(size: Int, step: Int = 1, partialWindows: Boolean = false, transform: (CharSequence) -> R): kotlin.sequences.Sequence<R> {
+    checkTextWindowSizeStep(size, step)
+    val source = this
+    val finalStartExclusive = if (partialWindows) source.length else source.length - size + 1
+    return object : kotlin.sequences.Sequence<R> {
+        override fun iterator(): Iterator<R> = object : Iterator<R> {
+            var start = 0
+
+            private fun hasWindow(): Boolean = start < finalStartExclusive
+
+            override fun hasNext(): Boolean = hasWindow()
+
+            override fun next(): R {
+                if (!hasWindow()) throw NoSuchElementException()
+                val windowStart = start
+                start = if (step > finalStartExclusive - windowStart) finalStartExclusive else windowStart + step
+                val end = windowStart + size
+                val coercedEnd = if (end < 0 || end > source.length) source.length else end
+                return transform(source.subSequence(windowStart, coercedEnd))
+            }
+        }
+    }
+}
+
 fun CharSequence.chunked(size: Int): List<String> = windowed(size, size, true)
 fun <R> CharSequence.chunked(size: Int, transform: (CharSequence) -> R): List<R> = windowed(size, size, true, transform)
+fun CharSequence.chunkedSequence(size: Int): kotlin.sequences.Sequence<String> =
+    windowedSequence(size, size, true)
+
+fun <R> CharSequence.chunkedSequence(size: Int, transform: (CharSequence) -> R): kotlin.sequences.Sequence<R> =
+    windowedSequence(size, size, true, transform)

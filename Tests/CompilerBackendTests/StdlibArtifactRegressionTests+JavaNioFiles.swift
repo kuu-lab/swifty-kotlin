@@ -27,13 +27,11 @@ extension StdlibArtifactRegressionTests {
             do {
                 try runSema(context)
             } catch {
-                // Inspect the diagnostics produced for the imported signatures.
             }
             #expect(context.diagnostics.hasError, "Expected rejection of \(expression)")
         }
     }
 
-    /// KUU-2015: public Path/Paths/Files signatures and byte I/O survive metadata.
     @Test
     func testJavaNioFilesAcrossSourceAndFreshLibrary() throws {
         let directory = FileManager.default.temporaryDirectory

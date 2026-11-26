@@ -13,12 +13,6 @@ import kotlinx.atomicfu.locks.ParkingSupport
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlin.concurrent.Volatile
 
-// KUU-3059: java.util.concurrent.locks.ReentrantReadWriteLock. State is
-// guarded by an atomicfu recursive lock; waiters park on their per-thread
-// handles and re-check after each broadcast. Reentrancy is tracked per
-// thread by ParkingHandle identity. Read->write upgrades are not permitted,
-// matching the JVM contract (they would deadlock).
-
 public class ReentrantReadWriteLock(private val fairParam: Boolean = false) : ReadWriteLock {
     private val guard = SynchronizedObject()
     private val waiters = ArrayList<ParkingHandle>()

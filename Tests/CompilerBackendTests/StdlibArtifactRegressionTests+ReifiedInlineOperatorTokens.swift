@@ -4,7 +4,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2205: binary operator calls forward both hidden reified ABI tokens.
     @Test(arguments: [true, false], [0, 2])
     func testReifiedInlineExtensionBinaryOperatorsThroughSourceAndFreshArtifact(
         fromSource: Bool,

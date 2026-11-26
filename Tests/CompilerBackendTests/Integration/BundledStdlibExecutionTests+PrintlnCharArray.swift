@@ -2,9 +2,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    // KUU-2754 regression: println(CharArray)/print(CharArray) must resolve to
-    // the CharArray overload that prints the characters, not the Any? overload
-    // whose toString renders kotlin.CharArray@hash.
     @Test
     func testPrintlnCharArrayPrintsContents() throws {
         try compileAndRunKotlin(

@@ -48,8 +48,6 @@ extension CoroutineLoweringPass {
         return constants
     }
 
-    // Only infer an owned return when every return is rooted in a fresh factory.
-    // Identity operators and functions returning borrowed/global flows stay borrowed.
     func freshFlowFunctions(module: KIRModule, ctx: KIRContext) -> Set<SymbolID> {
         var fresh: Set<SymbolID> = []
         var changed = true
@@ -80,7 +78,6 @@ extension CoroutineLoweringPass {
                     default: false
                     }
                 }
-                // An alias may have several reaching definitions; all must be fresh.
                 let hasBorrowedWrite = function.body.contains { instruction in
                     switch instruction {
                     case let .copy(from, to): values.contains(to) && !values.contains(from)
@@ -131,7 +128,6 @@ extension CoroutineLoweringPass {
         _ symbol: SymbolID?, _ callee: InternedString, _ arguments: [KIRExprID], ctx: KIRContext
     ) -> Set<KIRExprID> {
         guard isFlowBorrowingCall(symbol, callee, ctx: ctx) else { return Set(arguments) }
-        // Tagged emit borrows its source, but its payload can be emitted or saved as a fallback.
         if ctx.interner.resolve(callee) == "kk_flow_emit"
             || symbol.flatMap({ ctx.sema?.symbols.externalLinkName(for: $0) }) == "kk_flow_emit" {
             return Set(arguments.dropFirst())
@@ -223,7 +219,6 @@ extension CoroutineLoweringPass {
             escaped.formUnion(escaping.intersection(allAliases))
         }
         let instructions = body.instructions.enumerated().filter { _, instruction in
-            // Replace lexical releases of original ownership, not balanced borrowed retains.
             if case let .call(_, callee, args, _, _, _, _, _) = instruction,
                callee == release, args.first.map(allAliases.contains) == true { return false }
             return true
@@ -319,7 +314,6 @@ extension CoroutineLoweringPass {
             }
             let (emittedInstruction, failure) = explicitFailure(instruction)
             if let root = isFreshFlowCall(instruction, freshFunctions: freshFunctions, constants: constants, module: module, ctx: ctx), slots[root] != nil {
-                // Handles created in a loop must not overwrite an outstanding owner.
                 cleanUp(root)
                 result.append(emittedInstruction)
                 if let failure { result.append(.jumpIfNotNull(value: failure, target: exceptionalExit)) }
@@ -339,7 +333,6 @@ extension CoroutineLoweringPass {
                     deferredFailure = nil
                 }
                 if let failure {
-                    // Balance a consume's borrowed retain before propagating its failure.
                     if position + 1 < instructions.count,
                        case .call(_, release, _, _, _, _, _, _) = instructions[position + 1].element {
                         deferredFailure = failure

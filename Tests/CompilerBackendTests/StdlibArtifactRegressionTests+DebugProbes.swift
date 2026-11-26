@@ -5,7 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2744: DebugProbes must observe launched coroutines through the shared stdlib artifact.
     @Test
     func testDebugProbesTrackCoroutineStateContextAndCreationStack() throws {
         let artifactPath = try Self.buildStdlibArtifact()

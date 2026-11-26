@@ -1,14 +1,8 @@
 package kotlin.io
 
-// Migration source: Sources/Runtime/RuntimeFileIO.swift
-//   kk_file_name, kk_file_extension, kk_file_nameWithoutExtension, kk_file_parent,
-//   kk_file_invariantSeparatorsPath, kk_file_isRooted, kk_file_startsWith_file,
-//   kk_file_startsWith_string, kk_file_resolveSibling_file, kk_file_resolveSibling_string,
-//   kk_file_toRelativeString, kk_file_normalize
 // `path` reads File's internal state, so it stays the existing synthetic member
 // (a Kotlin-source `path` extension property would collide with the
 // `kotlin.io.path` package FQName). String helpers derive their results from
-// `path`; filesystem existence uses the shared native filesystem bridge.
 
 import java.io.File
 import kotlin.internal.KsSymbolName

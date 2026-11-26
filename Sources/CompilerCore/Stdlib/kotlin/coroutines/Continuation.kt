@@ -18,8 +18,6 @@ import kotlin.internal.InlineOnly
 import kotlin.internal.KsSymbolName
 import kotlin.internal.KsNoInline
 
-// KSP-1131/1139: the continuation contract is declared in Kotlin source;
-// the runtime bridges serve compiler-created continuation handles.
 public interface Continuation<in T> {
     @KsSymbolName("__kk_coroutine_continuation_context")
     public val context: CoroutineContext

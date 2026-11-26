@@ -3,9 +3,6 @@
 import Foundation
 import Testing
 
-/// Pins the JSON compatibility contract of `RawInt32ID`: the AST arena snapshot
-/// stores thousands of these IDs in `frontend.json`, so the encoded form and the
-/// legacy `{"rawValue": N}` read path must stay stable across compiler versions.
 @Suite
 struct RawInt32IDCodableTests {
     @Test
@@ -28,7 +25,6 @@ struct RawInt32IDCodableTests {
 
     @Test
     func testDecodesLegacyObjectForm() throws {
-        // Caches written before the bare-number encoding store {"rawValue": N}.
         #expect(try decode(ExprID.self, from: #"{"rawValue": 42}"#) == ExprID(rawValue: 42))
         #expect(try decode(FileID.self, from: #"{"rawValue": -1}"#) == FileID(rawValue: -1))
         #expect(try decode(InternedString.self, from: #"{"rawValue": 0}"#) == InternedString(rawValue: 0))
@@ -46,7 +42,6 @@ struct RawInt32IDCodableTests {
 
     @Test
     func testExprIDKeyedDictionariesRoundTrip() throws {
-        // The arena side tables key by ExprID (loopLabels, whenSubjectTypeRefs, ...).
         let labels: [ExprID: InternedString] = [
             ExprID(rawValue: 1): InternedString(rawValue: 10),
             ExprID(rawValue: 2): InternedString(rawValue: 20),
@@ -68,7 +63,6 @@ struct RawInt32IDCodableTests {
 
     @Test
     func testFileIDKeyedDictionaryRoundTrip() throws {
-        // filesByID / entriesByFile key by FileID.
         let byFile: [FileID: [ExprID]] = [
             FileID(rawValue: 1): [ExprID(rawValue: 1), ExprID(rawValue: 2)],
             FileID(rawValue: 2): [],
@@ -78,8 +72,6 @@ struct RawInt32IDCodableTests {
 
     @Test
     func testMixedBareAndLegacyArrayDecodes() throws {
-        // A hand-written legacy cache stores objects; the new one stores numbers.
-        // Decoding must accept whichever form each element takes.
         let legacy = #"[{"rawValue": 1}, {"rawValue": 2}, {"rawValue": 3}]"#
         #expect(try decode([ExprID].self, from: legacy) == [ExprID(rawValue: 1), .init(rawValue: 2), .init(rawValue: 3)])
 
@@ -90,7 +82,6 @@ struct RawInt32IDCodableTests {
     private func assertBareNumberRoundTrip<ID: RawInt32ID>(_ id: ID) throws {
         let data = try JSONEncoder().encode(id)
         let json = try #require(String(data: data, encoding: .utf8), "UTF-8")
-        // The whole payload must be the bare integer, never a {"rawValue": N} object.
         #expect(json == "\(id.rawValue)", "encoded \(ID.self) as \(json)")
         #expect(!json.contains("rawValue"))
 

@@ -1,8 +1,3 @@
-/*
- * The runtime owns the weak-reference handle and its referent state. Keep the
- * public API in Kotlin source while using private bridges for those operations.
- */
-
 @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
 
 package kotlin.native.ref
@@ -10,9 +5,6 @@ package kotlin.native.ref
 import kotlin.experimental.ExperimentalNativeApi
 import kotlin.internal.KsSymbolName
 
-// KSP-1255: the runtime allocates and owns the weak-reference handle, so
-// construction bridges straight to the factory instead of allocating a plain
-// object first.
 @ExperimentalNativeApi
 public class WeakReference<T : Any> @KsSymbolName("kk_weak_ref_create") constructor(referred: T) {
     @ExperimentalNativeApi
@@ -32,7 +24,6 @@ private external fun <T : Any> __weakReferenceGet(reference: WeakReference<T>): 
 @KsSymbolName("kk_weak_ref_clear")
 private external fun __weakReferenceClear(reference: WeakReference<*>): Int
 
-/** Backing store compatibility for the Kotlin/Native WeakReference contract. */
 @PublishedApi
 internal var WeakReference<*>.pointer: WeakReferenceImpl?
     get() = null

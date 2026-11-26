@@ -24,8 +24,6 @@ extension BuildASTPhase.ExpressionParser {
 
             let bodyStart = astArena.exprs.count
             let parsedBody = parseLambdaBody(bodySlice: lambdaBodySlice, fallbackStart: openBrace.range.end)
-            // Include callable references and names inside string templates so
-            // generated parameters cannot shadow a user binding or lookup.
             var bodyNames = Set(lambdaBodySlice.compactMap { tokenText($0) })
             bodyNames.formUnion(astArena.exprs.dropFirst(bodyStart).compactMap { expr -> InternedString? in
                 switch expr {
@@ -51,9 +49,6 @@ extension BuildASTPhase.ExpressionParser {
         // unresolved-name error for the body instead.
         reportEmptyLambdaParamType(in: bodyTokens)
 
-        // In expression position Kotlin treats bare braces as lambda literals,
-        // including zero-argument lambdas like `{ 42 }`. Both trailing-lambda
-        // call sites and plain expression contexts accept the same syntax.
         let bodyExpr = parseLambdaBody(bodySlice: bodyTokens[...], fallbackStart: openBrace.range.end)
         let range = SourceRange(start: start ?? openBrace.range.start, end: end)
         return astArena.appendExpr(.lambdaLiteral(params: [], body: bodyExpr, label: label, range: range))
@@ -65,9 +60,6 @@ extension BuildASTPhase.ExpressionParser {
         }
         var superTypes: [TypeRefID] = []
         var superTypeEntries: [SuperTypeEntry] = []
-        // Only the (at most one) class supertype can carry a constructor
-        // call `(args)` — interfaces are listed bare. Kept as a single list
-        // rather than per-supertype since that is all `ObjectDecl` needs.
         var superTypeConstructorArgs: [CallArgument] = []
         var end = objectToken.range.end
         var bodyTokens: [Token] = []
@@ -75,10 +67,6 @@ extension BuildASTPhase.ExpressionParser {
         if consumeIf(.symbol(.colon)) != nil {
             while true {
                 let typeStart = current()?.range.start ?? objectToken.range.start
-                // Kotlin's delegationSpecifier grammar admits functionType
-                // supertypes (`object : suspend () -> Int`, `object : R.() -> T`),
-                // which map to the SuspendFunctionN / FunctionN interfaces —
-                // the same path named-class supertypes already take.
                 guard let superType = parseTypeReference(
                     current()?.range ?? objectToken.range,
                     allowFunctionType: true
@@ -114,11 +102,6 @@ extension BuildASTPhase.ExpressionParser {
                             if token.kind == .symbol(.lBrace),
                                delegateBraceTracker.braceContinuesDelegateExpression()
                             {
-                                // A brace that belongs to the delegate
-                                // expression (`by when (x) { ... }`,
-                                // `by object : C { }`, ...) is part of the
-                                // expression; a later top-level brace is the
-                                // object literal's body.
                                 delegateBraceTracker.note(token.kind, atTopLevel: true)
                                 depth.track(token.kind)
                                 _ = consume()
@@ -133,8 +116,6 @@ extension BuildASTPhase.ExpressionParser {
                             }
                         }
                         delegateBraceTracker.note(token.kind, atTopLevel: depth.isAtTopLevel)
-                        // Parenthesized expressions may contain comparisons;
-                        // those angle tokens are not header type arguments.
                         if depth.isBracketBraceParenTopLevel
                             || (token.kind != .symbol(.lessThan) && token.kind != .symbol(.greaterThan))
                         {
@@ -198,7 +179,6 @@ extension BuildASTPhase.ExpressionParser {
             )
             return nil
         }
-        // `::class` is Kotlin's keyword-based class-literal form.
         let memberName: InternedString?
         if case .keyword(.class) = memberToken.kind {
             memberName = interner.intern("class")
@@ -227,9 +207,6 @@ extension BuildASTPhase.ExpressionParser {
         return reference
     }
 
-    /// On imbalance, `bodyTokens` holds everything scanned and `end` is the
-    /// last token's end (or `fallbackEnd` if nothing was consumed) — the
-    /// caller decides whether that's acceptable.
     private func consumeBalancedBraceBody(
         fallbackEnd: SourceLocation
     ) -> (bodyTokens: [Token], end: SourceLocation, balanced: Bool) {
@@ -255,8 +232,6 @@ extension BuildASTPhase.ExpressionParser {
         return (Array(tokens[bodyStart..<bodyEnd]), end, depth == 0)
     }
 
-    /// Kotlin parses a control-structure body `{ params -> ... }` as a function
-    /// literal rather than a block.
     func braceGroupStartsLambdaLiteral() -> Bool {
         guard matches(.symbol(.lBrace)) else {
             return false
@@ -420,11 +395,6 @@ extension BuildASTPhase.ExpressionParser {
         return entries.names.isEmpty ? nil : (entries.names, entries.properties, entries.mutableFlags, syntax)
     }
 
-    /// Splits the inside of a lambda destructuring parameter into entries.
-    /// `isDestructuringEntries` already guaranteed the full form is
-    /// all-or-nothing, so `mutableFlags` is non-empty exactly when the
-    /// entries declare `val`/`var` (name-based) — the same layout contract
-    /// statement destructuring uses.
     private func parseDestructuringEntries(
         from innerTokens: [Token]
     ) -> (names: [InternedString?], properties: [InternedString?], mutableFlags: [Bool]) {
@@ -469,8 +439,6 @@ extension BuildASTPhase.ExpressionParser {
         else {
             return
         }
-        // `val a = first` binds `a` to the property named `first`; without
-        // recording the alias Sema can only guess the declared name.
         var property: InternedString?
         var depth = BuildASTPhase.BracketDepth()
         var scan = entry.index(after: firstIndex)
@@ -487,8 +455,6 @@ extension BuildASTPhase.ExpressionParser {
             depth.track(entry[scan].kind)
             scan = entry.index(after: scan)
         }
-        // Only a bare `_` skips the entry; a backticked `` `_` `` binds a real
-        // variable named `_`, matching kotlinc.
         if case .identifier = entry[firstIndex].kind, interner.resolve(name) == "_" {
             names.append(nil)
         } else {
@@ -503,8 +469,6 @@ extension BuildASTPhase.ExpressionParser {
         body: ExprID,
         range: SourceRange
     ) -> ExprID {
-        // Keep one parameter per argument; component declarations use the
-        // expected type of their own parameter, including in mixed lists.
         let declarations = params.compactMap { param -> ExprID? in
             guard let names = param.destructuringNames,
                   let syntax = param.destructuringSyntax
@@ -530,10 +494,6 @@ extension BuildASTPhase.ExpressionParser {
         ))
     }
 
-    /// Whether `tokens` (everything before a top-level `->` inside `{ ... }`)
-    /// form a well-formed lambda parameter list: either empty (`{ -> body }`),
-    /// a nonempty destructuring group `(a)`, `(a, b)`, `[a]` or `[a, b]`, or a comma-separated list of
-    /// `[annotations] name [: Type]` segments whose type parses completely
     /// (function types included). A body expression like `s as (Int) -> Int`
     /// leaves an `->` in the brace group; the strict check keeps it from being
     /// mistaken for `s as (Int)` parameters — `{ s as () -> Int }` is a lambda
@@ -568,8 +528,6 @@ extension BuildASTPhase.ExpressionParser {
         }
         guard idx < segment.endIndex else { return false }
         if lambdaDestructuringSyntax(for: segment[idx].kind) != nil {
-            // Destructuring parameters in either delimiter form can be mixed with
-            // regular parameters and optionally followed by `: Type`.
             guard let closeIndex = lambdaDestructuringCloseIndex(in: segment[idx...]),
                   isDestructuringEntries(segment[(idx + 1)..<closeIndex])
             else {
@@ -667,7 +625,6 @@ extension BuildASTPhase.ExpressionParser {
             }
             depth.track(inner[idx].kind)
         }
-        // Kotlin permits a trailing comma after the last component.
         if entryStart < inner.endIndex {
             let entry = inner[entryStart...]
             guard isDestructuringEntry(entry) else { return false }
@@ -710,8 +667,6 @@ extension BuildASTPhase.ExpressionParser {
                 && tokenText(declaration[property]) != nil
         }
 
-        // Component annotations use the same name/type grammar as plain
-        // parameters; reject expressions and incompletely parsed types.
         return isWellFormedLambdaParamSegment(declaration)
     }
 

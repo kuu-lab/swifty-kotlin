@@ -58,9 +58,6 @@ func runtimeThrowableVtableMethodRaw(_ receiver: Int, slot: Int) -> Int? {
     }
 }
 
-/// `message` of a Kotlin-defined Throwable subclass, read through its vtable
-/// slot so an `override val message` is honoured; falls back to the stored
-/// constructor message when there is no override or the getter throws.
 func runtimeSourceThrowableMessage(_ raw: Int, object: RuntimeObjectBox) -> String? {
     guard let methodRaw = runtimeThrowableVtableMethodRaw(raw, slot: RuntimeThrowableVtableSlot.message),
           methodRaw != unsafeBitCast(runtimeThrowableMessageVtableMethod, to: Int.self)
@@ -154,9 +151,6 @@ private let runtimeSourceThrowableQualifiedNames: [Int64: String] = {
 }()
 
 func runtimeSourceThrowableQualifiedName(for classID: Int64) -> String {
-    // Nominal type tokens use the same payload as classID, with the nominal
-    // base and nullability bit encoded around it. KClass metadata therefore
-    // provides the source name for user-defined throwable classes as well.
     let payloadMask: UInt64 = (1 << 55) - 1
     let tokenBits = (UInt64(bitPattern: classID) & payloadMask) << 9 | 6
     let typeToken = Int(truncatingIfNeeded: tokenBits)
@@ -190,8 +184,6 @@ func runtimeIsThrowableRaw(_ raw: Int) -> Bool {
     )
 }
 
-/// Header and saved native frames for a single throwable. Kotlin-side
-/// formatting walks cause and suppressed chains and adds their prefixes.
 func runtimeThrowableRawStackFrameStrings(from throwableRaw: Int) -> [String] {
     if throwableRaw == runtimeNullSentinelInt || throwableRaw == 0 {
         return []
@@ -278,7 +270,6 @@ public func __kk_throwable_new_with_cause(_ message: UnsafeMutableRawPointer?, _
     let text = extractString(from: message)
     let messageRaw = normalizeNullableRuntimePointer(message).map { Int(bitPattern: $0) } ?? 0
     let cause = (causeRaw == runtimeNullSentinelInt || causeRaw == 0) ? 0 : causeRaw
-    // The cause-taking constructor initializes the cause slot even for null.
     let throwableInt = runtimeMarkThrowableCauseInitialized(
         runtimeAllocateThrowable(message: text, cause: cause, messageRaw: messageRaw)
     )
@@ -292,7 +283,6 @@ public func __kk_throwable_new_with_cause(_ message: UnsafeMutableRawPointer?, _
 public func __kk_throwable_new_cause(_ causeRaw: Int) -> UnsafeMutableRawPointer {
     let cause = (causeRaw == runtimeNullSentinelInt || causeRaw == 0) ? 0 : causeRaw
     let message = runtimeCauseToString(from: cause)
-    // The cause-taking constructor initializes the cause slot even for null.
     let throwableInt = runtimeMarkThrowableCauseInitialized(
         runtimeAllocateThrowable(message: message, cause: cause)
     )
@@ -307,10 +297,6 @@ public func kk_throwable_is_cancellation(_ throwableRaw: Int) -> Int {
     kk_is_cancellation_exception(throwableRaw)
 }
 
-/// `Throwable.message` getter: returns the constructor argument's own `String`
-/// handle when one was supplied (matching the JVM field reference), otherwise
-/// lazily materializes and caches one stable box for runtime-synthesized
-/// messages so `e.message === e.message` holds too.
 private func runtimeThrowableMessageHandle(boxRaw: inout Int, text: String?) -> Int {
     if boxRaw != 0 {
         return boxRaw
@@ -345,8 +331,6 @@ public func __kk_throwable_message(_ throwableRaw: Int) -> Int {
     return runtimeNullSentinelInt
 }
 
-/// Stores a message for a Kotlin-defined Throwable subclass allocated through
-/// the ordinary object path rather than a RuntimeThrowableBox bridge.
 @_cdecl("__kk_throwable_setMessage")
 public func __kk_throwable_setMessage(_ throwableRaw: Int, _ messageRaw: Int) -> Int {
     guard throwableRaw != runtimeNullSentinelInt,
@@ -474,12 +458,6 @@ public func __kk_throwable_toString(
     }
 }
 
-/// Storage bridge for `Throwable.initCause`: overwrites the cause slot.
-/// Every caller is a constructor-time initialization path (the protected
-/// 4-arg `Throwable` constructor, exception subclass constructor bodies, or
-/// `Throwable.initCause` after its JVM guards passed), so the write always
-/// marks the cause as initialized — matching the JVM where assigning
-/// `this.cause` outside the uninitialized sentinel state is final.
 @_cdecl("__kk_throwable_setCause")
 public func __kk_throwable_setCause(_ throwableRaw: Int, _ causeRaw: Int) -> Int {
     guard throwableRaw != runtimeNullSentinelInt, throwableRaw != 0,
@@ -502,24 +480,12 @@ public func __kk_throwable_setCause(_ throwableRaw: Int, _ causeRaw: Int) -> Int
     return throwableRaw
 }
 
-/// Marks a freshly allocated throwable's cause slot as constructor-initialized.
-/// Cause-taking `@_cdecl` factories (`*_new_message_cause`, `*_new_cause`,
-/// `__kk_throwable_new_with_cause`, ...) wrap their allocation with this so a
-/// later `Throwable.initCause` observes the JVM "already initialized" state
-/// even when the constructor's cause argument was null. Non-null causes are
-/// already marked by `RuntimeThrowableBox.init`.
 @discardableResult
 func runtimeMarkThrowableCauseInitialized(_ raw: Int) -> Int {
     runtimeThrowableBox(from: raw)?.causeInitialized = true
     return raw
 }
 
-/// `Throwable.initCause` with the JVM guards from `java.lang.Throwable`:
-/// an already-initialized cause slot fails with
-/// `IllegalStateException("Can't overwrite cause with " + cause)` first, then a
-/// self-cause argument fails with
-/// `IllegalArgumentException("Self-causation not permitted")`. Both thrown
-/// exceptions carry the receiver as their own cause, like the JDK.
 @_cdecl("__kk_throwable_initCause")
 public func __kk_throwable_initCause(
     _ throwableRaw: Int,
@@ -543,8 +509,6 @@ public func __kk_throwable_initCause(
         }
         let causeValue = (causeRaw == runtimeNullSentinelInt || causeRaw == 0) ? 0 : causeRaw
         if causeInitialized {
-            // `Objects.toString(cause, "a null")`: the parameter's `toString()`,
-            // or "a null" when the argument was null.
             let causeDescription = runtimeCauseToString(from: causeRaw) ?? "a null"
             runtimeSetThrown(
                 outThrown,
@@ -580,12 +544,6 @@ public func __kk_throwable_initCause(
     }
 }
 
-/// Copies the cause slot — value and initialized flag — from one throwable to
-/// another. Used by constructor lowering when a Kotlin-defined Throwable
-/// subclass delegates to a runtime-factory super constructor: the factory
-/// product's cause state (including "uninitialized" for message-only
-/// constructors and "initialized to null" for cause-taking ones) must carry
-/// over verbatim so `initCause` keeps JVM semantics on the subclass instance.
 @_cdecl("__kk_throwable_adoptCause")
 public func __kk_throwable_adoptCause(_ throwableRaw: Int, _ sourceRaw: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw),
@@ -652,7 +610,6 @@ public func __kk_throwable_set_options(
     return throwableRaw
 }
 
-/// Storage bridge for `Throwable.addSuppressed`: appends to the suppressed list.
 @_cdecl("__kk_throwable_appendSuppressed")
 public func __kk_throwable_appendSuppressed(_ throwableRaw: Int, _ suppressedRaw: Int) -> Int {
     guard let suppressedPtr = UnsafeMutableRawPointer(bitPattern: suppressedRaw),
@@ -673,8 +630,6 @@ public func __kk_throwable_appendSuppressed(_ throwableRaw: Int, _ suppressedRaw
         return 0
     }
 
-    // Match Kotlin/JVM's major behavior by rejecting self-suppression while
-    // remaining ABI-compatible with this non-throwing runtime entrypoint.
     guard throwableRaw != suppressedRaw else { return 0 }
     if let throwable = tryCast(throwablePtr, to: RuntimeThrowableBox.self) {
         guard throwable.suppressionEnabled else { return 0 }
@@ -689,7 +644,6 @@ public func __kk_throwable_appendSuppressed(_ throwableRaw: Int, _ suppressedRaw
     return 0
 }
 
-/// Storage bridge for `Throwable.getSuppressed`: the raw `Array<Throwable>`.
 @_cdecl("__kk_throwable_suppressedRaw")
 public func __kk_throwable_suppressedRaw(_ throwableRaw: Int) -> Int {
     let suppressed: [Int]

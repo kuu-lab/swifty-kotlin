@@ -1,4 +1,3 @@
-/// No external dependencies.
 enum SHA256 {
     static func hex(_ bytes: [UInt8]) -> String {
         var hash = [UInt8](repeating: 0, count: 32)

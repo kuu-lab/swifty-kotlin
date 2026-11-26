@@ -4,13 +4,6 @@
 import Foundation
 import Testing
 
-// STDLIB-030: kotlin.io common - File read/write codegen tests
-//
-// CLEANUP-STUB-107 removed java.io.File's writeText/appendText/delete synthetic
-// members. File.readText() is now a Kotlin-source extension in
-// Stdlib/kotlin/io/FileIO.kt and routes through the runtime readText bridge.
-// Fixture files are written from the host side because File.writeText() and
-// File.delete() remain outside the supported surface.
 @Suite
 struct CodegenBackendFileIOReadWriteTests {
 
@@ -89,8 +82,6 @@ struct CodegenBackendFileIOReadWriteTests {
         try assertKotlinOutput(source, moduleName: "FileReadLines", expected: "3\nalpha\nbeta\ngamma\n")
     }
 
-    // KUU-640: File.readLines / forEachLine / useLines must treat LF, CR, and
-    // CRLF as terminators and must not leave `\r` in the line.
     // assertKotlinOutput normalizes `\r\n` in stdout, so leftover CR would be
     // hidden by `println(line)`; emit length and a visible CR marker instead.
     @Test func testCodegenFileReadLinesMixedLineEndings() throws {
@@ -159,10 +150,6 @@ struct CodegenBackendFileIOReadWriteTests {
         )
     }
 
-    // KUU-4077: File.readBytes() and the charset-parameterized line readers
-    // (readLines/forEachLine/useLines) are Kotlin-source extensions over the
-    // existing `__kk_io_fs_*` descriptor bridges and `__kk_file_readText`;
-    // kotlin.text.charset() delegates to java.nio.charset.Charset.forName.
     @Test func testCodegenFileReadBytesAndCharsetApis() throws {
         let tmpPath = "/tmp/kswiftk_file_read_bytes_codegen_\(UUID().uuidString).txt"
         try "alpha\nbeta\n".write(toFile: tmpPath, atomically: true, encoding: .utf8)

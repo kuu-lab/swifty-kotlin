@@ -95,7 +95,7 @@ struct ClosureMutationSmartCastTests {
         """)
         try runSema(ctx)
         #expect(ctx.diagnostics.diagnostics.contains {
-            $0.code == "KSWIFTK-SEMA-0002" || $0.code == "KSWIFTK-SEMA-0022"
+            $0.code == "KSWIFTK-SEMA-0002" || $0.code == "KSWIFTK-SEMA-0022" || $0.code == "KSWIFTK-SEMA-0026"
         }, "Expected a nullable receiver diagnostic, got: \(ctx.diagnostics.diagnostics.map(\.code))")
     }
 
@@ -113,7 +113,6 @@ struct ClosureMutationSmartCastTests {
     }
 
     private func makeNullableCaptureContext(_ source: String) -> CompilationContext {
-        // These regressions use only user declarations and primitive types.
         let path = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kt").path
         let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
         _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))

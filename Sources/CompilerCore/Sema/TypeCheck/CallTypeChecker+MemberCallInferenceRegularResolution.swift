@@ -3,9 +3,6 @@ import Foundation
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
-    /// `sourceBackedCollectionMemberNames` and
-    /// `sourceBackedTrailingLambdaMemberNames` live on `KnownCompilerNames`
-    /// as per-interner `Set<InternedString>` tables.
 
     func inferRegularMemberCall(
         _ request: MemberCallInferenceRequest,
@@ -71,8 +68,6 @@ extension CallTypeChecker {
             calleeName: request.calleeName, receiverID: request.receiverID, receiverType: receiverType,
             args: request.args, ctx: request.ctx, locals: &locals
         )
-        // callBy supplies the parameter-map context to nested generic calls.
-        // Infer it before context-free argument probing can emit a stale error.
         let callableReceiverType = request.safeCall ? request.sema.types.makeNonNullable(receiverType) : receiverType
         if request.calleeName == request.knownNames.callBy,
            case let .functionType(functionType) = request.sema.types.kind(of: callableReceiverType),
@@ -125,10 +120,6 @@ extension CallTypeChecker {
                     expectedType: request.sema.types.longType
                 )
             }
-            // Speculative declaration checks can leave names bound to
-            // placeholder types and nested calls bound to ErrorType before an
-            // inferred member is available. Re-read names and retry inferable
-            // nested calls whose cached result still contains an error.
             let inferredType: TypeID
             if request.ctx.builderInference != nil || {
                 if case .nameRef = request.ast.arena.expr(arg.expr) { return true }
@@ -154,9 +145,6 @@ extension CallTypeChecker {
                    interner: request.interner
                )
             {
-                // Floating-point range expressions use a scalar lowering type for
-                // the existing range runtime path, but source-backed coerceIn
-                // resolves against ClosedFloatingPointRange<T>.
                 return rangeType
             }
             return inferredType
@@ -183,8 +171,6 @@ extension CallTypeChecker {
             ) {
                 return result
             }
-            // Extensions on `KCallable<R>` / `KFunction<R>` (kotlin.reflect.full:
-            // `callSuspend`, ...) must see a callable reference as its reflective type.
             if let kFunctionSymbol = request.sema.types.kFunctionInterfaceSymbol {
                 lookupReceiverType = request.sema.types.make(.classType(ClassType(
                     classSymbol: kFunctionSymbol,
@@ -244,8 +230,6 @@ extension CallTypeChecker {
         }
         let isSyntacticRangeCollectionMember = (request.calleeName == request.knownNames.plus || request.calleeName == request.knownNames.minus)
             && ControlFlowTypeChecker.isRangeExpression(request.receiverID, ast: request.ast)
-        // Numeric mod is an extension, so an applicable user extension in a
-        // nearer scope must be resolved before the primitive fallback.
         let hasUserNumericMod = {
             guard request.calleeName == request.knownNames.mod, request.args.count == 1,
                   case .primitive = request.sema.types.kind(of: request.sema.types.makeNonNullable(lookupReceiverType))
@@ -342,10 +326,6 @@ extension CallTypeChecker {
         } else {
             nil
         }
-        // Inferred primitive ranges retain a scalar handle type for lowering.
-        // Restore their nominal receiver for ordinary member/extension lookup
-        // and overload inference as well as the named bundled range fallbacks.
-        // Leave explicitly typed receivers intact, including their nullability.
         let rangeExtensionLookupType: TypeID? = if !isSuperCall,
                                                   case .primitive = request.sema.types.kind(of: lookupReceiverType)
         {
@@ -363,8 +343,6 @@ extension CallTypeChecker {
         } else {
             nil
         }
-        // Final numeric bounds expose the same builtin compareTo overloads as
-        // their primitive. Keep nonnumeric extension calls on the original T.
         let primitiveComparisonReceiver: TypeID? = {
             guard request.calleeName == request.knownNames.compareTo, argTypes.count == 1,
                   let receiver = resolvePrimitiveArithmeticUpperBound(
@@ -455,10 +433,6 @@ extension CallTypeChecker {
             return sourceType
         }
 
-        // `ClosedRange.isEmpty` is also a valid candidate for a syntactic
-        // ULongRange expression. Prefer the exact bundled ULongRange source
-        // extension before ordinary member resolution can select that broader
-        // interface helper.
         if !isSuperCall,
            request.calleeName == request.knownNames.isEmpty,
            request.args.isEmpty,
@@ -482,10 +456,6 @@ extension CallTypeChecker {
             return sourceType
         }
 
-        // When the receiver is a name reference to a class/interface/enumClass
-        // symbol, only companion members should be accessible (not instance
-        // methods).  This prevents `Foo.instanceMethod()` from resolving when
-        // there is no companion with that name.
         let classNameReceiverNominalSymbol: SymbolID? = {
             func nominalSymbol(for symbolID: SymbolID) -> SymbolID? {
                 guard let symbol = request.sema.symbols.symbol(symbolID) else { return nil }
@@ -546,7 +516,6 @@ extension CallTypeChecker {
             if !receiverIsQualifiedThisOrSuper,
                let receiverSymbolID = request.sema.bindings.identifierSymbol(for: request.receiverID)
             {
-                // A resolved value must not fall back to a same-named imported classifier.
                 return nominalSymbol(for: receiverSymbolID)
             }
             if case let .nameRef(receiverName, _) = request.ast.arena.expr(request.receiverID) {
@@ -602,9 +571,6 @@ extension CallTypeChecker {
             return result
         }
         var allCandidates = collected.allCandidates
-        // With no eligible callable, type-check the ordinary primitive shape
-        // solely to preserve SEMA-0307 at the entry point (e.g. `2 plus 3`).
-        // Any infix extension, even an inapplicable one, prevents this fallback.
         if request.ast.arena.isInfixCall(request.id), allCandidates.isEmpty,
            let result = tryInferRegularMemberCallPrimitiveSpecials(
                request, receiverType: receiverType, lookupReceiverType: lookupReceiverType,

@@ -23,18 +23,11 @@ func runtimeIndexedValueNew(index: Int, value: RuntimeValue) -> Int {
     guard let box = runtimeArrayBox(from: raw) else {
         return raw
     }
-    // Mirror the compiled data-class constructor's `kk_array_set_typed`
-    // stores: `index`/`value` both carry the generic Any-fallback tag (1).
     box.setValue(index, at: 2, anyFallbackTag: 1)
     box.setValue(value.legacyRawValue, at: 3, anyFallbackTag: 1)
     return raw
 }
 
-/// KSP-626: `IndexedValue` is a source-backed Kotlin data class, so its
-/// instances are ordinary heap objects (index@2, value@3). The Any-erased
-/// print/toString paths cannot invoke the generated `toString`, so render such
-/// an instance here — mirroring the legacy Pair-box special case. Returns nil
-/// for any other object.
 func runtimeRenderIndexedValueObject(_ raw: Int, render: (RuntimeValue) -> String) -> String? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
           let box = tryCast(ptr, to: RuntimeObjectBox.self),
@@ -55,13 +48,10 @@ func handleCollectionLambdaThrow(_ thrown: Int, _ outThrown: UnsafeMutablePointe
     }
 }
 
-/// Panics when a collection HOF receives an invalid container handle.
-/// Replaces silent fallbacks (return empty list/map/0/false) that mask runtime corruption.
 func invalidContainerPanic(_ caller: StaticString, _ kind: StaticString) -> Never {
     fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(caller) received invalid \(kind) handle")
 }
 
-/// Used by legacy test shims.
 @discardableResult
 func mapInsertOrUpdate(
     dest: RuntimeMapBox,
@@ -143,13 +133,8 @@ private let runtimeAutoCloseableCloseThunk: @convention(c) (Int, UnsafeMutablePo
     return 0
 }
 
-/// AutoCloseable is now a source-backed interface in `kotlin` (KSP-721);
-/// `kotlin.io.Closeable` extends it. The stable nominal type ID used for
-/// itableDynamic dispatch of `AutoCloseable.close()` is keyed by "kotlin.AutoCloseable".
 private let runtimeAutoCloseableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.AutoCloseable")
 
-/// `AutoCloseable { closeAction }` factory. KSP-721: the public factory is Kotlin
-/// source (Stdlib/kotlin/AutoCloseable.kt) delegating to this demoted bridge.
 @_cdecl("__kk_auto_closeable_create")
 public func kk_auto_closeable_create(_ fnPtr: Int, _ closureRaw: Int) -> Int {
     let resourceRaw = registerRuntimeObject(RuntimeAutoCloseableBox(fnPtr: fnPtr, closureRaw: closureRaw))
@@ -636,8 +621,6 @@ public func kk_list_randomOrNull(_ listRaw: Int) -> Int {
 
 
 
-// `sortedBy` is source-backed for List receivers, but Iterable/Collection/Set
-// receivers (for example Map.entries) still use this ABI-compatible bridge.
 @_cdecl("kk_list_sortedBy")
 public func kk_list_sortedBy(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let elements = runtimeCollectionElements(from: listRaw) else {

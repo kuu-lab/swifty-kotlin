@@ -7,14 +7,6 @@
 
 package kotlin
 
-/**
- * This annotation marks the standard library API that is considered experimental and is not subject to the
- * [general compatibility guarantees](https://kotlinlang.org/docs/reference/evolution/components-stability.html) given for the standard library:
- * the behavior of such API may be changed or the API may be removed completely in any further release.
- *
- * > Beware using the annotated API especially if you're developing a library, since your library might become binary incompatible
- * with the future versions of the standard library.
- */
 @kotlin.RequiresOptIn(level = RequiresOptIn.Level.ERROR)
 @kotlin.annotation.Retention(AnnotationRetention.BINARY)
 @kotlin.annotation.Target(

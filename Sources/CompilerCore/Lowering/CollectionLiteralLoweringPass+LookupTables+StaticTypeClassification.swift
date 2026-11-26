@@ -1,20 +1,9 @@
-/// Interned name tables backing `trackedStaticTypeKind` (LOWERING-001).
-///
-/// Every probed name and package prefix is compilation-constant, so the pass
-/// builds this table once via `CollectionLiteralLookupTables` instead of
-/// re-interning the stdlib names and re-allocating per-kind name arrays on
-/// every classified expression.
 struct StaticTypeClassificationNames {
-    /// One dictionary probe replaces the ordered per-kind
-    /// `simpleNames.contains` scans `trackedStaticTypeKind` used to run.
     struct Entry {
         let kind: CollectionLiteralTrackedStaticTypeKind
-        /// Package prefix the symbol's FQ name must sit under.
         let package: [InternedString]
     }
 
-    /// The names are unique across categories, so this map is equivalent to the
-    /// ordered per-kind name lists it replaces.
     let trackedKindBySimpleName: [InternedString: Entry]
 
     let sourceObjectConstructingAsSequenceReceivers: Set<[InternedString]>
@@ -41,8 +30,6 @@ struct StaticTypeClassificationNames {
         ] {
             byName[interner.intern(name)] = Entry(kind: .map, package: collectionsPackage)
         }
-        // java.util sorted collections are RuntimeSetBox/RuntimeMapBox-backed —
-        // KUU-1361.
         for name in ["SortedSet", "NavigableSet", "TreeSet"] {
             byName[interner.intern(name)] = Entry(kind: .set, package: javaUtilPackage)
         }

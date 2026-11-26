@@ -4,8 +4,6 @@ enum DataFlowValue: Hashable {
     case symbol(SymbolID)
 }
 
-/// Finite-value and negative-type facts kept alongside a variable's positive
-/// smart-cast type. `possibleValues == nil` means no finite value set is known.
 struct DataFlowValueFacts: Equatable {
     var possibleValues: Set<DataFlowValue>?
     var excludedValues: Set<DataFlowValue>
@@ -25,7 +23,6 @@ struct DataFlowValueFacts: Equatable {
         possibleValues == nil && excludedValues.isEmpty && excludedTypes.isEmpty
     }
 
-    /// Combines facts known on the same path.
     func combining(_ other: Self) -> Self {
         let possibleValues: Set<DataFlowValue>?
         if let current = self.possibleValues, let next = other.possibleValues {
@@ -40,7 +37,6 @@ struct DataFlowValueFacts: Equatable {
         )
     }
 
-    /// Retains only facts that hold after either control-flow path can continue.
     func joining(_ other: Self) -> Self {
         let possibleValues: Set<DataFlowValue>? = if let current = self.possibleValues,
                                                        let next = other.possibleValues
@@ -125,10 +121,6 @@ struct DataFlowState: Equatable {
 struct WhenBranchSummary {
     let coveredSymbols: Set<InternedString>
     let coveredTypeSymbols: Set<SymbolID>
-    /// Full target types of positive `is` conditions on the subject,
-    /// preserving nullability and arguments (e.g. `is T` vs `is T?`).
-    /// Used to decide whether the checks cover the whole subject domain
-    /// (`is T` + `null` exhausts `T?`) independent of nominal symbols.
     let coveredTypeCheckTypes: Set<TypeID>
     let negatedTypeCheckTypes: Set<TypeID>
     let hasElse: Bool
@@ -174,10 +166,6 @@ final class DataFlowAnalyzer {
     /// same assignment into a spurious "val cannot be reassigned" error
     /// (KUU-4513).
     var valInitializingAssignmentExprs: Set<ExprID> = []
-    /// Cache for `localFlowSymbols`: the set of `.local` symbols is rebuilt for
-    /// every closure-capture stability proof, which costs O(all symbols) per
-    /// null comparison on a captured mutable local. Symbol registration is
-    /// append-only during sema, so the symbol count keys the cache safely.
     var localFlowSymbolCache: (symbolCount: Int, symbols: Set<SymbolID>)?
     init() {}
 
@@ -193,10 +181,6 @@ final class DataFlowAnalyzer {
         guard let conditionExpr = ast.arena.expr(conditionID) else {
             return ConditionBranch(trueState: base, falseState: base)
         }
-        // `x!!` proves `x` non-null on every path where it is evaluated, so
-        // unconditionally-evaluated asserts narrow both outcome states. This
-        // is what publishes an `x!!` nested inside an `&&`/`||` operand into
-        // the branch bodies (KUU-3943).
         let base = evaluatedNullAssertState(
             conditionID, base: base, locals: locals, ast: ast, sema: sema, interner: interner
         )
@@ -233,10 +217,6 @@ final class DataFlowAnalyzer {
         }
     }
 
-    /// Narrows every stable `x!!` operand that this condition evaluates
-    /// unconditionally. A `!!` that completes proves its operand non-null on
-    /// both the true and the false outcome path, so both branch states derive
-    /// from the returned state (KUU-3943).
     private func evaluatedNullAssertState(
         _ conditionID: ExprID,
         base: DataFlowState,
@@ -277,7 +257,6 @@ final class DataFlowAnalyzer {
                 forEachUnconditionallyEvaluatedNullAssertOperand(in: arg.expr, ast: ast, visit: visit)
             }
         case let .safeMemberCall(receiver, _, _, _, _):
-            // `a?.f(x!!)` evaluates `x!!` only when `a` is non-null.
             forEachUnconditionallyEvaluatedNullAssertOperand(in: receiver, ast: ast, visit: visit)
         case let .call(callee, _, args, _):
             forEachUnconditionallyEvaluatedNullAssertOperand(in: callee, ast: ast, visit: visit)
@@ -319,7 +298,6 @@ final class DataFlowAnalyzer {
         case let .ifExpr(nestedCondition, _, _, _):
             forEachUnconditionallyEvaluatedNullAssertOperand(in: nestedCondition, ast: ast, visit: visit)
         case let .callableRef(receiver, _, _):
-            // A bound callable reference evaluates its receiver.
             if let receiver {
                 forEachUnconditionallyEvaluatedNullAssertOperand(in: receiver, ast: ast, visit: visit)
             }
@@ -389,8 +367,6 @@ final class DataFlowAnalyzer {
         return state
     }
 
-    /// Narrows a stable local expression to its non-null type after a contract
-    /// guarantees that the expression is non-null on normal return.
     func narrowNonNull(
         _ expressionID: ExprID,
         base: DataFlowState,
@@ -427,9 +403,6 @@ final class DataFlowAnalyzer {
         return variables
     }
 
-    /// The completing path of `left ?: return` implies a non-null left result.
-    /// An immutable local's initializer also carries this implication when
-    /// its receiver is still the same value.
     func narrowAfterNonNullResult(
         _ id: ExprID,
         base: DataFlowState,
@@ -506,8 +479,6 @@ final class DataFlowAnalyzer {
         } else {
             currentType
         }
-        // Mirror the `as` cast refinement: keep an already-narrower type,
-        // take the target when it is more specific, otherwise intersect.
         let refinedType: TypeID
         if sema.types.isSubtype(effectiveType, nonNullTarget) {
             refinedType = effectiveType
@@ -516,8 +487,6 @@ final class DataFlowAnalyzer {
         } else {
             refinedType = sema.types.make(.intersection([effectiveType, nonNullTarget]))
         }
-        // Re-resolve with the final type so the closure-write check proves
-        // preservation against the narrowed type, not just the cast target.
         guard let (_, _, isStable) = resolveStableReference(
             operandID,
             locals: locals,
@@ -538,9 +507,6 @@ final class DataFlowAnalyzer {
         return variables
     }
 
-    /// Narrows each stable side of an equality comparison to the other side's
-    /// type when that type is strictly more precise (Kotlin smart cast on
-    /// `x === y` / `x == y`).
     private func narrowStateForTypedEquality(
         lhsID: ExprID,
         rhsID: ExprID,
@@ -665,8 +631,6 @@ final class DataFlowAnalyzer {
                 }
                 return branch
             }
-            // `x === null` / `x !== null` narrow nullability exactly like `==`/`!=`
-            // (identity comparison against the null literal is not overridable).
             let nullResult = branchOnNullComparison(
                 lhsID: lhsID, rhsID: rhsID,
                 base: base, locals: locals,
@@ -681,8 +645,6 @@ final class DataFlowAnalyzer {
             if let safeCallBranch {
                 return safeCallBranch
             }
-            // `x === y` / `x == y` narrows the wider side to the tighter type on
-            // the equality-true branch (the false branch of `!==`/`!=`).
             let typedEqualityTrueState = narrowStateForTypedEquality(
                 lhsID: lhsID, rhsID: rhsID,
                 base: base, locals: locals,
@@ -1050,10 +1012,7 @@ final class DataFlowAnalyzer {
         // raw/star-projected `List<*>` -- see narrowedSubtypeArgs.
         let refinedTargetType = refineIsCheckTargetType(rawTargetType, priorType: priorType, sema: sema)
         let targetNullability = sema.types.nullability(of: refinedTargetType)
-        // The first is-check must retain the declared type too (KUU-2138).
-        // A non-null target also proves the prior value is non-null.
         let existingType = targetNullability == .nonNull ? sema.types.makeNonNullable(priorType) : priorType
-        // A non-null prior value cannot be the null accepted by `is Marker?`.
         let targetType = isKnownNonNullForIsCheck(existingType, sema: sema)
             ? sema.types.makeNonNullable(refinedTargetType) : refinedTargetType
         let narrowedType: TypeID
@@ -1136,9 +1095,6 @@ final class DataFlowAnalyzer {
         switch conditionExpr {
         case .nullLiteral:
             var vars = base
-            // See `branchOnNullComparison`: a type parameter narrows to
-            // `Nothing? & T`, preserving its identity for later joins
-            // (KUU-2693).
             let nullType: TypeID
             if case .typeParam = sema.types.kind(of: subjectType) {
                 nullType = sema.types.make(.intersection([sema.types.nullableNothingType, subjectType]))
@@ -1231,8 +1187,6 @@ final class DataFlowAnalyzer {
             let rawNarrowed = sema.types.make(.classType(ClassType(
                 classSymbol: conditionSymbolID, args: [], nullability: .nonNull
             )))
-            // Same "no explicit type argument" narrowing gap as
-            // narrowedStateForIsCheck -- see refineIsCheckTargetType.
             let narrowed = refineIsCheckTargetType(rawNarrowed, priorType: subjectType, sema: sema)
             var vars = base
             vars[subjectSymbol] = VariableFlowState(
@@ -1275,9 +1229,6 @@ final class DataFlowAnalyzer {
         ) else {
             return base
         }
-        // `when (this) { is List -> ... }` on a value known to be
-        // `Iterable<T>` must narrow to `List<T>`, not an under-specified
-        // `List` -- see the matching fix in branchOnIsCheck/refineIsCheckTargetType.
         let narrowed = refineIsCheckTargetType(rawNarrowed, priorType: subjectType, sema: sema)
         let narrowedNullability = sema.types.nullability(of: narrowed)
         var vars = base
@@ -1366,9 +1317,6 @@ final class DataFlowAnalyzer {
     }
 
     private func makeTypeNonNullable(_ type: TypeID, types: TypeSystem) -> TypeID {
-        // A type parameter narrows to `T & Any` — Kotlin's definitely
-        // non-null refinement — because bare `T` stays null-capable through
-        // its implicit `Any?` bound (KUU-2693).
         types.definitelyNonNullForm(of: type)
     }
 
@@ -1424,23 +1372,12 @@ final class DataFlowAnalyzer {
         if branches.hasElse {
             return true
         }
-        // Positive `is` conditions that cover the whole subject domain make
-        // the `when` exhaustive regardless of the subject's nominal kind:
-        // `is T` covers every non-null value of `T?`, so `is T` + `null`
-        // exhausts a nullable subject, and a covering check alone (`S <: X`,
-        // e.g. `is Any` over `Any`) suffices on a subject that cannot be
-        // null. kotlinc applies the same rule (KUU-4024).
         if isSubjectFullyCoveredByTypeChecks(
             subjectType: subjectType, branches: branches, sema: sema,
             valueFacts: valueFacts
         ) {
             return true
         }
-        // A finite reachable-value set is exhaustive on its own when every
-        // value the subject can still take is covered, whatever its static
-        // type is — a local narrowed to a singleton type (e.g. `s = S.O`
-        // refining `s: S` to the object type) keeps its declared domain's
-        // exhaustiveness only through this check.
         if let possibleValues = valueFacts?.possibleValues,
            possibleValues.allSatisfy({
                isWhenBranchCovered($0, branches: branches, sema: sema)
@@ -1509,8 +1446,6 @@ final class DataFlowAnalyzer {
         }
     }
 
-    /// P5-78: Returns the set of missing sealed subtype InternedString names for diagnostic purposes.
-    /// Returns nil if the type is not a sealed type or if all branches are covered.
     func missingSealedBranches(
         subjectType: TypeID,
         branches: WhenBranchSummary,
@@ -1566,8 +1501,6 @@ final class DataFlowAnalyzer {
             return [subtype]
         }
         if subtypeSymbol.kind == .enumClass {
-            // A partially covered enum child reports its uncovered entries
-            // (`E.Y`), matching the subject-level enum exhaustiveness rule.
             let entries = enumEntrySymbols(for: subtypeSymbol, sema: sema)
             guard !entries.isEmpty else {
                 return [subtype]
@@ -1590,8 +1523,6 @@ final class DataFlowAnalyzer {
         }
     }
 
-    /// Exposes nominal components of a captured parameter's upper bound for
-    /// closed-world `when` checks while preserving possible null values.
     private func capturedUpperBoundClassTypes(for subjectType: TypeID, sema: SemaModule) -> [ClassType]? {
         guard case let .typeParam(parameter) = sema.types.kind(of: subjectType),
               let capture = parameter.capture
@@ -1623,11 +1554,6 @@ final class DataFlowAnalyzer {
         return classTypes(in: capture.upper)
     }
 
-    /// Whether the positive `is` conditions on the subject cover every value
-    /// of `subjectType`: some checked type must be a supertype of the
-    /// subject's non-null domain, and — when the subject can still hold
-    /// `null` — the null part must be covered by a `null` branch or a
-    /// nullable checked type (`null is T?` is true for any `T`) (KUU-4024).
     private func isSubjectFullyCoveredByTypeChecks(
         subjectType: TypeID,
         branches: WhenBranchSummary,
@@ -1643,22 +1569,10 @@ final class DataFlowAnalyzer {
         guard !checkedTypes.isEmpty else {
             return false
         }
-        // `is X` where X is the subject type itself covers the whole
-        // domain — including `is T` over `x: T` and `is T?` over `x: T?`
-        // (the null part is covered because `null is T?` holds).
         if checkedTypes.contains(subjectType) {
             return true
         }
-        // Null reachability is decided by the bound domain: a bare `T` still
-        // holds null through its implicit `Any?` upper bound, while `T : Any`
-        // cannot. For a non-parameter subject this is the subject type itself.
         let domain = whenSubjectCoverageDomain(of: subjectType, sema: sema)
-        // The non-null domain is proven covered from either side: the
-        // subject's own definitely-non-null form (`T & Any` for a type
-        // parameter — every non-null `T?` value is a `T`, so `is T` covers it
-        // even though `T`'s bound may be `Any?`), or the bound's non-null
-        // part (`is Int` covers `x: T` bounded by `T : Int?`). The two forms
-        // coincide for non-parameter subjects.
         let nonNullDomains = [
             sema.types.definitelyNonNullForm(of: subjectType),
             sema.types.definitelyNonNullForm(of: domain),
@@ -1679,12 +1593,6 @@ final class DataFlowAnalyzer {
             }
     }
 
-    /// Whether `null` is still a possible value of the `when` subject. For a
-    /// type parameter this looks at the bound rather than the bare `T`: `T`'s
-    /// nullability marker cannot express that an `Any?` or `Int?`-bounded
-    /// parameter still holds `null`, so `is Any` alone does not exhaust
-    /// `when (x: T)` while it does exhaust `x: T?` together with a `null`
-    /// branch.
     private func whenSubjectCoverageDomain(
         of subjectType: TypeID,
         sema: SemaModule
@@ -1795,9 +1703,6 @@ final class DataFlowAnalyzer {
         }) {
             return true
         }
-        // Inhabitant-enumerating subtypes propagate coverage upward: `is A` +
-        // `is B` exhaust a sealed child `N : F`, and `E.X` + `E.Y` exhaust an
-        // enum child `E : F` inside `when (f: F)` (KUU-3775).
         guard let subtypeSymbol = sema.symbols.symbol(subtype) else {
             return false
         }
@@ -1846,8 +1751,6 @@ final class DataFlowAnalyzer {
         }
     }
 
-    /// A negative `is` fact excludes a sealed leaf only when that whole leaf
-    /// is a subtype of the tested type.
     private func isSealedSubtypeWithin(
         _ subtype: SymbolID,
         targetType: TypeID,
@@ -1866,9 +1769,6 @@ final class DataFlowAnalyzer {
         return sema.types.isSubtype(subtypeType, targetType)
     }
 
-    /// A negated type check covers a sealed subtype only when their nominal
-    /// ranges are provably disjoint. Open types, generic applications, and
-    /// nullable targets can overlap in ways that the symbol graph cannot prove.
     private func isSealedSubtypeDisjointFrom(
         _ subtype: SymbolID,
         targetType: TypeID,
@@ -1898,8 +1798,6 @@ final class DataFlowAnalyzer {
         if isClassNominalType(subtype, sema: sema),
            isClassNominalType(targetSymbol, sema: sema)
         {
-            // Unrelated classes cannot share instances, even when either class
-            // is open: Kotlin classes have a single superclass.
             return true
         }
         return isClosedNominalType(subtype, sema: sema)
@@ -1932,8 +1830,6 @@ final class DataFlowAnalyzer {
         }
     }
 
-    /// P5-78: Get sealed subtype symbols, using sealedSubclasses metadata for cross-module support,
-    /// falling back to directSubtypes for same-module sealed types.
     private func sealedSubtypeSymbols(for classSymbol: SemanticSymbol, sema: SemaModule) -> [SymbolID] {
         if let sealedSubs = sema.symbols.sealedSubclasses(for: classSymbol.id) {
             return sealedSubs
@@ -1941,11 +1837,6 @@ final class DataFlowAnalyzer {
         return sema.symbols.directSubtypes(of: classSymbol.id)
     }
 
-    /// Refines a raw `is` target type resolved with no explicit type argument
-    /// (`this is List`) using a value already known to be some generic
-    /// `priorType` (e.g. `Iterable<T>`), narrowing `List` to `List<T>` rather
-    /// than leaving it under-specified. See `TypeSystem.narrowedSubtypeArgs`
-    /// for why this is sound and when it can't determine an argument.
     private func refineIsCheckTargetType(
         _ rawTargetType: TypeID,
         priorType: TypeID,

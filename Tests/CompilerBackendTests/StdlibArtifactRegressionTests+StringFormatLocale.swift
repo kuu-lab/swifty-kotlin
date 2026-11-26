@@ -5,7 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2020: imported format extensions must survive the synthetic-stub filter.
     @Test(arguments: [false, true])
     func testStringFormatLocaleOverloadsResolve(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil

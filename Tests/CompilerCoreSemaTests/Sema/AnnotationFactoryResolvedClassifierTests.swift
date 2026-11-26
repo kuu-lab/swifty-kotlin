@@ -40,7 +40,6 @@ struct AnnotationFactoryResolvedClassifierTests {
             #expect(errors.count == 4, "\(errors)")
             #expect(Set(errorLines) == [3, 5, 9, 10], "\(errors)")
             #expect(errors.allSatisfy {
-                // The visibility check reports the simple name, like kotlinc (#11722).
                 $0.code == "KSWIFTK-SEMA-0040"
                     && $0.message.contains("'Hidden'")
                     && !$0.message.contains("$annotationResolved")

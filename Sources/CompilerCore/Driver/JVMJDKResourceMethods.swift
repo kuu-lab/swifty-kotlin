@@ -7,8 +7,6 @@ extension JVMClasspathIndex {
         guard classes["java/net/URL"] != nil, let url = symbols.lookup(fqName: urlPath) else { return }
         let resultType = types.make(.classType(ClassType(classSymbol: url, args: [], nullability: .platformType)))
 
-        // Class has a bundled reflection declaration, and ClassLoader has a
-        // native resource stub. Bind both to the real classpath method on JVM.
         for name in ["Class", "ClassLoader"] {
             let ownerPath = ["java", "lang", name].map(interner.intern)
             guard let owner = symbols.lookup(fqName: ownerPath),

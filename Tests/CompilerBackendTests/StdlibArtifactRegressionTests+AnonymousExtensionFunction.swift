@@ -4,8 +4,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2192: Anonymous extension function expressions `fun Int.(): String`
-    /// should resolve properly as function types with receiver and emit callback ABI.
     @Test
     func testAnonymousExtensionFunctionAcrossStdlibSurfaces() throws {
         let repoRoot = URL(fileURLWithPath: #filePath)
@@ -26,7 +24,6 @@ extension StdlibArtifactRegressionTests {
 
         let artifactPath = try Self.buildStdlibArtifact()
 
-        // 1. Minimal and original fixtures across source and fresh .kklib × O0 / O2
         for (caseName, source) in [("minimal", minimalSource), ("original", originalSource)] {
             for (surface, libraryPath) in [("source", nil), ("fresh .kklib", artifactPath)] {
                 for optimization in [OptimizationLevel.O0, .O2] {
@@ -55,7 +52,6 @@ extension StdlibArtifactRegressionTests {
             }
         }
 
-        // 2. Control (receiver lambda) fixture on fresh .kklib × O0 / O2
         for optimization in [OptimizationLevel.O0, .O2] {
             let output = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString).path

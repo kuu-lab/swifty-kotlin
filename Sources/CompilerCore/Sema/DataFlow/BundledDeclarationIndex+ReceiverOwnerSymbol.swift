@@ -1,7 +1,4 @@
 extension BundledDeclarationIndex {
-    /// `KClass<T>` has a dedicated type representation, so it does not carry
-    /// the interface symbol in the type itself. Map it back to the registered
-    /// synthetic interface before attaching source-backed extensions.
     static func receiverOwnerSymbol(
         for receiverType: TypeID,
         types: TypeSystem

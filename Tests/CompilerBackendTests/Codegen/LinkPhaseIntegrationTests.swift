@@ -942,19 +942,22 @@ struct LinkPhaseIntegrationTests {
     }
 
     @Test
-    func testLinuxAutolinkStubIsRewrittenWhenCorrupted() throws {
-        // Use a test-only triple so the stub path is isolated from any real target, even though
-        // each LinkPhase now writes its autolink stub to a unique per-instance directory.
+    func testLinuxAutolinkStubDoesNotReuseCorruptedStub() throws {
         let linuxTarget = TargetTriple(arch: "x86_64", vendor: "kswiftkstubtest", os: "linux-gnu", osVersion: nil)
         let linkPhase = LinkPhase()
 
         let stubPath = try #require(try linkPhase.emitSwiftAutolinkStubIfNeeded(target: linuxTarget))
+        defer {
+            try? FileManager.default.removeItem(atPath: URL(fileURLWithPath: stubPath).deletingLastPathComponent().path)
+        }
         try "corrupted".write(toFile: stubPath, atomically: true, encoding: .utf8)
 
-        let repairedPath = try #require(try linkPhase.emitSwiftAutolinkStubIfNeeded(target: linuxTarget))
-        #expect(repairedPath == stubPath)
+        let nextStubPath = try #require(try linkPhase.emitSwiftAutolinkStubIfNeeded(target: linuxTarget))
+        defer {
+            try? FileManager.default.removeItem(atPath: URL(fileURLWithPath: nextStubPath).deletingLastPathComponent().path)
+        }
 
-        let contents = try String(contentsOfFile: repairedPath, encoding: .utf8)
+        let contents = try String(contentsOfFile: nextStubPath, encoding: .utf8)
         #expect(contents != "corrupted")
         #expect(contents.contains("_kswiftkRuntimeAutolinkAnchor"))
         #expect(contents.contains("NSLock()"))
@@ -1070,6 +1073,58 @@ struct LinkPhaseIntegrationTests {
 
             #expect(ctx.generatedObjectPaths.count > 1)
             #expect(ctx.generatedObjectPath == ctx.generatedObjectPaths.first)
+
+            assertLinkSucceeds(ctx)
+
+            #expect(FileManager.default.fileExists(atPath: outputPath))
+            let result = try CommandRunner.run(executable: outputPath, arguments: [])
+            #expect(result.exitCode == 0)
+        }
+    }
+
+    @Test
+    func testOptimizedPartitionedExecutableKeepsGlobalSlotsReferencedOnlyByPartitions() throws {
+        // The primary globals object has no function bodies, so at -O2 nothing
+        // in that module references the global slots it defines.
+        let source = """
+        var counter = 40
+        fun helperValue(): Int = counter
+        fun main() {
+            counter += 2
+            var result = helperValue()
+            if (result != 42) {
+                result = -1
+            }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let outputPath = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            defer { try? FileManager.default.removeItem(atPath: outputPath) }
+            let options = CompilerOptions(
+                moduleName: "OptimizedPartitionedExecutable",
+                inputs: [path],
+                outputPath: outputPath,
+                emit: .executable,
+                target: defaultTargetTriple(),
+                optLevel: .O2,
+                frontendFlags: ["jobs=2", "codegen-parallel"],
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            let ctx = CompilationContext(
+                options: options,
+                sourceManager: SourceManager(),
+                diagnostics: DiagnosticEngine(),
+                interner: StringInterner()
+            )
+
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+
+            #expect(ctx.generatedObjectPaths.count > 1)
 
             assertLinkSucceeds(ctx)
 

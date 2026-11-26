@@ -4,10 +4,6 @@ import Foundation
 import Testing
 
 extension JVMBackendTests {
-    /// A Kotlin Multiplatform Android/JVM compilation passes the common and
-    /// platform source sets together. The JVM grammar rejected `expect` and
-    /// `actual`, then bodyless `expect fun`, then the `actual` modifier, and the
-    /// constructor scan tripped over the `expect class` constructor.
     @Test
     func expectActualDeclarationsCompileForTheJVMTarget() throws {
         let own = try ownStdlibLibrary()

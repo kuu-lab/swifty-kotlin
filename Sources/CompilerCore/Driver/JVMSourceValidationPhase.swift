@@ -1,7 +1,5 @@
 import Foundation
 
-/// Audits the supported source grammar before Sema. BuildAST deliberately
-/// tolerates/discards some tokens; JVM must never silently compile that loss.
 final class JVMSourceValidationPhase: CompilerPhase {
     static let name = "JVMSourceValidation"
 
@@ -162,8 +160,6 @@ private struct JVMSourceGrammar {
         }
     }
     mutating func modifiers() {
-        // `expect`/`actual`: Kotlin Multiplatform compiles a JVM/Android target
-        // from the common and platform source sets together.
         while [.public, .private, .internal, .protected, .open, .final, .abstract, .override, .inline, .tailrec, .suspend, .sealed, .data, .enum, .companion, .inner, .operator, .infix, .lateinit, .annotation, .value, .const, .expect, .actual].contains(where: { kind == .keyword($0) }) {
             // "value" is also a valid parameter/property name.
             if kind == .keyword(.value), tokens[min(index + 1, tokens.count - 1)].kind != .keyword(.class) { break }
@@ -268,7 +264,6 @@ private struct JVMSourceGrammar {
         if kind == .keyword(.fun), tokens[min(index + 1, tokens.count - 1)].kind != .keyword(.interface) {
             index += 1
             try typeParameters()
-            // Parse either a function name or a receiver type followed by its name.
             let start = index
             do {
                 while kind == .symbol(.at) { try annotation() }
@@ -337,9 +332,6 @@ private struct JVMSourceGrammar {
                 }
                 if take(.softKeyword(.get)) {
                     try parameters()
-                    // A getter may declare its return type explicitly, as in
-                    // `val x get(): Int = 1`; kotlinc infers the property type
-                    // from it when the property has no type annotation.
                     if take(.symbol(.colon)) { try type() }
                 } else if take(.softKeyword(.set)) {
                     if take(.symbol(.lParen)) {
@@ -378,9 +370,6 @@ private struct JVMSourceGrammar {
     mutating func body(allowNewlines: Bool = false) throws {
         while kind == .symbol(.at) { try annotation() }
         if kind == .symbol(.lBrace) {
-            // A control-flow body whose braces open with a lambda signature
-            // (`{ p -> ... }`) is a lambda literal, matching kotlinc; any
-            // other brace opens a block.
             var probe = self
             if probe.scanLambdaSignature() { try lambda() } else { try block() }
         } else { try statement(allowNewlines: allowNewlines) }
@@ -500,10 +489,6 @@ private struct JVMSourceGrammar {
         }
     }
 
-    /// Consumes a lambda parameter signature (`{`, optional parameters, `->`)
-    /// when the tokens have that shape, leaving `index` just after the arrow.
-    /// Otherwise restores `index` to its entry value and returns false, so a
-    /// plain block or a parameterless lambda body keeps its original parse.
     mutating func scanLambdaSignature() -> Bool {
         let entry = index
         guard take(.symbol(.lBrace)) else { return false }
@@ -533,6 +518,18 @@ private struct JVMSourceGrammar {
         if take(.symbol(.colon)) { try type() }
         if take(.symbol(.assign)) { try expression() }
         else { try block() }
+    }
+    func startsContextualAnonymousFunction() -> Bool {
+        var lookahead = self
+        do {
+            try lookahead.contextParameters()
+            guard lookahead.take(.keyword(.fun)) else { return false }
+            if lookahead.kind == .symbol(.lParen) { return true }
+            try lookahead.type(receiverSuffix: false)
+            return lookahead.kind == .symbol(.dot) || lookahead.kind == .symbol(.questionDot)
+        } catch {
+            return false
+        }
     }
     func startsTrailingLambda() -> Bool {
         guard !newlineBeforeCurrent(), !inDelegationHeader else { return false }
@@ -585,7 +582,7 @@ private struct JVMSourceGrammar {
                         }
                         else if hasSubject, take(.keyword(.in)) { try expression() }
                         else { try expression() }
-                    } while take(.symbol(.comma))
+                    } while take(.symbol(.comma)) && kind != .symbol(.arrow)
                     if take(.keyword(.if)) { try expression(allowNewlines: true) }
                 }
                 try require(.symbol(.arrow))
@@ -604,6 +601,9 @@ private struct JVMSourceGrammar {
         } else if [.plus, .minus, .bang, .plusPlus, .minusMinus].contains(where: { kind == .symbol($0) }) {
             index += 1; try primary(allowNewlines: allowNewlines); return
         } else if take(.symbol(.doubleColon)) { try name()
+        } else if kind == .softKeyword(.context), startsContextualAnonymousFunction() {
+            try contextParameters()
+            try anonymousFunction()
         } else if kind == .keyword(.fun) {
             try anonymousFunction()
         } else if kind == .keyword(.object) {

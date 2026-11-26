@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val values = sequenceOf(1, 2, 3)
     println(values.sumBy { value ->

@@ -9,7 +9,6 @@ extension JVMFunctionBuilder {
                       let node = arena.expr(candidate) else { return }
                 if case .safeMemberCall = node,
                    !program.extensionSymbols.contains(functionSymbol) { return }
-                // A call on another instance remains an ordinary virtual call.
                 if case let .memberCall(receiver, _, _, _, _) = node,
                    program.methods[functionSymbol] != nil,
                    !program.extensionSymbols.contains(functionSymbol) {
@@ -42,8 +41,6 @@ extension JVMFunctionBuilder {
         if masks.contains(where: { $0 != 0 }),
            let binding = program.sema.bindings.callBinding(for: id),
            program.defaultOwner(binding.defaultArgumentOwner ?? symbol) != symbol { return false }
-        // Snapshot every argument before overwriting parameters, including
-        // unchanged arguments and receiver changes, so swaps remain simultaneous.
         func snapshot(_ source: JVMValue) throws -> JVMValue {
             let result = try value(source.type)
             instructions.append(.copy(source, result))

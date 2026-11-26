@@ -90,10 +90,6 @@ extension CoroutineLoweringPass {
         functionValueInfoByExprRaw: [Int32: KIRCallableValueInfo],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
-        // KSP-1566: bundled kotlinx declarations surface here under several
-        // spellings — the Kotlin name for source-injected calls, the
-        // `kk_fn_*` linkname for kklib-imported overloads, and the runtime
-        // `kk_with_timeout*` linkname for the `external` declarations.
         let calleeName = rewrite.ctx.interner.resolve(call.callee)
         let runtimeCallee: InternedString
         if calleeName == "withTimeoutOrNull"
@@ -118,8 +114,6 @@ extension CoroutineLoweringPass {
             return nil
         }
 
-        // KSP-1566: adapt Duration's tagged payload to the coroutine runtime's
-        // millisecond ABI. Long/Int arguments already contain milliseconds.
         var timeMillisExpr = call.arguments[0]
         var rewritten: [KIRInstruction] = []
         if let argType = rewrite.module.arena.exprType(timeMillisExpr) {

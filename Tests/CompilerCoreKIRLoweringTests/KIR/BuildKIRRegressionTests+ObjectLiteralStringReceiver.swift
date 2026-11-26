@@ -55,7 +55,6 @@ extension BuildKIRRegressionTests {
             return arguments.first
         }.first)
         #expect(module.arena.exprType(receiver) == receiverType)
-        // The value must be loaded from the capture field in this member body.
         #expect(read.body.contains { instruction in
             guard case let .call(_, callee, _, result, _, _, _, _) = instruction else { return false }
             return ctx.interner.resolve(callee) == "kk_array_get_inbounds" && result == receiver

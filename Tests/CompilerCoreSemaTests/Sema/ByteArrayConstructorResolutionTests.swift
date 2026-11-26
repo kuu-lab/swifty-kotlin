@@ -3,8 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// KSP-814: the initializer overload is bundled Kotlin source while the
-/// size-only allocation remains the compiler-provided array constructor.
 @Suite
 struct ByteArrayConstructorResolutionTests {
     @Test

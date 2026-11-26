@@ -5,12 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2683 (BUG-266): `GC` object member properties with custom accessors
-    /// must persist writes when consumed through the precompiled stdlib
-    /// artifact. Plain `=` covers the synthetic setter call; `+=` must read
-    /// through the getter and write back through the setter instead of a dead
-    /// flat-global slot. The diff case also keeps no-op accessor pairs and
-    /// backing-field-backed `Duration`/`Boolean`/`Double` properties honest.
     @Test(arguments: [false, true])
     func testGCObjectPropertyAccessorsThroughArtifactAndSource(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil

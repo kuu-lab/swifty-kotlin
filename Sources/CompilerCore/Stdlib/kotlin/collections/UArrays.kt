@@ -5,8 +5,6 @@ package kotlin.collections
 import kotlin.internal.KsSymbolName
 import kotlin.random.Random
 
-// Migration source: Sources/Runtime/RuntimeArrayBasics.swift (kk_*Array_as*Array)
-//
 // A signed primitive array and its unsigned counterpart share the same backing
 // storage; the conversion reinterprets the same array handle rather than copying,
 // so it is delegated to the __kk_* runtime bridges.
@@ -35,9 +33,6 @@ private external fun UIntArray.__asIntArrayView(): IntArray
 @KsSymbolName("__kk_uLongArray_asLongArray")
 private external fun ULongArray.__asLongArrayView(): LongArray
 
-// The public `size`, `toList`, and `asList` declarations below are
-// source-backed; the runtime keeps the copy and backing-view semantics of the
-// Kotlin API.
 @KsSymbolName("__kk_uByteArray_toList")
 private external fun __kkUByteArrayToList(array: UByteArray): List<UByte>
 

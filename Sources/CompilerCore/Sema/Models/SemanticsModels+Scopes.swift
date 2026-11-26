@@ -5,11 +5,6 @@ public protocol Scope: AnyObject {
     /// Stops at the innermost scope containing matching bindings, so declarations
     /// in a different namespace do not shadow the requested candidates.
     func lookup(_ name: InternedString, matching predicate: (SymbolID) -> Bool) -> [SymbolID]
-    /// Like `lookup`, but merges bindings from every scope in the parent chain
-    /// instead of stopping at the innermost scope that binds `name`. Used as a
-    /// resolution fallback to recover candidates that ordinary (shadowing)
-    /// lookup hides — e.g. a `kotlin.text` String extension shadowed by a
-    /// same-named extension declared in the current package.
     func lookupMergingChain(_ name: InternedString) -> [SymbolID]
     /// Classifier-namespace lookup with Kotlin's import tier order. The
     /// physical chain places a file's package scope above its explicit-import
@@ -28,10 +23,7 @@ open class BaseScope: Scope {
     public let parent: Scope?
     private let symbols: SymbolTable
     private var locals: [InternedString: [SymbolID]] = [:]
-    // Tracks declarations kept outside the symbol lookup table, such as locals.
     private var localValueOrClassifierDeclarations: [InternedString: Set<ExprID>] = [:]
-    /// Type-parameter symbols currently in `locals`, maintained on insert so
-    /// lexical walks do not rescan every local for each call site.
     private var localTypeParameterSymbols: Set<SymbolID> = []
 
     public init(parent: Scope?, symbols: SymbolTable) {
@@ -48,14 +40,10 @@ open class BaseScope: Scope {
         []
     }
 
-    /// Whether this scope level registered a local value or classifier
-    /// declaration for `name`. Those declarations live outside the symbol
-    /// lookup table but still mark the lexical level that owns them.
     func declaresLocalValueOrClassifier(named name: InternedString) -> Bool {
         localValueOrClassifierDeclarations[name]?.isEmpty == false
     }
 
-    /// Bound symbols plus lazily supplied same-tier candidates, deduplicated.
     func candidates(for name: InternedString) -> [SymbolID] {
         let bound = locals[name] ?? []
         let deferred = deferredCandidates(for: name)
@@ -224,12 +212,6 @@ final class FileScope: BaseScope {}
 final class PackageScope: BaseScope {}
 class ImportScope: BaseScope {}
 
-/// Package-level members resolved on demand. Inserted bindings behave like
-/// any `BaseScope` local; a name that misses additionally asks the symbol
-/// table for `<package> + name`, which drains pending compact-index entries
-/// for the queried name only. Each `(path, include)` pair reproduces one of
-/// the filters the eager package mapping applied (default-import skips,
-/// wildcard accessibility, same-file-private routing).
 class PackageMembersScope: BaseScope {
     private var memberSources: [(path: [InternedString], include: (SymbolID) -> Bool)] = []
     private let symbols: SymbolTable
@@ -241,7 +223,6 @@ class PackageMembersScope: BaseScope {
     /// mutation under a listed name bumps its version, so a match proves the
     /// memo still reflects the symbol table (KUU-4021).
     private struct DeferredResult {
-        /// Index-aligned with `memberSources` at build time.
         let versions: [(fqName: [InternedString], version: Int)]
         let candidates: [SymbolID]
     }
@@ -265,9 +246,6 @@ class PackageMembersScope: BaseScope {
         memberSources = packages
     }
 
-    /// Adds a package path whose members become visible through this scope.
-    /// Wildcard imports append each imported path instead of eagerly
-    /// inserting every member the package provides.
     func addPackage(_ path: [InternedString], include: @escaping (SymbolID) -> Bool) {
         deferredCacheLock.lock()
         memberSources.append((path: path, include: include))
@@ -275,12 +253,6 @@ class PackageMembersScope: BaseScope {
         deferredCacheLock.unlock()
     }
 
-    /// Repeat lookups dominate the type-check hot path: the same names are
-    /// resolved per call site, but the lazily materialized symbol table only
-    /// changes under them when a claim, `define`, or record mutation bumps a
-    /// binding-list version. Memoize the filtered result and revalidate the
-    /// per-source versions instead of re-running `lookupAll` + the include
-    /// filters on every query (KUU-4021).
     override func deferredCandidates(for name: InternedString) -> [SymbolID] {
         symbols.attribution?.increment(.packageScopeQueries)
         return withAttributionTiming(.deferredScopeCandidates, attribution: symbols.attribution) {
@@ -326,26 +298,12 @@ class PackageMembersScope: BaseScope {
     }
 }
 
-/// The shared scope holding default-imported (`kotlin.*` and friends)
-/// members. `lookupClassifier` splits this tier: Kotlin builtin types
-/// outrank user star imports while ordinary default imports rank below
-/// them (KUU-4509); the marker lets the lookup tell the tier apart from
-/// the per-file wildcard and same-package `PackageMembersScope`s.
 final class DefaultImportScope: PackageMembersScope {
-    /// Whether a default-imported classifier is one of Kotlin's builtin
-    /// types (the `KotlinBuiltIns` set: `kotlin.Function`, the mapped
-    /// collection interfaces, primitives, ranges, ...). Populated once by
-    /// `TypeCheckScopeBuilder`, which owns the interner the FQ names are
-    /// interned with.
     var isKotlinBuiltinClassifier: (SymbolID) -> Bool = { _ in false }
 }
 
-/// The per-file scope holding `import foo.*` star-imported members.
 final class WildcardImportScope: PackageMembersScope {}
 
-/// The scope holding a file's single-type and alias imports. Kotlin ranks
-/// this tier above same-package declarations for classifier lookup, so
-/// `lookupClassifier` needs to tell it apart from wildcard/default scopes.
 final class ExplicitImportScope: ImportScope {}
 
 final class ClassMemberScope: BaseScope {
@@ -362,7 +320,6 @@ final class ClassMemberScope: BaseScope {
     /// inside the walk, before the snapshot is taken; a walk whose own
     /// loads still move a visited parent's version is never stored.
     private struct DeferredResult {
-        /// Post-walk versions of the visited parents, in walk order.
         let dependencies: [(parent: SymbolID, version: Int)]
         let candidates: [SymbolID]
     }

@@ -2,8 +2,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// KUU-3057: Java numeric static APIs remain usable through their wrappers
-    /// without shadowing Kotlin's primitive Long and Double types.
     @Test(arguments: [false, true], [0, 2])
     func javaLangNumericWrappers(
         allowDefaultStdlibLibrary: Bool,
@@ -41,7 +39,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-3445: Java wrapper shims expose primitive parsing and static APIs.
     @Test(arguments: [false, true])
     func javaLangWrapperStaticSurface(
         allowDefaultStdlibLibrary: Bool

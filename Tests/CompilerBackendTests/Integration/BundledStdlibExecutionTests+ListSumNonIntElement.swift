@@ -1,12 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// BUG-256: `ListCollectionOps.kt` only declares a concrete `List<Int>.sum()`
-    /// overload. Calling `.sum()` directly on a `listOf(...)` chain (a
-    /// concrete `List<T>` receiver) for any other element type never bound at
-    /// all before this fix -- the generic `Iterable<T>.sum()` fallback
-    /// refused List-like receivers by its own guard -- and leaked an
-    /// unresolved `sum` callee through to the linker (KSWIFTK-LINK-0001).
     @Test
     func testListSumOnNonIntElementTypesExecutesThroughBundledKotlin() throws {
         try compileAndRunKotlin(

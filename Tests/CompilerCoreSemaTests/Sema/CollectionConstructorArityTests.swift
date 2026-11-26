@@ -5,10 +5,6 @@ import Testing
 
 @Suite
 struct CollectionConstructorArityTests {
-    /// KUU-4448: the source-backed collection constructor shortcut used to
-    /// fabricate the result type without overload resolution, so calls with
-    /// mismatched arity or argument types compiled silently into empty
-    /// collections. kotlinc rejects every one of these forms.
     @Test(arguments: [
         #"val a = HashMap<String, Int>("x", 1.5, true)"#,
         #"val a = ArrayList<Int>("x", "y")"#,
@@ -29,8 +25,6 @@ struct CollectionConstructorArityTests {
         }, "Expected a compile error for `\(declaration)`: \(ctx.diagnostics.diagnostics)")
     }
 
-    /// Every constructor form declared by the bundled collection classes must
-    /// keep compiling and inferring through the shortcut path.
     @Test func validConstructorFormsStillCompile() throws {
         let ctx = makeContextFromSource("""
         fun main() {
@@ -62,10 +56,6 @@ struct CollectionConstructorArityTests {
                 "Expected no errors: \(ctx.diagnostics.diagnostics)")
     }
 
-    /// KUU-4448: a user class that shares a collection constructor name keeps
-    /// ordinary resolution — it must not acquire the synthetic collection
-    /// result type (which would also let the lowering pass mistake it for the
-    /// stdlib runtime bridge).
     @Test func userClassNamedArrayListKeepsOwnType() throws {
         let ctx = makeContextFromSource("""
         class ArrayList {

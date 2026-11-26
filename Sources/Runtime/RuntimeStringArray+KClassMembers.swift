@@ -1,7 +1,5 @@
 import Foundation
 
-// String is a runtime primitive rather than a lowered class declaration, so
-// its JVM-compatible zero-argument constructor is registered on demand.
 private let builtinStringConstructorLock = NSLock()
 private let builtinStringMemberLock = NSLock()
 private let builtinStringLengthGet: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
@@ -74,9 +72,6 @@ private func ensureBuiltinStringMembers(_ kclassRaw: Int) {
         if property {
             raw = kk_kproperty_stub_create_cached_typed(nameRaw, resultRaw, runtimeMakeStringRaw("kotlin.String.length"), 0, 1, 0)
             _ = kk_callable_ref_tag_kproperty(raw, nameRaw, resultRaw, arguments.count + 1)
-            // KUU-3947: render the builtin member handle like the JVM —
-            // `val kotlin.String.length: kotlin.Int` — not the stub's bare
-            // `val length: kotlin.Int`.
             __kk_function_set_description(raw, runtimeMakeStringRaw("val kotlin.String.\(name): \(result)"), 0)
             _ = kk_object_register_itable_iface(raw, Int(kProperty1RuntimeTypeID), 1)
             _ = kk_object_register_itable_method(raw, 1, 0, unsafeBitCast(builtinStringLengthGet, to: Int.self))
@@ -85,8 +80,6 @@ private func ensureBuiltinStringMembers(_ kclassRaw: Int) {
         } else {
             raw = __kk_kfunction_create(nameRaw, arguments.count + 1, resultRaw, flags, 0, 0)
             _ = kk_callable_ref_tag_kfunction(raw, nameRaw, resultRaw, arguments.count + 1, flags)
-            // KUU-3947: builtin member-function handles render like the JVM —
-            // `fun kotlin.String.get(kotlin.Int): kotlin.Char`.
             let paramTypes = arguments.map { $0.type }.joined(separator: ", ")
             __kk_function_set_description(raw, runtimeMakeStringRaw("fun kotlin.String.\(name)(\(paramTypes)): \(result)"), 0)
         }
@@ -146,10 +139,6 @@ private func ensureBuiltinStringConstructor(_ kclassRaw: Int) {
 }
 
 
-/// `Array<E>` class literals carry an element descriptor (`box.arrayComponent`):
-/// `Integer[].class.isInstance(String[])` is false on the JVM even though both
-/// operands are `Array`, while covariance still accepts `Integer[]` for
-/// `Number[].class` — the same check `kk_array_op_cast` applies.
 private func runtimeKClassBoxedIsInstance(_ box: RuntimeKClassBox, _ valueRaw: Int) -> Bool {
     guard kk_op_is(valueRaw, box.typeToken) != 0 else { return false }
     guard box.arrayComponent != 0 else { return true }
@@ -164,39 +153,18 @@ public func __kk_kclass_isInstance(_ kclassRaw: Int, _ valueRaw: Int) -> Int {
     return runtimeKClassBoxedIsInstance(box, valueRaw) ? 1 : 0
 }
 
-/// Called during module initialization to attach compile-time member data.
-///
-/// - Parameters:
-///   - kclassRaw: Opaque handle to the KClass returned by `__kk_kclass_create`.
-///   - memberRaw: Opaque handle to the member callable (KFunction or KPropertyStub).
-/// - Returns: 0 on success.
 @_cdecl("__kk_kclass_register_member")
 public func __kk_kclass_register_member(_ kclassRaw: Int, _ memberRaw: Int) -> Int {
     runtimeKMemberRegistry.register(classRaw: kclassRaw, memberRaw: memberRaw)
     return 0
 }
 
-/// Same as `__kk_kclass_register_member` but marks the handle as a member
-/// extension (`val String.x` / `fun String.f()` declared inside the class).
-/// The JVM keeps member extensions out of `memberProperties`/`memberFunctions`/
-/// `declaredMember*` — they surface through the `memberExtension*` /
-/// `declaredMemberExtension*` accessors in `kotlin.reflect.full` instead —
-/// while `members` still returns every registered member (KUU-4064).
 @_cdecl("__kk_kclass_register_member_extension")
 public func __kk_kclass_register_member_extension(_ kclassRaw: Int, _ memberRaw: Int) -> Int {
     runtimeKMemberRegistry.register(classRaw: kclassRaw, memberRaw: memberRaw, isMemberExtension: true)
     return 0
 }
 
-/// KUU-4029: interned KClass handles for `kclassRaw`'s transitive supertypes,
-/// nearest first — a BFS over `state.typeParents`, the same stable-nominal-
-/// type-ID graph `kk_op_is` walks (`kk_type_register_super`/`_iface` edges are
-/// emitted at class-literal evaluation and construction sites).
-///
-/// `kotlin.Any` is the only ancestor whose KClass encodes the dedicated
-/// `anyBase` token rather than a nominal token — the synthetic `kotlin.Any`
-/// symbol is a disguised builtin (`encodeBuiltinDisguisedNominal`) — so its
-/// builtin toString/hashCode/equals handles live under that handle.
 private func runtimeInheritedKClassRaws(for kclassRaw: Int) -> [Int] {
     guard let box = runtimeKClassBox(from: kclassRaw) else { return [] }
     let token = Int64(truncatingIfNeeded: box.typeToken)
@@ -221,7 +189,6 @@ private func runtimeInheritedKClassRaws(for kclassRaw: Int) -> [Int] {
             let current = queue[index]
             index += 1
             guard let parents = state.typeParents[current] else { continue }
-            // `typeParents` is a Set — sort for a deterministic merge order.
             for parent in parents.sorted() where visited.insert(parent).inserted {
                 queue.append(parent)
                 ancestorIDs.append(parent)
@@ -246,24 +213,10 @@ private enum RuntimeMemberKindSelection {
     case all, functionsOnly, propertiesOnly
 }
 
-/// Whether a member query keeps member-extension callables. The JVM excludes
-/// them from `member*`/`declaredMember*` (`.nonExtensionOnly`), exposes them
-/// through `memberExtension*`/`declaredMemberExtension*` (`.extensionOnly`),
-/// and lists them in `members` (`.includeAll`) — KUU-4064.
 private enum RuntimeMemberExtensionSelection {
     case includeAll, nonExtensionOnly, extensionOnly
 }
 
-/// KUU-4029: `member*` accessors merge inherited members — the class's own
-/// registered members first, then each ancestor's in BFS order. An override
-/// shadows the inherited signature: functions dedupe on name + value-
-/// parameter count, properties on name. Handles record no parameter types,
-/// so same-name/same-arity overloads across a hierarchy collapse (JVM keeps
-/// both); within a class every registered member emits.
-///
-/// `fnPtr == 0` marks builtin handles whose `arity` counts the dispatch
-/// receiver (String/primitive/array members); class-registered handles carry
-/// a symbol `fnPtr` and count only value parameters.
 private func runtimeKClassCollectedMembers(
     _ kclassRaw: Int,
     selection: RuntimeMemberKindSelection,
@@ -286,9 +239,6 @@ private func runtimeKClassCollectedMembers(
             switch extensionSelection {
             case .nonExtensionOnly where isExtension,
                  .extensionOnly where !isExtension:
-                // Skipped members contribute no shadow key either way: a
-                // same-named extension/non-extension pair is a distinct JVM
-                // signature and must not shadow across the two queries.
                 continue
             default:
                 break
@@ -328,7 +278,6 @@ public func __kk_kclass_members(_ kclassRaw: Int) -> Int {
     ))
 }
 
-/// Only constructors registered through `__kk_kconstructor_create` are returned.
 @_cdecl("__kk_kclass_constructors")
 public func __kk_kclass_constructors(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
@@ -340,8 +289,6 @@ public func __kk_kclass_constructors(_ kclassRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: runtimeKConstructorRegistry.constructors(for: kclassRaw)))
 }
 
-/// Nested classes are attached per parent type token via
-/// `__kk_kclass_register_nested_class` (KUU-1357 / MIGRATION-REFLECT-002).
 @_cdecl("__kk_kclass_nested_classes")
 public func __kk_kclass_nested_classes(_ kclassRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw) else {
@@ -353,7 +300,6 @@ public func __kk_kclass_nested_classes(_ kclassRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: elements))
 }
 
-/// Emitted during class reflection metadata setup.
 @_cdecl("__kk_kclass_register_companion")
 public func __kk_kclass_register_companion(
     _ typeToken: Int,
@@ -378,8 +324,6 @@ public func __kk_kclass_companion_object(_ kclassRaw: Int) -> Int {
     return __kk_kclass_create(entry.token, entry.nameRaw)
 }
 
-/// Emitted once per nested class during class reflection metadata
-/// setup (KUU-1357 / MIGRATION-REFLECT-002).
 @_cdecl("__kk_kclass_register_nested_class")
 public func __kk_kclass_register_nested_class(
     _ typeToken: Int,
@@ -406,9 +350,6 @@ public func __kk_kclass_primary_constructor(_ kclassRaw: Int) -> Int {
 }
 
 
-/// Returns registered `RuntimeKPropertyStub` handles only. Member-extension
-/// handles registered via `__kk_kclass_register_member_extension` are
-/// excluded like the JVM's `declaredMemberProperties` (KUU-4064).
 @_cdecl("__kk_kclass_properties")
 public func __kk_kclass_properties(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
@@ -423,9 +364,6 @@ public func __kk_kclass_properties(_ kclassRaw: Int) -> Int {
     ))
 }
 
-/// JVM `memberProperties` includes inherited properties — unlike
-/// `declaredMemberProperties`/`properties`, which stay self-only. Both exclude
-/// member-extension properties (KUU-4064).
 @_cdecl("__kk_kclass_member_properties")
 public func __kk_kclass_member_properties(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
@@ -444,8 +382,6 @@ public func __kk_kclass_declared_member_properties(_ kclassRaw: Int) -> Int {
     __kk_kclass_properties(kclassRaw)
 }
 
-/// `kotlin.reflect.full.memberExtensionProperties` — member-extension
-/// properties only, inherited included like `memberProperties` (KUU-4064).
 @_cdecl("__kk_kclass_member_extension_properties")
 public func __kk_kclass_member_extension_properties(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
@@ -459,8 +395,6 @@ public func __kk_kclass_member_extension_properties(_ kclassRaw: Int) -> Int {
     ))
 }
 
-/// `kotlin.reflect.full.declaredMemberExtensionProperties` — this class's own
-/// member-extension properties only (KUU-4064).
 @_cdecl("__kk_kclass_declared_member_extension_properties")
 public func __kk_kclass_declared_member_extension_properties(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
@@ -474,8 +408,6 @@ public func __kk_kclass_declared_member_extension_properties(_ kclassRaw: Int) -
     ))
 }
 
-/// Returns registered `RuntimeKFunctionBox` handles only, minus member-
-/// extension functions (KUU-4064).
 @_cdecl("__kk_kclass_functions")
 public func __kk_kclass_functions(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
@@ -490,9 +422,6 @@ public func __kk_kclass_functions(_ kclassRaw: Int) -> Int {
     ))
 }
 
-/// JVM `memberFunctions` includes inherited functions — unlike
-/// `declaredMemberFunctions`/`functions`, which stay self-only. Both exclude
-/// member-extension functions (KUU-4064).
 @_cdecl("__kk_kclass_member_functions")
 public func __kk_kclass_member_functions(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
@@ -520,8 +449,6 @@ public func __kk_kclass_declared_member_functions(_ kclassRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: filterBuiltinArrayDeclaredFunctions(declared, classRaw: kclassRaw)))
 }
 
-/// `kotlin.reflect.full.memberExtensionFunctions` — member-extension
-/// functions only, inherited included like `memberFunctions` (KUU-4064).
 @_cdecl("__kk_kclass_member_extension_functions")
 public func __kk_kclass_member_extension_functions(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
@@ -535,8 +462,6 @@ public func __kk_kclass_member_extension_functions(_ kclassRaw: Int) -> Int {
     ))
 }
 
-/// `kotlin.reflect.full.declaredMemberExtensionFunctions` — this class's own
-/// member-extension functions only (KUU-4064).
 @_cdecl("__kk_kclass_declared_member_extension_functions")
 public func __kk_kclass_declared_member_extension_functions(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
@@ -551,15 +476,6 @@ public func __kk_kclass_declared_member_extension_functions(_ kclassRaw: Int) ->
 }
 
 
-/// Casts `valueRaw` to the type represented by this KClass.
-/// If the value is an instance of the type, returns it unchanged.
-/// If not, sets `outThrown` to a `ClassCastException` and returns the null sentinel.
-///
-/// - Parameters:
-///   - kclassRaw: Opaque handle to the KClass.
-///   - valueRaw: The value to cast.
-///   - outThrown: Out-pointer for the thrown exception (nullable).
-/// - Returns: `valueRaw` on success, or `runtimeNullSentinelInt` on failure.
 @_cdecl("__kk_kclass_cast")
 public func __kk_kclass_cast(
     _ kclassRaw: Int,
@@ -588,7 +504,6 @@ public func __kk_kclass_cast(
     return runtimeNullSentinelInt
 }
 
-/// Never throws; equivalent to Kotlin's `safeCast` (`value as? T`).
 @_cdecl("__kk_kclass_safeCast")
 public func __kk_kclass_safeCast(_ kclassRaw: Int, _ valueRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw) else {

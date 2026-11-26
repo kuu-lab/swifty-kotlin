@@ -1,6 +1,3 @@
-/// Non-constant mode expressions are lowered as KIR values so runtime-selected
-/// modes are preserved; compiler fallback is used only when the mode expression
-/// cannot be lowered as such.
 enum LazyThreadSafetyModeLowering {
     /// A value typed as `LazyThreadSafetyMode` is deliberately not treated as a
     /// lock because the mode value is forwarded to the runtime lazy factory.

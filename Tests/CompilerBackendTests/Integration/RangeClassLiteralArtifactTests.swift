@@ -19,8 +19,6 @@ struct RangeClassLiteralArtifactTests {
         let matrix = "bound_range_class_identity.kt"
         let indices = "kotlinx_io_bytestring_indices_class.kt"
         if fromSource {
-            // Inject the full stdlib once per optimization level. Keep the exact
-            // minimal function/call, first lookup, matrix, and indices assertions.
             let classSource = try diffCaseSource(matrix)
             let indicesSource = try diffCaseSource(indices)
             let indicesStart = try #require(indicesSource.range(of: "fun main() {"))
@@ -101,7 +99,6 @@ struct RangeClassLiteralArtifactTests {
             optLevel: level, stdlibLibraryPath: stdlib
         )))
         let expected = "IntRange\nIntRange\nkotlin.ranges.IntRange\ntrue\ntrue\ntrue\ntrue\nfalse\ntrue\n"
-        // Execute twice in separate processes to catch dependence on a prior registry/cache.
         try run(output, expected: expected)
         try run(output, expected: expected)
     }

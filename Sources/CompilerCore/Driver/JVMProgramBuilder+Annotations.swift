@@ -241,16 +241,14 @@ extension JVMProgramBuilder {
     private func annotationInstances(for symbol: SymbolID, target: String?, includeDefaults: Bool) throws -> [JVMAnnotation] {
         var result: [JVMAnnotation] = []
         let records = try annotationRecords(for: symbol)
-        // File annotations affect the source file/facade and are not emitted on
-        // individual JVM declarations. They can coexist with member annotations.
         if let unsupported = records.first(where: { $0.useSiteTarget.map { !["field", "get", "set", "property", "param", "setparam", "receiver", "file", "delegate"].contains($0) } ?? false }) { throw JVMFrontendError(message: "Unsupported JVM annotation use-site target: " + unsupported.useSiteTarget!) }
         for record in records where record.useSiteTarget == target {
             let name = record.annotationFQName
             if isThrowsAnnotation(name) { continue }
             if [KnownCompilerAnnotation.repeatable.qualifiedName, KnownCompilerAnnotation.jvmRepeatable.qualifiedName].contains(name), classes[symbol]?.isAnnotation != true { throw JVMFrontendError(message: "JVM repeatable can only annotate annotation classes.") }
             if KnownCompilerAnnotation.jvmOverloads.matches(name) {
-                guard sema.symbols.symbol(symbol)?.kind == .function else {
-                    throw JVMFrontendError(message: "JVM @JvmOverloads currently supports functions only.")
+                guard let kind = sema.symbols.symbol(symbol)?.kind, kind == .function || kind == .constructor else {
+                    throw JVMFrontendError(message: "JVM @JvmOverloads currently supports functions and constructors only.")
                 }
                 continue
             }
@@ -299,12 +297,6 @@ extension JVMProgramBuilder {
         }
         return result
     }
-    /// kotlin.internal.* annotations are compile-time-only markers (inlining
-    /// policy, overload resolution, inference constraints, parameter-name
-    /// stability, runtime symbol naming). Consumer compiles inject them as
-    /// residual-stdlib declarations that are never emitted, so no classfile
-    /// plan exists to attach; stdlib builds still emit them where the
-    /// annotation class itself is compiled.
     func isPlanlessKotlinInternalAnnotation(_ fqName: String, owner: SymbolID?) -> Bool {
         guard fqName.hasPrefix("kotlin.internal."), let owner else { return false }
         return annotationPlan(owner) == nil
@@ -363,7 +355,6 @@ extension JVMProgramBuilder {
             result.annotations.append(JVMAnnotation(descriptor: "Ljava/lang/annotation/Target;", values: [("value", .array(names.map { .enumEntry("Ljava/lang/annotation/ElementType;", $0) }))]))
         }
         if records.contains(where: { $0.annotationFQName == KnownCompilerAnnotation.mustBeDocumented.qualifiedName }) { result.annotations.append(JVMAnnotation(descriptor: "Lkotlin/annotation/MustBeDocumented;")); result.annotations.append(JVMAnnotation(descriptor: "Ljava/lang/annotation/Documented;")) }
-        // Annotation elements use primitive/String/Class/enum/annotation/array JVM types.
         for i in result.functions.indices {
             let name = result.functions[i].reference.name
             if let parameter = plan.declaration!.primaryConstructorParams.first(where: { context.interner.resolve($0.name) == name }), let expression = parameter.defaultValue { result.functions[i].annotationDefault = try checkedAnnotationValue(annotationConstant(expression), type: result.functions[i].reference.result) }

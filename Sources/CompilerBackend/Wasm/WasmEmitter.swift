@@ -1,5 +1,3 @@
-// WasmEmitter.swift — KIR → WebAssembly binary.
-//
 // Value model: every KIR value is an i64. Heap objects are linear-memory
 // addresses; every box stores its nominal type ID at offset -16 and its
 // slot count (array length / object layoutWords) at offset -8. For objects,
@@ -29,9 +27,6 @@ public struct WasmEmissionResult: Sendable {
     public let notes: [String]
 }
 
-/// Shared emission state for one module. Function bodies are emitted by
-/// `WasmFunctionEmission` (see WasmEmitter+Function.swift); runtime helpers
-/// are hand-assembled in WasmEmitter+Runtime.swift.
 final class WasmModuleContext {
     let module = WasmModule()
     let kir: KIRModule
@@ -40,7 +35,6 @@ final class WasmModuleContext {
     let types: TypeSystem?
     let isWASI: Bool
 
-    // Symbol/name → function index resolution.
     var functionIndexBySymbol: [SymbolID: Int] = [:]
     var functionIndexByNameArity: [String: Int] = [:]
     /// Helpers are keyed by `name/arity`: some runtime names overload by
@@ -52,17 +46,14 @@ final class WasmModuleContext {
     var globalIndexBySymbol: [SymbolID: Int] = [:]
     var paramIndexBySymbolByFunction: [SymbolID: [Int32: Int]] = [:]
 
-    // Runtime globals (indices into the module's global section).
     var thrownGlobal = -1
     var heapGlobal = -1
     var edgeHeadGlobal = -1
     var dataEndGlobal = -1
 
-    // Lazily-created WASI imports (only when isWASI).
     var fdWriteImport = -1
     var procExitImport = -1
 
-    // Bump cursor for static data (string literal bytes); heap follows.
     var dataCursor: Int64 = WasmLayout.dataStart
     var stringOffsetByLiteral: [InternedString: Int64] = [:]
 
@@ -78,28 +69,20 @@ final class WasmModuleContext {
     }
 
     enum WasmLayout {
-        /// Bytes [0, dataStart) are runtime scratch space (iovecs, newline).
         static let dataStart: Int64 = 1024
-        /// iovec base for WASI writes.
         static let iovecAddress: Int64 = 8
         static let nwrittenAddress: Int64 = 24
         static let newlineAddress: Int64 = 32
-        /// Byte offset of the nominal type ID relative to a box base.
         static let typeIDOffset: Int64 = -16
-        /// Byte offset of the slot count (array length / object layoutWords).
         static let metaOffset: Int64 = -8
         /// Body slot 1: the object's vtable pointer (arrays use it as
         /// element 1 — the two never collide because dispatch never runs on
         /// plain arrays).
         static let vtableSlotOffset: Int64 = 8
-        /// Reserved class IDs for runtime-internal box kinds.
         static let arrayTypeID: Int64 = -9_001
         static let stringTypeID: Int64 = -9_002
-        /// Kotlin `List` box (read-only views from `listOf`/`toList`).
         static let listTypeID: Int64 = -9_010
-        /// Kotlin `MutableList`/`ArrayList` box (`mutableListOf`/`arrayListOf`).
         static let arrayListTypeID: Int64 = -9_011
-        /// `kk_list_iterator` result box.
         static let listIteratorTypeID: Int64 = -9_012
         /// List/iterator body slot offsets (object slots 2/3/4): slot2 holds
         /// the backing array (or the list, for iterators), slot3 the element
@@ -122,16 +105,13 @@ final class WasmModuleContext {
         /// bit1 = view marker, bits 8+ = modCount (structural-mod epoch).
         static let listViewFlag: Int64 = 0x2
         static let modCountShift: Int64 = 8
-        /// `kk_map_iterator` result box.
         static let mapIteratorTypeID: Int64 = -9_013
-        /// `kk_mutable_map_iterator` result box.
         static let mutableMapIteratorTypeID: Int64 = -9_014
         /// `__kk_range_for_in_iterator` result box: `{cur@16, last@24, step@32}`.
         static let rangeForInIteratorTypeID: Int64 = -9_015
         /// `kk_function_create_N` function-value box:
         /// `{fnTableIdx@16, closure@24, arity@32, description@40}`.
         static let functionValueTypeID: Int64 = -9_016
-        /// Function-value box field offsets.
         static let functionFnIdxOffset: Int64 = 16
         static let functionClosureOffset: Int64 = 24
         static let functionArityOffset: Int64 = 32
@@ -206,16 +186,13 @@ final class WasmModuleContext {
         /// disjoint vtable/itable keyspaces so a class whose direct vtable
         /// exceeds any fixed prefix cannot clobber interface entries.
         static let vtableItablePtrOffset: Int64 = -16
-        /// Direct-slot capacity of the lazily allocated vtable array.
         static let vtableSlots = 528
         /// itable buffer geometry: ifaceSlot-major with `itableStride` method
         /// slots per interface, up to `itableBlocks` interfaces per object.
         static let itableStride = 32
         static let itableBlocks = 16
-        static let itableSlots = itableStride * itableBlocks // 512 entries
-        /// Per-object interface map capacity (typeID, slot) pairs.
+        static let itableSlots = itableStride * itableBlocks
         static let ifaceMapCapacity = 8
-        /// Tagged small-int sentinels must never look like real pointers.
         static let nullSentinel: Int64 = Int64.min
     }
 
@@ -258,6 +235,15 @@ final class WasmModuleContext {
            let symbol,
            let index = functionIndexBySymbol[symbol]
         {
+            // A non-inline kklib body materialized from serialized KIR must
+            // not displace a hand-written wasm helper for the same stdlib
+            // function (`downTo`, `step`, range iterators, ...): those bodies
+            // are only the fallback for callees that would otherwise stub.
+            if let helper = preferredShimOverMaterializedBody(
+                name: name, symbol: symbol, argumentCount: argumentCount, argumentTypes: argumentTypes
+            ) {
+                return helper
+            }
             return .direct(index)
         }
         if !isRuntimeName,
@@ -272,32 +258,17 @@ final class WasmModuleContext {
         if let index = helperIndexByName["\(name)/\(argumentCount)"] {
             return .emittedHelper(index)
         }
-        // Stdlib bodies live in the .kklib, not this module — a handful have
-        // direct wasm intrinsics (kotlin.io.println forwards to the raw WASI
-        // writer, exactly as its bundled body does via __printlnStringRaw).
         if let helper = stdlibIntrinsicName(symbol: symbol, argumentCount: argumentCount) {
             return .emittedHelper(emittedHelperIndex(for: helper, argumentCount: argumentCount))
         }
-        // `$default` forwarders and other symbol-less stdlib shims only carry
-        // their callee name — route the known ones onto the same helpers the
-        // fqName path selects. `argumentTypes` disambiguates same-named
-        // overloads (e.g. `indexOf(String,…)` vs `indexOf(Char,…)`).
         if let helper = stdlibShimName(for: name, argumentTypes: argumentTypes) {
             return .emittedHelper(emittedHelperIndex(for: helper, argumentCount: argumentCount))
         }
-        // Direct calls onto stdlib members whose bodies live in the .kklib
-        // (e.g. a `size` getter on a sentinel-boxed map) resolve through the
-        // same thunk table vtable/itable registrations use, instead of
-        // silently stubbing to 0.
         if let symbol, let thunk = memberThunkInfo(for: symbol) {
             return .emittedHelper(
                 emittedHelperIndex(for: thunk.helper, argumentCount: thunk.arity)
             )
         }
-        // `kk_fn_<name>_s<id>__<ns>` / `kk_fn_<name>_<id>__<ns>` link names
-        // whose bodies were materialized from the artifact's inline-kir
-        // resolve to the decl's bare name — demangle for symbol-less calls
-        // and let the receiver-type shims pick up known stdlib members.
         if let inner = Self.demangleKkFnName(name) {
             if let index = functionIndexByNameArity["\(inner)/\(argumentCount)"] {
                 return .direct(index)
@@ -309,6 +280,34 @@ final class WasmModuleContext {
             }
         }
         return .stub(name)
+    }
+
+    private func preferredShimOverMaterializedBody(
+        name: String,
+        symbol: SymbolID,
+        argumentCount: Int,
+        argumentTypes: [TypeID?]
+    ) -> CalleeResolution? {
+        guard name.hasPrefix("kk_fn_"),
+              symbols?.symbol(symbol)?.flags.contains(.importedLibrary) == true,
+              let inner = Self.demangleKkFnName(name),
+              !inner.hasPrefix("__")
+        else { return nil }
+        if let index = helperIndexByName["\(name)/\(argumentCount)"] {
+            return .emittedHelper(index)
+        }
+        if let helper = stdlibIntrinsicName(symbol: symbol, argumentCount: argumentCount) {
+            return .emittedHelper(emittedHelperIndex(for: helper, argumentCount: argumentCount))
+        }
+        if let helper = stdlibShimName(for: name, argumentTypes: argumentTypes)
+            ?? stdlibShimName(for: inner, argumentTypes: argumentTypes)
+        {
+            return .emittedHelper(emittedHelperIndex(for: helper, argumentCount: argumentCount))
+        }
+        if let thunk = memberThunkInfo(for: symbol) {
+            return .emittedHelper(emittedHelperIndex(for: thunk.helper, argumentCount: thunk.arity))
+        }
+        return nil
     }
 
     /// `kk_fn_<name>[_s<id>|_<id>][__<ns>]` → `<name>`, else nil. Synthetic
@@ -373,7 +372,6 @@ final class WasmModuleContext {
             return argumentTypes.count >= 7
                 ? "__kk_wasm_join_to_string_full"
                 : "__kk_string_joinToString"
-        // kotlin.text forwarders.
         case "indexOf$default":
             return isChar(1)
                 ? "__kk_wasm_string_index_of_char"
@@ -445,9 +443,6 @@ final class WasmModuleContext {
                 return argumentTypes.count == 2
                     ? "kk_runtime_result_get_or_default" : nil
             default:
-                // `equals` is an `Any` member — the receiver is already
-                // verified `kotlin.Result`; other Result implementations
-                // (custom subclasses) don't exist since Result is final.
                 return argumentTypes.count == 2
                     ? "kk_runtime_result_equals" : nil
             }
@@ -492,8 +487,6 @@ final class WasmModuleContext {
         }
     }
 
-    /// Maps stdlib symbols whose kklib bodies aren't in this module onto wasm
-    /// runtime helpers that reproduce the same observable behavior.
     private func stdlibIntrinsicName(symbol: SymbolID?, argumentCount: Int) -> String? {
         // `call get`/`call set` carry synthetic *accessor* symbols that are not
         // in the plain symbol table — decode them to the backing property so
@@ -507,8 +500,6 @@ final class WasmModuleContext {
             return nil
         }
         let symbol = resolvedSymbol
-        // Accessor/intrinsic declarations carry their runtime symbol through
-        // @KsSymbolName — if it matches an emitted helper, route directly.
         if let link = symbols?.externalLinkName(for: symbol),
            !link.isEmpty,
            WasmRuntimeHelpers.isEmittedHelperName(link)
@@ -521,9 +512,6 @@ final class WasmModuleContext {
                 "wasm-callee /\(argumentCount) fq=\(fq.joined(separator: ".")) link=\(symbols?.externalLinkName(for: symbol) ?? "-")\n".data(using: .utf8)!
             )
         }
-        // Throwable members whose bodies live in the kklib map onto the
-        // intrinsic accessors backing the boxed storage. Accessor symbols
-        // append a `$get`/`$set` component to the property's fqName.
         if fq.count >= 2, fq[0] == "kotlin" {
             var components = fq
             if components.last == "$get" || components.last == "$set" {
@@ -550,9 +538,6 @@ final class WasmModuleContext {
             {
                 return "__kk_array_size"
             }
-            // `Pair.first` carries @KsSymbolName on the property; `second`
-            // and the componentN operators only mark their private
-            // component accessors — route them onto the same slot readers.
             if components.count == 3, components[1] == "Pair" {
                 switch member {
                 case "first", "component1": return "__kk_pair_first"
@@ -561,9 +546,6 @@ final class WasmModuleContext {
                 default: break
                 }
             }
-            // `by lazy {}` lowers to `LazyImpl.<init>` + `Lazy.getValue` —
-            // regular member bodies that the linker-free wasm kklib cannot
-            // ship, so a boxed `{state, value, fnSlot}` helper covers them.
             if components.count >= 2 {
                 switch components[1] {
                 case "LazyImpl", "SynchronizedLazyImpl", "UnsafeLazyImpl":
@@ -595,8 +577,6 @@ final class WasmModuleContext {
                 default: break
                 }
             }
-            // `toString` members/extensions map to the matching renderer —
-            // the kklib bodies aren't in this module.
             if member == "toString" {
                 switch components.count >= 2 ? components[1] : "" {
                 case "ranges":
@@ -633,7 +613,6 @@ final class WasmModuleContext {
             {
                 return "__kk_wasm_indexed_value_to_string"
             }
-            // `IndexedValue.index`/`value`/`componentN` share the pair layout.
             if components.count >= 3, components[1] == "collections",
                components[2] == "IndexedValue"
             {
@@ -643,9 +622,6 @@ final class WasmModuleContext {
                 default: break
                 }
             }
-            // `Map.Entry.key`/`value`/`componentN` and
-            // `MutableMap.MutableEntry.setValue` share the pair slots (the
-            // live-view second resolves through `__kk_pair_second`).
             if components.count >= 4, components[1] == "collections",
                (components[2] == "Map" && components[3] == "Entry")
                    || (components[2] == "MutableMap"
@@ -658,16 +634,9 @@ final class WasmModuleContext {
                 default: break
                 }
             }
-            // `IntArray.size`/`Array<T>.size`/... are top-level extension
-            // properties in package `kotlin.collections` — their accessor
-            // fqName is `kotlin.collections.size.$get` with no receiver
-            // component. Every bundled `kotlin.collections.size` getter
-            // forwards to an array-meta load.
             if sem.fqName == KnownCompilerNames(interner: interner).kotlinCollectionsSizeGetFQName, argumentCount == 1 {
                 return "__kk_array_size"
             }
-            // `String.length` is a `kotlin`-package property in the bundled
-            // stdlib — its accessor decodes to `kotlin.length.$get`.
             if sem.fqName == KnownCompilerNames(interner: interner).kotlinLengthGetFQName, argumentCount == 1 {
                 return "kk_string_length"
             }
@@ -680,16 +649,11 @@ final class WasmModuleContext {
                 case "error": return "__kk_wasm_error"
                 case "TODO": return "__kk_wasm_todo"
                 case "runCatching": return "kk_runtime_result_run_catching"
-                // `kotlin.getValue(Lazy<T>, thisRef, KProperty<*>)` — the
-                // delegated-property read is a top-level extension, not a
-                // Lazy member. The helper only needs arg0 (the lazy box).
                 case "getValue" where argumentCount == 3:
                     return "kk_lazy_get_value"
                 default: break
                 }
             }
-            // `kotlin.comparisons` — ordering helpers whose kklib bodies
-            // inline-expand to these leaf calls.
             if components.count == 3, components[1] == "comparisons" {
                 switch member {
                 case "compareValues", "compareNullable",
@@ -706,9 +670,6 @@ final class WasmModuleContext {
                 default: break
                 }
             }
-            // `kotlin.ranges` member/extension calls whose kklib bodies can't
-            // run forward onto the range-box helpers — every nominal tag
-            // shares the `{first@16, last@24, step@32}` layout.
             if components.count >= 2, components[1] == "ranges" {
                 if let helper = unsignedRangeIntrinsicName(
                     member: member, symbol: symbol, argumentCount: argumentCount
@@ -741,8 +702,6 @@ final class WasmModuleContext {
                     "HashSet", "LinkedHashSet",
                 ]
                 if components.count == 3 || listBoxOwners.contains(components[2]) {
-                    // `sum`/`sorted` disambiguate Int/Double receivers and
-                    // primitive-array receivers through the signature.
                     func elementIsFp(_ sig: FunctionSignature?) -> Bool {
                         guard let t = sig?.receiverType, let types,
                               case let .classType(ct) = types.kind(of: t),
@@ -772,8 +731,6 @@ final class WasmModuleContext {
                         else { return nil }
                         return interner.resolve(last)
                     }
-                    // `*Array.toList` extern helpers keyed by the receiver's
-                    // simple name (`Array` covers the generic object array).
                     let arrayToListHelpers: [String: String] = [
                         "IntArray": "__kk_intArray_toList",
                         "LongArray": "__kk_longArray_toList",
@@ -918,8 +875,6 @@ final class WasmModuleContext {
                     }
                 }
             }
-            // `List`/`MutableList`/`ArrayList` member `size` accessors decode
-            // to `kotlin.collections.<Owner>.size`; all read the same slot.
             if components.count == 4,
                components[0] == "kotlin", components[1] == "collections",
                member == "size", argumentCount == 1,
@@ -929,10 +884,6 @@ final class WasmModuleContext {
             {
                 return "__kk_list_size"
             }
-            // `kotlin.text` String/Char ops whose kklib bodies aren't in
-            // this module — the flat-string helpers reproduce the same
-            // byte-level behavior. Overloads sharing fqName+arity (Char vs
-            // String receivers/params) are split on the resolved signature.
             if components.count == 3, components[1] == "text" {
                 let sig = symbols?.functionSignature(for: symbol)
                 let sigParamCount = sig?.parameterTypes.count ?? -1
@@ -1030,8 +981,6 @@ final class WasmModuleContext {
                         ? "__kk_wasm_string_replace_first_char"
                         : "__kk_wasm_string_replace_first"
                 case "split":
-                    // Only single-String-delimiter shapes map to the byte
-                    // scan; vararg/Regex overloads keep their own bodies.
                     if sig?.valueParameterIsVararg.first == true { break }
                     return "__kk_wasm_string_split"
                 case "get", "charAt":
@@ -1185,9 +1134,6 @@ final class WasmModuleContext {
         return procExitImport
     }
 
-    /// Places `bytes` in a data segment and returns its linear-memory offset.
-    /// Used by helpers that need compile-time-known payloads (e.g. the
-    /// "true"/"false" spellings inside `kk_any_to_string`).
     func dataOffset(for bytes: [UInt8]) -> Int64 {
         let offset = dataCursor
         dataCursor += Int64(bytes.count)
@@ -1195,8 +1141,6 @@ final class WasmModuleContext {
         return offset
     }
 
-    /// Lazily emits (or returns) the wasm function implementing a runtime
-    /// helper callable by KIR name (`kk_object_new`, `__kk_println_raw`, ...).
     /// `(helper, arity)` backing a stdlib member whose body never
     /// materialized as a module function. Vtable/itable registrations carry
     /// the implementation as a `symbolRef`; without this mapping the slot
@@ -1350,8 +1294,6 @@ final class WasmModuleContext {
         ) {
             module.setBody(body, forFunctionIndex: index)
         } else {
-            // Name is registered but this arity has no body — emit a
-            // return-0 body so the pre-allocated function stays valid.
             var body = WasmCode()
             body.u(0)
             body.i64Const(0)
@@ -1370,7 +1312,7 @@ final class WasmModuleContext {
         var code = WasmCode()
         code.i64Const(0)
         var body = WasmCode()
-        body.u(0) // no extra locals
+        body.u(0)
         body.bytes.append(contentsOf: code.bytes)
         body.op(WasmOpcode.end)
         module.setBody(body.bytes, forFunctionIndex: index)
@@ -1398,7 +1340,6 @@ public struct WasmEmitter {
             isWASI: target.isWASI || (!target.isWasmJS && target.isWasm)
         )
 
-        // Pre-register WASI imports so they occupy the leading function indices.
         if ctx.isWASI {
             _ = ctx.wasmImportFDWrite()
             _ = ctx.wasmImportProcExit()
@@ -1419,7 +1360,6 @@ public struct WasmEmitter {
         ctx.module.setBody(dispatchErrorBody.bytes, forFunctionIndex: dispatchErrorIndex)
         _ = ctx.module.tableSlot(forFunction: dispatchErrorIndex)
 
-        // Register internal functions, then KIR globals, then runtime globals.
         let functions = ctx.emitFunctions()
         var ambiguous: Set<String> = []
         var aritySeen: Set<String> = []
@@ -1430,12 +1370,20 @@ public struct WasmEmitter {
             )
             ctx.functionIndexBySymbol[function.symbol] = index
             let name = interner.resolve(function.name)
-            let key = "\(name)/\(function.params.count)"
-            if aritySeen.contains(key) {
-                ambiguous.insert(key)
-            } else {
-                aritySeen.insert(key)
-                ctx.functionIndexByNameArity[key] = index
+            var lookupKeys = ["\(name)/\(function.params.count)"]
+            if let linkName = symbols?.externalLinkNameIfKnown(for: function.symbol),
+               linkName.hasPrefix("kk_fn_"),
+               linkName != name
+            {
+                lookupKeys.append("\(linkName)/\(function.params.count)")
+            }
+            for key in lookupKeys {
+                if aritySeen.contains(key) {
+                    ambiguous.insert(key)
+                } else {
+                    aritySeen.insert(key)
+                    ctx.functionIndexByNameArity[key] = index
+                }
             }
             var paramLocals: [Int32: Int] = [:]
             for (index, param) in function.params.enumerated() {
@@ -1461,7 +1409,6 @@ public struct WasmEmitter {
         // string literals are discovered, so the heap base is only known then.
         ctx.dataEndGlobal = ctx.module.addGlobal(initialValue: 0, name: "$__kk_data_end")
 
-        // Emit function bodies.
         var emissionErrors: [Error] = []
         for function in functions {
             do {
@@ -1482,7 +1429,6 @@ public struct WasmEmitter {
             throw first
         }
 
-        // Export user-visible functions and the entry wrapper.
         var exportedNames: Set<String> = []
         for function in functions {
             let rawName = ctx.symbols?.externalLinkName(for: function.symbol)
@@ -1528,10 +1474,6 @@ public struct WasmEmitter {
         )
     }
 
-    /// `_start` (WASI) / `main` (wasm-js) calls the Kotlin entry, then converts
-    /// a non-zero thrown channel into an stderr diagnostic + `proc_exit(70)`
-    /// (WASI) or a trap (wasm-js). Mirrors Kotlin/Native's uncaught-throwable
-    /// reporting (`Uncaught Kotlin exception: <toString>`).
     private func emitEntryWrapper(ctx: WasmModuleContext, entryIndex: Int) {
         var code = WasmCode()
         code.call(entryIndex)
@@ -1541,10 +1483,8 @@ public struct WasmEmitter {
         code.localGet(0)
         code.op(WasmOpcode.i64Eqz)
         code.openIf()
-        // thrown == 0 → normal exit
         code.elseBranch()
         if ctx.isWASI {
-            // stderr: "Uncaught Kotlin exception: " + toString(thrown) + "\n"
             let prefix = "Uncaught Kotlin exception: "
             let prefixOffset = ctx.dataOffset(for: Array(prefix.utf8))
             code.i64Const(prefixOffset)

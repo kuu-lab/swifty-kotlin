@@ -3,9 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-// Enum values use an ordinal-backed representation in KIR. Entry-body
-// overrides therefore need a generated ordinal switch rather than a heap-backed
-// anonymous subclass.
 extension LoweringPassRegressionTests {
     @Test
     func testEnumEntryBodyOverridesResolveAndLowerThroughOrdinalDispatch() throws {
@@ -79,7 +76,6 @@ extension LoweringPassRegressionTests {
 
     @Test
     func testSecondaryConstructorOnlyEnumBodyValLowersWithoutUnresolvedCall() throws {
-        // KUU-2871: constructor writes to a body `val` must target enum entry storage.
         let source = """
         enum class Test {
             A(0),
@@ -155,11 +151,6 @@ extension LoweringPassRegressionTests {
         }
     }
 
-    /// KUU-3892: an interface default `fun` invoked unqualified on `this`
-    /// inside an enum member body must route through the enum's
-    /// `$enumEntryDispatch$` ordinal helper — like the qualified `E.X.f()`
-    /// form — instead of binding straight to the interface's default
-    /// implementation and ignoring the entry's own override.
     @Test
     func testImplicitThisInterfaceCallInsideEnumMemberUsesOrdinalDispatch() throws {
         let source = """
@@ -193,7 +184,6 @@ extension LoweringPassRegressionTests {
                 testCallees.contains { $0.hasPrefix("$enumEntryDispatch$") },
                 "unqualified f() must call the $enumEntryDispatch$ helper, got \(testCallees)"
             )
-            // The call must not bind straight to the interface default `Fun.f`.
             #expect(testBody.allSatisfy { instruction in
                 guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
                       symbol != nil

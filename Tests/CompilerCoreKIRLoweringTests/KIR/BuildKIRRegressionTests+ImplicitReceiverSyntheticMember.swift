@@ -3,11 +3,6 @@
 @testable import CompilerTestSupport
 import Testing
 
-// KUU-1451 regression: a bare `lastIndex`/`indices` read on a scope-function
-// implicit receiver must lower to the zero-argument extension-function call
-// on `this`, not `symbolRef` of the raw function symbol — boxing the callee
-// address as Int printed garbage and reading it back as IntRange panicked.
-// A member function in the same position keeps virtual dispatch (`c.m`).
 extension BuildKIRRegressionTests {
     @Test func testImplicitReceiverSyntheticMemberPropertyLowersToReceiverCall() throws {
         let ctx = makeContextFromSource(KotlinSourceFixtures.implicitReceiverSyntheticMemberProperty)
@@ -36,13 +31,6 @@ extension BuildKIRRegressionTests {
         }
     }
 
-    /// Kotlin requires invocation syntax for functions (`f()`), so bare
-    /// ordinary functions on the implicit receiver must not be invoked
-    /// through the property-style path — only the bundled property facades
-    /// (`lastIndex`/`indices`/`javaClass`) participate. This covers both a
-    /// user-declared extension and a bundled non-facade function sharing the
-    /// `kotlin.collections` package and index with the facades; kotlinc
-    /// rejects both programs outright.
     @Test func testImplicitReceiverOrdinaryFunctionsAreNotInvoked() throws {
         let ctx = makeContextFromSource("""
         fun <T> List<T>.myProp(): Int = 99

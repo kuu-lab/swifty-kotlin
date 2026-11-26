@@ -220,6 +220,19 @@ extension DataFlowSemaPhase {
                 scope.insert(secCtorSymbol)
                 symbols.setParentSymbol(symbol, for: secCtorSymbol)
                 let localNamespaceFQName = primaryCtorFQName + [interner.intern("$sec\(ctorIndex)_\(secCtorSymbol.rawValue)")]
+                registerAnnotations(
+                    secondaryCtor.annotations,
+                    symbol: secCtorSymbol,
+                    declRange: declarationRangeIncludingAnnotationTokens(
+                        secondaryCtor.annotations, declarationRange: secondaryCtor.range
+                    ),
+                    sourceFileID: file.fileID,
+                    sourceFile: file,
+                    sourceManager: sourceManager,
+                    interner: interner,
+                    symbols: symbols,
+                    diagnostics: diagnostics
+                )
                 let params = collectValueParameters(
                     secondaryCtor.valueParams,
                     localNamespaceFQName: localNamespaceFQName,
@@ -248,19 +261,6 @@ extension DataFlowSemaPhase {
                     ),
                     for: secCtorSymbol
                 )
-                registerAnnotations(
-                    secondaryCtor.annotations,
-                    symbol: secCtorSymbol,
-                    declRange: declarationRangeIncludingAnnotationTokens(
-                        secondaryCtor.annotations, declarationRange: secondaryCtor.range
-                    ),
-                    sourceFileID: file.fileID,
-                    sourceFile: file,
-                    sourceManager: sourceManager,
-                    interner: interner,
-                    symbols: symbols,
-                    diagnostics: diagnostics
-                )
             }
 
             checkAndReportClassConstructorFunctionConflict(
@@ -284,9 +284,6 @@ extension DataFlowSemaPhase {
                 )
                 if valParams.count > 1 {
                     if isFullValueClass {
-                        // Multi-field value class (Kotlin 2.x MFVC): lowered
-                        // as a regular class. `@JvmInline` classes take the
-                        // strict path: kotlinc rejects them outright.
                         symbols.removeFlags(.valueType, for: symbol)
                     } else {
                         diagnostics.error(
@@ -594,8 +591,6 @@ extension DataFlowSemaPhase {
             }
 
         case let .objectDecl(objectDecl):
-            // Unit keeps its builtin value representation, but its source-backed
-            // object symbol must remain available for ordinary member dispatch.
             let builtinNames = BuiltinTypeNames(interner: interner)
             let isUnitObject = package == [interner.intern("kotlin")] && declaration.name == builtinNames.unit
             if isUnitObject {
@@ -701,8 +696,6 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 usageRange: funDecl.range
             )
-            // Legacy context receivers use the first context as their hidden
-            // receiver. Named context parameters remain ordinary hidden values.
             let hasContextParameters = funDecl.contextReceivers.contains(where: \.isContextParameter)
             let receiverType = explicitReceiverType ?? (hasContextParameters ? nil : contextReceiverTypes.first)
             let params = collectValueParameters(
@@ -1073,10 +1066,6 @@ extension DataFlowSemaPhase {
                 }
             }
 
-            // Mirrors member property backing field logic.
-            // Simple properties with only an initializer don't need a separate
-            // backing field — the property symbol IS the storage.
-            // Getter-only computed properties never need a backing field.
             let hasExplicitBackingField = propertyDecl.explicitBackingField != nil
             let isGetterOnlyComputed = propertyDecl.getter != nil
                 && propertyDecl.setter == nil

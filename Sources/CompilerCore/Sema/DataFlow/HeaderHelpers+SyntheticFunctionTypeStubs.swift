@@ -1,7 +1,3 @@
-/// Synthetic stubs for the kotlin.Function0..Function255 type hierarchy.
-///
-/// Function0..22 are registered eagerly for compatibility. Higher arities are
-/// materialized on demand so unused invoke signatures do not inflate every Sema run.
 extension DataFlowSemaPhase {
     func registerSyntheticFunctionTypes(
         symbols: SymbolTable,
@@ -187,8 +183,6 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic]
             )
         }
-        // 関数型 ⇔ FunctionN のサブタイプ判定が名前解決を要しないよう、
-        // arity → symbol を TypeSystem に登録する（KUU-1084）。
         types.functionNInterfaceSymbols[arity] = interfaceSymbol
 
         // 型パラメータの定義。KUU-1084: Kotlin と同じ [P1..PN, R] の宣言順で
@@ -300,7 +294,6 @@ extension DataFlowSemaPhase {
 
         if arity > 0 {
             for i in 1...arity {
-                // [P1..PN, R] 宣言順では P_i は typeParamSymbols[i - 1]
                 let paramType = types.make(.typeParam(TypeParamType(
                     symbol: typeParamSymbols[i - 1],
                     nullability: .nonNull
@@ -322,7 +315,7 @@ extension DataFlowSemaPhase {
         }
 
         let returnType = types.make(.typeParam(TypeParamType(
-            symbol: typeParamSymbols[arity], // R は宣言順の最後
+            symbol: typeParamSymbols[arity],
             nullability: .nonNull
         )))
 

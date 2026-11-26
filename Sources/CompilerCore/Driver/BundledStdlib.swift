@@ -1,15 +1,6 @@
 import Foundation
 
-/// `.kt` files under `Sources/CompilerCore/Stdlib/` are copied into the
-/// `CompilerCore` resource bundle and injected as virtual `__bundled_*.kt`
-/// source files before compilation. `.kt.tmpl` files are expanded by
-/// `BundledStdlibTemplate` into several such sources first. This type
-/// enumerates those resources and computes a stable manifest hash used by
-/// incremental builds and stdlib artifact validation.
 package enum BundledStdlib {
-    /// Errors that can occur while loading bundled stdlib sources from the
-    /// resource bundle. These are converted to `KSWIFTK-SOURCE-0101`/`0102`
-    /// diagnostics by `LoadSourcesPhase.injectBundledStdlib`.
     internal enum LoadError: Error, CustomStringConvertible {
         case resourcePathMissing
         case resourceDirectoryMissing(path: String)
@@ -108,8 +99,6 @@ package enum BundledStdlib {
         return bundledSources.sorted(by: { $0.path < $1.path })
     }
 
-    /// Per-profile source and hash cache. Profiles are computed on first use so
-    /// a compile that never asks for `minimal` pays nothing for it.
     private final class ProfileCache: @unchecked Sendable {
         private let lock = NSLock()
         private var sources: [StdlibProfile: [(path: String, contents: Data)]] = [:]
@@ -148,10 +137,6 @@ package enum BundledStdlib {
 
     private static let profileCache = ProfileCache()
 
-    /// Returns the bundled stdlib sources of `profile` as (virtualPath, contents)
-    /// pairs in a deterministic order. This matches the sources injected by
-    /// `LoadSourcesPhase` and is used to compute the stdlib manifest hash for
-    /// incremental builds.
     package static func bundledStdlibSources(
         profile: StdlibProfile = .full
     ) -> [(path: String, contents: Data)] {
@@ -162,8 +147,6 @@ package enum BundledStdlib {
         profileCache.hash(for: profile)
     }
 
-    /// A content identity for persistent caches that must distinguish even
-    /// same-size changes to the actual resource bundle used by this process.
     package static func sourceFingerprint(
         resourcePath: String? = Bundle.module.resourcePath,
         profile: StdlibProfile = .full
@@ -181,8 +164,6 @@ package enum BundledStdlib {
         return FileFingerprint.sha256Hex(material)
     }
 
-    /// Packages declared by the full profile that `profile` leaves out, as
-    /// sorted dotted names. Used to explain a missing import precisely.
     package static func excludedPackages(for profile: StdlibProfile) -> [String] {
         guard profile != .full else { return [] }
         let kept = Set(bundledStdlibSources(profile: profile).map {

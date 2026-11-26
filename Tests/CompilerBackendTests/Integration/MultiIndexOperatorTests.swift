@@ -44,7 +44,6 @@ struct MultiIndexOperatorTests {
             let call = try #require(calls.first)
             #expect(call.1.count == argumentCount)
             let callee = try #require(sema.symbols.symbol(call.0))
-            // Receiver attachment preserves a top-level extension's FQ name.
             #expect(callee.fqName.map { ctx.interner.resolve($0) }
                 == (name == "single" ? ["Slots", "set"] : ["set"]))
             #expect(!extractCallees(from: body, interner: ctx.interner).contains("kk_array_set"))

@@ -1,5 +1,3 @@
-/// Receiver-function invocation can bypass the ordinary nameRef lowerer.
-/// Keep its lateinit local read checked while preserving raw closure captures.
 extension CallLowerer {
     func lowerLateinitLocalCallableRead(
         symbol: SymbolID,

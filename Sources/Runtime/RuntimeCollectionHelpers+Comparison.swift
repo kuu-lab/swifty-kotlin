@@ -249,9 +249,6 @@ private func runtimeComparableScalarValue(from raw: Int) -> RuntimeComparableSca
     return nil
 }
 
-/// Returns nil when either side is not a numeric scalar so callers can fall
-/// through to `Comparable` dispatch or identity ordering. Shared by
-/// `runtimeCompareValues` and `kk_compare_any`.
 func runtimeCompareScalarValues(_ lhs: Int, _ rhs: Int) -> Int? {
     guard let lhsScalar = runtimeComparableScalarValue(from: lhs),
           let rhsScalar = runtimeComparableScalarValue(from: rhs)
@@ -360,10 +357,6 @@ func runtimeComparePrimitiveValues(_ lhs: Int, _ rhs: Int, kind: RuntimePrimitiv
     }
 }
 
-/// Explicit `T.compareTo(other)` member call on a primitive `Comparable`
-/// receiver (Int/Long/UInt/ULong/Boolean/Float/Double — and the signed
-/// Byte/Short and unsigned UByte/UShort that share the Int ABI).
-///
 /// The desugared comparison operators (`<`, `>`, …) compute the comparison
 /// directly via machine compare in lowering, but the *explicit* member call
 /// has no per-type runtime mapping, so this entry point routes it to the same

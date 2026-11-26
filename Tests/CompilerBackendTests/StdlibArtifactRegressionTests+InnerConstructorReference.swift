@@ -4,7 +4,6 @@ import Testing
 import TestStdlibCache
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2455: a bound inner-constructor reference captures its outer instance once.
     @Test(arguments: [true, false], [0, 2])
     func testBoundInnerConstructorReferenceThroughSourceAndFreshArtifact(
         fromSource: Bool,
@@ -71,8 +70,6 @@ extension StdlibArtifactRegressionTests {
         #expect(result.stdout == "outer:one\nouter:two\n1\nOK\nOK\n")
     }
 
-    /// KUU-2343: unbound inner-constructor references preserve the outer
-    /// instance as the first function argument through default and fresh artifacts.
     @Test(arguments: [true, false], [0, 2])
     func testUnboundInnerConstructorReferenceThroughDefaultAndFreshArtifact(
         useDefaultStdlibLibrary: Bool,

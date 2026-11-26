@@ -1,14 +1,9 @@
 import Foundation
 
 struct RuntimeKClassMetadataEntry {
-    /// JVM binary name used when rendering KClass handles and default object text.
     var displayName: String? = nil
     let qualifiedName: String
     let simpleName: String
-    /// Fully-qualified display names of every direct supertype (class first,
-    /// then interfaces in declaration order), e.g. "kotlin.Comparable<kotlin.Int>".
-    /// The compiler joins them with '|' in `supertypeNameRaw`; the runtime
-    /// splits them back into `KType` elements for `KClass.supertypes`.
     let supertypeDisplayNames: [String]
     let isDataClass: Bool
     let isSealedClass: Bool
@@ -32,8 +27,6 @@ struct RuntimeKClassMetadataEntry {
     var isCompanion: Bool = false
     var isFunInterface: Bool = false
     var isLocal: Bool = false
-    /// Anonymous object literals: `KClass.simpleName` is null on the JVM even
-    /// though the class has a synthetic internal name (KUU-3828).
     var isAnonymous: Bool = false
     var annotations: [RuntimeAnnotationRecord] = []
 }
@@ -67,7 +60,6 @@ struct RuntimeAnnotationRecord {
     }
 }
 
-/// Merge new/legacy metadata without turning the same occurrence into two values.
 func runtimeAppendAnnotationRecord(_ annotation: RuntimeAnnotationRecord, to records: inout [RuntimeAnnotationRecord]) {
     let sameValue: (RuntimeAnnotationRecord) -> Bool = {
         $0.annotationFQName == annotation.annotationFQName && $0.arguments == annotation.arguments
@@ -85,7 +77,6 @@ func runtimeAppendAnnotationRecord(_ annotation: RuntimeAnnotationRecord, to rec
 final class RuntimeKClassMetadataRegistry: @unchecked Sendable {
     private let lock = NSLock()
     private var entries: [Int: RuntimeKClassMetadataEntry] = [:]
-    /// First registration wins when multiple entries share a qualified name.
     private var typeTokensByQualifiedName: [String: Int] = [:]
     private var classCastNamesByTypeToken: [Int: String] = [:]
     private var javaInheritedAnnotationNames: Set<String> = []
@@ -95,8 +86,6 @@ final class RuntimeKClassMetadataRegistry: @unchecked Sendable {
         defer { lock.unlock() }
         var registered = entry
         if registered.annotations.isEmpty {
-            // Legacy callers re-attach their complete record list after every
-            // metadata registration. Keep lazy factories, reset legacy records.
             registered.annotations = entries[typeToken]?.annotations.filter { $0.factory != 0 } ?? []
         }
         if registered.typeParameters.isEmpty,
@@ -306,11 +295,6 @@ let runtimeKConstructorRegistry = RuntimeKConstructorRegistry()
 final class RuntimeKMemberRegistry: @unchecked Sendable {
     private let lock = NSLock()
     private var membersByClassRaw: [Int: [Int]] = [:]
-    /// Member-extension callables (`val String.x` / `fun String.f()` declared
-    /// inside a class). The JVM keeps them out of
-    /// `memberProperties`/`memberFunctions`/`declaredMember*` and surfaces them
-    /// only through `memberExtension*`/`declaredMemberExtension*` in
-    /// `kotlin.reflect.full`, while `members` still lists them (KUU-4064).
     private var extensionMemberRaws: Set<Int> = []
     private var initializedBuiltinClasses: Set<Int> = []
 
@@ -426,9 +410,6 @@ final class RuntimeKCompanionRegistry: @unchecked Sendable {
 
 let runtimeKCompanionRegistry = RuntimeKCompanionRegistry()
 
-/// Global registry mapping a class's type token to its nested classes'
-/// (typeToken, nameRaw) pairs, populated by `__kk_kclass_register_nested_class`
-/// (KUU-1357 / MIGRATION-REFLECT-002).
 final class RuntimeKNestedClassRegistry: @unchecked Sendable {
     private let lock = NSLock()
     private var entries: [Int: [(token: Int, nameRaw: Int)]] = [:]
@@ -460,10 +441,6 @@ let runtimeKNestedClassRegistry = RuntimeKNestedClassRegistry()
 final class RuntimeKClassBox {
     let typeToken: Int
     let nameHint: Int
-    /// Interned `RuntimeArrayComponentType` descriptor id carried by
-    /// `Array<E>` class literals (0 for every other classifier and for erased
-    /// or unknown element identity). Lets `isInstance`/`cast`/`safeCast`
-    /// apply the JVM per-component array check on top of the nominal token.
     let arrayComponent: Int
 
     init(typeToken: Int, nameHint: Int, arrayComponent: Int = 0) {
@@ -478,15 +455,10 @@ final class RuntimeKClassBox {
 }
 
 final class RuntimeKTypeBox {
-    /// The classifier — typically a `KClass` raw handle.
     let classifierRaw: Int
-    /// Type arguments as `RuntimeKTypeProjectionBox` raw handles.
     let argumentRaws: [Int]
     let isMarkedNullable: Bool
-    /// Optional compact type descriptor used by callable reflection metadata.
     let typeNameRaw: Int
-    /// Use-site annotation records for this type. No registration entry
-    /// point emits them yet, so `KType.annotations` reads as an empty list.
     var annotations: [RuntimeAnnotationRecord] = []
 
     init(
@@ -524,9 +496,7 @@ enum RuntimeKVariance: Int {
 }
 
 final class RuntimeKTypeProjectionBox {
-    /// The projected type as a `RuntimeKTypeBox` raw handle, or 0 for star projection.
     let typeRaw: Int
-    /// The variance (nil for star projection).
     let variance: RuntimeKVariance?
 
     init(typeRaw: Int, variance: RuntimeKVariance?) {
@@ -550,30 +520,13 @@ final class RuntimeKParameterBox {
     var typeToken: Int?
     var reflectedTypeRaw: Int = 0
     var arrayComponentType: Int?
-    /// Owning-callable identity token: compiler-emitted parameter lists carry
-    /// an encoded SymbolID, runtime-created reflection members pass the owning
-    /// callable's raw handle. Compared by `runtimeKParameterBoxesEqual` the
-    /// way the JVM's `ReflectKParameter.equals` compares `callable`.
     var callableOwner = 0
-    /// Raw handle of the owning callable value (`::f` reference, KFunction /
-    /// KProperty box), filled by `__kk_kcallable_register` when the parameter
-    /// list is linked to its callable. Only used to render `of <callable>`
-    /// in toString; equality uses the stable `callableOwner` and its
-    /// discriminator because repeated callable evaluations produce distinct
-    /// handles for the same callable.
     var callableRaw = 0
-    /// Separates a property's own parameters from its getter and setter while
-    /// keeping each accessor's parameter identity stable across evaluations.
     var callableOwnerDiscriminator = RuntimeKParameterCallableOwnerDiscriminator.property
     var boundArguments: [Int] = []
-    /// Annotation records for this parameter. No registration entry point
-    /// emits them yet, so `KParameter.annotations` reads as an empty list.
     var annotations: [RuntimeAnnotationRecord] = []
-    /// Parameter index (0-based).
     let index: Int
-    /// Parameter name as a KKString raw handle (0 if unnamed).
     let nameRaw: Int
-    /// Parameter type as a KKString raw handle describing the type name.
     let typeRaw: Int
     let isOptional: Bool
     let isVararg: Bool
@@ -605,21 +558,13 @@ enum RuntimeKFunctionFlags {
 }
 
 final class RuntimeKFunctionBox {
-    /// Interned KKString raw pointer for the function name.
     let nameRaw: Int
-    /// Number of value parameters (not counting the dispatch receiver).
     let arity: Int
-    /// Interned KKString raw pointer for the return type descriptor, or 0 if unknown.
     let returnTypeRaw: Int
-    /// Packed modifier flags (see `RuntimeKFunctionFlags`).
     let flags: Int
-    /// Raw function pointer used by `call()` dispatch.  Zero when not callable.
     let fnPtr: Int
-    /// Closure environment for the callable reference (zero for top-level functions).
     let closureRaw: Int
-    /// KParameter raw handles for all parameters (including receiver if any).
     let parameterRaws: [Int]
-    /// Function type string as a KKString raw handle (e.g. "(Int, Int) -> Int").
     let typeStringRaw: Int
     /// KUU-4423: `KCallable.visibility` ordinal (PUBLIC=0, PROTECTED=1,
     /// INTERNAL=2, PRIVATE=3) pinned by `__kk_kcallable_set_visibility`.
@@ -660,19 +605,12 @@ final class RuntimeKConstructorBox {
     let nameRaw: Int
     let arity: Int
     let returnTypeRaw: Int
-    /// C function pointer for the underlying constructor implementation (0 if unavailable).
     let fnPtr: Int
     let isPrimary: Bool
-    /// Visibility as a KKString raw handle (e.g. "PUBLIC", "PRIVATE", "PROTECTED", "INTERNAL").
     let visibilityRaw: Int
-    /// JVM access visibility for Java reflection; Kotlin visibility can be
-    /// narrower when the constructor inherits its owning class visibility.
     var jvmVisibilityOrdinal: Int = 0
-    /// The declaring KClass raw handle (0 if unknown).
     let declaringClassRaw: Int
-    /// Parameter names as KKString raw handles.
     let parameterNameRaws: [Int]
-    /// JVM-erased parameter class tokens used by `Class.getDeclaredConstructor`.
     var parameterTypeTokens: [Int?] = []
 
     init(
@@ -707,7 +645,6 @@ final class RuntimeKConstructorBox {
 final class RuntimeAnnotationBox {
     let annotationFQName: String
     let arguments: [String]
-    /// Raw KClass handle for the annotation class (0 if not available).
     let annotationClassRaw: Int
 
     init(annotationFQName: String, arguments: [String], annotationClassRaw: Int = 0) {

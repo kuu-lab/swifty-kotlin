@@ -5,7 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2238: java.util.Date keeps one public type identity in source and artifact modes.
     @Test
     func testJavaUtilDateIdentityThroughSourceAndFreshArtifactAtO0AndO2() throws {
         let javaDateSurface = """

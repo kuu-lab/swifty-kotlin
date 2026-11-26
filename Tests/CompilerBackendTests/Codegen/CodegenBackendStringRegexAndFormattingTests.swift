@@ -7,7 +7,6 @@ import Testing
 @Suite
 struct CodegenBackendStringRegexAndFormattingTests {
 
-    // TEST-TEXT-020: String and Regex pure Kotlin operations
     @Test
     func testCodegenStringPureKotlinRegexAndFormattingOperations() throws {
         let source = """

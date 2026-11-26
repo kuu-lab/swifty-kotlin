@@ -92,7 +92,6 @@ func runtimeIsMapEntry(rawValue: Int) -> Bool {
     return typeID == mapEntryRuntimeTypeID || typeID == mutableMapEntryRuntimeTypeID
 }
 
-/// Identity entry views accept arbitrary source Map.Entry implementations.
 func runtimeIdentityMapEntryValues(_ raw: Int) -> (key: Int, value: Int)? {
     if let entry = runtimeMapEntryValues(rawValue: raw) { return entry }
     let entryID = runtimeStableNominalTypeID(fqName: "kotlin.collections.Map.Entry")
@@ -105,7 +104,6 @@ func runtimeIdentityMapEntryValues(_ raw: Int) -> (key: Int, value: Int)? {
     return (key, value)
 }
 
-/// Bulk removal follows the argument collection's contains policy.
 func runtimeCollectionMembership(_ raw: Int, values: [RuntimeValue]) -> (Int) -> Bool {
     if let set = runtimeSetBox(from: raw), set.usesReferenceEquality {
         return { set.contains(rawValue: $0) }
@@ -163,9 +161,6 @@ func runtimeListBox(from rawValue: Int) -> RuntimeListBox? {
     return nil
 }
 
-/// Only nominal HashMap objects need source dispatch ahead of their backing
-/// storage. Native map boxes and other source Map implementations keep their
-/// existing routes.
 func runtimeHashMapObject(from rawValue: Int) -> RuntimeObjectBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue),
           runtimeIsObjectPointer(ptr),
@@ -198,8 +193,6 @@ func runtimeMapBox(from rawValue: Int) -> RuntimeMapBox? {
                 sourceTypeID: objectTypeID,
                 targetTypeID: treeMapRuntimeTypeID
             ) {
-                // KUU-1361: TreeMap subclasses attach a naturally-ordered
-                // backing on first access (treeSetRuntimeTypeID precedent).
                 let backingMapBox = RuntimeMapBox(keys: [], values: [])
                 backingMapBox.enableSorted(comparatorRaw: 0)
                 objectBox.backingMapBox = backingMapBox
@@ -227,9 +220,6 @@ func runtimeSetBox(from rawValue: Int) -> RuntimeSetBox? {
                 sourceTypeID: objectTypeID,
                 targetTypeID: hashSetRuntimeTypeID
             ) {
-                // KUU-1940: HashSet is open. Attach storage to all source
-                // subclasses, including LinkedHashSet subclasses whose init
-                // bridge was not emitted.
                 let backingSetBox = RuntimeSetBox(elements: [])
                 objectBox.backingSetBox = backingSetBox
                 return backingSetBox
@@ -238,8 +228,6 @@ func runtimeSetBox(from rawValue: Int) -> RuntimeSetBox? {
                 sourceTypeID: objectTypeID,
                 targetTypeID: treeSetRuntimeTypeID
             ) {
-                // KUU-1361: TreeSet subclasses whose init interception didn't
-                // run attach a naturally-ordered backing on first access.
                 let backingSetBox = RuntimeSetBox(elements: [])
                 backingSetBox.enableSorted(comparatorRaw: 0)
                 objectBox.backingSetBox = backingSetBox
@@ -278,8 +266,6 @@ func runtimeCollectionOrArrayElements(from rawValue: Int) -> [Int]? {
     if let elements = runtimeCollectionElements(from: rawValue) {
         return elements
     }
-    // runtimeSequenceSourceElements excludes RuntimeObjectBox instances that
-    // are not actually arrays.
     if let elements = runtimeSequenceSourceElements(from: rawValue) {
         return elements
     }
@@ -307,7 +293,6 @@ func runtimeIterableValues(from rawValue: Int) -> [RuntimeValue]? {
             RuntimeValue(raw: runtimeIndexedValueNew(index: index, value: element))
         }
     }
-    // runtimeSequenceSourceValues does not misclassify RuntimeObjectBox.
     if let values = runtimeSequenceSourceValues(from: rawValue) {
         return values
     }

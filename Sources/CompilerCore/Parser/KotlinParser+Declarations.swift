@@ -82,10 +82,6 @@ extension KotlinParser {
             if stream.peek(1).kind == .keyword(.class) || isIdentifierLike(stream.peek(1).kind) {
                 return parseEnumDeclaration(leadingChildren: modifierChildren, leadingRange: modifierRange.value)
             }
-            // `enum` before a different declaration kind (e.g.
-            // `enum interface`) is a recoverable modifier, not an
-            // enum-class head — keep it attached so downstream validation
-            // can report the modifier as kind-invalid.
             _ = consumeToken(into: &modifierChildren, range: &modifierRange)
             continue companionDispatch
         case .keyword(.package):
@@ -116,18 +112,10 @@ extension KotlinParser {
                     modifierChildren
                 )
             }
-            // Companion extensions can combine `companion` with ordinary
-            // declaration modifiers, e.g. `companion operator fun C.invoke()`.
             parseLeadingDeclarationPrefix(into: &modifierChildren, range: &modifierRange)
-            // Keep an otherwise invalid `companion` modifier attached so
-            // downstream validation can report its declaration position.
             continue companionDispatch
         default:
             if !modifierChildren.isEmpty {
-                // `get`/`set` after a modifier prefix is a misplaced accessor
-                // (e.g. `private set var x`); accessors must follow the
-                // property declaration. Diagnose, then recover into the
-                // statement tail as before.
                 if case let .softKeyword(soft) = token.kind,
                    soft == .get || soft == .set
                 {
@@ -205,8 +193,6 @@ extension KotlinParser {
         if hasName {
             _ = consumeToken(into: &children, range: &range)
         } else if !isCompanionObject {
-            // Companion objects may omit the name (defaults to "Companion"),
-            // so only emit a diagnostic for non-companion declarations.
             insertMissingToken(expected: .identifier(.invalid), into: &children, range: &range, code: "KSWIFTK-PARSE-0002", message: "Expected declaration name.", severity: .error)
         }
         if supportsTypeParameters, canStartTypeArgumentsInternal(hasAnchorToken: lastConsumedToken != nil) {
@@ -254,9 +240,6 @@ extension KotlinParser {
         )
     }
 
-    /// An optional companion name must be a simpleIdentifier. Leave hard
-    /// keywords for the next member declaration, while allowing names after
-    /// a newline and contextual or modifier keywords used as names.
     private func isCompanionObjectName(_ kind: TokenKind) -> Bool {
         switch kind {
         case .identifier, .backtickedIdentifier:
@@ -315,10 +298,6 @@ extension KotlinParser {
         while isReceiverAnnotationPrefix() {
             _ = consumeDeclarationAnnotationPrefixIfPresent(into: &children, range: &range)
         }
-        // Parenthesized receiver type: `fun (() -> R).name()`,
-        // `fun <R> (suspend () -> R).name()`, `fun (A.() -> Unit)?.name()`.
-        // The group is followed by `.` / `?.` (optionally after `?`), which
-        // distinguishes it from a value-parameter list.
         if offsetAfterParenthesizedReceiver(from: 0) != nil {
             let receiverGroup = parseBalancedGroup(opening: .lParen, closing: .rParen)
             children.append(.node(receiverGroup))
@@ -366,8 +345,6 @@ extension KotlinParser {
                 allowsDeclaredTypeColon: true,
                 stopsAtFunctionDelegation: true
             )
-            // A block on the next line still belongs to a function whose
-            // header has no expression body or explicit terminator.
             if case .symbol(.lBrace) = stream.peek().kind,
                hasLeadingNewline(stream.peek()),
                lastConsumedToken?.kind != .symbol(.semicolon),
@@ -388,9 +365,6 @@ extension KotlinParser {
         )
     }
 
-    /// Returns the position after a parenthesized receiver and its `.` / `?.`.
-    /// The caller can inspect that position to distinguish a named declaration
-    /// from an anonymous function with a parenthesized extension receiver.
     func offsetAfterParenthesizedReceiver(from start: Int, maxDistance: Int? = nil) -> Int? {
         guard stream.peek(start).kind == .symbol(.lParen) else { return nil }
         var offset = offsetPastBalancedGroup(
@@ -441,11 +415,7 @@ extension KotlinParser {
                 )
             }
         } else if case .symbol(.lParen) = stream.peek().kind {
-            // Destructuring declaration: val (a, b) = expr
-            // Don't emit a missing-name diagnostic; the AST builder handles this pattern.
         } else if case .symbol(.lBracket) = stream.peek().kind {
-            // Positional destructuring declaration (Kotlin 2.4): val [a, b] = expr
-            // Don't emit a missing-name diagnostic; the AST builder handles this pattern.
         } else {
             insertMissingToken(expected: .identifier(.invalid), into: &children, range: &range, code: "KSWIFTK-PARSE-0002", message: "Expected property name.", severity: .error)
         }
@@ -463,10 +433,6 @@ extension KotlinParser {
                 allowsPropertyDelegation: true,
                 allowsDeclaredTypeColon: true
             )
-            // In Kotlin, `get()`/`set()` accessors and explicit backing field
-            // declarations on the next line are part of the property declaration.
-            // After parseTail stops at a newline, absorb trailing accessor and
-            // explicit field lines into dedicated CST nodes.
             var absorbedAnyAccessorOrField = false
             var absorbedBareDefaultAccessor = false
             while true {
@@ -505,9 +471,6 @@ extension KotlinParser {
         )
     }
 
-    /// Parses one accessor node and reports whether it was a bare `get`/`set`
-    /// keyword accessor — the only accessor shape after which a `;` ends the
-    /// accessor list instead of separating the next accessor.
     @discardableResult
     private func parsePropertyAccessor(into children: inout [SyntaxChild], range: inout RangeAccumulator) -> Bool {
         var accessorChildren: [SyntaxChild] = []
@@ -525,9 +488,6 @@ extension KotlinParser {
         children.append(.node(nodeID))
         range.append(accessorNodeRange)
 
-        // A bare accessor is a lone `get`/`set` keyword plus the optional `;`
-        // the tail consumed. Annotations, modifiers, a parameter list, or a
-        // body child all make it a non-bare accessor.
         return accessorChildren.allSatisfy { child in
             guard case let .token(tokenID) = child,
                   let token = arena.token(tokenID)
@@ -543,8 +503,6 @@ extension KotlinParser {
         }
     }
 
-    /// Reuses the `.propertyAccessor` kind so the AST builder can detect it
-    /// via the leading `field` soft keyword.
     private func parseExplicitBackingField(into children: inout [SyntaxChild], range: inout RangeAccumulator) {
         var fieldChildren: [SyntaxChild] = []
         var fieldRange = RangeAccumulator()
@@ -622,8 +580,7 @@ extension KotlinParser {
             let body = parseEnumBody()
             children.append(.node(body))
             range.append(childRange(.node(body)))
-        } else if parseEnumHeaderTail(into: &children, range: &range) {
-        } else {
+        } else if !parseEnumHeaderTail(into: &children, range: &range) {
             parseTail(inBlock: false, into: &children, range: &range)
         }
 
@@ -679,19 +636,12 @@ extension KotlinParser {
         return arena.appendNode(kind: .block, range: range.value ?? invalidRange, children)
     }
 
-    /// Distinguishes a member declaration from an enum entry inside an enum body.
-    /// Enum entry names are identifier-like and may be soft/modifier keywords
-    /// (`data`, `value`, ...), so a modifier keyword only starts a declaration
-    /// when another declaration token follows it.
     private func enumBodyStartsDeclaration() -> Bool {
         let kind = stream.peek().kind
         if kind == .keyword(.constructor) || kind == .softKeyword(.constructor) {
             return true
         }
         if kind == .symbol(.at) {
-            // An annotation can prefix either an enum entry or a member
-            // declaration. Look through the annotation before deciding which
-            // parser should consume the node.
             return !enumEntryStartsAfterLeadingAnnotations()
         }
         if case .softKeyword(.context) = kind {
@@ -706,8 +656,6 @@ extension KotlinParser {
         return true
     }
 
-    /// Mirrors the token shape consumed by `consumeDeclarationAnnotationPrefixIfPresent`
-    /// without mutating the parser stream.
     private func enumEntryStartsAfterLeadingAnnotations() -> Bool {
         guard stream.peek().kind == .symbol(.at) else { return false }
 
@@ -763,9 +711,6 @@ extension KotlinParser {
             let atTopLevel = depth.isTopLevel && depth.angle == 0
             if atTopLevel, case .symbol(.lBrace) = token.kind {
                 if delegateBraceTracker.braceContinuesDelegateExpression() {
-                    // A brace that belongs to a `by` delegate expression
-                    // (`by when (x) { ... }`, `by object : C { }`, ...) is
-                    // part of the header, not the enum body.
                     let braceToken = consumeToken(into: &children, range: &range)
                     delegateBraceTracker.note(braceToken.kind, atTopLevel: true)
                     depth.track(token.kind)
@@ -860,8 +805,6 @@ extension KotlinParser {
                 || next.kind == .softKeyword(.where)
         ) || allowsClassHeaderColon && next.kind == .symbol(.lParen)
             || allowsClassDelegation && next.kind == .softKeyword(.by)
-        // A body statement after a local class has no class-header role. Stop
-        // before it so the block parser can keep the statement beside the class.
         let stopsAtNewline = hasLeadingNewline(next)
             && (includeBlock ? !continuesHeaderAcrossNewline : isDeclarationStart(next.kind))
         if stopsAtNewline {
@@ -874,9 +817,6 @@ extension KotlinParser {
             allowsWhereClauseContinuation: allowsWhereClauseContinuation,
             isClassBody: includeBlock
         )
-        // Header scanning may stop at a newline after constructor parameters or
-        // supertypes. The following brace still belongs to this declaration,
-        // unless a terminator or an already parsed body has ended it.
         if includeBlock, stream.peek().kind == .symbol(.lBrace),
            lastConsumedToken?.kind != .symbol(.semicolon),
            !children.contains(where: { child in

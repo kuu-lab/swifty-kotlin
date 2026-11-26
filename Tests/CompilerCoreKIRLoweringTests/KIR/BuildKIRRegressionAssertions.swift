@@ -4,7 +4,6 @@ import RuntimeABI
 import Testing
 @testable import CompilerTestSupport
 
-/// Operations identify ABI entries independently of their canonical link names.
 enum BuildKIRRuntimeOperation: String {
     case anyToString = "any_to_string"
     case arrayGet = "array_get"
@@ -172,7 +171,6 @@ func registeredRuntimeCallees() -> Set<String> {
     buildKIRCanonicalCallees
 }
 
-/// Missing or ambiguous canonical entries must fail even a negative assertion.
 func runtimeCallee(
     _ operation: BuildKIRRuntimeOperation,
     tier: BuildKIRRuntimeTier? = nil,
@@ -221,7 +219,6 @@ func runtimeFunctionCreateCallees() -> Set<String> {
     })
 }
 
-/// Match AST lambdas using the compiler's own generated-name scheme.
 func findKIRLambdaFunctions(in context: CompilationContext) throws -> [KIRFunction] {
     let ast = try #require(context.ast)
     let module = try #require(context.kir)
@@ -247,9 +244,6 @@ func findKIRCoroutineBlockAdapters(in context: CompilationContext) throws -> [KI
     }
 }
 
-/// Follows `.copy` forwarding back to the originating `.symbolRef` — e.g. a
-/// checked-cast operand an adapter derives from its receiver parameter, which
-/// the erased invoke ABI hands over as raw bits (KUU-3535).
 func resolveForwardedSymbolRef(
     _ exprID: KIRExprID,
     in body: [KIRInstruction],
@@ -283,7 +277,6 @@ func referencedKIRFunction(_ reference: KIRExprID, in module: KIRModule) throws 
     return try #require(findAllKIRFunctions(in: module).first { $0.symbol == target })
 }
 
-/// Accessor symbols may precede their KIR definitions or retain a property's call name.
 private func propertyOwnerForKIRAccessorCall(
     _ symbol: SymbolID,
     callee: InternedString,
@@ -310,7 +303,6 @@ private func propertyOwnerForKIRAccessorCall(
     return property.id
 }
 
-/// An obsolete bridge must not pass merely because it vanished from the ABI registry.
 func expectResolvedKIRCallTargets(in body: [KIRInstruction], context: CompilationContext) throws {
     let sema = try #require(context.sema)
     let module = try #require(context.kir)
@@ -359,7 +351,6 @@ func expectResolvedKIRCallTargets(in body: [KIRInstruction], context: Compilatio
     }
 }
 
-/// Verify source ownership and absence of an external ABI link for each selected call.
 func expectSourceBackedCalls(
     named name: InternedString,
     in body: [KIRInstruction],

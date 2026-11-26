@@ -22,12 +22,11 @@ extension JVMProgramBuilder {
 }
 
 extension JVMFunctionBuilder {
-    func jdkCall(_ owner: String, _ name: String, _ parameters: [JVMValueType], _ resultType: JVMValueType, receiver: JVMValue? = nil, arguments: [JVMValue] = [], interface: Bool = false, resolved: JVMValueType? = nil) throws -> JVMValue? {
+    func jdkCall(_ owner: String, _ name: String, _ parameters: [JVMValueType], _ resultType: JVMValueType, receiver: JVMValue? = nil, arguments: [JVMValue] = [], interface: Bool = false, special: Bool = false, resolved: JVMValueType? = nil) throws -> JVMValue? {
         var args: [JVMValue] = []
         for (arg, type) in zip(arguments, parameters) { args.append(try convert(arg, to: type)) }
-        let method = JVMForeignMethod(owner: owner, name: name, descriptor: "(" + parameters.map(\.descriptor).joined() + ")" + resultType.descriptor, parameters: parameters, result: resultType, isStatic: receiver == nil, isInterface: interface, isAbstract: false)
+        let method = JVMForeignMethod(owner: owner, name: name, descriptor: "(" + parameters.map(\.descriptor).joined() + ")" + resultType.descriptor, parameters: parameters, result: resultType, isStatic: receiver == nil, isInterface: interface, isAbstract: false, isSpecial: special)
         let resolvedType = resolved ?? resultType
-        // An erased getter (e.g. Pair<Unit, T>.getFirst) returns an object, not void.
         let logical = resultType.referenceName != nil ? resolvedType.withBoxedUnit : resolvedType
         let result = resultType == .unit ? nil : try value(foreignResultType(resultType, resolved: logical))
         instructions.append(.foreignCall(method, receiver: receiver, arguments: args, result: result))
@@ -123,15 +122,10 @@ extension JVMFunctionBuilder {
         }
         if fq.hasPrefix("kotlin/collections/"), ["listOf", "mutableListOf", "setOf", "mutableSetOf", "emptyList", "emptySet", "mutableMapOf", "mapOf", "emptyMap"].contains(name) {
             let map = name.lowercased().contains("map"), set = name.lowercased().contains("set")
-            // Kotlin evaluates the whole vararg before hashing keys/elements.
             let items = try args.map { try requireValue($0.expr) }
             if !name.hasPrefix("mutable") {
-                // kotlinc exposes concrete JDK/bundled classes through getClass():
-                // Empty{List,Set,Map}, Collections$Singleton{List,Set,Map},
-                // Arrays$ArrayList, LinkedHashSet, LinkedHashMap.
                 let kind = map ? "Map" : (set ? "Set" : "List")
                 if items.isEmpty {
-                    // The singleton implementation classes need not be public.
                     let facade = map ? "MapsKt" : (set ? "SetsKt" : "CollectionsKt")
                     return JVMIntrinsicResult(value: try jdkCall(
                         "kotlin/collections/" + facade, "empty" + kind, [],
@@ -163,10 +157,6 @@ extension JVMFunctionBuilder {
         }
         return nil
     }
-    /// True when Sema selected a Kotlin extension (or another non-member
-    /// callable) for this call. Collection member intrinsics emit fixed JDK
-    /// member signatures, so they must defer to the regular extension
-    /// dispatch when the chosen callee is not the collection member itself.
     func collectionCallIsExtension(_ id: ExprID) -> Bool {
         guard let callee = program.sema.bindings.callBinding(for: id)?.chosenCallee else { return false }
         if program.extensionSymbols.contains(callee)
@@ -267,8 +257,6 @@ extension JVMFunctionBuilder {
             } else if case .comparison = overload,
                       sourceIndex == args.count - 1,
                       argumentIsFunction {
-                // A trailing lambda is the final comparison parameter even when
-                // earlier range arguments are supplied positionally.
                 parameterIndex = 2
             } else if signature?.parameterTypes.count == parameterTypes.count,
                       let mapped = binding?.parameterMapping[sourceIndex],
@@ -367,8 +355,6 @@ extension JVMFunctionBuilder {
         if let reflection = try reflectionMember(receiverID, name: member, args: args, id: id) { return reflection }
         guard let sourceType = try? program.expressionType(receiverID) else { return nil }
         if sourceType.referenceName == "kotlin/ranges/ClosedFloatingPointRange" {
-            // The JVM ABI erases generic range elements to Comparable; concrete
-            // Float/Double range classes provide bridges for these interface calls.
             let comparable: JVMValueType = .reference("java/lang/Comparable", nullable: false)
             let receiver = try requireValue(receiverID)
             switch member {
@@ -409,15 +395,12 @@ extension JVMFunctionBuilder {
         if let coroutine = try coroutineMember(receiverID, name: member, args: args, id: id) { return coroutine }
         let binding = program.sema.bindings.callBinding(for: id)
         let builtinHOF = binding.flatMap { program.sema.symbols.symbol($0.chosenCallee) }?.fqName.starts(with: KnownCompilerNames(interner: context.interner).kotlinCollectionsPackage) == true
-        // Array HOF inference may leave no callee binding, including when its
-        // callback is an existing function value rather than a lambda literal.
         let intrinsicHOF = binding == nil && higherOrderReceiver(receiverID) && args.last.flatMap { functionType($0.expr) } != nil
         if ["map", "filter", "forEach", "fold", "reduce"].contains(member), (builtinHOF || intrinsicHOF), higherOrderReceiver(receiverID) {
             return JVMIntrinsicResult(value: try higherOrder(receiverID, operation: member, args: args, id: id))
         }
         if let aggregate = try collectionAggregateMember(receiverID, name: member, args: args, id: id) { return aggregate }
         let object: JVMValueType = .reference("java/lang/Object", nullable: true)
-        // `to` is resolved as an extension; evaluate its receiver before the value.
         if member == "to", let binding = program.sema.bindings.callBinding(for: id),
            let symbol = program.sema.symbols.symbol(binding.chosenCallee), symbol.fqName == KnownCompilerNames(interner: context.interner).kotlinToFQName, args.count == 1 {
             let left = try convert(requireValue(receiverID), to: object), right = try convert(requireValue(args[0].expr), to: object)
@@ -513,7 +496,13 @@ extension JVMFunctionBuilder {
             ))
         }
         let collections: Set<String> = ["java/util/ArrayList", "java/util/HashMap", "java/util/LinkedHashMap", "java/util/LinkedHashSet", "java/lang/Iterable", "java/util/Iterator", "java/util/ListIterator", "java/util/Collection", "java/util/List", "kotlin/enums/EnumEntries", "java/util/Set", "java/util/Map", "kotlin/text/MatchGroupCollection"]
+        if !collections.contains(owner),
+           let selectedOwner = try? mappedBuiltinMemberOwner(id),
+           collections.contains(selectedOwner) {
+            owner = selectedOwner
+        }
         if collections.contains(owner) {
+            let directSuperOwner = directConcreteSuperOwner(receiverID)
             if member == "withIndex", args.isEmpty {
                 let iterableType = JVMValueType.reference("java/lang/Iterable", nullable: false)
                 let source = try convert(requireValue(receiverID), to: iterableType)
@@ -540,12 +529,10 @@ extension JVMFunctionBuilder {
                     resolved: program.expressionType(id)
                 ))
             }
-            // JDK collection interfaces retain the virtual Object contract;
-            // their implementations provide structural equality and hashing.
-            if ["hashCode", "toString"].contains(member), args.isEmpty {
+            if directSuperOwner == nil, ["hashCode", "toString"].contains(member), args.isEmpty {
                 return JVMIntrinsicResult(value: try jdkCall("java/lang/Object", member, [], member == "hashCode" ? .int : .string, receiver: requireValue(receiverID)))
             }
-            if member == "equals", args.count == 1 {
+            if directSuperOwner == nil, member == "equals", args.count == 1 {
                 let receiver = try requireValue(receiverID), argument = try requireValue(args[0].expr)
                 return JVMIntrinsicResult(value: try jdkCall("java/lang/Object", member, [object], .boolean, receiver: receiver, arguments: [argument]))
             }
@@ -556,7 +543,7 @@ extension JVMFunctionBuilder {
             if owner == "java/util/LinkedHashMap" || owner == "java/util/HashMap" { owner = "java/util/Map" }
             if member == "isNullOrEmpty", args.isEmpty,
                ["java/util/Collection", "java/util/List", "java/util/Set", "java/util/Map"].contains(owner) {
-                return try collectionIsNullOrEmpty(receiverID, owner: owner, id: id)
+                return try collectionIsNullOrEmpty(receiverID, owner: owner)
             }
             let isIteratorRemove = owner == "java/util/Iterator" && member == "remove"
             // Sema's chosen callee is authoritative for member vs extension:
@@ -568,12 +555,16 @@ extension JVMFunctionBuilder {
                collectionCallIsExtension(id) {
                 return nil
             }
-            if ["set", "add", "addAll", "remove", "removeAll", "removeAt", "put", "putAll", "clear"].contains(member), owner != "java/util/ListIterator", !isIteratorRemove { try requireMutableCollection(receiverID, at: id) }
-            if ["set", "add", "addAll", "put", "putAll"].contains(member), owner != "java/util/ListIterator" { try requireWritableArguments(receiverID, at: id) }
+            if ["set", "add", "addAll", "remove", "removeAll", "removeAt", "put", "putIfAbsent", "putAll", "clear"].contains(member), owner != "java/util/ListIterator", !isIteratorRemove { try requireMutableCollection(receiverID, at: id) }
+            if ["set", "add", "addAll", "put", "putIfAbsent", "putAll"].contains(member), owner != "java/util/ListIterator" { try requireWritableArguments(receiverID, at: id) }
             if ["getOrElse", "getOrPut"].contains(member), ["java/util/List", "java/util/Map"].contains(owner) {
                 return try collectionDefaultValueMember(receiverID, owner: owner, member: member, args: args, id: id)
             }
-            let source = try convert(requireValue(receiverID), to: .reference(owner, nullable: false))
+            let invocationOwner = directSuperOwner ?? owner
+            let receiverValue = try requireValue(receiverID)
+            let source = directSuperOwner == nil
+                ? try convert(receiverValue, to: .reference(invocationOwner, nullable: false))
+                : receiverValue
             let result = try program.expressionType(id)
             if member == "forEach", owner == "java/util/Map" {
                 guard args.count == 1, !args[0].isSpread,
@@ -616,6 +607,9 @@ extension JVMFunctionBuilder {
             let parameters: [JVMValueType], returns: JVMValueType, actual: String
             switch member {
             case "size": actual = "size"; parameters = []; returns = .int
+            case "hashCode": actual = member; parameters = []; returns = .int
+            case "toString": actual = member; parameters = []; returns = .string
+            case "equals": actual = member; parameters = [object]; returns = .boolean
             case "binarySearch":
                 guard ["java/util/List", "java/util/ArrayList"].contains(owner) else {
                     throw fail("Unsupported JVM collection member: \(member).", id)
@@ -740,12 +734,12 @@ extension JVMFunctionBuilder {
             case "removeAll", "retainAll": actual = member; parameters = [.reference("java/util/Collection", nullable: false)]; returns = .boolean
             case "removeAt": actual = "remove"; parameters = [.int]; returns = object
             case "putAll": actual = member; parameters = [.reference("java/util/Map", nullable: false)]; returns = .unit
-            case "put", "getOrDefault": actual = member; parameters = [object, object]; returns = object
+            case "put", "putIfAbsent", "getOrDefault": actual = member; parameters = [object, object]; returns = object
             case "clear": actual = member; parameters = []; returns = .unit
             default: throw fail("Unsupported JVM collection member: \(member).", id)
             }
             guard values.count == parameters.count else { throw fail("JVM collection argument mismatch.", id) }
-            let value = try jdkCall(owner, actual, parameters, returns, receiver: source, arguments: values, interface: true, resolved: result == .unit ? returns : result)
+            let value = try jdkCall(invocationOwner, actual, parameters, returns, receiver: source, arguments: values, interface: directSuperOwner == nil, special: directSuperOwner != nil, resolved: result == .unit ? returns : result)
             return JVMIntrinsicResult(value: result == .unit ? nil : value)
         }
         if owner == "kotlin/Pair", ["first", "second"].contains(member) {
@@ -791,8 +785,6 @@ extension JVMFunctionBuilder {
     func allocateArray(_ type: JVMValueType, semantic: TypeID?, count: JVMValue, id: ExprID) throws -> JVMValue {
         guard let semantic, isReifiableArray(semantic) else { throw fail("JVM array creation requires a reifiable element type.", id) }
         let result = try value(type), element = try arrayComponent(type)
-        // Constructors and factories need the same runtime component token;
-        // exported inline bodies must retain an allocation reification marker.
         if case let .classType(t) = program.sema.types.kind(of: semantic), let arg = t.args.first,
            let component = reifiedArrayElement(arg) {
             if let token = try runtimeReifiedToken(component) {
@@ -829,6 +821,48 @@ extension JVMFunctionBuilder {
             return .reference(String(descriptor.dropFirst().dropLast()), nullable: true)
         }
     }
+    func directConcreteSuperOwner(_ receiver: ExprID) -> String? {
+        guard isSuper(receiver),
+              let type = try? program.expressionType(receiver),
+              let name = type.referenceName
+        else { return nil }
+        if let imported = context.jvmImports?.classes[name] {
+            return imported.isInterface ? nil : name
+        }
+        guard let semantic = program.sema.bindings.exprType(for: receiver),
+              case let .classType(classType) = program.sema.types.kind(of: semantic),
+              let symbol = program.sema.symbols.symbol(classType.classSymbol),
+              symbol.kind == .class || symbol.kind == .enumClass
+        else { return nil }
+        return name
+    }
+
+    private func indexedJavaSuperOwner(_ receiver: ExprID, id: ExprID) -> (owner: String, isMap: Bool)? {
+        guard let owner = directConcreteSuperOwner(receiver),
+              let memberOwner = try? mappedBuiltinMemberOwner(id)
+        else { return nil }
+        let sourceClass = context.jvmImports?.classes[owner] == nil
+        if (sourceClass || javaImportedTypeInherits(owner, "java/util/List")),
+           javaImportedTypeInherits(memberOwner, "java/util/List") { return (owner, false) }
+        if (sourceClass || javaImportedTypeInherits(owner, "java/util/Map")),
+           javaImportedTypeInherits(memberOwner, "java/util/Map") { return (owner, true) }
+        return nil
+    }
+
+    private func mappedIndexedJavaOwner(_ id: ExprID) throws -> String? {
+        guard let owner = try mappedBuiltinMemberOwner(id) else { return nil }
+        switch owner {
+        case "java/util/ArrayList", "java/util/List":
+            return "java/util/List"
+        case "java/util/HashMap", "java/util/LinkedHashMap", "java/util/Map":
+            return "java/util/Map"
+        case "kotlin/enums/EnumEntries":
+            return owner
+        default:
+            return nil
+        }
+    }
+
     private func isSafeChainIndexedReceiver(_ receiver: ExprID) -> Bool {
         guard !arena.isParenthesized(receiver) else { return false }
         switch arena.expr(receiver) {
@@ -855,6 +889,16 @@ extension JVMFunctionBuilder {
         if precomputedReceiverValue == nil, isSafeChainIndexedReceiver(receiver) {
             return try safeChainIndexedGet(receiver, indices, id)
         }
+        if let superTarget = indexedJavaSuperOwner(receiver, id: id) {
+            guard indices.count == 1 else { throw fail("JVM indexing requires one index.", id) }
+            let any: JVMValueType = .reference("java/lang/Object", nullable: true)
+            let parameters: [JVMValueType] = superTarget.isMap ? [any] : [.int]
+            return try jdkCall(
+                superTarget.owner, "get", parameters, any,
+                receiver: requireValue(receiver), arguments: [requireValue(indices[0])],
+                special: true, resolved: program.expressionType(id)
+            )!
+        }
         let args = indices.map { CallArgument(expr: $0) }
         if let call = try inlineCall(args, receiver: receiver, receiverValue: precomputedReceiverValue, id: id)
             ?? sourceCall(args, receiver: receiver, receiverValue: precomputedReceiverValue, id: id) { return call.value }
@@ -865,10 +909,7 @@ extension JVMFunctionBuilder {
             return try convert(value, to: program.expressionType(id))
         }
         var object = try requireValue(receiver)
-        // An intersection can retain Iterable as its erased local type while
-        // Sema selects List.get from a smart-cast branch.
-        if let owner = try mappedBuiltinMemberOwner(id),
-           ["java/util/List", "java/util/Map", "kotlin/enums/EnumEntries"].contains(owner) {
+        if let owner = try mappedIndexedJavaOwner(id) {
             object = try convert(object, to: .reference(owner, nullable: false))
         }
         return try indexedRead(object, index: requireValue(indices[0]), type: program.expressionType(id))
@@ -897,8 +938,6 @@ extension JVMFunctionBuilder {
         return try jdkCall(owner, "get", [["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? .int : .reference("java/lang/Object", nullable: true)], .reference("java/lang/Object", nullable: true), receiver: receiver, arguments: [index], interface: true, resolved: type)!
     }
 
-    /// `a?.b[i]` is one guarded read: when the safe receiver is null, the index
-    /// expressions and `get` are skipped instead of running on null.
     private func safeChainIndexedGet(_ receiver: ExprID, _ indices: [ExprID], _ id: ExprID) throws -> JVMValue? {
         let receiverValue = try requireValue(receiver)
         let type = try program.expressionType(id)
@@ -944,23 +983,43 @@ extension JVMFunctionBuilder {
         }
     }
     func requireMutableCollection(_ receiver: ExprID, at id: ExprID) throws {
+        let sema = program.sema
+        let mutableCollection = sema.symbols.lookup(fqName: ["kotlin", "collections", "MutableCollection"].map(context.interner.intern))
+        let mutableMap = sema.symbols.lookup(fqName: ["kotlin", "collections", "MutableMap"].map(context.interner.intern))
         func mutable(_ type: TypeID) -> Bool {
-            switch program.sema.types.kind(of: type) {
+            switch sema.types.kind(of: type) {
             case let .classType(t):
                 let name = (try? program.className(t.classSymbol)) ?? ""
-                return name.hasPrefix("kotlin/collections/Mutable") || name.hasPrefix("java/util/")
-            case let .typeParam(t): return program.sema.symbols.typeParameterUpperBounds(for: t.symbol).contains(where: mutable)
+                if name.hasPrefix("kotlin/collections/Mutable") || name.hasPrefix("java/util/") { return true }
+                if mutableCollection.map({ sema.types.isNominalSubtypeSymbol(t.classSymbol, of: $0) }) == true { return true }
+                return mutableMap.map({ sema.types.isNominalSubtypeSymbol(t.classSymbol, of: $0) }) == true
+            case let .typeParam(t): return sema.symbols.typeParameterUpperBounds(for: t.symbol).contains(where: mutable)
             default: return false
             }
         }
-        guard let type = program.sema.bindings.exprType(for: receiver), mutable(type) else { throw fail("Cannot mutate a read-only JVM collection.", id) }
+        guard let type = sema.bindings.exprType(for: receiver), mutable(type) else { throw fail("Cannot mutate a read-only JVM collection.", id) }
     }
     func indexedSet(_ receiver: ExprID, _ indices: [ExprID], _ source: ExprID, _ id: ExprID) throws {
+        if let superTarget = indexedJavaSuperOwner(receiver, id: id) {
+            guard indices.count == 1 else { throw fail("JVM indexing requires one index.", id) }
+            let any: JVMValueType = .reference("java/lang/Object", nullable: true)
+            let parameters: [JVMValueType] = superTarget.isMap ? [any, any] : [.int, any]
+            _ = try jdkCall(
+                superTarget.owner, superTarget.isMap ? "put" : "set", parameters, any,
+                receiver: requireValue(receiver), arguments: [requireValue(indices[0]), requireValue(source)],
+                special: true
+            )
+            return
+        }
         let args = (indices + [source]).map { CallArgument(expr: $0) }
         if let _ = try inlineCall(args, receiver: receiver, id: id)
             ?? sourceCall(args, receiver: receiver, id: id) { return }
         guard indices.count == 1 else { throw fail("JVM indexing requires one index.", id) }
-        let object = try requireValue(receiver), index = try requireValue(indices[0]), value = try requireValue(source)
+        var object = try requireValue(receiver)
+        if let owner = try mappedIndexedJavaOwner(id) {
+            object = try convert(object, to: .reference(owner, nullable: false))
+        }
+        let index = try requireValue(indices[0]), value = try requireValue(source)
         try requireWritableArguments(receiver, at: id)
         if object.type.referenceName?.hasPrefix("[") != true && object.type.referenceName != "java/lang/StringBuilder" { try requireMutableCollection(receiver, at: id) }
         try indexedWrite(object, index: index, source: value)
@@ -988,7 +1047,11 @@ extension JVMFunctionBuilder {
     }
     func indexedCompound(_ op: CompoundAssignOp, _ receiver: ExprID, _ indices: [ExprID], _ source: ExprID, _ id: ExprID) throws -> JVMValue? {
         guard indices.count == 1 else { throw fail("JVM indexing requires one index.", id) }
-        let object = try requireValue(receiver), index = try requireValue(indices[0])
+        var object = try requireValue(receiver)
+        if let owner = try mappedIndexedJavaOwner(id) {
+            object = try convert(object, to: .reference(owner, nullable: false))
+        }
+        let index = try requireValue(indices[0])
         try requireWritableArguments(receiver, at: id)
         if object.type.referenceName?.hasPrefix("[") != true && object.type.referenceName != "java/lang/StringBuilder" { try requireMutableCollection(receiver, at: id) }
         let type: JVMValueType
@@ -1141,7 +1204,24 @@ extension JVMFunctionBuilder {
                 interner: context.interner
             )
         }()
-        if withIndexReceiver == nil, source.type.referenceName == "java/util/Map" {
+        // Concrete JDK maps (LinkedHashMap, HashMap, TreeMap, ...) are not
+        // java/lang/Iterable either, so they need the same entrySet loop,
+        // unless Sema picked a user-declared iterator() operator for the loop.
+        let usesUserIterator: Bool = {
+            guard let iteratorCallee = loopBinding?.iteratorCall?.chosenCallee else { return false }
+            return program.sema.symbols.symbol(iteratorCallee)?.fqName.first != context.interner.intern("kotlin")
+        }()
+        let iterableIsMap: Bool = {
+            guard let mapSymbol = program.sema.symbols.lookup(fqName: ["kotlin", "collections", "Map"].map(context.interner.intern)),
+                  let iterableType = program.sema.bindings.exprType(for: iterable)
+            else { return false }
+            return program.sema.types.isSubtype(iterableType, program.sema.types.make(.classType(ClassType(classSymbol: mapSymbol, args: [.star, .star]))))
+        }()
+        let isJDKMap: Bool = {
+            guard !usesUserIterator, let referenceName = source.type.referenceName else { return false }
+            return referenceName == "java/util/Map" || referenceName.hasPrefix("java/util/") && iterableIsMap
+        }()
+        if withIndexReceiver == nil, isJDKMap {
             try mapEntryLoop(name, source, body, id, destructuringNames: destructuringNames, label: loopLabel)
             return
         }
@@ -1170,6 +1250,9 @@ extension JVMFunctionBuilder {
         else if source.type.referenceName == "kotlin/ranges/IntRange" || source.type.referenceName == "kotlin/ranges/IntProgression" { elementType = .int }
         else if source.type.referenceName == "kotlin/ranges/LongRange" || source.type.referenceName == "kotlin/ranges/LongProgression" { elementType = .long }
         else if source.type.referenceName?.hasPrefix("[") == true { elementType = try arrayComponent(source.type) }
+        // A map's first type argument is its key type, not the element type
+        // produced by a user-declared iterator(); use Sema's next() type.
+        else if usesUserIterator, iterableIsMap, let loopBinding { elementType = try program.type(loopBinding.elementType) }
         else if let semantic = program.sema.bindings.exprType(for: iterable), case let .classType(t) = program.sema.types.kind(of: semantic), let arg = t.args.first {
             switch arg {
             case let .invariant(t), let .out(t), let .in(t): elementType = try program.type(t)
@@ -1237,7 +1320,6 @@ extension JVMFunctionBuilder {
             instructions.append(.constant(.int(0), index))
             if let withIndexCounter { instructions.append(.constant(.int(0), withIndexCounter)) }
             mark(test)
-            // CharSequence may change length while the body executes.
             let size = try fixedSize ?? textLength(source)
             let check = try value(.boolean); instructions.append(.binary(.lessThan, index, size, check)); instructions.append(.jumpIfFalse(check, exit))
             let element = try indexedRead(source, index: index, type: indexedElementType ?? elementType)

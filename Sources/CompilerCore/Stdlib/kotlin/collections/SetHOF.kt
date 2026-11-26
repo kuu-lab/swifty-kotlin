@@ -4,9 +4,6 @@ import kotlin.comparisons.naturalOrder
 import kotlin.comparisons.reverseOrder
 import kotlin.internal.mergeSortWith
 
-// Set HOF implementations migrated from Swift Runtime
-// MIGRATION-COL-013
-
 fun <T> Set<T>.filter(predicate: (T) -> Boolean): List<T> {
     val result = mutableListOf<T>()
     for (element in this) {
@@ -87,17 +84,6 @@ public inline fun <T, R> Set<T>.foldIndexed(initial: R, operation: (Int, R, T) -
     }
     return accumulator
 }
-
-// KSP-432: the remaining Set surface migrated from
-//   Sources/Runtime/RuntimeCollectionHOF.swift
-//   Sources/Runtime/RuntimeCollectionHOFMaxMin.swift
-//   Sources/Runtime/RuntimeCollections.swift
-//   Sources/Runtime/RuntimeSetAndMap.swift
-// Only element-storage primitives (`__kk_set_size`, `__kk_set_contains`,
-// `__kk_set_is_empty`, `__kk_set_to_string`, `__kk_set_of`, `__kk_set_of_not_null`)
-// stay in the runtime.
-// Generic Iterable/Collection source from KSP-435 supplies `any()`, `last()`,
-// `toList()`, `toMutableList()`, and `toMutableSet()` for Set receivers too.
 
 public fun <T> Set<T>.filterNot(predicate: (T) -> Boolean): List<T> {
     val result = mutableListOf<T>()

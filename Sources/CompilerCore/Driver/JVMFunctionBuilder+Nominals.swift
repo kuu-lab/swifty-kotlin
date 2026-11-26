@@ -25,6 +25,19 @@ extension JVMFunctionBuilder {
         let field = program.singletonField(plan), value = try value(field.type)
         instructions.append(.getStatic(field, value)); return value
     }
+    func primitiveCompanionValue(for ownerSymbol: SymbolID) throws -> JVMValue? {
+        guard let owner = program.sema.symbols.symbol(ownerSymbol) else { return nil }
+        let objectOwner: String
+        switch owner.fqName.map({ context.interner.resolve($0) }) {
+        case ["kotlin", "Float"]: objectOwner = "kotlin/jvm/internal/FloatCompanionObject"
+        case ["kotlin", "Double"]: objectOwner = "kotlin/jvm/internal/DoubleCompanionObject"
+        default: return nil
+        }
+        let type = JVMValueType.reference(objectOwner, nullable: false), result = try value(type)
+        instructions.append(.getStatic(JVMField(owner: objectOwner, name: "INSTANCE", type: type, access: 0x19), result))
+        return result
+    }
+
     func importedCompanionValue(for ownerSymbol: SymbolID) throws -> JVMValue? {
         let symbols = program.sema.symbols
         guard let companion = symbols.companionObjectSymbol(for: ownerSymbol),
@@ -69,16 +82,24 @@ extension JVMFunctionBuilder {
             let knownNames = KnownCompilerNames(interner: context.interner)
             let path = fqName.map { context.interner.resolve($0) }
             let field: JVMField?
-            if path == ["kotlin", "String"] || path == ["kotlin", "String", "Companion"] {
+            if path == ["kotlin", "Float"] || path == ["kotlin", "Float", "Companion"] {
+                let owner = "kotlin/jvm/internal/FloatCompanionObject"
+                field = JVMField(owner: owner, name: "INSTANCE", type: .reference(owner, nullable: false), access: 0x19)
+            } else if path == ["kotlin", "Double"] || path == ["kotlin", "Double", "Companion"] {
+                let owner = "kotlin/jvm/internal/DoubleCompanionObject"
+                field = JVMField(owner: owner, name: "INSTANCE", type: .reference(owner, nullable: false), access: 0x19)
+            } else if path == ["kotlin", "String"] || path == ["kotlin", "String", "Companion"] {
                 let owner = "kotlin/jvm/internal/StringCompanionObject"
                 field = JVMField(owner: owner, name: "INSTANCE", type: .reference(owner, nullable: false), access: 0x19)
             } else if fqName == knownNames.kotlinRegexFQName || fqName == knownNames.kotlinTextRegexCompanionFQName {
                 field = JVMField(owner: "kotlin/text/Regex", name: "Companion", type: .reference("kotlin/text/Regex$Companion", nullable: false), access: 0x19)
             } else if fqName == knownNames.kotlinCoroutinesContinuationInterceptorFQName || fqName == knownNames.kotlinCoroutinesContinuationInterceptorKeyFQName {
                 field = JVMField(owner: "kotlin/coroutines/ContinuationInterceptor", name: "Key", type: .reference("kotlin/coroutines/ContinuationInterceptor$Key", nullable: false), access: 0x19)
-            } else if fqName.count == 4 && fqName.starts(with: knownNames.kotlinTextRegexOptionFQName) {
+            } else if entry.kind == .field && fqName.count == 4 && fqName.starts(with: knownNames.kotlinTextRegexOptionFQName) {
                 field = JVMField(owner: "kotlin/text/RegexOption", name: context.interner.resolve(fqName[3]), type: .reference("kotlin/text/RegexOption", nullable: false), access: 0x4019)
-            } else if fqName.count == 4 && fqName.starts(with: knownNames.kotlinTimeDurationUnitFQName) {
+            } else if entry.kind == .field && fqName.count == 4 && fqName.starts(with: knownNames.kotlinTextCharDirectionalityFQName) {
+                field = JVMField(owner: "kotlin/text/CharDirectionality", name: context.interner.resolve(fqName[3]), type: .reference("kotlin/text/CharDirectionality", nullable: false), access: 0x4019)
+            } else if entry.kind == .field && fqName.count == 4 && fqName.starts(with: knownNames.kotlinTimeDurationUnitFQName) {
                 field = JVMField(owner: "kotlin/time/DurationUnit", name: context.interner.resolve(fqName[3]), type: .reference("kotlin/time/DurationUnit", nullable: false), access: 0x4019)
             } else { field = nil }
             if let field { let result = try value(field.type); instructions.append(.getStatic(field, result)); return result }

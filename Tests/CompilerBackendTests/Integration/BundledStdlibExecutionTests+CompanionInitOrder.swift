@@ -1,12 +1,5 @@
 import Testing
 
-/// KUU-3225: JVM class-initialization order for companion objects. A
-/// class's companion is its `<clinit>` content, so supertype companions —
-/// the superclass chain first, then superinterfaces declaring concrete
-/// members — initialize before the class's own companion. Covers
-/// JetBrains testData `objects/companionObjectAccess/
-/// companionObjectInitOrderWithSuperclass` and `...WithSuperinterface`
-/// (KT-84267 / KT-40768).
 extension BundledStdlibExecutionTests {
     @Test(arguments: [true, false])
     func companionInitOrderWithSuperclass(allowDefaultStdlibLibrary: Bool) throws {
