@@ -549,8 +549,8 @@ extension JVMFunctionBuilder {
                collectionCallIsExtension(id) {
                 return nil
             }
-            if ["set", "add", "addAll", "remove", "removeAll", "removeAt", "put", "putAll", "clear"].contains(member), owner != "java/util/ListIterator", !isIteratorRemove { try requireMutableCollection(receiverID, at: id) }
-            if ["set", "add", "addAll", "put", "putAll"].contains(member), owner != "java/util/ListIterator" { try requireWritableArguments(receiverID, at: id) }
+            if ["set", "add", "addAll", "remove", "removeAll", "removeAt", "put", "putIfAbsent", "putAll", "clear"].contains(member), owner != "java/util/ListIterator", !isIteratorRemove { try requireMutableCollection(receiverID, at: id) }
+            if ["set", "add", "addAll", "put", "putIfAbsent", "putAll"].contains(member), owner != "java/util/ListIterator" { try requireWritableArguments(receiverID, at: id) }
             if ["getOrElse", "getOrPut"].contains(member), ["java/util/List", "java/util/Map"].contains(owner) {
                 return try collectionDefaultValueMember(receiverID, owner: owner, member: member, args: args, id: id)
             }
@@ -721,7 +721,7 @@ extension JVMFunctionBuilder {
             case "removeAll", "retainAll": actual = member; parameters = [.reference("java/util/Collection", nullable: false)]; returns = .boolean
             case "removeAt": actual = "remove"; parameters = [.int]; returns = object
             case "putAll": actual = member; parameters = [.reference("java/util/Map", nullable: false)]; returns = .unit
-            case "put", "getOrDefault": actual = member; parameters = [object, object]; returns = object
+            case "put", "putIfAbsent", "getOrDefault": actual = member; parameters = [object, object]; returns = object
             case "clear": actual = member; parameters = []; returns = .unit
             default: throw fail("Unsupported JVM collection member: \(member).", id)
             }
