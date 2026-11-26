@@ -4,8 +4,6 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-/// KUU-4625: `a?.f(<args>)` skips argument evaluation when `a` is null, so a
-/// definite assignment performed inside the arguments must stay conditional.
 @Suite
 struct SafeCallArgumentDefiniteAssignmentTests {
     @Test
@@ -37,12 +35,8 @@ struct SafeCallArgumentDefiniteAssignmentTests {
             }
             """,
         ]
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-            for path in paths {
-                assertHasDiagnostic("KSWIFTK-SEMA-0031", in: diagnosticsForPath(path, in: ctx))
-            }
+        for source in sources {
+            _ = try semaContext(from: [source], expecting: [.error("KSWIFTK-SEMA-0031")])
         }
     }
 
@@ -66,13 +60,8 @@ struct SafeCallArgumentDefiniteAssignmentTests {
             }
             """,
         ]
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-            for path in paths {
-                let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
-                #expect(errors.isEmpty, "\(path): \(errors)")
-            }
+        for source in sources {
+            _ = try semaContext(from: [source])
         }
     }
 
@@ -88,13 +77,8 @@ struct SafeCallArgumentDefiniteAssignmentTests {
             }
             """,
         ]
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-            for path in paths {
-                let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
-                #expect(errors.isEmpty, "\(path): \(errors)")
-            }
+        for source in sources {
+            _ = try semaContext(from: [source])
         }
     }
 
@@ -111,12 +95,120 @@ struct SafeCallArgumentDefiniteAssignmentTests {
             }
             """,
         ]
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-            for path in paths {
-                assertHasDiagnostic("KSWIFTK-SEMA-0014", in: diagnosticsForPath(path, in: ctx))
+        for source in sources {
+            _ = try semaContext(from: [source], expecting: [.error("KSWIFTK-SEMA-0014")])
+        }
+    }
+
+    @Test
+    func testElvisNothingFallbackAfterSafeCallChainKeepsEarlierArgumentAssignmentDefinite() throws {
+        let sources = [
+            """
+            package elvisChain
+            fun read(s: String?): Int {
+                var x: Int
+                s?.plus(run { x = 5; "a" })?.length ?: return 0
+                return x
             }
+            """,
+        ]
+        for source in sources {
+            _ = try semaContext(from: [source])
+        }
+    }
+
+    @Test
+    func testPossibleAssignmentSurvivesBlockAndBranchJoin() throws {
+        let sources = [
+            """
+            package branchJoin
+            fun read(s: String?, b: Boolean, c: Boolean): Int {
+                val x: Int
+                if (b) {
+                    s?.plus(if (c) { x = 5; "a" } else { x = 6; "b" })
+                } else {
+                    x = 7
+                }
+                x = 8
+                return x
+            }
+            """,
+        ]
+        for source in sources {
+            _ = try semaContext(from: [source], expecting: [.error("KSWIFTK-SEMA-0014")])
+        }
+    }
+
+    @Test
+    func testPossibleAssignmentFromBranchThatNeverCompletesIsDropped() throws {
+        let sources = [
+            """
+            package nonCompletingBranch
+            fun read(s: String?, b: Boolean, c: Boolean): Int {
+                val x: Int
+                if (b) {
+                    s?.plus(if (c) { x = 5; "a" } else { x = 6; "b" })
+                    try { println("work") } finally { return 0 }
+                }
+                x = 8
+                return x
+            }
+            """,
+        ]
+        for source in sources {
+            _ = try semaContext(from: [source])
+        }
+    }
+
+    @Test
+    func testPossibleAssignmentSurvivesBranchWithLabeledReturnToInlineLambda() throws {
+        let sources = [
+            """
+            package labeledReturnBranch
+            fun read(s: String?, b: Boolean, c: Boolean, d: Boolean): Int {
+                val x: Int
+                if (b) {
+                    s?.plus(if (c) { x = 5; "a" } else { x = 6; "b" })
+                    run<Int> {
+                        if (d) return@run 1
+                        throw IllegalStateException()
+                    }
+                }
+                x = 8
+                return x
+            }
+            """,
+        ]
+        for source in sources {
+            _ = try semaContext(from: [source], expecting: [.error("KSWIFTK-SEMA-0014")])
+        }
+    }
+
+    @Test
+    func testPossibleAssignmentIsDroppedWhenFinallyAlwaysExitsAfterLambdaReturn() throws {
+        let sources = [
+            """
+            package lambdaReturnThenFinallyExit
+            fun read(s: String?, b: Boolean, c: Boolean, d: Boolean): Int {
+                val x: Int
+                if (b) {
+                    s?.plus(if (c) { x = 5; "a" } else { x = 6; "b" })
+                    try {
+                        run<Int> {
+                            if (d) return@run 1
+                            throw IllegalStateException()
+                        }
+                    } finally {
+                        return 0
+                    }
+                }
+                x = 8
+                return x
+            }
+            """,
+        ]
+        for source in sources {
+            _ = try semaContext(from: [source])
         }
     }
 }

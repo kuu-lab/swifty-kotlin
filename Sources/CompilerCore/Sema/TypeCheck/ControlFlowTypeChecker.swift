@@ -1265,6 +1265,12 @@ final class ControlFlowTypeChecker {
                 locals.joinVariableFacts(from: [thenLocals, elseLocals])
             }
         }
+        if thenType != sema.types.nothingType, canCompleteNormally(thenExpr, ctx: ctx) {
+            locals.possiblyAssignedVals.formUnion(thenLocals.possiblyAssignedVals)
+        }
+        if elseCompletes, elseExpr.map({ canCompleteNormally($0, ctx: ctx) }) ?? true {
+            locals.possiblyAssignedVals.formUnion(elseLocals.possiblyAssignedVals)
+        }
         for (name, local) in locals where local.isMutable {
             guard let declaredType = sema.symbols.propertyType(for: local.symbol),
                   sema.types.nullability(of: declaredType) == .nullable
