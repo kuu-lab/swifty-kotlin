@@ -44,13 +44,23 @@ extension JVMFunctionBuilder {
         let extensionReceiver = try declaration.receiverType == nil ? nil : receiverValue ?? receiver.map(requireValue) ?? implicitExtensionReceiver(id)
         var parameters: [InternedString: Local] = [:], lambdas: [InternedString: InlineLambda] = [:]
         var supplied: Set<Int> = []
+        let calleeSignature = program.sema.symbols.functionSignature(for: binding.chosenCallee)
         for (sourceIndex, argument) in args.enumerated() {
             let i = binding.parameterMapping[sourceIndex] ?? sourceIndex
             guard declaration.valueParams.indices.contains(i), supplied.insert(i).inserted else { throw fail("Invalid inline argument mapping.", id) }
             let parameter = declaration.valueParams[i]
-            if !parameter.isNoinline && !parameter.isCrossinline, case .lambdaLiteral = arena.expr(argument.expr) {
+            // Only a parameter declared with a function type takes an inlined
+            // lambda. A lambda passed where the declaration says `T` (e.g.
+            // plusElement(element: T)) is an ordinary value the body stores or
+            // forwards, so it must be materialized as a closure local.
+            var inlinesLambda = !parameter.isNoinline && !parameter.isCrossinline
+            if inlinesLambda, let calleeSignature, calleeSignature.parameterTypes.indices.contains(i),
+               case .typeParam = program.sema.types.kind(of: calleeSignature.parameterTypes[i]) {
+                inlinesLambda = false
+            }
+            if inlinesLambda, case .lambdaLiteral = arena.expr(argument.expr) {
                 lambdas[parameter.name] = InlineLambda(id: argument.expr, scopes: scopes, dispatch: thisValue, receiver: extensionValue, contexts: contextualReceivers, returns: inlineReturns, arguments: inlineArguments, lexicalLambda: lambdaID, stack: inlineStack)
-            } else if !parameter.isNoinline && !parameter.isCrossinline, case let .nameRef(name, _) = arena.expr(argument.expr), let forwarded = inlineArgument(name) {
+            } else if inlinesLambda, case let .nameRef(name, _) = arena.expr(argument.expr), let forwarded = inlineArgument(name) {
                 lambdas[parameter.name] = forwarded
             } else {
                 let source = try requireValue(argument.expr)

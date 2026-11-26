@@ -11,6 +11,8 @@ extension JVMBackendTests {
             fun listRemover(source: List<Int>): (Int) -> List<Int> = source::minusElement
             fun sequenceAdder(source: Sequence<Int>): (Int) -> Sequence<Int> = source::plusElement
 
+            inline fun <T> keep(value: T): List<T> = listOf(value)
+
             fun main() {
                 val values: Set<Int?> = setOf(1, null, 2, 3)
                 println(values.plusElement(8))
@@ -34,8 +36,13 @@ extension JVMBackendTests {
                 println(setAdder(setOf(1))(2))
                 println(listRemover(listOf(1, 2))(1))
                 println(sequenceAdder(sequenceOf(7))(8).toList())
+                val callbacks = emptyList<() -> Int>().plusElement({ 42 })
+                println(callbacks[0]())
+                val labels = emptySet<() -> String>().plusElement { "set" }
+                println(labels.first()())
+                println(keep { 7 }[0]())
             }
-            """, expected: "[1, null, 2, 3, 8]\n[1, null, 2, 3]\n[1, 2, 3]\n[1, null, 2, 3]\n[[1], [2, 3]]\n[1, 2, 1, 4]\n[2, 1]\n[a, b, c]\n[b]\n[5, 6]\n[[1], [2]]\n[1, 2, 3]\n[x, y]\n[1, 2]\n[2]\n[7, 8]\n", mode: mode, root: root)
+            """, expected: "[1, null, 2, 3, 8]\n[1, null, 2, 3]\n[1, 2, 3]\n[1, null, 2, 3]\n[[1], [2, 3]]\n[1, 2, 1, 4]\n[2, 1]\n[a, b, c]\n[b]\n[5, 6]\n[[1], [2]]\n[1, 2, 3]\n[x, y]\n[1, 2]\n[2]\n[7, 8]\n42\nset\n7\n", mode: mode, root: root)
         }
     }
 }
