@@ -77,8 +77,8 @@ extension BuildASTPhase.ExpressionParser {
         let range = SourceRange(start: tokens[startIndex].range.start, end: tokens[endIndex - 1].range.end)
         let receiver: ExprID?
         switch typeRef {
-        case let .named(path, _, _):
-            guard let name = path.last else { return nil }
+        case .named, .qualifiedNamed:
+            guard let name = typeRef.namedType?.path.last else { return nil }
             receiver = astArena.appendExpr(.nameRef(name, range))
         case .functionType:
             receiver = nil

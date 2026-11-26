@@ -235,14 +235,16 @@ struct ASTContextFunctionTypeTests {
         let function = try #require(firstFunDecl(named: "build", in: ast, interner: ctx.interner))
         let blockType = try #require(function.valueParams.first?.type)
         guard case let .functionType(_, receiver?, _, _, _, _) = ast.arena.typeRef(blockType),
-              case let .named(path, args, _) = ast.arena.typeRef(receiver)
+              case let .qualifiedNamed(segments, _) = ast.arena.typeRef(receiver)
         else {
             Issue.record("Expected a qualified named receiver on the contextual function type")
             return
         }
 
-        #expect(path.map { ctx.interner.resolve($0) } == ["Outer", "Inner"])
-        #expect(args.map { renderTypeArgRef($0, in: ast, interner: ctx.interner) } == ["Int", "String"])
+        #expect(segments.map { ctx.interner.resolve($0.name) } == ["Outer", "Inner"])
+        #expect(
+            segments.map { $0.args.map { renderTypeArgRef($0, in: ast, interner: ctx.interner) } } == [["Int"], ["String"]]
+        )
     }
 
     @Test
@@ -310,6 +312,16 @@ struct ASTContextFunctionTypeTests {
                 "<" + args.map { renderTypeArgRef($0, in: ast, interner: interner) }.joined(separator: ", ") + ">"
             }
             return base + renderedArgs + (nullable ? "?" : "")
+        case let .qualifiedNamed(segments, nullable):
+            let base = segments.map { segment in
+                let renderedArgs = if segment.args.isEmpty {
+                    ""
+                } else {
+                    "<" + segment.args.map { renderTypeArgRef($0, in: ast, interner: interner) }.joined(separator: ", ") + ">"
+                }
+                return interner.resolve(segment.name) + renderedArgs
+            }.joined(separator: ".")
+            return base + (nullable ? "?" : "")
         case let .functionType(contextReceivers, receiver, params, returnType, isSuspend, nullable):
             let contextPrefix = if contextReceivers.isEmpty {
                 ""

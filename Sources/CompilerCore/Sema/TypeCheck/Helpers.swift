@@ -829,7 +829,13 @@ struct TypeCheckHelpers {
             return sema.types.errorType
         }
         switch typeRef {
-        case let .named(path, argRefs, nullable):
+        case .named, .qualifiedNamed:
+            guard let namedType = typeRef.namedType else {
+                return sema.types.errorType
+            }
+            let path = namedType.path
+            let argRefs = namedType.args
+            let nullable = namedType.nullable
             guard let shortName = path.last else {
                 return sema.types.errorType
             }
@@ -1021,8 +1027,15 @@ struct TypeCheckHelpers {
                             diagnostics: diagnostics
                         )
                     }
+                    let validArgumentSegmentIndices = NamedTypeArgumentSegments.validIndices(
+                        in: namedType,
+                        for: symbolID,
+                        symbols: sema.symbols,
+                        diagnostics: diagnostics,
+                        range: usageRange
+                    )
                     let resolvedArgs = resolveTypeArgRefsForTypeCheck(
-                        argRefs, ast: ast, sema: sema, interner: interner,
+                        namedType.args(in: validArgumentSegmentIndices), ast: ast, sema: sema, interner: interner,
                         scope: scope, diagnostics: diagnostics, inferenceContext: inferenceContext, usageRange: usageRange
                     )
                     if sema.symbols.symbol(symbolID)?.kind != .typeAlias {

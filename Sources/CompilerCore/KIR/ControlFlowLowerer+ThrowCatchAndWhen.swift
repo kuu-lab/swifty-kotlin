@@ -51,11 +51,13 @@ extension ControlFlowLowerer {
             return sema.types.anyType
         }
         guard let ref = ast.arena.typeRef(paramType),
-              case let .named(path, _, nullable) = ref,
-              let shortName = path.last
+              let namedType = ref.namedType,
+              let shortName = namedType.path.last
         else {
             return sema.types.errorType
         }
+        let path = namedType.path
+        let nullable = namedType.nullable
         let nullability: Nullability = nullable ? .nullable : .nonNull
         if path.count == 1,
            let builtin = BuiltinTypeNames(interner: interner).resolveBuiltinType(shortName, nullability: nullability, types: sema.types)

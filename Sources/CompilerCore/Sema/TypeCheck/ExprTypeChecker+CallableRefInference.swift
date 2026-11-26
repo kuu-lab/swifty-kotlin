@@ -330,11 +330,11 @@ extension ExprTypeChecker {
                 let argumentCounts: (expected: Int, actual: Int)?
                 if case let .classType(owner) = sema.types.kind(of: unboundClassType) {
                     argumentCounts = (sema.types.nominalTypeParameterSymbols(for: owner.classSymbol).count, owner.args.count)
-                } else if case let .named(path, arguments, _) = ast.arena.typeRef(receiverTypeRef),
-                          let name = path.last,
+                } else if let namedType = ast.arena.typeRef(receiverTypeRef)?.namedType,
+                          let name = namedType.path.last,
                           driver.helpers.resolveBuiltinTypeName(name, types: sema.types, interner: interner) != nil
                 {
-                    argumentCounts = (0, arguments.count)
+                    argumentCounts = (0, namedType.args.count)
                 } else {
                     argumentCounts = nil
                 }

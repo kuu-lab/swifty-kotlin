@@ -128,14 +128,14 @@ extension TypeCheckHelpers {
         ast: ASTModule,
         interner: StringInterner
     ) -> Bool {
-        guard case let .named(path, args, nullable) = ast.arena.typeRef(typeRefID),
-              path.count == 1,
-              args.isEmpty,
-              !nullable
+        guard let namedType = ast.arena.typeRef(typeRefID)?.namedType,
+              namedType.path.count == 1,
+              namedType.args.isEmpty,
+              !namedType.nullable
         else {
             return false
         }
-        return path[0] == KnownCompilerNames(interner: interner).underscore
+        return namedType.path[0] == KnownCompilerNames(interner: interner).underscore
     }
 
     func isTerminatingExpr(_ expr: Expr) -> Bool {

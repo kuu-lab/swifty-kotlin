@@ -62,7 +62,12 @@ extension DataFlowSemaPhase {
         }
 
         switch typeRef {
-        case let .named(path, argRefs, nullable):
+        case .named, .qualifiedNamed:
+            guard let namedType = typeRef.namedType else {
+                return types.errorType
+            }
+            let path = namedType.path
+            let nullable = namedType.nullable
             let nullability: Nullability = nullable ? .nullable : .nonNull
 
             guard let shortName = path.last else {
@@ -295,8 +300,15 @@ extension DataFlowSemaPhase {
                         diagnostics: diagnostics
                     )
                 }
+                let validArgumentSegmentIndices = NamedTypeArgumentSegments.validIndices(
+                    in: namedType,
+                    for: resolved.id,
+                    symbols: symbols,
+                    diagnostics: diagnostics,
+                    range: usageRange
+                )
                 let resolvedArgs = resolveTypeArgRefs(
-                    argRefs,
+                    namedType.args(in: validArgumentSegmentIndices),
                     ast: ast,
                     symbols: symbols,
                     types: types,
@@ -419,8 +431,15 @@ extension DataFlowSemaPhase {
                ),
                isNominalTypeSymbol(builtinNestedSymbol.kind)
             {
+                let validArgumentSegmentIndices = NamedTypeArgumentSegments.validIndices(
+                    in: namedType,
+                    for: builtinNestedSymbol.id,
+                    symbols: symbols,
+                    diagnostics: diagnostics,
+                    range: usageRange
+                )
                 let resolvedArgs = resolveTypeArgRefs(
-                    argRefs,
+                    namedType.args(in: validArgumentSegmentIndices),
                     ast: ast,
                     symbols: symbols,
                     types: types,

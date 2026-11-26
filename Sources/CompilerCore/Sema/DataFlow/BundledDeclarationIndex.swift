@@ -1320,7 +1320,10 @@ package struct BundledDeclarationIndex: Sendable {
         interner: StringInterner
     ) -> [InternedString]? {
         switch typeRef {
-        case let .named(path, _, _):
+        case .named, .qualifiedNamed:
+            guard let path = typeRef.namedType?.path else {
+                return nil
+            }
             guard let first = path.first else {
                 return nil
             }

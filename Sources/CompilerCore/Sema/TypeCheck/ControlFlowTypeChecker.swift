@@ -1607,9 +1607,9 @@ final class ControlFlowTypeChecker {
             usageRange: range
         )
         if resolved != sema.types.errorType,
-           case let .named(path, _, _)? = ctx.ast.arena.typeRef(paramType),
-           path.count > 1,
-           !catchQualifiedCandidatesExist(path, ctx: ctx, sema: sema)
+           let namedType = ctx.ast.arena.typeRef(paramType)?.namedType,
+           namedType.path.count > 1,
+           !catchQualifiedCandidatesExist(namedType.path, ctx: ctx, sema: sema)
         {
             // resolveTypeRef falls back to last-segment short-name lookup even
             // for qualified references, so `unknown.Error` could bind a same-named
@@ -1666,8 +1666,8 @@ final class ControlFlowTypeChecker {
             return "?"
         }
         switch ref {
-        case let .named(path, _, _):
-            return path.map { ctx.interner.resolve($0) }.joined(separator: ".")
+        case .named, .qualifiedNamed:
+            return ref.namedType?.path.map { ctx.interner.resolve($0) }.joined(separator: ".") ?? "?"
         default:
             return "?"
         }

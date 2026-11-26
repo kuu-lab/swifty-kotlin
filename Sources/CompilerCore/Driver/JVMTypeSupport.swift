@@ -133,7 +133,11 @@ extension JVMProgramBuilder {
                 return boxed ? "Lkotlin/time/Duration;" : "J"
             }
             let sourceArguments: [TypeArgRef]
-            if let source, case let .named(_, args, _) = ast.arena.typeRef(source), args.count == t.args.count {
+            if let source,
+               let namedType = ast.arena.typeRef(source)?.namedType,
+               let args = namedType.segments.last?.args,
+               args.count == t.args.count
+            {
                 sourceArguments = args
             } else {
                 sourceArguments = []

@@ -209,7 +209,9 @@ extension DataFlowSemaPhase {
                     TypeProjectionValidator(symbols: symbols, types: types, interner: interner,
                                             diagnostics: diagnostics, range: symbols.symbol(symbol)?.declSite)
                         .validate(arguments: arguments, of: nominal)
-                }
+                },
+                diagnostics: diagnostics,
+                usageRange: index < superTypeEntries.count ? superTypeEntries[index].range : entryRange
             ) {
                 symbols.recordTypeArgumentBoundCheck(
                     symbol: resolved.symbol,
@@ -675,17 +677,20 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         reportUnresolved: ((InternedString) -> Void)? = nil,
         candidateIsVisible: ((SymbolID) -> Bool)? = nil,
-        validateProjections: ((SymbolID, [TypeArg]) -> Void)? = nil
+        validateProjections: ((SymbolID, [TypeArg]) -> Void)? = nil,
+        diagnostics: DiagnosticEngine? = nil,
+        usageRange: SourceRange? = nil
     ) -> ResolvedSupertype? {
         guard let typeRef = ast.arena.typeRef(typeRefID) else {
             return nil
         }
+        let namedType: NamedTypeRef
         let path: [InternedString]
-        let argRefs: [TypeArgRef]
         switch typeRef {
-        case let .named(refPath, refs, _):
-            path = refPath
-            argRefs = refs
+        case .named, .qualifiedNamed:
+            guard let parsedNamedType = typeRef.namedType else { return nil }
+            namedType = parsedNamedType
+            path = namedType.path
         case let .functionType(contextReceiverRefIDs, receiverRefID, paramRefIDs, returnRefID, isSuspend, _):
             guard contextReceiverRefIDs.isEmpty else {
                 return nil
@@ -699,7 +704,9 @@ extension DataFlowSemaPhase {
                     enclosingClassScopes: enclosingClassScopes,
                     ast: ast,
                     symbols: symbols, types: types, interner: interner,
-                    candidateIsVisible: candidateIsVisible
+                    candidateIsVisible: candidateIsVisible,
+                    diagnostics: diagnostics,
+                    usageRange: usageRange
                 ) else { return nil }
                 paramTypes.append(receiverType)
             }
@@ -711,7 +718,9 @@ extension DataFlowSemaPhase {
                     enclosingClassScopes: enclosingClassScopes,
                     ast: ast,
                     symbols: symbols, types: types, interner: interner,
-                    candidateIsVisible: candidateIsVisible
+                    candidateIsVisible: candidateIsVisible,
+                    diagnostics: diagnostics,
+                    usageRange: usageRange
                 ) else { return nil }
                 paramTypes.append(paramType)
             }
@@ -722,7 +731,9 @@ extension DataFlowSemaPhase {
                 enclosingClassScopes: enclosingClassScopes,
                 ast: ast,
                 symbols: symbols, types: types, interner: interner,
-                candidateIsVisible: candidateIsVisible
+                candidateIsVisible: candidateIsVisible,
+                diagnostics: diagnostics,
+                usageRange: usageRange
             ) else { return nil }
             let functionSymbol: SymbolID?
             if isSuspend {
@@ -761,7 +772,9 @@ extension DataFlowSemaPhase {
                 interner: interner,
                 reportUnresolved: reportUnresolved,
                 candidateIsVisible: candidateIsVisible,
-                validateProjections: validateProjections
+                validateProjections: validateProjections,
+                diagnostics: diagnostics,
+                usageRange: usageRange
             )
         }
         guard !path.isEmpty else {
@@ -770,7 +783,13 @@ extension DataFlowSemaPhase {
 
         let resolvedSupertype: (SymbolID) -> ResolvedSupertype = { symbol in
             let resolvedArgs = self.resolveTypeArgRefsForInheritance(
-                argRefs,
+                namedType.args(in: NamedTypeArgumentSegments.validIndices(
+                    in: namedType,
+                    for: symbol,
+                    symbols: symbols,
+                    diagnostics: diagnostics,
+                    range: usageRange
+                )),
                 currentPackage: currentPackage,
                 imports: imports,
                 enclosingTypeParameters: enclosingTypeParameters,
@@ -780,7 +799,9 @@ extension DataFlowSemaPhase {
                 types: types,
                 interner: interner,
                 reportUnresolved: reportUnresolved,
-                candidateIsVisible: candidateIsVisible
+                candidateIsVisible: candidateIsVisible,
+                diagnostics: diagnostics,
+                usageRange: usageRange
             )
             validateProjections?(symbol, resolvedArgs)
             let nominal = self.resolveTypeAliasSupertype(symbol, symbols: symbols, types: types) ?? symbol
@@ -1061,7 +1082,9 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner,
         reportUnresolved: ((InternedString) -> Void)? = nil,
-        candidateIsVisible: ((SymbolID) -> Bool)? = nil
+        candidateIsVisible: ((SymbolID) -> Bool)? = nil,
+        diagnostics: DiagnosticEngine? = nil,
+        usageRange: SourceRange? = nil
     ) -> [TypeArg] {
         // Use all-or-nothing semantics: if any type arg fails to resolve,
         // return an empty array to preserve positional integrity.
@@ -1081,7 +1104,9 @@ extension DataFlowSemaPhase {
                     types: types,
                     interner: interner,
                     reportUnresolved: reportUnresolved,
-                    candidateIsVisible: candidateIsVisible
+                    candidateIsVisible: candidateIsVisible,
+                    diagnostics: diagnostics,
+                    usageRange: usageRange
                 ) else {
                     return []
                 }
@@ -1098,7 +1123,9 @@ extension DataFlowSemaPhase {
                     types: types,
                     interner: interner,
                     reportUnresolved: reportUnresolved,
-                    candidateIsVisible: candidateIsVisible
+                    candidateIsVisible: candidateIsVisible,
+                    diagnostics: diagnostics,
+                    usageRange: usageRange
                 ) else {
                     return []
                 }
@@ -1115,7 +1142,9 @@ extension DataFlowSemaPhase {
                     types: types,
                     interner: interner,
                     reportUnresolved: reportUnresolved,
-                    candidateIsVisible: candidateIsVisible
+                    candidateIsVisible: candidateIsVisible,
+                    diagnostics: diagnostics,
+                    usageRange: usageRange
                 ) else {
                     return []
                 }
@@ -1138,13 +1167,18 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner,
         reportUnresolved: ((InternedString) -> Void)? = nil,
-        candidateIsVisible: ((SymbolID) -> Bool)? = nil
+        candidateIsVisible: ((SymbolID) -> Bool)? = nil,
+        diagnostics: DiagnosticEngine? = nil,
+        usageRange: SourceRange? = nil
     ) -> TypeID? {
         guard let typeRef = ast.arena.typeRef(typeRefID) else {
             return nil
         }
         switch typeRef {
-        case let .named(path, argRefs, nullable):
+        case .named, .qualifiedNamed:
+            guard let namedType = typeRef.namedType else { return nil }
+            let path = namedType.path
+            let nullable = namedType.nullable
             let nullability: Nullability = nullable ? .nullable : .nonNull
             guard !path.isEmpty else {
                 return nil
@@ -1168,7 +1202,13 @@ extension DataFlowSemaPhase {
             }
             let resolvedType: (SymbolID) -> TypeID = { nominalSymbol in
                 let resolvedArgs = self.resolveTypeArgRefsForInheritance(
-                    argRefs,
+                    namedType.args(in: NamedTypeArgumentSegments.validIndices(
+                        in: namedType,
+                        for: nominalSymbol,
+                        symbols: symbols,
+                        diagnostics: diagnostics,
+                        range: usageRange
+                    )),
                     currentPackage: currentPackage,
                     imports: imports,
                     enclosingTypeParameters: enclosingTypeParameters,
@@ -1178,7 +1218,9 @@ extension DataFlowSemaPhase {
                     types: types,
                     interner: interner,
                     reportUnresolved: reportUnresolved,
-                    candidateIsVisible: candidateIsVisible
+                    candidateIsVisible: candidateIsVisible,
+                    diagnostics: diagnostics,
+                    usageRange: usageRange
                 )
                 var nominalArgs = resolvedArgs
                 let enclosingCount = types.enclosingTypeParameterSymbols(for: nominalSymbol).count
@@ -1305,7 +1347,9 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
-                candidateIsVisible: candidateIsVisible
+                candidateIsVisible: candidateIsVisible,
+                diagnostics: diagnostics,
+                usageRange: usageRange
             )
         case let .intersection(partRefs):
             let partTypes = partRefs.compactMap {
@@ -1320,7 +1364,9 @@ extension DataFlowSemaPhase {
                     types: types,
                     interner: interner,
                     reportUnresolved: reportUnresolved,
-                    candidateIsVisible: candidateIsVisible
+                    candidateIsVisible: candidateIsVisible,
+                    diagnostics: diagnostics,
+                    usageRange: usageRange
                 )
             }
             guard partTypes.count == partRefs.count else { return nil }
@@ -1337,7 +1383,9 @@ extension DataFlowSemaPhase {
                 types: types,
                 interner: interner,
                 reportUnresolved: reportUnresolved,
-                candidateIsVisible: candidateIsVisible
+                candidateIsVisible: candidateIsVisible,
+                diagnostics: diagnostics,
+                usageRange: usageRange
             ) else {
                 return nil
             }
@@ -1367,7 +1415,9 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        candidateIsVisible: ((SymbolID) -> Bool)? = nil
+        candidateIsVisible: ((SymbolID) -> Bool)? = nil,
+        diagnostics: DiagnosticEngine? = nil,
+        usageRange: SourceRange? = nil
     ) -> TypeID? {
         let nullability: Nullability = nullable ? .nullable : .nonNull
         var contextReceiverTypes: [TypeID] = []
@@ -1382,7 +1432,9 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
-                candidateIsVisible: candidateIsVisible
+                candidateIsVisible: candidateIsVisible,
+                diagnostics: diagnostics,
+                usageRange: usageRange
             ) else { return nil }
             contextReceiverTypes.append(contextReceiverType)
         }
@@ -1398,7 +1450,9 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
-                candidateIsVisible: candidateIsVisible
+                candidateIsVisible: candidateIsVisible,
+                diagnostics: diagnostics,
+                usageRange: usageRange
             ) else { return nil }
             receiverType = resolved
         }
@@ -1414,7 +1468,9 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
-                candidateIsVisible: candidateIsVisible
+                candidateIsVisible: candidateIsVisible,
+                diagnostics: diagnostics,
+                usageRange: usageRange
             ) else { return nil }
             paramTypes.append(paramType)
         }
@@ -1428,7 +1484,9 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             types: types,
             interner: interner,
-            candidateIsVisible: candidateIsVisible
+            candidateIsVisible: candidateIsVisible,
+            diagnostics: diagnostics,
+            usageRange: usageRange
         ) else { return nil }
         return types.make(.functionType(FunctionType(
             contextReceivers: contextReceiverTypes,
@@ -1547,7 +1605,9 @@ extension DataFlowSemaPhase {
                         ast: ast,
                         symbols: symbols,
                         types: types,
-                        interner: interner
+                        interner: interner,
+                        diagnostics: diagnostics,
+                        usageRange: entry.range
                     ) else {
                         continue
                     }
