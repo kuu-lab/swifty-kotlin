@@ -2,10 +2,6 @@
 package kotlin.sequences
 
 
-// Shared implementation adapted from Stdlib/kotlin/sequences/SequenceTransformHOF.kt.
-// MIGRATION-SEQ-002 / KSP-441
-// Core higher-order transform functions for source-backed Sequence pipelines.
-
 private class TransformingSequence<T, R>(
     private val source: Sequence<T>,
     private val transform: (T) -> R

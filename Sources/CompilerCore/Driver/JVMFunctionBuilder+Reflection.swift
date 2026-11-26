@@ -99,9 +99,13 @@ extension JVMFunctionBuilder {
         let constructor = method?.isConstructor == true
         let isExtension = program.extensionSymbols.contains(symbol) || context.jvmImports?.extensionSymbols.contains(symbol) == true || sourceBacked?.extensionReceiver != nil
         let ownerName = ref?.owner ?? method!.owner
-        let staticTarget = ref != nil || method?.isStatic == true
-        let bound = !unbound && !constructor && (!staticTarget || isExtension) ? try receiver.map(requireValue) ?? instance(id) : nil
-        let params = ref?.parameters ?? method!.parameters
+        let valueMember = ref == nil && method?.isStatic == true && method?.kotlinFunction?.valueMemberParameterDescriptors != nil
+        let staticTarget = !valueMember && (ref != nil || method?.isStatic == true)
+        var bound = !unbound && !constructor && (!staticTarget || isExtension) ? try receiver.map(requireValue) ?? instance(id) : nil
+        if valueMember, let captured = bound, let method {
+            bound = try convert(captured, to: .reference(method.owner, nullable: false))
+        }
+        let params = ref?.parameters ?? (valueMember ? Array(method!.parameters.dropFirst()) : method!.parameters)
         let suspended = ref?.isSuspend ?? method?.isSuspend ?? false
         let arity = params.count + (!staticTarget && !constructor && bound == nil ? 1 : 0) - (staticTarget && isExtension && bound != nil ? 1 : 0) + (suspended ? 1 : 0)
         guard arity <= 22 else { throw fail("JVM callable reference arity exceeds 22.", id) }

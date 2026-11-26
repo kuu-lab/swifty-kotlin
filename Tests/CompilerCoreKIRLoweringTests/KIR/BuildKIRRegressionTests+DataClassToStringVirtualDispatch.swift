@@ -28,10 +28,6 @@ extension BuildKIRRegressionTests {
         }
     }
 
-    /// The vtable slot `member` occupies in `nominalName`'s layout under its
-    /// own symbol key — for an inherited Any member this is the shared Any
-    /// slot; for a synthesized data-class member it is an orphan slot that is
-    /// never registered per-object.
     private func memberVtableSlot(
         _ member: InternedString,
         of nominalName: String,
@@ -59,9 +55,6 @@ extension BuildKIRRegressionTests {
         return Int64(slot)
     }
 
-    // KUU-3110: a data class property typed as a base class must stringify
-    // through the `kotlin.Any.toString` vtable slot so the receiver's
-    // most-derived override runs.
     @Test
     func dataClassToStringUsesAnyVtableSlotForBaseTypedProperty() throws {
         TestStdlibCache.shared.prepare()
@@ -87,10 +80,6 @@ extension BuildKIRRegressionTests {
         #expect(virtualSlots == [anySlot])
     }
 
-    // A final data class's own synthesized `toString` occupies an orphan
-    // vtable slot that is never registered per-object, so a property typed as
-    // that data class must still dispatch through the inherited
-    // `kotlin.Any.toString` slot.
     @Test
     func dataClassToStringAvoidsOrphanSlotForDataClassProperty() throws {
         TestStdlibCache.shared.prepare()
@@ -115,10 +104,6 @@ extension BuildKIRRegressionTests {
         #expect(virtualSlots == [anySlot])
     }
 
-    // A property typed as an interface has no `kotlin.Any.toString` vtable
-    // slot to dispatch through — the synthesized body must fall back to
-    // `kk_any_to_string` rather than emitting a virtualCall on an
-    // interface-owned slot that is never registered.
     @Test
     func dataClassToStringFallsBackForInterfaceTypedProperty() throws {
         TestStdlibCache.shared.prepare()

@@ -50,7 +50,6 @@ extension StdlibArtifactRegressionTests {
             )
             try assertCompilationSucceeded(makeTestDriver().runForTesting(options: options), context: name)
             if emit == .library {
-                // The consumer must work after the producer source has been retired.
                 try FileManager.default.removeItem(atPath: input)
                 return output + ".kklib"
             }
@@ -61,12 +60,9 @@ extension StdlibArtifactRegressionTests {
             ("object_bound_class_literal_any.kt", "Token\n"),
             ("object_bound_class_literal_identity.kt", expectedIdentity),
         ].enumerated() {
-            // Collection must preserve the singleton and the first dynamic classifier.
             var fixtureSource = try diffCaseSource(fixture.0, file: #filePath)
             var expected = fixture.1
             if mode == "producer", index == 1 {
-                // Private singleton library startup is tracked separately in KUU-2163.
-                // Keep its strict checks in both monolithic compilation modes.
                 let start = try #require(fixtureSource.range(of: "    val hidden = hiddenClassifier()"))
                 let end = try #require(fixtureSource.range(of: "    val nested = classifier"))
                 fixtureSource.removeSubrange(start.lowerBound..<end.lowerBound)
@@ -86,7 +82,6 @@ extension StdlibArtifactRegressionTests {
             } else {
                 executable = try compile(optIn + source, name: "SingletonMonolithic\(index)", emit: .executable)
             }
-            // Each run starts without any KClass cache or prior literal evaluation.
             for _ in 0..<2 {
                 let result = try CommandRunner.run(executable: executable, arguments: [])
                 #expect(result.exitCode == 0, "\(mode) O\(optimization): \(result.stderr)")

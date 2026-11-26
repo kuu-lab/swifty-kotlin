@@ -110,8 +110,6 @@ extension BundledStdlibExecutionTests {
             allowDefaultStdlibLibrary: useArtifact,
             optLevel: try #require(OptimizationLevel(rawValue: optimization)),
             expectedStderr: "",
-            // Source injection currently reports the existing KSP-002 coroutine stub warning.
-            // Compilation errors still fail through assertCompilationSucceeded.
             requireNoCompilerDiagnostics: useArtifact
         )
     }

@@ -22,7 +22,6 @@ private final class CapturedIDBuffer: @unchecked Sendable {
 
 @Suite
 struct StringInternerTests {
-    // MARK: - InternedString
 
     @Test func testInternedStringInvalidAndDefault() {
         #expect(InternedString.invalid.rawValue == -1)
@@ -39,8 +38,6 @@ struct StringInternerTests {
         #expect(Set([a, b]).count == 1)
         #expect(Set([a, b, c]).count == 2)
     }
-
-    // MARK: - StringInterner basic operations
 
     @Test func testInternReturnsSameIDForSameString() {
         let interner = StringInterner()
@@ -108,7 +105,6 @@ struct StringInternerTests {
         let id1 = interner.intern("b")
         let id2 = interner.intern("c")
         #expect(id0 != InternedString.invalid)
-        // strict monotonicity also gives pairwise distinctness
         #expect(id0.rawValue < id1.rawValue)
         #expect(id1.rawValue < id2.rawValue)
     }
@@ -145,8 +141,6 @@ struct StringInternerTests {
         #expect(interner.resolve(id) == input)
     }
 
-    // MARK: - Thread safety
-
     /// Runs `body` for 10 concurrent iterations and returns once all finish.
     ///
     /// `concurrentPerform` also runs iterations on the calling thread, so it
@@ -160,8 +154,6 @@ struct StringInternerTests {
     @Test func testConcurrentInternDoesNotCrash() {
         let interner = StringInterner()
 
-        // Capture IDs returned during the concurrent phase so we verify
-        // the actual values produced under contention, not re-interned ones.
         let capturedIDs = CapturedIDBuffer()
 
         runConcurrently { task in
@@ -181,7 +173,6 @@ struct StringInternerTests {
         let ids: [InternedString] = (0 ..< 100).map { interner.intern("value_\($0)") }
         let expected: [String] = (0 ..< 100).map { "value_\($0)" }
 
-        // Resolving concurrently must return the same strings as a serial read.
         let mismatches = CapturedIDBuffer()
         runConcurrently { _ in
             let resolved = ids.map(interner.resolve)

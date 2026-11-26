@@ -42,9 +42,7 @@ extension JVMBackendTests {
     func launcherNotesAreOnlyStrippedWhenEnvironmentSetsThem() {
         let stderr = "NOTE: Picked up JDK_JAVA_OPTIONS: -Xmx1g\nprogram warning\n"
         let result = CommandResult(exitCode: 0, stdout: "", stderr: stderr)
-        // Without the environment variable the note is program output and stays.
         #expect(result.withoutJavaLauncherNotes(environment: [:]).stderr == stderr)
-        // A note that is not at the very start of stderr is program output and stays.
         let later = CommandResult(exitCode: 0, stdout: "", stderr: "first\n" + stderr)
         #expect(later.withoutJavaLauncherNotes(environment: ["JDK_JAVA_OPTIONS": "-Xmx1g"]).stderr == later.stderr)
     }
@@ -54,8 +52,6 @@ extension JVMBackendTests {
         let environment = ["JDK_JAVA_OPTIONS": "-Xmx1g", "JAVA_TOOL_OPTIONS": "-Xmx2g"]
         let jdkNote = "NOTE: Picked up JDK_JAVA_OPTIONS: -Xmx1g\n"
         let toolNote = "Picked up JAVA_TOOL_OPTIONS: -Xmx2g\n"
-        // The toolchain prints each note once; a program repeating the same line
-        // afterwards is program stderr and must survive.
         let result = CommandResult(exitCode: 0, stdout: "", stderr: jdkNote + toolNote + toolNote + "real\n")
         #expect(result.withoutJavaLauncherNotes(environment: environment).stderr == toolNote + "real\n")
     }

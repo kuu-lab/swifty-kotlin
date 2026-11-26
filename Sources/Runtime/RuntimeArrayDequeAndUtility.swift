@@ -1,8 +1,4 @@
 
-// `first` / `last` / `isEmpty` / `toString` and the emptiness checks that guard
-// `removeFirst` / `removeLast` now live in
-// `Sources/CompilerCore/Stdlib/kotlin/collections/ArrayDeque.kt`.
-
 @_cdecl("__kk_arraydeque_new")
 public func __kk_arraydeque_new() -> Int {
     registerRuntimeObject(RuntimeArrayDequeBox(capacity: 0))
@@ -197,16 +193,11 @@ private func runtimePrimitiveArrayElementToString(
     }
 }
 
-/// The canonical IEEE 754 bit pattern for a raw DoubleArray element:
-/// every NaN payload folds to `doubleToLongBits`' canonical NaN, matching
-/// `Arrays.equals(double[], double[])` / `Double.hashCode`.
 private func runtimeCanonicalDoubleBits(_ raw: Int) -> UInt64 {
     let bits = UInt64(bitPattern: Int64(raw))
     return Double(bitPattern: bits).isNaN ? 0x7FF8_0000_0000_0000 : bits
 }
 
-/// The canonical bit pattern for a raw FloatArray element, matching
-/// `floatToIntBits`' canonical NaN folding.
 private func runtimeCanonicalFloatBits(_ raw: Int) -> UInt32 {
     let value = kk_bits_to_float(raw)
     return value.isNaN ? 0x7FC0_0000 : value.bitPattern
@@ -390,8 +381,6 @@ public func __kk_array_contentDeepToString(_ arrayRaw: Int) -> UnsafeMutableRawP
     return runtimeArrayStringPointer(runtimeArrayBoxDeepToString(raw: arrayRaw, box: array, visited: &visited))
 }
 
-// MARK: - JVM annotation proxy member rendering (KUU-4418)
-
 /// JVM `AnnotationInvocationHandler.memberValueToString`: String/Char are
 /// quoted, arrays render `{a, b}` with recursively formatted elements,
 /// KClass renders `<jvm binary name>.class`, annotations delegate to their
@@ -447,9 +436,6 @@ private func runtimeAnnotationProxyArrayToString(
         .joined(separator: ", ") + "}"
 }
 
-/// JVM `Class.getName()` for the classifier behind a KClass literal:
-/// signed primitives spell `int`/`boolean`/…, everything else uses the
-/// Java binary name (`kotlin.String` -> `java.lang.String`).
 private func runtimeAnnotationProxyKClassName(_ box: RuntimeKClassBox) -> String {
     runtimeAnnotationProxyKClassNameAndPrimitiveness(box).name
 }
@@ -489,9 +475,6 @@ public func __kk_annotation_proxy_kclass_to_string(_ kclassRaw: Int) -> UnsafeMu
     return runtimeArrayStringPointer(runtimeAnnotationProxyKClassName(box) + ".class")
 }
 
-/// `java.lang.Class.toString()` for a KClass member of a directly constructed
-/// annotation: primitives spell `int`/`boolean`/…, reference types render
-/// `class <java binary name>` — matching kotlinc's annotation `toString`.
 @_cdecl("__kk_annotation_jvm_class_tostring")
 public func __kk_annotation_jvm_class_tostring(_ kclassRaw: Int) -> UnsafeMutableRawPointer {
     guard let box = runtimeKClassBox(from: kclassRaw) else {

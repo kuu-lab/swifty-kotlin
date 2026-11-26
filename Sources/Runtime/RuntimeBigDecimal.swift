@@ -1,6 +1,6 @@
 import Foundation
 
-private struct RuntimeBigDecimalParts {
+struct RuntimeBigDecimalParts {
     var digits: String
     var negative: Bool
     var scale: Int
@@ -11,7 +11,7 @@ private enum RuntimeBigDecimalError: Error {
     case nonTerminating
 }
 
-private func runtimeBigDecimalParts(_ source: String) throws -> RuntimeBigDecimalParts {
+func runtimeBigDecimalParts(_ source: String) throws -> RuntimeBigDecimalParts {
     var index = source.startIndex
     var negative = false
     if index < source.endIndex, source[index] == "+" || source[index] == "-" {
@@ -216,6 +216,21 @@ private func runtimeMakeBigDecimal(_ parts: RuntimeBigDecimalParts) throws -> In
 /// `toString()`/`scale()` behave identically regardless of origin.
 func runtimeCanonicalDecimalString(_ source: String) throws -> String {
     try runtimeFormatBigDecimal(runtimeBigDecimalParts(source))
+}
+
+/// `BigDecimal.equals` semantics on canonical decimal texts: identical scale
+/// and the same signed value. Structural equality (`==`/`!=` on nullable
+/// `BigDecimal` operands) bypasses the Kotlin `equals` override, so it applies
+/// this check directly to the stored canonical strings.
+func runtimeBigDecimalCanonicalEquals(_ lhs: String, _ rhs: String) -> Bool {
+    guard let lhsParts = try? runtimeBigDecimalParts(lhs),
+          let rhsParts = try? runtimeBigDecimalParts(rhs),
+          lhsParts.scale == rhsParts.scale,
+          lhsParts.negative == rhsParts.negative
+    else {
+        return false
+    }
+    return lhsParts.digits == rhsParts.digits
 }
 
 private func runtimeBigDecimalFromIntegerText(_ value: Int64, outThrown: UnsafeMutablePointer<Int>?) -> Int {
