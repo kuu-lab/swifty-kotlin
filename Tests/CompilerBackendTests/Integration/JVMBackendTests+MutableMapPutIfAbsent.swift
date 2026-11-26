@@ -10,6 +10,17 @@ extension JVMBackendTests {
         let library = try ownStdlibRuntime()
         try withWorkspace { root in
             let source = """
+            class DelegatingMap(private val backing: MutableMap<String, String>) : MutableMap<String, String> by backing {
+                override fun get(key: String): String? {
+                    println("get override")
+                    return backing.get(key)
+                }
+                override fun put(key: String, value: String): String? {
+                    println("put override")
+                    return backing.put(key, value)
+                }
+            }
+
             fun main() {
                 val values = linkedMapOf<String, String?>("null" to null, "present" to "old")
                 println(values.putIfAbsent("new", "first"))
@@ -20,6 +31,15 @@ extension JVMBackendTests {
                 val typed: MutableMap<String, String?> = linkedMapOf("present" to "old")
                 println(typed.putIfAbsent("present", "replacement"))
                 println(typed.putIfAbsent("new", "first"))
+
+                val delegated = DelegatingMap(mutableMapOf())
+                println(delegated.putIfAbsent("key", "first"))
+                println(delegated.putIfAbsent("key", "replacement"))
+
+                val referenceMap: MutableMap<String, String> = linkedMapOf()
+                val reference: (String, String) -> String? = referenceMap::putIfAbsent
+                println(reference("reference", "first"))
+                println(reference("reference", "replacement"))
             }
             """
             let result = try compile(source, root: root, mode: mode, classpath: [library.path])
@@ -34,6 +54,13 @@ extension JVMBackendTests {
             null=filled,present=old,new=first
             old
             null
+            get override
+            put override
+            null
+            get override
+            first
+            null
+            first
             """ + "\n"
             #expect(execution.stdout == expected)
             #expect(execution.stderr.isEmpty)
