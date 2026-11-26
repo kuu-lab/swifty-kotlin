@@ -187,6 +187,15 @@ extension BuildASTPhase {
         guard let first = nextHead.first else {
             return false
         }
+        if previousTail.last?.kind == .symbol(.rParen),
+           canStartModifiedAnonymousFunction(first.kind),
+           isContextualAnonymousFunctionContinuation(
+               previousTail: previousTail,
+               nextHead: nextHead
+           )
+        {
+            return true
+        }
         if first.kind == .keyword(.while), isDoWhileExpressionPrefix(previousTail) {
             return true
         }
@@ -208,6 +217,62 @@ extension BuildASTPhase {
         }
         if first.kind == .symbol(.lBrace), canAcceptTrailingLambda(on: previousTail) {
             return true
+        }
+        return false
+    }
+
+    private static func canStartModifiedAnonymousFunction(_ kind: TokenKind) -> Bool {
+        if kind == .keyword(.fun) {
+            return true
+        }
+        guard case let .keyword(keyword) = kind else {
+            return false
+        }
+        return KotlinParser.isDeclarationModifierKeyword(keyword)
+    }
+
+    private static func isContextualAnonymousFunctionContinuation<Prev: BidirectionalCollection, Next: Collection>(
+        previousTail: Prev,
+        nextHead: Next
+    ) -> Bool where Prev.Element == Token, Next.Element == Token {
+        var functionIndex = nextHead.startIndex
+        while functionIndex != nextHead.endIndex,
+              case let .keyword(keyword) = nextHead[functionIndex].kind,
+              KotlinParser.isDeclarationModifierKeyword(keyword)
+        {
+            functionIndex = nextHead.index(after: functionIndex)
+        }
+        guard functionIndex != nextHead.endIndex,
+              ExpressionParser.isAnonymousFunctionLiteralStart(
+                  tokens: nextHead,
+                  at: functionIndex
+              ),
+              previousTail.last?.kind == .symbol(.rParen)
+        else {
+            return false
+        }
+
+        var depth = 0
+        var cursor = previousTail.index(before: previousTail.endIndex)
+        while true {
+            switch previousTail[cursor].kind {
+            case .symbol(.rParen):
+                depth += 1
+            case .symbol(.lParen):
+                depth -= 1
+                if depth == 0 {
+                    guard cursor != previousTail.startIndex else {
+                        return false
+                    }
+                    return previousTail[previousTail.index(before: cursor)].kind == .softKeyword(.context)
+                }
+            default:
+                break
+            }
+            if cursor == previousTail.startIndex {
+                break
+            }
+            cursor = previousTail.index(before: cursor)
         }
         return false
     }

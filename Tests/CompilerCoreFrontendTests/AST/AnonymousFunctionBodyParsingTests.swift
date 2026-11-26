@@ -55,6 +55,19 @@ struct AnonymousFunctionBodyParsingTests {
         #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
     }
 
+    @Test
+    func newlineBetweenContextPrefixAndAnonymousFunctionParses() throws {
+        let (_, context) = try buildASTModule(from: """
+        @file:OptIn(kotlin.ExperimentalContextParameters::class)
+        fun main() {
+            val f = context(a: String)
+            fun(y: String): String = a + y
+        }
+        """, includeStdlib: false)
+
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+    }
+
     @Test(arguments: [
         "fun main() { val g = fun(x: Int) { return x * 2 } }",
         "val f = fun() { return 1 }",

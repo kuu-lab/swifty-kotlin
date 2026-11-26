@@ -39,6 +39,20 @@ struct NewlineOperatorTests {
     }
 
     @Test
+    func newlineBeforeAnonymousFunctionContinuesContextParameterPrefix() {
+        let previous = lex("val f = context(a: String)").tokens.dropLast()
+        let next = lex("fun(y: String): String = a + y").tokens.dropLast()
+        #expect(BuildASTPhase.isContinuationBoundary(previousTail: previous, nextHead: next))
+    }
+
+    @Test
+    func newlineBeforeNamedFunctionDoesNotContinueContextParameterPrefix() {
+        let previous = lex("val f = context(a: String)").tokens.dropLast()
+        let next = lex("fun named(y: String): String = y").tokens.dropLast()
+        #expect(!BuildASTPhase.isContinuationBoundary(previousTail: previous, nextHead: next))
+    }
+
+    @Test
     func newlineBeforeDoWhileConditionContinuesExpression() {
         let previous = lex("do { value = \"x\" }").tokens.dropLast()
         let next = lex("while (value != \"Y\")").tokens.dropLast()
