@@ -622,6 +622,9 @@ struct SuperCallAndQualifiedThisTests {
             fun write() {
                 super["x"] = 3
             }
+            fun compound() {
+                super["x"] += 1
+            }
         }
         """)
         if fullyLowered {
@@ -635,6 +638,7 @@ struct SuperCallAndQualifiedThisTests {
         var superCalls: [String] = []
         for body in findAllKIRFunctionBodies(named: "read", in: module, interner: ctx.interner)
             + findAllKIRFunctionBodies(named: "write", in: module, interner: ctx.interner)
+            + findAllKIRFunctionBodies(named: "compound", in: module, interner: ctx.interner)
         {
             for instruction in body {
                 switch instruction {
@@ -647,7 +651,7 @@ struct SuperCallAndQualifiedThisTests {
                 }
             }
         }
-        #expect(superCalls == ["get", "set"])
+        #expect(superCalls == ["get", "set", "get", "set"])
     }
 }
 #endif
