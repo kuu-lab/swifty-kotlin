@@ -1079,6 +1079,11 @@ final class JVMFunctionBuilder {
             if let binding = program.sema.bindings.callBinding(for: id), context.interner.resolve(program.sema.symbols.symbol(binding.chosenCallee)?.name ?? context.interner.intern("")) == "invoke", program.sema.bindings.identifierSymbol(for: callee).flatMap({ program.sema.symbols.symbol($0) })?.kind != .function {
                 invokeReceiver = callee
             } else { invokeReceiver = nil }
+            if let binding = program.sema.bindings.callBinding(for: id),
+               let isFloat = stdlibFromBitsIsFloat(binding.chosenCallee, args: args),
+               let emitted = try emitFromBits(args: args, isFloat: isFloat, receiver: invokeReceiver, id: id) {
+                return emitted
+            }
             if let result = try inlineCall(args, receiver: invokeReceiver, id: id) { return result.value }
             if let result = try textLibraryCall(args, receiver: invokeReceiver, id: id) { return result.value }
             if let result = try sourceCall(args, receiver: invokeReceiver, id: id) { return result.value }
