@@ -450,6 +450,11 @@ extension JVMBackendTests {
             val y: Int
                 get() = 1
         }
+        open class ProtectedFieldBase {
+            @JvmField protected val exposedValue: String? = null
+            val y: Int
+                get() = 1
+        }
         object Factory {
             fun makeC(): C = C()
         }
@@ -475,6 +480,9 @@ extension JVMBackendTests {
             let protectedEntry = try #require(archive.entries.first { $0.name == "ProtectedBase.class" })
             var protectedReader = JVMClassReader(bytes: Array(try archive.contents(of: protectedEntry)))
             #expect(try protectedReader.read().kotlinMemberProperties["protectedValue"] == nil)
+            let protectedFieldEntry = try #require(archive.entries.first { $0.name == "ProtectedFieldBase.class" })
+            var protectedFieldReader = JVMClassReader(bytes: Array(try archive.contents(of: protectedFieldEntry)))
+            #expect(try protectedFieldReader.read().kotlinMemberProperties["exposedValue"]?.getter.isAccessorlessField == true)
             let compiled = try compile(consumer, root: root, mode: .jvmJar, classpath: [libraryArtifact])
             try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
             let artifact = root.appendingPathComponent("hello.jar").path

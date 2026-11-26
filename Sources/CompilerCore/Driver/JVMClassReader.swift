@@ -920,7 +920,7 @@ struct JVMClassReader {
                     fields.first { $0.name == fieldName && $0.descriptor == property.fieldDescriptor }
                 }
                 let physicalConstant = physicalField?.constantValue != nil
-                let isExposedField = physicalField?.isPublic ?? true
+                let isExposedField = physicalField.map { $0.access & 2 == 0 } ?? true
                 if getter == nil, !physicalConstant, isExposedField, property.fieldName != nil, let fieldDescriptor = property.fieldDescriptor,
                    let result = try? JVMDescriptor.parse("()" + fieldDescriptor).1 {
                     // @JvmField properties have no accessor method, but their
