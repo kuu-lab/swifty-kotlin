@@ -402,18 +402,18 @@ public final class CodegenPhase: CompilerPhase {
             let isInitBody = ctx.options.target.isWasm
                 && Self.isLibraryInitBodyName(functionName)
             // On wasm the artifact's .o is never linked, so a non-inline
-            // top-level function's body must ship as serialized KIR keyed by
-            // its link name; otherwise a declaration call from a consumer has
-            // no body to materialize and `WasmEmitter` stubs it to `0`.
-            // Members stay out: their vtable/itable slots and direct calls
-            // resolve through wasm helper thunks that a materialized body
-            // would displace.
+            // function's body must ship as serialized KIR keyed by its link
+            // name; otherwise a declaration call from a consumer has no body
+            // to materialize and `WasmEmitter` stubs it to `0`. Open,
+            // abstract, and overriding members stay out: their vtable/itable
+            // slots and direct calls resolve through wasm helper thunks that
+            // a materialized body would displace.
             let isStandaloneBody = ctx.options.target.isWasm
                 && !function.isInline
                 && !function.isInlineOnly
                 && !function.isSuspend
                 && !function.body.isEmpty
-                && Self.isTopLevelFunction(function.symbol, symbols: sema.symbols)
+                && Self.isMaterializableWasmFunction(function.symbol, symbols: sema.symbols)
             guard function.isInline || isInitBody || isStandaloneBody else {
                 continue
             }
@@ -491,6 +491,30 @@ public final class CodegenPhase: CompilerPhase {
             return true
         }
         return !parentInfo.fqName.elementsEqual(info.fqName.dropLast())
+    }
+
+    /// Wasm can materialize statically dispatched member bodies, but open or
+    /// overriding members still belong to the vtable/itable helper surface.
+    /// Member extensions are excluded as well: their two-receiver ABI does not
+    /// match the single receiver shape serialized for ordinary members.
+    private static func isMaterializableWasmFunction(_ symbol: SymbolID, symbols: SymbolTable) -> Bool {
+        guard let info = symbols.symbol(symbol), info.kind == .function else {
+            return false
+        }
+        if isTopLevelFunction(symbol, symbols: symbols) {
+            return true
+        }
+        guard !info.flags.contains(.overrideMember),
+              !info.flags.contains(.openType),
+              !info.flags.contains(.abstractType),
+              !info.flags.contains(.memberExtension),
+              let parent = symbols.parentSymbolIfKnown(for: symbol),
+              let parentInfo = symbols.symbol(parent),
+              parentInfo.kind != .interface
+        else {
+            return false
+        }
+        return true
     }
 
     private static func calledFunctionSymbol(_ instruction: KIRInstruction) -> SymbolID? {
