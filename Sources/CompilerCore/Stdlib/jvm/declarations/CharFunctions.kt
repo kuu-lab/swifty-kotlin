@@ -14,6 +14,8 @@ fun Char.titlecase(): String = null!!
 fun Char.isWhitespace(): Boolean = false
 val Char.directionality: CharDirectionality get() = null!!
 fun Char.digitToInt(radix: Int): Int = 0
+fun Char.digitToIntOrNull(): Int? = null
+fun Char.digitToIntOrNull(radix: Int): Int? = null
 fun Char.toFloat(): Float = 0f
 fun Char.equals(other: Char, ignoreCase: Boolean = null!!): Boolean = null!!
 fun checkRadix(radix: Int): Int = 0
