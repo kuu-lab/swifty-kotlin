@@ -42,7 +42,12 @@ extension JVMFunctionBuilder {
                 actual.descriptor == parameter.type.descriptor || parameter.variadic && actual.descriptor == "[" + parameter.type.descriptor
             }
         }
-        return operation.map(JVMTextReferenceTarget.operation)
+        let defaultedTail = operation == nil ? JVMTextOperation.operations.first { op in
+            guard op.name == name, op.receiver == receiverName, op.parameters.count > parameterTypes.count else { return false }
+            return zip(parameterTypes, op.parameters).allSatisfy { $0.descriptor == $1.type.descriptor && !$1.variadic }
+                && op.parameters.dropFirst(parameterTypes.count).allSatisfy { $0.fallback != nil }
+        } : nil
+        return (operation ?? defaultedTail).map(JVMTextReferenceTarget.operation)
     }
 
     func textReference(_ id: ExprID, symbol: SymbolID, receiver: ExprID?, unbound: Bool) throws -> JVMValue? {
@@ -129,6 +134,7 @@ extension JVMFunctionBuilder {
         program.syntheticFunctions[container, default: []].append(helper.finish())
         let unitConversion = resultType == .unit && physicalResult != .unit
         let adapted = binding?.isCallableReferenceAdapter == true || unitConversion || function.isSuspend
+            || parameters.count != signature.parameterTypes.count
         var generated = try program.closureClass(name, captures: captures.enumerated().map { ("capture\($0.offset)", $0.element.type) }, inputs: inputTypes, result: resultType, helper: helperRef, suspend: function.isSuspend, superclass: "kotlin/jvm/internal/" + (adapted ? "AdaptedFunctionReference" : "FunctionReferenceImpl"))
         let arity = inputTypes.count + (function.isSuspend ? 1 : 0)
         guard arity <= 22 else { throw fail("JVM callable reference arity exceeds 22.", id) }

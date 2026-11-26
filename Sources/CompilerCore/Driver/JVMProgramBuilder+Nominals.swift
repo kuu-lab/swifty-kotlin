@@ -396,7 +396,9 @@ extension JVMProgramBuilder {
         result.extraFields += plan.delegateFields.map { $0.2 } + Array(plan.propertyTokens.values).sorted { $0.name < $1.name } + plan.properties.compactMap { $0.2.delegateField }
         if let companionOwner = plan.companionOwner {
             result.properties = result.properties.map { property in
-                guard let field = property.field, field.constantValue != nil else { return property }
+                guard let field = property.field else { return property }
+                let exposedStaticField = field.access & 8 != 0 && field.owner != plan.name
+                guard field.constantValue != nil || exposedStaticField else { return property }
                 var property = property
                 if classes[companionOwner]?.isInterface == true {
                     var duplicate = JVMField(owner: plan.name, name: field.name, type: field.type, access: field.access)
@@ -405,6 +407,7 @@ extension JVMProgramBuilder {
                     duplicate.isDeprecated = field.isDeprecated
                     property.field = duplicate
                 } else {
+                    property.relocatedField = field
                     property.field = nil
                 }
                 return property
@@ -452,10 +455,15 @@ extension JVMProgramBuilder {
         if let storage = interfaceCompanionStorage(plan) { result.extraFields.append(storage) }
         if let companion = classes.values.first(where: { $0.companionOwner == plan.symbol }) {
             result.extraFields.append(singletonField(companion))
-            result.extraFields += companion.properties.compactMap {
-                guard let field = $0.2.field, field.constantValue != nil,
-                      !plan.isInterface || field.access & 2 == 0 else { return nil }
-                return field
+            for (_, _, property) in companion.properties {
+                guard let field = property.field,
+                      field.constantValue != nil || (field.access & 8 != 0 && field.owner == plan.name),
+                      !plan.isInterface || field.access & 2 == 0 else { continue }
+                result.extraFields.append(field)
+                if let signature = property.fieldGenericSignature ?? property.genericSignature,
+                   signature != field.type.descriptor {
+                    result.extraFieldSignatures[field.key] = signature
+                }
             }
         }
         if plan.isEnum { try decorateEnum(plan, result: &result) }

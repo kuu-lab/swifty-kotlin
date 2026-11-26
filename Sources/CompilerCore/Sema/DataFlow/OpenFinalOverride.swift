@@ -2976,8 +2976,14 @@ extension DataFlowSemaPhase {
         // above, matching kotlinc (KUU-4170).
         let hideableParents = allParentMembers.filter { parent in
             guard let parentSym = ctx.symbols.symbol(parent.memberID) else { return false }
+            let ownerFQName = parentSym.fqName.dropLast().map { ctx.interner.resolve($0) }.joined(separator: ".")
+            // JDK SequencedCollection members are callable through MutableList
+            // without becoming Kotlin supertype members for override syntax.
+            let isEnhancedMutableListEnd = ownerFQName == "kotlin.collections.MutableList"
+                && ["addFirst", "addLast", "removeFirst", "removeLast"].contains(ctx.interner.resolve(parentSym.name))
             return parentSym.visibility != .private
                 && !parentSym.flags.contains(.extensionMemberAlias)
+                && !isEnhancedMutableListEnd
         }
 
         guard !hideableParents.isEmpty else { return }

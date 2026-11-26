@@ -108,6 +108,7 @@ struct JVMTextOperation {
             add("to" + name, sourceResult: name, result: type, owner: "java/lang/" + name, method: "parse" + name)
             add("to" + name + "OrNull", sourceResult: name + "?", result: .reference("java/lang/" + name, nullable: true))
         }
+        add("toBigDecimal", sourceResult: "BigDecimal", result: .reference("java/math/BigDecimal", nullable: false), owner: "java/math/BigDecimal", method: "<init>")
         add("toBoolean", sourceResult: "Boolean", result: .boolean, receiver: "String?", jvmReceiver: .reference("java/lang/String", nullable: true), owner: "java/lang/Boolean", method: "parseBoolean")
         add("toBooleanStrict", sourceResult: "Boolean", result: .boolean)
         add("toBooleanStrictOrNull", sourceResult: "Boolean?", result: .reference("java/lang/Boolean", nullable: true))

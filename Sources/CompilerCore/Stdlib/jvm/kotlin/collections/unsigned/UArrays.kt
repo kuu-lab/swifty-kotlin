@@ -1,6 +1,7 @@
 package kotlin.collections.unsigned
 
 import kotlin.collections.ArrayIndexingIterable
+import kotlin.jvm.internal.__jvmReinterpret
 
 @ExperimentalUnsignedTypes
 public fun UByteArray.withIndex(): Iterable<IndexedValue<UByte>> = ArrayIndexingIterable(size) { this[it] }
@@ -10,3 +11,20 @@ public fun UShortArray.withIndex(): Iterable<IndexedValue<UShort>> = ArrayIndexi
 public fun UIntArray.withIndex(): Iterable<IndexedValue<UInt>> = ArrayIndexingIterable(size) { this[it] }
 @ExperimentalUnsignedTypes
 public fun ULongArray.withIndex(): Iterable<IndexedValue<ULong>> = ArrayIndexingIterable(size) { this[it] }
+
+@ExperimentalUnsignedTypes
+public fun ByteArray.asUByteArray(): UByteArray = __jvmReinterpret(this)
+@ExperimentalUnsignedTypes
+public fun ShortArray.asUShortArray(): UShortArray = __jvmReinterpret(this)
+@ExperimentalUnsignedTypes
+public fun IntArray.asUIntArray(): UIntArray = __jvmReinterpret(this)
+@ExperimentalUnsignedTypes
+public fun LongArray.asULongArray(): ULongArray = __jvmReinterpret(this)
+@ExperimentalUnsignedTypes
+public fun UByteArray.asByteArray(): ByteArray = __jvmReinterpret(this)
+@ExperimentalUnsignedTypes
+public fun UShortArray.asShortArray(): ShortArray = __jvmReinterpret(this)
+@ExperimentalUnsignedTypes
+public fun UIntArray.asIntArray(): IntArray = __jvmReinterpret(this)
+@ExperimentalUnsignedTypes
+public fun ULongArray.asLongArray(): LongArray = __jvmReinterpret(this)

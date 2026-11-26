@@ -252,7 +252,77 @@ extension JVMProgramBuilder {
                 }
             }
         }
+        try renameOwnerBackingFieldsForCompanionCollisions()
     }
+
+    private func renamedField(_ field: JVMField, name: String) -> JVMField {
+        var renamed = JVMField(owner: field.owner, name: name, type: field.type, access: field.access)
+        renamed.annotations = field.annotations
+        renamed.isDeprecated = field.isDeprecated
+        renamed.constantValue = field.constantValue
+        return renamed
+    }
+
+    private func ownerFieldCollision(owner: JVMClassPlan, companion: JVMClassPlan, name: String, type: JVMValueType) -> Bool {
+        owner.properties.contains {
+            $0.2.field?.name == name && $0.2.field?.type.descriptor == type.descriptor
+        } || companion.properties.contains {
+            $0.2.field?.name == name && $0.2.field?.type.descriptor == type.descriptor
+        } || (owner.declaration?.enumEntries.contains {
+            context.interner.resolve($0.name) == name && type.referenceName == owner.name
+        } ?? false)
+    }
+
+    private func renameCompanionField(_ companion: JVMClassPlan, field: JVMField, name: String) throws {
+        guard let index = companion.properties.firstIndex(where: {
+            $0.2.field?.name == field.name && $0.2.field?.type.descriptor == field.type.descriptor
+        }) else { throw JVMFrontendError(message: "Missing JVM companion backing field.") }
+        let entry = companion.properties[index]
+        var property = entry.2
+        property.field = renamedField(field, name: name)
+        companion.properties[index] = (entry.0, entry.1, property)
+        if let symbol = sema.bindings.declSymbol(for: entry.0) { properties[symbol] = property }
+    }
+
+    private func renameOwnerBackingFieldsForCompanionCollisions() throws {
+        for companion in classes.values where companion.companionOwner != nil {
+            guard interfaceCompanionStorage(companion) == nil,
+                  let ownerSymbol = companion.companionOwner,
+                  let owner = classes[ownerSymbol]
+            else { continue }
+            let relocated = companion.properties.compactMap { $0.2.field }.filter { field in
+                field.access & 8 != 0 && field.owner == owner.name
+            }
+            guard !relocated.isEmpty else { continue }
+            for index in owner.properties.indices {
+                let entry = owner.properties[index]
+                var property = entry.2
+                guard let field = property.field else { continue }
+                let collisions = relocated.filter { $0.name == field.name }
+                guard !collisions.isEmpty else { continue }
+                if field.access & 2 != 0 {
+                    let candidate = field.name + "$1"
+                    guard !ownerFieldCollision(owner: owner, companion: companion, name: candidate, type: field.type) else {
+                        throw JVMFrontendError(message: "JVM platform declaration clash on field '\(candidate)'.", range: entry.1.range)
+                    }
+                    property.field = renamedField(field, name: candidate)
+                    owner.properties[index] = (entry.0, entry.1, property)
+                    if let symbol = sema.bindings.declSymbol(for: entry.0) { properties[symbol] = property }
+                } else if let privateCollision = collisions.first(where: { $0.access & 2 != 0 }) {
+                    let candidate = privateCollision.name + "$1"
+                    guard !ownerFieldCollision(owner: owner, companion: companion, name: candidate, type: privateCollision.type) else {
+                        throw JVMFrontendError(message: "JVM platform declaration clash on field '\(candidate)'.", range: entry.1.range)
+                    }
+                    try renameCompanionField(companion, field: privateCollision, name: candidate)
+                } else {
+                    guard !collisions.contains(where: { $0.type.descriptor == field.type.descriptor }) else {
+                        throw JVMFrontendError(message: "JVM platform declaration clash on field '\(field.name)'.", range: entry.1.range)
+                    }
+                }
+            }
+        }
+    }
+
     func prepareProperties(_ plan: JVMClassPlan, ids propertyIDs: [DeclID]) throws {
         for id in propertyIDs {
             guard case let .propertyDecl(p) = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id), let propertyType = sema.symbols.propertyType(for: symbol),
@@ -319,6 +389,8 @@ extension JVMProgramBuilder {
                     reference.chosenCallee == symbol || sema.symbols.propertySymbol(forAccessor: reference.chosenCallee) == symbol
                 }
             let staticObjectField = exposedField && plan.isObject
+            let ownerInitializedCompanion = plan.companionOwner != nil && interfaceCompanionStorage(plan) == nil
+            let staticObjectFieldOwner = staticObjectField && ownerInitializedCompanion ? (plan.companionOwner.flatMap { classes[$0]?.name } ?? plan.name) : plan.name
             let immutableField = !p.isVar && (!plan.isObject || staticObjectField)
             let propertyAnnotationRecords = try annotationRecords(for: symbol)
             let fieldAnnotations = propertyAnnotationRecords.filter { $0.useSiteTarget == nil || $0.useSiteTarget == "field" }
@@ -328,7 +400,7 @@ extension JVMProgramBuilder {
             }
             let fieldFlagAccess: UInt16 = (hasVolatileField ? 0x40 : 0)
                 | (fieldAnnotations.contains { $0.annotationFQName == "kotlin.jvm.Transient" } ? 0x80 : 0)
-            let field = hasField && p.delegateExpression == nil ? JVMField(owner: plan.name, name: name, type: backingFieldType, access: (p.modifiers.contains(.lateinit) || exposedField ? self.access(fieldModifiers) : 2) | (plan.isFacade || staticObjectField ? 8 : 0) | (immutableField ? 16 : 0) | fieldFlagAccess) : nil
+            let field = hasField && p.delegateExpression == nil ? JVMField(owner: staticObjectFieldOwner, name: name, type: backingFieldType, access: (p.modifiers.contains(.lateinit) || exposedField ? self.access(fieldModifiers) : 2) | (plan.isFacade || staticObjectField ? 8 : 0) | (immutableField ? 16 : 0) | fieldFlagAccess) : nil
             var property = JVMProperty(name: name, type: type, getter: getter, setter: setter, field: field, modifiers: p.modifiers)
             property.isGetterInline = p.modifiers.contains(.inline) || p.getter?.isInline == true
             property.isSetterInline = p.modifiers.contains(.inline) || p.setter?.isInline == true

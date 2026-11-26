@@ -93,6 +93,8 @@ extension JVMFunctionBuilder {
                 field = JVMField(owner: owner, name: "INSTANCE", type: .reference(owner, nullable: false), access: 0x19)
             } else if fqName == knownNames.kotlinRegexFQName || fqName == knownNames.kotlinTextRegexCompanionFQName {
                 field = JVMField(owner: "kotlin/text/Regex", name: "Companion", type: .reference("kotlin/text/Regex$Companion", nullable: false), access: 0x19)
+            } else if fqName == knownNames.kotlinTimeDurationFQName || path == ["kotlin", "time", "Duration", "Companion"] {
+                field = JVMField(owner: "kotlin/time/Duration", name: "Companion", type: .reference("kotlin/time/Duration$Companion", nullable: false), access: 0x19)
             } else if fqName == knownNames.kotlinCoroutinesContinuationInterceptorFQName || fqName == knownNames.kotlinCoroutinesContinuationInterceptorKeyFQName {
                 field = JVMField(owner: "kotlin/coroutines/ContinuationInterceptor", name: "Key", type: .reference("kotlin/coroutines/ContinuationInterceptor$Key", nullable: false), access: 0x19)
             } else if entry.kind == .field && fqName.count == 4 && fqName.starts(with: knownNames.kotlinTextRegexOptionFQName) {

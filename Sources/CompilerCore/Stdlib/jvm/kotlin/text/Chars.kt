@@ -35,9 +35,9 @@ public fun Char.uppercaseChar(): Char = __jvmUpperChar(this)
 
 public fun Char.lowercaseChar(): Char = __jvmLowerChar(this)
 
-public fun Char.uppercase(): String = uppercaseChar().toString()
+public fun Char.uppercase(): String = this.toString().uppercase()
 
-public fun Char.lowercase(): String = lowercaseChar().toString()
+public fun Char.lowercase(): String = this.toString().lowercase()
 
 public fun Char.titlecase(): String {
     val uppercase = this.toString().uppercase()

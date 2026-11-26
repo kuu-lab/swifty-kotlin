@@ -1764,6 +1764,7 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
+        let knownNames = KnownCompilerNames(interner: interner)
         var classMethodKeys: [DelegationDispatchKey] = []
         for funDeclID in memberFunctions {
             guard let funSymbol = bindings.declSymbols[funDeclID],
@@ -1829,6 +1830,14 @@ extension DataFlowSemaPhase {
                     .filter { !$0.flags.contains(.extensionMemberAlias) }
 
                 for memberSym in interfaceMembers {
+                    let ownerFQName = Array(memberSym.fqName.dropLast())
+                    // JDK-enhanced members are inherited from java.util.List's
+                    // default methods rather than forwarded by Kotlin delegates.
+                    let isEnhancedMutableListEnd = ownerFQName == knownNames.kotlinCollectionsMutableListFQName
+                        && ["addFirst", "addLast", "removeFirst", "removeLast"].contains(interner.resolve(memberSym.name))
+                    if isEnhancedMutableListEnd {
+                        continue
+                    }
                     switch memberSym.kind {
                     case .function:
                         guard let ifaceSig = symbols.functionSignature(for: memberSym.id) else { continue }

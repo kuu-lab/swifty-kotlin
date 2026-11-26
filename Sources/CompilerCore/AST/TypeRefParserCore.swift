@@ -964,7 +964,6 @@ enum TypeRefParserCore {
                   tokens[next].kind == .symbol(.dot),
                   let name = identifier(from: tokens[next + 1], interner: interner, options: options)
             {
-                typeArgs = []
                 path.append(name)
                 next += 2
 
@@ -974,7 +973,7 @@ enum TypeRefParserCore {
                        tokens, from: next, interner: interner, astArena: astArena, options: options, diagnostics: diagnostics, recursionDepth: recursionDepth
                    )
                 {
-                    typeArgs = parsedArgs.args
+                    typeArgs.append(contentsOf: parsedArgs.args)
                     next = parsedArgs.next
                 }
             }

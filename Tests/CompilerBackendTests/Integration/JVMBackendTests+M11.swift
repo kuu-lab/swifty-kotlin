@@ -25,7 +25,7 @@ extension JVMBackendTests {
         let generated = try java(["-cp", artifact + ":" + runtime, "HelloKt"])
         #expect(generated.stdout == expected)
         #expect(generated.stderr.isEmpty)
-        _ = try jvmTool("kotlinc", ["hello.kt", "-cp", runtime, "-d", "reference.jar"], root: root)
+        _ = try jvmTool("kotlinc", ["-Xcontext-parameters", "hello.kt", "-cp", runtime, "-d", "reference.jar"], root: root)
         let reference = try java(["-cp", root.appendingPathComponent("reference.jar").path + ":" + runtime, "HelloKt"])
         #expect(reference.stdout == expected)
         #expect(reference.stderr.isEmpty)

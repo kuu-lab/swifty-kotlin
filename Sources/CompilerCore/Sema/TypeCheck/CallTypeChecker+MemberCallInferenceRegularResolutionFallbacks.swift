@@ -791,6 +791,22 @@ extension CallTypeChecker {
                    parameterMapping: resolved.parameterMapping
                )
             {
+                if request.calleeName == request.knownNames.remove,
+                   request.args.count == 1,
+                   ReceiverClassifier(sema: request.sema, interner: request.interner).isMutableMapType(memberLookupType),
+                   let fallbackType = tryBindShadowedExtensionCallFallback(
+                       request,
+                       receiverType: receiverType,
+                       lookupReceiverType: lookupReceiverType,
+                       memberLookupType: memberLookupType,
+                       argTypes: argTypes,
+                       isClassNameReceiver: isClassNameReceiver,
+                       isSuperCall: isSuperCall,
+                       locals: &locals
+                   )
+                {
+                    return fallbackType
+                }
                 let paramType = request.sema.types.displayName(
                     of: signature.parameterTypes[violatingParamIndex],
                     symbols: request.sema.symbols,

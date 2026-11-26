@@ -115,8 +115,22 @@ extension JVMFunctionBuilder {
         let binding = program.sema.bindings.callBinding(for: id)
         let signature = binding.flatMap { program.sema.symbols.functionSignature(for: $0.chosenCallee) }
         let signatureTypes = try signature?.parameterTypes.map(program.type)
+        let isBundledBigDecimalConversion = binding.flatMap { binding in
+            guard let symbol = program.sema.symbols.symbol(binding.chosenCallee),
+                  symbol.kind == .function,
+                  symbol.name == context.interner.intern("toBigDecimal"),
+                  symbol.fqName == ["kotlin", "text", "toBigDecimal"].map({ context.interner.intern($0) }),
+                  let site = symbol.declSite,
+                  context.sourceManager.path(of: site.start.file) == "<kswiftk-jvm>/text-runtime-functions.kt"
+            else { return false }
+            return true
+        } ?? false
+        if name == "toBigDecimal" || isBundledBigDecimalConversion {
+            guard isBundledBigDecimalConversion else { return nil }
+        }
+        let operationName = isBundledBigDecimalConversion ? "toBigDecimal" : name
         let candidates = JVMTextOperation.operations.filter { op in
-            guard op.name == name else { return false }
+            guard op.name == operationName else { return false }
             if op.receiver == "CharArray" { return type.referenceName == "[C" }
             return type.isCharSequence && (type.referenceName == "java/lang/String" || op.receiver == "CharSequence" || op.receiver == "CharSequence?")
         }
@@ -147,8 +161,17 @@ extension JVMFunctionBuilder {
         return JVMIntrinsicResult(value: try emitTextOperation(op, source: source, values: values))
     }
 
+    func textStubName(_ symbol: SymbolID) -> String? {
+        guard let declared = program.sema.symbols.symbol(symbol), let site = declared.declSite,
+              context.sourceManager.path(of: site.start.file).hasPrefix("<kswiftk-jvm>/text") else { return nil }
+        return context.interner.resolve(declared.name)
+    }
+
     func emitTextOperation(_ op: JVMTextOperation, source: JVMValue, values: [JVMValue]) throws -> JVMValue {
         let name = op.name
+        if name == "toBigDecimal" {
+            return try constructJDK(op.owner, parameters: [op.receiverType], arguments: [source])
+        }
         if ["isEmpty", "isNotEmpty"].contains(name) {
             let result = try value(.boolean); instructions.append(.binary(name == "isEmpty" ? .equal : .notEqual, try textLength(source), try constant(.int(0), .int), result)); return result
         }

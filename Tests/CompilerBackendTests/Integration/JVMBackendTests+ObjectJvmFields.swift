@@ -16,6 +16,36 @@ extension JVMBackendTests {
             @JvmField val exposed: Int = 11
             val ordinary: Int = 5
         }
+        class CompanionHolder {
+            companion object {
+                @JvmField val exposed: Int = 13
+                @JvmField var mutable: Int = 15
+            }
+        }
+        class CollisionHolder {
+            var x: Int = 1
+            companion object {
+                @JvmField var x: Int = 2
+            }
+        }
+        class GenericCompanionHolder {
+            companion object {
+                @JvmField val values: List<String> = listOf("x")
+            }
+        }
+        class PublicCollisionHolder {
+            @JvmField var x: List<String> = listOf("a")
+            companion object {
+                @JvmField var x: Set<Int> = setOf(2)
+            }
+        }
+        class PrivateConstantCollisionHolder {
+            @JvmField var x: String = "a"
+            companion object {
+                private const val x: Int = 2
+                fun read() = x
+            }
+        }
         fun main() {}
         """
         let javaSource = #"""
@@ -49,6 +79,54 @@ extension JVMBackendTests {
                 ordinary.setAccessible(true);
                 System.out.println("ordinaryModifiers=" + Modifier.isStatic(ordinaryModifiers) + ":" + Modifier.isFinal(ordinaryModifiers));
                 System.out.println("ordinary=" + ordinary.getInt(holder));
+
+                Class<?> companionHolderType = Class.forName("CompanionHolder");
+                Field companionExposed = companionHolderType.getDeclaredField("exposed");
+                int companionExposedModifiers = companionExposed.getModifiers();
+                System.out.println("companionExposedModifiers=" + Modifier.isPublic(companionExposedModifiers) + ":" + Modifier.isStatic(companionExposedModifiers) + ":" + Modifier.isFinal(companionExposedModifiers));
+                System.out.println("companionExposed=" + companionExposed.getInt(null));
+
+                Field companionMutable = companionHolderType.getDeclaredField("mutable");
+                int companionMutableModifiers = companionMutable.getModifiers();
+                System.out.println("companionMutableModifiers=" + Modifier.isPublic(companionMutableModifiers) + ":" + Modifier.isStatic(companionMutableModifiers) + ":" + Modifier.isFinal(companionMutableModifiers));
+                System.out.println("companionMutableBefore=" + companionMutable.getInt(null));
+                companionMutable.setInt(null, 17);
+                System.out.println("companionMutableAfter=" + companionMutable.getInt(null));
+
+                Class<?> collisionType = Class.forName("CollisionHolder");
+                Object collision = collisionType.getDeclaredConstructor().newInstance();
+                Field collisionBacking = collisionType.getDeclaredField("x$1");
+                collisionBacking.setAccessible(true);
+                Field collisionExposed = collisionType.getDeclaredField("x");
+                System.out.println("collisionBacking=" + collisionBacking.getInt(collision));
+                System.out.println("collisionExposedStatic=" + Modifier.isStatic(collisionExposed.getModifiers()));
+                System.out.println("collisionExposed=" + collisionExposed.getInt(null));
+
+                Field values = Class.forName("GenericCompanionHolder").getDeclaredField("values");
+                System.out.println("valuesGeneric=" + values.getGenericType().getTypeName());
+
+                Class<?> publicCollisionType = Class.forName("PublicCollisionHolder");
+                Object publicCollision = publicCollisionType.getDeclaredConstructor().newInstance();
+                Field publicStatic = null;
+                Field publicInstance = null;
+                for (Field field : publicCollisionType.getDeclaredFields()) {
+                    if (!field.getName().equals("x")) continue;
+                    if (Modifier.isStatic(field.getModifiers())) publicStatic = field;
+                    else publicInstance = field;
+                }
+                System.out.println("publicStaticType=" + publicStatic.getType().getName());
+                System.out.println("publicStaticGeneric=" + publicStatic.getGenericType().getTypeName());
+                System.out.println("publicStatic=" + publicStatic.get(null));
+                System.out.println("publicInstanceType=" + publicInstance.getType().getName());
+                System.out.println("publicInstanceGeneric=" + publicInstance.getGenericType().getTypeName());
+                System.out.println("publicInstance=" + publicInstance.get(publicCollision));
+
+                Class<?> privateConstantType = Class.forName("PrivateConstantCollisionHolder");
+                Field privateConstant = privateConstantType.getDeclaredField("x$1");
+                privateConstant.setAccessible(true);
+                int privateConstantModifiers = privateConstant.getModifiers();
+                System.out.println("privateConstantModifiers=" + Modifier.isPrivate(privateConstantModifiers) + ":" + Modifier.isStatic(privateConstantModifiers) + ":" + Modifier.isFinal(privateConstantModifiers));
+                System.out.println("privateConstant=" + privateConstant.getInt(null));
             }
         }
         """#
@@ -77,9 +155,106 @@ extension JVMBackendTests {
             exposed=11
             ordinaryModifiers=false:true
             ordinary=5
+            companionExposedModifiers=true:true:true
+            companionExposed=13
+            companionMutableModifiers=true:true:false
+            companionMutableBefore=15
+            companionMutableAfter=17
+            collisionBacking=1
+            collisionExposedStatic=true
+            collisionExposed=2
+            valuesGeneric=java.util.List<java.lang.String>
+            publicStaticType=java.util.Set
+            publicStaticGeneric=java.util.Set<java.lang.Integer>
+            publicStatic=[2]
+            publicInstanceType=java.util.List
+            publicInstanceGeneric=java.util.List<java.lang.String>
+            publicInstance=[a]
+            privateConstantModifiers=true:true:true
+            privateConstant=2
             """ + "\n")
             #expect(reference.stderr.isEmpty)
             #expect(candidate.stderr.isEmpty)
+        }
+    }
+
+    @Test
+    func rejectsEnumEntryCollisionWithRenamedBackingField() throws {
+        let source = """
+        enum class Holder {
+            `x$1`;
+            val x: Holder? = null
+            companion object {
+                @JvmField val x: Holder? = null
+            }
+        }
+        fun main() {}
+        """
+        try withWorkspace { root in
+            let compiled = try compile(source, root: root, mode: .jvmJar)
+            #expect(compiled.0 == 1)
+            #expect(compiled.1.contains { $0.severity == .error && $0.message.contains("platform declaration clash") })
+
+            do {
+                _ = try jvmTool("kotlinc", ["-nowarn", "hello.kt", "-d", "reference.jar"], root: root)
+                Issue.record("kotlinc accepted an enum entry collision with a renamed backing field")
+            } catch CommandRunnerError.nonZeroExit(let error) {
+                #expect(error.exitCode != 0)
+                #expect(error.stderr.contains("platform declaration clash"), "\(error.stderr)")
+            }
+        }
+    }
+
+    @Test
+    func privateCompanionConstantCollisionKeepsReflectionFieldSignature() throws {
+        let library = try ownStdlibLibrary()
+        try withWorkspace { root in
+            let source = """
+            class Holder {
+                @JvmField var x: String = "a"
+                companion object {
+                    private const val x: Int = 2
+                    fun readReflected(): Any? {
+                        val property = Holder.Companion::class.members.first { it.name == "x" } as kotlin.reflect.KProperty1<Holder.Companion, Any?>
+                        return property.get(this)
+                    }
+                }
+            }
+            fun main() {
+                println(Holder.readReflected())
+            }
+            """
+            let app = try m22Build(root: root, sources: [("hello.kt", source)], name: "app.jar", mode: .jvmJar, classpath: [library.path])
+            try #require(app.1 == 0, "\(app.2.map(\.message))")
+            let result = try java(["-cp", app.0.path + ":" + library.path, "HelloKt"])
+            #expect(result.stdout == "2\n")
+            #expect(result.stderr.isEmpty)
+        }
+    }
+
+    @Test
+    func rejectsExposedJvmFieldPlatformClash() throws {
+        let source = """
+        class Holder {
+            @JvmField var x: Int = 1
+            companion object {
+                @JvmField var x: Int = 2
+            }
+        }
+        fun main() {}
+        """
+        try withWorkspace { root in
+            let compiled = try compile(source, root: root, mode: .jvmJar)
+            #expect(compiled.0 == 1)
+            #expect(compiled.1.contains { $0.severity == .error && $0.message.contains("platform declaration clash") })
+
+            do {
+                _ = try jvmTool("kotlinc", ["-nowarn", "hello.kt", "-d", "reference.jar"], root: root)
+                Issue.record("kotlinc accepted an exposed field platform clash")
+            } catch CommandRunnerError.nonZeroExit(let error) {
+                #expect(error.exitCode != 0)
+                #expect(error.stderr.contains("platform declaration clash"), "\(error.stderr)")
+            }
         }
     }
 

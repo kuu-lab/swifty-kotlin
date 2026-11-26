@@ -256,7 +256,6 @@ public object Collections {
     public fun <E> newSetFromMap(map: MutableMap<E, out Boolean?>?): MutableSet<E> {
         val backing = map!!
         if (!backing.isEmpty()) throw IllegalArgumentException("Map is non-empty")
-        // Java Boolean is a platform type. Both Boolean and Boolean? maps accept true.
         return CollectionsMapBackedSet(backing as MutableMap<E, Boolean>)
     }
 }
@@ -491,7 +490,6 @@ private open class CollectionsUnmodifiableList<E>(private val backing: List<E>) 
     override fun subList(fromIndex: Int, toIndex: Int): MutableList<E> =
         collectionsUnmodifiableList(backing.subList(fromIndex, toIndex))
 
-    // Reject even no-op mutations, and keep iterators/subviews behind the same boundary.
     override fun add(element: E): Boolean = collectionsRejectMutation()
     override fun add(index: Int, element: E): Unit = collectionsRejectMutation()
     override fun addAll(elements: Collection<E>): Boolean = collectionsRejectMutation()
@@ -565,7 +563,6 @@ private class CollectionsUnmodifiableEntries<K, V>(
         if (other !is Set<*> || other.size != size) return false
         for (element in other) {
             if (element !is Map.Entry<*, *>) return false
-            // Protect every queried entry while preserving the backing set's membership policy.
             if (!backing.contains(CollectionsUnmodifiableEntry(element as Map.Entry<K, V>))) return false
         }
         return true
@@ -591,8 +588,6 @@ private class CollectionsUnmodifiableMap<K, V>(private val backing: Map<out K, V
     override fun equals(other: Any?): Boolean = other === this || backing == other
     override fun hashCode(): Int = backing.hashCode()
     override fun toString(): String = backing.toString()
-    // The projection permits widening the key type at the Java facade boundary.
-    // Read-only queries are safe after erasing that projection, as on the JVM.
     @Suppress("UNCHECKED_CAST")
     override fun get(key: K): V? = (backing as Map<K, V>)[key]
     @Suppress("UNCHECKED_CAST")

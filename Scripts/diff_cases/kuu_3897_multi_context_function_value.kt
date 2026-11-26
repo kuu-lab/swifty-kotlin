@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Regression: invoking a `context(A, B) () -> T` function value must supply
 // every implicit context argument from the receiver tower, not just the
 // innermost `with` receiver (KUU-3897). Before the fix the outer String
