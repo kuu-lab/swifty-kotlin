@@ -146,6 +146,7 @@ struct WasmLibraryBodyImportTests {
     private func compileWasmLibrary(moduleName: String, source: String) throws -> String {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
         let sourcePath = directory.appendingPathComponent("Library.kt")
         try source.write(to: sourcePath, atomically: true, encoding: .utf8)
         let libraryBase = directory.appendingPathComponent(moduleName)
@@ -158,7 +159,13 @@ struct WasmLibraryBodyImportTests {
             includeStdlib: false,
             allowDefaultStdlibLibrary: false
         )))
-        return libraryBase.appendingPathExtension("kklib").path
+        let persistedPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(moduleName)-\(UUID().uuidString).kklib")
+        try FileManager.default.moveItem(
+            at: libraryBase.appendingPathExtension("kklib"),
+            to: persistedPath
+        )
+        return persistedPath.path
     }
 
     private func compileWasmConsumer(moduleName: String, source: String, libraryPath: String) throws -> Data {
