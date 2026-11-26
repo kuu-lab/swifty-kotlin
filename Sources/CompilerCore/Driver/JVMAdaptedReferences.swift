@@ -7,7 +7,9 @@ extension JVMFunctionBuilder {
               function.contextReceivers.isEmpty, binding.boundContextParameterTypes.isEmpty else {
             throw fail("Missing JVM callable reference adaptation.", id)
         }
-        let method = program.methods[symbol] ?? program.collectionInterfaceMethods[symbol] ?? context.jvmImports?.method(for: symbol), ref = program.references[symbol]
+        let collectionMethod = program.collectionInterfaceMethods[symbol]
+        let supportedCollectionReference = collectionMethod?.owner == "java/util/Map" && collectionMethod?.name == "putIfAbsent"
+        let method = program.methods[symbol] ?? (supportedCollectionReference ? collectionMethod : nil) ?? context.jvmImports?.method(for: symbol), ref = program.references[symbol]
         guard method != nil || ref != nil else { throw fail("Missing JVM adapted reference target.", id) }
         let constructor = method?.isConstructor == true, extensionMember = program.extensionSymbols.contains(symbol) || context.jvmImports?.extensionSymbols.contains(symbol) == true
         let member = method?.isStatic == false && !constructor
