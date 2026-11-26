@@ -4,14 +4,6 @@
 import Foundation
 import Testing
 
-/// KUU-655: KIR-level counterpart of `OverrideDefaultArgumentInheritanceTests`.
-/// An override that inherits its defaults never gets a `$default` stub of
-/// its own (its AST has no default value expressions to evaluate) -- call
-/// sites must route through the base declaration's stub instead
-/// (`CallSupportLowerer.defaultStubOwnerSymbol`), and that stub's own inner
-/// call must dispatch virtually so a base-typed receiver still reaches the
-/// runtime type's override (see the virtual-dispatch attempt in
-/// `CallSupportLowerer.generateDefaultStubFunction`).
 extension BuildKIRRegressionTests {
     @Test
     func inheritedConcreteMemberUsesInterfaceDefaultStub() throws {
@@ -74,11 +66,6 @@ extension BuildKIRRegressionTests {
         try runToKIR(ctx)
         let module = try #require(ctx.kir)
 
-        // Before KUU-655, `CallSupportLowerer.collectFunctionDefaults` had no
-        // `.interfaceDecl` case at all, so `I.m`'s own default value
-        // expression was never collected and no `m$default` stub was ever
-        // generated -- every call through it failed at link time with an
-        // undefined `_m$default` symbol.
         let functions = findAllKIRFunctions(in: module)
         let stubSymbols = Set(functions.filter { $0.name == ctx.interner.intern("m") }
             .map { SyntheticSymbolScheme.defaultStubSymbol(for: $0.symbol) })

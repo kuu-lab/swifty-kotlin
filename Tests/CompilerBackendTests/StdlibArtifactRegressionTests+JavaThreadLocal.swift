@@ -12,9 +12,6 @@ extension StdlibArtifactRegressionTests {
             ("java_thread_local_initial_value.kt", "value\nvalue\n"),
             ("java_thread_local_contracts.kt", "value\nvalue\nvalue\n1\nprotected\nnull\nnull\n1\nfallback\nfallback\n1\nnull\ndirect\ndirect\n42\n42\n42\nreset\n"),
         ] where !sourceMode || caseName == "java_thread_local_initial_value.kt" {
-            // The exact reproducer owns the four-mode matrix. Broader
-            // contracts exercise the shared artifact without rechecking all
-            // bundled source bodies for each control case.
             let source = try diffCaseSource(caseName, file: #filePath)
             try withTemporaryFile(contents: source) { path in
                 for level in [OptimizationLevel.O0, .O2] {

@@ -7,8 +7,6 @@ import TestStdlibCache
 
 extension StdlibArtifactRegressionTests {
 
-    /// KUU-3469: a bound reference to Map.size must keep using the runtime
-    /// bridge instead of dispatching through a nonexistent object vtable.
     @Test
     func testBoundMapSizePropertyReferenceGetsValue() throws {
         TestStdlibCache.shared.prepare()
@@ -37,9 +35,6 @@ extension StdlibArtifactRegressionTests {
         )
     }
 
-    /// KUU-2304: a bound callable reference used as a generic extension
-    /// receiver must retain its function type when the extension lambda is
-    /// checked.
     @Test
     func testBoundCallableReferenceReceiverAcrossStdlibSurfaces() throws {
         TestStdlibCache.shared.prepare()

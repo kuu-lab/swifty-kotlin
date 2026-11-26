@@ -33,7 +33,26 @@ struct CodegenBackendCollectionIsNullOrEmptyTests {
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
             #expect(throwFlags[try runtimeABICallee("list_is_empty")]?.allSatisfy { $0 == false } == true)
             #expect(throwFlags[try runtimeABICallee("set_is_empty")]?.allSatisfy { $0 == false } == true)
-            #expect(throwFlags[try runtimeABICallee("map_is_empty")] == nil)
+            let sema = try #require(ctx.sema)
+            let mapIsEmptyCallee = try runtimeABICallee("map_is_empty")
+            let mapIsEmptyCalls = body.compactMap { instruction -> (symbol: SymbolID?, canThrow: Bool)? in
+                guard case let .call(symbol, callee, _, _, canThrow, _, _, _) = instruction,
+                      ctx.interner.resolve(callee) == mapIsEmptyCallee
+                else {
+                    return nil
+                }
+                return (symbol, canThrow)
+            }
+            #expect(!mapIsEmptyCalls.isEmpty)
+            #expect(mapIsEmptyCalls.allSatisfy { call in call.symbol != nil && !call.canThrow })
+            #expect(mapIsEmptyCalls.contains { call in
+                guard let symbol = call.symbol,
+                      let semanticSymbol = sema.symbols.symbol(symbol)
+                else {
+                    return false
+                }
+                return ctx.interner.resolve(semanticSymbol.name) == "isEmpty"
+            })
             #expect(throwFlags[try runtimeABICallee("array_is_empty")]?.allSatisfy { $0 == false } == true)
             // A bare Collection<T>? receiver may hold a Set box at runtime, so
             // isNullOrEmpty must use the type-tag dispatching collection bridge

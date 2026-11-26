@@ -39,6 +39,8 @@ final class JVMProgramBuilder {
     var textLibraryMethods: [SymbolID: JVMTextLibraryMethod] = [:] { didSet { methodTablesVersion &+= 1 } }
     var textLibraryProperties: [SymbolID: JVMForeignMethod] = [:]
     var textLibraryFields: [SymbolID: JVMField] = [:]
+    /// `kotlin.text.Charsets` members that have no `StandardCharsets` field (UTF_32*); value is the JDK charset name.
+    var textLibraryCharsetNames: [SymbolID: String] = [:]
     let platformOperations: [String: JVMPlatformOperation]
     var rawAnnotationConstructions: [String: ExprID] = [:]
 
@@ -1009,12 +1011,31 @@ final class JVMFunctionBuilder {
                 try writeLocal(local, converted)
                 return arena.incrementDecrementReturnsValue(id) ? converted : nil
             }
-            guard local.mutable, local.value.type.isNumeric || local.value.type.isText else { throw fail("JVM compound assignment requires a mutable numeric local.", id) }
-            let rawRight = try compoundOperand(rhs, target: old.type)
+            if local.value.type.isText {
+                guard local.mutable else { throw fail("JVM compound assignment requires a mutable numeric local.", id) }
+                let rawRight = try compoundOperand(rhs, target: old.type)
+                if terminated { return nil }
+                guard try permitsCompound(old.type, rawRight.type) else { throw fail("JVM compound assignment cannot narrow its numeric result.", id) }
+                let right = rawRight
+                let result = try value(old.type)
+                let binary: BinaryOp
+                switch op {
+                case .plusAssign: binary = .add
+                case .minusAssign: binary = .subtract
+                case .timesAssign: binary = .multiply
+                case .divAssign: binary = .divide
+                case .modAssign: binary = .modulo
+                }
+                try compoundInstruction(binary, old, right, result); try writeLocal(local, result)
+                return arena.incrementDecrementReturnsValue(id) ? result : nil
+            }
+            guard local.mutable, let carrier = local.value.type.numericCarrier else { throw fail("JVM compound assignment requires a mutable numeric local.", id) }
+            let left = try convert(old, to: carrier)
+            let rawRight = try compoundOperand(rhs, target: carrier)
             if terminated { return nil }
-            guard try permitsCompound(old.type, rawRight.type) else { throw fail("JVM compound assignment cannot narrow its numeric result.", id) }
-            let right = rawRight
-            let result = try value(old.type)
+            guard try permitsCompound(carrier, rawRight.type) else { throw fail("JVM compound assignment cannot narrow its numeric result.", id) }
+            let right = try convert(rawRight, to: carrier)
+            let result = try value(carrier)
             let binary: BinaryOp
             switch op {
             case .plusAssign: binary = .add
@@ -1023,8 +1044,10 @@ final class JVMFunctionBuilder {
             case .divAssign: binary = .divide
             case .modAssign: binary = .modulo
             }
-            try compoundInstruction(binary, old, right, result); try writeLocal(local, result)
-            return arena.incrementDecrementReturnsValue(id) ? result : nil
+            try compoundInstruction(binary, left, right, result)
+            let stored = try convert(result, to: local.value.type)
+            try writeLocal(local, stored)
+            return arena.incrementDecrementReturnsValue(id) ? stored : nil
         case let .binary(op, lhs, rhs, _):
             if op == .add, let folded = try constantFoldedText(id) { return folded }
             return try binary(op, lhs, rhs, id)
@@ -1041,6 +1064,9 @@ final class JVMFunctionBuilder {
             if let argument = samConstructorArgument(args, id: id) { return try expression(argument) }
             if program.sema.bindings.stdlibSpecialCallKinds[id] == .arrayConstructor {
                 return try arrayConstructor(args, id: id)
+            }
+            if let kind = program.sema.bindings.stdlibSpecialCallKinds[id], kind == .atomicIntArrayFactory || kind == .atomicLongArrayFactory {
+                return try atomicArrayConstructor(args, id: id, long: kind == .atomicLongArrayFactory)
             }
             if program.sema.bindings.stdlibSpecialCallKinds[id] == .enumValues,
                let result = try enumValuesCall(args, id: id) {

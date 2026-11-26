@@ -1103,6 +1103,32 @@ extension CallTypeChecker {
             return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
         }
 
+        switch probeDefinitelyNullReceiverDeclaredMember(
+            request,
+            argumentTypes: argTypes,
+            lookupReceiverType: lookupReceiverType,
+            locals: locals
+        ) {
+        case .unsafeCall:
+            request.ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0026",
+                "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                range: request.range
+            )
+            return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
+        case .inaccessiblePrivate(let symbolID):
+            if let symbol = request.sema.symbols.symbol(symbolID) {
+                driver.helpers.emitVisibilityError(
+                    for: symbol,
+                    name: request.calleeStr,
+                    range: request.range,
+                    diagnostics: request.ctx.sema.diagnostics
+                )
+                return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
+            }
+        case .none:
+            break
+        }
         request.ctx.sema.diagnostics.error("KSWIFTK-SEMA-0024", "Unresolved member function '\(request.calleeStr)'.", range: request.range)
         return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
     }

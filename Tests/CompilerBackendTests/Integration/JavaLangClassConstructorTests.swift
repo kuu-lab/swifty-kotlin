@@ -11,7 +11,6 @@ struct JavaLangClassConstructorTests {
 
     @Test
     func constructorLookupAndInstantiationFromBundledSource() throws {
-        // Source-injected O2 fails with BACKEND-1006 on baseline d084138 too, even for bare print("OK").
         try assertConstructorLookupAndInstantiation(fromSource: true, optimization: 0)
     }
 

@@ -2,14 +2,6 @@
 import TestStdlibCache
 import Testing
 
-// KUU-3902: a value class stringified through an `Any`/nullable slot must
-// print its synthesized rendering once — `IC(s=OK)` — not wrap the
-// nominal/tagged box again (`IC(s=IC(s=…))`, which recursed through the
-// erased `Any.toString` bridge for reference-backed payloads). Every
-// direct-call site — println/print, interpolation, `+` concat, member
-// `.toString()`, and data-class property rendering — now normalizes the slot
-// receiver via `unboxedValueClassReceiverExpr` before dispatching to the
-// class's own toString, matching the JVM byte-for-byte.
 @Suite(.serialized)
 struct KUU3902BoxedValueClassToStringTests {
     @Test(arguments: [false, true])
