@@ -13,6 +13,9 @@ import Testing
         "fun value() { val f = fun List<Int>.(): Int { return size } }",
         "fun value() { consume(fun(x): Int { return x }) }",
         "fun value() { consume(fun(x: Int) { println(x) }) }",
+        "fun value() { val f = context(a: String) fun(y: String): String = a + y }",
+        "fun value() { val f = context(a: String) fun String.() = this + a }",
+        "fun value() { val f = context(a: String, b: Int) fun(): String { return a + b } }",
     ])
     func acceptsAnonymousBodiesAndReceivers(source: String) throws {
         let context = makeContextFromSource(source, emit: .jvmJar)

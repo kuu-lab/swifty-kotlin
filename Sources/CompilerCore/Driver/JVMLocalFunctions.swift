@@ -80,9 +80,8 @@ extension JVMFunctionBuilder {
     func localFunction(_ id: ExprID) throws {
         guard case let .localFunDecl(name, receiverType, parameters, returnType, body, suspend, range, typeParameters, isTailrec) = arena.expr(id),
               let symbol = program.sema.bindings.identifierSymbol(for: id),
-              let signature = program.sema.symbols.functionSignature(for: symbol),
-              signature.contextReceiverTypes.isEmpty, signature.contextParameterTypes.isEmpty else { throw fail("Missing JVM local function declaration.", id) }
-        let declaration = FunDecl(range: range, name: name, modifiers: [], typeParams: typeParameters, receiverType: receiverType, valueParams: parameters, returnType: returnType, body: body, isSuspend: suspend, isTailrec: isTailrec)
+              let signature = program.sema.symbols.functionSignature(for: symbol) else { throw fail("Missing JVM local function declaration.", id) }
+        let declaration = FunDecl(range: range, name: name, modifiers: [], typeParams: typeParameters, receiverType: receiverType, contextReceivers: arena.localFunContextReceivers(for: id), valueParams: parameters, returnType: returnType, body: body, isSuspend: suspend, isTailrec: isTailrec)
         let logical = try program.functionReference(declaration, symbol: symbol, member: false)
         let container = owner?.name ?? program.facadeName
         let number = program.nextClosure; program.nextClosure += 1
@@ -163,15 +162,33 @@ extension JVMFunctionBuilder {
             guard let input = try receiver.map(requireValue) ?? implicitExtensionReceiver(id) else { throw fail("Missing JVM local extension receiver.", id) }
             values.append(try convert(input, to: reference.parameters[values.count]))
         }
-        let types = Array(reference.parameters.dropFirst(values.count))
+        let binding = program.sema.bindings.callBinding(for: id)
+        let contextParameterTypes = try (program.sema.symbols.functionSignature(for: symbol)?.contextParameterTypes ?? []).map(program.type)
+        let remainingTypes = Array(reference.parameters.dropFirst(values.count))
+        guard remainingTypes.count >= contextParameterTypes.count else { throw fail("JVM local context parameter signature mismatch.", id) }
+        let types = Array(remainingTypes.dropFirst(contextParameterTypes.count))
         let declarations = program.sourceParameters[symbol]
         let ordered: (values: [JVMValue], masks: [UInt32], contextValues: [Int: JVMValue])
         if args.isEmpty, declarations?.count == 1, declarations![0].isVararg, declarations![0].hasDefaultValue {
             ordered = ([try zero(types[0])], [1], [:])
         } else {
-            ordered = try arguments(args, binding: program.sema.bindings.callBinding(for: id), parameters: types, declarations: declarations, id: id)
+            ordered = try arguments(args, binding: binding, parameters: types, declarations: declarations, contextParameterTypes: contextParameterTypes, id: id)
         }
-        let tailrecPrefix = extensionReceiver ? Array(values.suffix(1)) : []
+        for contextIndex in contextParameterTypes.indices {
+            let contextValue: JVMValue
+            if let explicit = ordered.contextValues[contextIndex] {
+                contextValue = explicit
+            } else if let binding,
+                      binding.contextParameterReceiverSymbols.indices.contains(contextIndex),
+                      let receiverSymbol = binding.contextParameterReceiverSymbols[contextIndex],
+                      let receiver = contextualReceivers[receiverSymbol] {
+                contextValue = try convert(receiver, to: contextParameterTypes[contextIndex])
+            } else {
+                throw fail("Missing JVM context parameter value.", id)
+            }
+            values.append(contextValue)
+        }
+        let tailrecPrefix = extensionReceiver ? Array(values.suffix(1 + contextParameterTypes.count)) : []
         if try emitTailrec(
             id, symbol: symbol, dispatch: nil, prefix: tailrecPrefix,
             values: ordered.values, masks: ordered.masks
@@ -189,14 +206,15 @@ extension JVMFunctionBuilder {
     }
 
     func localFunctionReference(_ id: ExprID, symbol: SymbolID, receiver: ExprID?, plan: JVMLocalFunctionPlan) throws -> JVMValue {
-        guard let function = functionType(id), function.contextReceivers.isEmpty,
+        guard let function = functionType(id),
               program.sema.bindings.callableReferenceBinding(for: id)?.isCallableReferenceAdapter != true else { throw fail("Unsupported JVM adapted local function reference.", id) }
         let reference = plan.reference
         var captures = try localFunctionCaptureValues(plan.captures)
         let logical = Array(reference.parameters.dropFirst(plan.captures.count))
-        let inputs = try ([function.receiver].compactMap { $0 } + function.params).map(program.type)
+        let inputs = try (function.contextReceivers + [function.receiver].compactMap { $0 } + function.params).map(program.type)
         let result = try program.type(function.returnType)
-        let bound = logical.count == inputs.count + 1 && program.extensionSymbols.contains(symbol)
+        let isExtension = program.extensionSymbols.contains(symbol)
+        let bound = logical.count == inputs.count + 1 && isExtension
         if bound {
             guard let receiver = try receiver.map(requireValue) ?? implicitExtensionReceiver(id) else { throw fail("Missing bound JVM local reference receiver.", id) }
             captures.append(try convert(receiver, to: logical[0]))
@@ -208,7 +226,29 @@ extension JVMFunctionBuilder {
         let helper = JVMFunctionBuilder(program: program, declaration: FunDecl(range: arena.exprRange(id)!, name: context.interner.intern(wrapper.name), modifiers: [], body: .unit), reference: wrapper, owner: owner)
         helper.isStaticBody = true; helper.isSuspendBody = function.isSuspend
         let values = try wrapper.parameters.map { try helper.value($0) }
-        let args = try zip(values, reference.parameters).map { try helper.convert($0.0, to: $0.1) }
+        let dynamicInputs = Array(values.dropFirst(captures.count))
+        let contextCount = function.contextReceivers.count
+        var implementationArguments = Array(values.prefix(plan.captures.count))
+        if isExtension {
+            if bound {
+                implementationArguments.append(values[plan.captures.count])
+            } else {
+                guard dynamicInputs.indices.contains(contextCount) else { throw fail("JVM local reference receiver input mismatch.", id) }
+                implementationArguments.append(dynamicInputs[contextCount])
+            }
+        }
+        for contextIndex in 0..<contextCount {
+            guard dynamicInputs.indices.contains(contextIndex) else { throw fail("JVM local reference context input mismatch.", id) }
+            implementationArguments.append(dynamicInputs[contextIndex])
+        }
+        let receiverInputCount = isExtension && !bound ? 1 : 0
+        for parameterIndex in function.params.indices {
+            let inputIndex = contextCount + receiverInputCount + parameterIndex
+            guard dynamicInputs.indices.contains(inputIndex) else { throw fail("JVM local reference value input mismatch.", id) }
+            implementationArguments.append(dynamicInputs[inputIndex])
+        }
+        guard implementationArguments.count == reference.parameters.count else { throw fail("JVM local reference implementation arity mismatch.", id) }
+        let args = try zip(implementationArguments, reference.parameters).map { try helper.convert($0.0, to: $0.1) }
         let returned = reference.result == .unit ? nil : try helper.value(reference.result)
         helper.instructions.append(.call(reference, args, returned))
         helper.instructions.append(.returnValue(result == .unit ? nil : try returned.map { try helper.convert($0, to: result) }))
