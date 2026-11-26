@@ -257,16 +257,13 @@ final class JVMClasspathIndex {
 
     private func linkKotlinMultifileFacades() {
         for (name, var facade) in hierarchyClasses where !facade.kotlinMultifileParts.isEmpty {
-            var methods: [String: JVMForeignMethod] = [:]
-            var methodOrder: [String] = []
+            let multifilePartNames = Set(facade.kotlinMultifileParts)
+            var partMethods: [String: JVMForeignMethod] = [:]
             for partName in facade.kotlinMultifileParts {
                 guard let part = hierarchyClasses[partName], part.isKotlinMultifilePart else { continue }
                 for method in part.methods where method.isStatic && (method.kotlinFunction != nil || method.kotlinSuspendFunction != nil) {
                     let signature = method.name + method.descriptor
-                    if methods[signature] == nil {
-                        methodOrder.append(signature)
-                    }
-                    methods[signature] = method
+                    partMethods[signature] = method
                 }
                 facade.kotlinTopLevelConstants.merge(part.kotlinTopLevelConstants) { existing, _ in existing }
                 for (source, method) in part.kotlinTopLevelProperties {
@@ -279,14 +276,41 @@ final class JVMClasspathIndex {
             }
             for index in facade.methods.indices where facade.methods[index].isStatic {
                 let method = facade.methods[index]
-                guard let part = methods[method.name + method.descriptor] else { continue }
+                guard let part = partMethods[method.name + method.descriptor] else { continue }
                 facade.methods[index].kotlinFunction = part.kotlinFunction
                 facade.methods[index].kotlinSuspendFunction = part.kotlinSuspendFunction
             }
+
+            var inheritedMethods: [String: JVMForeignMethod] = [:]
+            var inheritedMethodOrder: [String] = []
+            var visitedSuperclasses: Set<String> = [facade.name]
+            var nextSuperclass = facade.superclass
+            while let superclassName = nextSuperclass,
+                  visitedSuperclasses.insert(superclassName).inserted,
+                  let superclass = hierarchyClasses[superclassName] {
+                if multifilePartNames.contains(superclassName), superclass.isKotlinMultifilePart {
+                    for method in superclass.methods where method.isStatic
+                        && (method.kotlinFunction != nil || method.kotlinSuspendFunction != nil) {
+                        let signature = method.name + method.descriptor
+                        if inheritedMethods[signature] == nil {
+                            inheritedMethodOrder.append(signature)
+                            inheritedMethods[signature] = method
+                        }
+                    }
+                }
+                nextSuperclass = superclass.superclass
+            }
+
             var facadeSignatures = Set(facade.methods.filter(\.isStatic).map { $0.name + $0.descriptor })
-            for signature in methodOrder where facadeSignatures.insert(signature).inserted {
-                if let method = methods[signature] {
-                    facade.methods.append(method.withOwner(facade.name))
+            var defaultArgumentSignatures = Set(facade.defaultArgumentMethods.map { $0.name + $0.descriptor })
+            for signature in inheritedMethodOrder where facadeSignatures.insert(signature).inserted {
+                guard let method = inheritedMethods[signature] else { continue }
+                facade.methods.append(method.withOwner(facade.name))
+                guard let part = hierarchyClasses[method.owner],
+                      let defaultMethod = defaultArgumentMethod(for: method, in: part) else { continue }
+                let defaultSignature = defaultMethod.name + defaultMethod.descriptor
+                if defaultArgumentSignatures.insert(defaultSignature).inserted {
+                    facade.defaultArgumentMethods.append(defaultMethod.withOwner(facade.name))
                 }
             }
             hierarchyClasses[name] = facade
