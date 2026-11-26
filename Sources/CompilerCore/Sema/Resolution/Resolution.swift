@@ -154,13 +154,15 @@ extension OverloadResolver {
                 let symbolBounds = symbolTable?.typeParameterUpperBounds(for: typeParamSymbol) ?? []
                 let upperBounds = signatureBounds + symbolBounds.filter { !signatureBounds.contains($0) }
                 for upperBound in upperBounds {
-                    let substitutedBound = typeSystem.substituteTypeParameters(
-                        in: upperBound,
-                        substitution: solution.substitution,
-                        typeVarBySymbol: typeVarBySymbol
-                    )
+                    // A partial solution is not a fixed assignment. Keep
+                    // inference variables in the bound symbolic so the
+                    // concrete type can contribute constraints for them; for
+                    // example, `R = Int` must not erase `R` from
+                    // `M : MutableMap<in K, R>` before `M`'s nullable value
+                    // type is considered.
+                    let dependentBound = upperBound
                     guard containsTypeVariable(
-                        substitutedBound,
+                        dependentBound,
                         typeVarBySymbol: typeVarBySymbol,
                         typeSystem: typeSystem
                     ) else {
@@ -168,15 +170,22 @@ extension OverloadResolver {
                     }
                     let dependentConstraints = decomposeSubtypeConstraint(
                         subtype: substitutedType,
-                        supertype: substitutedBound,
+                        supertype: dependentBound,
                         typeVarBySymbol: typeVarBySymbol,
                         typeSystem: typeSystem,
                         blameRange: blameRange
                     )
-                    guard !usedTypeVariables(from: dependentConstraints).isEmpty else {
+                    let novelConstraints = dependentConstraints.filter { dependent in
+                        !constraints.contains { existing in
+                            existing.kind == dependent.kind
+                                && existing.left == dependent.left
+                                && existing.right == dependent.right
+                        }
+                    }
+                    guard !usedTypeVariables(from: novelConstraints).isEmpty else {
                         continue
                     }
-                    constraints.append(contentsOf: dependentConstraints)
+                    constraints.append(contentsOf: novelConstraints)
                     addedDependentConstraint = true
                 }
             }

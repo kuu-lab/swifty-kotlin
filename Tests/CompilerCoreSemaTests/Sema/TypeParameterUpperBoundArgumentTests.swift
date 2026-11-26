@@ -258,5 +258,27 @@ struct TypeParameterUpperBoundArgumentTests {
             #expect(errors.count == 1, "Got: \(ctx.diagnostics.diagnostics)")
         }
     }
+
+    /// KUU-4735: a concrete argument for a dependent type-parameter bound must
+    /// constrain the dependent variable even when another argument already
+    /// seeded that variable. `M : Box<R>` with `M = Box<Int?>` must keep
+    /// `R` nullable instead of leaving the lambda probe at the initial-value
+    /// seed `R = Int`.
+    @Test func nullableDestinationConstrainsDependentTypeParameterBeforeLambda() throws {
+        let source = """
+        interface Box<T>
+        class BoxImpl<T> : Box<T>
+        fun <R, M : Box<R>> foldLike(destination: M, initialValue: R, operation: (R) -> R): M = destination
+        fun main() {
+            val nullable: Box<Int?> = BoxImpl()
+            foldLike(nullable, 7) { accumulator -> (accumulator ?: 50) + 1 }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
 }
 #endif
