@@ -690,7 +690,9 @@ enum WasmRuntimeHelpers {
         "kk_double_to_float",
         "kk_float_to_double", "__kk_float_to_double_bits",
         "kk_double_to_bits", "kk_bits_to_double",
+        "__kk_double_toBits", "__kk_double_toRawBits",
         "kk_float_to_bits", "kk_bits_to_float",
+        "__kk_float_toBits", "__kk_float_toRawBits",
         "kk_double_equals", "kk_float_equals",
         "kk_nullable_double_equals", "kk_nullable_float_equals",
         "__kk_wasm_expand", "__kk_wasm_cmp_decimal", "__kk_wasm_round_copy",
@@ -791,8 +793,11 @@ enum WasmRuntimeHelpers {
         "__kk_wasm_join_to_string_full",
         "__kk_string_toInt_flat", "__kk_string_toIntOrNull_flat",
         "__kk_string_toLong_flat", "__kk_string_toLongOrNull_flat",
+        "__kk_string_toDouble", "__kk_string_toDoubleOrNull",
+        "__kk_string_toFloat", "__kk_string_toFloatOrNull",
         "__kk_string_toDouble_flat", "__kk_string_toDoubleOrNull_flat",
         "__kk_string_toFloat_flat", "__kk_string_toFloatOrNull_flat",
+        "__kk_wasm_decimal_parse_exact",
         "__kk_wasm_error", "__kk_wasm_todo",
     ]
 
@@ -805,6 +810,9 @@ enum WasmRuntimeHelpers {
         argumentCount: Int,
         context ctx: WasmModuleContext
     ) -> [UInt8]? {
+        if name == "__kk_wasm_decimal_parse_exact" {
+            return WasmDecimalParserBody.bytes
+        }
         var code = WasmCode()
         let extraLocals: Int
         switch name {
@@ -2037,14 +2045,57 @@ enum WasmRuntimeHelpers {
             code.op(WasmOpcode.f32ReinterpretI32)
             code.op(WasmOpcode.f64PromoteF32)
             code.op(WasmOpcode.i64ReinterpretF64)
-        case "kk_double_to_bits", "kk_bits_to_double":
+        case "kk_double_to_bits", "kk_bits_to_double", "__kk_double_toRawBits":
             extraLocals = 0
             code.localGet(0)
+        case "__kk_double_toBits":
+            extraLocals = 0
+            code.localGet(0)
+            code.i64Const(0x7FF0_0000_0000_0000)
+            code.op(WasmOpcode.i64And)
+            code.i64Const(0x7FF0_0000_0000_0000)
+            code.op(WasmOpcode.i64Eq)
+            code.localGet(0)
+            code.i64Const(0x000F_FFFF_FFFF_FFFF)
+            code.op(WasmOpcode.i64And)
+            code.i64Const(0)
+            code.op(WasmOpcode.i64Ne)
+            code.op(WasmOpcode.i32And)
+            code.openIf(result: .i64)
+            code.i64Const(0x7FF8_0000_0000_0000)
+            code.elseBranch()
+            code.localGet(0)
+            code.end()
         case "kk_float_to_bits", "kk_bits_to_float":
             extraLocals = 0
             code.localGet(0)
             code.i64Const(0xFFFF_FFFF)
             code.op(WasmOpcode.i64And)
+        case "__kk_float_toRawBits":
+            extraLocals = 0
+            code.localGet(0)
+            code.op(WasmOpcode.i32WrapI64)
+            code.op(WasmOpcode.i64ExtendI32S)
+        case "__kk_float_toBits":
+            extraLocals = 0
+            code.localGet(0)
+            code.i64Const(0x7F80_0000)
+            code.op(WasmOpcode.i64And)
+            code.i64Const(0x7F80_0000)
+            code.op(WasmOpcode.i64Eq)
+            code.localGet(0)
+            code.i64Const(0x007F_FFFF)
+            code.op(WasmOpcode.i64And)
+            code.i64Const(0)
+            code.op(WasmOpcode.i64Ne)
+            code.op(WasmOpcode.i32And)
+            code.openIf(result: .i64)
+            code.i64Const(0x7FC0_0000)
+            code.elseBranch()
+            code.localGet(0)
+            code.end()
+            code.op(WasmOpcode.i32WrapI64)
+            code.op(WasmOpcode.i64ExtendI32S)
         case "kk_double_equals", "kk_float_equals",
              "kk_nullable_double_equals", "kk_nullable_float_equals":
             extraLocals = 2
@@ -2424,22 +2475,24 @@ enum WasmRuntimeHelpers {
         case "__kk_wasm_string_to_boolean":
             extraLocals = 2
             emitStringToBooleanBody(&code, argumentCount: argumentCount)
-        case "__kk_wasm_string_to_double", "__kk_string_toDouble_flat":
-            extraLocals = 10
+        case "__kk_wasm_string_to_double", "__kk_string_toDouble",
+             "__kk_string_toDouble_flat":
+            extraLocals = 4
             emitStringParseFpBody(&code, ctx: ctx, wide: true, orNull: false,
                                   argumentCount: argumentCount)
-        case "__kk_wasm_string_to_float", "__kk_string_toFloat_flat":
-            extraLocals = 10
+        case "__kk_wasm_string_to_float", "__kk_string_toFloat",
+             "__kk_string_toFloat_flat":
+            extraLocals = 4
             emitStringParseFpBody(&code, ctx: ctx, wide: false, orNull: false,
                                   argumentCount: argumentCount)
         case "__kk_wasm_string_to_double_or_null",
-             "__kk_string_toDoubleOrNull_flat":
-            extraLocals = 10
+             "__kk_string_toDoubleOrNull", "__kk_string_toDoubleOrNull_flat":
+            extraLocals = 4
             emitStringParseFpBody(&code, ctx: ctx, wide: true, orNull: true,
                                   argumentCount: argumentCount)
         case "__kk_wasm_string_to_float_or_null",
-             "__kk_string_toFloatOrNull_flat":
-            extraLocals = 10
+             "__kk_string_toFloatOrNull", "__kk_string_toFloatOrNull_flat":
+            extraLocals = 4
             emitStringParseFpBody(&code, ctx: ctx, wide: false, orNull: true,
                                   argumentCount: argumentCount)
         case "__kk_wasm_string_substring_after",
@@ -13694,313 +13747,43 @@ enum WasmRuntimeHelpers {
         orNull: Bool,
         argumentCount: Int
     ) {
-        let i = argumentCount, len = argumentCount + 1
-        let data = argumentCount + 2, v = argumentCount + 3
-        let scale = argumentCount + 4, neg = argumentCount + 5
-        let d = argumentCount + 6, e10 = argumentCount + 7
-        let esign = argumentCount + 8, dot = argumentCount + 9
+        let len = argumentCount, data = argumentCount + 1
+        let scratch = argumentCount + 2, bits = argumentCount + 3
         emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
         code.localSet(len)
         emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
         code.localSet(data)
-        code.i64Const(0)
-        code.localSet(i)
-        code.i64Const(0)
-        code.localSet(neg)
+
+        // wasm_decimal_parse.c lays scratch out as the length-byte digit copy,
+        // 8-byte alignment padding, nine (length + 1024)-limb u32 big integers,
+        // and 64 bytes of slack.
         code.localGet(len)
-        code.op(WasmOpcode.i64Eqz)
-        code.openIf()
-        emitParseFail(&code, ctx: ctx, orNull: orNull)
-        code.end()
-        code.localGet(data)
-        code.op(WasmOpcode.i32WrapI64)
-        code.i32Load8U()
-        code.i64ExtendFromComparison()
-        code.localSet(d)
-        code.localGet(d)
-        code.i64Const(0x2B)
-        code.op(WasmOpcode.i64Eq)
-        code.openIf()
-        code.i64Const(1)
-        code.localSet(i)
-        code.end()
-        code.localGet(d)
-        code.i64Const(0x2D)
-        code.op(WasmOpcode.i64Eq)
-        code.openIf()
-        code.i64Const(1)
-        code.localSet(i)
-        code.i64Const(1)
-        code.localSet(neg)
-        code.end()
-        code.localGet(i)
+        code.i64Const(7)
+        code.op(WasmOpcode.i64Add)
+        code.i64Const(-8)
+        code.op(WasmOpcode.i64And)
         code.localGet(len)
-        code.op(WasmOpcode.i64GeS)
-        code.openIf()
-        emitParseFail(&code, ctx: ctx, orNull: orNull)
-        code.end()
-        code.i64Const(0)
-        code.op(WasmOpcode.f64ConvertI64S)
-        code.op(WasmOpcode.i64ReinterpretF64)
-        code.localSet(v)
-        code.i64Const(0)
-        code.localSet(scale)
-        code.i64Const(0)
-        code.localSet(e10)
-        code.i64Const(0)
-        code.localSet(esign)
-        code.i64Const(0)
-        code.localSet(dot)
-        code.openBlock()
-        code.openLoop()
-        code.localGet(i)
-        code.localGet(len)
-        code.op(WasmOpcode.i64GeS)
-        code.brIf(1)
-        code.localGet(data)
-        code.op(WasmOpcode.i32WrapI64)
-        code.localGet(i)
-        code.op(WasmOpcode.i32WrapI64)
-        code.op(WasmOpcode.i32Add)
-        code.i32Load8U()
-        code.i64ExtendFromComparison()
-        code.localSet(d)
-        code.localGet(d)
-        code.i64Const(0x2E)
-        code.op(WasmOpcode.i64Eq)
-        code.openIf()
-        code.localGet(dot)
-        code.i64Const(1)
-        code.op(WasmOpcode.i64Eq)
-        code.openIf()
-        emitParseFail(&code, ctx: ctx, orNull: orNull)
-        code.end()
-        code.i64Const(1)
-        code.localSet(dot)
-        code.localGet(i)
-        code.i64Const(1)
-        code.op(WasmOpcode.i64Add)
-        code.localSet(i)
-        code.br(1)
-        code.end()
-        code.localGet(d)
-        code.i64Const(0x20)
-        code.op(WasmOpcode.i64Or)
-        code.i64Const(0x65)
-        code.op(WasmOpcode.i64Eq)
-        code.brIf(1)
-        code.localGet(d)
-        code.i64Const(0x30)
-        code.op(WasmOpcode.i64Sub)
-        code.localTee(d)
-        code.i64Const(9)
-        code.op(WasmOpcode.i64GtU)
-        code.openIf()
-        emitParseFail(&code, ctx: ctx, orNull: orNull)
-        code.end()
-        code.localGet(v)
-        code.op(WasmOpcode.f64ReinterpretI64)
-        code.i64Const(10)
-        code.op(WasmOpcode.f64ConvertI64S)
-        code.op(WasmOpcode.f64Mul)
-        code.localGet(d)
-        code.op(WasmOpcode.f64ConvertI64S)
-        code.op(WasmOpcode.f64Add)
-        code.op(WasmOpcode.i64ReinterpretF64)
-        code.localSet(v)
-        code.localGet(dot)
-        code.i64Const(1)
-        code.op(WasmOpcode.i64Eq)
-        code.openIf()
-        code.localGet(scale)
-        code.i64Const(1)
-        code.op(WasmOpcode.i64Add)
-        code.localSet(scale)
-        code.end()
-        code.localGet(i)
-        code.i64Const(1)
-        code.op(WasmOpcode.i64Add)
-        code.localSet(i)
-        code.br(0)
-        code.end()
-        code.end()
-        code.localGet(i)
-        code.localGet(len)
-        code.op(WasmOpcode.i64LtS)
-        code.openIf()
-        code.localGet(data)
-        code.op(WasmOpcode.i32WrapI64)
-        code.localGet(i)
-        code.op(WasmOpcode.i32WrapI64)
-        code.op(WasmOpcode.i32Add)
-        code.i32Load8U()
-        code.i64ExtendFromComparison()
-        code.i64Const(0x20)
-        code.op(WasmOpcode.i64Or)
-        code.i64Const(0x65)
-        code.op(WasmOpcode.i64Eq)
-        code.openIf()
-        code.localGet(i)
-        code.i64Const(1)
-        code.op(WasmOpcode.i64Add)
-        code.localSet(i)
-        code.localGet(i)
-        code.localGet(len)
-        code.op(WasmOpcode.i64LtS)
-        code.openIf()
-        code.localGet(data)
-        code.op(WasmOpcode.i32WrapI64)
-        code.localGet(i)
-        code.op(WasmOpcode.i32WrapI64)
-        code.op(WasmOpcode.i32Add)
-        code.i32Load8U()
-        code.i64ExtendFromComparison()
-        code.localSet(d)
-        code.localGet(d)
-        code.i64Const(0x2D)
-        code.op(WasmOpcode.i64Eq)
-        code.openIf()
-        code.i64Const(1)
-        code.localSet(esign)
-        code.localGet(i)
-        code.i64Const(1)
-        code.op(WasmOpcode.i64Add)
-        code.localSet(i)
-        code.elseBranch()
-        code.localGet(d)
-        code.i64Const(0x2B)
-        code.op(WasmOpcode.i64Eq)
-        code.openIf()
-        code.localGet(i)
-        code.i64Const(1)
-        code.op(WasmOpcode.i64Add)
-        code.localSet(i)
-        code.end()
-        code.end()
-        code.end()
-        code.openBlock()
-        code.openLoop()
-        code.localGet(i)
-        code.localGet(len)
-        code.op(WasmOpcode.i64GeS)
-        code.brIf(1)
-        code.localGet(data)
-        code.op(WasmOpcode.i32WrapI64)
-        code.localGet(i)
-        code.op(WasmOpcode.i32WrapI64)
-        code.op(WasmOpcode.i32Add)
-        code.i32Load8U()
-        code.i64ExtendFromComparison()
-        code.i64Const(0x30)
-        code.op(WasmOpcode.i64Sub)
-        code.localTee(d)
-        code.i64Const(9)
-        code.op(WasmOpcode.i64GtU)
-        code.openIf()
-        emitParseFail(&code, ctx: ctx, orNull: orNull)
-        code.end()
-        code.localGet(e10)
-        code.i64Const(10)
+        code.i64Const(36)
         code.op(WasmOpcode.i64Mul)
-        code.localGet(d)
         code.op(WasmOpcode.i64Add)
-        code.localSet(e10)
-        code.localGet(i)
-        code.i64Const(1)
+        code.i64Const(36 * 1024 + 64)
         code.op(WasmOpcode.i64Add)
-        code.localSet(i)
-        code.br(0)
-        code.end()
-        code.end()
-        code.end()
-        code.end()
-        code.localGet(i)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
+        code.localSet(scratch)
+
+        code.localGet(data)
         code.localGet(len)
-        code.op(WasmOpcode.i64Ne)
+        code.localGet(scratch)
+        code.i64Const(wide ? 0 : 1)
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_decimal_parse_exact", argumentCount: 4))
+        code.localSet(bits)
+        code.localGet(bits)
+        code.i64Const(-1)
+        code.op(WasmOpcode.i64Eq)
         code.openIf()
         emitParseFail(&code, ctx: ctx, orNull: orNull)
         code.end()
-        code.localGet(esign)
-        code.i64Truthy()
-        code.openIf(result: .i64)
-        code.i64Const(0)
-        code.localGet(e10)
-        code.op(WasmOpcode.i64Sub)
-        code.elseBranch()
-        code.localGet(e10)
-        code.end()
-        code.localGet(scale)
-        code.op(WasmOpcode.i64Sub)
-        code.localSet(scale)
-        code.localGet(scale)
-        code.i64Const(400)
-        code.op(WasmOpcode.i64GtS)
-        code.openIf()
-        code.i64Const(400)
-        code.localSet(scale)
-        code.end()
-        code.localGet(scale)
-        code.i64Const(-400)
-        code.op(WasmOpcode.i64LtS)
-        code.openIf()
-        code.i64Const(-400)
-        code.localSet(scale)
-        code.end()
-        code.openBlock()
-        code.openLoop()
-        code.localGet(scale)
-        code.op(WasmOpcode.i64Eqz)
-        code.brIf(1)
-        code.localGet(scale)
-        code.i64Const(0)
-        code.op(WasmOpcode.i64GtS)
-        code.openIf()
-        code.localGet(v)
-        code.op(WasmOpcode.f64ReinterpretI64)
-        code.i64Const(10)
-        code.op(WasmOpcode.f64ConvertI64S)
-        code.op(WasmOpcode.f64Mul)
-        code.op(WasmOpcode.i64ReinterpretF64)
-        code.localSet(v)
-        code.localGet(scale)
-        code.i64Const(1)
-        code.op(WasmOpcode.i64Sub)
-        code.localSet(scale)
-        code.elseBranch()
-        code.localGet(v)
-        code.op(WasmOpcode.f64ReinterpretI64)
-        code.i64Const(10)
-        code.op(WasmOpcode.f64ConvertI64S)
-        code.op(WasmOpcode.f64Div)
-        code.op(WasmOpcode.i64ReinterpretF64)
-        code.localSet(v)
-        code.localGet(scale)
-        code.i64Const(1)
-        code.op(WasmOpcode.i64Add)
-        code.localSet(scale)
-        code.end()
-        code.br(0)
-        code.end()
-        code.end()
-        code.localGet(neg)
-        code.i64Truthy()
-        code.openIf(result: .f64)
-        code.i64Const(0)
-        code.op(WasmOpcode.f64ConvertI64S)
-        code.localGet(v)
-        code.op(WasmOpcode.f64ReinterpretI64)
-        code.op(WasmOpcode.f64Sub)
-        code.elseBranch()
-        code.localGet(v)
-        code.op(WasmOpcode.f64ReinterpretI64)
-        code.end()
-        if wide {
-            code.op(WasmOpcode.i64ReinterpretF64)
-        } else {
-            code.op(WasmOpcode.f32DemoteF64)
-            code.op(WasmOpcode.i32ReinterpretF32)
-            code.op(WasmOpcode.i64ExtendI32U)
-        }
+        code.localGet(bits)
     }
 
     private static func emitStringSliceAtMatchBody(
