@@ -387,6 +387,31 @@ extension JVMBackendTests {
     }
 
     @Test
+    func interfaceCompanionJvmFieldPropertyReferencesReadOwnerFields() throws {
+        let source = """
+        interface ITest {
+            companion object {
+                @JvmField val x: Int = 3
+            }
+        }
+        fun main() {
+            val reference = ITest.Companion::x
+            println(reference.get())
+        }
+        """
+
+        try withWorkspace { root in
+            let compiled = try compile(source, root: root, mode: .jvmJar)
+            try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
+            let artifact = root.appendingPathComponent("hello.jar").path
+            let runtime = try m11Runtime()
+            let candidate = try java(["-cp", artifact + ":" + runtime, "HelloKt"])
+            #expect(candidate.stdout == "3\n")
+            #expect(candidate.stderr.isEmpty)
+        }
+    }
+
+    @Test
     func rejectsInvalidInterfaceCompanionJvmFieldShapes() throws {
         for (name, members) in [
             ("var", "@JvmField var x: Int = 3"),

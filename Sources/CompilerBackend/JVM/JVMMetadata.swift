@@ -179,6 +179,7 @@ enum JVMMetadata {
             if let carrier = property.annotationsMethod { jvm.data(2, signature(carrier.name, carrier.descriptor)) }
             if !property.modifiers.contains(.const), getter != nil { jvm.data(3, signature(property.getter.name, property.getter.descriptor)) }
             if let method = property.setter { jvm.data(4, signature(method.name, method.descriptor)) }
+            if property.relocatedField != nil { proto.int(101, 1) }
             proto.data(100, jvm.bytes); return proto.bytes
         }
         func annotationClassID(_ descriptor: String) throws -> (name: String, dimensions: Int) {
