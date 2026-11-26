@@ -1,6 +1,3 @@
-/// `Collection` -> `Iterable` supertype edge, registered once so that boxes
-/// tagged as `List`/`Set` answer `is Collection<*>` / `is Iterable<*>` (and the
-/// erased `as Iterable<T>` cast) through the ordinary assignability walk.
 private let collectionRuntimeTypeID: Int64 = {
     let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.Collection")
     runtimeRegisterTypeEdge(
@@ -10,9 +7,6 @@ private let collectionRuntimeTypeID: Int64 = {
     return id
 }()
 
-/// `MutableIterable` -> `Iterable` and `MutableCollection` -> `Collection` /
-/// `MutableIterable` edges, so mutable boxes answer `is MutableIterable<*>` and
-/// `is MutableCollection<*>` through the ordinary assignability walk.
 private let mutableCollectionRuntimeTypeID: Int64 = {
     let mutableIterable = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableIterable")
     runtimeRegisterTypeEdge(
@@ -68,7 +62,6 @@ private let randomAccessRuntimeTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.RandomAccess"
 )
 
-// View identities preserve interface conformance without claiming ArrayList identity.
 private let listViewRuntimeTypeIDs: [Int64] = (0..<4).map { flags in
     let mutable = flags & 1 != 0
     let randomAccess = flags & 2 != 0
@@ -87,10 +80,6 @@ func runtimeListViewTypeID(mutable: Bool, randomAccess: Bool) -> Int64 {
     listViewRuntimeTypeIDs[(mutable ? 1 : 0) | (randomAccess ? 2 : 0)]
 }
 
-/// Decodes a view tag back into its conformance flags (KUU-3963): reflection
-/// names `subList`/`asReversed` views after the JVM implementation class the
-/// flags describe (`java.util.AbstractList$RandomAccessSubList`,
-/// `kotlin.collections.ReversedList`, ...).
 func runtimeListViewTypeIDFlags(_ typeID: Int64) -> (mutable: Bool, randomAccess: Bool)? {
     guard let flags = listViewRuntimeTypeIDs.firstIndex(of: typeID) else { return nil }
     return (flags & 1 != 0, flags & 2 != 0)
@@ -223,8 +212,6 @@ func runtimeIsJvmErasedMapAssignable(
     return runtimeIsAssignable(sourceTypeID: mutableMapRuntimeTypeID, targetTypeID: targetTypeID)
 }
 
-/// Ordinary Set factories keep using `setRuntimeTypeID`; only HashSet
-/// constructors opt into this more specific identity.
 let hashSetRuntimeTypeID: Int64 = {
     let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.HashSet")
     runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: mutableSetRuntimeTypeID)
@@ -254,29 +241,18 @@ let linkedHashSetRuntimeTypeID: Int64 = {
     return id
 }()
 
-/// Boxes are tagged `treeSetRuntimeTypeID`/`treeMapRuntimeTypeID`; the
-/// interface IDs carry the assignability edges that let `is SortedSet<*>` /
-/// `is NavigableMap<*, *>` answer true on those tags.
 let sortedSetRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "java.util.SortedSet")
 
 let navigableSetRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "java.util.NavigableSet")
 
-/// Source-allocated subclasses arrive as RuntimeObjectBox instances;
-/// runtimeSetBox lazily attaches a sorted backing box the same way
-/// LinkedHashSet subclasses attach theirs.
 let treeSetRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "java.util.TreeSet")
 
 let sortedMapRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "java.util.SortedMap")
 
 let navigableMapRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "java.util.NavigableMap")
 
-/// See `treeSetRuntimeTypeID` for the lazy-attach path that relies on this ID.
 let treeMapRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "java.util.TreeMap")
 
-/// Mirrors `registerRangeTypeEdgesOnce`, including its resettability:
-/// `kk_runtime_reset_metadata` clears `typeParents` and
-/// `sortedCollectionTypeEdgesRegistered` together, so the edges re-register
-/// on the next `is` check or lazy-attach after a metadata reset.
 func registerSortedCollectionTypeEdgesOnce() {
     // Resolve every type-ID global *before* taking the metadata lock: the
     // collection ID initializers (setRuntimeTypeID, mapRuntimeTypeIDs) call
@@ -329,9 +305,6 @@ let mutableMapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.mutableMap
 let hashMapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.hashMap
 let linkedHashMapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.linkedHashMap
 
-/// Reinstall the built-in collection hierarchy after `kk_runtime_reset_metadata`.
-/// These edges are normally installed by global type-ID initializers, which do
-/// not run again once the metadata tables have been cleared.
 func runtimeRegisterCollectionTypeEdges() {
     let iterable = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterable")
     let mutableIterable = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableIterable")

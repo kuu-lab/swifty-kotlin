@@ -5,8 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2389: `java.io.Serializable` must resolve from source and a fresh
-    /// stdlib artifact as both an explicit import and a qualified supertype.
     @Test
     func testJavaSerializableDataClassAcrossStdlibSurfaces() throws {
         let source = try diffCaseSource("kt5002_java_io_serializable.kt", file: #filePath)

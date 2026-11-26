@@ -1,11 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// KUU-4423: `KClass.members`/`constructors` handles used to report
-    /// `visibility == null` and build `returnType` KTypes from a bare
-    /// string descriptor whose classifier resolved to `java.lang.Void`.
-    /// Member registration now pins the declared visibility ordinal and a
-    /// real KType (classifier, arguments, nullability) on every handle.
     @Test(arguments: [false, true])
     func classMemberVisibilityAndReturnTypeMetadata(fromArtifact: Bool) throws {
         try compileAndRunKotlin(

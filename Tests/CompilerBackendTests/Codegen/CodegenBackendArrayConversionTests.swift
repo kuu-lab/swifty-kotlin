@@ -5,19 +5,6 @@
 import Foundation
 import Testing
 
-/// RF-LOWER-CALL-013: end-to-end counterpart of `SourceBackedCallPreservationPolicyTests`'
-/// array-conversion set-shape assertions.
-///
-/// `toMutableList()` on `LongArray`/`ULongArray` used to redirect through the
-/// generic `kk_array_toMutableList` runtime bridge, which boxed every element
-/// as a plain word: `Long.MIN_VALUE`'s bit pattern collides with the runtime's
-/// null sentinel (read back as `null`), and unsigned values were boxed as
-/// signed (`ULong.MAX_VALUE` read back as `-1`). `toMutableList` is now a
-/// bundled Kotlin declaration (`ArrayConversions.kt` / `UArrays.kt`) that
-/// delegates to the already-correct `toList()`, and the two rewrite files
-/// that used to intercept it unconditionally are deleted. These tests pin
-/// the fixed runtime behavior so a future redirect regresses loudly instead
-/// of silently corrupting edge-case elements.
 @Suite
 struct CodegenBackendArrayConversionTests {
     /// `kk_array_toMutableList` (the generic bridge this task's bug fix
@@ -41,8 +28,6 @@ struct CodegenBackendArrayConversionTests {
             #expect(!ir.contains("call i64 \(legacy)"), "the legacy rewrite \(legacy) must not be called from codegen")
         }
     }
-
-    // MARK: - no redirect to the deleted rewrite files' runtime bridges
 
     @Test
     func arrayConversionsKeepSourceCalleesThroughStdlibArtifact() throws {
@@ -81,10 +66,6 @@ struct CodegenBackendArrayConversionTests {
         }
     }
 
-    // MARK: - the actual bug: Long/ULong/UInt/UByte/UShort element correctness
-
-    /// `Long.MIN_VALUE`'s bit pattern used to be misread as the runtime's
-    /// null sentinel through the generic bridge.
     @Test
     func longArrayToMutableListPreservesMinValueInsteadOfNull() throws {
         try assertKotlinOutput(
@@ -99,8 +80,6 @@ struct CodegenBackendArrayConversionTests {
         )
     }
 
-    /// Unsigned values used to be boxed as signed through the generic bridge
-    /// (`ULong.MAX_VALUE` printed as `-1`).
     @Test
     func ulongArrayToMutableListPreservesMaxValueUnsigned() throws {
         try assertKotlinOutput(
@@ -157,9 +136,6 @@ struct CodegenBackendArrayConversionTests {
         )
     }
 
-    /// Generic `Array<T>.toMutableList()` was always correct (its receiver
-    /// already stores boxed elements), but is now routed through the same
-    /// source declaration as the primitive/unsigned overloads above.
     @Test
     func genericArrayToMutableListStillWorks() throws {
         try assertKotlinOutput(
@@ -176,12 +152,6 @@ struct CodegenBackendArrayConversionTests {
         )
     }
 
-    // MARK: - view vs. copy: asList aliases storage, toMutableList/toList do not
-
-    /// `asList()` is a *view* backed by the same storage: mutating the
-    /// original array through an index write is visible through the view.
-    /// `toMutableList()` is a *copy*: the same mutation must not leak into an
-    /// already-taken snapshot.
     @Test
     func asListViewsStorageWhileToMutableListCopiesIt() throws {
         try assertKotlinOutput(

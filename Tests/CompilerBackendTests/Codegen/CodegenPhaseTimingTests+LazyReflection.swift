@@ -60,7 +60,6 @@ extension CodegenPhaseTimingTests {
             loaded.append(id)
             symbols.setFunctionSignature(FunctionSignature(parameterTypes: [types.intType], returnType: types.intType), for: id)
         }
-        // Test the projection itself separately from visibility selection.
         let encoder = MetadataEncoder()
         let projected = [indexed, updated, legacy].map { id in
             encoder.buildRuntimeReflectionRecord(
@@ -107,7 +106,6 @@ extension CodegenPhaseTimingTests {
         #expect(work.importedBindings.map {
             $0.record.fqName.map(interner.resolve).joined(separator: ".")
         }.contains("provider.Internal"))
-        // Nominals are required by layout synthesis independently of reflection.
         for binding in work.importedBindings where binding.record.kind == .class {
             _ = symbols.nominalLayout(for: binding.symbol)
         }
@@ -119,16 +117,9 @@ extension CodegenPhaseTimingTests {
         )
         #expect(callables.allSatisfy { $0.isMaterialized == legacy })
         if !legacy {
-            // KUU-2675: pending compact-index shells are not reachable from
-            // the compiled program, so the runtime projection omits them
-            // instead of decoding their bodies. Nominals whose layouts were
-            // materialized above still project from shell state.
             #expect(!projected.contains { $0.kind == .function || $0.kind == .constructor })
             #expect(projected.contains { $0.fqName == "lazy.Owner" && $0.kind == .class })
             #expect(projected.contains { $0.fqName == "lazy.Hidden" } == includeNonPublic)
-            // Symbols whose bodies a semantic query did materialize regain
-            // their record — reachability is tracked by load state, not by
-            // how the symbol was imported.
             for binding in callables {
                 symbols.ensureLazyImportedMetadataLoaded(for: binding.symbol)
             }

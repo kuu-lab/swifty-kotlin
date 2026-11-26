@@ -1,12 +1,6 @@
 @file:kotlin.jvm.JvmName("SequencesKt")
 package kotlin.sequences
 
-// Shared implementation adapted from Stdlib/kotlin/sequences/SequenceWindowChunk.kt.
-// MIGRATION-SEQ-005 / KSP-441
-// Sequence window, limiting, and zip/distinct HOFs implemented as lazy
-// object-expression pipelines.  This replaces the previous runtime-bridge
-// based implementation so that source-backed Sequence objects can be chained.
-
 public fun <T> Sequence<T>.take(n: Int): Sequence<T> {
     if (n == 0) return emptySequence<T>()
     if (n < 0) throw IllegalArgumentException("Requested element count $n is less than zero.")

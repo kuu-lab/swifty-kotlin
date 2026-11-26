@@ -7,9 +7,6 @@
 
 package kotlin.collections
 
-// The compiler-side shell in `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift`
-// remains the fallback for contexts without the bundled stdlib.
-
 public abstract class AbstractCollection<out E> protected constructor() : Collection<E> {
     abstract override val size: Int
 
@@ -61,8 +58,6 @@ public abstract class AbstractCollection<out E> protected constructor() : Collec
     }
 }
 
-// KSP-957: Keep the receiver type in the return value, matching
-// Kotlin 2.3.10's generated common stdlib sources.
 @SinceKotlin("1.1")
 @Suppress("UNCHECKED_CAST")
 public inline fun <T, C : Iterable<T>> C.onEach(action: (T) -> Unit): C {

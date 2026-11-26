@@ -3,12 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// KUU-1380: a lambda literal is a `primaryExpression`, so it takes the same
-/// `postfixUnarySuffix` chain as any other primary — `{ ... }()` invokes the
-/// literal directly. In call-argument position the `{` shortcut used to return
-/// the lambda without continuing the postfix chain, so `println({ 42 }())`
-/// failed with `KSWIFTK-PARSE-0015`; the infix chain (`{ 5 }() + { 6 }()`)
-/// stopped at the same place.
 @Suite
 struct LambdaLiteralDirectInvocationTests {
     private func mainStatements(in source: String) throws -> ([ExprID], ASTModule) {

@@ -8,11 +8,6 @@ import kotlinx.atomicfu.locks.ParkingSupport
 import kotlinx.atomicfu.locks.SynchronizedObject
 import platform.Foundation.NSThread
 
-// KUU-3059: java.util.concurrent.Executors over platform.Foundation.NSThread.
-// Workers are spawned lazily on the first submitted task so an unused
-// executor costs no thread; waiters (worker-idle and awaitTermination) park
-// on their atomicfu handles.
-
 public object Executors {
     public fun newSingleThreadExecutor(): ExecutorService = PooledExecutorService(1)
 
@@ -137,8 +132,6 @@ private class PooledExecutorService(private val workerCount: Int) : ExecutorServ
             if (shutdown) return
             shutdown = true
             wake = ArrayList(workerHandles)
-            // Never started: no worker exists to mark termination, so flip it
-            // here. Started workers flip it themselves in workerExited().
             if (!started) {
                 terminated = true
                 termRelease = ArrayList(terminationWaiters)
@@ -259,8 +252,6 @@ private class PooledExecutorService(private val workerCount: Int) : ExecutorServ
     }
 }
 
-// Cached-pool approximation: each submitted task gets its own NSThread,
-// matching the JVM cached pool's unbounded-growth contract minus idle reuse.
 private class CachedThreadExecutorService : ExecutorService {
     private val guard = SynchronizedObject()
     private val terminationWaiters = ArrayList<ParkingHandle>()

@@ -942,19 +942,22 @@ struct LinkPhaseIntegrationTests {
     }
 
     @Test
-    func testLinuxAutolinkStubIsRewrittenWhenCorrupted() throws {
-        // Use a test-only triple so the stub path is isolated from any real target, even though
-        // each LinkPhase now writes its autolink stub to a unique per-instance directory.
+    func testLinuxAutolinkStubDoesNotReuseCorruptedStub() throws {
         let linuxTarget = TargetTriple(arch: "x86_64", vendor: "kswiftkstubtest", os: "linux-gnu", osVersion: nil)
         let linkPhase = LinkPhase()
 
         let stubPath = try #require(try linkPhase.emitSwiftAutolinkStubIfNeeded(target: linuxTarget))
+        defer {
+            try? FileManager.default.removeItem(atPath: URL(fileURLWithPath: stubPath).deletingLastPathComponent().path)
+        }
         try "corrupted".write(toFile: stubPath, atomically: true, encoding: .utf8)
 
-        let repairedPath = try #require(try linkPhase.emitSwiftAutolinkStubIfNeeded(target: linuxTarget))
-        #expect(repairedPath == stubPath)
+        let nextStubPath = try #require(try linkPhase.emitSwiftAutolinkStubIfNeeded(target: linuxTarget))
+        defer {
+            try? FileManager.default.removeItem(atPath: URL(fileURLWithPath: nextStubPath).deletingLastPathComponent().path)
+        }
 
-        let contents = try String(contentsOfFile: repairedPath, encoding: .utf8)
+        let contents = try String(contentsOfFile: nextStubPath, encoding: .utf8)
         #expect(contents != "corrupted")
         #expect(contents.contains("_kswiftkRuntimeAutolinkAnchor"))
         #expect(contents.contains("NSLock()"))

@@ -5,9 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-1944: subclass declarations, superclass constructor overloads, and
-    /// inherited Map members must type-check with source and serialized stdlib.
-    /// The exact reproducer must also execute and preserve insertion order.
     @Test(arguments: [false, true])
     func testLinkedHashMapSubclassThroughSourceAndFreshArtifact(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil

@@ -7,9 +7,6 @@ extension TypeCheckHelpers {
               let receiver = propertyReceiverClassType(receiverType, owner: owner, sema: sema)
         else { return fallback }
         let parameters = sema.types.nominalTypeParameterSymbols(for: receiver.classSymbol)
-        // Lifting concrete arguments erases their use-site projection. Lift
-        // symbolic arguments instead, then approximate the original intervals
-        // after substituting the declaring owner's property type.
         let symbolicArguments = parameters.map {
             TypeArg.invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull))))
         }
@@ -69,7 +66,6 @@ extension TypeCheckHelpers {
         activeTypes: Set<TypeID> = []
     ) -> TypeID {
         let types = sema.types
-        // F-bounded parameters can refer back to themselves through a nominal.
         guard !activeTypes.contains(type) else { return lower ? types.nothingType : types.nullableAnyType }
         let activeTypes = activeTypes.union([type])
         func approximate(_ type: TypeID, lower: Bool) -> TypeID {
@@ -106,8 +102,6 @@ extension TypeCheckHelpers {
                     case .invariant:
                         let low = approximate(inner, lower: true)
                         let high = approximate(inner, lower: false)
-                        // No concrete invariant argument represents an unknown
-                        // projected type. Only Nothing can be assigned here.
                         if low != high {
                             if lower { return types.withNullability(nominal.nullability, for: types.nothingType) }
                             arguments.append(low == types.nothingType || low == types.nullableNothingType ? .out(high) : .in(low))
@@ -126,8 +120,6 @@ extension TypeCheckHelpers {
         case let .intersection(parts):
             return types.make(.intersection(parts.map { approximate($0, lower: lower) }))
         case let .kClassType(kClass):
-            // The compact KClass representation still denotes invariant
-            // KClass<T>; a captured argument has no concrete lower instance.
             let low = approximate(kClass.argument, lower: true)
             let high = approximate(kClass.argument, lower: false)
             if low != high {

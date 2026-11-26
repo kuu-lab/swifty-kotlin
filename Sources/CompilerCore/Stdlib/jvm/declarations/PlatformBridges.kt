@@ -197,6 +197,7 @@ fun __jvmDeepHash(values: Array<Any?>): Int = 0
 fun __jvmDeepString(values: Array<Any?>): String = null!!
 fun <T> __jvmCopyArray(array: Array<T>, size: Int): Array<T> = null!!
 fun __jvmUtf8String(bytes: ByteArray, charset: String): String = null!!
+fun __jvmUtf8Bytes(value: String, charset: String): ByteArray = null!!
 fun <T> __jvmUnmodifiableSet(value: Set<T>): Set<T> = null!!
 fun __jvmUIntDivide(first: Int, second: Int): Int = 0
 fun __jvmUIntRemainder(first: Int, second: Int): Int = 0
@@ -215,7 +216,6 @@ fun <T> __jvmCopySet(collection: kotlin.collections.Collection<T>): kotlin.colle
 fun __jvmArrayCapacityError(): Throwable = null!!
 
 fun __jvmPowDouble(base: Double, exponent: Double): Double = 0.0
-// Collection builder platform edges; completion checks stay in Kotlin.
 fun <T> __jvmNewListCapacity(capacity: Int): MutableList<T> = null!!
 fun <T> __jvmNewSetCapacity(capacity: Int): MutableSet<T> = null!!
 fun <K, V> __jvmNewMapCapacity(capacity: Int): MutableMap<K, V> = null!!

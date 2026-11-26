@@ -34,8 +34,6 @@ public annotation class JvmStatic
 @Target(AnnotationTarget.FUNCTION, AnnotationTarget.CONSTRUCTOR)
 public annotation class JvmOverloads
 
-// Marker only: synchronization is a JVM bytecode flag; on native this is a
-// no-op, matching Kotlin/Native's treatment of the optional expectation.
 @Target(
     AnnotationTarget.FUNCTION,
     AnnotationTarget.PROPERTY_GETTER,

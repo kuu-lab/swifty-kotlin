@@ -4,8 +4,6 @@ import Testing
 @testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
-    /// KSP-1166: Base64 range and destination APIs resolve to bundled Kotlin
-    /// source declarations instead of legacy runtime bridge symbols.
     @Test
     func testBase64RangeAndDestinationAPIsAreSourceBacked() throws {
         let source = """

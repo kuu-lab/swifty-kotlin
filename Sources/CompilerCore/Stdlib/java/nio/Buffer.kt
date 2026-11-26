@@ -1,6 +1,5 @@
 package java.nio
 
-/** Source-backed base needed by original Java-8-compatible ByteBuffer casts. */
 public abstract class Buffer protected constructor() {
     public abstract fun capacity(): Int
     public abstract fun position(): Int

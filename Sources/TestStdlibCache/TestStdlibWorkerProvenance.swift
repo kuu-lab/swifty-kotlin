@@ -8,8 +8,6 @@ import Darwin
 import Glibc
 #endif
 
-/// A build-wrapper attestation binds the running test image to an isolated
-/// worker linked from the same unchanged compiler objects.
 enum TestStdlibWorkerProvenance {
     struct Record: Decodable {
         let state: String

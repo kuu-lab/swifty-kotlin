@@ -4,23 +4,6 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-/// `out` is a soft keyword: it means declaration-site variance inside a type
-/// argument or type parameter list (`List<out T>`) and is an ordinary
-/// identifier everywhere else, so `val out = 1` and `fun out() = 1` are valid
-/// Kotlin.
-///
-/// The local-declaration builders identified the name slot with
-/// `TypeRefParserCore.isTypeLikeNameToken`, which answers for a *type*
-/// position and therefore reserves the variance keywords. Scanning for the
-/// name token found nothing, `parseLocalDeclaration` returned nil, and the
-/// statement fell back to expression parsing — leaving the `val` / `var`
-/// keyword itself as an identifier reference and reporting
-/// `KSWIFTK-SEMA-0013: Unresolved local variable 'val'`. Member properties,
-/// top-level properties and value parameters were unaffected: they never go
-/// through this scan.
-///
-/// See `Scripts/diff_cases/soft_keyword_local_names.kt` for the kotlinc
-/// behaviour comparison.
 @Suite
 struct SoftKeywordLocalDeclarationNameTests {
     private func buildAST(from source: String) throws -> (ASTModule, CompilationContext) {
@@ -51,9 +34,6 @@ struct SoftKeywordLocalDeclarationNameTests {
         }
     }
 
-    /// The bug's signature: the name scan found nothing, the declaration parse
-    /// bailed out, and the statement was re-parsed as an expression — which
-    /// turns the `val` / `var` keyword itself into a name reference.
     private func nameRefs(_ ast: ASTModule) -> [InternedString] {
         ast.arena.exprs.compactMap { expr in
             guard case let .nameRef(name, _) = expr else { return nil }
@@ -61,26 +41,17 @@ struct SoftKeywordLocalDeclarationNameTests {
         }
     }
 
-    // MARK: - the predicate
-
-    /// A declaration *name* position accepts `out`; a type position must not,
-    /// or `List<out T>` would parse its variance modifier as a type name.
     @Test
     func declarationNameTokenAcceptsOutWhileTypePositionStillReservesIt() {
         #expect(TypeRefParserCore.isDeclarationNameToken(.softKeyword(.out)))
         #expect(!TypeRefParserCore.isTypeLikeNameToken(.softKeyword(.out)))
     }
 
-    /// `in` stays reserved in both positions: it is a hard keyword, so naming
-    /// something `in` requires backticks, which reach the builders as
-    /// `.backtickedIdentifier`.
     @Test
     func declarationNameTokenStillReservesIn() {
         #expect(!TypeRefParserCore.isDeclarationNameToken(.keyword(.in)))
         #expect(!TypeRefParserCore.isTypeLikeNameToken(.keyword(.in)))
     }
-
-    // MARK: - local declarations
 
     @Test
     func localValNamedOutIsDeclared() throws {
@@ -121,8 +92,6 @@ struct SoftKeywordLocalDeclarationNameTests {
         )
     }
 
-    /// The local-function name slot used the same predicate, so the scan skipped
-    /// `out` and took the *return type* token as the function's name.
     @Test
     func localFunctionNamedOutIsDeclared() throws {
         let (ast, ctx) = try buildAST(from: """
@@ -153,8 +122,6 @@ struct SoftKeywordLocalDeclarationNameTests {
         #expect(receivers.count == 1)
     }
 
-    /// Declarations inside a block expression reach a third copy of the same
-    /// name scan.
     @Test
     func blockExpressionLocalNamedOutIsDeclared() throws {
         let (ast, ctx) = try buildAST(from: """
@@ -177,12 +144,6 @@ struct SoftKeywordLocalDeclarationNameTests {
         )
     }
 
-    // MARK: - setter parameter name
-
-    /// `set(out) { ... }` names the setter's value parameter, another name slot
-    /// that used the type-position predicate. The scan skipped `out`, the
-    /// accessor got no parameter name, and the body's reference to it went
-    /// unresolved.
     @Test
     func setterParameterNamedOutIsBound() throws {
         let (ast, ctx) = try buildAST(from: """
@@ -201,10 +162,6 @@ struct SoftKeywordLocalDeclarationNameTests {
         #expect(parameterName == ctx.interner.intern(SoftKeyword.out.rawValue))
     }
 
-    /// The object-literal member parser keeps its own copy of the setter-name
-    /// scan. Only the AST is asserted here: an object-literal property with a
-    /// custom setter does not survive lowering yet, for reasons unrelated to
-    /// the parameter's name (it fails the same way with `set(value)`).
     @Test
     func objectLiteralSetterParameterNamedOutIsBound() throws {
         let (ast, ctx) = try buildAST(from: """
@@ -230,10 +187,6 @@ struct SoftKeywordLocalDeclarationNameTests {
         #expect(names == [ctx.interner.intern(SoftKeyword.out.rawValue)], "got \(names.map(ctx.interner.resolve))")
     }
 
-    // MARK: - variance is unaffected
-
-    /// The widened predicate is only consulted for name slots, so `out` in a
-    /// type parameter list still parses as covariance.
     @Test
     func typeParameterVarianceStillParses() throws {
         let (ast, ctx) = try buildAST(from: """

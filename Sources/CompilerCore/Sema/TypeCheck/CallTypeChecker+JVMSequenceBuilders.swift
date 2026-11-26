@@ -1,6 +1,4 @@
 extension CallTypeChecker {
-    /// Resolve the injected builder entry, including import aliases, before
-    /// generic receiver-builder inference can consume its yield-only evidence.
     func jvmSequenceBuilderName(_ name: InternedString?, ctx: TypeInferenceContext, locals: LocalBindings) -> InternedString? {
         guard ctx.sema.requiresResolvedLibraryCalls, let name, locals[name] == nil else { return nil }
         var result: InternedString?

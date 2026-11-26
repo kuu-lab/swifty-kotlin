@@ -1,6 +1,5 @@
 package java.time
 
-/** A month and day in the ISO-8601 calendar system. */
 public class MonthDay private constructor(
     public val monthValue: Int,
     public val dayOfMonth: Int,

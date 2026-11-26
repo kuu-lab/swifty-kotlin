@@ -3,11 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// KSP-410 / BUG-170: a lone type parameter with an upper bound (`R : Any`)
-/// inferred purely from a nullable-returning lambda body used to fail with
-/// KSWIFTK-TYPE-0001. The lambda body was locally constrained against the
-/// callee's own `R?`, which nothing but `R` itself is a subtype of; the check
-/// now uses the parameter's upper bound instead.
 @Suite
 struct BoundedTypeParameterLambdaReturnInferenceTests {
     @Test func testBoundedTypeParameterInfersFromNullableLambdaBody() throws {

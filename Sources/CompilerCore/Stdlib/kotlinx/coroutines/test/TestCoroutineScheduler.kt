@@ -31,10 +31,6 @@ private external fun kkTestSchedulerRunCurrent(scheduler: TestCoroutineScheduler
 public val TestCoroutineScheduler.currentTime: Long
     get() = kkTestSchedulerCurrentTime(this)
 
-/**
- * Runs scheduled work before the target time while advancing the virtual
- * clock. Work scheduled exactly at the target time remains queued.
- */
 @ExperimentalCoroutinesApi
 public fun TestCoroutineScheduler.advanceTimeBy(delayTimeMillis: Long) {
     if (delayTimeMillis < 0) {

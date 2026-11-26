@@ -27,8 +27,6 @@ extension LinkPhaseIntegrationTests {
             try CodegenPhase().run(ctx)
             let timer = PhaseTimer()
             ctx.installPhaseTimer(timer)
-            // The second link must reuse the persisted driver plan as well as
-            // exercise real runtime autolink records and the entry wrapper.
             for _ in 0..<2 {
                 timer.beginPhase("Link")
                 try LinkPhase().run(ctx)

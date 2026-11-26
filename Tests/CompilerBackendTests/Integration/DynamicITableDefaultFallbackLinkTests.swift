@@ -6,11 +6,6 @@ import Testing
 
 @Suite(.serialized)
 struct DynamicITableDefaultFallbackLinkTests {
-    /// Regression test for dynamic itable default-implementation fallbacks:
-    /// compiling and linking against the prelinked stdlib `.kklib` must resolve
-    /// real `kk_fn_*` symbols (such as `List.indexOf`/`lastIndexOf` and
-    /// `ContinuationInterceptor.get`/`minusKey`) rather than emitting
-    /// `ptrtoint` references to dummy `__v` indirect-call carrier declarations.
     @Test func prelinkedStdlibLinksAndExecutesListSearchAndCoroutineContextDefaults() throws {
         let source = """
         import kotlin.coroutines.ContinuationInterceptor

@@ -14,10 +14,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    // KUU-3257: `lookupStdlibSymbol("List")` picked the `List(size, init)`
-    // factory function over the interface when symbols arrive in sema-snapshot
-    // order, so `sorted()` fabricated `List<T>` on a function symbol and the
-    // following joinToString stayed unbound — linking a bare `_joinToString`.
     @Test(arguments: [true, false])
     func testSortedResultJoinToStringBindsIterableExtension(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(

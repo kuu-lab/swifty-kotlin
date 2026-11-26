@@ -5,8 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-1933: private library classifiers must not replace consumer types
-    /// when componentN and copy signatures are synthesized.
     @Test(arguments: [false, true])
     func testConsumerStateDataClassWithSourceAndFreshArtifact(useArtifact: Bool) throws {
         let artifact = useArtifact ? try Self.buildStdlibArtifact() : nil

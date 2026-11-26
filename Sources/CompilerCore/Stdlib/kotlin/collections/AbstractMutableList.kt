@@ -7,13 +7,7 @@
 
 package kotlin.collections
 
-// The compiler-side shell remains the fallback for non-bundled contexts.
-
 public abstract class AbstractMutableList<E> protected constructor() : AbstractMutableCollection<E>(), MutableList<E> {
-    /**
-     * The number of structural modifications observed by iterators.
-     * Concrete implementations update this counter when they mutate storage.
-     */
     protected var modCount: Int = 0
 
     // These storage primitives are redeclared by the platform implementation

@@ -1,7 +1,5 @@
 package platform.Foundation
 
-// -[NSLocale init] is NS_UNAVAILABLE; initWithLocaleIdentifier: is the only
-// public initializer.
 public open class NSLocale internal constructor(handle: Long) : NSObject(handle) {
     public constructor(localeIdentifier: String) : this(__foundation_locale_create_identifier(localeIdentifier))
 

@@ -3,8 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// KUU-2785: a `(` or `{` left open at the `}` / EOF that ends its enclosing
-/// statement, lambda or block must be reported, not completed implicitly.
 @Suite
 struct UnclosedDelimiterParsingTests {
     @Test(arguments: [

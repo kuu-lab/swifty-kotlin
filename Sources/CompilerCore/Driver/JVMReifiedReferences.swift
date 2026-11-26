@@ -103,7 +103,7 @@ extension JVMFunctionBuilder {
         let suspendConversion = !declaration.isSuspend && function.isSuspend
         let sourceResult = try program.type(signature.returnType)
         let unitConversion = resultType == .unit && sourceResult != .unit
-        let adapted = binding.isCallableReferenceAdapter || suspendConversion || unitConversion
+        let adapted = binding.hidesKCallable || suspendConversion || unitConversion
         let superclass = "kotlin/jvm/internal/" + (adapted ? "AdaptedFunctionReference" : "FunctionReferenceImpl")
         var generated = try program.closureClass(name, captures: captures.map { ($0.0, $0.1.type) }, inputs: inputTypes, result: resultType, helper: helperRef, suspend: function.isSuspend, superclass: superclass)
         let arity = inputTypes.count + (function.isSuspend ? 1 : 0)

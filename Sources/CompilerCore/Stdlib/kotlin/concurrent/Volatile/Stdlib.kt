@@ -8,10 +8,6 @@
 
 package kotlin.concurrent
 
-/**
- * Only backing-field operations are atomic; a getter or setter that performs
- * multiple operations is not guaranteed to be atomic as a whole.
- */
 @Target(AnnotationTarget.FIELD)
 @Retention(AnnotationRetention.SOURCE)
 @MustBeDocumented

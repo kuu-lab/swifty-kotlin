@@ -8,8 +8,6 @@ extension JVMBackendTests {
     func importedCollectionDiamondKeepsSourceOverrideChecks() throws {
         let own = try ownStdlibLibrary()
         try withWorkspace { root in
-            // The classpath projects one default method through both the
-            // mapped Kotlin List and the imported Java Collection.
             let collection = """
             package java.util;
             public interface Collection<E> extends Iterable<E> {

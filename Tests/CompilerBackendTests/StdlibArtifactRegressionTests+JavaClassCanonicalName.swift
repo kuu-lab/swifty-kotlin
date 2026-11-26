@@ -24,7 +24,6 @@ extension StdlibArtifactRegressionTests {
         )
         let publicFixture = try String(contentsOf: fixtureURL, encoding: .utf8)
         let publicFixtureInPackage = "package canonicalnames\n" + publicFixture
-        // KUU-2391 owns the bundled Java Void classifier; this stub isolates canonicalName here.
         let javaLangVoidStub = "package java.lang\nclass Void\n"
         let minimalRepro = """
         package canonicalnames

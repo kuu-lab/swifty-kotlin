@@ -2,7 +2,6 @@ package java.io
 
 import kotlin.internal.KsSymbolName
 
-/** Decodes a byte stream using the native default charset (UTF-8). */
 public open class InputStreamReader : Reader {
     @KsSymbolName("__kk_input_stream_reader_new")
     public constructor(input: InputStream)

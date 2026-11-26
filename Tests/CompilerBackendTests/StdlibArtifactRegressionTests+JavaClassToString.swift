@@ -4,7 +4,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2189: Java Class rendering must preserve JVM names across stdlib modes.
     @Test
     func testJavaClassToStringAcrossStdlibSurfaces() throws {
         let repoRoot = URL(fileURLWithPath: #filePath)

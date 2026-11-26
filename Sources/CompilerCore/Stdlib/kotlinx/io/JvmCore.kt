@@ -26,13 +26,6 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 
-/**
- * Returns [RawSink] that writes to an output stream.
- *
- * Use [RawSink.buffered] to create a buffered sink from it.
- *
- * @sample kotlinx.io.samples.KotlinxIoSamplesJvm.outputStreamAsSink
- */
 public fun OutputStream.asSink(): RawSink = OutputStreamSink(this)
 
 private open class OutputStreamSink(
@@ -44,7 +37,6 @@ private open class OutputStreamSink(
         checkOffsetAndCount(source.size, 0, byteCount)
         var remaining = byteCount
         while (remaining > 0) {
-            // kotlinx.io TODO: detect Interruption.
             remaining -= UnsafeBufferOperations.readFromHead(source) { data, pos, limit ->
                 val toCopy = minOf(remaining, limit - pos).toInt()
                 out.write(data, pos, toCopy)
@@ -60,13 +52,6 @@ private open class OutputStreamSink(
     override fun toString() = "RawSink($out)"
 }
 
-/**
- * Returns [RawSource] that reads from an input stream.
- *
- * Use [RawSource.buffered] to create a buffered source from it.
- *
- * @sample kotlinx.io.samples.KotlinxIoSamplesJvm.inputStreamAsSource
- */
 public fun InputStream.asSource(): RawSource = InputStreamSource(this)
 
 private open class InputStreamSource(

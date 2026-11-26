@@ -49,9 +49,6 @@ struct ReceiverClassifier {
             && !isIterableLikeType(receiverType)
         return ReceiverClassification(
             isArrayReceiver: isArrayLikeType(receiverType),
-            // Keep concrete Kotlin collections on their collection-owned paths.
-            // Only exact Iterable and user-defined nominal Iterable implementations
-            // should activate the generic Iterable source extensions.
             isIterableReceiver: isIterableLikeType(receiverType) && !isCollectionType,
             isCollectionReceiver: isCollectionExpr || isCollectionType,
             isSequenceReceiver: isSequenceLikeType(receiverType) || isSyntheticSequenceReceiver,
@@ -73,18 +70,12 @@ struct ReceiverClassifier {
 
     func isArrayLikeType(_ type: TypeID) -> Bool {
         matchesKnownType(type) { knownNames, symbol in
-            // Only the bundled kotlin.<Name> array classes (and fqName-less
-            // synthetic stubs) have the raw-array runtime representation. A
-            // user declaration that shadows the default-imported name keeps
-            // ordinary object semantics (KUU-3615).
             (symbol.fqName.isEmpty
                 || symbol.fqName == [interner.intern("kotlin"), symbol.name])
                 && knownNames.isArrayLikeName(symbol.name)
         }
     }
 
-    /// KIR's concrete-array dispatch predicate has the same intentionally
-    /// name-based behavior as the Sema array receiver classifier.
     func isConcreteArrayLikeType(_ type: TypeID) -> Bool {
         isArrayLikeType(type)
     }
@@ -106,10 +97,6 @@ struct ReceiverClassifier {
         return symbol.fqName == KnownCompilerNames(interner: interner).kotlinxCoroutinesChannelFQName
     }
 
-    /// Returns a Channel-compatible nominal view reached through a type
-    /// parameter's upper bounds. Keep this separate from the exact-receiver
-    /// predicate so existing Channel-specific call fallbacks do not erase the
-    /// type parameter's own member-resolution path.
     func channelUpperBoundType(of type: TypeID) -> TypeID? {
         guard case .typeParam = sema.types.kind(of: type) else {
             return nil
@@ -151,9 +138,6 @@ struct ReceiverClassifier {
         return findChannelBound(type)
     }
 
-    /// Channel's suspend special case must not capture unrelated classes that
-    /// happen to share its simple name. Keep this exact predicate separate from
-    /// the legacy receiver fallback used by the runtime lowering path.
     func isKotlinxCoroutinesChannelType(_ type: TypeID) -> Bool {
         matchesKnownType(type) { knownNames, symbol in
             knownNames.symbolMatches(symbol, fqName: knownNames.kotlinxCoroutinesChannelFQName)
@@ -198,23 +182,14 @@ struct ReceiverClassifier {
                    && Array(symbol.fqName.prefix(2)) == kotlinRangesFQName
            )
         {
-            // Range/progression types have dedicated source-backed owners for
-            // collection HOFs. Do not let their Iterable supertypes reroute
-            // those calls to kotlin.collections.Iterable.
             return false
         }
-        // User-defined classes implementing Iterable must use the generic
-        // Iterable source extensions rather than unresolved member fallbacks.
         guard let iterableSymbol = sema.symbols.lookupNominal(fqName: iterableFQName) else {
             return false
         }
         return sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: iterableSymbol)
     }
 
-    /// KSP-979: Recognize a statically Iterable value and user-defined nominal
-    /// subtypes for the source-backed Iterable index family. Keep the existing
-    /// exact-name classifier unchanged so other collection fast paths do not
-    /// gain new receivers as a side effect.
     func isNominalIterableType(_ type: TypeID) -> Bool {
         guard let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
@@ -233,10 +208,6 @@ struct ReceiverClassifier {
         return sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: iterableSymbol)
     }
 
-    /// BUG-167: True for the `kotlin.collections` iterable *interfaces*, whose
-    /// `iterator()` exists only as a synthetic stub (so Sema binds no loop
-    /// iteration operators) and whose concrete iterator is only known at
-    /// runtime. Concrete types such as `List<T>` are deliberately excluded.
     func isIterableInterfaceType(_ type: TypeID) -> Bool {
         guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
@@ -251,7 +222,6 @@ struct ReceiverClassifier {
         if symbol.fqName.count == 3, Array(symbol.fqName.prefix(2)) == kotlinCollections {
             return interfaceNames.contains(symbol.fqName[2])
         }
-        // Fall back to simple name match only for synthetic symbols (no FQN)
         return symbol.fqName.isEmpty && interfaceNames.contains(symbol.name)
     }
 
@@ -261,12 +231,6 @@ struct ReceiverClassifier {
         }
     }
 
-    /// KUU-3202: a type parameter bounded by `kotlin.sequences.Sequence` erases
-    /// to a real sequence object at runtime, so its unresolved member calls
-    /// must reach the `kk_sequence_*` runtime family. `isSequenceLikeType`
-    /// stays an exact-receiver predicate so other fast paths do not gain new
-    /// receivers; this bound-aware variant resolves type-parameter upper
-    /// bounds (and chained type parameters) through `classTypes`.
     func isSequenceBoundTypeParameterType(_ type: TypeID) -> Bool {
         guard case .typeParam = sema.types.kind(of: sema.types.makeNonNullable(type)) else {
             return false
@@ -278,10 +242,6 @@ struct ReceiverClassifier {
         }
     }
 
-    /// Bound-aware Sequence predicate for overload discrimination: unlike
-    /// `isSequenceLikeType`, this follows nominal subtypes and type-parameter
-    /// upper bounds, so `S : Sequence<T>` and Sequence implementations select
-    /// the Sequence overload instead of falling through to Iterable.
     func isSequenceSubtypeType(_ type: TypeID) -> Bool {
         isNominalSubtypeType(type, fqName: [
             interner.intern("kotlin"),
@@ -290,8 +250,6 @@ struct ReceiverClassifier {
         ])
     }
 
-    /// Bound-aware Iterable predicate matching `isIterableLikeType`'s nominal
-    /// subtype rule without its receiver-path range exclusions.
     func isIterableSubtypeType(_ type: TypeID) -> Bool {
         isNominalSubtypeType(type, fqName: [
             interner.intern("kotlin"),
@@ -331,9 +289,6 @@ struct ReceiverClassifier {
         return isListLikeType(type) && classType.args.count == 1
     }
 
-    /// Exact known-name set matching used by KIR's collection fallback. This
-    /// intentionally does not impose the one-type-argument requirement that
-    /// `isConcreteListLikeType` applies for Sema overload selection.
     func isConcreteCollectionLikeType(_ type: TypeID) -> Bool {
         matchesKnownType(type) { knownNames, symbol in
             knownNames.isCollectionLikeSymbol(symbol)

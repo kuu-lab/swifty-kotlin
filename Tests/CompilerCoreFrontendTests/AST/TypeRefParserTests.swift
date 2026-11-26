@@ -122,10 +122,6 @@ struct TypeRefParserTests {
         #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0024" })
     }
 
-    /// KUU-4109: in type position, `(…)` after an annotation name is the
-    /// function type's parameter list — not the annotation's argument list —
-    /// when whitespace precedes the `(` and its matching `)` is followed
-    /// by `->`.
     @Test(arguments: [
         "@C (navigator: Int) -> Unit",
         "@C () -> Unit",
@@ -158,9 +154,6 @@ struct TypeRefParserTests {
         }
     }
 
-    /// Annotation arguments are still consumed when the matching `)` is not
-    /// followed by `->` — `("a")`/`(x = 1)` are argument lists, then the
-    /// remaining `() -> Unit` is the annotated function type.
     @Test(arguments: [
         ("@T (\"a\") () -> Unit", "\"a\""),
         ("@T (x = 1) () -> Unit", "x=1"),
@@ -191,8 +184,6 @@ struct TypeRefParserTests {
         }
     }
 
-    /// A `(` after the annotation name that opens with `val`/`var` is the
-    /// function type parameter list, never an argument list.
     @Test
     func typeAnnotationBeforeValParameterFunctionTypeParses() throws {
         let lexed = lex("@T (val x: Int) -> Unit")
@@ -217,8 +208,6 @@ struct TypeRefParserTests {
         }
     }
 
-    /// KUU-4109 end-to-end: an annotated function type is a valid typealias
-    /// right-hand side — previously dropped, producing SEMA-0061.
     @Test(arguments: [
         ("AC", "@C (navigator: Int) -> Unit"),
         ("D", "(@C () -> Unit)?"),
@@ -245,11 +234,6 @@ struct TypeRefParserTests {
         }
     }
 
-    /// kotlinc rejects `(...) -> Unit` when the `(` is directly attached to
-    /// the annotation name: the argument list binds to the annotation and
-    /// `->` dangles (whitespace is significant — `@C() -> Unit` fails while
-    /// `@C () -> Unit` parses). A whitespace-separated `("a")` is the
-    /// parameter list instead and fails because a string literal is no type.
     @Test(arguments: [
         "@T (\"a\") -> Unit",
         "@T(\"a\") -> Unit",
@@ -269,9 +253,6 @@ struct TypeRefParserTests {
         #expect(result == nil)
     }
 
-    /// KUU-4107: `suspend` is a type modifier, so annotations may still
-    /// follow it (`suspend @Composable () -> Unit`). The resulting annotated
-    /// function type carries `isSuspend` on the function type itself.
     @Test(arguments: [
         ("suspend @C () -> Unit", "C"),
         ("suspend @C (Int) -> Unit", "C"),
@@ -304,9 +285,6 @@ struct TypeRefParserTests {
         #expect(isSuspend)
     }
 
-    /// KUU-4107: annotations before and after `suspend` both modify the
-    /// function type, so `@C suspend @D () -> Unit` nests two `.annotated`
-    /// layers around the suspend function type.
     @Test
     func suspendModifierBetweenTypeAnnotationsParses() throws {
         let lexed = lex("@C suspend @D () -> Unit")
@@ -337,11 +315,6 @@ struct TypeRefParserTests {
         #expect(isSuspend)
     }
 
-    /// Annotations following `suspend` still must annotate a function type:
-    /// `suspend @C Int` leaves the `@C Int` part unparsed (and thus errors at
-    /// declaration level like `suspend Int` does), while a `(` directly
-    /// attached to the annotation name stays the argument list so the
-    /// trailing `->` dangles — both matching kotlinc.
     @Test(arguments: [
         "suspend @C Int",
         "suspend @C() -> Unit",
@@ -357,8 +330,6 @@ struct TypeRefParserTests {
             options: .declaration,
             diagnostics: lexed.diagnostics
         )
-        // `suspend` alone parses as a named type in these inputs; what must
-        // not happen is consuming the whole source as one type.
         #expect(result == nil || result!.consumed < lexed.tokens.count - 1)
     }
 

@@ -59,8 +59,6 @@ extension BuildKIRRegressionTests {
         )
     }
 
-    /// KSP-617: measureTime* are bundled Kotlin inline functions, no longer a
-    /// KIR special case expanding to paired clock reads.
     @Test func testMeasureTimeCallsLowerToBundledKotlinCallees() throws {
         let source = """
         import kotlin.system.measureNanoTime

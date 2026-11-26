@@ -115,9 +115,6 @@ private func runtimeRangeList(_ elements: [Int]) -> Int {
     registerRuntimeObject(RuntimeListBox(elements: elements))
 }
 
-/// Builds an erased `List<T>` from raw range elements: kinds whose scalar
-/// collides with the null sentinel or loses type identity are boxed so
-/// generic consumers recover the primitive.
 private func runtimeRangeElementList(_ elements: [Int], kind: RuntimeRangeKind) -> Int {
     switch kind {
     case .charRange, .charProgression,
@@ -126,8 +123,6 @@ private func runtimeRangeElementList(_ elements: [Int], kind: RuntimeRangeKind) 
         return runtimeRangeList(elements.map { runtimeRangeErasedElement($0, kind: kind) })
     case .intRange, .intProgression,
          .uintRange, .uintProgression:
-        // `runtimeRangeErasedElement` is the identity for these kinds, so the
-        // map would only allocate a second array to copy the input.
         return runtimeRangeList(elements)
     }
 }
@@ -501,8 +496,6 @@ private func runtimeRangeAverage<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ rang
 
 private func runtimeRangeSorted<Kind: RuntimeRangeHOFKind>(_: Kind.Type, _ range: RuntimeRangeBox) -> Int {
     var elements = runtimeRangeValues(Kind.self, range)
-    // Traversal yields the progression monotonically: ascending for a
-    // positive step, descending for a negative step.
     if range.step < 0 {
         elements.reverse()
     }
@@ -623,7 +616,6 @@ extension RuntimeRangeHOFKind {
         isEmpty(range) ? runtimeNullSentinelInt : runtimeRangeErasedElement(range.last, kind: range.kind)
     }
 
-    /// `Progression.first()` / `last()`: throw on empty, unlike the `first`/`last` properties.
     static func firstOrLastOrThrow(
         _ range: RuntimeRangeBox,
         wantLast: Bool,
@@ -712,8 +704,6 @@ func runtimeRangeChunkedEntry<Kind: RuntimeRangeHOFKind>(
     _ outThrown: UnsafeMutablePointer<Int>?,
     functionName: String
 ) -> Int {
-    // The invalid-size path returns an empty list box alongside the
-    // exception, so the error write stays manual inside the bridge closure.
     return runtimeThrowingBridge(outThrown) {
         guard size > 0 else {
             outThrown?.pointee = runtimeAllocateIllegalArgumentException(

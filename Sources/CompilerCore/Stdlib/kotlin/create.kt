@@ -7,10 +7,6 @@
 
 package kotlin
 
-/**
- * The runtime stores the Throwable directly in its Result failure box, so no
- * separate Kotlin marker object is needed here.
- */
 @PublishedApi
 @SinceKotlin("1.3")
 internal fun createFailure(exception: Throwable): Any = exception

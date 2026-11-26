@@ -1,11 +1,5 @@
 import Foundation
 
-//
-// Encode/decode/padding logic now lives in pure Kotlin
-// (Sources/CompilerCore/Stdlib/kotlin/io/encoding/Base64.kt). Only the
-// OutputStream.encodingWith stream wrapper stays as a runtime bridge, since it
-// wraps a stateful native OutputStream sink that Kotlin has no direct handle to.
-
 private func base64StringFromRaw(_ raw: Int) -> String? {
     if raw == runtimeNullSentinelInt { return nil }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
@@ -51,13 +45,13 @@ final class RuntimeBase64EncodingOutputStreamSink: RuntimeOutputStreamSink {
             if pending.count == 1 {
                 encoded.append(alphabet[Int(b0 >> 2)])
                 encoded.append(alphabet[Int((b0 & 0x03) << 4)])
-                if addPadding { encoded += [0x3D, 0x3D] } // ==
+                if addPadding { encoded += [0x3D, 0x3D] }
             } else {
                 let b1 = pending[1]
                 encoded.append(alphabet[Int(b0 >> 2)])
                 encoded.append(alphabet[Int(((b0 & 0x03) << 4) | (b1 >> 4))])
                 encoded.append(alphabet[Int((b1 & 0x0F) << 2)])
-                if addPadding { encoded.append(0x3D) } // =
+                if addPadding { encoded.append(0x3D) }
             }
             pending = []
             try downstream.write(Data(encoded))
@@ -66,7 +60,6 @@ final class RuntimeBase64EncodingOutputStreamSink: RuntimeOutputStreamSink {
     }
 
     func close() {
-        // Best-effort flush; ignore errors on close
         try? flush()
         downstream.close()
     }
@@ -88,10 +81,6 @@ private func makeBase64EncodingOutputStream(
     return RuntimeOutputStreamBox(sink: sink)
 }
 
-/// The alphabet and padding decision are computed Kotlin-side (from the
-/// `Base64` instance's `alphabetChars`) and passed as primitives, since the
-/// `Base64` instance itself is now a plain Kotlin object with no Swift-side
-/// boxed representation.
 @_cdecl("__kk_output_stream_encodingWith")
 public func kk_output_stream_encodingWith(_ streamRaw: Int, _ alphabetRaw: Int, _ addPaddingRaw: Int) -> Int {
     let alphabet = Array((base64StringFromRaw(alphabetRaw) ?? "").utf8)

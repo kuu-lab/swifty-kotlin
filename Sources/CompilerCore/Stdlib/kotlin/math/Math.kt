@@ -5,11 +5,6 @@ import kotlin.comparisons.minOf
 import kotlin.fromBits
 import kotlin.internal.KsSymbolName
 
-// KSP-635
-// The floating-point min/max delegate to kotlin.comparisons.maxOf/minOf, which
-// already own the NaN propagation and signed-zero ordering contract; everything
-// else is expressible without touching the runtime.
-
 @SinceKotlin("1.2")
 public const val PI: Double = 3.141592653589793
 @SinceKotlin("1.2")
@@ -34,9 +29,6 @@ public val Long.absoluteValue: Long get() = abs(this)
 public val Double.absoluteValue: Double get() = abs(this)
 
 public val Float.absoluteValue: Float get() = abs(this)
-
-// NaN falls through to the final branch and is returned as-is, and ±0.0 keeps
-// its own sign, as specified for Math.signum.
 
 public fun sign(x: Double): Double = if (x > 0.0) 1.0 else if (x < 0.0) -1.0 else x
 
@@ -73,12 +65,6 @@ public fun min(a: Double, b: Double): Double = minOf(a, b)
 public fun min(a: UInt, b: UInt): UInt = minOf(a, b)
 
 public fun min(a: ULong, b: ULong): ULong = minOf(a, b)
-
-// KSP-636
-// Rounding functions still need libm/Foundation, so they are exposed as
-// internal __kk_math_* runtime bridges. withSign is pure bit manipulation on
-// top of Double/Float.toRawBits and Double/Float.fromBits, so it lives fully
-// in Kotlin.
 
 @KsSymbolName("__kk_math_ceil")
 internal external fun __kkMathCeil(x: Double): Double
@@ -128,11 +114,6 @@ public fun Float.withSign(sign: Float): Float {
 public fun Float.withSign(sign: Int): Float =
     if (sign < 0) -abs(this) else abs(this)
 
-// KSP-637 & KSP-638
-// Keeping the bridge declarations private to the bundled source prevents the
-// native ABI names from becoming public stdlib symbols while preserving the
-// platform math implementation and its edge cases.
-//
 // The native implementations of roundToInt / roundToLong / ulp / nextUp /
 // nextDown remain bridges because rounding must preserve Kotlin's NaN
 // exception and saturation contract, while the precision helpers operate on
