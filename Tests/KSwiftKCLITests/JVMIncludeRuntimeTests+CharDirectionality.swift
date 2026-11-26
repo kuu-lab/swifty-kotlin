@@ -32,7 +32,11 @@ extension JVMIncludeRuntimeTests {
         let java = CommandRunner.resolveExecutable("java", fallback: "/usr/bin/java")
         let result = try CommandRunner.run(executable: java, arguments: ["-Xverify:all", "-jar", runnableJAR.path], timeout: 20)
         #expect(result.stdout == "LEFT_TO_RIGHT:13\nUNDEFINED\nDirectionality #19 is not defined.\nDirectionality #22 is not defined.\ntrue\n20\n")
-        #expect(result.stderr.isEmpty)
+        var stderr = result.stderr
+        if let options = ProcessInfo.processInfo.environment["JDK_JAVA_OPTIONS"] {
+            stderr = stderr.replacingOccurrences(of: "NOTE: Picked up JDK_JAVA_OPTIONS: \(options)\n", with: "")
+        }
+        #expect(stderr.isEmpty)
     }
 }
 #endif
