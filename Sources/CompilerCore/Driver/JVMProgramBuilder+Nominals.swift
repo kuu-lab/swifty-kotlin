@@ -407,6 +407,7 @@ extension JVMProgramBuilder {
                     duplicate.isDeprecated = field.isDeprecated
                     property.field = duplicate
                 } else {
+                    property.relocatedField = field
                     property.field = nil
                 }
                 return property

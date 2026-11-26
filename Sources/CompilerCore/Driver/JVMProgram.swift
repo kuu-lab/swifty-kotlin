@@ -331,6 +331,7 @@ public struct JVMProperty {
     public var fieldGenericSignature: String? = nil
     public var receiverGenericSignature: String? = nil
     public var delegateField: JVMField? = nil
+    public var relocatedField: JVMField? = nil
     public var delegateSymbol: SymbolID? = nil
     public var annotationsMethod: JVMForeignMethod? = nil
     public var customGetter: Bool = false

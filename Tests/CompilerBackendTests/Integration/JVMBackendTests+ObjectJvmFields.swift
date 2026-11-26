@@ -206,6 +206,33 @@ extension JVMBackendTests {
     }
 
     @Test
+    func privateCompanionConstantCollisionKeepsReflectionFieldSignature() throws {
+        let library = try ownStdlibLibrary()
+        try withWorkspace { root in
+            let source = """
+            class Holder {
+                @JvmField var x: String = "a"
+                companion object {
+                    private const val x: Int = 2
+                    fun readReflected(): Any? {
+                        val property = Holder.Companion::class.members.first { it.name == "x" } as kotlin.reflect.KProperty1<Holder.Companion, Any?>
+                        return property.get(this)
+                    }
+                }
+            }
+            fun main() {
+                println(Holder.readReflected())
+            }
+            """
+            let app = try m22Build(root: root, sources: [("hello.kt", source)], name: "app.jar", mode: .jvmJar, classpath: [library.path])
+            try #require(app.1 == 0, "\(app.2.map(\.message))")
+            let result = try java(["-cp", app.0.path + ":" + library.path, "HelloKt"])
+            #expect(result.stdout == "2\n")
+            #expect(result.stderr.isEmpty)
+        }
+    }
+
+    @Test
     func rejectsExposedJvmFieldPlatformClash() throws {
         let source = """
         class Holder {
