@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val text = "Hello\nWorld"
     val block = "\n    Hello\n      World\n"

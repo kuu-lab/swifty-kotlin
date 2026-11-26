@@ -580,8 +580,7 @@ extension KotlinParser {
             let body = parseEnumBody()
             children.append(.node(body))
             range.append(childRange(.node(body)))
-        } else if parseEnumHeaderTail(into: &children, range: &range) {
-        } else {
+        } else if !parseEnumHeaderTail(into: &children, range: &range) {
             parseTail(inBlock: false, into: &children, range: &range)
         }
 

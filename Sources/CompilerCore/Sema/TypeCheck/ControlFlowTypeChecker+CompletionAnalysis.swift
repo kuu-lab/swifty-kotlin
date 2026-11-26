@@ -47,6 +47,11 @@ extension ControlFlowTypeChecker {
                 {
                     return true
                 }
+                if let inlinedLambda,
+                   statementMayReturnToLambda(statement, lambda: inlinedLambda, ctx: ctx)
+                {
+                    return true
+                }
                 if !completes(statement) { return false }
             }
             return trailingExpr.map(completes) ?? true
@@ -119,6 +124,22 @@ extension ControlFlowTypeChecker {
             }
         }
         return false
+    }
+
+    private func statementMayReturnToLambda(
+        _ statement: ExprID,
+        lambda: ExprID,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        guard let statementRange = ctx.ast.arena.exprRange(statement) else { return false }
+        return ctx.sema.bindings.lambdaReturnTargets.contains { returnID, target in
+            guard target == lambda,
+                  let range = ctx.ast.arena.exprRange(returnID),
+                  range.start.file == statementRange.start.file
+            else { return false }
+            return range.start.offset >= statementRange.start.offset
+                && range.end.offset <= statementRange.end.offset
+        }
     }
 
     private func hasGuaranteedNonCompletingInlineLambda(

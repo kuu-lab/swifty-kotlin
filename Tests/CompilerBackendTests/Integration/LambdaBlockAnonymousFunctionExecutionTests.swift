@@ -44,8 +44,6 @@ struct LambdaBlockAnonymousFunctionExecutionTests {
 
     @Test
     func bundledSourceAtO0MatchesKotlin() throws {
-        // KUU-2241 tracks a separate high-arity function-invoke LLVM verifier
-        // failure in bundled-source O2 builds; keep this source-mode check at O0.
         try assertMatchesKotlin(fromSource: true, optimization: 0)
     }
 

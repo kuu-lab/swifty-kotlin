@@ -54,9 +54,6 @@ struct CodegenBackendUsePinnedNonLocalReturnTests {
         #expect(result.stdout == Self.expected, Comment(rawValue: "\(route) O\(optimization):\n\(result.stdout)"))
     }
 
-    /// Count actual cleanup executions, then forward to the real runtime unpin.
-    /// Runtime unpin is idempotent, so probing a disposed handle alone cannot
-    /// distinguish exactly one cleanup from an accidental double cleanup.
     private static func instrumentUnpin(_ ctx: CompilationContext) throws {
         let sema = try #require(ctx.sema)
         let kir = try #require(ctx.kir)

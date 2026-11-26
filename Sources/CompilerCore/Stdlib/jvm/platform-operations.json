@@ -203,6 +203,13 @@
     "kind": "static"
   },
   {
+    "symbol": "__jvmDirectionality",
+    "owner": "java/lang/Character",
+    "name": "getDirectionality",
+    "descriptor": "(C)B",
+    "kind": "static"
+  },
+  {
     "symbol": "__jvmIsUpperCase",
     "owner": "java/lang/Character",
     "name": "isUpperCase",

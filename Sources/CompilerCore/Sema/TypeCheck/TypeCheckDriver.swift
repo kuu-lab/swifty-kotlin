@@ -7,6 +7,8 @@ struct LocalBindings: ExpressibleByDictionaryLiteral, Sequence {
     var delegatedLocalSymbols: Set<SymbolID> = []
     var variableFacts: [SymbolID: DataFlowValueFacts] = [:]
     var invalidatedVariableFacts: Set<SymbolID> = []
+    var possiblyAssignedVals: Set<SymbolID> = []
+    var safeCallArgumentInitializations: [ExprID: Set<SymbolID>] = [:]
     var preservesShadowedBindings = false
 
     init(dictionaryLiteral elements: (InternedString, Value)...) {

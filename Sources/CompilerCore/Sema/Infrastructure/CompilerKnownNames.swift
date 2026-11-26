@@ -593,6 +593,7 @@ package struct KnownCompilerNames {
     package let kotlinLengthGetFQName: [InternedString]
     let kotlinTextRegexCompanionFQName: [InternedString]
     let kotlinTextRegexOptionFQName: [InternedString]
+    let kotlinTextCharDirectionalityFQName: [InternedString]
     let kotlinTextMatchResultFQName: [InternedString]
     let kotlinCollectionsListIteratorFQName: [InternedString]
     let kotlinCollectionsFillFQName: [InternedString]
@@ -600,6 +601,7 @@ package struct KnownCompilerNames {
     let kotlinCoroutinesContinuationInterceptorKeyFQName: [InternedString]
     let kotlinCoroutinesCoroutineContextElementFQName: [InternedString]
     let kotlinCoroutinesEmptyCoroutineContextFQName: [InternedString]
+    let kotlinCoroutinesIntrinsicsCoroutineSuspendedFQName: [InternedString]
     package let kotlinxCoroutinesCoroutineDispatcherFQName: [InternedString]
     let kotlinxCoroutinesBroadcastChannelFQName: [InternedString]
     let kotlinxCoroutinesFlowPackageFQName: [InternedString]
@@ -1254,6 +1256,7 @@ package struct KnownCompilerNames {
         kotlinLengthGetFQName = ["kotlin", "length", "$get"].map(interner.intern)
         kotlinTextRegexCompanionFQName = [kotlin, kotlinText, regex, interner.intern("Companion")]
         kotlinTextRegexOptionFQName = [kotlin, kotlinText, interner.intern("RegexOption")]
+        kotlinTextCharDirectionalityFQName = [kotlin, kotlinText, interner.intern("CharDirectionality")]
         kotlinTextMatchResultFQName = [kotlin, kotlinText, interner.intern("MatchResult")]
         kotlinCollectionsListIteratorFQName = [kotlin, kotlinCollections, interner.intern("ListIterator")]
         kotlinCollectionsFillFQName = [kotlin, kotlinCollections, interner.intern("fill")]
@@ -1261,6 +1264,7 @@ package struct KnownCompilerNames {
         kotlinCoroutinesContinuationInterceptorKeyFQName = ["kotlin", "coroutines", "ContinuationInterceptor", "Key"].map(interner.intern)
         kotlinCoroutinesCoroutineContextElementFQName = ["kotlin", "coroutines", "CoroutineContext", "Element"].map(interner.intern)
         kotlinCoroutinesEmptyCoroutineContextFQName = ["kotlin", "coroutines", "EmptyCoroutineContext"].map(interner.intern)
+        kotlinCoroutinesIntrinsicsCoroutineSuspendedFQName = ["kotlin", "coroutines", "intrinsics", "COROUTINE_SUSPENDED"].map(interner.intern)
         kotlinxCoroutinesCoroutineDispatcherFQName = ["kotlinx", "coroutines", "CoroutineDispatcher"].map(interner.intern)
         kotlinxCoroutinesBroadcastChannelFQName = ["kotlinx", "coroutines", "channels", "BroadcastChannel"].map(interner.intern)
         kotlinxCoroutinesFlowPackageFQName = ["kotlinx", "coroutines", "flow"].map(interner.intern)

@@ -73,10 +73,6 @@ extension JVMBackendTests {
 
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func takeUnlessEarlyReturnInsideTryReadsFinallyAssignment(mode: EmitMode) throws {
-        // The empty receiver takes the labeled return inside try, so this
-        // exercises the early-return path at runtime: finally still assigns
-        // and the read afterwards observes it. Stock kotlinc prints a blank
-        // line then 11; kswiftc must produce the same output.
         let source = """
         fun main() {
             var e: Int
@@ -104,12 +100,6 @@ extension JVMBackendTests {
 
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func contractLambdaReturnInsideTryFinallyKeepsDefiniteAssignment(mode: EmitMode) throws {
-        // buildList ships a callsInPlace(EXACTLY_ONCE) contract on master. A
-        // labeled return inside try-with-finally must keep master's
-        // fall-through definite-assignment behavior: the return-path tracking
-        // added for takeUnless cannot see finally's effects and must not
-        // reject this valid program. Compile-only: the JVM test artifact does
-        // not bundle kotlin.collections.CollectionsKt for execution.
         let source = """
         fun main() {
             var x: Int
@@ -132,9 +122,6 @@ extension JVMBackendTests {
 
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func takeUnlessContractRejectsUninitializedReadsLikeKotlinc(mode: EmitMode) throws {
-        // Stock kotlinc rejects definite assignment through a safe call (the
-        // lambda may never run) and through a labeled return that skips the
-        // assignment; kswiftc must reject the same programs.
         let safeCall = """
         fun main() {
             var x: Int
@@ -150,8 +137,6 @@ extension JVMBackendTests {
             println(x)
         }
         """
-        // A return inside finally completes the lambda before finally's
-        // remaining assignments, so x may still be uninitialized.
         let finallyReturn = """
         fun main() {
             var x: Int
@@ -167,9 +152,6 @@ extension JVMBackendTests {
             println(x)
         }
         """
-        // A safe call in finally may skip its lambda entirely, so an
-        // assignment that only happens inside its argument is conditional;
-        // kotlinc rejects the read.
         let finallySafeCall = """
         fun main() {
             var x: Int

@@ -676,8 +676,9 @@ struct JVMClassReader {
            methods.contains(where: { $0.isConstructor && !$0.parameters.isEmpty }),
            let constructors = try? metadata.constructorParameterNames(byteLimit: bytes.count) {
             for index in methods.indices where methods[index].isConstructor {
-                if let names = constructors[methods[index].descriptor], names.count == methods[index].parameters.count {
-                    methods[index].kotlinConstructorParameterNames = names
+                if let entry = constructors[methods[index].descriptor], entry.names.count == methods[index].parameters.count {
+                    methods[index].kotlinConstructorParameterNames = entry.names
+                    methods[index].kotlinConstructorParameterSourceTypes = entry.sourceTypes
                 }
             }
         }
@@ -727,13 +728,22 @@ struct JVMClassReader {
             for index in methods.indices {
                 let method = methods[index]
                 let isSuspend = method.kotlinSuspendFunction != nil
-                guard (metadata.isFileFacade == true && method.isStatic) || Self.hasFunctionTypeDescriptor(method) || !method.isStatic,
+                guard ((metadata.isFileFacade == true || hasValueAdapters) && method.isStatic) || Self.hasFunctionTypeDescriptor(method) || !method.isStatic,
                       let function = functions.first(where: { candidate in
                           if let parameters = candidate.valueOperatorParameterDescriptors {
-                              return method.isStatic && method.parameters.count == parameters.count + 1
+                              return candidate.isSuspend == isSuspend && (candidate.jvmName ?? candidate.name) == method.name
+                                  && candidate.descriptor == method.descriptor && method.isStatic
+                                  && method.parameters.count == parameters.count + 1
+                                  && method.parameters.first?.descriptor == valueCarrier?.descriptor
+                          }
+                          if let parameters = candidate.valueMemberParameterDescriptors {
+                              return candidate.isSuspend == isSuspend && (candidate.jvmName ?? candidate.name) == method.name
+                                  && candidate.descriptor == method.descriptor && method.isStatic
+                                  && method.parameters.count == parameters.count + 1
                                   && method.parameters.first?.descriptor == valueCarrier?.descriptor
                           }
                           return candidate.isSuspend == isSuspend
+                              && candidate.valueOperatorParameterDescriptors == nil && candidate.valueMemberParameterDescriptors == nil
                               && (metadata.isFileFacade == true && method.isStatic || Self.hasFunctionTypeDescriptor(method)
                                   || method.composeABI(for: candidate) != nil
                                   || typedFlowMemberNames.contains(method.name) && candidate.descriptor == method.descriptor

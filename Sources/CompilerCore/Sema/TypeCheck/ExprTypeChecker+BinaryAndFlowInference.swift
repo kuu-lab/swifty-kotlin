@@ -305,6 +305,22 @@ extension ExprTypeChecker {
                     lhsID, base: base, locals: locals, ast: ast, sema: sema, interner: interner
                 )
                 applyFlowStateToLocals(narrowed, locals: &locals, sema: sema)
+                // Only the non-null path continues, and it evaluated the safe
+                // call's arguments, so their initializations are definite again.
+                var initialized: Set<SymbolID> = []
+                var chain: ExprID? = lhsID
+                var visitedChain: Set<ExprID> = []
+                while let current = chain, visitedChain.insert(current).inserted {
+                    initialized.formUnion(locals.safeCallArgumentInitializations[current] ?? [])
+                    if case let .safeMemberCall(receiver, _, _, _, _) = ast.arena.expr(current) {
+                        chain = receiver
+                    } else {
+                        chain = nil
+                    }
+                }
+                for (name, local) in locals where initialized.contains(local.symbol) && !local.isInitialized {
+                    locals[name] = (local.type, local.symbol, local.isMutable, true)
+                }
             }
             rhs = driver.helpers.retypeClassNameAsCompanionValue(
                 rhsID, currentType: rhs, ast: ast, sema: sema

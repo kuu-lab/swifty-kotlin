@@ -3,6 +3,7 @@
   "commonSources": [
     "kotlin/Pair/Pair.kt",
     "kotlin/Function.kt",
+    "kotlin/ExperimentalStdlibApi.kt",
     "kotlin/IgnorableReturnValue.kt",
     "kotlin/Unit.kt",
     "kotlin/annotations/ExperimentalUnsignedTypes.kt",
@@ -11,7 +12,8 @@
     "kotlin/time/DurationEncoding.kt",
     "kotlin/time/DurationUnit.kt",
     "kotlin/time/InstantFormatting.kt",
-    "kotlin/time/InstantParsing.kt"
+    "kotlin/time/InstantParsing.kt",
+    "kotlin/text/CharDirectionality/CharDirectionality.kt"
   ],
   "declarations": [
     {
@@ -30,6 +32,12 @@
     {
       "path": "kotlin/time/DurationUnit.kt",
       "virtualPath": "<kswiftk-jvm>/durationUnit.kt",
+      "excludeFromStdlibBuild": true,
+      "commonSource": true
+    },
+    {
+      "path": "kotlin/text/CharDirectionality/CharDirectionality.kt",
+      "virtualPath": "<kswiftk-jvm>/char-directionality.kt",
       "excludeFromStdlibBuild": true,
       "commonSource": true
     },
@@ -181,6 +189,12 @@
       "onlyForStdlibBuild": true
     },
     {
+      "path": "declarations/DeepRecursive.kt",
+      "virtualPath": "<kswiftk-jvm>/deep-recursive.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/DeepRecursiveKt"
+    },
+    {
       "path": "declarations/Delegates.kt",
       "virtualPath": "<kswiftk-jvm>/delegates.kt",
       "excludeFromStdlibBuild": true
@@ -259,6 +273,12 @@
       "path": "declarations/Scalars.kt",
       "virtualPath": "<kswiftk-jvm>/scalars.kt",
       "excludeFromStdlibBuild": false
+    },
+    {
+      "path": "kotlin/UnsignedConstructors.kt",
+      "virtualPath": "<kswiftk-jvm>/unsigned-constructors.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/UnsignedConstructorsKt"
     },
     {
       "path": "declarations/Text.kt",
@@ -504,6 +524,12 @@
       "runtimeFacade": "kotlin/collections/ArraysKt"
     },
     {
+      "path": "declarations/ArrayFlatten.kt",
+      "virtualPath": "<kswiftk-jvm>/array-flatten.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/ArraysKt"
+    },
+    {
       "path": "declarations/ArrayWithIndex.kt",
       "virtualPath": "<kswiftk-jvm>/array-with-index.kt",
       "excludeFromStdlibBuild": true,
@@ -717,6 +743,12 @@
       "runtimeFacade": "kotlin/collections/CollectionsKt"
     },
     {
+      "path": "declarations/SequenceNullability.kt",
+      "virtualPath": "<kswiftk-jvm>/sequence-nullability.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/sequences/SequencesKt"
+    },
+    {
       "path": "declarations/MapsOperators.kt",
       "virtualPath": "<kswiftk-jvm>/map-operators.kt",
       "excludeFromStdlibBuild": true,
@@ -749,6 +781,12 @@
     {
       "path": "declarations/GroupingEachCount.kt",
       "virtualPath": "<kswiftk-jvm>/grouping-each-count.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/GroupingKt"
+    },
+    {
+      "path": "declarations/GroupingFoldTo.kt",
+      "virtualPath": "<kswiftk-jvm>/grouping-fold-to.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/collections/GroupingKt"
     },

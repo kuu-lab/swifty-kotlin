@@ -121,7 +121,7 @@ extension JVMFunctionBuilder {
             let object = try requireValue(receiver), function = try requireValue(callee)
             var values = [object]
             for arg in args { values.append(try requireValue(arg.expr)) }
-            return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id)))
+            return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id), at: id))
         }
         if let bound = program.sema.bindings.callableValueCallBinding(for: id),
            case let .localValue(symbol) = bound.target,
@@ -131,13 +131,13 @@ extension JVMFunctionBuilder {
             let function = try readProperty(property, receiver: object, at: id, special: isSuper(receiver), superReceiver: receiver)
             var values: [JVMValue] = signature.receiver != nil && args.count == signature.params.count ? [object] : []
             for arg in args { values.append(try requireValue(arg.expr)) }
-            return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id)))
+            return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id), at: id))
         }
         if let bound = program.sema.bindings.invokeOperatorPropertyCalls[id], let property = program.properties[bound.property], case let .functionType(signature) = program.sema.types.kind(of: bound.propertyType) {
             let function = try readProperty(property, receiver: requireValue(receiver), at: id, special: false)
             var values: [JVMValue] = []
             for arg in args { values.append(try requireValue(arg.expr)) }
-            return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id)))
+            return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id), at: id))
         }
         if let bound = program.sema.bindings.callableValueCallBinding(for: id),
            case let .localValue(symbol) = bound.target,

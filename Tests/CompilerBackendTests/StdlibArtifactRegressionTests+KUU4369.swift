@@ -4,7 +4,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-4369: missing java.time values and typed java.nio buffers work through a fresh stdlib artifact.
     @Test
     func testJavaTimeAndNioGapTypesThroughFreshLibrary() throws {
         let directory = FileManager.default.temporaryDirectory

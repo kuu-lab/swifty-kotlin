@@ -112,15 +112,21 @@ extension JVMFunctionBuilder {
             }
         }
         let sourceBacked = program.inlineDeclarations[symbol] != nil ? program.textLibraryMethods[symbol] : nil
-        let method = program.methods[symbol] ?? context.jvmImports?.method(for: symbol) ?? sourceBacked?.method ?? throwableJDKReferenceMethod(for: symbol)
+        let collectionMethod = program.collectionInterfaceMethods[symbol]
+        let supportedCollectionReference = collectionMethod?.owner == "java/util/Map" && collectionMethod?.name == "putIfAbsent"
+        let method = program.methods[symbol] ?? (supportedCollectionReference ? collectionMethod : nil) ?? context.jvmImports?.method(for: symbol) ?? sourceBacked?.method ?? throwableJDKReferenceMethod(for: symbol)
         let ref = program.references[symbol]
         guard method != nil || ref != nil else { throw fail("Unsupported JVM callable reference target.", id) }
         let constructor = method?.isConstructor == true
         let isExtension = program.extensionSymbols.contains(symbol) || context.jvmImports?.extensionSymbols.contains(symbol) == true || sourceBacked?.extensionReceiver != nil
         let ownerName = ref?.owner ?? method!.owner
-        let staticTarget = ref != nil || method?.isStatic == true
-        let bound = !unbound && !constructor && (!staticTarget || isExtension) ? try receiver.map(requireValue) ?? instance(id) : nil
-        let params = ref?.parameters ?? method!.parameters
+        let valueMember = ref == nil && method?.isStatic == true && method?.kotlinFunction?.valueMemberParameterDescriptors != nil
+        let staticTarget = !valueMember && (ref != nil || method?.isStatic == true)
+        var bound = !unbound && !constructor && (!staticTarget || isExtension) ? try receiver.map(requireValue) ?? instance(id) : nil
+        if valueMember, let captured = bound, let method {
+            bound = try convert(captured, to: .reference(method.owner, nullable: false))
+        }
+        let params = ref?.parameters ?? (valueMember ? Array(method!.parameters.dropFirst()) : method!.parameters)
         let suspended = ref?.isSuspend ?? method?.isSuspend ?? false
         let arity = params.count + (!staticTarget && !constructor && bound == nil ? 1 : 0) - (staticTarget && isExtension && bound != nil ? 1 : 0) + (suspended ? 1 : 0)
         guard arity <= 22 else { throw fail("JVM callable reference arity exceeds 22.", id) }
