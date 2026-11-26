@@ -562,9 +562,10 @@ extension JVMFunctionBuilder {
             }
             let invocationOwner = directSuperOwner ?? owner
             let receiverValue = try requireValue(receiverID)
-            let source = directSuperOwner == nil
-                ? try convert(receiverValue, to: .reference(invocationOwner, nullable: false))
-                : receiverValue
+            let isSuperCall = isSuper(receiverID)
+            let source = isSuperCall
+                ? receiverValue
+                : try convert(receiverValue, to: .reference(invocationOwner, nullable: false))
             let result = try program.expressionType(id)
             if member == "forEach", owner == "java/util/Map" {
                 guard args.count == 1, !args[0].isSpread,
@@ -759,7 +760,7 @@ extension JVMFunctionBuilder {
                     return value
                 }
             }
-            let value = try jdkCall(invocationOwner, actual, parameters, returns, receiver: source, arguments: invocationArguments, interface: directSuperOwner == nil, special: directSuperOwner != nil, resolved: result == .unit ? returns : result)
+            let value = try jdkCall(invocationOwner, actual, parameters, returns, receiver: source, arguments: invocationArguments, interface: directSuperOwner == nil, special: isSuperCall, resolved: result == .unit ? returns : result)
             return JVMIntrinsicResult(value: result == .unit ? nil : value)
         }
         if owner == "kotlin/Pair", ["first", "second"].contains(member) {
