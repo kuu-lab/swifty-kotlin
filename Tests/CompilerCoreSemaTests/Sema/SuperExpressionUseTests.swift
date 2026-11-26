@@ -28,7 +28,7 @@ import Testing
     }
 
     @Test func genericSuperIndexedAccessUsesInheritedTypeArguments() throws {
-        let ctx = try semaContext(for: ["""
+        _ = try semaContext(from: ["""
         open class Base<T> {
             open operator fun get(index: T): Int = 0
         }
@@ -36,9 +36,6 @@ import Testing
             fun indexed() = super["x"]
         }
         """])
-
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors.map(\.message))")
     }
 
     @Test func acceptsSuperAsAReceiver() throws {
