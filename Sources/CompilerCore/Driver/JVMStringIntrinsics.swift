@@ -115,18 +115,11 @@ extension JVMFunctionBuilder {
         let binding = program.sema.bindings.callBinding(for: id)
         let signature = binding.flatMap { program.sema.symbols.functionSignature(for: $0.chosenCallee) }
         let signatureTypes = try signature?.parameterTypes.map(program.type)
-        let candidates = JVMTextOperation.operations.filter { op in
-            guard op.name == name else { return false }
-            if op.receiver == "CharArray" { return type.referenceName == "[C" }
-            return type.isCharSequence && (type.referenceName == "java/lang/String" || op.receiver == "CharSequence")
-        }
-        let operation = candidates.first { op in
-            guard let signatureTypes else { return op.parameters.count == args.count && !op.parameters.contains(where: \.variadic) }
-            guard signatureTypes.count == op.parameters.count else { return false }
-            return zip(signatureTypes, op.parameters).allSatisfy { actual, parameter in
-                actual.descriptor == parameter.type.descriptor || parameter.variadic && actual.descriptor == "[" + parameter.type.descriptor
-            }
-        } ?? candidates.first { op in
+        let candidates = textOperationCandidates(name, receiver: type)
+        let exact: JVMTextOperation?
+        if let signatureTypes { exact = exactTextOperation(candidates, parameterTypes: signatureTypes) }
+        else { exact = candidates.first { $0.parameters.count == args.count && !$0.parameters.contains(where: \.variadic) } }
+        let operation = exact ?? candidates.first { op in
             var supplied: Set<Int> = []
             for (i, arg) in args.enumerated() {
                 let index = arg.label.flatMap { label in op.parameters.firstIndex { $0.name == context.interner.resolve(label) } } ?? op.parameters.firstIndex(where: \.variadic) ?? i
@@ -144,22 +137,56 @@ extension JVMFunctionBuilder {
         }
         let source = try loadReceiver()
         let values = try textArguments(op, args: args, binding: binding, source: source, id: id)
+        return JVMIntrinsicResult(value: try emitTextOperation(op, source: source, values: values))
+    }
+
+    /// Table operations a `name` call on a `type` receiver may select.
+    func textOperationCandidates(_ name: String, receiver type: JVMValueType) -> [JVMTextOperation] {
+        JVMTextOperation.operations.filter { op in
+            guard op.name == name else { return false }
+            if op.receiver == "CharArray" { return type.referenceName == "[C" }
+            return type.isCharSequence && (type.referenceName == "java/lang/String" || op.receiver == "CharSequence")
+        }
+    }
+
+    func exactTextOperation(_ candidates: [JVMTextOperation], parameterTypes: [JVMValueType]) -> JVMTextOperation? {
+        candidates.first { op in
+            guard parameterTypes.count == op.parameters.count else { return false }
+            return zip(parameterTypes, op.parameters).allSatisfy { actual, parameter in
+                actual.descriptor == parameter.type.descriptor || parameter.variadic && actual.descriptor == "[" + parameter.type.descriptor
+            }
+        }
+    }
+
+    /// The declared name of a JVM text stub callee. An aliased import
+    /// (`import kotlin.text.endsWith as ew`) leaves the call-site name
+    /// outside the operation table, so lookups go through the declaration
+    /// the call resolved to instead (KUU-4733).
+    func textStubName(_ symbol: SymbolID) -> String? {
+        guard let declared = program.sema.symbols.symbol(symbol), let site = declared.declSite,
+              context.sourceManager.path(of: site.start.file).hasPrefix("<kswiftk-jvm>/") else { return nil }
+        return context.interner.resolve(declared.name)
+    }
+
+    /// Emits `op` on `source` with fully assembled, parameter-ordered `values`.
+    func emitTextOperation(_ op: JVMTextOperation, source: JVMValue, values: [JVMValue]) throws -> JVMValue {
+        let name = op.name
         if ["isEmpty", "isNotEmpty"].contains(name) {
-            let result = try value(.boolean); instructions.append(.binary(name == "isEmpty" ? .equal : .notEqual, try textLength(source), try constant(.int(0), .int), result)); return JVMIntrinsicResult(value: result)
+            let result = try value(.boolean); instructions.append(.binary(name == "isEmpty" ? .equal : .notEqual, try textLength(source), try constant(.int(0), .int), result)); return result
         }
         if name == "isNotBlank" {
             let result = try jdkCall(op.owner, "isBlank", [op.receiverType], .boolean, arguments: [source])!
-            instructions.append(.unary(.not, result, result)); return JVMIntrinsicResult(value: result)
+            instructions.append(.unary(.not, result, result)); return result
         }
         if name == "uppercase" || name == "lowercase" {
             let locale = try value(.reference("java/util/Locale", nullable: false))
             instructions.append(.getStatic(JVMField(owner: "java/util/Locale", name: "ROOT", type: locale.type, access: 0x19), locale))
-            return JVMIntrinsicResult(value: try jdkCall("java/lang/String", name == "uppercase" ? "toUpperCase" : "toLowerCase", [locale.type], .string, receiver: source, arguments: [locale]))
+            return try jdkCall("java/lang/String", name == "uppercase" ? "toUpperCase" : "toLowerCase", [locale.type], .string, receiver: source, arguments: [locale])!
         }
         if name == "reversed" {
             let builder = try constructJDK("java/lang/StringBuilder", parameters: [.string], arguments: [source])
             _ = try jdkCall("java/lang/StringBuilder", "reverse", [], builder.type, receiver: builder)
-            return JVMIntrinsicResult(value: try jdkCall("java/lang/StringBuilder", "toString", [], .string, receiver: builder))
+            return try jdkCall("java/lang/StringBuilder", "toString", [], .string, receiver: builder)!
         }
         var parameters = op.parameters.map { $0.variadic ? JVMValueType.reference("[" + $0.type.descriptor, nullable: false) : $0.type }
         var arguments = values
@@ -174,9 +201,9 @@ extension JVMFunctionBuilder {
             result = try jdkCall(op.owner, op.method ?? name, parameters, op.result, arguments: arguments)!
         }
         if op.sourceResult == "String", result.type != .string {
-            return JVMIntrinsicResult(value: try jdkCall("java/lang/Object", "toString", [], .string, receiver: result))
+            return try jdkCall("java/lang/Object", "toString", [], .string, receiver: result)!
         }
-        return JVMIntrinsicResult(value: result)
+        return result
     }
 
     func textArguments(_ op: JVMTextOperation, args: [CallArgument], binding: CallBinding?, source: JVMValue, id: ExprID) throws -> [JVMValue] {
@@ -208,6 +235,12 @@ extension JVMFunctionBuilder {
                 supplied[index] = input
             }
         }
+        return try completeTextArguments(op, supplied: supplied, source: source, id: id)
+    }
+
+    /// Orders `supplied` arguments by parameter and fills omitted ones from
+    /// the table's fallbacks. A supplied vararg is already the packed array.
+    func completeTextArguments(_ op: JVMTextOperation, supplied: [Int: JVMValue], source: JVMValue, id: ExprID) throws -> [JVMValue] {
         var values: [JVMValue] = []
         for (index, p) in op.parameters.enumerated() {
             if p.variadic { values.append(try supplied[index] ?? textVararg([], element: p.type)); continue }

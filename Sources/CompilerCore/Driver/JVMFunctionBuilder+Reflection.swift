@@ -78,6 +78,7 @@ extension JVMFunctionBuilder {
             args += [klass, try constant(.string(property.name), .string), signature, try constant(.int(property.getter.isStatic ? 1 : 0), .int)]
             return try constructJDK(name, parameters: params, arguments: args)
         }
+        if let text = try textOperationReference(id, symbol: symbol, receiver: receiver, unbound: unbound) { return text }
         let inlineOnly = program.inlineDeclarations[symbol]?.annotations.contains {
             KnownCompilerAnnotation.inlineOnly.matches($0.name)
         } == true
