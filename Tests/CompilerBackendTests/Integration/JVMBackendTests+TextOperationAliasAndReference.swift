@@ -16,7 +16,7 @@ extension JVMBackendTests {
             import kotlin.text.toInt as asInt
             import kotlin.text.trim as tr
 
-            fun main() {
+            suspend fun main() {
                 println("abc".ew("c"))
                 println("abc".ew("C", ignoreCase = true))
                 println("ff".asInt(16))
@@ -42,8 +42,21 @@ extension JVMBackendTests {
                 discard("x")
                 println(listOf("x", "").map(String::isNotEmpty))
                 println(String::trimIndent.name)
+                val contains: (CharSequence, CharSequence) -> Boolean = CharSequence::contains
+                println(contains("abc", "b"))
+                val containsChar: (CharSequence, Char) -> Boolean = CharSequence::contains
+                println(containsChar("abc", 'z'))
+                val suspended: suspend (String) -> String = String::trimIndent
+                println(suspended("   y"))
+                // Reflective `call` resolves through the generated bridge; the
+                // row's own target here is an instance JDK method.
+                println(String::codePointAt.call("abc", 1))
+                println("abc"::codePointAt.call(2))
+                println((String::trimIndent as (String) -> String) == Holder().indent())
             }
-            """, expected: "true\ntrue\n255\na\ntrue\ntrue\ntrue\nfalse\ntrue\nABC\ntrue\na\n43\n[true, false]\ntrimIndent\n", mode: mode, root: root)
+
+            class Holder { fun indent(): (String) -> String = String::trimIndent }
+            """, expected: "true\ntrue\n255\na\ntrue\ntrue\ntrue\nfalse\ntrue\nABC\ntrue\na\n43\n[true, false]\ntrimIndent\ntrue\nfalse\ny\n98\n99\ntrue\n", mode: mode, root: root)
         }
     }
 }

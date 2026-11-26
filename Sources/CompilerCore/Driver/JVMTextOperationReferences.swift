@@ -17,26 +17,34 @@ extension JVMFunctionBuilder {
         let candidates = textOperationCandidates(name, receiver: receiverType)
         guard !candidates.isEmpty else { return nil }
         let signatureTypes = try signature.parameterTypes.map(program.type)
-        guard let op = exactTextOperation(candidates, parameterTypes: signatureTypes) else {
+        // A stub may split a defaulted table row into its own overload
+        // (`CharSequence.contains(other)` versus `contains(other, ignoreCase)`);
+        // the reference then targets the full row with the tail defaulted.
+        let defaultedTail = candidates.first { op in
+            signatureTypes.count < op.parameters.count
+                && zip(signatureTypes, op.parameters).allSatisfy { $0.descriptor == $1.type.descriptor && !$1.variadic }
+                && op.parameters.dropFirst(signatureTypes.count).allSatisfy { $0.fallback != nil }
+        }
+        guard let op = exactTextOperation(candidates, parameterTypes: signatureTypes) ?? defaultedTail else {
             throw fail("Unsupported JVM text reference overload: " + name + " (" + signatureTypes.map(\.descriptor).joined() + ").", id)
         }
         // Exact-signature references may carry no binding; that means identity mapping and no adaptation.
         let binding = program.sema.bindings.callableReferenceBinding(for: id)
         guard let function = functionType(id), function.contextReceivers.isEmpty,
-              binding?.boundContextParameterTypes.isEmpty != false, !function.isSuspend else {
+              binding?.boundContextParameterTypes.isEmpty != false else {
             throw fail("Unsupported JVM text reference adaptation.", id)
         }
         let bound = unbound ? nil : try receiver.map(requireValue) ?? instance(id)
         let captures = [bound].compactMap { $0 }
         let inputTypes = try ([function.receiver].compactMap { $0 } + function.params).map(program.type)
         let resultType = try program.type(function.returnType)
-        let arity = inputTypes.count
+        let arity = inputTypes.count + (function.isSuspend ? 1 : 0)
         guard arity <= 22 else { throw fail("JVM callable reference arity exceeds 22.", id) }
         let number = program.nextClosure; program.nextClosure += 1
         let container = owner?.name ?? program.facadeName, className = container + "$Reference" + String(number)
         let helperRef = JVMFunctionReference(name: "$lambdaText" + String(number), parameters: captures.map(\.type) + inputTypes, result: resultType, owner: container, ownerIsInterface: owner?.isInterface == true)
         let helper = JVMFunctionBuilder(program: program, declaration: FunDecl(range: arena.exprRange(id)!, name: context.interner.intern(helperRef.name), modifiers: [], body: .unit), reference: helperRef, owner: owner)
-        helper.isStaticBody = true
+        helper.isStaticBody = true; helper.isSuspendBody = function.isSuspend
         let inputs = try helperRef.parameters.map { try helper.value($0) }
         var arguments = Array(inputs.dropFirst(captures.count))
         if bound == nil, arguments.isEmpty { throw fail("Missing JVM text reference receiver.", id) }
@@ -63,20 +71,46 @@ extension JVMFunctionBuilder {
             }
         }
         let values = try helper.completeTextArguments(op, supplied: supplied, source: source, id: id)
-        let returned = try helper.emitTextOperation(op, source: source, values: values)
+        let bridge = try textOperationBridge(op, id: id)
+        let bridgeArguments = try zip([source] + values, bridge.parameters).map { try helper.convert($0.0, to: $0.1) }
+        let returned = try helper.value(bridge.result)
+        helper.instructions.append(.call(bridge, bridgeArguments, returned))
         helper.instructions.append(.returnValue(resultType == .unit ? nil : try helper.convert(returned, to: resultType)))
         program.syntheticFunctions[container, default: []].append(helper.finish())
-        let unitConversion = resultType == .unit && op.result != .unit
-        let adapted = binding?.isCallableReferenceAdapter == true || binding?.hidesKCallable == true || unitConversion
-        var generated = try program.closureClass(className, captures: captures.enumerated().map { ("capture\($0.offset)", $0.element.type) }, inputs: inputTypes, result: resultType, helper: helperRef, superclass: "kotlin/jvm/internal/" + (adapted ? "AdaptedFunctionReference" : "FunctionReferenceImpl"))
+        let unitConversion = resultType == .unit && bridge.result != .unit
+        let adapted = binding?.isCallableReferenceAdapter == true || binding?.hidesKCallable == true || unitConversion || function.isSuspend
+            || op.parameters.count != signatureTypes.count
+        var generated = try program.closureClass(className, captures: captures.enumerated().map { ("capture\($0.offset)", $0.element.type) }, inputs: inputTypes, result: resultType, helper: helperRef, suspend: function.isSuspend, superclass: "kotlin/jvm/internal/" + (adapted ? "AdaptedFunctionReference" : "FunctionReferenceImpl"))
         program.functionArities.insert(arity)
         var flags: Int32 = 1
         if varargConversion { flags |= 2 }
+        if function.isSuspend { flags |= 4 }
         if unitConversion { flags |= 8 }
-        let declared = [op.receiverType] + op.parameters.map { $0.variadic ? JVMValueType.reference("[" + $0.type.descriptor, nullable: false) : $0.type }
-        let descriptor = "(" + declared.map(\.descriptor).joined() + ")" + op.result.descriptor
-        try initializeReferenceSuperclass(&generated, arity: arity, bound: bound, sourceOwner: "kotlin/text/StringsKt", sourceName: name, sourceDescriptor: descriptor, flags: flags)
+        // Reflective `call` resolves the owner and signature, so they name the
+        // bridge (which exists) while `name` keeps the Kotlin declaration name.
+        try initializeReferenceSuperclass(&generated, arity: arity, bound: bound, sourceOwner: bridge.owner!, sourceName: bridge.name, sourceDescriptor: bridge.descriptor, flags: flags, displayName: name)
         program.closureClasses.append(generated)
         return try constructJDK(className, parameters: captures.map(\.type), arguments: captures)
+    }
+
+    /// A static method with the table row's JVM shape (receiver, every
+    /// parameter, result) that runs the table emission. Reflective `call` on a
+    /// text reference lands here, since the row's own JVM target may not exist
+    /// (an instance JDK method, or an op emitted inline such as `uppercase`).
+    /// One bridge per row and facade keeps equal references equal.
+    func textOperationBridge(_ op: JVMTextOperation, id: ExprID) throws -> JVMFunctionReference {
+        let parameters = [op.receiverType] + op.parameters.map { $0.variadic ? JVMValueType.reference("[" + $0.type.descriptor, nullable: false) : $0.type }
+        let result: JVMValueType = op.sourceResult == "String" ? .string : op.result
+        let shape = "(" + parameters.map(\.descriptor).joined() + ")" + result.descriptor
+        let container = program.facadeName
+        let reference = JVMFunctionReference(name: op.name + "$textBridge$" + JVMNameHash.suffix(op.owner + "." + (op.method ?? op.name) + shape), parameters: parameters, result: result, owner: container)
+        if program.syntheticFunctions[container]?.contains(where: { $0.reference.name == reference.name }) == true { return reference }
+        let bridge = JVMFunctionBuilder(program: program, declaration: FunDecl(range: arena.exprRange(id)!, name: context.interner.intern(reference.name), modifiers: [], body: .unit), reference: reference, owner: nil)
+        bridge.isStaticBody = true
+        let inputs = try parameters.map { try bridge.value($0) }
+        let returned = try bridge.emitTextOperation(op, source: inputs[0], values: Array(inputs.dropFirst()))
+        bridge.instructions.append(.returnValue(try bridge.convert(returned, to: result)))
+        program.syntheticFunctions[container, default: []].append(bridge.finish())
+        return reference
     }
 }

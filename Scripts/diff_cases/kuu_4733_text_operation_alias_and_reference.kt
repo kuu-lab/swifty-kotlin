@@ -9,7 +9,7 @@ import kotlin.text.trim as tr
 
 fun String.selfRef(): (String) -> Boolean = this::ew
 
-fun main() {
+suspend fun main() {
     println("abc".ew("c"))
     println("abc".ew("C", ignoreCase = true))
     println("a,b".before(","))
@@ -53,4 +53,12 @@ fun main() {
     println(listOf("x", "").map(String::isNotEmpty))
     val named = String::trimIndent
     println(named.name)
+    val contains: (CharSequence, CharSequence) -> Boolean = CharSequence::contains
+    println(contains("abc", "b"))
+    val containsChar: (CharSequence, Char) -> Boolean = CharSequence::contains
+    println(containsChar("abc", 'z'))
+    val suspended: suspend (String) -> String = String::trimIndent
+    println(suspended("   y"))
+    val codePoint = String::codePointAt
+    println(codePoint("abc", 1))
 }
