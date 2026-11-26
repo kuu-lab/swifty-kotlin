@@ -129,6 +129,13 @@ extension JVMBackendTests {
         let library = try ownStdlibLibrary()
         try withWorkspace { root in
             let source = """
+            class Odd : CharSequence {
+                override val length: Int get() = 1
+                override fun get(index: Int): Char = 'c'
+                override fun subSequence(startIndex: Int, endIndex: Int): CharSequence = "c"
+                override fun toString(): String = "T"
+            }
+
             fun main() {
                 val indent = String::trimIndent
                 println(indent.call("  a"))
@@ -136,12 +143,14 @@ extension JVMBackendTests {
                 println(repeat.call("ab", 2))
                 val lines = String::lines
                 println(lines.call("a\\nb"))
+                val withText: (String, (Char) -> CharSequence) -> String = String::replaceFirstChar
+                println((withText as kotlin.reflect.KFunction<*>).call("abc", { _: Char -> Odd() }))
             }
             """
             let app = try m22Build(root: root, sources: [("hello.kt", source)], name: "app.jar", mode: .jvmJar, classpath: [library.path])
             try #require(app.1 == 0, "\(app.2.map(\.message))")
             let execution = try java(["-cp", app.0.path + ":" + library.path, "HelloKt"])
-            #expect(execution.stdout == "a\nabab\n[a, b]\n")
+            #expect(execution.stdout == "a\nabab\n[a, b]\nTbc\n")
             #expect(execution.stderr.isEmpty)
         }
     }
