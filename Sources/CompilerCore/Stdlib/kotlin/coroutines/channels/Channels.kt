@@ -1,12 +1,5 @@
 package kotlinx.coroutines.channels
 
-// Migration source: Sources/Runtime/RuntimeCoroutineChannel.swift
-//   kk_channel_create, kk_channel_iterator,
-//   kk_channel_iterator_hasNext, kk_channel_iterator_next
-// KUU-4072: close/cancel/isClosedForSend/isClosedForReceive are
-// Channel/SendChannel interface members now (Stdlib/kotlinx/coroutines/
-// channels/Channel.kt) and bridge to the kk_channel_* entry points directly.
-
 import kotlin.internal.KsSymbolName
 
 @KsSymbolName("kk_channel_create")
@@ -29,11 +22,6 @@ public fun <T> Channel(): Channel<T> = __kkChannelCreate(0)
 public fun <T> Channel(capacity: Int): Channel<T> =
     Channel(capacity, BufferOverflow.SUSPEND)
 
-// The runtime throws the closed-channel exceptions from send()/receive() when
-// the channel reaches a terminal closed state, so the classes are also
-// user-visible for typed `catch` clauses. Runtime-allocated boxes preserve the
-// exact throwable identity, matching the CancellationException source-backing
-// pattern (KSP-1150).
 // JVM parity (kotlinx-coroutines 1.10.2): ClosedReceiveChannelException
 // extends NoSuchElementException, ClosedSendChannelException extends
 // IllegalStateException.
@@ -47,9 +35,6 @@ public class ClosedSendChannelException : IllegalStateException {
     public constructor(message: String?)
 }
 
-// hasNext() performs the blocking receive and next() returns the value peeked
-// by the last hasNext(). Preserve the channel element type through the
-// iterator so both for-loops and direct next() calls retain their types.
 // KUU-4072: `iterator()` stays an extension — a Channel interface member
 // returning `ChannelIterator<E>` loses the class type argument during member
 // substitution, which breaks the for-loop hasNext()/next() convention lookup.

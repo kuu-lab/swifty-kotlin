@@ -1,14 +1,3 @@
-/// Shared by `Inheritance.validateAbstractOverrides` (named class/object
-/// declarations, checked during header validation) and
-/// `ExprTypeChecker+ObjectLiteralInference` (object literal expressions, whose
-/// own members are only known once the enclosing function body is
-/// type-checked — after `validateAbstractOverrides` has already run for every
-/// named nominal). Both need the same "which inherited abstract members does
-/// this concrete type still owe an implementation for" logic; the object
-/// literal path previously had none at all, so `object : Animal() {}` over an
-/// abstract member compiled where kotlinc rejects it. Same structural cause as
-/// the vtable-slot gap solved by `VtableOverrideMatching.swift`.
-
 /// Member requirements key off the member's *override family*: a member
 /// extension and a regular member that share a name are unrelated for
 /// override purposes — `fun Any?.toString()` can neither implement nor be
@@ -24,16 +13,6 @@ struct MemberRequirementKey: Hashable {
     let kind: SymbolKind
 }
 
-/// Collects all abstract member symbol IDs from the entire supertype chain of a
-/// class, filtering out those that have been concretely overridden by
-/// intermediate classes. Ordered by symbol ID so callers emit diagnostics
-/// deterministically.
-///
-/// A concrete member satisfies an abstract requirement unless the abstract
-/// declaration's owner is a nominal subtype of the concrete member's owner.
-/// The latter is a re-abstraction: the more-specific interface intentionally
-/// requires an implementation again. This keeps the result independent of
-/// direct-supertype declaration order.
 func collectInheritedAbstractMembers(
     for classSymbol: SymbolID,
     symbols: SymbolTable
@@ -92,7 +71,6 @@ func collectInheritedAbstractMembers(
     return result.sorted(by: { $0.rawValue < $1.rawValue })
 }
 
-/// Nominal (type-argument-insensitive) subtype check over direct supertypes.
 private func isNominalSubtypeViaDirectSupertypes(
     _ candidate: SymbolID,
     of base: SymbolID,
@@ -115,10 +93,6 @@ private func isNominalSubtypeViaDirectSupertypes(
     return false
 }
 
-/// A member signature a `by` delegation makes concrete on the delegating
-/// class: the delegate object supplies an implementation for every member
-/// declared on the delegated interface closure, with the delegate field's
-/// declared type arguments substituted through (KUU-3248).
 private struct DelegatedProvidedMember {
     let name: InternedString
     let kind: SymbolKind
@@ -129,12 +103,6 @@ private struct DelegatedProvidedMember {
     let isMutable: Bool
 }
 
-/// The members a `by` delegation supplies on `classSymbol` — every member of
-/// each directly delegated interface plus its inherited interfaces, with type
-/// arguments substituted through the delegate field's declared type. Pairs
-/// carry the class that declared the delegation so the delegate field is
-/// looked up on the right nominal (an ancestor class's `by` delegation still
-/// provides concrete members the subclass inherits).
 private func delegatedProvidedMembers(
     delegations: [(declaringClass: SymbolID, interface: SymbolID)],
     symbols: SymbolTable,
@@ -162,8 +130,6 @@ private func delegatedProvidedMembers(
                 ownerQueue.append(supertype)
             }
 
-            // Map the owner interface's type parameters to the concrete
-            // arguments the delegation declaration supplies.
             let ownerTypeParams = types.nominalTypeParameterSymbols(for: ownerInterface)
             let ownerArgs: [TypeArg] = if ownerInterface == interface {
                 delegatedTypeArgs
@@ -232,9 +198,6 @@ private func delegatedProvidedMembers(
     return provided
 }
 
-/// Substitutes the abstract member's signature through the type arguments the
-/// class applies to the member's owner, so both sides of a coverage check are
-/// expressed in the class's view.
 func abstractMemberViewFromClass(
     _ abstractMember: SymbolID,
     for classSymbol: SymbolID,
@@ -289,12 +252,6 @@ func abstractMemberViewFromClass(
     }
 }
 
-/// Whether a delegated-provided implementation satisfies the abstract member:
-/// same name, kind and arity, identical substituted parameter types, and a
-/// result type the implementation can covariantly return (`var` properties
-/// require invariance). Signatures still carrying type parameters after
-/// substitution are treated as covered — rejecting them needs resolution the
-/// completeness check cannot reliably perform.
 private func delegationProvides(
     _ provided: DelegatedProvidedMember,
     forAbstractMember view: (parameterTypes: [TypeID], resultType: TypeID, extensionReceiverType: TypeID?, isSuspend: Bool, isMutable: Bool),
@@ -305,8 +262,6 @@ private func delegationProvides(
     guard provided.name == name, provided.kind == kind,
           (provided.extensionReceiverType != nil) == (view.extensionReceiverType != nil),
           provided.isSuspend == view.isSuspend,
-          // A `var` abstract needs a `var` implementation; a `val` abstract
-          // accepts either.
           provided.isMutable || !view.isMutable
     else { return false }
     if let providedReceiver = provided.extensionReceiverType,
@@ -330,24 +285,11 @@ private func delegationProvides(
     if types.typeContainsAnyTypeParam(provided.resultType)
         || types.typeContainsAnyTypeParam(view.resultType)
     {
-        // Subtype checks cannot rank unresolved type parameters; the
-        // signatures only agree when they instantiate identically.
         return provided.resultType == view.resultType
     }
     return types.isSubtype(provided.resultType, view.resultType)
 }
 
-/// The inherited abstract members `classSymbol` still owes an implementation
-/// for: everything `collectInheritedAbstractMembers` finds, minus the member
-/// keys this type provides an `override` for (an override only satisfies a
-/// requirement of the same kind and override family — `override fun p()`
-/// covers `abstract fun p()`, never `abstract val p`, and member extensions
-/// stay split from regular members, KUU-3656/KUU-4106), minus anything owned
-/// by an interface satisfied through `by` delegation (CLASS-008), including
-/// delegates declared by class ancestors. A `by` delegation also supplies
-/// concrete implementations for its interface's members, so a matching
-/// abstract member declared on a sibling supertype is satisfied too
-/// (KUU-3248).
 func unimplementedAbstractMembers(
     for classSymbol: SymbolID,
     overriddenMembers: Set<MemberRequirementKey>,
@@ -439,13 +381,6 @@ func unimplementedAbstractMembers(
     }
 }
 
-/// Whether a concrete member declared directly on `classSymbol` implements
-/// the inherited abstract `abstractMember` for completeness purposes.
-/// Implementation is decided by name, kind, override family (member
-/// extension vs regular member), and — for functions — the value-parameter
-/// signature after supertype specialization; return types, property types,
-/// and mutability do not participate (kotlinc reports only 'hides member'
-/// for `class C : I { val x: String }` over `val x: Int`, KUU-4170).
 private func declaredMemberSatisfiesAbstractRequirement(
     _ abstractMember: SymbolID,
     on classSymbol: SymbolID,
@@ -477,11 +412,6 @@ private func declaredMemberSatisfiesAbstractRequirement(
             }
             continue
         }
-        // Property: name, kind and override family already match; member
-        // extension receivers must be identical. The property type and
-        // mutability stay out of the completeness verdict — a `val`
-        // spelling still counts as implementing an abstract `var`
-        // requirement, with the val/var conflict reported separately.
         guard let abstractView = abstractMemberViewFromClass(
             abstractMember,
             for: classSymbol,

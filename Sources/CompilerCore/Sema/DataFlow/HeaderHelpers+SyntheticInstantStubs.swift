@@ -1,19 +1,3 @@
-/// Residual compiler/runtime support for kotlin.time.Instant (STDLIB-TIME-083).
-///
-/// The public Instant API is implemented in `Stdlib/kotlin/time/Instant.kt`.
-/// This residual file only creates the nominal/bootstrap symbols required by
-/// source loading and registers the hidden bridge declarations used by that
-/// source. The runtime Instant handle and OS-clock implementation remain in
-/// RuntimeInstant.swift.
-///
-/// Also registers `__kk_instant_*` bridge methods used by
-/// `Stdlib/kotlin/time/Instant.kt` to implement `epochSeconds`,
-/// `nanosecondsOfSecond`, `isDistantPast`, `isDistantFuture`, `plus`/`minus`
-/// (Duration), `compareTo`, and `minus` (Instant, returning Duration) as
-/// Kotlin-source extension properties/functions/operators (KSP-472).
-/// `elapsed()` has no dedicated bridge; it reuses the same
-/// `__kk_instant_until` bridge as the Instant-Instant `minus` overload,
-/// written directly in Kotlin source as `this.__kk_instant_until(Instant.now())`.
 extension DataFlowSemaPhase {
     func registerSyntheticInstantStubs(
         symbols: SymbolTable,
@@ -55,22 +39,11 @@ extension DataFlowSemaPhase {
         let intType = types.intType
         let boolType = types.make(.primitive(.boolean, .nonNull))
 
-        // --- Companion object for bundled Kotlin-source extensions ---
-        // Instant.now() / fromEpochMilliseconds() are implemented in
-        // Stdlib/kotlin/time/Instant.kt. The companion object must exist so
-        // extension functions on Instant.Companion can resolve.
         _ = ensureSyntheticCompanionSymbol(
             ownerSymbol: instantSymbol,
             symbols: symbols,
             interner: interner
         )
-
-        // --- KSP-472: bridge methods for Stdlib/kotlin/time/Instant.kt ---
-        // Called as `this.__kk_instant_*(...)` from Kotlin source; the
-        // public API (epochSeconds, nanosecondsOfSecond, isDistantPast,
-        // isDistantFuture, plus, minus (Duration and Instant overloads),
-        // compareTo) is defined there as extension properties/functions/
-        // operators.
 
         let instantMethods = instantMethodRows(of: instantSymbol, type: instantType, symbols: symbols, interner: interner)
         instantMethods.fn("__kk_instant_epoch_seconds", "kk_instant_epoch_seconds", ret: longType)
@@ -88,7 +61,6 @@ extension DataFlowSemaPhase {
         instantMethods.fn("__kk_instant_until", "kk_instant_until", [(name: "other", type: instantType)], ret: longType)
     }
 
-    /// Shared by the Instant, Clock and Duration synthetic stubs.
     func ensureSyntheticCompanionSymbol(
         ownerSymbol: SymbolID,
         symbols: SymbolTable,

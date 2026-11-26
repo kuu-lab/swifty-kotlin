@@ -4,12 +4,8 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-/// KUU-3019: the fingerprint must be a function of a function's own content,
-/// never of how many symbols, types or expressions were created before it.
 @Suite
 struct KIRFunctionFingerprintTests {
-    /// Raw `SymbolID` of each function by simple name from the last
-    /// `fingerprints` call, to prove a test really shifts the numbering.
     private final class RawIDs: @unchecked Sendable {
         var byName: [String: Int32] = [:]
     }
@@ -57,8 +53,6 @@ struct KIRFunctionFingerprintTests {
     func insertingUnrelatedDeclarationsDoesNotChangeExistingFingerprints() throws {
         let before = try fingerprints(base)
         let rawBefore = rawIDs.byName
-        // The prefix creates symbols, types (generic class, function type) and
-        // expressions ahead of everything in `base`, shifting every raw id.
         let shifted = try fingerprints("""
         class Box<T>(val value: T) { fun get(): T = value }
         fun unrelated(f: (Int) -> String, n: Int): String = f(n)
@@ -74,7 +68,6 @@ struct KIRFunctionFingerprintTests {
 
     @Test
     func genericClassMembersAreStableUnderUnrelatedInsertions() throws {
-        // A class type parameter's FQ name embeds the class's raw SymbolID.
         let box = "class Box<T>(val value: T) { fun get(): T = value }\nfun use(b: Box<Int>): Int = b.get()"
         let before = try fingerprints(box)
         let after = try fingerprints("class Pair2<A, B>(val a: A, val b: B)\nfun noise(): Int = 1\n\(box)")

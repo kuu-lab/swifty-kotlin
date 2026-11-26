@@ -10,7 +10,6 @@ extension InlineLoweringPass {
         let value: KIRExprID
     }
 
-    /// Resolve cleanup after expansion, without crossing the named return target.
     func resolveNonLocalReturnScopes(
         _ body: [KIRInstruction], locations: [SourceRange?],
         arena: KIRArena, unitType: TypeID?, returnType: TypeID? = nil,

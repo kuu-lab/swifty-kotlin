@@ -3,11 +3,6 @@ import Testing
 import TestStdlibCache
 @testable import CompilerTestSupport
 
-/// KUU-1447: bundled stdlib `internal` extension properties must not resolve
-/// from user code. The extension-property getter/setter recovery fallbacks in
-/// `resolveExtensionPropertyGetter` / `resolveExtensionPropertySetter` looked
-/// up candidates by short name without applying the `VisibilityChecker` gate
-/// that member lookups already enforce.
 @Suite
 struct BundledStdlibExtensionVisibilityTests {
     @Test(arguments: [false, true])
@@ -103,11 +98,6 @@ struct BundledStdlibExtensionVisibilityTests {
         }
     }
 
-    /// KUU-4103: `x and 1L` used to bind to kotlinx.io's
-    /// `internal infix fun Int.and(other: Long)` through the importless
-    /// short-name recovery and reported SEMA-0044. kotlinc reports a plain
-    /// argument mismatch against `Int.and(Int)`, so the bundled-internal
-    /// candidate must never enter the overload set.
     @Test(arguments: [false, true])
     func bundledInternalBitwiseExtensionDoesNotEnterOverloadSet(
         allowDefaultStdlibLibrary: Bool
@@ -128,9 +118,6 @@ struct BundledStdlibExtensionVisibilityTests {
         }
     }
 
-    /// The same leak produced SEMA-0044 for any bundled-internal extension
-    /// whose declared receiver matched (e.g. kotlinx.io's `reverseBytes`).
-    /// With no accessible candidate the call is simply unresolved.
     @Test
     func bundledInternalHelperIsUnresolvedNotInvisible() throws {
         try withTemporaryFile(contents: """
@@ -145,8 +132,6 @@ struct BundledStdlibExtensionVisibilityTests {
         }
     }
 
-    /// Same-type `Int and Int` — the shape used by generated lexers —
-    /// keeps resolving through the primitive member surface.
     @Test(arguments: [false, true])
     func intInfixAndResolvesWithoutBundledInternal(
         allowDefaultStdlibLibrary: Bool

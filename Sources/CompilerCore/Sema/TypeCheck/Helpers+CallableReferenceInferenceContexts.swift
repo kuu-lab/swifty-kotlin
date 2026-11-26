@@ -1,14 +1,8 @@
 extension TypeCheckHelpers {
-    /// Walk every lexical tier so a shadowed outer parameter stays rigid too.
     func lexicalTypeParameterSymbols(in ctx: TypeInferenceContext) -> Set<SymbolID> {
         (ctx.scope as? BaseScope)?.lexicalTypeParameterSymbols() ?? []
     }
 
-    /// Whether `type` mentions a type parameter that an enclosing call is
-    /// still inferring (`inferenceParameters`) rather than a rigid lexical
-    /// parameter. Callable references keep their own concrete type for the
-    /// former so the call's solver can bind them; rigid parameters may
-    /// specialize the reference directly (KUU-4204).
     func callableReferenceExpectedTypeHasInferenceParameters(
         _ type: TypeID,
         inferenceParameters: Set<SymbolID>,

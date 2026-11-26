@@ -20,6 +20,7 @@ final class JVMProgramBuilder {
     private var _exprRangeIndex: [FileID: [(start: Int, end: Int, expr: ExprID)]]?
     var metroFactoryFields: [SymbolID: JVMField] = [:]
     var metroClasses: [JVMClass] = []
+    var reifiedHosts: [String: JVMReifiedHost] = [:]
     var functionArities: Set<Int> = []
     var nextClosure = 0
     var needsSuspendCoroutine = false
@@ -480,7 +481,7 @@ final class JVMProgramBuilder {
         }
         emittedClasses += try repeatableContainers()
         if context.options.stdlibOnly { functionArities.insert(0) }
-        emittedClasses += metroClasses + closureClasses + functionRuntime() + enumRuntime()
+        emittedClasses += metroClasses + closureClasses + functionRuntime() + enumRuntime() + reifiedHostClasses()
         var output = facades.removeFirst()
         syntheticFunctions[coroutineIntrinsicOwner, default: []] += coroutineIntrinsics()
         output.functions += (syntheticFunctions[output.internalClassName] ?? [])
@@ -609,6 +610,9 @@ final class JVMFunctionBuilder {
     func jump(_ label: Int) { instructions.append(.jump(label)); terminated = true }
     func lookup(_ name: InternedString) throws -> Local {
         for scope in scopes.reversed() { if let local = scope[name] { return local } }
+        if program.hasUnsupportedSerializableClass(named: name) {
+            throw fail("The JVM backend does not generate a serializer for @Serializable class \(context.interner.resolve(name)); it supports non-generic classes whose serializable properties are all primary constructor properties of Boolean, Byte, Short, Char, Int, Long, Float, Double or String (nullable allowed) with literal defaults.")
+        }
         throw fail("JVM local variable is not in scope: \(context.interner.resolve(name)).")
     }
     func requireValue(_ id: ExprID) throws -> JVMValue {

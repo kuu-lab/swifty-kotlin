@@ -18,7 +18,6 @@ private const val BASE64_PAD_SYMBOL: Byte = 61
 
 public open class Base64 internal constructor(
     internal val alphabetChars: String,
-    // 0 means "do not wrap"; a positive value is the line-wrap width.
     private val lineLength: Int
 ) {
     internal var paddingOption: PaddingOption = PaddingOption.PRESENT
@@ -171,7 +170,7 @@ public open class Base64 internal constructor(
                 val symbol3 = decodeSymbol(source[sourceIndex++].toInt() and 0xFF)
                 val symbol4 = decodeSymbol(source[sourceIndex++].toInt() and 0xFF)
                 val bits = (symbol1 shl 18) or (symbol2 shl 12) or (symbol3 shl 6) or symbol4
-                if (bits >= 0) { // all base64 symbols
+                if (bits >= 0) {
                     destination[destinationIndex++] = (bits shr 16).toByte()
                     destination[destinationIndex++] = (bits shr 8).toByte()
                     destination[destinationIndex++] = bits.toByte()
@@ -208,13 +207,13 @@ public open class Base64 internal constructor(
             }
         }
 
-        if (byteStart == -BASE64_BITS_PER_BYTE + BASE64_BITS_PER_SYMBOL) { // dangling single symbol, incorrectly encoded
+        if (byteStart == -BASE64_BITS_PER_BYTE + BASE64_BITS_PER_SYMBOL) {
             throw IllegalArgumentException("The last unit of input does not have enough bits")
         }
         if (byteStart != -BASE64_BITS_PER_BYTE && !hasPadding && paddingOption == PaddingOption.PRESENT) {
             throw IllegalArgumentException("The padding option is set to PRESENT, but the input is not properly padded")
         }
-        if (payload != 0) { // the pad bits are non-zero
+        if (payload != 0) {
             throw IllegalArgumentException("The pad bits must be zeros")
         }
 
@@ -253,7 +252,7 @@ public open class Base64 internal constructor(
                 symbols--
             }
         }
-        return ((symbols.toLong() * BASE64_BITS_PER_SYMBOL) / BASE64_BITS_PER_BYTE).toInt() // conversion due to possible Int overflow
+        return ((symbols.toLong() * BASE64_BITS_PER_SYMBOL) / BASE64_BITS_PER_BYTE).toInt()
     }
 
     private fun charsToBytes(source: CharSequence, startIndex: Int, endIndex: Int): ByteArray {

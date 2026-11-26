@@ -24,11 +24,6 @@ private class SerializableProperty<T : Any>(
     val isOptional: Boolean
 )
 
-/**
- * Runtime fallback used by the native compiler's serialization plugin.
- * The plugin emits the source-compatible `Owner.serializer()` entry point;
- * this serializer uses the reflection metadata already emitted for the class.
- */
 internal class ReflectiveClassSerializer<T : Any>(
     private val serializableClass: KClass<T>
 ) : KSerializer<T> {
@@ -150,7 +145,6 @@ internal class ReflectiveClassSerializer<T : Any>(
     }
 }
 
-/** Entry point used by compiler-generated companion `serializer()` functions. */
 internal fun serializerForClass(kClass: KClass<*>): KSerializer<Any?> {
     @Suppress("UNCHECKED_CAST")
     return (kClass as KClass<Any>).serializer() as KSerializer<Any?>

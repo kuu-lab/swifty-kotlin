@@ -1,9 +1,3 @@
-// KSP-407: substringBefore/After/BeforeLast/AfterLast and replaceBefore/After/
-// BeforeLast/AfterLast (String and Char delimiter variants) were migrated to
-// bundled Kotlin source (`Stdlib/kotlin/text/StringSearchReplace.kt`), built
-// purely on indexOf/lastIndexOf/substring. Their `kk_string_*`/`kk_string_*_flat`
-// runtime primitives and private helpers were removed from this file.
-
 import Foundation
 
 func runtimeStringReplaceFirst(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
@@ -12,9 +6,6 @@ func runtimeStringReplaceFirst(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> I
     let newValue = runtimeStringFromRawOrPanic(newRaw, caller: #function)
     return runtimeMakeStringRaw(runtimeReplacingStringCodeUnits(source, old: oldValue, new: newValue, firstOnly: true))
 }
-
-// KSP-406: replaceRange / removeRange are bundled Kotlin source
-// (Stdlib/kotlin/text/StringSubstringSlice.kt); no runtime ABI remains.
 
 @_cdecl("kk_string_replaceFirst_flat")
 public func kk_string_replaceFirst_flat(
@@ -31,6 +22,3 @@ public func kk_string_replaceFirst_flat(
     guard let string = runtimeStringFromRaw(raw) else { return nil }
     return runtimeRegisterFlatString(string, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
 }
-
-// KSP-406: removeRange / replaceRange flat wrappers removed with the bundled
-// Kotlin source migration (Stdlib/kotlin/text/StringSubstringSlice.kt).

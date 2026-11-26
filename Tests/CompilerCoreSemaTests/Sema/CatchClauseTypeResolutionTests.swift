@@ -4,13 +4,6 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-// KUU-950: `catch (e: T)` must resolve `T` through the same name-resolution
-// path as declarations and `is`/`as` expressions — import priority (explicit >
-// wildcard > default), import aliases, and qualified names. Previously the
-// catch parameter went through an ad-hoc short-name lookup that ignored
-// imports entirely, so `IOException` bound to `java.io.IOException` even when
-// the source explicitly imported `kotlinx.io.IOException`.
-
 private nonisolated(unsafe) var _catchTypeResolutionCtx: (ctx: CompilationContext, paths: [String])?
 
 private let qualifiedCatchTypeNames = [

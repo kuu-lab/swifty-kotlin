@@ -4,13 +4,6 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-/// An `init {}` member in an object expression used to make
-/// `parseObjectLiteralDecl` reject the whole body (`nil` decl), so the literal
-/// lost every member and `g.greet()` panicked with "Virtual dispatch failed".
-/// The init blocks must be collected, in declaration order relative to the
-/// property initializers.
-///
-/// See `Scripts/diff_cases/object_literal_init_block.kt`.
 @Suite
 struct ObjectLiteralInitBlockTests {
     private func objectLiteralDecls(_ source: String) throws -> [ObjectDecl] {

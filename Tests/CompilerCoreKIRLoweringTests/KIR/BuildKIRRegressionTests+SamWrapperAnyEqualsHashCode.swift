@@ -4,13 +4,6 @@ import Testing
 @testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
-    /// KUU-3865: a `fun interface` whose only abstract member is a declared
-    /// `Any.equals`/`Any.hashCode` produces a SAM wrapper whose synthesized
-    /// method must be registered on the per-object erased-Any override
-    /// tables (`kk_object_register_equals_override` /
-    /// `kk_object_register_hashcode_override`) — not only through the
-    /// interface itable — or calls erased through `Any` fall back to
-    /// identity semantics.
     @Test func samWrapperEqualsHashCodeRegisterErasedOverrides() throws {
         let ctx = makeContextFromSource("""
         fun interface E {
@@ -62,8 +55,6 @@ extension BuildKIRRegressionTests {
         }
     }
 
-    /// A SAM that is not an `Any` member must never occupy the erased-Any
-    /// equals/hashCode slots — an `invoke`-SAM wrapper registers nothing.
     @Test func nonAnySamWrapperDoesNotRegisterErasedEqualsHashCode() throws {
         let ctx = makeContextFromSource("""
         fun interface F {

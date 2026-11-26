@@ -3,13 +3,8 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// KSP-950: the complete build-family surface is owned by CollectionBuilders.kt.
-/// The public overloads and their @PublishedApi internal counterparts must not
-/// be replaced by residual synthetic declarations.
 @Suite
 struct CollectionBuildersKSP950Tests {
-    // KUU-1249: Map's key is invariant; buildMap must retain K rather than
-    // returning a projected key that cannot satisfy a forwarding declaration.
     @Test(arguments: ["action", "4, action"])
     func genericBuildMapForwardingPreservesKeyType(arguments: String) throws {
         let ctx = makeContextFromSource("""

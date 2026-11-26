@@ -70,12 +70,6 @@ public enum KIRExprKind: Equatable, Sendable, Codable {
 public enum KIRDispatchKind: Equatable, Sendable {
     case vtable(slot: Int)
     case itable(interfaceSlot: Int, methodSlot: Int)
-    /// Used when the receiver's static type is the interface itself (e.g. a
-    /// function parameter typed `d: SomeInterface`) rather than a concrete
-    /// class — the itable slot assigned to that interface varies per
-    /// implementing class and isn't known at this call site, so it's looked
-    /// up at runtime from the object's registered (interfaceTypeID -> slot)
-    /// map instead of being baked in as a fixed slot index.
     case itableDynamic(interfaceTypeID: Int64, methodSlot: Int)
 }
 
@@ -105,14 +99,10 @@ public enum KIRInstruction: Equatable, Sendable {
     case returnIfEqual(lhs: KIRExprID, rhs: KIRExprID)
     case returnUnit
     case returnValue(KIRExprID)
-    /// The target identifies the lexical function, even after inline expansion.
     case nonLocalReturn(KIRExprID?, target: KIRReturnTarget? = nil)
-    /// Lexical cleanup or function exit retained until inline expansion completes.
-    /// The value slot carries the original return representation without boxing.
     case beginNonLocalReturnScope(value: KIRExprID, target: Int32, function: KIRReturnTarget? = nil)
     case endNonLocalReturnScope
     case resumeNonLocalReturn(KIRExprID)
-    /// Eager cleanup must not re-enter finally blocks already being executed.
     case beginFinallyCleanup(skipping: Int)
     case endFinallyCleanup
     /// Sentinel markers delimiting an already-wrapped finally guard region.
@@ -130,13 +120,10 @@ public struct KIRFunction: Sendable {
     public internal(set) var body: [KIRInstruction]
     public let isSuspend: Bool
     public let isInline: Bool
-    /// When true, this function was auto-promoted to inline because it has
-    /// function-type parameters. Its body should only be used for inline
-    /// expansion and should not be emitted as a standalone LLVM function.
     public let isInlineOnly: Bool
     public let isTailrec: Bool
     public let sourceRange: SourceRange?
-    public internal(set) var instructionLocations: [SourceRange?] // parallel to body
+    public internal(set) var instructionLocations: [SourceRange?]
 
     public init(
         symbol: SymbolID, name: InternedString, params: [KIRParameter], returnType: TypeID,
@@ -221,24 +208,12 @@ public final class KIRArena {
     public private(set) var exprTypes: [KIRExprID: TypeID] = [:]
     public private(set) var lambdaCaptureArgsBySymbol: [SymbolID: [KIRExprID]] = [:]
     var callableValueInfoByExprID: [KIRExprID: KIRCallableValueInfo] = [:]
-    /// JVM `checkNotNullExpressionValue` diagnostic (`"<call>(...) must not be
-    /// null"`) for platform null assertions, keyed by the `.nullAssert` result
-    /// temporary. Assertions without an entry keep the message-less `!!` NPE.
     public private(set) var platformNullAssertMessages: [KIRExprID: InternedString] = [:]
-    /// Lambda symbols lowered with the receiver-first coroutine-launcher ABI;
-    /// copied from the lowering context for post-build passes
-    /// (see `KIRLoweringContext.receiverFirstLauncherLambdaSymbols`).
     var receiverFirstLauncherLambdaSymbols: Set<SymbolID> = []
 
     private let parallelLock = NSLock()
     var isParallelTransformActive = false
 
-    /// Lazily-built index of function declarations keyed by symbol, giving
-    /// `function(for:)` O(1) amortized lookup instead of a linear scan over
-    /// every declaration. `nil` means "not built yet"; once built it is
-    /// maintained incrementally by `appendDecl` (first-occurrence wins,
-    /// matching the old scan order) and invalidated when a transform changes
-    /// a function's symbol, in which case it is rebuilt on the next query.
     private var functionIndexBySymbol: [SymbolID: Int]?
 
     public init() {}
@@ -349,16 +324,11 @@ public final class KIRArena {
             functionIndexBySymbol = index
         }
         guard let declarationIndex = functionIndexBySymbol?[symbol] else {
-            // The index covers every function declaration currently in the
-            // arena, so a miss means `symbol` names no function here.
             return nil
         }
         guard case let .function(function) = declarations[declarationIndex],
               function.symbol == symbol
         else {
-            // A stale index entry should be impossible (transforms that
-            // change a function's symbol invalidate the index); fall back to
-            // the linear scan rather than trusting it.
             return declarations.lazy.compactMap { decl -> KIRFunction? in
                 guard case let .function(function) = decl, function.symbol == symbol else {
                     return nil
@@ -472,9 +442,6 @@ public final class KIRArena {
     }
 }
 
-/// Dump rendering only reads the module, interner snapshot and symbol table;
-/// results land in distinct slots under the lock, matching
-/// `ParallelTransformWork`.
 private final class ParallelDumpWork: @unchecked Sendable {
     let module: KIRModule
     let declarations: [KIRDecl]
@@ -526,9 +493,6 @@ public final class KIRModule {
     package var inlineBodiesBeforeCoroutineLowering: [SymbolID: [KIRInstruction]] = [:]
     package var inlineBodiesBeforeFinallyLowering: [SymbolID: [KIRInstruction]] = [:]
 
-    /// Expressions known to hold a raw nullable-representation value-class
-    /// payload. ABI lowering and payload reads must preserve this state instead
-    /// of treating the value as a nominal `V` box.
     private let rawValueClassPayloadsLock = NSLock()
     private var rawValueClassPayloads: Set<KIRExprID> = []
 
@@ -544,9 +508,6 @@ public final class KIRModule {
         return rawValueClassPayloads.contains(expression)
     }
 
-    /// Callee names with a proven non-throwing contract. Closure conversion must
-    /// not register source lambdas based on their pre-ABI call metadata.
-    /// ABILoweringPass consults this set without using string-prefix conventions.
     public private(set) var nonThrowingClosureCallees: Set<InternedString> = []
 
     public private(set) var features: KIRModuleFeatures = []
@@ -644,9 +605,6 @@ public final class KIRModule {
         executedLowerings.append(name)
     }
 
-    /// The exact input-stage check is intentionally debug-only: this is a
-    /// development-time ordering contract, while `stage` remains available
-    /// in all configurations for inspection and future pipeline consumers.
     func validateLoweringStage(
         passName: String,
         required: KIRStage,
@@ -680,9 +638,6 @@ public final class KIRModule {
         return output.text
     }
 
-    /// Streams the dump through `write` in chunks of roughly `chunkBytes`, so
-    /// a multi-megabyte dump never has to be resident as one String. The
-    /// concatenated chunks equal `dump(interner:symbols:)`.
     public func dump(
         interner: StringInterner,
         symbols: SymbolTable?,
@@ -700,10 +655,6 @@ public final class KIRModule {
         }
     }
 
-    /// Declarations render independently, so each batch fans out across
-    /// cores and is then appended in declaration order; `flush` runs after
-    /// every appended declaration, letting the streaming variant hand off
-    /// full chunks while the String variant keeps everything.
     private func renderDump(
         interner: StringInterner,
         symbols: SymbolTable?,
@@ -726,9 +677,7 @@ public final class KIRModule {
         }
     }
 
-    /// Bounds how much rendered-but-unwritten text a streamed dump holds.
     private static let dumpBatchSize = 256
-    /// Below this, thread fan-out costs more than rendering serially.
     private static let parallelDumpThreshold = 8
 
     private func renderDeclarations(
@@ -790,8 +739,6 @@ public final class KIRModule {
         }
     }
 
-    /// Appends straight into the dump buffer so an instruction line costs no
-    /// intermediate String, and register lists no temporary array.
     private func appendInstruction(
         _ instruction: KIRInstruction,
         names: KIRDumpNames,
@@ -914,8 +861,6 @@ public final class KIRModule {
         out += "]"
     }
 
-    /// Most calls have no thrown-result slot; omitting the "_" placeholder
-    /// removes one of the most repeated tokens in large dumps.
     private func appendThrownResult(_ register: KIRExprID?, to out: inout String) {
         if let register {
             out += " thrownResult=r\(register.rawValue)"
@@ -931,9 +876,6 @@ public final class KIRModule {
         }
     }
 
-    /// Payload spellings follow the old reflection-derived format except for
-    /// symbol ids, which print as `s<N>` like `storeGlobal`. Floating-point
-    /// payloads use their debug representation, as reflection did.
     private func valueDescription(_ value: KIRExprKind, names: KIRDumpNames) -> String {
         switch value {
         case let .intLiteral(literal):
@@ -968,9 +910,6 @@ public final class KIRModule {
     }
 }
 
-/// Lock-free name lookups for one dump. `StringInterner.resolve` takes the
-/// interner lock on every call, and a dump resolves each callee and symbol
-/// name it prints; the snapshot is copy-on-write, so taking it is O(1).
 struct KIRDumpNames {
     private let values: [String]
 
@@ -978,7 +917,6 @@ struct KIRDumpNames {
         values = interner.snapshotValues()
     }
 
-    /// Mirrors `StringInterner.resolve`, including "" for unknown ids.
     func resolve(_ id: InternedString) -> String {
         let index = Int(id.rawValue)
         guard index >= 0, index < values.count else {
@@ -988,12 +926,7 @@ struct KIRDumpNames {
     }
 }
 
-/// Builds the dump in one growing buffer: collecting a `[String]` of lines
-/// and joining it kept every line alive as its own allocation and copied the
-/// whole dump a second time. Lines are separated, not terminated, by "\n" to
-/// match `joined(separator:)`.
 struct KIRDumpOutput {
-    /// Typical dump line length; only sizes the initial reservation.
     static let estimatedBytesPerLine = 64
 
     private(set) var text = ""
@@ -1003,13 +936,10 @@ struct KIRDumpOutput {
         text.reserveCapacity(reservingBytes)
     }
 
-    /// O(1) for the native UTF-8 storage the dump builds.
     var byteCount: Int {
         text.utf8.count
     }
 
-    /// Hands off the buffered text while keeping separator state, so the
-    /// next line still gets its leading "\n".
     mutating func drain(reservingBytes: Int) -> String {
         let chunk = text
         text = ""
@@ -1031,8 +961,6 @@ struct KIRDumpOutput {
     }
 }
 
-/// Compact spellings for ids the dump used to print through reflection as
-/// `CompilerCore.SymbolID(rawValue: N)`; `KIRDumpFormatTests` pins them.
 private extension SymbolID {
     var dumpDescription: String {
         "s\(rawValue)"
@@ -1085,8 +1013,6 @@ final class KIRContext {
     let options: CompilerOptions
     let interner: StringInterner
     let sema: SemaModule?
-    /// Per-nominal vtable/itable registration entries, computed once per type
-    /// instead of once per factory-call rewrite.
     let nominalDispatchCache = KIRNominalDispatchCache()
 
     init(

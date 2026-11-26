@@ -1,5 +1,4 @@
 extension TokenKind {
-    /// Kotlin labels use simpleIdentifier, including contextual and modifier keywords.
     var isLabelName: Bool {
         switch self {
         case .identifier, .backtickedIdentifier:

@@ -1,8 +1,5 @@
 import Foundation
 
-/// `Character.digit(ch, radix)` for a single UTF-16 code unit: ASCII and
-/// full-width Latin letters plus every Unicode decimal digit (category Nd).
-/// Supplementary scalars are rejected because Kotlin parses `Char`s.
 private func runtimeKotlinDigitValue(_ scalar: Unicode.Scalar, radix: Int) -> Int? {
     let value = scalar.value
     let digit: Int
@@ -23,9 +20,6 @@ private func runtimeKotlinDigitValue(_ scalar: Unicode.Scalar, radix: Int) -> In
     return digit < radix ? digit : nil
 }
 
-/// Kotlin `String.toXxxOrNull(radix)` grammar: optional sign (`-` only for
-/// signed targets, so `"-0"` is rejected for unsigned ones), then one or more
-/// digits accepted by `Character.digit`, with overflow reported as `nil`.
 func runtimeParseKotlinInteger<T: FixedWidthInteger>(
     _ source: String,
     radix: Int,
@@ -60,15 +54,10 @@ func runtimeParseKotlinInteger<T: FixedWidthInteger>(
     return T(exactly: magnitude)
 }
 
-/// JDK `NumberFormatException.forInputString(s, radix)`: the radix is only
-/// mentioned when it is not 10.
 func runtimeNumberFormatInputMessage(_ source: String, radix: Int) -> String {
     radix == 10 ? "For input string: \"\(source)\"" : "For input string: \"\(source)\" under radix \(radix)"
 }
 
-/// JDK `Byte.parseByte` / `Short.parseShort`: parse as `Int` first (reporting
-/// unparsable input with `forInputString`), then reject values outside the
-/// target range with the "Value out of range" message.
 func runtimeParseNarrowKotlinInteger<T: FixedWidthInteger & SignedInteger>(
     _ source: String,
     radix: Int,
@@ -213,8 +202,6 @@ public func __kk_string_toULongOrNull_radix_flat(
     __kk_string_toULongOrNull_radix(kk_string_from_flat(data, length, byteCount, hash), radix, outThrown)
 }
 
-/// `java.lang.String.trim()`: strips only leading/trailing scalars <= U+0020,
-/// unlike Foundation's `.whitespacesAndNewlines` (which also drops NBSP etc.).
 private func runtimeTrimJavaWhitespace(_ source: String) -> String {
     let scalars = source.unicodeScalars
     guard let start = scalars.firstIndex(where: { $0.value > 0x20 }),
@@ -242,7 +229,6 @@ private func runtimeDroppingFloatingTypeSuffix(_ source: String) -> String {
     return String(source.dropLast())
 }
 
-/// Parse Kotlin/Java-style floating literals without accepting Swift-only spellings.
 private func runtimeParseDouble(_ trimmed: String) -> Double? {
     switch trimmed {
     case "NaN", "+NaN", "-NaN":
@@ -471,7 +457,6 @@ public func __kk_string_toByteOrNull(_ strRaw: Int) -> Int {
     runtimeStringIntegerOrNull(strRaw, as: Int8.self, caller: #function) { Int($0) }
 }
 
-/// BigDecimal is represented as a boxed string in KSwiftK.
 final class RuntimeBigNumberBox {
     let value: String
     let kind: BigNumberKind
@@ -484,9 +469,6 @@ final class RuntimeBigNumberBox {
     }
 }
 
-/// Locale-independent validation for BigDecimal format matching Kotlin/Java:
-/// `[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?`
-///
 /// Note: We intentionally avoid `Decimal(string:)` or `NumberFormatter` because
 /// Foundation's decimal parsing is locale-sensitive (e.g., decimal separator may
 /// vary by locale). Instead, this hand-written parser validates against a fixed
@@ -622,7 +604,6 @@ func runtimeBigDecimalValue(_ numRaw: Int, caller: String) -> String {
     return box.value
 }
 
-/// Return the low 64 bits of a BigDecimal truncated toward zero.
 private func runtimeBigDecimalIntegerBits(_ source: String) -> UInt64 {
     let value = parseBigDecimalParts(source)
     guard !value.digits.isEmpty, value.pointExponent > 0 else { return 0 }
@@ -696,7 +677,6 @@ public func __kk_bignum_toByte(_ numRaw: Int) -> Int {
     return Int(Int8(bitPattern: UInt8(truncatingIfNeeded: bits)))
 }
 
-/// BigDecimal uses a runtime box instead of a compiler-generated class vtable.
 func runtimeBigDecimalNumberConversion(_ numRaw: Int, targetKind: Int32) -> Int? {
     guard let pointer = UnsafeMutableRawPointer(bitPattern: numRaw),
           let box = tryCast(pointer, to: RuntimeBigNumberBox.self),
@@ -717,12 +697,8 @@ func runtimeBigDecimalNumberConversion(_ numRaw: Int, targetKind: Int32) -> Int?
     }
 }
 
-/// Unlike `equals`, Java/Kotlin BigDecimal comparison ignores scale
-/// (1.0 == 1.00) and treats any zero as equal regardless of sign.
 private struct BigDecimalParts {
-    /// Canonical mantissa with no leading or trailing zeros; empty means zero.
     var digits: String
-    /// Value is `0.digits * 10^pointExponent` (normalised scientific form).
     var pointExponent: Int
     var negative: Bool
 }

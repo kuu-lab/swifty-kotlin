@@ -5,7 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2250: a getter's backing field must retain its owning receiver in a lambda.
     @Test
     func testGetterBackingFieldCaptureAcrossStdlibSurfaces() throws {
         let artifactPath = try Self.buildStdlibArtifact()

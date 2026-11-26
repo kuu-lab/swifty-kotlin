@@ -49,8 +49,6 @@ extension JVMBackendTests {
             """.utf8))
             try index.inject(into: ctx)
 
-            // `Class<out InputMerger>` erases to `java.lang.Class` in the JVM
-            // descriptor; only Kotlin metadata retains InputMerger.
             #expect(ctx.sourceManager.fileID(forPath: "<kswiftk-jvm-import>/dep/InputMerger.kt") != nil)
             let requestPath = "<kswiftk-jvm-import>/dep/WorkRequest.kt"
             let requestID = try #require(ctx.sourceManager.fileID(forPath: requestPath))

@@ -45,11 +45,6 @@ struct TokenModelTests {
         #expect(token.trailingTrivia == [.newline, .lineComment("// trailing")])
     }
 
-    // MARK: - Keyword
-
-    /// Spelling table for every `Keyword`. The `allCases` guard below is what
-    /// keeps it honest: a new case added to the enum fails this test until it
-    /// is listed here, rather than silently escaping the suite.
     private static let keywordSpellings: [(Keyword, String)] = [
         (.as, "as"),
         (.break, "break"),
@@ -139,9 +134,6 @@ struct TokenModelTests {
         #expect(TokenKind.keyword(.class) != TokenKind.keyword(.interface))
     }
 
-    // MARK: - SoftKeyword
-
-    /// See `keywordSpellings` for why the `allCases` guard matters here.
     private static let softKeywordSpellings: [(SoftKeyword, String)] = [
         (.by, "by"),
         (.get, "get"),

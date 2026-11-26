@@ -205,7 +205,6 @@ public open class Thread private constructor(
         }
     }
 
-    /** JDK `Thread.State` — the lifecycle states reported by `Thread.getState()`. */
     public enum class State {
         NEW,
         RUNNABLE,

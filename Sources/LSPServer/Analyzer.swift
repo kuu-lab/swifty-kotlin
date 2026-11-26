@@ -1,8 +1,6 @@
 import CompilerCore
 import Foundation
 
-/// Each analysis caches the resulting `CompilationContext` so position-based
-/// queries (hover, definition, document symbols) can reuse it.
 public final class Analyzer: @unchecked Sendable {
     enum AnalysisEvent: Sendable {
         case started(uri: String, text: String)
@@ -21,8 +19,6 @@ public final class Analyzer: @unchecked Sendable {
 
     private let driver = CompilerDriver()
     private let moduleName: String
-    /// Keeping this per-analyzer avoids relying on the process-global
-    /// CompilerOptions default while documents are analyzed concurrently.
     private let stdlibLibraryPath: String?
     private let analysisLock = NSLock()
     private let cacheLock = NSLock()
@@ -62,8 +58,6 @@ public final class Analyzer: @unchecked Sendable {
         return analysis
     }
 
-    /// Servers can use this for work that may become stale while the frontend
-    /// is running, then cache the result only after validating its generation.
     func analyzeWithoutCaching(uri: String, text: String) -> Analysis {
         analysisLock.lock()
         let analysis = makeAnalysis(uri: uri, text: text)
@@ -71,7 +65,6 @@ public final class Analyzer: @unchecked Sendable {
         return analysis
     }
 
-    /// Stores an analysis after its caller has validated that it is current.
     func cache(_ analysis: Analysis) {
         cacheLock.lock()
         cache[analysis.uri] = analysis
@@ -115,8 +108,6 @@ public final class Analyzer: @unchecked Sendable {
         cacheLock.unlock()
     }
 
-    /// Falls back to the raw URI string for non-file schemes so that an
-    /// in-memory buffer can still be analyzed.
     public static func path(forURI uri: String) -> String {
         DocumentURI.path(fromURI: uri) ?? uri
     }

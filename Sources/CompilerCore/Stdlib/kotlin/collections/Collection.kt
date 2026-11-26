@@ -7,9 +7,6 @@
 
 package kotlin.collections
 
-// KSP-700: keep the nominal Collection declaration in its own source file.
-// Runtime-linked members remain compiler residuals where collection boxes do
-// not populate interface itables; this file owns only the public contract.
 public interface Collection<out E> : Iterable<E> {
     public val size: Int
 

@@ -100,7 +100,6 @@ struct CodegenBackendStringBuilderEdgeCasesTests {
         )
     }
 
-    // STDLIB-TEXT-FN-024: insert
     @Test
     func testCodegenCompilesStringBuilderInsertEdgeCases() throws {
         let source = """
@@ -171,7 +170,6 @@ struct CodegenBackendStringBuilderEdgeCasesTests {
         )
     }
 
-    // KUU-641: StringBuilder.reverse() must keep UTF-16 surrogate pairs intact.
     @Test
     func testCodegenStringBuilderReversePreservesSurrogatePairs() throws {
         let source = """
@@ -244,7 +242,6 @@ struct CodegenBackendStringBuilderEdgeCasesTests {
         )
     }
 
-    // STDLIB-TEXT-FN-003: Typed append overloads for StringBuilder
     @Test
     func testCodegenCompilesStringBuilderTypedAppendOverloads() throws {
         let source = """
@@ -283,7 +280,6 @@ struct CodegenBackendStringBuilderEdgeCasesTests {
         )
     }
 
-    // DEBT-RT-001: StringBuilder bounds checks throw catchable IndexOutOfBoundsException.
     @Test
     func testCodegenStringBuilderInsertOutOfBoundsThrowsIndexOutOfBoundsException() throws {
         let source = """
@@ -340,9 +336,6 @@ struct CodegenBackendStringBuilderEdgeCasesTests {
         )
     }
 
-    // Regression: StringBuilder(capacity: Int) used to crash (SIGSEGV) because the
-    // Int argument was routed through the String-taking native constructor, which
-    // reinterpreted the raw capacity value as a string data pointer.
     @Test
     func testCodegenCompilesStringBuilderCapacityConstructor() throws {
         let source = """
@@ -400,13 +393,6 @@ struct CodegenBackendStringBuilderEdgeCasesTests {
         )
     }
 
-    // BUG-044: StringBuilder instances are constructed via a dedicated
-    // runtime entry point (kk_string_builder_new/_from_string_flat) that
-    // bypasses the normal kk_object_new class-construction path, so they
-    // never received the kk_type_register_super/kk_object_register_itable_iface
-    // registrations that make `is`/`as` work for a hand-rolled runtime
-    // object. `sb is CharSequence`/`sb is Appendable` fell through to
-    // kk_op_is's exception-hierarchy fallback and always returned false.
     @Test
     func testCodegenStringBuilderIsCharSequenceAndAppendable() throws {
         let source = """
@@ -429,12 +415,6 @@ struct CodegenBackendStringBuilderEdgeCasesTests {
         )
     }
 
-    // BUG-044 follow-up: `buildStringBuilder { ... }` (unlike `buildString { ... }`,
-    // which converts to a String via `.toString()` before returning) hands back
-    // the StringBuilder itself, constructed via the separate `kk_build_string_builder`
-    // DSL entry point (RuntimeBuilderDSL.swift), not the `kk_string_builder_new*`
-    // constructors the above test exercises. It needs the same
-    // runtimeRegisterStringBuilderType registration independently.
     @Test
     func testCodegenBuildStringBuilderResultIsCharSequenceAndAppendable() throws {
         let source = """
@@ -457,18 +437,6 @@ struct CodegenBackendStringBuilderEdgeCasesTests {
         )
     }
 
-    // BUG-043: Inside `buildString { ... }` / `buildStringBuilder { ... }`, member
-    // calls on the implicit StringBuilder receiver other than the six that used to
-    // be rewritten to the global builder-state DSL (append/appendLine/insert/
-    // delete/length/appendRange) fell back to the source-backed StringBuilder
-    // methods, but the DSL executor passed `0` as the implicit receiver, leaving
-    // `this` an invalid handle and corrupting execution at runtime. The
-    // StringBuilder source migration removed the global builder-state path
-    // entirely: `buildString`/`buildStringBuilder` are now plain Kotlin that
-    // construct a real StringBuilder object and invoke the receiver lambda with
-    // that object as `this`. This pins the previously-broken methods
-    // (reverse/clear/toString/deleteAt/deleteCharAt/setCharAt/set/get/capacity/
-    // ensureCapacity/trimToSize/setRange/deleteRange) through the builder lambda
     // so the regression cannot return. `replace`/`insertRange` are omitted here
     // because they currently fail overload resolution on an *implicit* receiver
     // (even inside a plain `with(StringBuilder()) { ... }`); that is a separate

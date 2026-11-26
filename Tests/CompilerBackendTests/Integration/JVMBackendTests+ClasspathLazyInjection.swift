@@ -71,8 +71,9 @@ extension JVMBackendTests {
             let facadePath = "<kswiftk-jvm-import>/fixture/ProviderKt.kt"
             let facadeID = try #require(ctx.sourceManager.fileID(forPath: facadePath))
             let facade = String(decoding: ctx.sourceManager.contents(of: facadeID), as: UTF8.self)
-            #expect(facade.contains("suspend fun fixture.Widget.`render`"))
-            #expect(facade.contains("(kotlin.Int, kotlin.Int) -> kotlin.Unit"))
+            // `dottedTypeName` backticks every name segment.
+            #expect(facade.contains("suspend fun `fixture`.`Widget`.`render`"))
+            #expect(facade.contains("(`kotlin`.`Int`, `kotlin`.`Int`) -> `kotlin`.`Unit`"))
             #expect(ctx.sourceManager.fileID(forPath: "<kswiftk-jvm-import>/fixture/Widget.kt") != nil)
         }
     }
@@ -80,10 +81,6 @@ extension JVMBackendTests {
     @Test
     func suspendFunctionTypeParameterRendersKotlinFunctionType() throws {
         try withWorkspace { root in
-            // kotlinx-coroutines-style multifile facade: the erased
-            // kotlin.jvm.functions.FunctionN carrier has no Kotlin
-            // declaration, so the suspend metadata path must render the
-            // function type (and declare its type parameters) itself.
             try """
             @file:JvmMultifileClass
             @file:JvmName("ProviderKt")
@@ -132,10 +129,7 @@ extension JVMBackendTests {
             #expect(!facade.contains("kotlin.jvm.functions.Function"))
             #expect(facade.contains("<`T`>"))
             #expect(facade.contains("): `T`"))
-            // Bare type-parameter parameters keep their Kotlin type.
             #expect(facade.contains("`value`: `T`"))
-            // Bounds render in a where clause, including bounds that
-            // reference a later type parameter.
             #expect(facade.contains("where `T`: fixture.Marker"))
             #expect(facade.contains("kotlin.Comparable<`R`>"))
         }
@@ -144,9 +138,6 @@ extension JVMBackendTests {
     @Test
     func lazyMultifileSuspendTypeParameterBoundsJoinClosure() throws {
         try withWorkspace { root in
-            // `Marker` appears only in ping's type-parameter bound, which the
-            // erased JVM signature does not carry; lazy injection must still
-            // pull it in or the emitted where clause is unresolved.
             try """
             @file:JvmMultifileClass
             @file:JvmName("ProviderKt")
@@ -201,9 +192,6 @@ extension JVMBackendTests {
         }
     }
 
-    // Room/KSP generated sources spell keyword package segments with
-    // backticks (javax.`annotation`.processing.Generated); the lazy-class
-    // scan must still see the reference and inject the classpath class.
     @Test
     func lazyClassInjectionSeesThroughBacktickedImportSegments() throws {
         try withWorkspace { root in
@@ -248,8 +236,6 @@ extension JVMBackendTests {
         }
     }
 
-    // Escape-only dotted segments (e.g. "`.`." inside a string literal)
-    // strip down to separators alone; the scan must skip them, not trap.
     @Test
     func lazyClassInjectionSkipsBacktickedEscapeOnlySegments() throws {
         try withWorkspace { root in

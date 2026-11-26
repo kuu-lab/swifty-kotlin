@@ -1,4 +1,3 @@
-// Scratch implementation proposal: all candidate lanes below remain NOT_RUN.
 @testable import CompilerCore
 import Foundation
 import TestStdlibCache
@@ -18,7 +17,6 @@ extension BundledStdlibExecutionTests {
         try #require(FileFingerprint.sha256Hex(driver) == "0c05e2b2560a73954c5049b4a805148dcdb07343617593b9bdf5314c054d1603")
         try #require(FileFingerprint.sha256Hex(expected) == "5b864281b4b3f5df8fb152cbd71bc27003d14375b352ecab0a2e04f2ef3e19f2")
         let inputs: [(String, Data)] = [
-            // Prefix only: assertion bodies and stored captures stay unchanged.
             ("contract.kt", Data("package runblocking1765.contract\n".utf8) + contract),
             ("controls.kt", Data("package runblocking1765.controls\n".utf8) + controls),
             ("driver.kt", driver)
@@ -180,8 +178,6 @@ private func runBlocking1765Executable(
     try stdlib?.requireUnchanged()
     try userLibrary?.requireUnchanged()
     try #require(FileFingerprint.sha256Hex(Data(contentsOf: executable)) == executableHash)
-    // No cleanup on failure. Keep sources and both raw streams on success too;
-    // only the completed executable and its known direct object are removed.
     try Data(execution.stdout.utf8).write(to: directory.appendingPathComponent("run.stdout"))
     try Data(execution.stderr.utf8).write(to: directory.appendingPathComponent("run.stderr"))
     let proof: [String: Any] = [

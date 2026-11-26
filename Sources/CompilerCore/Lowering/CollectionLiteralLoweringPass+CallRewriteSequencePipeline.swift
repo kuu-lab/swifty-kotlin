@@ -22,17 +22,6 @@ extension CollectionLiteralConstructionLoweringPass {
             return false
         }
 
-    // asSequence() on collection → kk_list_asSequence or kk_array_asSequence
-    // Guard with state.arrayExprIDs / state.listExprIDs so we only rewrite
-    // receivers whose concrete collection kind is known.
-    // Since LOWERING-001, non-tracked receivers (e.g., a List<Int>
-    // parameter or a function return value) are now seeded into
-    // the tracking sets via static type information from KIR.
-    // They are rewritten correctly by the checks below.
-
-    // When the callee is already the runtime name (e.g., resolved
-    // via the synthetic stub's externalLinkName), track the result as
-    // a sequence expression so downstream map/filter/toList rewrites fire.
     if callee == lookup.kkListAsSequenceName || callee == lookup.kkArrayAsSequenceName
         || callee == lookup.kkSequenceMapName || callee == lookup.kkSequenceFilterName
         || callee == lookup.kkSequenceFlatMapName
@@ -50,9 +39,6 @@ extension CollectionLiteralConstructionLoweringPass {
 
     if callee == lookup.asSequenceName, arguments.count == 1 {
         let receiverID = arguments[0]
-        // Seed tracking from static type so `intArrayOf(...).asSequence()` works even when
-        // CallLowerer already rewrote the factory to `kk_array_of` (which PreScan does not
-        // always tag as an array factory name).
         classifyTrackedExprByStaticType(
             receiverID,
             module: module,
@@ -78,8 +64,6 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
 
-        // True source-backed Sequence/Iterable.asSequence — keep virtual.
-        // Require a real symbol so unbound calls are not treated as source-backed.
         if let symbol,
            let sema = ctx.sema,
            sema.symbols.symbol(symbol) != nil,
@@ -301,8 +285,6 @@ extension CollectionLiteralConstructionLoweringPass {
         let receiverID = arguments[0]
         if state.sequenceExprIDs.contains(receiverID.rawValue) {
             let argID = arguments[1]
-            // Only sequence/list/array are supported by the
-            // ABI (not Set/Map) -- consistent with plus path.
             let isArgCollection = state.listExprIDs.contains(argID.rawValue)
                 || state.sequenceExprIDs.contains(argID.rawValue)
                 || state.arrayExprIDs.contains(argID.rawValue)
@@ -317,7 +299,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 instructions: &loweredBody
             )
             guard case .emitted = rewriteResult else {
-                // Fall through: collection-removal not supported
                 loweredBody.append(instruction)
                 return true
             }
@@ -329,9 +310,6 @@ extension CollectionLiteralConstructionLoweringPass {
         return false
     }
 
-    /// Decomposes a materialized Sequence HOF lambda (a `kk_function_create_N`
-    /// function object) back into the `(fnPtr, closureRaw)` pair expected by the
-    /// runtime Sequence helpers (`kk_sequence_map`, `kk_sequence_flatMap`, etc.).
     private func expandSequenceLambdaArgument(
         lambdaExpr: KIRExprID,
         module: KIRModule,
@@ -351,9 +329,6 @@ extension CollectionLiteralConstructionLoweringPass {
             return (fnPtrExpr, zeroExpr)
         }
 
-        // Fallback: pass the expression as the function pointer with a zero
-        // closure raw. This handles non-materialized callable references; for
-        // ordinary lambda literals, `callableValueInfo` is always populated.
         let intType = ctx.sema?.types.intType
         let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: intType)
         if intType != nil {

@@ -1,9 +1,5 @@
 import Testing
 
-// Kotlin's String.plus(other: Any?) renders a nullable String operand as the
-// literal "null". Keep the flat-string lowering path honest for both binary
-// `+` and compound assignment after the public operator moved to bundled
-// Kotlin source (KSP-717 / KUU-523).
 extension BundledStdlibExecutionTests {
     @Test
     func testNullableStringPlusAndCompoundAssignRenderNullLiteral() throws {

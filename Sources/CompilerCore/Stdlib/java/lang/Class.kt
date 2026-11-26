@@ -85,7 +85,6 @@ private external fun __classIsEnum(type: Class<*>): kotlin.Boolean
 @KsSymbolName("__kk_class_component_type")
 private external fun __classComponentType(type: Class<*>): Class<*>?
 
-// JVM-shaped view of an existing class token; it does not own a ClassLoader.
 public class Class<T> {
     public val canonicalName: String?
         get() = __classCanonicalName(this)
@@ -100,7 +99,6 @@ public class Class<T> {
      */
     public fun desiredAssertionStatus(): kotlin.Boolean = __assertionsEnabled()
 
-    /** Returns runtime-retained annotations declared on this class or inherited from its superclass. */
     public val annotations: Array<Annotation>
         get() = __classGetAnnotations(this)
 
@@ -115,51 +113,29 @@ public class Class<T> {
 
     public fun getMethods(): Array<Method> = __classGetMethods(this)
 
-    /**
-     * Kotlin view of `getMethods()`: all public methods of this class including
-     * inherited ones.
-     */
     public val methods: Array<Method>
         get() = __classGetMethods(this)
 
-    /**
-     * Kotlin view of `getInterfaces()`: the interfaces directly implemented by
-     * this class, or directly extended by this interface. Empty for classes
-     * with no direct interfaces, for primitives, and for `java.lang.Object`;
-     * array classes report `Cloneable` and `Serializable` like the JVM.
-     */
     public val interfaces: Array<Class<*>>
         get() = __classInterfaces(this)
 
     public fun getInterfaces(): Array<Class<*>> = __classInterfaces(this)
 
-    /**
-     * Kotlin view of `getSuperclass()`: the direct superclass, or null for
-     * interfaces, primitives, void, and `java.lang.Object`. Array classes
-     * report `java.lang.Object`.
-     */
     public val superclass: Class<*>?
         get() = __classSuperclass(this)
 
     public fun getSuperclass(): Class<*>? = __classSuperclass(this)
     public fun isAssignableFrom(other: Class<*>): Boolean = __classIsAssignableFrom(this, other)
 
-    /** Kotlin view of `isArray()`: true when this Class models an array type. */
     public val isArray: kotlin.Boolean
         get() = __classIsArray(this)
 
-    /** Kotlin view of `isPrimitive()`: true for the nine primitive/void class tokens. */
     public val isPrimitive: kotlin.Boolean
         get() = __classIsPrimitive(this)
 
-    /** Kotlin view of `isEnum()`: true when this Class models an enum declaration. */
     public val isEnum: kotlin.Boolean
         get() = __classIsEnum(this)
 
-    /**
-     * Kotlin view of `getComponentType()`: the element class of an array
-     * class token, or null for non-array classes.
-     */
     public val componentType: Class<*>?
         get() = __classComponentType(this)
 
@@ -168,11 +144,6 @@ public class Class<T> {
     public fun getDeclaredMethod(name: String, vararg parameterTypes: Class<*>): Method =
         __classGetDeclaredMethod(this, name, parameterTypes)
 
-    /**
-     * JVM `getMethod`: finds a public method by name and parameter types,
-     * including inherited ones. Panics with `java.lang.NoSuchMethodException`
-     * when no match exists.
-     */
     public fun getMethod(name: String, vararg parameterTypes: Class<*>): Method {
         for (method in getMethods()) {
             if (method.getName() != name) continue
@@ -190,25 +161,10 @@ public class Class<T> {
         throw NoSuchMethodException(name)
     }
 
-    /**
-     * Returns an enum entry field declared by this class.
-     * The native runtime panics with `java.lang.NoSuchFieldException` when the
-     * name is absent or names a field outside the supported enum-entry surface.
-     */
     public fun getDeclaredField(name: String): Field = __classGetDeclaredField(this, name)
 
-    /**
-     * JVM `getField`: finds a public field by name, including inherited ones.
-     * The native runtime panics with `java.lang.NoSuchFieldException` when the
-     * name is absent.
-     */
     public fun getField(name: String): Field = __classGetField(this, name)
 
-    /**
-     * JVM `getModifiers`: Java access/behavior modifier bits for this class.
-     * Derived from bundled class metadata; classes without metadata report
-     * `Modifier.PUBLIC` plus interface/abstract/final bits where detectable.
-     */
     public fun getModifiers(): Int = __classGetModifiers(this)
 
     @KsSymbolName("__kk_enum_set_values")
@@ -227,9 +183,6 @@ public class Class<T> {
 
     public fun isInstance(value: Any?): kotlin.Boolean = __isInstance(value)
 
-    /**
-     * Kotlin view of `isInterface()`: true when this Class models an interface.
-     */
     public val isInterface: kotlin.Boolean
         get() = __classIsInterface(this)
 

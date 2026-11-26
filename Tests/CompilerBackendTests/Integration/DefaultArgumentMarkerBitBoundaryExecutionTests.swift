@@ -45,9 +45,6 @@ struct DefaultArgumentMarkerBitBoundaryExecutionTests {
     }
 
     @Test func classInterfaceMethodDefaultsAcrossMarkerBit() throws {
-        // The collision is in the mask ABI, not in value-class dispatch: an
-        // ordinary class override with 31+ defaulted parameters takes the
-        // same `f$default` virtual-dispatch path.
         let parameters31 = (1 ... 31).map { "i\($0): Long = \($0)" }.joined(separator: ", ")
         let arguments31 = (1 ... 31).map { "i\($0): Long" }.joined(separator: ", ")
         let sum31 = (1 ... 31).map { "i\($0)" }.joined(separator: " + ")

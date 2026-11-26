@@ -34,8 +34,6 @@ struct IOBufferingContractsExecutionTests {
         try #require(provenance["status"] as? String == (eofContract
             ? "PINNED_NATIVE_DECLARATION_AND_EXPLICIT_RUNTIME_ASSERTIONS;CANDIDATE_NOT_RUN"
             : "JVM_SINGLE_DISTINCT_FIXTURE_REFERENCE;CANDIDATE_NOT_RUN"))
-        // The allowed reference batch compiled these two sources together.
-        // A real separately built JVM producer has not been claimed.
         let pins = try #require(provenance["source_hashes"] as? [String: String])
         var staged: [URL] = []
         var hashes: [String: String] = [:]
@@ -108,8 +106,6 @@ struct IOBufferingContractsExecutionTests {
         }
         var successfulChecksFinished = false
         defer {
-            // The producer is removed by owned successful cleanup below.
-            // Failed compile/run/check paths retain it and still check its hashes.
             if !successfulChecksFinished { producer?.expectUnchanged() }
         }
         let inputPaths = producerLibrary ? [staged.consumer.path] : staged.producer.map(\.path) + [staged.consumer.path]
@@ -145,8 +141,6 @@ struct IOBufferingContractsExecutionTests {
         try producer?.requireUnchanged()
         try #require(BundledStdlib.manifestHash() == sourceManifest)
         successfulChecksFinished = true
-        // Failures preserve the entire UUID directory. Successes retain raw
-        // output and all generated hashes before removing only owned artifacts.
         try io1730CleanupSuccessful(
             directory: directory, executable: executable, executableHash: executableHash,
             receiptBase: receiptBase, stdout: Data(result.stdout.utf8), expected: staged.expected,
@@ -180,8 +174,6 @@ private func io1730ArtifactHashes(_ directory: URL) throws -> [String: String] {
     return hashes
 }
 
-// Same ownership/proof-before-cleanup policy as the staged KUU1767 helper;
-// actual timeout is 30s here and raw stdout/stderr remain outside the UUID tree.
 private func io1730CleanupSuccessful(
     directory: URL, executable: URL, executableHash: String, receiptBase: URL,
     stdout: Data, expected: Data, lane: String, stdlib: IOBufferingArtifactSnapshot?,
@@ -271,7 +263,6 @@ private func io1730RunKeepingFailureEvidence(
             try JSONSerialization.data(withJSONObject: proof, options: [.prettyPrinted, .sortedKeys])
                 .write(to: receiptBase.appendingPathExtension("failure.json"), options: .atomic)
         } catch {
-            // Receipt IO failure must not replace the native/runner failure.
             Issue.record("Unable to persist KUU1730 failure evidence: \(error)")
         }
         throw runError

@@ -1,9 +1,5 @@
 import Testing
 
-// Collection toString() implementations render their elements in the runtime
-// through runtimeElementToString. That path must preserve the user-defined or
-// synthesized toString() registered for each object, including at nested
-// List/Set/Map/Pair boundaries.
 extension BundledStdlibExecutionTests {
     @Test
     func testCollectionToStringCallsElementOverrides() throws {

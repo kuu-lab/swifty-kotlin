@@ -5,7 +5,6 @@ import Foundation
 /// `fileEntries` — resolved through ``KlibIrModule``. Every symbol `Int64`
 /// is a `BinarySymbolData` code: `(signatureIndex << 8) | kind`.
 
-/// Kotlin `BinarySymbolData.SymbolKind` ordinals.
 package enum KlibSymbolKind: Int, Sendable, CustomStringConvertible {
     case function = 0
     case constructor = 1
@@ -46,8 +45,6 @@ package enum KlibSymbolKind: Int, Sendable, CustomStringConvertible {
     }
 }
 
-/// All `signatures`/`types`/`bodies`/`strings` tables are file-local, so a
-/// signature index only makes sense paired with its file index.
 package struct KlibSignatureKey: Hashable, Sendable {
     package let fileIndex: Int
     package let signatureIndex: Int
@@ -59,35 +56,26 @@ package struct KlibSignatureKey: Hashable, Sendable {
 }
 
 package struct KlibSymbolRef: Equatable, Sendable {
-    /// Index into the file's `signatures.knt` row.
     package let signatureIndex: Int
     package let kind: KlibSymbolKind
 
     package init?(_ code: Int64) {
         guard let kind = KlibSymbolKind(rawValue: Int(code & 0xFF)) else { return nil }
-        // `code ushr 8`: unsigned shift — the signature id occupies the
-        // upper bits and is always non-negative in valid data.
         self.signatureIndex = Int(UInt64(bitPattern: code) >> 8)
         self.kind = kind
     }
 }
 
-/// File-relative source coordinates decoded from a lattice code.
-/// `local` coordinates are relative to the parent's start offset.
 package struct KlibCoordinates: Equatable, Sendable {
     package let start: Int32
     package let end: Int32
 }
 
-/// Kotlin `BinaryLattice`/`BinaryCoordinates`/`BinaryNameAndType` helpers.
 package enum KlibBinaryEncoding {
-    /// Splits a bit-interleaved code into its two 32-bit halves.
     package static func decodeLattice(_ code: Int64) -> (first: Int32, second: Int32) {
         (decodeHalf(code), decodeHalf(code >> 1))
     }
 
-    /// `name_type` field → `(nameIndex, typeIndex)` into the file-local
-    /// `strings`/`types` tables.
     package static func decodeNameAndType(_ code: Int64) -> (nameIndex: Int32, typeIndex: Int32) {
         let pair = decodeLattice(code)
         return (nameIndex: pair.first, typeIndex: pair.second)
@@ -99,7 +87,6 @@ package enum KlibBinaryEncoding {
         let decoded = decodeLattice(code)
         var start = decoded.first
         if usesZigZag {
-            // ZigZag32 decode: (n >> 1) ^ -(n & 1)
             let bits = UInt32(bitPattern: start)
             start = Int32(bitPattern: (bits >> 1) ^ (0 &- (bits & 1)))
         }
@@ -127,24 +114,16 @@ package enum KlibBinaryEncoding {
     }
 }
 
-/// Signature references are indices into the file-local `signatures` table;
-/// fq-name segment lists are `strings` table indices joined with `.`.
 package enum KlibIdSignature: Equatable {
-    /// Top-level public signature (`CommonIdSignature`).
     case common(packageFqName: [Int32], declarationFqName: [Int32], memberId: Int64?, flags: Int64, debugInfo: Int32?)
     case accessor(propertySignature: Int32, name: Int32, hashId: Int64, flags: Int64, debugInfo: Int32?)
-    /// Private/file-local signature (`FileLocalIdSignature`).
     case fileLocal(container: Int32, localId: Int64)
-    /// Local symbol scoped to the file (`scoped_local_sig` raw value).
     case scopedLocal(Int32)
     case composite(container: Int32, inner: Int32)
     case local(fqName: [Int32], hash: Int64?)
-    /// Marker resolved to the owning file's `FileSignature`.
     case file
 }
 
-/// File-independent identity of a public IR symbol. Table indices and debug
-/// strings differ between files; the member hash distinguishes overloads.
 package indirect enum KlibPublicSignature: Hashable {
     case common(packageName: [String], declarationName: [String], memberId: Int64?, flags: Int64)
     case accessor(property: KlibPublicSignature, name: String, hashId: Int64, flags: Int64)
@@ -219,17 +198,14 @@ package enum KlibTypeNullability: Int {
 
 package enum KlibTypeArgument: Equatable {
     case star
-    /// `index` into the file's `types` table.
     case type(index: Int32, variance: KlibVariance)
 }
 
-/// Kotlin `IrAnnotation` has the same shape as `IrConstructorCall`.
 package struct KlibAnnotation {
     package var symbol: KlibSymbolRef
     package var constructorTypeArgumentsCount: Int32
     package var memberAccess: KlibMemberAccess?
     package var arguments: [KlibIrExpression]
-    /// Indices into `types` (packed int64? no — `type_argument` is packed int32).
     package var typeArguments: [Int32]
     package var originName: Int32?
     package var localCoordinates: KlibCoordinates?
@@ -240,16 +216,13 @@ package enum KlibIrType {
     case legacySimple(classifier: KlibSymbolRef, hasQuestionMark: Bool, arguments: [KlibTypeArgument], annotations: [KlibAnnotation])
     case dynamic(annotations: [KlibAnnotation])
     case error(annotations: [KlibAnnotation])
-    /// `types` are indices into the `types` table.
     case definitelyNotNull(types: [Int32])
 }
 
 package struct KlibDeclBase {
     package var symbol: KlibSymbolRef
-    /// `IrStatementOrigin` name → `strings` index.
     package var originName: Int32
     package var globalCoordinates: KlibCoordinates?
-    /// Relative to the parent's start offset.
     package var localCoordinates: KlibCoordinates?
     package var flags: KlibIrFlags
     package var annotations: [KlibAnnotation]
@@ -257,30 +230,25 @@ package struct KlibDeclBase {
 
 package struct KlibNameAndType: Equatable {
     package var nameIndex: Int32
-    /// Index into `types` for the declared type.
     package var typeIndex: Int32
 }
 
 package struct KlibAnonymousInit {
     package var base: KlibDeclBase
-    /// Index into `bodies`.
     package var bodyIndex: Int32
 }
 
 package struct KlibClass {
     package var base: KlibDeclBase
-    /// `strings` index.
     package var nameIndex: Int32
     package var typeParameters: [KlibTypeParameter]
     package var declarations: [KlibIrDeclaration]
-    /// `types` indices.
     package var superTypes: [Int32]
     package var inlineClassRepresentation: KlibInlineClassRepresentation?
     package var sealedSubclasses: [KlibSymbolRef]
 }
 
 package struct KlibInlineClassRepresentation {
-    /// `types` index.
     package var underlyingPropertyType: Int32
 }
 
@@ -291,14 +259,12 @@ package struct KlibConstructor {
 package struct KlibEnumEntry {
     package var base: KlibDeclBase
     package var nameIndex: Int32
-    /// Index into `bodies` for the initializer expression.
     package var initializerIndex: Int32?
 }
 
 package struct KlibField {
     package var base: KlibDeclBase
     package var nameType: KlibNameAndType
-    /// Index into `bodies` for the initializer expression.
     package var initializerIndex: Int32?
 }
 
@@ -310,7 +276,6 @@ package struct KlibFunctionBase {
     package var contextParameters: [KlibValueParameter]
     package var extensionReceiver: KlibValueParameter?
     package var regularParameters: [KlibValueParameter]
-    /// Index into `bodies`, absent for abstract/external declarations.
     package var bodyIndex: Int32?
 }
 
@@ -344,16 +309,13 @@ package struct KlibVariable {
 package struct KlibValueParameter {
     package var base: KlibDeclBase
     package var nameType: KlibNameAndType
-    /// `types` index when the parameter is `vararg`.
     package var varargElementType: Int32?
-    /// Index into `bodies` for the default-value expression.
     package var defaultValueIndex: Int32?
 }
 
 package struct KlibTypeParameter {
     package var base: KlibDeclBase
     package var nameIndex: Int32
-    /// `types` indices.
     package var superTypes: [Int32]
 }
 
@@ -390,7 +352,6 @@ package struct KlibMemberAccess {
     package var argumentsPre240: [KlibIrExpression?]
     /// 2.4+ `argument` list on the call message itself.
     package var arguments: [KlibIrExpression]
-    /// Indices into `types`.
     package var typeArguments: [Int32]
 }
 
@@ -403,7 +364,6 @@ package struct KlibFieldAccess {
 package struct KlibLoop {
     package var loopId: Int32
     package var condition: KlibIrExpression
-    /// `strings` index.
     package var label: Int32?
     package var body: KlibIrExpression?
     package var originName: Int32?
@@ -431,7 +391,6 @@ package enum KlibVarargElement {
     case spread(expression: KlibIrExpression, globalCoordinates: KlibCoordinates?, localCoordinates: KlibCoordinates?)
 }
 
-/// `typeIndex`/`coordinates` live on the wrapper, ``KlibIrExpression``.
 package indirect enum KlibIrExpressionKind {
     case constNull
     case constBool(Bool)
@@ -440,11 +399,8 @@ package indirect enum KlibIrExpressionKind {
     case constShort(Int32)
     case constInt(Int32)
     case constLong(Int64)
-    /// `Float(bitPattern:)`
     case constFloat(UInt32)
-    /// `Double(bitPattern:)`
     case constDouble(UInt64)
-    /// `strings` index.
     case constString(Int32)
     case getValue(symbol: KlibSymbolRef, originName: Int32?)
     case setValue(symbol: KlibSymbolRef, value: KlibIrExpression, originName: Int32?)
@@ -526,17 +482,13 @@ package struct KlibFileEntry {
     /// older klibs.
     package var nameIndex: Int32?
     package var nameOld: String?
-    /// Absolute per-line start offsets, reconstructed from deltas.
     package var lineStartOffsets: [Int32]
 }
 
 package struct KlibIrFile {
-    /// Top-level declaration ids → `irDeclarations` row of this file.
     package var declarationIds: [Int32]
     package var fileEntry: KlibFileEntry?
-    /// Index into the `fileEntries` row of this file.
     package var fileEntryId: Int32?
-    /// `strings` indices forming the package fq name.
     package var fqName: [Int32]
     package var annotations: [KlibAnnotation]
 }

@@ -2,7 +2,6 @@ import Foundation
 import RuntimeCAtomics
 
 
-/// A single seq-cst hardware atomic cell instead of a mutex per box.
 final class AtomicIntBox {
     private let storage: UnsafeMutablePointer<Int32>
 
@@ -54,7 +53,6 @@ final class AtomicIntBox {
     }
 }
 
-/// Kotlin `Int` arithmetic and storage are defined over signed 32-bit values.
 private func atomicInt32Value(_ value: Int) -> Int32 {
     Int32(truncatingIfNeeded: value)
 }
@@ -351,7 +349,6 @@ public func __kk_atomic_bool_compareAndExchange(_ receiver: Int, _ expect: Int, 
 }
 
 
-/// Values are stored as opaque intptr_t (object pointers or boxed values).
 final class AtomicRefBox {
     private let storage: UnsafeMutablePointer<Int>
 
@@ -449,8 +446,6 @@ public func __kk_atomic_ref_compareAndExchange(_ receiver: Int, _ expect: Int, _
 }
 
 
-/// Each element is an independent seq-cst atomic cell, so operations on
-/// distinct indices don't contend on a shared lock.
 final class AtomicIntArrayBox {
     private let storage: UnsafeMutableBufferPointer<Int32>
 
@@ -516,7 +511,6 @@ private func atomicIntArrayBox(from raw: Int) -> AtomicIntArrayBox? {
     return tryCast(ptr, to: AtomicIntArrayBox.self)
 }
 
-// (a) RF-DEAD-002: 配線予定 → MIGRATION-ATOMIC-001 (AtomicIntArray / AtomicLongArray サポート)
 @_cdecl("kk_atomic_int_array_create")
 public func kk_atomic_int_array_create(_ size: Int) -> Int {
     let box = AtomicIntArrayBox(size: size)
@@ -654,9 +648,6 @@ public func kk_atomic_long_array_size(_ receiver: Int) -> Int {
     return box.size()
 }
 
-// KSP-672: Raw synchronized core for AtomicLongArray. Bounds checks and the
-// public `*At` layer live in Kotlin (AtomicArrayMigration.kt); these bridges
-// assume a pre-validated index and never allocate exceptions.
 @_cdecl("__kk_atomic_long_array_load")
 public func __kk_atomic_long_array_load(_ receiver: Int, _ index: Int) -> Int {
     guard let box = atomicLongArrayBox(from: receiver) else { return 0 }
@@ -697,7 +688,6 @@ public func __kk_atomic_long_array_addAndFetch(_ receiver: Int, _ index: Int, _ 
 }
 
 
-/// Elements are stored as opaque intptr_t (object pointers or boxed values).
 final class AtomicRefArrayBox {
     private let storage: UnsafeMutableBufferPointer<Int>
 
@@ -740,10 +730,6 @@ final class AtomicRefArrayBox {
         }
     }
 
-    /// Identity-based CAS with decoded-payload matching for primitive boxes.
-    /// String bridges preserve canonical handles, so distinct strings never match.
-    /// The CAS loop retries on the newly observed value so the swap still happens
-    /// iff the cell held a matching value at the successful compare-exchange.
     func compareAndSet(at index: Int, expect: Int, update: Int) -> Bool {
         guard let cell = cell(at: index) else { return false }
         return runtimeStorage.withGCLock { state in
@@ -757,7 +743,6 @@ final class AtomicRefArrayBox {
         }
     }
 
-    /// Identity-based compareAndExchange: returns the previous value regardless of success.
     func compareAndExchange(at index: Int, expect: Int, update: Int) -> Int {
         guard let cell = cell(at: index) else { return 0 }
         return runtimeStorage.withGCLock { state in
@@ -792,9 +777,7 @@ private func registerAtomicRefArrayBox(_ box: AtomicRefArrayBox) -> Int {
 /// handle) — so CAS for primitive values compares the decoded payload while
 /// strings and other object references keep word identity.
 private enum AtomicRefWordValue {
-    /// Unregistered word: a bare primitive payload or sentinel stored raw.
     case raw(Int)
-    /// Registered handle that is not a value box: identity semantics.
     case object
     case bool(Bool)
     case char(Int)
@@ -805,10 +788,6 @@ private enum AtomicRefWordValue {
     case doubleBits(UInt64)
     case unit
 
-    /// The payload a bare primitive word would carry for this cell's element
-    /// type, when this word is a primitive/unit box. References and strings
-    /// return nil: a raw pointer can never decode to them without a registry
-    /// hit, which `.raw` already excluded.
     var primitivePayload: Int? {
         switch self {
         case .bool(let value):
@@ -861,11 +840,6 @@ private func runtimeAtomicRefIsNullWord(_ word: Int) -> Bool {
     word == 0 || word == runtimeNullSentinelInt
 }
 
-/// Value-typed CAS match for `AtomicReference` / `AtomicArray<T>`: identical
-/// words match (object identity and equal raw payloads), boxes of the same
-/// primitive kind match by payload, and a bare stored word matches a box
-/// carrying the same payload. Distinct string and other object handles never
-/// match; flat String bridges preserve their canonical box identity.
 private func runtimeAtomicRefValuesMatch(_ lhs: Int, _ rhs: Int, objectPointers: RuntimePointerSet) -> Bool {
     if lhs == rhs {
         return true
@@ -888,8 +862,6 @@ private func runtimeAtomicRefValuesMatch(_ lhs: Int, _ rhs: Int, objectPointers:
     case (.unit, .unit):
         return true
     case let (.raw(l), .raw(r)):
-        // Distinct bare words differ as payloads; the two null spellings
-        // still denote the same null.
         return runtimeAtomicRefIsNullWord(l) && runtimeAtomicRefIsNullWord(r)
     default:
         break

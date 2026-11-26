@@ -136,8 +136,6 @@ struct AnnotationStringMetadataTests {
             MetadataAnnotationRecord(annotationFQName: "fixture.Marker", arguments: legacy, useSiteTarget: "get"),
         ])
         let encoder = MetadataEncoder()
-        // Build an authentic marker-free body before constructing the index:
-        // removing bytes after indexed serialization would invalidate offsets.
         let legacyBody = encoder.serialize([record]).replacingOccurrences(of: "|literalFormat:canonical", with: "")
         let bodyLine = try #require(legacyBody.split(whereSeparator: \.isNewline).last)
         let metadata = indexed

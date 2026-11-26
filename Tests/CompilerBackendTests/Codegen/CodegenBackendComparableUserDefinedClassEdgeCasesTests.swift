@@ -44,12 +44,6 @@ struct CodegenBackendComparableUserDefinedClassEdgeCasesTests {
         )
     }
 
-    // BUG-170 / BUG-226: through an erased `T : Comparable<T>` bound the
-    // operands can have different runtime types (subclass vs base, or two
-    // classes sharing a Comparable interface). Dispatch must still reach the
-    // user `compareTo` instead of comparing heap addresses — including when
-    // compareTo is only an interface default (Bronze/Gold) and allocation
-    // order is reversed.
     @Test
     func testCodegenComparisonOperatorsDispatchCompareToAcrossRelatedRuntimeTypes() throws {
         let source = """
@@ -115,18 +109,6 @@ struct CodegenBackendComparableUserDefinedClassEdgeCasesTests {
         )
     }
 
-    // BUG-224: identical to the scenario above, but with `gold` declared (and
-    // therefore heap-allocated) before `bronze`. Before the fix, dispatch for
-    // `compareTo` reached only through an interface's default implementation
-    // (never through an override on the constructed class or a class
-    // superclass) fell back to comparing raw heap addresses instead of
-    // calling `compareTo` — a bug that stayed silent on macOS with the
-    // original declaration order (Darwin's allocator happened to place
-    // `bronze` below `gold`) and only surfaced on Linux/glibc, whose
-    // allocator orders them the other way. Swapping the declaration order
-    // reverses the relative heap addresses on macOS too, making this variant
-    // fail deterministically pre-fix and pass deterministically post-fix,
-    // independent of platform allocator behavior.
     @Test
     func testCodegenComparisonOperatorsDispatchCompareToThroughInterfaceDefaultRegardlessOfDeclarationOrder() throws {
         let source = """

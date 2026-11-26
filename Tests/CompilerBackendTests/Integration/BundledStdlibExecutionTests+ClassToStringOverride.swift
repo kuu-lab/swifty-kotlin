@@ -1,14 +1,7 @@
 import TestStdlibCache
 import Testing
 
-// End-to-end (compiled and run) counterpart of the KIR-structural checks in
-// CompilerCoreTests/Lowering/LoweringPassRegressionTests+ClassStringConversion.swift.
-// A class's own overridden toString() must be called when the value is
-// stringified through the Any-erased `+`/string-template funnel, not just
-// when toString() is called directly -- see that file's header comment for
-// the full root-cause writeup.
 extension BundledStdlibExecutionTests {
-    // KUU-1254: cover both imported-artifact and source-injected stdlib paths.
     @Test(arguments: [true, false])
     func testValueClassSynthesizedToString(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
@@ -36,10 +29,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    // KUU-599 regression: an imported generic collection HOF passes a boxed
-    // value-class element through an erased callback ABI. Double must be
-    // unboxed before the lambda reads its property, and a value class's
-    // toString() must survive Any/collection boxing.
     @Test
     func testValueClassDoubleSurvivesErasedMapAndAnyToString() throws {
         try compileAndRunKotlin(
@@ -122,10 +111,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    // A base-typed receiver holding a derived instance must call the runtime
-    // type's override via virtual dispatch, both through `+` concatenation
-    // and through the println/print rewrite (ConsolePrintLoweringPass), which
-    // had the same static-dispatch defect for an open-class-typed receiver.
     @Test
     func testPolymorphicClassToStringUsesVirtualDispatchInConcatAndPrintln() throws {
         try compileAndRunKotlin(
@@ -170,15 +155,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    // KUU-3230: a direct `x.toString()` on a class that inherits the
-    // implementation is a vtable call rooted at the synthetic `Any.toString`
-    // declaration. That slot returns a flat String aggregate, but the
-    // root-most symbol links to the raw-handle runtime helper
-    // (`kk_any_member_to_string`), so the indirect call used to be declared
-    // `i64`-returning and miscalled the flat implementation (printing
-    // `null`). Data classes inheriting final `toString`/`hashCode`/`equals`
-    // hit the same path — they keep the inherited implementations instead of
-    // regenerating them.
     @Test(arguments: [true, false])
     func testInheritedToStringVirtualCallUsesFlatStringABI(allowDefaultStdlibLibrary: Bool) throws {
         if allowDefaultStdlibLibrary { TestStdlibCache.shared.prepare() }
@@ -220,14 +196,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    // KUU-3197: an `object` (or class) inheriting `toString` from an open
-    // superclass dispatches through a per-object vtable slot registered at
-    // construction. The slot must carry the flat String-aggregate
-    // implementation — the raw `kk_any_to_string_bridge_*` thunk belongs only
-    // to the erased-Any stringify map, and storing it in the slot made the
-    // flat indirect call read the bridge's single i64 handle as the flat
-    // String aggregate, so the inherited `toString()` result was corrupt
-    // instead of printing "K".
     @Test(arguments: [true, false])
     func testInheritedToStringVtableSlotUsesFlatABI(allowDefaultStdlibLibrary: Bool) throws {
         if allowDefaultStdlibLibrary { TestStdlibCache.shared.prepare() }
@@ -253,8 +221,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    // KUU-3507: an object inheriting a superclass toString() must keep the
-    // same result through println, explicit calls, and string interpolation.
     @Test
     func testInheritedObjectToStringAcrossStringPaths() throws {
         try compileAndRunKotlin(

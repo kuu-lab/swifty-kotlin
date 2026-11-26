@@ -12,7 +12,6 @@ struct ReifiedEnumValuesLoweringTests {
         }
     }
 
-    /// Only parameter-derived class tokens may bypass concrete specialization.
     @Test(arguments: TokenSource.allCases, [false, true])
     func tracksCapturedClassToken(source: TokenSource, isInline: Bool) throws {
         let (sema, symbols, types, interner) = makeSemaModule()
@@ -54,7 +53,6 @@ struct ReifiedEnumValuesLoweringTests {
             body.append(.call(callee: interner.intern(callee), arguments: [input],
                               result: extracted, canThrow: false))
         }
-        // Copies after capture extraction must preserve the token's provenance.
         body.append(.copy(from: extracted, to: token))
         body.append(.call(symbol: enumValues, callee: interner.intern("enumValues"), arguments: [token],
                           result: result, canThrow: false))

@@ -3,10 +3,6 @@ package kotlin.collections
 import kotlin.internal.KsSymbolName
 import kotlin.internal.__valuesEqual
 
-// Allocation, construction, and ring-buffer mutation stay in the runtime
-// (`__kk_arraydeque_*`), because the element storage is a runtime-managed,
-// GC-traced buffer.
-
 @KsSymbolName("__kk_arraydeque_size")
 private external fun <E> __kkArrayDequeSize(deque: ArrayDeque<E>): Int
 

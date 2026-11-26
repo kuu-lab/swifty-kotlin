@@ -1,44 +1,3 @@
-/// KUU-655: Kotlin lets an `override` omit the argument(s) for parameters
-/// whose *base* declaration carries a default value, even when the override
-/// itself declares none (re-declaring one is a separate, unenforced rule):
-///
-/// ```kotlin
-/// open class A { open fun f(x: Int = 1) = "A$x" }
-/// class B : A() { override fun f(x: Int) = "B$x" }
-/// fun main() {
-///     println(B().f())  // "B1" -- B.f has no default of its own, but A.f's applies
-/// }
-/// ```
-///
-/// Before this pass, `MemberHeaderCollection` builds every function's
-/// `FunctionSignature.valueParameterHasDefaultValues` purely from that
-/// function's own AST parameters (`HeaderHelpers.collectValueParameters`),
-/// so `B.f`'s flags are all `false` and the call above is rejected with
-/// `KSWIFTK-SEMA-0002` (`Resolution+TypeConstraints.buildParameterMapping`
-/// requires a default flag to skip an unbound parameter).
-///
-/// This pass runs once all headers and inheritance edges exist (see
-/// `Phase.runValidationPasses`). It records the *original* owning symbol in
-/// `overrideDefaultsBaseSymbol` (walking through any number of intermediate
-/// overrides that themselves lack their own defaults) so KIR call-site
-/// lowering knows which declaration's `$default` stub to route through -- the
-/// override itself never gets one, since its AST has no default expressions
-/// to evaluate. See `CallSupportLowerer.defaultStubOwnerSymbol` and
-/// `CallSupportLowerer.generateDefaultStubFunction`'s virtual-dispatch call
-/// for the KIR side of this fix.
-///
-/// A `by`-delegation forwarding method (`Inheritance.synthesizeForwardingMethod`)
-/// is itself an `override` with all-false default flags and a `parentSymbol`/
-/// `directSupertypes` edge to the delegated interface, so it is covered by
-/// this same walk without any special-casing -- this pass is intentionally
-/// scheduled after `synthesizeClassDelegationForwardingMethodSymbols` in
-/// `Phase.runValidationPasses`.
-///
-/// Not covered: object-literal member overrides (`object : A() { override
-/// fun f(x: Int) = ... }`), whose override symbols are only created later,
-/// during body analysis (`ExprTypeChecker+ObjectLiteralInference`), after
-/// this pass has already run. That is a narrower, separate gap -- tracked
-/// alongside this fix's Linear ticket rather than fixed here.
 extension DataFlowSemaPhase {
     func inheritDefaultArgumentValuesForOverrides(
         symbols: SymbolTable,
@@ -161,12 +120,7 @@ extension DataFlowSemaPhase {
         }
 
         for sym in functionSymbols where sym.flags.contains(.overrideMember) && !sym.flags.contains(.importedLibrary) {
-            // If no function with this name in the entire module carries default arguments,
-            // an override of this name can never inherit any.
             guard defaultArgFunctionNames.contains(sym.name) else { continue }
-            // A parameterless override cannot inherit any default arguments.
-            // Its compact-index shape answers this without decoding its own
-            // signature, owner metadata, or overridden hierarchy.
             if symbols.importedMemberIndexShape(for: sym.id)?.arity == 0 { continue }
             guard !hasOwnDefault(sym.id) else { continue }
             if let base = resolve(sym.id) {

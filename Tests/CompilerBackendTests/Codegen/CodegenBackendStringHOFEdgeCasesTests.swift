@@ -7,7 +7,6 @@ import Testing
 @Suite
 struct CodegenBackendStringHOFEdgeCasesTests {
 
-    // TEST-TEXT-018: filter / filterNot / filterIndexed
     @Test
     func testCodegenStringFilterVariants() throws {
         let source = """
@@ -40,7 +39,6 @@ struct CodegenBackendStringHOFEdgeCasesTests {
         )
     }
 
-    // TEST-TEXT-018: map / mapIndexed / mapNotNull
     @Test
     func testCodegenStringMapVariants() throws {
         let source = """
@@ -69,7 +67,6 @@ struct CodegenBackendStringHOFEdgeCasesTests {
         )
     }
 
-    // TEST-TEXT-018: all / any / none / count
     @Test
     func testCodegenStringPredicateAggregates() throws {
         let source = """
@@ -110,7 +107,6 @@ struct CodegenBackendStringHOFEdgeCasesTests {
         )
     }
 
-    // TEST-TEXT-018: find / findLast
     @Test
     func testCodegenStringFindFindLast() throws {
         let source = """
@@ -139,7 +135,6 @@ struct CodegenBackendStringHOFEdgeCasesTests {
         )
     }
 
-    // TEST-TEXT-018: first / last / single — happy path (non-empty strings)
     @Test
     func testCodegenStringFirstLastSingle() throws {
         let source = """
@@ -207,7 +202,6 @@ struct CodegenBackendStringHOFEdgeCasesTests {
         }
     }
 
-    // TEST-TEXT-018: firstOrNull / lastOrNull / singleOrNull — null on empty and multi-element
     @Test
     func testCodegenStringNullableAccessors() throws {
         let source = """
@@ -260,7 +254,6 @@ struct CodegenBackendStringHOFEdgeCasesTests {
         )
     }
 
-    // TEST-TEXT-018: partition — verifies Pair<String,String> return via .first / .second
     @Test
     func testCodegenStringPartition() throws {
         let source = """
@@ -297,7 +290,6 @@ struct CodegenBackendStringHOFEdgeCasesTests {
         )
     }
 
-    // TEST-TEXT-046: CharSequence.reduce
     @Test
     func testCodegenStringReduce() throws {
         let source = """
@@ -320,7 +312,6 @@ struct CodegenBackendStringHOFEdgeCasesTests {
         )
     }
 
-    // TEST-TEXT-018: takeWhile / dropWhile
     @Test
     func testCodegenStringTakeWhileDropWhile() throws {
         let source = """
@@ -351,7 +342,6 @@ struct CodegenBackendStringHOFEdgeCasesTests {
         )
     }
 
-    // Pure Kotlin string accessors and parsing regression tests
     @Test
     func testCodegenStringPureKotlinAccessorsAndParsing() throws {
         let source = """
@@ -433,7 +423,6 @@ struct CodegenBackendStringHOFEdgeCasesTests {
         )
     }
 
-    // TEST-TEXT-019: String number parsing overloads
     @Test
     func testCodegenStringPureKotlinNumberParsing() throws {
         let source = """

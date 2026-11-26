@@ -3,9 +3,6 @@ package java.net
 import java.io.InputStream
 import kotlin.internal.KsSymbolName
 
-/** Native source-backed `java.net.URL`: immutable URL with JVM-shaped
- * component accessors, relative resolution, `sameFile`/`equals`/`hashCode`,
- * `openStream`/`openConnection` routed through the runtime URL fetcher. */
 public final class URL {
     private val spec: String
     public val protocol: String
@@ -60,7 +57,6 @@ public final class URL {
             else -> -1
         }
 
-    /** `path` plus `?query`, matching the JDK `getFile` contract. */
     public val file: String
         get() = path + (queryPart?.let { "?$it" } ?: "")
 
@@ -75,9 +71,6 @@ public final class URL {
 
     public fun toURI(): URI = URI(spec)
 
-    /** `true` when two URLs name the same resource: equal protocol, host
-     * (case-insensitive), effective port, file, and ref — ignoring user-info
-     * differences the JDK ignores for `sameFile`. */
     public fun sameFile(other: URL): Boolean =
         protocol.equals(other.protocol, ignoreCase = true) &&
             host.equals(other.host, ignoreCase = true) &&
@@ -98,8 +91,6 @@ public final class URL {
 
     override fun toString(): String = spec
 
-    /** Opens a connection to this URL and returns an InputStream over the
-     * response body. Works for `http`, `https` (network), and `file` URLs. */
     public fun openStream(): InputStream = netUrlOpenStream(spec)
 
     public fun openConnection(): URLConnection =
@@ -314,7 +305,6 @@ private fun urlNormalizePath(path: String): String {
     return (if (absolute) "/" else "") + joined
 }
 
-/** `application/x-www-form-urlencoded` codec matching the JDK. */
 public object URLEncoder {
     private val safe = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-*_"
 

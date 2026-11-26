@@ -3,9 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// BUG-219: an unresolved return type parameter nested inside a lambda's
-/// contextual return type must not reject a concrete member-call result before
-/// the enclosing higher-order call can infer that parameter.
 @Suite
 struct Bug219GenericLambdaMemberResolutionTests {
     @Test func testConcreteMemberCallInfersNestedLambdaReturnTypeParameter() throws {

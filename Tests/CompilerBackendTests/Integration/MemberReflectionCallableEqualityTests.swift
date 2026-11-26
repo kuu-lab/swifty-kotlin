@@ -2,12 +2,6 @@
 import Foundation
 import Testing
 
-/// KUU-3806: on the JVM a `KFunction`/`KProperty` obtained through
-/// `C::class.members`/`functions`/`memberProperties` equals the unbound
-/// `C::member` callable reference. The member reflection handle now records
-/// the same equality identity (target, arity, kind, return type, captures)
-/// the reference carries, while bound `instance::member` references keep
-/// their receiver capture and stay distinct.
 @Suite
 struct MemberReflectionCallableEqualityTests {
     @Test
@@ -71,13 +65,6 @@ struct MemberReflectionCallableEqualityTests {
         #expect(result.stdout == String(repeating: "true\n", count: 17))
     }
 
-    /// KUU-4064: `val String.ext` / `fun String.extFn()` declared inside a
-    /// class are member extensions. Like the JVM, `memberProperties`/
-    /// `declaredMemberProperties`/`memberFunctions`/`declaredMemberFunctions`
-    /// exclude them, `members` still lists them, and the
-    /// `memberExtension*`/`declaredMemberExtension*` accessors in
-    /// `kotlin.reflect.full` surface them. Expected output captured from
-    /// kotlinc 2.4.20.
     @Test
     func memberExtensionsAreExcludedFromOrdinaryMemberAccessors() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -128,7 +115,6 @@ struct MemberReflectionCallableEqualityTests {
 
         let result = try CommandRunner.run(executable: outputPath, arguments: [])
         #expect(result.exitCode == 0)
-        // Matches kotlinc 2.4.20 output exactly.
         #expect(result.stdout == """
         false
         false

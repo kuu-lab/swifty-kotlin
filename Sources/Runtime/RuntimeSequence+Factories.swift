@@ -44,9 +44,6 @@ public func __kk_sequence_of(_ arrayRaw: Int) -> Int {
     if let arr = runtimeArrayBox(from: arrayRaw) {
         elements = Array(arr.elements)
     } else if let list = runtimeListBox(from: arrayRaw) {
-        // Source-backed vararg functions are normalized to a list at their
-        // public call boundary; accept that representation while preserving
-        // the packed-array ABI used by direct bridge calls.
         elements = Array(list.elements)
     } else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_of expected RuntimeArrayBox or RuntimeListBox")

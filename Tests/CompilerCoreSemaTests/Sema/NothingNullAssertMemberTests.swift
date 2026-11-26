@@ -55,5 +55,32 @@ struct NothingNullAssertMemberTests {
             .error("KSWIFTK-SEMA-0024", containing: "Unresolved member function 'bar'"),
         ], includeStdlib: false)
     }
+
+    // KUU-4593: kotlinc keeps a bare `Nothing`-typed `!!` result ambiguous
+    // when it is passed to an overloaded call (`println(nn!!)`,
+    // `val y = nn!!; println(y)`), exactly as it does for `println(TODO())`.
+    // Only the member and arithmetic receiver positions use the asserted type.
+    @Test
+    func nullAssertResultPassedToOverloadedCallStaysAmbiguous() throws {
+        _ = try semaContext(from: """
+        fun show(a: Any?) {}
+        fun show(a: Int) {}
+        fun show(a: String) {}
+        fun direct() {
+            var nn: String? = "x"
+            nn = null
+            show(nn!!)
+        }
+        fun viaVal() {
+            var nn: String? = "x"
+            nn = null
+            val y = nn!!
+            show(y)
+        }
+        """, expecting: [
+            .error("KSWIFTK-SEMA-0003", containing: "Ambiguous overload resolution", count: 2),
+            .warning("KSWIFTK-SEMA-0096", containing: "Unreachable code"),
+        ], includeStdlib: false)
+    }
 }
 #endif

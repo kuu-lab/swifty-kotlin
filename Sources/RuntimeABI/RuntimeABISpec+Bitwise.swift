@@ -15,17 +15,12 @@ public extension RuntimeABISpec {
         abi.nt("kk_op_shr", "a b"),
         abi.nt("kk_op_ushr", "a b"),
         abi.nt("kk_op_dmul", "a b"),
-        // KSP-717: kk_int_toString_radix removed. Int/Long.toString(radix) is
-        // pure Kotlin source (Stdlib/kotlin/text/StringNumberConversions.kt).
-        // STDLIB-BIT-007: One-bit functions are source-backed in
-        // `Stdlib/kotlin/BitOperations.kt` since KSP-644.
         abi.nt("kk_op_eq", "lhs rhs"),
         abi.th("kk_op_ne", "lhs rhs"),
         abi.th("kk_op_lt", "lhs rhs"),
         abi.th("kk_op_le", "lhs rhs"),
         abi.th("kk_op_gt", "lhs rhs"),
         abi.th("kk_op_ge", "lhs rhs"),
-        // Unsigned (ULong-correct) comparison operators
         abi.th("kk_op_ult", "lhs rhs"),
         abi.th("kk_op_ule", "lhs rhs"),
         abi.th("kk_op_ugt", "lhs rhs"),

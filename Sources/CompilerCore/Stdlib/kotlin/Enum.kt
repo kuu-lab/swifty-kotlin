@@ -11,9 +11,6 @@ package kotlin
 
 import kotlin.internal.KsSymbolName
 
-// KSP-732: The compiler lowers enum representation details (name/ordinal and
-// enum-specific string conversion), while the public member contracts are
-// declared here for normal source binding and metadata.
 public abstract class Enum<T : Enum<T>> protected constructor(
     name: String,
     ordinal: Int
@@ -37,10 +34,6 @@ public abstract class Enum<T : Enum<T>> protected constructor(
     public companion object {}
 }
 
-// KSP-776: These declarations are the source-backed public surface for the
-// reified enum intrinsics. Their fallback bodies are never executed for a
-// concrete enum call: CallTypeChecker records the intrinsic binding and
-// CallLowerer expands it using the enum class's generated members.
 public inline fun <reified T : Enum<T>> enumValues(): Array<T> =
     throw IllegalStateException("enumValues is expanded by the compiler")
 

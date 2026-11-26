@@ -5,10 +5,6 @@
 import Foundation
 import Testing
 
-/// Compiles and links `source`, then runs it with `shellInvocation` wrapping
-/// the binary (`"$1"` refers to the compiled executable), returning
-/// normalized stdout. Shared by the `readLine`/`readln`/`readlnOrNull`
-/// stdin tests below, which differ only in the shell-side stdin redirect.
 private func runWithStdin(_ source: String, moduleName: String, shellInvocation: String) throws -> String {
     var normalizedStdout = ""
     try withTemporaryFile(contents: source) { path in
@@ -135,9 +131,6 @@ struct CodegenBackendIOHelpersTests {
         try assertKotlinOutput(source, moduleName: "PrintlnNoArgRuntime", expected: "\nafter\n")
     }
 
-    /// KSP-415 follow-up: println's class-typed argument rewrite used to call
-    /// toString() unconditionally regardless of nullability, crashing on a
-    /// null receiver instead of printing "null".
     @Test
     func testCodegenPrintlnNullableClassNullReceiverPrintsNull() throws {
         let source = """
@@ -153,9 +146,6 @@ struct CodegenBackendIOHelpersTests {
         try assertKotlinOutput(source, moduleName: "PrintlnNullableClassNullRuntime", expected: "null\n")
     }
 
-    /// Companion to the null case above: a non-null nullable-typed receiver
-    /// must still resolve the custom toString() (not fall back to the
-    /// generic "<object 0x...>" representation).
     @Test
     func testCodegenPrintlnNullableClassNonNullReceiverCallsToString() throws {
         let source = """

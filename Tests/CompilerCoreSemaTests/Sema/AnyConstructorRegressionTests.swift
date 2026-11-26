@@ -4,8 +4,6 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-/// Regression coverage for KSP-805: `kotlin.Any` has a constructor, so both
-/// explicit `Any()` and the implicit superclass can be `super()` targets.
 @Suite
 struct AnyConstructorRegressionTests {
     @Test(arguments: [

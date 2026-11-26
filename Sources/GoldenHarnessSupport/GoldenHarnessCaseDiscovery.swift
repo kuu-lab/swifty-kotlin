@@ -3,9 +3,6 @@ import Foundation
 struct GoldenHarnessCaseFile: Sendable {
     var sourcePath: String { sourceURL.path }
     let sourceURL: URL
-    /// A spec that failed to parse leaves this nil and records `specLoadError`;
-    /// strict discovery and persistence validation surface that error before a
-    /// golden is written.
     let spec: GoldenHarnessCaseSpec?
     let specLoadError: String?
     /// Spec-carrying cases pin their stdlib profile into the golden filename
@@ -49,9 +46,6 @@ enum GoldenHarnessCaseDiscoveryError: Error, CustomStringConvertible {
     }
 }
 
-/// The counts are useful in CI diagnostics, while the target contract sets make
-/// dedicated-case changes reviewable without depending on a particular shard's
-/// batch contents.
 public struct GoldenHarnessCaseInventory: Sendable, Equatable {
     public let caseCount: Int
     public let caseCountBySuite: [String: Int]
@@ -68,8 +62,6 @@ public enum GoldenHarnessCaseDiscovery {
         )
     }
 
-    /// The directory overload keeps negative inventory tests isolated from the
-    /// checked-in corpus while exercising the same production discovery path.
     static func loadCases(
         suite: GoldenHarnessGoldenSuite,
         directory suiteURL: URL
@@ -240,10 +232,6 @@ public enum GoldenHarnessCaseDiscovery {
         )
     }
 
-    /// Unlike the complete suite audit, this checks only the source's own
-    /// adjacent files, which keeps ad-hoc temporary cases usable while still
-    /// preventing a deleted spec or malformed spec from falling back to legacy
-    /// output.
     static func validateCaseFile(
         _ caseFile: GoldenHarnessCaseFile,
         suite: GoldenHarnessGoldenSuite? = nil,

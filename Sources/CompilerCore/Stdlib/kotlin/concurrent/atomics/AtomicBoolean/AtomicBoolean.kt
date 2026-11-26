@@ -10,9 +10,6 @@ package kotlin.concurrent.atomics
 
 import kotlin.internal.KsSymbolName
 
-// The canonical atomics type is a distinct source-backed class whose payload
-// uses the same runtime atomic box. Keep the runtime entry points private and
-// expose the public API as source-backed receiver declarations.
 @KsSymbolName("__kk_atomic_bool_compareAndExchange")
 private external fun AtomicBoolean.__kkAtomicBoolCompareAndExchange(
     expectedValue: Boolean,

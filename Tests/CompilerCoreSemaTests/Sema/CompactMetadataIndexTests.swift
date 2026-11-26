@@ -138,8 +138,6 @@ struct CompactMetadataIndexTests {
         let header = CompactMetadataIndex.magic.count
         let stringBytes = data.withUnsafeBytes { Int(UInt32(littleEndian: $0.loadUnaligned(fromByteOffset: header + 8, as: UInt32.self))) }
         let table = header + 16 + stringBytes
-        // Every truncated header/string/table/body must reject without large
-        // allocations, integer overflow, unaligned traps or body decoding.
         for end in 0 ..< data.count {
             #expect(IndexedMetadataFile(data: data.prefix(end)) == nil)
         }
@@ -166,12 +164,7 @@ struct CompactMetadataIndexTests {
         #expect(IndexedMetadataFile(data: invalidUTF8) == nil)
     }
 
-    /// Tables past the parallel chunk threshold decode through worker chunks;
-    /// results must keep file order and corrupting any chunk still rejects the
-    /// whole file exactly like the sequential scan.
     @Test func parallelChunkDecodePreservesOrderAndRejectsCorruption() throws {
-        // Arity and inline are callable-only index fields: properties store
-        // zero/false regardless of the source record.
         let records = (0 ..< 5_000).map { index in
             MetadataRecord(
                 kind: index.isMultiple(of: 7) ? .property : .function,
@@ -197,7 +190,6 @@ struct CompactMetadataIndexTests {
             #expect(compact.visibility == record.visibility)
             #expect(compact.externalLinkName == record.externalLinkName)
         }
-        // Spot-check lazy body records against the source declarations.
         for index in [0, 1234, 4999] {
             let decoded = try #require(file.record(for: file.entries[index]))
             #expect(encoder.serialize([decoded]) == encoder.serialize([records[index]]))
@@ -208,8 +200,6 @@ struct CompactMetadataIndexTests {
             Int(UInt32(littleEndian: $0.loadUnaligned(fromByteOffset: header + 8, as: UInt32.self)))
         }
         let table = header + 16 + stringBytes
-        // A corrupted byte inside a unique fqName's UTF-8 payload must reject
-        // through a worker chunk (not the sequential header/prescan checks).
         var invalidUTF8 = data
         let stringOffset = try #require(data.range(of: Data("f1234".utf8)))
         invalidUTF8[stringOffset.lowerBound] = 0xFF
@@ -221,20 +211,16 @@ struct CompactMetadataIndexTests {
             corrupt[table + entryIndex * CompactMetadataIndex.entrySize + 23] = 0xFF
             #expect(IndexedMetadataFile(data: corrupt) == nil)
         }
-        // String id past the pool bound in a middle chunk.
         var badID = data
         withUnsafeBytes(of: UInt32.max.littleEndian) {
             badID.replaceSubrange(table + 2500 * CompactMetadataIndex.entrySize + 32 ..< table + 2500 * CompactMetadataIndex.entrySize + 36, with: $0)
         }
         #expect(IndexedMetadataFile(data: badID) == nil)
-        // Body offset/length beyond the file in a middle chunk.
         var badOffset = data
         withUnsafeBytes(of: UInt64.max.littleEndian) {
             badOffset.replaceSubrange(table + 3000 * CompactMetadataIndex.entrySize ..< table + 3000 * CompactMetadataIndex.entrySize + 8, with: $0)
         }
         #expect(IndexedMetadataFile(data: badOffset) == nil)
-        // Truncations landing inside the string table, the entry table and
-        // the body are each rejected.
         for end in [header + 16 + stringBytes / 2, table + 80, table + 3500 * 80 + 40, data.count - 10] {
             #expect(IndexedMetadataFile(data: data.prefix(end)) == nil)
         }

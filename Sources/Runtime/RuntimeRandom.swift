@@ -1,21 +1,15 @@
 
 
 final class SeededRandomBox {
-    /// Internal PRNG state (xorshift64*).
     var state: UInt64
 
     init(seed: Int) {
-        // Kotlin's Random(seed) internally mixes the seed.  We use the same
-        // initial-state derivation so that behaviour is deterministic and
-        // consistent across runs.  A seed of 0 would stall xorshift, so we
-        // mix it first.
         var s = UInt64(bitPattern: Int64(seed))
-        // Murmur-style finaliser to spread bits.
         s = s &+ 0x9E3779B97F4A7C15
         s = (s ^ (s >> 30)) &* 0xBF58476D1CE4E5B9
         s = (s ^ (s >> 27)) &* 0x94D049BB133111EB
         s = s ^ (s >> 31)
-        if s == 0 { s = 1 }          // xorshift must never be 0
+        if s == 0 { s = 1 }
         self.state = s
     }
 

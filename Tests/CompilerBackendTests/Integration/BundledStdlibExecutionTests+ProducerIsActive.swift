@@ -1,15 +1,6 @@
 import Testing
 
-// KUU-1450: `channelFlow`/`callbackFlow` launch their producer through
-// `runtimeKxMiniProduceWithCont`, which used to run the body without calling
-// `markStarted()` on the producer job — the job stayed `.new`, so
-// `CoroutineScope.isActive`/`coroutineContext[Job]?.isActive` inside the
-// running producer answered false (JVM: true). The sibling
-// `__kk_produce_launch*` launchers behind `produce`/`actor` already mark the
-// job started; these tests pin `isActive == true` across all three builders.
 extension BundledStdlibExecutionTests {
-    /// Minimal reproduction from the issue: `isActive` and
-    /// `coroutineContext[Job]?.isActive` inside a `callbackFlow` producer.
     @Test(arguments: [true, false])
     func testCallbackFlowProducerIsActive(
         allowDefaultStdlibLibrary: Bool
@@ -37,9 +28,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// `channelFlow` shares the same launcher, and `produce` reaches the
-    /// runtime through `__kk_produce_launch` — the producer job must read
-    /// `.active` in every builder shape.
     @Test(arguments: [true, false])
     func testChannelFlowAndProduceProducerIsActive(
         allowDefaultStdlibLibrary: Bool
