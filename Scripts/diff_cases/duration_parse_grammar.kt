@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.time.Duration
 
 fun main() {
@@ -8,6 +9,8 @@ fun main() {
     println(Duration.parseOrNull(" 1h 30m ") == null)
     println(Duration.parseIsoStringOrNull(" PT1H ") == null)
     println(Duration.parseIsoString("PT-1H"))
+    println(Duration.parseIsoString("PT4.005S"))
+    println(Duration.parseOrNull("INFINITY"))
     println(Duration.parse("0.5s"))
     println(Duration.parse("-(1h 30m)"))
     println(Duration.parseOrNull("+1h 30m") == null)

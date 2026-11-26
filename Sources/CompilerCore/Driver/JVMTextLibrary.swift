@@ -29,8 +29,9 @@ extension JVMProgramBuilder {
             func durationPhysical(_ type: JVMValueType) -> JVMValueType {
                 type.referenceName == "kotlin/time/Duration" && !type.isNullable ? .long : type
             }
-            let parameters = owner == "kotlin/time/Duration" ? signatureParameters.map(durationPhysical) : signatureParameters
-            let result = owner == "kotlin/time/Duration" ? durationPhysical(signatureResult) : signatureResult
+            let mapsDurationValues = owner == "kotlin/time/Duration" || owner == "kotlin/time/Duration$Companion"
+            let parameters = mapsDurationValues ? signatureParameters.map(durationPhysical) : signatureParameters
+            let result = mapsDurationValues ? durationPhysical(signatureResult) : signatureResult
             var explicitParameters = parameters
             for (index, declaration) in declarations.enumerated() where declaration.isVararg { explicitParameters[index] = parameters[index].referenceName?.hasPrefix("[") == true ? parameters[index] : .reference("[" + JVMClasspathIndex.boxed(parameters[index]).descriptor, nullable: false) }
             let params = (extensionReceiver.map { [$0] } ?? []) + explicitParameters
@@ -58,7 +59,14 @@ extension JVMProgramBuilder {
                 let name = context.interner.resolve(f.name)
                 if owner == "java/util/Map", name == "set" { continue }
                 let aliases = ["get": "charAt", "set": "setCharAt", "deleteAt": "deleteCharAt", "deleteRange": "delete", "setRange": "replace"]
-                try method(symbol, owner: owner, name: owner == "java/util/List" && name == "removeAt" ? "remove" : owner == "java/lang/StringBuilder" ? aliases[name] ?? name : name, declarations: f.valueParams, interface: interface, adaptation: owner == "java/lang/StringBuilder" ? name : nil)
+                let durationCompanionNames = [
+                    "parse": "parse-UwyO8pc",
+                    "parseIsoString": "parseIsoString-UwyO8pc",
+                    "parseOrNull": "parseOrNull-FghU774",
+                    "parseIsoStringOrNull": "parseIsoStringOrNull-FghU774",
+                ]
+                let methodName = owner == "kotlin/time/Duration$Companion" ? durationCompanionNames[name] ?? name : owner == "java/util/List" && name == "removeAt" ? "remove" : owner == "java/lang/StringBuilder" ? aliases[name] ?? name : name
+                try method(symbol, owner: owner, name: methodName, declarations: f.valueParams, interface: interface, adaptation: owner == "java/lang/StringBuilder" ? name : nil)
             }
             for id in properties {
                 guard case let .propertyDecl(p) = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id), let semantic = sema.symbols.propertyType(for: symbol) else { continue }

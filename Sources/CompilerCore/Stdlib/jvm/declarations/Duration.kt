@@ -48,6 +48,11 @@ public value class Duration internal constructor(private val rawValue: Long) : C
         public val Int.days: Duration get() = Duration(0L)
         public val Long.days: Duration get() = Duration(0L)
         public val Double.days: Duration get() = Duration(0L)
+
+        public fun parse(value: String): Duration = null!!
+        public fun parseIsoString(value: String): Duration = null!!
+        public fun parseOrNull(value: String): Duration? = null
+        public fun parseIsoStringOrNull(value: String): Duration? = null
     }
 }
 
