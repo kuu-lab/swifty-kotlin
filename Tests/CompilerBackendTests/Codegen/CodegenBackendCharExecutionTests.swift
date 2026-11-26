@@ -1,7 +1,4 @@
 #if canImport(Testing)
-// TEST-CHAR-019: End-to-end execution tests for Char arithmetic and CharRange.forEach.
-// Char.plus(Int) and Char.minus(Int) have no dedicated runtime symbol — they lower to
-// kk_op_add/kk_op_sub via the IR, so codegen is the only layer that can verify them.
 @testable import CompilerCore
 @testable import CompilerBackend
 @testable import CompilerTestSupport
@@ -63,7 +60,6 @@ struct CodegenBackendCharExecutionTests {
 
     @Test
     func testCodegenCharPlusInt() throws {
-        // Char.plus(Int) lowers to kk_op_add; .code extracts the result as Int for safe printing
         let source = """
         fun main() {
             println(('a' + 1).code)
@@ -85,7 +81,6 @@ struct CodegenBackendCharExecutionTests {
 
     @Test
     func testCodegenCharMinusInt() throws {
-        // Char.minus(Int) lowers to kk_op_sub; result type is Char, printed via .code
         let source = """
         fun main() {
             println(('b' - 1).code)
@@ -107,7 +102,6 @@ struct CodegenBackendCharExecutionTests {
 
     @Test
     func testCodegenCharMinusChar() throws {
-        // Char.minus(Char) dispatches to kk_char_minus and returns Int
         let source = """
         fun main() {
             println('b' - 'a')
@@ -131,7 +125,6 @@ struct CodegenBackendCharExecutionTests {
 
     @Test
     func testCodegenStringGetByIndex() throws {
-        // String.get dispatches to kk_string_get; result is Char, printed via .code
         let source = """
         fun main() {
             println("hello"[1].code)
@@ -176,7 +169,6 @@ struct CodegenBackendCharExecutionTests {
 
     @Test
     func testCodegenCharRangeForEachEmpty() throws {
-        // ('e'..'a') with implicit step=1 — first > last, so forEach iterates zero times
         let source = """
         fun main() {
             ('e'..'a').forEach { c -> println(c.code) }
@@ -189,7 +181,6 @@ struct CodegenBackendCharExecutionTests {
 
     @Test
     func testCodegenCharProgressionForEachDescending() throws {
-        // 'e' downTo 'a' produces a CharProgression with step=-1
         let source = """
         fun main() {
             ('e' downTo 'a').forEach { c -> println(c.code) }
@@ -213,8 +204,6 @@ struct CodegenBackendCharExecutionTests {
 
     @Test
     func testCodegenCharIsJavaIdentifierPartTypicalValues() throws {
-        // Covers letters, digits, connector punctuation (_), currency symbol ($),
-        // and characters that are NOT valid identifier parts (space, operator).
         let source = """
         fun main() {
             println('A'.isJavaIdentifierPart())
@@ -244,9 +233,6 @@ struct CodegenBackendCharExecutionTests {
 
     @Test
     func testCodegenCharIsJavaIdentifierPartDigitAllowedButStartForbids() throws {
-        // Digits are valid identifier *parts* but NOT valid identifier *starts*.
-        // This test documents the semantic difference between the two predicates
-        // and ensures both runtime symbols are wired correctly through codegen.
         let source = """
         fun main() {
             println('5'.isJavaIdentifierPart())
@@ -266,9 +252,6 @@ struct CodegenBackendCharExecutionTests {
         )
     }
 
-    // KSP-481: `for (ch in someString)` used to leave the loop variable typed as
-    // Any instead of Char, so member calls on it (and explicit `Char` typing)
-    // failed to resolve even though runtime iteration was already correct.
     @Test
     func testCodegenForLoopStringIterationMemberCall() throws {
         let source = """
@@ -316,10 +299,6 @@ struct CodegenBackendCharExecutionTests {
         )
     }
 
-    // KSP-481: `for (i in 0 until n)` desugars `until` as an infix memberCall
-    // rather than a `.binary` range op, so the for-loop's AST-shape range check
-    // missed it and the loop variable fell back to Any -- breaking any strict
-    // use of it, including as a String/Array index.
     @Test
     func testCodegenForLoopUntilRangeIndexedStringCharMemberCall() throws {
         let source = """
@@ -369,10 +348,6 @@ struct CodegenBackendCharExecutionTests {
         )
     }
 
-    // Pre-existing bug (STDLIB-290 follow-up): `for (c in 'a'..'e')` mistyped the
-    // loop variable as Int instead of Char. `.forEach { c -> }` already covered
-    // CharRange execution (see testCodegenCharRangeForEachAscending above) via a
-    // different lambda-typed code path, which is why it didn't catch this.
     @Test
     func testCodegenForLoopCharRangeExplicitCharType() throws {
         let source = """

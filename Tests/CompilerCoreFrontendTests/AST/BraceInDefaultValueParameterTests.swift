@@ -3,14 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// Regression coverage for value parameters whose default value expression
-/// contains a `{`, e.g. a scope-function call (`run { ... }`) or a lambda
-/// literal (`{ ... }`) used directly as the default. `declarationValueParameters`
-/// (BuildASTPhase+DeclBuilders.swift) used to break out of its parameter-scanning
-/// loop on ANY `{` token, regardless of nesting depth, mistaking the default
-/// value's brace for the start of the function body. That silently truncated
-/// the parameter list before its closing `)`, dropping the parameter under
-/// scan and any parameters declared after it.
 @Suite
 struct BraceInDefaultValueParameterTests {
     @Test

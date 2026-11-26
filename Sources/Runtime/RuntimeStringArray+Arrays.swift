@@ -14,11 +14,6 @@ public func kk_array_new(_ length: Int) -> Int {
     registerRuntimeObject(RuntimeArrayBox(length: length))
 }
 
-/// Same as `kk_array_new`, but validates `length` first and throws
-/// `NegativeArraySizeException` for negative sizes instead of silently
-/// clamping to an empty array. Used by the `Array(size) { init }` family of
-/// pseudo-constructors (Array, IntArray, ByteArray, ...), which must reject
-/// negative sizes the way real Kotlin does.
 @_cdecl("kk_array_new_checked")
 public func kk_array_new_checked(_ length: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeThrowingBridge(outThrown) {
@@ -46,9 +41,6 @@ public func kk_array_get(_ arrayRaw: Int, _ index: Int, _ outThrown: UnsafeMutab
 
 @_cdecl("kk_array_get_inbounds")
 public func kk_array_get_inbounds(_ arrayRaw: Int, _ index: Int) -> Int {
-    // Uses the O(1) subscript rather than `elements`, which copies the whole
-    // backing store on every access. This is the hot path for object field
-    // reads as well as array indexing.
     guard let array = runtimeArrayBox(from: arrayRaw),
           index >= 0, index < array.count
     else {
@@ -88,9 +80,6 @@ public func kk_array_set(_ arrayRaw: Int, _ index: Int, _ value: Int, _ outThrow
     }
 }
 
-/// Stores an object field together with its static Any-fallback type tag.
-/// Generated data-class constructors use this non-throwing entry point after
-/// the normal inbounds layout checks have been performed by lowering.
 @_cdecl("kk_array_set_typed")
 public func kk_array_set_typed(
     _ arrayRaw: Int,

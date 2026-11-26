@@ -5,11 +5,6 @@ import Foundation
 import TestStdlibCache
 import Testing
 
-/// KUU-4028: end-to-end coverage for `kotlinx.cinterop` pointer element
-/// operators — `CArrayPointer<T>[i] = v` (`set`), `ptr + index` (`plus`),
-/// `CPointer.getPointer(scope)`, the `Long` index `get`, `rawValue`, and
-/// `CPointerVarOf` element `set`/`plus`. Kotlin/Native-only API, so this
-/// verifies `kswiftc` compile+run behavior rather than kotlinc parity.
 @Suite(.serialized)
 struct CInteropPointerElementOpsExecutionTests {
     @Test(arguments: [false, true])

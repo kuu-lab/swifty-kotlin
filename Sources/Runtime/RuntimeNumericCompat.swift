@@ -31,8 +31,6 @@ public func kk_any_to_string(_ value: Int, _ tag: Int) -> UnsafeMutableRawPointe
     if value == runtimeNullSentinelInt {
         return runtimeMakeStringPointer("null")
     }
-    // UIntArray views can supply a sign-extended IntArray element word.
-    // Interpret its low 32 bits even when no UInt box has been allocated.
     if tag == 9 {
         return runtimeMakeStringPointer(String(UInt32(truncatingIfNeeded: kk_unbox_int_static(value))))
     }
@@ -85,8 +83,6 @@ func runtimeAnyToStringOverride(_ raw: Int) -> UnsafeMutableRawPointer? {
     return UnsafeMutableRawPointer(bitPattern: result)
 }
 
-/// Collection renderers use this shared dispatch path because
-/// their element ABI has already erased the static Kotlin type.
 func runtimeAnyToStringOverrideText(_ raw: Int) -> String? {
     guard let result = runtimeAnyToStringOverrideRaw(raw) else {
         return nil
@@ -171,10 +167,6 @@ private func runtimeTaggedDoubleValue(_ value: Int) -> Double {
     return kk_bits_to_double(value)
 }
 
-/// This mirrors runtimeTaggedFloatValue/runtimeTaggedDoubleValue: unbox first
-/// when the raw value is a GC-tracked object pointer (e.g. a nullable ULong?
-/// data class property, which the ABI always boxes so its field slot can
-/// also represent null), otherwise reinterpret the raw bits.
 private func runtimeTaggedULongValue(_ value: Int) -> UInt {
     if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
         let isObjectPointer = runtimeStorage.withGCLock { state in
@@ -198,9 +190,6 @@ private func runtimeStringHashCode(_ value: String) -> Int {
     return Int(hash)
 }
 
-// Kotlin Set.hashCode() is the order-independent sum of its element hashes.
-// Keep this aligned with RuntimeSetBox equality so sets that contain the same
-// elements in different insertion orders have identical hashes.
 private func runtimeSetHashCode(_ set: RuntimeSetBox) -> Int {
     var hash: Int32 = 0
     for element in set.values {
@@ -237,12 +226,6 @@ private func runtimeDoubleHashCode(_ value: Double) -> Int {
     return runtimeXorFoldHashCode(Int64(bitPattern: bits))
 }
 
-/// Unboxed (raw, non-pointer) `Any.hashCode()` fallback. Tags 5/6/7/8
-/// (Float/Double/ULong/Long) apply Kotlin's bit-level formulas. Tags 9/10/11
-/// (UInt/UByte/UShort) reinterpret the zero-extended payload as the signed
-/// primitive backing each Kotlin value class. Every other tag's raw slot value
-/// already equals its hashCode as-is (Int, Char), or is handled here directly
-/// (Boolean).
 private func runtimeUnboxedAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     switch tag {
     case 2:
@@ -264,7 +247,6 @@ private func runtimeUnboxedAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     }
 }
 
-/// Hash Unit through its canonical box so raw and Any-erased values share one identity hash.
 private func runtimeUnitHashCode() -> Int {
     let identityHash = kk_native_identityHashCode(kk_box_unit(0))
     let hash = Int(Int32(truncatingIfNeeded: identityHash))
@@ -286,10 +268,6 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         state.objectPointers.contains(UInt(bitPattern: pointer))
     }
     guard isObjectPointer else {
-        // A capture-less callable reference can surface as a raw function
-        // pointer rather than a boxed object; its registered identity still
-        // defines hashCode (KUU-2940), so `::f.hashCode()` matches both
-        // another `::f` and a `fun interface` adapter wrapping `::f`.
         if let hash = runtimeCallableReferenceHashCode(value) {
             return hash
         }
@@ -341,9 +319,6 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         return runtimeXorFoldHashCode(Int64(longBox.value))
     }
     if let ulongBox = tryCast(pointer, to: RuntimeULongBox.self) {
-        // ULong.hashCode() uses the same (this xor (this ushr 32)) formula as
-        // Long, and the bit pattern is identical either way, so this shares
-        // runtimeXorFoldHashCode bit-for-bit with the Long branch above.
         return runtimeXorFoldHashCode(Int64(ulongBox.value))
     }
     if let floatBox = tryCast(pointer, to: RuntimeFloatBox.self) {
@@ -358,10 +333,6 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     if runtimeIsUnitBox(value) {
         return runtimeUnitHashCode()
     }
-    // Result is represented by a runtime box while the source-backed stdlib
-    // still models it as a class. Preserve Kotlin's public value-class
-    // contract by delegating to the wrapped success value, or to the wrapped
-    // exception for a failure.
     if let resultBox = tryCast(pointer, to: RuntimeResultBox.self) {
         let wrappedValue = resultBox.isSuccess ? resultBox.value : resultBox.exception
         return kk_any_hashCode(wrappedValue, 0)
@@ -373,8 +344,6 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         return runtimeStringHashCode(value)
     }
     if let durationBox = tryCast(pointer, to: RuntimeDurationBox.self) {
-        // Duration.hashCode() is Long.hashCode of the tagged payload
-        // (KUU-645); keep the boxed/Any path on the same xor-fold.
         return runtimeXorFoldHashCode(durationBox.rawValue)
     }
     if let instantBox = tryCast(pointer, to: RuntimeInstantBox.self) {
@@ -414,11 +383,6 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         }
         return Int(hash)
     }
-    // Tagged Pair/Triple boxes hash structurally, matching both
-    // runtimeValuesEqual and kotlin/Tuples.kt's hashCode(); an untagged
-    // RuntimePairBox is internal runtime state and keeps the pointer hash.
-    // Like the List/Set/Map branches above, every combine step wraps as
-    // Kotlin Int (Int32), not the host's 64-bit Int width.
     if runtimeObjectTypeID(rawValue: value) == runtimePairNominalTypeID,
        let pairBox = tryCast(pointer, to: RuntimePairBox.self)
     {
@@ -442,13 +406,8 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     if let hash = runtimeCallableReferenceHashCode(value) {
         return hash
     }
-    // Nominal objects honor user overrides and data-class structural hashes;
-    // plain classes inherit Any's identity hash, matching runtimeValuesEqual.
     if let objBox = tryCast(pointer, to: RuntimeObjectBox.self) {
         if let setBox = objBox.backingSetBox {
-            // Some mutable set implementations use a RuntimeObjectBox shell
-            // with a RuntimeSetBox backing store; preserve the same Set hash
-            // contract for that representation.
             var hash: Int32 = 0
             for element in setBox.values {
                 hash = hash &+ Int32(truncatingIfNeeded: kk_any_hashCode(element.legacyRawValue, 0))
@@ -463,10 +422,6 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
             return overridden
         }
         if runtimeIsDataClass(classID: objBox.classID) {
-            // The first two slots are the runtime object header. Data-class
-            // constructor fields are the tagged slots that follow it; plain
-            // inherited fields remain untagged and are not part of the
-            // compiler-synthesized data-class hash contract.
             let fieldMask = runtimeDataClassFieldMask(classID: objBox.classID)
             let fields: [RuntimeValue] = if let fieldMask {
                 objBox.values.enumerated().filter { index, _ in
@@ -546,9 +501,6 @@ private func runtimeAnyKind(_ value: Int, _ tag: Int32) -> Int32 {
         return runtimeUnboxedAnyKind(tag)
     }
     if let range = tryCast(pointer, to: RuntimeRangeBox.self) {
-        // Keep each nominal range type distinct from scalar Any values and
-        // from the other range classes, while retaining value equality for
-        // separately allocated instances of the same class.
         return 200 &+ range.kind.rawValue
     }
     if tryCast(pointer, to: RuntimeBoolBox.self) != nil {
@@ -570,8 +522,6 @@ private func runtimeAnyKind(_ value: Int, _ tag: Int32) -> Int32 {
         case RuntimeTypeTokenEncoding.shortBase:
             return 16
         default:
-            // Enum ordinals deliberately share the Int kind here. Their
-            // nominal identity is checked by runtimeValuesEqual below.
             return 1
         }
     }
@@ -604,15 +554,9 @@ private func runtimeAnyKind(_ value: Int, _ tag: Int32) -> Int32 {
 
 @_cdecl("kk_any_hashCode")
 public func kk_any_hashCode(_ value: Int, _ tag: Int) -> Int {
-    // Swift's Int is pointer-sized, while Kotlin Int and hashCode() are always
-    // signed 32-bit. Normalize at the public dispatch boundary so an identity
-    // or nominal-class hash can never round-trip as a live object pointer.
     Int(Int32(truncatingIfNeeded: runtimeAnyHashCode(value, Int32(truncatingIfNeeded: tag))))
 }
 
-/// Hashes an opaque runtime value with the same value-level semantics used by
-/// RuntimeElementKey. The collection index must not hash object identity when
-/// runtimeValuesEqual considers two handles equal by content.
 func runtimeValueHash(_ value: Int) -> Int {
     var hash = kk_any_hashCode(value, 0)
     if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
@@ -638,10 +582,6 @@ public func kk_any_equals(_ lhs: Int, _ lhsTag: Int, _ rhs: Int, _ rhsTag: Int) 
     if let lhsRange = runtimeRangeBox(from: lhs), let rhsRange = runtimeRangeBox(from: rhs) {
         return kk_box_bool(runtimeRangesEqual(lhsRange, rhsRange) ? 1 : 0)
     }
-    // A registered `Any.equals` override is the virtual dispatch target for
-    // `a.equals(b)`: it answers every right operand — including `null` —
-    // before the kind fast-path can fall back to structural/identity
-    // semantics (KUU-3865).
     if let overridden = runtimeObjectEqualsOverride(lhs, rhs) {
         return kk_box_bool(overridden ? 1 : 0)
     }
@@ -650,9 +590,6 @@ public func kk_any_equals(_ lhs: Int, _ lhsTag: Int, _ rhs: Int, _ rhsTag: Int) 
     if lhsKind != rhsKind {
         return kk_box_bool(0)
     }
-    // Raw floating-point values retain their static kind through the Any
-    // bridge. Canonicalize NaNs just as boxed floating values do, while
-    // leaving nullable sentinels on the null-aware path.
     if lhsKind == 5, lhs != runtimeNullSentinelInt, rhs != runtimeNullSentinelInt {
         let lhsBits = runtimeFloatingBoxBitPattern(lhs) ?? lhs
         let rhsBits = runtimeFloatingBoxBitPattern(rhs) ?? rhs
@@ -667,10 +604,6 @@ public func kk_any_equals(_ lhs: Int, _ lhsTag: Int, _ rhs: Int, _ rhsTag: Int) 
     return kk_box_bool(equal ? 1 : 0)
 }
 
-/// 1-arg member-dispatch wrappers for kotlin.Any virtual methods.
-/// KIR lowers `obj.toString()` to `kk_any_member_to_string(receiver)` via the
-/// registered externalLinkName; these shims delegate to the 2/4-arg forms with
-/// tag=1 (object pointer, non-primitive).
 @_cdecl("kk_any_member_to_string")
 public func kk_any_member_to_string(_ raw: Int) -> UnsafeMutableRawPointer {
     // Source-backed Throwable subclasses live in RuntimeObjectBox and keep the
@@ -695,7 +628,6 @@ public func kk_any_member_to_string(_ raw: Int) -> UnsafeMutableRawPointer {
 
 @_cdecl("kk_any_member_hashCode")
 public func kk_any_member_hashCode(_ raw: Int) -> Int {
-    // Direct Unit values use raw zero, while reference receivers are boxed.
     if raw == 0 {
         return runtimeUnitHashCode()
     }
@@ -707,10 +639,6 @@ public func kk_any_member_equals(_ lhs: Int, _ rhs: Int) -> Int {
     kk_any_equals(lhs, 1, rhs, 1)
 }
 
-/// Encode a Float's IEEE 754 bit pattern into an Int for transport across the
-/// C ABI boundary. Uses `bitPattern`-based (non-trapping) conversions throughout,
-/// mirroring `kk_double_to_bits`. On 64-bit platforms `UInt(UInt32)` zero-extends;
-/// on a hypothetical 32-bit target the cast is a no-op since UInt32 == UInt.
 @_cdecl("kk_float_to_bits")
 public func kk_float_to_bits(_ value: Float) -> Int {
     Int(bitPattern: UInt(value.bitPattern))
@@ -861,17 +789,6 @@ public func __kk_math_round(_ value: Int) -> Int {
     kk_double_to_bits(kk_bits_to_double(value).rounded(.toNearestOrEven))
 }
 
-// Architecture assumption: Double bit-pattern transport via Int/intptr_t relies
-// on Int being 64-bit (MemoryLayout<Int>.size == 8) so that the full 64-bit
-// IEEE 754 payload is preserved. This is true on all Apple Silicon and x86_64
-// targets; 32-bit platforms are not supported by this runtime.
-//
-// Note: Each @_cdecl wrapper is spelled out individually rather than factored
-// through a shared closure helper. This repetition is intentional — keeping
-// every entry point as a plain, self-contained function ensures the C ABI
-// surface is auditable in code review and prevents optimizer surprises from
-// indirect-call thunks in hot numeric paths.
-
 @_cdecl("__kk_math_sin")
 public func __kk_math_sin(_ value: Int) -> Int {
     kk_double_to_bits(sin(kk_bits_to_double(value)))
@@ -979,7 +896,6 @@ public func __kk_math_log(_ x: Int, _ base: Int) -> Int {
     let rawX = kk_bits_to_double(x)
     let rawBase = kk_bits_to_double(base)
 
-    // Match Kotlin's special-case table instead of relying on raw ln(x) / ln(base).
     if rawX.isNaN || rawBase.isNaN {
         return kk_double_to_bits(Double.nan)
     }
@@ -1006,11 +922,6 @@ public func __kk_math_hypot(_ x: Int, _ y: Int) -> Int {
     return kk_double_to_bits(hypot(rawX, rawY))
 }
 
-
-//
-// Float values are transported as bit-encoded Int (intptr_t), just like Double.
-// The low 32 bits carry the IEEE 754 single-precision payload; upper bits are
-// ignored on decode and zero-extended on encode.
 
 private func applyFloatUnaryOp(_ v: Int, _ op: (Float) -> Float) -> Int {
     kk_float_to_bits(op(kk_bits_to_float(v)))
@@ -1145,7 +1056,6 @@ public func __kk_math_log_float(_ x: Int, _ base: Int) -> Int {
     let rawX = kk_bits_to_float(x)
     let rawBase = kk_bits_to_float(base)
 
-    // Match Kotlin's special-case table instead of relying on raw ln(x) / ln(base).
     if rawX.isNaN || rawBase.isNaN {
         return kk_float_to_bits(Float.nan)
     }
@@ -1172,36 +1082,26 @@ public func __kk_math_hypot_float(_ x: Int, _ y: Int) -> Int {
 }
 
 
-// Kotlin's roundToInt/roundToLong use Math.round() semantics: ties round
-// towards positive infinity. For Float and Double, we use bit-manipulation
-// algorithms matching Java 7+ Math.round(...) to avoid precision loss from
-// floor(x + 0.5) near half-integer boundaries (JDK-6430675).
-
-/// Avoids the precision loss of `floorf(raw + 0.5)` for values just below
-/// half-integer boundaries (e.g. Float(bitPattern: 0x3EFFFFFF) ~ 0.49999997).
 private func roundFloatJava7(_ raw: Float) -> Int64 {
     let bits = raw.bitPattern
     let biasedExp = Int((bits >> 23) & 0xFF)
-    let shift = 149 - biasedExp // (23 - 1 + 127) - biasedExp
-    if (shift & ~31) == 0 { // 0 <= shift <= 31
+    let shift = 149 - biasedExp
+    if (shift & ~31) == 0 {
         var r = Int32(bitPattern: (bits & 0x7FFFFF) | 0x800000)
         if Int32(bitPattern: bits) < 0 { r = -r }
         return Int64((r >> shift) &+ 1) >> 1
     } else {
-        // Exponent too small (magnitude < 0.5 → 0) or too large (already integral)
         if raw >= Float(Int64.max) { return Int64.max }
         if raw <= Float(Int64.min) { return Int64.min }
         return Int64(raw)
     }
 }
 
-/// Avoids the precision loss of `floor(raw + 0.5)` for values just below
-/// half-integer boundaries (e.g. 0.49999999999999994).
 private func roundDoubleJava7(_ raw: Double) -> Int64 {
     let bits = raw.bitPattern
     let biasedExp = Int((bits >> 52) & 0x7FF)
-    let shift = 1074 - biasedExp // (52 - 1 + 1023) - biasedExp
-    if (shift & ~63) == 0 { // 0 <= shift <= 63
+    let shift = 1074 - biasedExp
+    if (shift & ~63) == 0 {
         var r = Int64(bitPattern: (bits & 0xF_FFFF_FFFF_FFFF) | 0x10_0000_0000_0000)
         if Int64(bitPattern: bits) < 0 { r = -r }
         return ((r >> shift) &+ 1) >> 1
@@ -1309,11 +1209,6 @@ public func __kk_float_nextDown(_ value: Int) -> Int {
     kk_float_to_bits(kk_bits_to_float(value).nextDown)
 }
 
-//
-// KSP-646: isNaN / isInfinite / isFinite are implemented in bundled Kotlin
-// (Stdlib/kotlin/util/Numbers.kt) on top of toRawBits(), so no runtime export
-// remains for them.
-
 @_cdecl("__kk_double_toBits")
 public func __kk_double_toBits(_ value: Int) -> Int {
     let d = kk_bits_to_double(value)
@@ -1323,17 +1218,14 @@ public func __kk_double_toBits(_ value: Int) -> Int {
 
 @_cdecl("__kk_double_toRawBits")
 public func __kk_double_toRawBits(_ value: Int) -> Int {
-    value  // bit pattern is already canonical in our ABI
+    value
 }
 
-/// Double bit patterns occupy the full runtime ABI word, so this is an identity.
 @_cdecl("__kk_double_fromBits")
 public func __kk_double_fromBits(_ bits: Int) -> Int {
     bits
 }
 
-/// The ABI carries Float as a zero-extended 32-bit pattern, so the result is
-/// sign-extended back into the Int domain Kotlin expects.
 @_cdecl("__kk_float_toBits")
 public func __kk_float_toBits(_ value: Int) -> Int {
     let f = kk_bits_to_float(value)
@@ -1346,8 +1238,6 @@ public func __kk_float_toRawBits(_ value: Int) -> Int {
     Int(Int32(truncatingIfNeeded: value))
 }
 
-/// Kotlin exposes the 32-bit IEEE pattern as a sign-extended Int, while the
-/// runtime ABI carries Float payloads as a zero-extended word.
 @_cdecl("__kk_float_fromBits")
 public func __kk_float_fromBits(_ bits: Int) -> Int {
     Int(UInt32(truncatingIfNeeded: bits))
@@ -1487,8 +1377,6 @@ public func __kk_float_to_long(_ value: Int) -> Int {
     return Int(Int64(f))
 }
 
-/// Long→* conversions: `Int` (intptr_t) is used for Long values.
-/// This is correct on 64-bit macOS where Int == Int64.
 @_cdecl("kk_long_to_int")
 public func kk_long_to_int(_ value: Int) -> Int {
     Int(Int32(truncatingIfNeeded: value))
@@ -1742,8 +1630,6 @@ public func kk_op_uge(_ lhs: Int, _ rhs: Int) -> Int {
 }
 
 
-// PEC-NUM-0002: `floorDiv`/`mod` by zero throw ArithmeticException("/ by zero")
-// like `/`/`%`; outThrown is set and 0 is returned when rhs == 0.
 private func runtimeFloorDiv(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     if rhs == 0 {
         outThrown?.pointee = runtimeAllocateArithmeticException(message: "/ by zero")
@@ -1768,14 +1654,10 @@ public func kk_op_floor_div(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePo
 @_cdecl("kk_op_lfloor_div")
 public func kk_op_lfloor_div(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     return runtimeThrowingBridge(outThrown) {
-        // Long uses same Int representation on 64-bit platforms.
         runtimeFloorDiv(lhs, rhs, outThrown)
     }
 }
 
-// PEC-NUM-0002: integer division/remainder must throw ArithmeticException("/ by zero").
-// kk_op_div is a throwing callee; outThrown is set and 0 is returned when rhs == 0.
-// Int.MIN_VALUE / -1 wraps silently per Kotlin two's-complement semantics.
 @_cdecl("kk_op_div")
 public func kk_op_div(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     return runtimeThrowingBridge(outThrown) {
@@ -1788,7 +1670,6 @@ public func kk_op_div(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<
     }
 }
 
-// PEC-NUM-0002: kk_op_mod is a throwing callee; outThrown is set and 0 returned when rhs == 0.
 @_cdecl("kk_op_mod")
 public func kk_op_mod(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     return runtimeThrowingBridge(outThrown) {
@@ -1873,8 +1754,6 @@ public func __kk_char_rangeUntil(_ startValue: Int, _ endValue: Int) -> Int {
     return runtimeUntilRange(first: startChar, exclusiveEnd: endChar, kind: .charRange, endAtOrBelowMinimum: endChar <= 0)
 }
 
-/// New source-generated object interpolation retains an override's original
-/// throwable without changing the old public no-thrown-slot entry point.
 @_cdecl("__kk_any_to_string_throwing")
 public func __kk_any_to_string_throwing(_ value: Int, _ tag: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> UnsafeMutableRawPointer {
     outThrown?.pointee = 0

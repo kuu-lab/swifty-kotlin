@@ -5,9 +5,6 @@ import Testing
 
 @Suite
 struct ConsecutiveIncDecParsingTests {
-    // kotlinc rejects every consecutive postfix/prefix inc-dec chain. A `++`/`--`
-    // token can never legally follow a complete expression, so it must surface as
-    // an unexpected token instead of silently dropping the trailing operand.
     @Test(arguments: [
         "x++ ++x",
         "x-- --x",
@@ -35,9 +32,6 @@ struct ConsecutiveIncDecParsingTests {
         }, "Expected KSWIFTK-PARSE-0018 for \(source), got: \(lexed.diagnostics.diagnostics.map(\.message))")
     }
 
-    // A prefix `++` whose operand turns out unassignable (`x++` is not a
-    // variable) rewinds and reports the leading operator, matching kotlinc's
-    // "variable expected" rejection of `++x ++x`.
     @Test(arguments: [
         "++x ++x",
         "++ ++x",
@@ -85,8 +79,6 @@ struct ConsecutiveIncDecParsingTests {
                 "Expected no diagnostics for \(source), got: \(lexed.diagnostics.diagnostics.map(\.message))")
     }
 
-    // The statement-level path must carry the same rejection: the trailing
-    // `++x` used to be silently dropped so `x` printed `1` instead of failing.
     @Test(arguments: [
         "fun main() { var x = 0; x++ ++x; println(x) }",
         "fun main() { var x = 0; x-- --x; println(x) }",

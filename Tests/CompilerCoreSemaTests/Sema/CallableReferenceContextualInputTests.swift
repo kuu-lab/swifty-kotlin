@@ -137,12 +137,6 @@ struct CallableReferenceContextualInputTests {
         #expect(errors.first?.message == "Callable references to properties with context parameters are not supported.")
     }
 
-    // MARK: - KUU-3753: callable references vs context-parameter expected types
-
-    /// An expected `context(A) () -> T` is `(A) -> T`: an unbound
-    /// member/extension/property reference whose receiver is `A` must
-    /// type-check, and the value must invoke as `f(receiver)` — kotlinc
-    /// accepts every one of these.
     @Test func unboundReferencesMatchContextParameterExpectedType() throws {
         let ctx = makeContextFromSource("""
         class A { fun instance() = true; val p = true }
@@ -171,9 +165,6 @@ struct CallableReferenceContextualInputTests {
         )
     }
 
-    /// A bound reference types as `() -> T`, so kotlinc rejects it for
-    /// `context(A) () -> T` — the bound receiver is not re-bound as the
-    /// context argument.
     @Test(arguments: [
         "take(a::instance)",
         "take(a::ext)",
@@ -199,9 +190,6 @@ struct CallableReferenceContextualInputTests {
         )
     }
 
-    /// kotlinc does not widen the reference receiver into a supertype context
-    /// parameter: `A::instance` is `(A) -> Boolean`, which is inapplicable
-    /// where `context(Any) () -> Boolean` is expected.
     @Test func unrelatedContextParameterTypeIsRejected() throws {
         let ctx = makeContextFromSource("""
         class A { fun instance() = true }
@@ -249,8 +237,6 @@ struct CallableReferenceContextualInputTests {
         #expect(errors.first?.code == "KSWIFTK-TYPE-0001")
     }
 
-    // MARK: - KUU-3770: context-function references vs contextual expected types
-
     /// A callable reference to a context-parameter function keeps its
     /// `context(X) (...) -> R` type and satisfies a `context(X) (...) -> T`
     /// expected type directly — through a generic `T` return, a concrete
@@ -284,9 +270,6 @@ struct CallableReferenceContextualInputTests {
         )
     }
 
-    /// An anonymous context function with two same-typed context parameters
-    /// type-checks against `context(S, S) () -> Unit` (KUU-3770 reproduction
-    /// that regressed to "Type constraint could not be satisfied").
     @Test func sameTypedContextAnonymousFunctionMatchesContextualType() throws {
         let ctx = makeContextFromSource("""
         interface S { fun foo(c: Int) }
@@ -303,13 +286,6 @@ struct CallableReferenceContextualInputTests {
         )
     }
 
-    // MARK: - KUU-3805 / KT-90169: composite generic results fix vararg reference inputs
-
-    /// `make(::countG)` where `make` returns `(T) -> Int` must resolve `T`
-    /// from the expected result `(Array<String>) -> Int` before shaping the
-    /// reference, so `::countG` keeps its packed vararg-array input instead of
-    /// degrading to scalar vararg adaptation (which would print `1` for a
-    /// two-element array where kotlinc prints `2`).
     @Test func compositeGenericResultKeepsPackedVarargReferenceInput() throws {
         let ctx = makeContextFromSource("""
         fun <T> make(f: (T) -> Int): (T) -> Int = f

@@ -212,7 +212,7 @@ extension JVMFunctionBuilder {
                 let names: [String]
                 if info.flags & 0x2000 != 0
                     || javaMapViewMethod != nil
-                    || (name == "size" && context.jvmImports?.isJavaCollectionOrMapClass(owner) == true) {
+                    || (name == "size" && (owner.hasPrefix("java/util/") || context.jvmImports?.isJavaCollectionOrMapClass(owner) == true)) {
                     names = [javaMapViewMethod ?? name]
                 } else {
                     names = name.hasPrefix("is") && name.count > 2 ? [name, "get" + capital] : ["get" + capital]

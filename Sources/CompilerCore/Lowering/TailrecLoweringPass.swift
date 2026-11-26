@@ -1,5 +1,4 @@
 
-/// Chosen to avoid collision with user labels and coroutine dispatch labels.
 let tailrecLoopLabelBase: Int32 = 9000
 
 final class TailrecLoweringPass: LoweringPass {
@@ -34,7 +33,6 @@ final class TailrecLoweringPass: LoweringPass {
         module.arena.transformFunctions { function in
             guard function.isTailrec else { return function }
 
-            // Avoid label collision with the function's existing labels.
             let maxExistingLabel = function.body.compactMap { instruction -> Int32? in
                 if case let .label(id) = instruction { return id }
                 return nil
@@ -57,9 +55,6 @@ final class TailrecLoweringPass: LoweringPass {
                 arena: module.arena
             )
             guard rewrittenBody != function.body else { return function }
-            // The rewrite changes instruction count, so the old parallel
-            // array is stale.  Use the function-level sourceRange as a
-            // conservative location for every synthesised instruction.
             updated.replaceBody(
                 rewrittenBody,
                 locations: Array(repeating: function.sourceRange, count: rewrittenBody.count)
@@ -119,10 +114,6 @@ final class TailrecLoweringPass: LoweringPass {
         }
         result.append(.label(loopLabel))
 
-        // Pre-compute receiver offset once per function instead of per
-        // call site.  The receiver is a function-level property, so this
-        // avoids repeated SyntheticSymbolScheme lookups when a function
-        // contains multiple tail-call rewrites.
         let receiverOffset: Int = {
             let receiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(
                 for: functionIdentity.symbol
@@ -174,11 +165,6 @@ final class TailrecLoweringPass: LoweringPass {
                 )
                 result.append(.jump(loopLabel))
                 emittedTailJump = true
-                // The straight-line run behind the call (result copies, the
-                // jump to the join label, or the return itself) is now
-                // unreachable and would read the call result that no longer
-                // exists, so drop it. Everything from the next label on is kept:
-                // other branches may still reach it.
                 instructionIndex += 1
                 while instructionIndex < body.count {
                     switch body[instructionIndex] {
@@ -197,9 +183,6 @@ final class TailrecLoweringPass: LoweringPass {
             instructionIndex += 1
         }
 
-        // Safety: if we emitted a jump but somehow the label is missing
-        // (should not happen with the unconditional insert above), leave
-        // the body unchanged to avoid producing invalid KIR.
         if emittedTailJump, !result.contains(where: { if case .label(loopLabel) = $0 { return true }; return false }) {
             return body
         }
@@ -207,11 +190,6 @@ final class TailrecLoweringPass: LoweringPass {
         return emittedTailJump ? pruneUnreachableJoins(result.instructions) : body
     }
 
-    /// Tail-call replacement can make the remaining instructions after an
-    /// unconditional terminator unreachable, including expression-join code
-    /// emitted after a throwing branch. Drop that code through unreferenced
-    /// labels until reaching a label with an incoming jump. Keep block markers
-    /// so the surrounding KIR structure remains balanced.
     private func pruneUnreachableJoins(_ instructions: [KIRInstruction]) -> [KIRInstruction] {
         var current = instructions
         var changed = true
@@ -262,9 +240,6 @@ final class TailrecLoweringPass: LoweringPass {
         }
     }
 
-    /// When a recursive call uses default arguments, the KIR emitter routes
-    /// through `foo$default` which carries a different symbol; without this
-    /// check, tailrec optimization would miss those calls (LOWER-005).
     private func isSelfRecursiveCall(
         symbol: SymbolID?,
         functionIdentity: TailrecFunctionIdentity
@@ -283,12 +258,6 @@ final class TailrecLoweringPass: LoweringPass {
         return symbol == SyntheticSymbolScheme.defaultStubSymbol(for: functionIdentity.symbol)
     }
 
-    /// Default masks follow the target's ordinary parameters and are expected
-    /// to be constant integer literals.
-    ///
-    /// The `callIndex` parameter limits the slow-path scan to instructions
-    /// that precede the call site, so we only pick up definitions that
-    /// dominate the use.
     private func extractDefaultMask(
         arguments: [KIRExprID],
         body: [KIRInstruction],
@@ -306,9 +275,6 @@ final class TailrecLoweringPass: LoweringPass {
                 continue
             }
             var found: Int64?
-            // Scanning only instructions before `callIndex` ensures the
-            // definition dominates the use. Stop at control-flow boundaries
-            // so a linear backward scan cannot cross branches.
             for i in stride(from: callIndex - 1, through: 0, by: -1) {
                 let inst = body[i]
                 switch inst {
@@ -330,15 +296,6 @@ final class TailrecLoweringPass: LoweringPass {
         return maskValues.first(where: { $0 != 0 }) ?? 0
     }
 
-    /// Expression bodies (`= if (c) acc else f(..)`, `= when { .. }`) lower to
-    /// `call -> copy(callResult, joinTemp) -> jump/label ... -> returnValue(joinTemp)`,
-    /// so only `label`, `jump`, and `copy` of the call result (or of a value
-    /// already aliasing it) may sit between the call and the return. Unit-valued
-    /// statement branches can also materialize a fresh `unit` constant and copy
-    /// it into the join temporary before `returnUnit`; those pure instructions
-    /// do not make the recursive call non-tail. Any other instruction (a store,
-    /// a call, a conditional jump, exception plumbing of `try`/`finally`) means
-    /// work remains after the call and the call is not a tail call.
     private func tailReturnIndex(
         body: [KIRInstruction],
         callIndex: Int,
@@ -416,9 +373,6 @@ final class TailrecLoweringPass: LoweringPass {
                 }
                 return index
             case .returnUnit:
-                // A self-call followed by `returnUnit` can only sit in a
-                // Unit function; its (Unit) result, if materialized by an
-                // `if` statement's join copy, carries no value to preserve.
                 return index
             default:
                 return nil
@@ -427,8 +381,6 @@ final class TailrecLoweringPass: LoweringPass {
         return nil
     }
 
-    /// A throwing recursive call is tail-positioned only when its non-null
-    /// exception edge reaches the same rethrow without running user code.
     private func exceptionTargetRethrows(
         value: KIRExprID,
         target: Int32,
@@ -500,17 +452,10 @@ final class TailrecLoweringPass: LoweringPass {
         var temporaries: [KIRExprID] = []
         temporaries.reserveCapacity(effectiveCount)
         for i in 0 ..< effectiveCount {
-            // Skip sentinel arguments whose default mask bit is set.
-            // The mask is indexed on value-parameter positions (excluding
-            // the receiver), so subtract `receiverOffset`. The caller skips
-            // tailrec for any non-zero word, leaving this path with a zero
-            // mask; retain the conservative handling for defense-in-depth.
             if let mask = defaultMask {
                 let maskBitIndex = i - receiverOffset
                 if maskBitIndex >= 0 {
                     if maskBitIndex >= Int64.bitWidth {
-                        // Out-of-range bit index — conservatively treat
-                        // as non-defaulted (copy the argument through).
                     } else if (mask >> maskBitIndex) & 1 != 0 {
                         temporaries.append(.invalid)
                         continue
@@ -570,9 +515,6 @@ final class TailrecLoweringPass: LoweringPass {
     }
 }
 
-/// Inline expansion can expose a self-call that was hidden inside a non-local
-/// return from an inline lambda. Re-run the same tail-position rewrite after
-/// inline bodies have been spliced into their caller.
 final class TailrecAfterInlineLoweringPass: LoweringPass {
     static let name = "TailrecAfterInline"
     static let requiredStage: KIRStage = .propertyLowered

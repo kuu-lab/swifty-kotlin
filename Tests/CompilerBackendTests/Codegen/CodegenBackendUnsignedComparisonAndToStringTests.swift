@@ -4,14 +4,6 @@
 import Foundation
 import Testing
 
-/// Regression coverage for a ULong sign-misinterpretation bug found while
-/// working on KSP-466 (kotlin.random.Random.nextULong()): any ULong with the
-/// high bit set (>= 2^63) was compared and stringified as if it were a
-/// signed Int64, e.g. `17663719463477156090uL >= 0uL` returned `false` and
-/// `.toString()` printed the negative signed reinterpretation (or, at the
-/// 2^63 boundary, the literal string "null"). UInt does not exhibit the bug
-/// because it is always zero-extended into the shared 64-bit container.
-
 @Suite
 struct CodegenBackendUnsignedComparisonAndToStringTests {
 
@@ -170,8 +162,6 @@ struct CodegenBackendUnsignedComparisonAndToStringTests {
 
     @Test
     func testUnsignedComparisonAndToStringUIntUnaffected() throws {
-        // UInt is zero-extended into the shared 64-bit container, so it never
-        // exhibited this bug — this test locks in that the fix leaves it correct.
         let source = """
         fun main() {
             val small: UInt = 5u
@@ -224,14 +214,6 @@ struct CodegenBackendUnsignedComparisonAndToStringTests {
         )
     }
 
-    // The ULong tag fix above was implemented by consolidating a duplicated
-    // tag-computation switch (computeAnyFallbackTag) that data class
-    // toString() synthesis and println(dataClass) rewriting each had their
-    // own incomplete copy of — the old copies only mapped Boolean/String and
-    // fell back to the raw-integer tag for everything else, so Float/Double
-    // properties printed their bit pattern and Char properties printed their
-    // codepoint instead of the character. Consolidating onto one function
-    // fixes those too; lock in that non-null case here.
     @Test
     func testDataClassToStringFloatDoubleCharProperties() throws {
         let source = """
@@ -252,9 +234,6 @@ struct CodegenBackendUnsignedComparisonAndToStringTests {
         )
     }
 
-    // KUU-3492: generated data-class toString() must dispatch through a
-    // user-defined class property's own toString() without treating the
-    // object's pointer as an Any fallback value.
     @Test
     func testDataClassToStringNestedUserDefinedClassProperties() throws {
         let source = """
@@ -292,12 +271,6 @@ struct CodegenBackendUnsignedComparisonAndToStringTests {
         )
     }
 
-    // Nullable Float?/Double?/Char? properties: a real value renders correctly
-    // (not the boxed pointer or raw bit pattern) and a genuinely null value
-    // renders as "null" (not a garbage value), through both the toString()
-    // synthesis path (which added a KIR-level null guard) and the
-    // println(dataClass) path (which uses kk_any_to_string_nullable instead,
-    // since that pass cannot safely add new KIR labels).
     @Test
     func testDataClassToStringNullableFloatDoubleCharProperties() throws {
         let source = """

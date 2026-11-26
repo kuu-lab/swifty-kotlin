@@ -1,12 +1,3 @@
-// KSP-466: kotlin.random.Random's core API (nextInt/nextLong/nextFloat/
-// nextDouble/nextBoolean/nextBits/nextBytes, Random.Default, Random(seed)) is
-// now Kotlin source (Sources/CompilerCore/Stdlib/kotlin/random/Random.kt) with
-// no native ABI surface beyond __kk_random_seed_entropy. asKotlinRandom/
-// asJavaRandom/java.util.Random are also real Kotlin source now (JavaUtilRandom.kt/
-// PlatformRandom.kt) — a raw pointer passthrough between the two Random
-// representations stopped being safe once kotlin.random.Random became a genuine
-// compiled object instead of sharing java.util.Random's native SeededRandomBox.
-
 private let abi = RuntimeABISectionBuilder("Random")
 
 public extension RuntimeABISpec {

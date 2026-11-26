@@ -33,8 +33,6 @@ struct CodegenBackendCollectionIsNullOrEmptyTests {
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
             #expect(throwFlags[try runtimeABICallee("list_is_empty")]?.allSatisfy { $0 == false } == true)
             #expect(throwFlags[try runtimeABICallee("set_is_empty")]?.allSatisfy { $0 == false } == true)
-            // Map.isNullOrEmpty is source-backed; its private helper belongs to
-            // the stdlib artifact and must not bypass the Kotlin declaration here.
             #expect(throwFlags[try runtimeABICallee("map_is_empty")] == nil)
             #expect(throwFlags[try runtimeABICallee("array_is_empty")]?.allSatisfy { $0 == false } == true)
             // A bare Collection<T>? receiver may hold a Set box at runtime, so

@@ -3,14 +3,7 @@
 @testable import CompilerTestSupport
 import Testing
 
-/// KUU-4611 regression tests: an annotation before a parenthesized type,
-/// e.g. `@Composable (() -> Unit)?`, annotates the type instead of
-/// swallowing the parentheses as its argument list.
 extension TypeRefParserTests {
-    /// Whitespace-separated `(` after an annotation whose matching `)` is
-    /// not followed by `->` still opens a parenthesized type — not an
-    /// argument list — when the parentheses hold a function type. kotlinc
-    /// accepts all of these.
     @Test(arguments: [
         "@C (() -> Unit)?",
         "@C (() -> Unit)",
@@ -47,9 +40,6 @@ extension TypeRefParserTests {
         }
     }
 
-    /// Controls for real annotation arguments: a whitespace-separated `(`
-    /// group without a function-type arrow is still the argument list, and
-    /// the following parenthesized type is parsed as the annotated base.
     @Test(arguments: [
         ("@T (\"a\") (() -> Unit)?", "\"a\""),
         ("@T (x = 1) ((Int) -> Int)", "x=1"),
@@ -80,8 +70,6 @@ extension TypeRefParserTests {
         }
     }
 
-    /// `@T ("a") Int` keeps `"a"` as the annotation argument and `Int` as
-    /// the annotated named type — kotlinc accepts this.
     @Test
     func typeAnnotationArgumentListBeforeNamedTypeParses() throws {
         let lexed = lex("@T (\"a\") Int")
@@ -109,9 +97,6 @@ extension TypeRefParserTests {
         }
     }
 
-    /// An arrow shielded inside `<>` belongs to a nested type argument, so
-    /// the group stays an argument list — kotlinc rejects `@C (List<() -> Unit>)`
-    /// (and `@C (Int)`, `@C ((Int))`, `@C (List<Int>)`) the same way.
     @Test(arguments: [
         "@C (Int)",
         "@C ((Int))",
@@ -131,9 +116,6 @@ extension TypeRefParserTests {
         #expect(result == nil)
     }
 
-    /// Without whitespace before `(`, the group stays the argument list and
-    /// the function-type contents fail to parse — kotlinc rejects
-    /// `@C(() -> Unit)?` and `@C(() -> Unit)` the same way.
     @Test(arguments: [
         "@C(() -> Unit)?",
         "@C(() -> Unit)",
@@ -151,9 +133,6 @@ extension TypeRefParserTests {
         #expect(result == nil)
     }
 
-    /// End-to-end: annotations on parenthesized function types parse in
-    /// parameter, return, property, type-argument and typealias positions
-    /// without parse errors.
     @Test
     func annotatedParenthesizedTypesParseInDeclarationPositions() throws {
         let (_, ctx) = try buildASTModule(

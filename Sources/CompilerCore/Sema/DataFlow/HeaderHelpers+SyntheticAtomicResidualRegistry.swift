@@ -90,8 +90,6 @@ extension DataFlowSemaPhase {
             includeGetAndSetAlias: true
         )
 
-        // Array atomics retain their responsibility-specific synthetic shells and
-        // are intentionally outside KSP-696's scalar migration boundary.
         registerAtomicArrayFamily(
             packageFQName: concurrentPkg,
             className: "AtomicIntArray",
@@ -134,16 +132,6 @@ extension DataFlowSemaPhase {
             enumType: memoryOrderType,
             symbols: symbols
         )
-        // KSP-1100: the canonical kotlin.concurrent.atomics nominal
-        // declarations are source-backed class shells in
-        // Stdlib/kotlin/concurrent/atomics/Stdlib.kt. These residual
-        // synthetic surfaces are claimed by the bundled declarations and keep
-        // the receiver members runtime-backed until the sibling tickets
-        // migrate them. The atomics -> kotlin.concurrent typealiases are
-        // removed: upstream declares real classes in this package.
-        // KUU-1365: the canonical atomics package matches the JVM/common
-        // API surface — no `value` property (Native-only; rejected by the
-        // JVM reference kotlinc the diff harness checks against).
         registerAtomicScalarFamily(
             packageFQName: atomicsPkg,
             className: "AtomicInt",
@@ -375,13 +363,7 @@ extension DataFlowSemaPhase {
             interner: interner,
             types: types
         )
-        // `atomicArrayOfNulls` is source-backed by
-        // Stdlib/kotlin/concurrent/atomics/Stdlib.kt (KSP-1100) and links
-        // `kk_atomic_ref_array_new` directly. `atomicArrayOf` was a phantom
-        // factory with no counterpart in the real API (KUU-1365); it is no
-        // longer registered.
 
-        // Lock.withLock is source-backed; retain only its synthetic type shell.
         let lockSymbol = ensureClassSymbol(
             named: "Lock",
             in: concurrentPkg,

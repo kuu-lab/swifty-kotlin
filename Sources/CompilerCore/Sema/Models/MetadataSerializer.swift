@@ -6,8 +6,6 @@ package enum MetadataModality: String, Codable {
     case abstract
 }
 
-/// Unified metadata record used by both export (MetadataEncoder) and import (MetadataDecoder).
-/// This is the single source of truth for what information survives the metadata round-trip.
 package struct MetadataRecord {
     package let kind: SymbolKind
     package let visibility: Visibility
@@ -21,9 +19,6 @@ package struct MetadataRecord {
     package let isInfix: Bool
     package let isOverride: Bool
     package let isMemberExtension: Bool
-    /// Nominal owner of a callable/property receiver. The indexed metadata
-    /// path keeps this compact routing key available without decoding the
-    /// declaration body, so synthetic stdlib overlap guards can run eagerly.
     let receiverOwnerFQName: String?
     let typeSignature: String?
     /// Upper-bound type signatures for callable type parameters, in declaration order.
@@ -40,30 +35,14 @@ package struct MetadataRecord {
     package let callableTypeParameterSignatures: [String]
     package let inputOnlyTypeParameterIndices: Set<Int>
     package let valueParameterIsVararg: [Bool]
-    /// Declaration-order type-parameter indices allowed by `@UnsafeVariance`
-    /// for each value parameter.
     package let valueParameterUnsafeVarianceTypeParameterIndices: [[Int]]
-    /// Per-parameter flags indicating whether a function-type argument may
-    /// contain a non-local return when the callable is inline-expanded.
     package let valueParameterAllowsNonLocalReturn: [Bool]
-    /// STDLIB-592: per-parameter `contract { callsInPlace(param, kind) }` effect,
-    /// `nil` where the parameter has none. Lets definite-assignment analysis see
-    /// bundled-stdlib contracts (e.g. `run`/`let`/`apply`/`also`/`with`) even when
-    /// the stdlib is loaded from a precompiled `.kklib` rather than re-typechecked
-    /// from source, since `recordContractEffects` never runs against a decoded
-    /// symbol's (nonexistent) AST body.
     package let valueParameterCallsInPlaceKinds: [InvocationKind?]
     package let contractImplicationEffects: [ContractImplicationEffect]
     package let valueParameterHasDefaultValues: [Bool]
     package let canThrow: Bool
-    /// Resolved names of value parameters, in declaration order, used for
-    /// named-argument resolution on imported functions.
     package let valueParameterNames: [String]
-    /// Whether callers may use the declaration's value-parameter names.
     package let hasStableParameterNames: Bool
-    /// Indices of reified type parameters, in declaration order, so that
-    /// call sites append the correct runtime type-token arguments for inline
-    /// functions imported from a precompiled stdlib artifact.
     package let reifiedTypeParameterIndices: Set<Int>
     let defaultStubExternalLinkName: String?
     let externalLinkName: String?
@@ -81,36 +60,26 @@ package struct MetadataRecord {
     let objectLazyInitializerLinkName: String?
     package let enumStaticInitLinkName: String?
 
-    // P5-74: data class flag
     package let isDataClass: Bool
 
-    /// This must survive library metadata import; Kotlin classes are final by default.
     package let isOpenClass: Bool
-    /// Inner classes require an enclosing instance even when their public constructor arity is zero.
     package let isInnerClass: Bool
     /// Declaration modality for classes and members. Final is omitted from the
     /// wire format so older artifacts remain compact and decode as final.
     package let modality: MetadataModality
 
-    // P5-74: sealed class flag
     package let isSealedClass: Bool
 
-    // STDLIB-SHARED-003: fun interface flag for SAM-constructor resolution
     package let isFunInterface: Bool
 
-    // P5-86: annotation metadata
     let annotations: [MetadataAnnotationRecord]
 
-    // P5-75: value class flag
     package let isValueClass: Bool
 
-    // P5-75: value class underlying type signature (e.g. "I" for Int)
     let valueClassUnderlyingTypeSig: String?
 
-    // P5-78: sealed subclass FQ names for cross-module exhaustiveness
     let sealedSubclassFQNames: [String]
 
-    // MPP-001: expect/actual declaration flags
     let isExpect: Bool
     let isActual: Bool
 
@@ -118,28 +87,12 @@ package struct MetadataRecord {
     let propertyGetterExternalLinkName: String?
     let propertySetterExternalLinkName: String?
     let propertySetterVisibility: Visibility?
-    /// ABI return type signature for functions whose compiled return type differs
-    /// from the source-level signature (e.g. raw `Int` string handles).
     let abiReturnTypeSignature: String?
-    /// ABI return type signature for extension property getters when it differs
-    /// from the property's source type.
     let propertyGetterAbiReturnTypeSignature: String?
     package let isMutable: Bool
-    /// Self type signature of a generic nominal declaration, carrying its type
-    /// parameters and their declared variance (e.g.
-    /// `Lkotlinx.coroutines.flow.SharedFlow<O<T8150>>;`).
     let nominalTypeParametersSignature: String?
-    /// Type signatures of the generic direct supertypes of a nominal
-    /// declaration, with the child's type parameters substituted in (e.g.
-    /// `Lkotlinx.coroutines.flow.SharedFlow<T8154>;`).
     let nominalSupertypeSignatures: [String]
-    /// Encoded compile-time constant value of a `const val` property, so
-    /// consumers can inline it instead of reading an uninitialized global slot
-    /// (a precompiled library has no `main` to run top-level initializers).
     let constValueLiteral: String?
-    /// Declaration-order type parameters of a nominal type, encoded as
-    /// `<typeSignature>:<variance>` pairs (e.g. `T5023:i`), so consumers can
-    /// restore the generic arity used by constructor/member resolution.
     let nominalTypeParameters: String?
 
     init(
@@ -277,16 +230,10 @@ package struct MetadataRecord {
     }
 }
 
-/// Annotation metadata that survives the export/import round-trip (P5-86).
 public struct MetadataAnnotationRecord: Equatable, Codable {
-    /// Fully-qualified name of the annotation class (e.g. "kotlin.Deprecated").
     public let annotationFQName: String
-    /// Serialized argument values.
     public let arguments: [String]
-    /// Optional use-site target (get, set, field, param, etc.).
     public let useSiteTarget: String?
-    /// Producer-side retention survives when the annotation class is non-public.
-    /// Older metadata without this field is classified from its declaration.
     public let retention: AnnotationRetentionKind?
     public let usageID: String?
     public let factorySymbol: SymbolID?
@@ -311,7 +258,6 @@ public struct MetadataAnnotationRecord: Equatable, Codable {
     }
 }
 
-/// Keep the large legacy shape out of every compact entry's inline storage.
 private final class LegacyMetadataIndexRecord {
     let record: MetadataRecord
     init(_ record: MetadataRecord) { self.record = record }
@@ -350,9 +296,6 @@ struct MetadataIndexEntry {
     var hasCompleteInitializerInfo: Bool = false
 }
 
-/// Lazily reads v2/v3 metadata records from the body section of `metadata.bin`.
-/// The index is parsed at library discovery time; the body is sliced only when
-/// a semantic query needs the corresponding declaration.
 final class IndexedMetadataFile {
     let metadataVersion: Int
     let entries: [MetadataIndexEntry]
@@ -403,8 +346,6 @@ final class IndexedMetadataFile {
                 while start < end, isWhitespace(bytes[start]) { start += 1 }
                 while end > start, isWhitespace(bytes[end - 1]) { end -= 1 }
                 if start < end, bytes[start] >= 0x80 || bytes[end - 1] >= 0x80 {
-                    // Keep Foundation's legacy Unicode edge trimming without
-                    // allocating strings on the usual ASCII index path.
                     let line = String(decoding: UnsafeBufferPointer(rebasing: bytes[start ..< end]), as: UTF8.self)
                     let nonWhitespace = CharacterSet.whitespacesAndNewlines.inverted
                     if let first = line.rangeOfCharacter(from: nonWhitespace),
@@ -444,15 +385,12 @@ final class IndexedMetadataFile {
             else { return nil }
 
             var entries: [MetadataIndexEntry] = []
-            // Bound the count hint by the available bytes and a fixed initial
-            // capacity. Larger indexes grow as their records are parsed.
             entries.reserveCapacity(min(recordCount, bytes.count / 8, 65_536))
             let decoder = MetadataDecoder()
             while let range = readLine() {
                 if Self.stringMarkerMatches(range, bytes: bytes, marker: "body") {
                     return (entries, cursor)
                 }
-                // serializeIndexed emits an empty index line for zero records.
                 if range.isEmpty, recordCount == 0 { continue }
                 var firstTab = range.lowerBound
                 while firstTab < range.upperBound, bytes[firstTab] != 0x09 { firstTab += 1 }

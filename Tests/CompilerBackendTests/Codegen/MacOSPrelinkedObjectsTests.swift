@@ -82,12 +82,10 @@ struct MacOSPrelinkedObjectsTests {
         #expect(first.hasPrefix(cache.path))
         #expect(FileManager.default.fileExists(atPath: first))
 
-        // A missing input fails the whole resolve rather than merging a subset.
         inputs.append(directory.appendingPathComponent("missing.o").path)
         #expect(resolve() == nil)
         inputs.removeLast()
 
-        // Content change on any input produces a freshly built object.
         try Data("object-0-changed".utf8)
             .write(to: URL(fileURLWithPath: inputs[0]))
         let third = try #require(resolve())
@@ -177,8 +175,6 @@ struct MacOSPrelinkedObjectsTests {
         #expect(resolve() == first)
         #expect(builds == 1)
 
-        // Archive content changes produce a fresh merged object, just like
-        // object inputs do.
         try Data("archive-changed".utf8).write(to: archive)
         let second = try #require(resolve())
         #expect(second != first)

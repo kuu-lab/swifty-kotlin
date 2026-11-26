@@ -3,14 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// Regression coverage for value parameters / primary-constructor properties
-/// whose name is literally a Kotlin modifier keyword (`inner`, `sealed`,
-/// `override`, ...). These keywords are valid plain identifiers outside
-/// modifier position, but `appendValueParameter`
-/// (BuildASTPhase+DeclBuilders.swift) used to drop the whole parameter
-/// whenever its resolved name matched a fixed "leading declaration keyword"
-/// list, instead of recognizing that the keyword was occupying the name slot
-/// rather than a modifier slot.
 @Suite
 struct ContextualKeywordParameterNameTests {
     private func buildAST(from source: String) throws -> (ASTModule, CompilationContext) {
@@ -149,10 +141,6 @@ struct ContextualKeywordParameterNameTests {
         #expect(param.isOverrideProperty)
     }
 
-    /// KUU-2994: hard keywords (`this`, `super`, `object`, `when`, ...) are
-    /// never valid parameter names — kotlinc reports "Parameter name expected."
-    /// They previously slipped through because the name lookup accepted any
-    /// keyword token as an identifier.
     @Test(arguments: ["this", "super", "object", "when", "class", "fun"])
     func testHardKeywordParameterNameIsRejected(_ keyword: String) throws {
         let source = """

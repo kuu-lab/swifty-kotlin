@@ -2,8 +2,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// KUU-3986: `java.lang.System.out` must exist next to `err`/`in` and
-    /// write to stdout while `System.err` keeps writing to stderr.
     @Test
     func systemOutPrintlnWritesToStandardOutput() throws {
         try compileAndRunKotlin(
@@ -15,9 +13,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-3986: the print/println overload set must cover the common JVM
-    /// types, and `PrintStream.printf`/`format` must format via the bundled
-    /// String.format machinery.
     @Test
     func systemOutPrintfFormatsAndPrintOverloadsCoverCommonTypes() throws {
         try compileAndRunKotlin(
@@ -55,9 +50,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-3986: PrintStream.close() marks the stream closed; subsequent
-    /// writes — including writes to System.out — are silently dropped like
-    /// the JDK.
     @Test
     func systemOutCloseDropsSubsequentWrites() throws {
         try compileAndRunKotlin(

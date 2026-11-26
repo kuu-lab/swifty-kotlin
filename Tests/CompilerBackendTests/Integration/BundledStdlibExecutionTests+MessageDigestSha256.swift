@@ -1,13 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// `MessageDigest.getInstance("SHA-256")` must produce a working SHA-256
-    /// digest — JDK canonical vectors, incremental `update` buffering, the
-    /// `digest(data)` append-then-finalize contract, per-algorithm
-    /// `digestLength`, and a `NoSuchAlgorithmException` for unsupported names.
-    /// Regression for KUU-4166: only MD5 was implemented, so Rosetta
-    /// `Parallel_Brute_Force` (`md.digest(pwd)` per candidate) threw at
-    /// runtime.
     @Test
     func testMessageDigestSha256Contract() throws {
         try compileAndRunKotlin(

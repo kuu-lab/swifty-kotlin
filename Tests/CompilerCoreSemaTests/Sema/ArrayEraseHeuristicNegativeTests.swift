@@ -4,25 +4,15 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-/// Negative tests to ensure the array-erase heuristic (which previously typed
-/// collection HOF results as `Any`) is not reintroduced.
-///
-/// Each test verifies that a specific collection higher-order function resolves
-/// (via bundled source or synthetic stub) and is callable on a `List<String>`
-/// receiver without producing a type-mismatch diagnostic.  If the array-erase
-/// heuristic is ever re-introduced, these calls would either fail to resolve or
-/// silently erase the result type — which the golden tests would also catch.
 @Suite
 struct ArrayEraseHeuristicNegativeTests {
 
     @Test
     func testArrayEraseHeuristics() throws {
         let sources: [String] = [
-            // source 0
             """
             fun noop() {}
             """,
-            // source 1
             """
             package sample1
 
@@ -31,7 +21,6 @@ struct ArrayEraseHeuristicNegativeTests {
                     }
 
             """,
-            // source 2
             """
             package sample2
 
@@ -40,7 +29,6 @@ struct ArrayEraseHeuristicNegativeTests {
                     }
 
             """,
-            // source 3
             """
             package sample3
 
@@ -49,7 +37,6 @@ struct ArrayEraseHeuristicNegativeTests {
                     }
 
             """,
-            // source 4
             """
             package sample4
 
@@ -58,7 +45,6 @@ struct ArrayEraseHeuristicNegativeTests {
                     }
 
             """,
-            // source 5
             """
             package sample5
 
@@ -67,7 +53,6 @@ struct ArrayEraseHeuristicNegativeTests {
                     }
 
             """,
-            // source 6
             """
             package sample6
 
@@ -76,7 +61,6 @@ struct ArrayEraseHeuristicNegativeTests {
                     }
 
             """,
-            // source 7
             """
             package sample7
 
@@ -85,7 +69,6 @@ struct ArrayEraseHeuristicNegativeTests {
                     }
 
             """,
-            // source 8
             """
             package sample8
 
@@ -104,10 +87,8 @@ struct ArrayEraseHeuristicNegativeTests {
             let interner = ctx.interner
             _ = (sema, interner)
 
-            // testCollectionHOFSyntheticStubsExist
             do {
                 let sema = try #require(ctx.sema)
-                // mapIndexed and partition are now provided by bundled Kotlin source (top-level extensions).
                 let collectionsFQ: [InternedString] = [
                     interner.intern("kotlin"),
                     interner.intern("collections"),
@@ -137,7 +118,6 @@ struct ArrayEraseHeuristicNegativeTests {
                 }
             }
 
-            // testMapIndexedCallResolvesWithoutTypeError
             do {
                 let samplePath = paths[1]
                 _ = samplePath
@@ -147,7 +127,6 @@ struct ArrayEraseHeuristicNegativeTests {
                     )
             }
 
-            // testFlatMapCallResolvesWithoutTypeError
             do {
                 let samplePath = paths[2]
                 _ = samplePath
@@ -157,7 +136,6 @@ struct ArrayEraseHeuristicNegativeTests {
                     )
             }
 
-            // testAssociateCallResolvesWithoutTypeError
             do {
                 let samplePath = paths[3]
                 _ = samplePath
@@ -167,7 +145,6 @@ struct ArrayEraseHeuristicNegativeTests {
                     )
             }
 
-            // testAssociateByCallResolvesWithoutTypeError
             do {
                 let samplePath = paths[4]
                 _ = samplePath
@@ -177,7 +154,6 @@ struct ArrayEraseHeuristicNegativeTests {
                     )
             }
 
-            // testAssociateWithCallResolvesWithoutTypeError
             do {
                 let samplePath = paths[5]
                 _ = samplePath
@@ -187,7 +163,6 @@ struct ArrayEraseHeuristicNegativeTests {
                     )
             }
 
-            // testGroupByCallResolvesWithoutTypeError
             do {
                 let samplePath = paths[6]
                 _ = samplePath
@@ -197,7 +172,6 @@ struct ArrayEraseHeuristicNegativeTests {
                     )
             }
 
-            // testPartitionCallResolvesWithoutTypeError
             do {
                 let samplePath = paths[7]
                 _ = samplePath
@@ -207,11 +181,9 @@ struct ArrayEraseHeuristicNegativeTests {
                     )
             }
 
-            // testListOfIntIsNotErasedToAny
             do {
                 let samplePath = paths[8]
                 _ = samplePath
-                // If erased to Any, contains() would fail to resolve.
                 #expect(
                         !diagnosticsForPath(samplePath, in: ctx).contains { $0.code == "KSWIFTK-TYPE-0001" },
                         "Expected no KSWIFTK-TYPE-0001 diagnostic for this source, got: \(diagnosticsForPath(samplePath, in: ctx))"

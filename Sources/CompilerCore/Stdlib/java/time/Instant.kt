@@ -3,7 +3,6 @@ package java.time
 import kotlin.time.Instant as KotlinInstant
 import java.util.Calendar
 
-/** An instantaneous point on the time-line measured from the Unix epoch. */
 public class Instant private constructor(
     public val epochSecond: Long,
     public val nano: Int,
@@ -37,7 +36,6 @@ public class Instant private constructor(
 
     public fun isAfter(other: Instant): Boolean = compareTo(other) > 0
 
-    /** Combines this instant with an offset to create an [OffsetDateTime]. */
     public fun atOffset(offset: ZoneOffset): OffsetDateTime = OffsetDateTime.ofInstant(this, offset)
 
     override fun compareTo(other: Instant): Int {

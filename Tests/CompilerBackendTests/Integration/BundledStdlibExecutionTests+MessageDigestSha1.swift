@@ -1,14 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// `MessageDigest.getInstance("SHA-1")` must produce a working SHA-1
-    /// digest — JDK canonical vectors, incremental `update` buffering, the
-    /// `digest(data)` append-then-finalize contract, per-algorithm
-    /// `digestLength`, the JDK "SHA" alias, and a
-    /// `NoSuchAlgorithmException` for unsupported names.
-    /// Regression for KUU-3990: only MD5/SHA-256 were implemented, so
-    /// `getInstance("SHA-1")` threw `NoSuchAlgorithmException` and Rosetta
-    /// `SHA1` ended in `KSwiftK panic [KSWIFTK-LINK-0003]`.
     @Test
     func testMessageDigestSha1Contract() throws {
         try compileAndRunKotlin(

@@ -1,7 +1,5 @@
 package kotlin
 
-// KSP-815: Char is a compiler primitive, so these extension properties provide
-// the public stdlib surface without a runtime bridge.
 public val Char.Companion.MAX_CODE_POINT: Int get() = 0x10FFFF
 
 public val Char.Companion.MAX_HIGH_SURROGATE: Char get() = '\uDBFF'

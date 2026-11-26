@@ -6,10 +6,6 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
-    /// KUU-1683: `provideDelegate` returns an interface whose `getValue` has a
-    /// default body. The delegate implementation lives behind a compiled
-    /// library boundary and inherits its state from a generic parsing base,
-    /// matching kotlinx-cli's `ArgumentValueDelegate` / `ParsingValue` shape.
     @Test
     func testMemberDelegateUsesInterfaceDefaultAcrossLibraryBoundary() throws {
         let librarySource = """

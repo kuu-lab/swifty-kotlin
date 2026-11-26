@@ -4,15 +4,6 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-/// A value class whose underlying representation can carry null (`String?`,
-/// another nullable-underlying value class, or an erased type parameter)
-/// erases to that payload type, so a non-null wrapper holding a null payload
-/// is indistinguishable from Kotlin `null` if `V?`/Any slots keep the bare
-/// pointer. These assert the lowered KIR routes such value classes through a
-/// dedicated nominal box — kk_value_class_box wraps the payload on `V` ->
-/// `V?`/Any boundaries and kk_value_class_unbox idempotently recovers the
-/// payload on the way back — instead of the primitive box+tag path or a
-/// verbatim copy that conflates wrapper nullness with payload nullness.
 extension LoweringPassRegressionTests {
     @Test
     func testNullableUnderlyingValueClassInitBoxesIntoNullableSlot() throws {

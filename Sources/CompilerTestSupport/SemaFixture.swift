@@ -3,20 +3,6 @@ import Foundation
 @testable import CompilerCore
 import Testing
 
-/// A suite's Sema run, memoised so the suite's tests share one pipeline
-/// execution instead of re-running Sema per test.
-///
-/// Declare one per suite and route the suite's helpers through it:
-///
-///     private static let fixture = SemaFixture(surface: "KParameter")
-///     private func sharedSema() throws -> (SemaModule, StringInterner) {
-///         try Self.fixture.shared()
-///     }
-///
-/// `surface` and `diagnostics` carry the per-suite expectation that a surface
-/// resolves cleanly, so a regression reports the offending diagnostics instead
-/// of failing later on a nil `ctx.sema`.
-///
 /// Access is serialised. swift-testing runs a `struct` suite's tests
 /// concurrently, and the `private static nonisolated(unsafe) var` caches this
 /// replaces had no synchronisation, so first access could be read and written
@@ -24,13 +10,9 @@ import Testing
 /// elsewhere in the Sema tests; only the suites routed through this fixture
 /// are covered.
 final class SemaFixture: @unchecked Sendable {
-    /// How strict a suite is about what Sema reported for its source.
     enum DiagnosticExpectation {
-        /// Accept whatever Sema reported; the suite checks the diagnostics itself.
         case unchecked
-        /// Fail if Sema reported an error. Warnings are allowed.
         case noErrors
-        /// Fail if Sema reported anything at all.
         case noDiagnostics
     }
 
@@ -50,7 +32,6 @@ final class SemaFixture: @unchecked Sendable {
         self.expectation = diagnostics
     }
 
-    /// The suite's shared run, executed on first use and reused afterwards.
     func shared(
         sourceLocation: Testing.SourceLocation = #_sourceLocation
     ) throws -> (SemaModule, StringInterner) {
@@ -64,7 +45,6 @@ final class SemaFixture: @unchecked Sendable {
         return pair
     }
 
-    /// A one-off run over `source`, held to the suite's diagnostic expectation.
     func make(
         source: String,
         sourceLocation: Testing.SourceLocation = #_sourceLocation
@@ -72,7 +52,6 @@ final class SemaFixture: @unchecked Sendable {
         try make(sources: [source], sourceLocation: sourceLocation)
     }
 
-    /// A one-off run over several files compiled as one module.
     func make(
         sources: [String],
         sourceLocation: Testing.SourceLocation = #_sourceLocation

@@ -129,23 +129,14 @@ extension BundledStdlibExecutionTests {
             }
             """,
             expectedOutput: [
-                // Boolean
                 "false\nfalse\nfalse\n[]\n[]\n[]\nfalse\nfalse\nfalse\n[]\n[]\n[]\ntrue\nfalse\ntrue\n[true]\n1\n[true]\ntrue\nfalse\ntrue\n[true]\n1\n[true]\n",
-                // Byte
                 "false\nfalse\nfalse\n[]\n[]\n[]\nfalse\nfalse\nfalse\n[]\n[]\n[]\ntrue\nfalse\ntrue\n[1]\n1\n[1]\ntrue\nfalse\ntrue\n[1]\n1\n[1]\n",
-                // Char
                 "false\nfalse\nfalse\n[]\n[]\n[]\nfalse\nfalse\nfalse\n[]\n[]\n[]\ntrue\nfalse\ntrue\n[a]\n1\n[a]\ntrue\nfalse\ntrue\n[a]\n1\n[a]\n",
-                // Double
                 "[]\n[]\n[]\n[]\n[]\n[]\n[1.5]\n1\n[1.5]\n[1.5]\n1\n[1.5]\n",
-                // Float
                 "[]\n[]\n[]\n[]\n[]\n[]\n[1.5]\n1\n[1.5]\n[1.5]\n1\n[1.5]\n",
-                // Int
                 "false\nfalse\nfalse\n[]\n[]\n[]\nfalse\nfalse\nfalse\n[]\n[]\n[]\ntrue\nfalse\ntrue\n[1]\n1\n[1]\ntrue\nfalse\ntrue\n[1]\n1\n[1]\n",
-                // Long
                 "false\nfalse\nfalse\n[]\n[]\n[]\nfalse\nfalse\nfalse\n[]\n[]\n[]\ntrue\nfalse\ntrue\n[1]\n1\n[1]\ntrue\nfalse\ntrue\n[1]\n1\n[1]\n",
-                // Short
                 "false\nfalse\nfalse\n[]\n[]\n[]\nfalse\nfalse\nfalse\n[]\n[]\n[]\ntrue\nfalse\ntrue\n[1]\n1\n[1]\ntrue\nfalse\ntrue\n[1]\n1\n[1]\n",
-                // Default arguments and reference arrays
                 "true\nfalse\n7\n[]\n7\n[1]\nfalse\n[]\ntrue\n[a]\ntrue\n[]\n",
             ].joined(),
             moduleName: "KUU1269PrimitiveVararg",

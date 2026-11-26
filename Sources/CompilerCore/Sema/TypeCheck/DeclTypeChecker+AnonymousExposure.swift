@@ -1,7 +1,4 @@
 extension DeclTypeChecker {
-    /// Anonymous implementation details remain visible through private/local
-    /// declarations. Exposed APIs also approximate nested type arguments and
-    /// function results, so their metadata never leaks anonymous member types.
     func exposedAnonymousType(_ type: TypeID, symbol: SymbolID, range: SourceRange, ctx: TypeInferenceContext) -> TypeID {
         let sema = ctx.sema
         let knownNames = KnownCompilerNames(interner: ctx.interner)
@@ -28,9 +25,6 @@ extension DeclTypeChecker {
                     return sema.types.errorType
                 }
                 if let parent = parents.first {
-                    // Supertype type args are stored flat (enclosing first,
-                    // then own) so an inner-class supertype keeps its capture;
-                    // `classType(for:)` splits them back out.
                     return sema.types.make(.classType(sema.types.classType(
                         for: parent,
                         arguments: sema.symbols.supertypeTypeArgs(for: c.classSymbol, supertype: parent).map { $0.mapTypes(expose) },

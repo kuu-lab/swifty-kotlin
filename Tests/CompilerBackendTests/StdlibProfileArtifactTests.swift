@@ -4,8 +4,6 @@
 import Foundation
 import Testing
 
-/// KUU-3016: a `--profile minimal` stdlib artifact, built once for the suite
-/// (a real `--stdlib-only` build), and the diagnostics around it.
 @Suite(.serialized)
 struct StdlibProfileArtifactTests {
     private static let minimalArtifact: Result<String, Error> = {
@@ -73,10 +71,6 @@ struct StdlibProfileArtifactTests {
         #expect(manifest["stdlibManifestHash"] as? String != BundledStdlib.manifestHash(profile: .full))
     }
 
-    /// One compile covers the three import cases so the suite pays for a
-    /// single (slow, debug-build) Sema run: excluded packages are reported,
-    /// kept packages are not, and a user package that merely shares an
-    /// excluded prefix is left alone.
     @Test
     func minimalProfileImportDiagnostics() throws {
         let excluded = """
@@ -112,8 +106,6 @@ struct StdlibProfileArtifactTests {
         let messages = found.filter { $0.code == "KSWIFTK-LIB-0036" }.map(\.message)
         #expect(messages.count == 3, "\(found)")
         #expect(messages.contains { $0.contains("'java.text.SimpleDateFormat'") })
-        // Resolves through a Swift-side synthetic stub, so it must be reported
-        // by profile membership rather than by failing to resolve.
         #expect(messages.contains { $0.contains("'kotlinx.coroutines.runBlocking'") })
         #expect(messages.contains { $0.contains("'kotlinx.coroutines.flow.*'") })
         #expect(messages.allSatisfy { $0.contains("--profile minimal") })
@@ -157,7 +149,6 @@ struct StdlibProfileArtifactTests {
         #expect(URL(fileURLWithPath: minimalPath).lastPathComponent == StdlibProfile.minimal.artifactFileName)
         #expect(minimalBuilds == 1)
 
-        // A second minimal request is served from the cache.
         _ = try StdlibArtifactCache.resolveOrBuildCached(
             target: target,
             cacheDirectory: cacheDirectory,
@@ -169,8 +160,6 @@ struct StdlibProfileArtifactTests {
         }
         #expect(minimalBuilds == 1)
 
-        // The full slot is a different directory: the cached minimal artifact
-        // must not satisfy it, so the builder runs.
         var fullBuilderRan = false
         #expect(throws: (any Error).self) {
             _ = try StdlibArtifactCache.resolveOrBuildCached(

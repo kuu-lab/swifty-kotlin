@@ -11,13 +11,6 @@ import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.CompletableDeferred
 
-// MIGRATION-FLOW-003 (KSP-676)
-// StateFlow / MutableStateFlow and Flow.stateIn migrated from the dedicated
-// runtime handle (kk_mutable_state_flow_create / kk_mutable_state_flow_emit /
-// kk_mutable_state_flow_try_emit / kk_state_flow_value / kk_flow_state_in) to
-// bundled Kotlin source. MutableStateFlow keeps a single-element replay buffer
-// and conflates live collector notifications while preserving equality checks.
-//
 // KUU-2685: upstream serializes state transitions with `synchronized(this)` so
 // compareAndSet is atomic and a collector that registers between a value read
 // and an emission still sees it. The port follows the same structure with a
@@ -145,7 +138,6 @@ public class MutableStateFlow<T>(initialValue: T) : StateFlow<T>, MutableSharedF
         if (_value != expect) {
             false
         } else if (_value == update) {
-            // CAS succeeds without storing so equal values keep their identity.
             true
         } else {
             _value = update

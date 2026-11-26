@@ -11,7 +11,6 @@ internal fun constructAnnotation(type: Any, arguments: Map<String, Any?>): Any {
         val resultType = __jvmMethodReturn(method)
         values[name] = if (value is KClass<*>) getJavaClass(value)
         else if (value is Array<*> && __jvmClassIsArray(resultType) && __jvmClassName(__jvmComponentType(resultType)) == "java.lang.Class") {
-            // Annotation methods expose Class[], including empty/default arrays.
             val classes = arrayOfNulls<java.lang.Class<*>>(value.size)
             var index = 0
             while (index < value.size) {

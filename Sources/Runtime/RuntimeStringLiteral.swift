@@ -4,10 +4,6 @@ private struct RuntimeWeakLiteralBox {
     weak let box: RuntimeStringBox?
 }
 
-/// KUU-4591: `Dictionary<[UInt8], _>` hashes element-by-element
-/// (`Hasher._combine(UInt8)` per byte), which dominated startup interning.
-/// Bulk-feeding the bytes through `Hasher.combine(bytes:)` keeps the same
-/// byte-equality semantics at a fraction of the hash cost.
 private struct LiteralByteKey: Hashable {
     let bytes: [UInt8]
 
@@ -43,9 +39,6 @@ final class RuntimeStringLiteralPool: @unchecked Sendable {
             let raw = Int(bitPattern: Unmanaged.passUnretained(box).toOpaque())
             return runtimeStringBox(fromRaw: raw) === box
         }
-        // Pay for the next full scan with at least one insertion per retained
-        // entry. Live startup literals then trigger geometrically spaced scans,
-        // while the floor keeps small pools from scanning on every insertion.
         insertionsUntilPruning = max(64, boxesByBytes.count)
         return previousCount - boxesByBytes.count
     }
@@ -60,9 +53,6 @@ final class RuntimeStringLiteralPool: @unchecked Sendable {
                 return raw
             }
         }
-        // Weak values alone would retain the byte-array keys indefinitely.
-        // Periodically remove both entries and keys after their object dies or
-        // is explicitly released from the runtime registry.
         insertionsUntilPruning -= 1
         if insertionsUntilPruning == 0 {
             _ = pruneReleasedEntriesWhileLocked()
@@ -82,7 +72,6 @@ final class RuntimeStringLiteralPool: @unchecked Sendable {
 
 private let runtimeStringLiteralPool = RuntimeStringLiteralPool()
 
-// Compiler allocation primitive: all modules use the same literal identity.
 @_cdecl("__kk_string_literal_from_utf8")
 public func __kk_string_literal_from_utf8(_ pointer: UnsafePointer<UInt8>, _ count: Int) -> Int {
     let bytes = Array(UnsafeBufferPointer(start: pointer, count: max(0, count)))

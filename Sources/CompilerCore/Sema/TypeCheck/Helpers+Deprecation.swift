@@ -68,9 +68,6 @@ extension TypeCheckHelpers {
         let hiddenSince: KotlinCompilerVersion?
     }
 
-    /// `@Deprecated("msg", level = HIDDEN)` -> error; the declaration still
-    /// resolves (lookup hiding is not modelled), so the deprecated diagnostic
-    /// stands in for kotlinc's "unresolved reference".
     func checkDeprecation(
         for symbolID: SymbolID,
         sema: SemaModule,
@@ -167,9 +164,6 @@ extension TypeCheckHelpers {
             parseDeprecatedSinceKotlinArguments($0.arguments, stringValue: stringValue)
         }
 
-        // An explicit @Deprecated(level = ERROR/HIDDEN) remains authoritative.
-        // The SinceKotlin metadata only refines the default warning level used
-        // by the stdlib as the target compiler version advances.
         let severity: DeprecatedSeverity
         switch parsed.level {
         case .error:
@@ -213,13 +207,9 @@ extension TypeCheckHelpers {
                 codeActions: codeActions
             )
         }
-        return // Only emit one deprecation diagnostic per symbol reference.
+        return
     }
 
-    /// Emits the deprecation diagnostic for the built-in `toChar()` on the
-    /// given receiver and returns the metadata-carrying declaration it was
-    /// checked against, so callers that bind no callee through ordinary
-    /// overload resolution can still bind the call (KUU-3763).
     @discardableResult
     func checkBuiltinDeprecation(
         calleeName: InternedString,
@@ -235,9 +225,6 @@ extension TypeCheckHelpers {
         }
 
         let receiver = sema.types.makeNonNullable(receiverType)
-        // No unsigned type has a real `toChar()` member. Int's decl is not
-        // deprecated upstream, so the lookup no-ops on it; Byte/Short carry
-        // the same error-level deprecation metadata as Long (KUU-3763).
         let deprecatedReceiverTypes: Set<TypeID> = [
             sema.types.intType,
             sema.types.longType,
@@ -382,8 +369,6 @@ extension TypeCheckHelpers {
         if let warningSince = arguments.warningSince, kotlinApiVersion >= warningSince {
             return .warning
         }
-        // A SinceKotlin annotation keeps the declaration available without a
-        // deprecation diagnostic until its first visible threshold is reached.
         if arguments.warningSince != nil || arguments.errorSince != nil || arguments.hiddenSince != nil {
             return .none
         }
@@ -578,9 +563,6 @@ extension TypeCheckHelpers {
         return nil
     }
 
-    /// Annotation arguments reach here as raw source text, so a `const val`
-    /// reference like `@Deprecated(MSG)` arrives unevaluated as the bare
-    /// identifier.
     private func normalizeAnnotationStringArgument(
         _ raw: String,
         annotatedSymbol symbolID: SymbolID,
@@ -598,9 +580,6 @@ extension TypeCheckHelpers {
         return normalizeAnnotationStringLiteral(raw)
     }
 
-    /// The argument is looked up in the lexical scope of the annotated
-    /// declaration: the declaration's innermost container first, then outward
-    /// through its package to the root.
     private func resolveStringConstantReference(
         _ raw: String,
         annotatedSymbol symbolID: SymbolID,
@@ -608,7 +587,6 @@ extension TypeCheckHelpers {
         interner: StringInterner
     ) -> String? {
         let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        // String literals are handled by normalizeAnnotationStringLiteral.
         guard extractKotlinStringLiteralContent(value) == nil else {
             return nil
         }
@@ -653,10 +631,6 @@ extension TypeCheckHelpers {
             else {
                 continue
             }
-            // A `private` top-level const is file-scoped, so it can only be
-            // referenced from the same file as the annotated declaration;
-            // same-file candidates are also preferred when the FQName is
-            // shared by declarations in several files.
             let sameFile = symbols.sourceFileID(for: candidateID) == annotatedFileID
             if candidate.visibility == .private && !sameFile {
                 continue
@@ -681,9 +655,6 @@ extension TypeCheckHelpers {
     func normalizeAnnotationStringLiteral(_ raw: String) -> String {
         let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // Annotation arguments are rebuilt from raw tokens. Raw strings must
-        // not be escape-decoded; regular strings are decoded like any other
-        // Kotlin string literal.
         if let extraction = extractKotlinStringLiteralContent(value) {
             return extraction.isRaw ? extraction.content : decodeKotlinStringEscapes(extraction.content)
         }
@@ -692,9 +663,6 @@ extension TypeCheckHelpers {
     }
 }
 
-/// Hidden declarations remain in metadata for binary compatibility, while
-/// APIs newer than the selected Kotlin API version stay out of source lookup.
-/// This also keeps factory/constructor pairs with the same signature unambiguous.
 func isHiddenByDeprecationOrVersionAnnotation(_ symbol: SymbolID, symbols: SymbolTable) -> Bool {
     let directAnnotations = symbols.annotations(for: symbol)
     let owner = symbols.symbol(symbol)?.kind == .constructor
@@ -756,10 +724,6 @@ func isHiddenByDeprecationOrVersionAnnotation(_ symbol: SymbolID, symbols: Symbo
     return false
 }
 
-/// A declaration annotated `@kotlin.internal.LowPriorityInOverloadResolution`
-/// legally shares a signature with a regular-priority callable (e.g. a class
-/// constructor): overload resolution ranks it last instead of rejecting the
-/// pair, so it must not suppress the regular candidate (KUU-3922).
 func isLowPriorityInOverloadResolution(_ symbol: SymbolID, symbols: SymbolTable) -> Bool {
     symbols.annotations(for: symbol).contains {
         $0.annotationFQName == KnownCompilerAnnotation.lowPriorityInOverloadResolution.qualifiedName

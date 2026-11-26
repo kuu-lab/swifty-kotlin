@@ -9,8 +9,6 @@ package kotlin.collections
 
 import kotlin.internal.KsSymbolName
 
-// KSP-697/705/1069: Runtime bridges handle the built-in collection boxes and
-// remain available as the ABI.
 public interface MutableCollection<E> : Collection<E>, MutableIterable<E> {
     @KsSymbolName("__kk_mutable_collection_add_throwing")
     @IgnorableReturnValue
@@ -22,8 +20,6 @@ public interface MutableCollection<E> : Collection<E>, MutableIterable<E> {
 
     @KsSymbolName("__kk_mutable_collection_clear_throwing")
     public external fun clear(): Unit
-
-    // The mutable iterator override is inherited from MutableIterable<E>.
 
     @KsSymbolName("__kk_mutable_collection_remove_throwing")
     @IgnorableReturnValue

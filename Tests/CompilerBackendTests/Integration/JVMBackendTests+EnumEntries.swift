@@ -5,10 +5,6 @@ import Foundation
 import Testing
 
 extension JVMBackendTests {
-    // KUU-3764: on the JVM route `kotlin.Enum` is a synthetic shell while
-    // `kotlin.Comparable.compareTo` arrives through residual declarations.
-    // Entries must inherit the concrete `compareTo` from `Enum` instead of
-    // being rejected for missing the abstract member.
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func plainEnumEntriesInheritEnumCompareTo(mode: EmitMode) throws {
         try withWorkspace { root in

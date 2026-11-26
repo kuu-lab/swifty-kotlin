@@ -345,7 +345,12 @@ extension JVMFunctionBuilder {
             }
         } else if var method {
             if let receiver, isSuper(receiver) { method = try superMethod(method, receiver: receiver) }
-            instructions.append(.foreignCall(method, receiver: object ?? dispatch, arguments: values, result: result))
+            if let clone = try reifiedClone(of: method, binding: binding, id: id) {
+                let receiverArgument = try (object ?? dispatch).map { [try convert($0, to: .reference(method.owner, nullable: false))] } ?? []
+                instructions.append(.foreignCall(clone, receiver: nil, arguments: receiverArgument + values, result: result))
+            } else {
+                instructions.append(.foreignCall(method, receiver: object ?? dispatch, arguments: values, result: result))
+            }
         } else if let reference {
             instructions.append(.call(reference, values, result))
         }

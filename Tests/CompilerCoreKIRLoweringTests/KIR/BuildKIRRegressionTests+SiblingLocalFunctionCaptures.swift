@@ -41,10 +41,6 @@ extension BuildKIRRegressionTests {
         #expect(callers.count == 2, "Both direct and sibling calls must have complete capture arguments.")
     }
 
-    // KUU-3671: `this@outer` inside nested local extension functions binds the
-    // outer extension's synthetic receiver parameter. It never enters the
-    // symbol table, so the local-function capture filter must admit it by its
-    // live binding — each level forwards the receiver one frame further in.
     @Test
     func nestedLocalExtensionQualifiedThisCapturesOuterReceivers() throws {
         let ctx = makeContextFromSource("""
@@ -66,9 +62,7 @@ extension BuildKIRRegressionTests {
         let bazSymbol = try sourceSymbol(named: "baz", in: ctx)
         let bar = try #require(functions.first { $0.symbol == barSymbol })
         let baz = try #require(functions.first { $0.symbol == bazSymbol })
-        // bar: foo's receiver capture + its own Int receiver.
         #expect(bar.params.count == 2)
-        // baz: foo's and bar's receiver captures + its own Long receiver.
         #expect(baz.params.count == 3)
         for function in functions {
             for instruction in function.body {

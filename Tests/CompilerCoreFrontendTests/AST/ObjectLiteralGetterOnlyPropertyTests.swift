@@ -4,13 +4,6 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-/// `val name get() = "p$v"` in an object literal has neither a type nor an
-/// initializer before `get`, so the local-declaration prefix parse failed and
-/// the whole member was re-parsed as one declaration whose `=` (after `get()`)
-/// made the getter body the property *initializer*. The value was then frozen
-/// at construction time (`p0` instead of `p3`).
-///
-/// See `Scripts/diff_cases/object_literal_getter_only_inferred_type.kt`.
 @Suite
 struct ObjectLiteralGetterOnlyPropertyTests {
     private func objectLiteralProperties(_ source: String) throws -> [(name: String, decl: PropertyDecl)] {
@@ -57,7 +50,6 @@ struct ObjectLiteralGetterOnlyPropertyTests {
             }
         }
         #expect(props.first { $0.name == "x" }?.decl.setter != nil)
-        // A plain initializer must still be an initializer.
         let plain = try objectLiteralProperties("fun main() { val o = object { val k = 1 } }")
         #expect(plain.first { $0.name == "k" }?.decl.initializer != nil)
     }

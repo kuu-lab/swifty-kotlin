@@ -1,6 +1,3 @@
-// Compatibility exports for synthetic Iterable dispatch that still lowers to
-// the historical sequence indexed-reduce entry points.
-
 @_cdecl("kk_sequence_reduceIndexed")
 public func kk_sequence_reduceIndexed(
     _ seqRaw: Int,

@@ -77,33 +77,20 @@ public struct SymbolFlags: OptionSet, Sendable, Codable {
     public static let localFunction = SymbolFlags(rawValue: 1 << 25)
     public static let memberExtension = SymbolFlags(rawValue: 1 << 26)
     public static let infixFunction = SymbolFlags(rawValue: 1 << 27)
-    /// Imported before allocation-component descriptors were part of source ABI.
     public static let legacyReifiedClassTokenABI = SymbolFlags(rawValue: 1 << 28)
-    /// This declaration was synthesized by the compiler's stdlib bootstrap
-    /// registry and is serialized into newly built stdlib artifacts.
     public static let precomputedStdlibSynthetic = SymbolFlags(rawValue: 1 << 29)
     /// The owning library object already contains this symbol's runtime
     /// reflection record, so consumers must not rebuild it.
     public static let precomputedRuntimeReflection = SymbolFlags(rawValue: 1 << 30)
-    /// Marks the synthetic class that represents an anonymous object literal.
-    /// Its type is usable only within the source file that declares the literal.
     public static let objectLiteralType = SymbolFlags(rawValue: UInt64(1) << 31)
-    /// Name-stable alias for checks that classify compiler-generated symbols
-    /// rather than the object-literal type's visibility rules.
     public static let objectLiteralSynthetic = objectLiteralType
-    /// Marks the local function symbol synthesized for an anonymous function
-    /// expression (`fun (...) { ... }`), including labeled forms.
     public static let anonymousFunction = SymbolFlags(rawValue: UInt64(1) << 32)
-    /// Marks a nominal declaration synthesized for a function-local class,
-    /// object, or typealias (`__localdecl_<exprID>` namespace).
     public static let localDeclSynthetic = SymbolFlags(rawValue: UInt64(1) << 33)
 }
 
 extension SymbolFlags {
     init(modifiers: Modifiers) {
         self.init(rawValue: 0)
-        // Value-class status is declaration-kind-specific and is assigned by
-        // class header collection rather than from modifiers alone.
         if modifiers.contains(.suspend) { insert(.suspendFunction) }
         if modifiers.contains(.inline) { insert(.inlineFunction) }
         if modifiers.contains(.operator) { insert(.operatorFunction) }
@@ -179,16 +166,10 @@ public struct FunctionSignature: Hashable, Sendable, Codable {
     public let isSuspend: Bool
     public let canThrow: Bool
     public let valueParameterSymbols: [SymbolID]
-    /// Per-value-parameter type parameters whose use is explicitly marked
-    /// `@UnsafeVariance`. The annotation is type-use metadata, so keep the
-    /// resolved type-parameter symbols after resolving the parameter type.
     public let valueParameterUnsafeVarianceTypeParameterSymbols: [Set<SymbolID>]
     public let valueParameterHasDefaultValues: [Bool]
     public let valueParameterIsVararg: [Bool]
-    /// Whether a function parameter may carry non-local returns from a lambda
-    /// argument. `crossinline` and `noinline` parameters are false.
     public let valueParameterAllowsNonLocalReturn: [Bool]
-    /// False for legacy imported signatures whose inline permissions were inferred.
     public let hasExplicitInlineParameterMetadata: Bool
     /// Whether callers may rely on the declaration's value-parameter names.
     /// Java methods have names in their class metadata, but Kotlin/JVM does not
@@ -198,10 +179,6 @@ public struct FunctionSignature: Hashable, Sendable, Codable {
     public let reifiedTypeParameterIndices: Set<Int>
     public let typeParameterUpperBounds: [TypeID?]
     public let typeParameterUpperBoundsList: [[TypeID]]
-    /// Number of leading entries in `typeParameterSymbols` that belong to the
-    /// enclosing class/interface (not the function itself).  The overload resolver
-    /// skips these when matching explicit type arguments and offsetting reified
-    /// indices.  Defaults to 0 for non-member or non-generic-class functions.
     public let classTypeParameterCount: Int
 
     public init(
@@ -280,10 +257,6 @@ public struct FunctionSignature: Hashable, Sendable, Codable {
         )
     }
 
-    /// Returns a copy of the signature with its dispatch/extension receiver
-    /// slot replaced. Conflict checks use this to normalize receivers that
-    /// are not part of the callable identity a same-named declaration must
-    /// match — e.g. a constructor's implicit class receiver (KUU-3750).
     func replacingReceiverType(_ receiverType: TypeID?) -> FunctionSignature {
         FunctionSignature(
             receiverType: receiverType,

@@ -5,8 +5,6 @@
  */
 package kotlin.collections
 
-// Reading a slot before it has been initialized is implementation-dependent.
-// The array allocation primitive uses null slots until callers assign values.
 @PublishedApi
 @Suppress("NOTHING_TO_INLINE", "UNCHECKED_CAST")
 internal inline fun <E> arrayOfUninitializedElements(size: Int): Array<E> {

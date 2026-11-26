@@ -100,7 +100,6 @@ private func invokeArrayMember(_ environment: Int, _ arguments: Int, _: Int, _ t
         case 3:
             let iteratorName = descriptor.name == "Array" || descriptor.storage != nil ? "kotlin.collections.Iterator" : "kotlin.collections.\(descriptor.element)Iterator"
             let iteratorBox = RuntimeListIteratorBox(values: array.values, currentValue: { array.value(at: $0) })
-            // KUU-3963: JVM array iterators are `kotlin.jvm.internal.Array*Iterator`.
             let reflectedName = descriptor.name == "Array"
                 ? "kotlin.jvm.internal.ArrayIterator"
                 : "kotlin.jvm.internal.Array\(descriptor.element)Iterator"
@@ -200,8 +199,6 @@ func ensureBuiltinArrayMembers(_ classRaw: Int) {
         let resultRaw = runtimeMakeStringRaw(resultName)
         let property = kk_kproperty_stub_create_cached_typed(nameRaw, resultRaw, runtimeMakeStringRaw("kotlin.\(descriptor.name).\(name)"), 0, 1, 0)
         _ = kk_callable_ref_tag_kproperty(property, nameRaw, resultRaw, 1)
-        // KUU-3947: JVM memberProperties renders e.g.
-        // `val kotlin.IntArray.size: kotlin.Int` — pin the same text.
         __kk_function_set_description(
             property,
             runtimeMakeStringRaw("val kotlin.\(descriptor.name).\(name): \(resultName)"),
@@ -219,8 +216,6 @@ func ensureBuiltinArrayMembers(_ classRaw: Int) {
         _ = __kk_kcallable_register_return_type(property, arrayType(resultName, token: resultToken))
         _ = __kk_kclass_register_member(classRaw, property)
     }
-    // The source shells only provide compiler intrinsics and have no callable
-    // reflection bridge. Replace those stubs with the actual array operations.
     let oldFunctions = runtimeKMemberRegistry.functions(for: classRaw).filter {
         guard let name = runtimeStringFromRaw(__kk_kcallable_get_name($0)) else { return false }
         return name == "get" || name == "set"
@@ -236,7 +231,6 @@ func ensureBuiltinArrayMembers(_ classRaw: Int) {
         let function = __kk_kfunction_create(nameRaw, arity, resultRaw, 4, 0, 0)
         _ = kk_callable_ref_tag_kfunction(function, nameRaw, resultRaw, arity, 4)
         let receiverName = "kotlin.\(descriptor.name)"
-        // KUU-3947: `fun kotlin.IntArray.set(kotlin.Int, kotlin.Int): kotlin.Unit`.
         __kk_function_set_description(
             function,
             runtimeMakeStringRaw("fun \(receiverName).\(name)(kotlin.Int\(setter ? ", kotlin.\(descriptor.element)" : "")): \(resultName)"),
@@ -267,7 +261,6 @@ func ensureBuiltinArrayMembers(_ classRaw: Int) {
         let function = __kk_kfunction_create(nameRaw, arity, resultRaw, flags, 0, 0)
         _ = kk_callable_ref_tag_kfunction(function, nameRaw, resultRaw, arity, flags)
         let receiverName = "kotlin.\(descriptor.name)"
-        // KUU-3947: `fun kotlin.IntArray.equals(kotlin.Any?): kotlin.Boolean`.
         __kk_function_set_description(
             function,
             runtimeMakeStringRaw("fun \(receiverName).\(name)(\(argument.map { $0.1 } ?? "")): \(resultName)"),

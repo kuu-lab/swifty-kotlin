@@ -14,9 +14,6 @@ extension BuildKIRRegressionTests {
     // vtable, so only the artifact exposes the inherited slot that used to
     // trigger the bogus virtual dispatch.
 
-    /// A primitive-backed value class (`Int` payload) lowers `hashCode()`
-    /// to the tagged `kk_any_hashCode` bridge — the tag lets the runtime
-    /// decode the raw scalar representation.
     @Test
     func valueClassHashCodeCallsTaggedAnyBridgeNotVtable() throws {
         TestStdlibCache.shared.prepare()
@@ -43,8 +40,6 @@ extension BuildKIRRegressionTests {
         )
     }
 
-    /// `equals` on a primitive-backed value class keeps the direct tagged
-    /// `kk_any_equals` bridge rather than a vtable slot on the raw payload.
     @Test
     func valueClassEqualsCallsTaggedAnyBridgeNotVtable() throws {
         TestStdlibCache.shared.prepare()
@@ -71,9 +66,6 @@ extension BuildKIRRegressionTests {
         )
     }
 
-    /// An object-backed value class (`String` payload) is not a primitive
-    /// fallback representation, so it keeps the boxed direct member bridge —
-    /// still never a vtable dispatch on the unboxed payload.
     @Test
     func objectBackedValueClassHashCodeSkipsVtableDispatch() throws {
         TestStdlibCache.shared.prepare()

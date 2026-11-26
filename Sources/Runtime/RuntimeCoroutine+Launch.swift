@@ -224,8 +224,6 @@ public func kk_kxmini_run_blocking_with_cont(
     // current scope shares the caller's job. A genuine top-level `runBlocking`
     // has no ambient scope, so this is a no-op there.
     let contState = runtimeContinuationState(from: continuation)
-    // Only a new context-aware blocking invocation opts into this link.
-    // Existing nil-policy suspend-value borrowing retains its original path.
     let blockingCaller = RuntimeContinuationState.current?.blockingScheduler != nil
         ? RuntimeContinuationState.current : nil
     if let contState, let blockingCaller {
@@ -332,16 +330,11 @@ public func kk_kxmini_launch_with_cont(_ entryPointRaw: Int, _ continuation: Int
     }
 
     let workItem = DispatchWorkItem {
-        // See kk_kxmini_launch: mark the body as started on the dispatch thread
-        // and re-check cancellation so a racing cancel() can skip the body.
         job.markStarted()
         if job.cancellationSnapshot() {
             _ = job.complete(with: 0)
             return
         }
-        // See kk_kxmini_launch: report the thrown exception so one escaping the
-        // body completes the job exceptionally instead of being discarded as a
-        // normal result.
         runtimeStartLaunchedBody(
             entryPointRaw: entryPointRaw,
             continuation: continuation,
@@ -401,9 +394,6 @@ private func runtimeAsyncScheduled(entryPointRaw: Int, continuation: Int, atomic
 }
 
 
-/// Registers a freshly created `async` task with the caller's scope and seeds
-/// the block's continuation with that scope, so the child's suspend-entry loop
-/// discovers its parent (CORO-003).
 private func runtimeRegisterAsyncChild(
     taskPtr: UnsafeMutableRawPointer,
     continuation: Int
@@ -457,9 +447,6 @@ private func runtimeAsyncLazy(entryPointRaw: Int, continuation: Int) -> Int {
     let callerScope = runtimeRegisterAsyncChild(taskPtr: taskPtr, continuation: continuation)
 
     task.installLazyStartBody { [entryPointRaw, continuation, callerScope] in
-        // Dispatched exactly as an eager `async` would be: onto the enclosing
-        // runBlocking event loop when there is one, the global pool otherwise
-        // (see KxMiniRuntime.launch). Only the *timing* differs from DEFAULT.
         KxMiniRuntime.launch {
             guard task.markStarted() else { return }
             runtimeStartLaunchedBody(
@@ -494,10 +481,6 @@ private func runtimeAsyncUndispatched(entryPointRaw: Int, continuation: Int) -> 
     let taskPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(task).toOpaque())
     let callerScope = runtimeRegisterAsyncChild(taskPtr: taskPtr, continuation: continuation)
     if let contState = runtimeContinuationState(from: continuation) {
-        // Inherit the caller's event loop explicitly. The body starts inline on
-        // this thread, but every resumption after its first suspension has to be
-        // queued on the loop like any other child's, or this coroutine would
-        // drop back to racing on the global pool. Same as runtimeLaunchUndispatched.
         contState.eventLoop = RuntimeEventLoop.current
     }
 
@@ -505,11 +488,6 @@ private func runtimeAsyncUndispatched(entryPointRaw: Int, continuation: Int) -> 
         return Int(bitPattern: taskPtr)
     }
 
-    // The nested suspend-entry loop installs its own task-local keys and removes
-    // them on the way out, so snapshot the caller's coroutine identity and put it
-    // back afterwards. Without this the statements following the `async` would run
-    // with no ambient scope, and a later `launch`/`async` there would detach from
-    // its parent. Same as runtimeLaunchUndispatched.
     let savedTaskKey = RuntimeCoroutineScopeTaskKey.currentTaskKey
     let savedJob = RuntimeJobHandle.current
     runtimeStartLaunchedBody(
@@ -533,14 +511,6 @@ public func kk_produce(_ entryPointRaw: Int, _ capture0: Int) -> Int {
     return kk_kxmini_produce_with_cont(entryPointRaw, continuation)
 }
 
-/// KUU-1439: mint the CoroutineScope facet a channel-backed ProducerScope
-/// resolves to. `produce`/`channelFlow`/`callbackFlow` hand the raw channel
-/// handle to the producer block as `this`, so `CoroutineScope` member calls
-/// (`launch`/`async`/`cancel`/`isActive`) reach the `kk_coroutine_scope_*`
-/// bridges carrying a channel handle. Binding the minted scope on the channel
-/// lets `runtimeCoroutineScope(from:)` resolve it. The scope adopts the
-/// producer job so the child context's Job is the producer's own and a
-/// producer cancellation cascades into children launched on it.
 private func runtimeBindProducerScope(
     channelHandle: Int,
     job: RuntimeJobHandle,
@@ -584,9 +554,6 @@ private func runtimeBindProducerScope(
     channel.bindProducerScope(scope)
 }
 
-/// Producer coroutine context for launchers without a continuation state:
-/// the caller scope's dispatcher/name/handler/extras with the producer Job in
-/// the Job slot — the same shape `makeContinuationContext()` yields.
 private func runtimeProducerContext(
     job: RuntimeJobHandle,
     inherited: RuntimeCoroutineContext?
@@ -600,8 +567,6 @@ private func runtimeProducerContext(
             || (inherited?.dispatcherHandleRaw ?? 0) != 0,
         handlerPresent: inherited?.exceptionHandler != nil
     )
-    // Same event-loop fallback as makeContinuationContext: a producer launched
-    // on a runBlocking-bound coroutine exposes the loop as its interceptor.
     var dispatcherHandleRaw = inherited?.dispatcherHandleRaw ?? 0
     if (inherited?.dispatcher ?? 0) == 0, dispatcherHandleRaw == 0,
        !extras.contains(where: {
@@ -623,8 +588,6 @@ private func runtimeProducerContext(
     )
 }
 
-/// `channelFlow` and `callbackFlow` use the Kotlin buffered default, while
-/// `produce` retains its rendezvous behavior through the public wrapper below.
 func runtimeKxMiniProduceWithCont(
     _ entryPointRaw: Int,
     _ continuation: Int,
@@ -656,18 +619,12 @@ func runtimeKxMiniProduceWithCont(
 
     let callerScope = RuntimeCoroutineScope.current
     if failureDeliveredByCollector {
-        // Like coroutineScope, a Flow collect boundary reports its failure
-        // through its caller rather than failing the ambient scope again.
-        // Retain the runtime job for escaped coroutineContext.job values,
-        // following RuntimeCoroutineScope.installJob's lifetime convention.
         (collectorJob ?? RuntimeJobHandle.current ?? callerScope?.job)?.registerChild(Int(bitPattern: jobPtr))
     } else {
         callerScope?.registerChild(Int(bitPattern: jobPtr))
     }
     if let contState = runtimeContinuationState(from: continuation) {
         contState.scope = callerScope
-        // The ProducerScope receiver is the raw channel handle; mint its
-        // CoroutineScope facet so the kk_coroutine_scope_* bridges resolve it.
         runtimeBindProducerScope(
             channelHandle: channelHandle, job: job,
             context: contState.makeContinuationContext()
@@ -681,9 +638,6 @@ func runtimeKxMiniProduceWithCont(
     }
 
     KxMiniRuntime.launch {
-        // Same cancel-before-start guard as `__kk_produce_launch*`: a cancel()
-        // racing ahead of the dispatched body already moved the job to
-        // cancelling/cancelled, so skip the body and settle the channel.
         if job.cancellationSnapshot() {
             _ = job.complete(with: 0)
             return
@@ -705,9 +659,6 @@ func runtimeKxMiniProduceWithCont(
                         // blocks that may themselves await collector cleanup.
                         _ = collectorJob?.cancel(cause: rootCause)
                     }
-                    // Cancelling each child's Job wakes its own pending send.
-                    // The enclosing collection Job receives non-cancellation
-                    // failure after this structured producer finishes.
                     producerScope.cancel(message: "Flow producer failed", cause: thrown)
                 }
                 let childFailure = producerScope.waitForChildren(releaseOriginalHandles: false)
@@ -731,8 +682,6 @@ public func kk_kxmini_produce_with_cont(_ entryPointRaw: Int, _ continuation: In
 }
 
 
-/// dispatcherRaw is a dispatcher tag (kk_dispatcher_default/io/main).
-/// Returns an opaque job handle (RuntimeJobHandle*).
 @_cdecl("kk_kxmini_launch_with_dispatcher")
 public func kk_kxmini_launch_with_dispatcher(_ entryPointRaw: Int, _ functionID: Int, _ dispatcherRaw: Int) -> Int {
     let job = RuntimeJobHandle()
@@ -765,8 +714,6 @@ public func kk_kxmini_launch_with_dispatcher(_ entryPointRaw: Int, _ functionID:
     }
 
     let workItem = DispatchWorkItem {
-        // See kk_kxmini_launch: mark the body as started on the dispatch thread
-        // and re-check cancellation so a racing cancel() can skip the body.
         job.markStarted()
         if job.cancellationSnapshot() {
             _ = job.complete(with: 0)
@@ -835,8 +782,6 @@ public func kk_kxmini_launch_with_dispatcher_and_cont(_ entryPointRaw: Int, _ co
     }
 
     let workItem = DispatchWorkItem {
-        // See kk_kxmini_launch: mark the body as started on the dispatch thread
-        // and re-check cancellation so a racing cancel() can skip the body.
         job.markStarted()
         if job.cancellationSnapshot() {
             _ = job.complete(with: 0)
@@ -873,9 +818,6 @@ public func kk_kxmini_launch_with_dispatcher_and_cont(_ entryPointRaw: Int, _ co
     return Int(bitPattern: jobPtr)
 }
 
-/// Marks a channel as the receiver of a bundled `actor` block before it is
-/// launched through `__kk_produce_launch*`, which otherwise cannot tell the
-/// two builders apart. Returns the channel handle.
 @_cdecl("__kk_actor_scope_mark")
 public func __kk_actor_scope_mark(_ channelHandle: Int) -> Int {
     runtimeChannelHandleObject(from: channelHandle)?.backsActorScope = true
@@ -1010,11 +952,6 @@ func runtimeInvokeSuspendLauncherThunk(
     }
 }
 
-/// KSP-1573: launcher-rewrite counterpart of `__kk_produce_launch` —
-/// `(channel, launcherThunk, continuation)`, the same convention
-/// `kk_kxmini_produce_with_cont` uses except the channel arrives
-/// pre-created: the bundled `Channel(capacity, onBufferOverflow)` factory
-/// applies the capacity/overflow semantics in Kotlin before the launch.
 @_cdecl("__kk_produce_launch_with_cont")
 public func __kk_produce_launch_with_cont(_ channelHandle: Int, _ entryPointRaw: Int, _ continuation: Int) -> Int {
     guard let contState = runtimeContinuationState(from: continuation) else {
@@ -1030,8 +967,6 @@ public func __kk_produce_launch_with_cont(_ channelHandle: Int, _ entryPointRaw:
     job.markStarted()
     job.continuationState = contState
     contState.jobHandle = job
-    // Legacy launchers leave slot zero for the receiver; closure-first
-    // adapters seed both the closure and receiver at the call site.
     contState.setLauncherArg(0, value: Int64(channelHandle), onlyIfAbsent: true)
     let callerScope = RuntimeCoroutineScope.current
     callerScope?.registerChild(Int(bitPattern: jobPtr))

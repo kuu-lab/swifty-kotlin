@@ -4,7 +4,6 @@ import Foundation
 #if canImport(Testing)
 import Testing
 
-// STDLIB-033: kotlin.concurrent / kotlin.concurrent.atomics parity edge cases
 @Suite
 struct CodegenBackendAtomicExtendedEdgeCasesTests {
 
@@ -406,7 +405,6 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
         try assertKotlinOutput(source, moduleName: "LegacyAtomicRefStringCAE", expected: "true\ny\nz\n")
     }
 
-    /// KUU-1507: Keep the Kotlin/Native-only legacy API covered without JVM kotlinc.
     @Test
     func testCodegenLegacyAtomicArrayOperations() throws {
         let source = """

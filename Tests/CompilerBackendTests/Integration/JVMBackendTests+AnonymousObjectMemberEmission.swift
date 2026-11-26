@@ -5,9 +5,6 @@ import Foundation
 import Testing
 
 extension JVMBackendTests {
-    /// Regression for the emitClasses ordering fix: an anonymous object declared
-    /// inside a member function only becomes eligible for emission while that
-    /// member's body is built. It must still be emitted and runnable.
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func anonymousObjectInsideMemberIsEmittedAndRuns(mode: EmitMode) throws {
         try withWorkspace { root in

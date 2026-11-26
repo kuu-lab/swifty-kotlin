@@ -60,7 +60,6 @@ struct EnumSetFacadeTests {
 
         """
         let accepted = [
-            // Keep the issue's exact independent reproducer and HashSet control.
             """
             import java.util.EnumSet
             enum class Kind { ONE, TWO }
@@ -146,7 +145,6 @@ struct EnumSetFacadeTests {
         for library in [nil, Optional(artifact)] {
             for optimization in [OptimizationLevel.O0, .O2] {
                 print("EnumSet contract: \(library == nil ? "source" : "artifact") \(optimization)")
-                // Batch independent files to inject the bundled stdlib once per gate.
                 try compileEnumSetConsumers(accepted, library: library, optimization: optimization) { context, _ in
                     try assertNoDiagnosticErrors(context)
                     try LoweringPhase().run(context)
@@ -194,8 +192,6 @@ private func compileEnumSetConsumers(
     defer { try? FileManager.default.removeItem(at: directory) }
     let paths = try sources.enumerated().map { index, source in
         let path = directory.appendingPathComponent("Consumer\(index).kt").path
-        // The root file preserves the exact issue reproducer; independent
-        // controls use separate packages and retain file-scoped imports.
         let contents = index == 0 ? source : "package control\(index)\n" + source
         try contents.write(toFile: path, atomically: true, encoding: .utf8)
         return path

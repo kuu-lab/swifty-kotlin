@@ -6,8 +6,6 @@ import RuntimeABI
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-1978: retain the original context consumer and exercise callbacks
-    /// forwarded through delegation, source overrides, and imported bodies.
     @Test(arguments: [false, true], [0, 2])
     func testCoroutineContextFoldABI(useArtifact: Bool, optimization: Int) throws {
         let optLevel: OptimizationLevel = optimization == 0 ? .O0 : .O2

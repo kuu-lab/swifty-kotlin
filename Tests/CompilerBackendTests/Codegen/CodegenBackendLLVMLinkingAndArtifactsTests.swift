@@ -8,8 +8,6 @@ import Testing
 
 private let runtimeLinkNamePrefix = String(RuntimeABISpec.compilerGeneratedLinkNamePrefix.dropLast("fn_".count))
 
-/// Select by operation so public/private ABI demotions do not change the fixture.
-/// Missing or ambiguous entries fail instead of silently dropping coverage.
 private func runtimeLinkName(_ operation: String, section: String? = nil) throws -> String {
     let declarations = RuntimeABISpec.allFunctions.filter {
         runtimeOperation(in: $0.name) == operation && (section == nil || $0.section == section)
@@ -31,10 +29,8 @@ private func flatRuntimeLinkName(for linkName: String) throws -> String {
     return try runtimeLinkName("\(operation)_flat")
 }
 
-/// Catch removed runtime calls without maintaining a second obsolete ABI inventory.
 private func expectOnlyCanonicalRuntimeCalls(in ir: String) throws {
     let prefix = NSRegularExpression.escapedPattern(for: runtimeLinkNamePrefix)
-    // Function declarations/calls end in '('. Runtime-prefixed globals are not ABI functions.
     let pattern = try NSRegularExpression(pattern: "@\"?((?:__)?\(prefix)[A-Za-z0-9_]+)\"?\\(")
     let names = Set(pattern.matches(in: ir, range: NSRange(ir.startIndex..., in: ir)).compactMap { match in
         Range(match.range(at: 1), in: ir).map { String(ir[$0]) }
@@ -71,8 +67,6 @@ private func expectSourceBackedStringCalls(in ir: String, operations: [String]) 
 private func expectNoStringRuntimeCalls(in ir: String, operations: [String]) throws {
     try expectOnlyCanonicalRuntimeCalls(in: ir)
     for operation in operations {
-        // Generate the forbidden set from the current spec, including compatibility
-        // entries and any legacy entry reintroduced alongside a backend mapping.
         for declaration in RuntimeABIExterns.allExterns {
             let candidateOperation = runtimeOperation(in: declaration.name)
             if candidateOperation == "string_\(operation)" || candidateOperation.hasPrefix("string_\(operation)_") {
@@ -331,9 +325,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         }
     }
 
-    // KSP-404: startsWith/endsWith/removePrefix/removeSuffix/removeSurrounding are
-    // bundled Kotlin source (StringPrefixSuffix.kt); the backend must no longer emit
-    // any raw or flat runtime call for them.
     @Test
     func testLLVMBackendKeepsPrefixSuffixSourceBacked() throws {
         let source = """
@@ -459,12 +450,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
 
     @Test
     func testLLVMBackendDoesNotEmitReplaceFirstCharRuntimeCallForSourceBackedOverload() throws {
-        // KSP-412 (#5064) migrated replaceFirstChar to bundled Kotlin source
-        // (StringCaseConversion.kt) and removed both the raw and flat runtime
-        // bridges; ABIMismatchTests.testKKStringReplaceFirstCharABIRemoved
-        // asserts their absence from RuntimeABISpec. This test used to assert
-        // the opposite (that the flat call was emitted) and was never updated
-        // by that migration.
         let source = """
         fun main() {
             println("alpha".replaceFirstChar { 'A' })
@@ -570,9 +555,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
 
     @Test
     func testLLVMBackendUsesSourceBackedIndentCallsForStringOverloads() throws {
-        // trimIndent/trimMargin/prependIndent/replaceIndent/replaceIndentByMargin are compiled
-        // through StringIndentFormat.kt. The old public kk_string_* and flat C-bridge calls
-        // should not appear in user IR.
         let source = """
         fun main() {
             val value = "  alpha\\n  beta"
@@ -737,7 +719,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                     result: completionLoaded,
                     canThrow: false
                 ),
-                // Control flow for if/when: branch on condition == false
                 .constValue(result: falseConst, value: .boolLiteral(false)),
                 .jumpIfEqual(lhs: whenCondition, rhs: falseConst, target: 900),
                 .copy(from: labelValue, to: whenResult),
@@ -801,7 +782,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         #expect(ir.contains("@\(try runtimeLinkName("unregister_coroutine_root"))("))
         #expect(ir.contains("coroutine_root_register"))
         #expect(ir.contains("coroutine_root_unregister"))
-        // select i1 no longer emitted; control flow uses conditional branches instead
         let hasConditionalBranch = ir.contains("br i1") || ir.contains("icmp eq")
         #expect(hasConditionalBranch)
         #expect(ir.contains("thrown_slot_"))
@@ -1250,13 +1230,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         try expectFlatRuntimeCalls(in: ir, callees: extractCallees(from: body, interner: interner))
     }
 
-    // String callback scalars and hex parsing now use bundled Kotlin functions.
-    // Hand-built calls to their removed ABI names only exercised generic extern emission.
-
-    // KSP-408: indexOfAny/lastIndexOfAny/findAnyOf/findLastAnyOf are bundled Kotlin
-    // source (StringIndexOf.kt); their flat runtime bridges and this IR-emission test
-    // were removed.
-
     @Test
     func testLLVMBackendEmitsFlatStringListSequenceRuntimeCalls() throws {
         let interner = StringInterner()
@@ -1402,7 +1375,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
 
     @Test
     func testLlvmBindingsCandidatePathsHonorEnvironmentOverride() {
-        // Create a temp file so the existence check passes.
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString + ".dylib")
         _ = FileManager.default.createFile(atPath: tempURL.path, contents: Data())
@@ -1423,7 +1395,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         ])
         #expect(!relativePaths.contains { $0.hasSuffix("relative/dir/libLLVM.so") })
 
-        // Non-existent paths are rejected and not added to candidates.
         let missing = "/tmp/does-not-exist-kswiftk-\(UUID().uuidString).dylib"
         let pathsWithMissing = LLVMCAPIBindings.candidateLibraryPaths(environment: ["KSWIFTK_LLVM_DYLIB": missing])
         #expect(!pathsWithMissing.contains(missing))
@@ -1471,9 +1442,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
     }
 
     @Test
-    /// A synthetic (negative) symbol must not share its C name with a real
-    /// symbol of the same magnitude and name: duplicate definitions get silently
-    /// renamed by LLVM and calls bind to whichever definition came first.
     func testCodegenFunctionSymbolDistinguishesSyntheticSymbolsFromRealOnes() {
         let interner = StringInterner()
         let types = TypeSystem()

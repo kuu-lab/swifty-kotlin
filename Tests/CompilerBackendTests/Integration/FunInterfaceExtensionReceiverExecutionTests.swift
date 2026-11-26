@@ -3,7 +3,6 @@ import Testing
 
 @Suite(.serialized)
 struct FunInterfaceExtensionReceiverExecutionTests {
-    /// KUU-3190: extension receivers must reach SAM bodies across the reported dispatch paths.
     @Test
     func receiverArgumentsReachSamImplementations() throws {
         try compileAndRunKotlin(

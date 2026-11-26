@@ -53,10 +53,6 @@ struct CodegenBackendMaxOfFloatEdgeCasesTests {
         )
     }
 
-    // maxOf(Float, Float) must propagate NaN and distinguish signed zero
-    // regardless of argument order, matching kotlinc's Math.max-backed behavior
-    // (verified against `kotlinc` directly) rather than a plain `>` comparison,
-    // which is always false for NaN operands and treats -0.0 == 0.0.
     @Test
     func testCodegenCompilesMaxOfFloatNaNAndSignedZero() throws {
         let source = """
@@ -82,8 +78,6 @@ struct CodegenBackendMaxOfFloatEdgeCasesTests {
         )
     }
 
-    // Double shares the same lowering path as Float; verify NaN/signed-zero
-    // handling holds for the wider type too.
     @Test
     func testCodegenCompilesMaxOfDoubleNaNAndSignedZero() throws {
         let source = """

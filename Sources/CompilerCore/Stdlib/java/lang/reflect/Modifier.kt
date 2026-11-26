@@ -1,6 +1,5 @@
 package java.lang.reflect
 
-/** JVM `java.lang.reflect.Modifier` constants and bit tests. */
 public class Modifier private constructor() {
     public companion object {
         public const val PUBLIC: Int = 0x0001
@@ -16,7 +15,6 @@ public class Modifier private constructor() {
         public const val ABSTRACT: Int = 0x0400
         public const val STRICT: Int = 0x0800
 
-        // JVM keeps these fields package-private; only the is* tests are public.
         internal const val SYNTHETIC: Int = 0x1000
         internal const val ANNOTATION: Int = 0x2000
         internal const val ENUM: Int = 0x4000

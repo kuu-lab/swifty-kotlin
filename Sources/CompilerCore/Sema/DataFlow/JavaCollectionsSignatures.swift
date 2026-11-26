@@ -1,6 +1,4 @@
 extension DataFlowSemaPhase {
-    /// Restore Java's mapped generic arguments only for the bundled facade.
-    /// Call-site inference preserves Kotlin/JVM 2.3.10's flexible arguments.
     func javaCollectionsParameterTypes(
         _ parameters: [TypeID],
         fqName: [InternedString],

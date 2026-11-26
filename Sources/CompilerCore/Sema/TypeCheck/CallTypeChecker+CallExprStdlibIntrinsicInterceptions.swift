@@ -219,8 +219,6 @@ extension CallTypeChecker {
             locals: &locals,
             expectedType: signature.parameterTypes[0]
         )
-        // The body is compiler-only, but record the exact declaration that
-        // selected this path so later consumers cannot confuse a user overload.
         sema.bindings.bindCall(
             id,
             binding: CallBinding(

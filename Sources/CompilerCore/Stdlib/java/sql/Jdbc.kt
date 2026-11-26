@@ -84,7 +84,6 @@ public class ResultSet internal constructor(private val rawHandle: Long) : AutoC
     }
 }
 
-/** JDBC column-type codes, mirroring `java.sql.Types`. */
 public object Types {
     public const val BIT: Int = -7
     public const val TINYINT: Int = -6

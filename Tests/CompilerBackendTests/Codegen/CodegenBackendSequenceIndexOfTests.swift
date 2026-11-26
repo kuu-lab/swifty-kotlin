@@ -3,7 +3,6 @@ import Foundation
 #if canImport(Testing)
 import Testing
 
-// STDLIB-SEQ-FN-048: Sequence.indexOf
 @Suite(.serialized)
 struct CodegenBackendSequenceIndexOfTests {
 
