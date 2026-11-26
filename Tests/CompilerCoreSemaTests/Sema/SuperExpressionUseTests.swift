@@ -27,6 +27,20 @@ import Testing
         #expect(errors.first?.code == "KSWIFTK-SEMA-0057")
     }
 
+    @Test func genericSuperIndexedAccessUsesInheritedTypeArguments() throws {
+        let ctx = try semaContext(for: ["""
+        open class Base<T> {
+            open operator fun get(index: T): Int = 0
+        }
+        class A : Base<String>() {
+            fun indexed() = super["x"]
+        }
+        """])
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors.map(\.message))")
+    }
+
     @Test func acceptsSuperAsAReceiver() throws {
         let ctx = try semaContext(for: ["""
         open class Base {

@@ -22,6 +22,27 @@ extension JVMBackendTests {
     }
 
     @Test
+    func arrayListSubclassSuperIndexedAccessUsesBaseImplementationOnJVM() throws {
+        try assertJVM("""
+        class A : ArrayList<String>() {
+            override fun get(index: Int): String = super[index]
+            override fun set(index: Int, element: String): String {
+                super[index] = element
+                return element
+            }
+        }
+
+        fun main() {
+            val xs: ArrayList<String> = A()
+            xs.add("x")
+            println(xs[0])
+            xs[0] = "y"
+            println(xs[0])
+        }
+        """, "x\ny\n")
+    }
+
+    @Test
     func javaCollectionParameterAcceptsMutableOverride() throws {
         try withWorkspace { root in
             try """

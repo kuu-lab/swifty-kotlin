@@ -497,11 +497,7 @@ extension JVMFunctionBuilder {
         }
         let collections: Set<String> = ["java/util/ArrayList", "java/util/HashMap", "java/util/LinkedHashMap", "java/util/LinkedHashSet", "java/lang/Iterable", "java/util/Iterator", "java/util/ListIterator", "java/util/Collection", "java/util/List", "kotlin/enums/EnumEntries", "java/util/Set", "java/util/Map", "kotlin/text/MatchGroupCollection"]
         if collections.contains(owner) {
-            let directSuperOwner: String? = {
-                guard isSuper(receiverID), let name = sourceType.referenceName,
-                      context.jvmImports?.classes[name]?.isInterface == false else { return nil }
-                return name
-            }()
+            let directSuperOwner = directConcreteSuperOwner(receiverID)
             if member == "withIndex", args.isEmpty {
                 let iterableType = JVMValueType.reference("java/lang/Iterable", nullable: false)
                 let source = try convert(requireValue(receiverID), to: iterableType)
@@ -820,6 +816,26 @@ extension JVMFunctionBuilder {
             return .reference(String(descriptor.dropFirst().dropLast()), nullable: true)
         }
     }
+    func directConcreteSuperOwner(_ receiver: ExprID) -> String? {
+        guard isSuper(receiver),
+              let type = try? program.expressionType(receiver),
+              let name = type.referenceName,
+              context.jvmImports?.classes[name]?.isInterface == false
+        else { return nil }
+        return name
+    }
+
+    private func indexedJavaSuperOwner(_ receiver: ExprID, id: ExprID) -> (owner: String, isMap: Bool)? {
+        guard let owner = directConcreteSuperOwner(receiver),
+              let memberOwner = try? mappedBuiltinMemberOwner(id)
+        else { return nil }
+        if javaImportedTypeInherits(owner, "java/util/List"),
+           javaImportedTypeInherits(memberOwner, "java/util/List") { return (owner, false) }
+        if javaImportedTypeInherits(owner, "java/util/Map"),
+           javaImportedTypeInherits(memberOwner, "java/util/Map") { return (owner, true) }
+        return nil
+    }
+
     private func isSafeChainIndexedReceiver(_ receiver: ExprID) -> Bool {
         guard !arena.isParenthesized(receiver) else { return false }
         switch arena.expr(receiver) {
@@ -845,6 +861,16 @@ extension JVMFunctionBuilder {
     func indexedGet(_ receiver: ExprID, _ indices: [ExprID], _ id: ExprID, precomputedReceiverValue: JVMValue? = nil) throws -> JVMValue? {
         if precomputedReceiverValue == nil, isSafeChainIndexedReceiver(receiver) {
             return try safeChainIndexedGet(receiver, indices, id)
+        }
+        if let superTarget = indexedJavaSuperOwner(receiver, id: id) {
+            guard indices.count == 1 else { throw fail("JVM indexing requires one index.", id) }
+            let any: JVMValueType = .reference("java/lang/Object", nullable: true)
+            let parameters: [JVMValueType] = superTarget.isMap ? [any] : [.int]
+            return try jdkCall(
+                superTarget.owner, "get", parameters, any,
+                receiver: requireValue(receiver), arguments: [requireValue(indices[0])],
+                special: true, resolved: program.expressionType(id)
+            )!
         }
         let args = indices.map { CallArgument(expr: $0) }
         if let call = try inlineCall(args, receiver: receiver, receiverValue: precomputedReceiverValue, id: id)
@@ -943,6 +969,17 @@ extension JVMFunctionBuilder {
         guard let type = program.sema.bindings.exprType(for: receiver), mutable(type) else { throw fail("Cannot mutate a read-only JVM collection.", id) }
     }
     func indexedSet(_ receiver: ExprID, _ indices: [ExprID], _ source: ExprID, _ id: ExprID) throws {
+        if let superTarget = indexedJavaSuperOwner(receiver, id: id) {
+            guard indices.count == 1 else { throw fail("JVM indexing requires one index.", id) }
+            let any: JVMValueType = .reference("java/lang/Object", nullable: true)
+            let parameters: [JVMValueType] = superTarget.isMap ? [any, any] : [.int, any]
+            _ = try jdkCall(
+                superTarget.owner, superTarget.isMap ? "put" : "set", parameters, any,
+                receiver: requireValue(receiver), arguments: [requireValue(indices[0]), requireValue(source)],
+                special: true
+            )
+            return
+        }
         let args = (indices + [source]).map { CallArgument(expr: $0) }
         if let _ = try inlineCall(args, receiver: receiver, id: id)
             ?? sourceCall(args, receiver: receiver, id: id) { return }
