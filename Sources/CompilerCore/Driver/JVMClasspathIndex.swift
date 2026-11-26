@@ -258,10 +258,15 @@ final class JVMClasspathIndex {
     private func linkKotlinMultifileFacades() {
         for (name, var facade) in hierarchyClasses where !facade.kotlinMultifileParts.isEmpty {
             var methods: [String: JVMForeignMethod] = [:]
+            var methodOrder: [String] = []
             for partName in facade.kotlinMultifileParts {
                 guard let part = hierarchyClasses[partName], part.isKotlinMultifilePart else { continue }
                 for method in part.methods where method.isStatic && (method.kotlinFunction != nil || method.kotlinSuspendFunction != nil) {
-                    methods[method.name + method.descriptor] = method
+                    let signature = method.name + method.descriptor
+                    if methods[signature] == nil {
+                        methodOrder.append(signature)
+                    }
+                    methods[signature] = method
                 }
                 facade.kotlinTopLevelConstants.merge(part.kotlinTopLevelConstants) { existing, _ in existing }
                 for (source, method) in part.kotlinTopLevelProperties {
@@ -277,6 +282,12 @@ final class JVMClasspathIndex {
                 guard let part = methods[method.name + method.descriptor] else { continue }
                 facade.methods[index].kotlinFunction = part.kotlinFunction
                 facade.methods[index].kotlinSuspendFunction = part.kotlinSuspendFunction
+            }
+            var facadeSignatures = Set(facade.methods.filter(\.isStatic).map { $0.name + $0.descriptor })
+            for signature in methodOrder where facadeSignatures.insert(signature).inserted {
+                if let method = methods[signature] {
+                    facade.methods.append(method.withOwner(facade.name))
+                }
             }
             hierarchyClasses[name] = facade
         }
@@ -1735,7 +1746,9 @@ final class JVMClasspathIndex {
     }
 
     private func isCovered(_ name: String, covered: Set<String>) -> Bool {
-        name.hasPrefix("kotlin/") || covered.contains(name) || sourceClassNames.contains(name)
+        // The repository JVM profile does not define kotlin.uuid, so an explicit stdlib classpath must supply it.
+        let providedByKotlinRuntime = name.hasPrefix("kotlin/") && !name.hasPrefix("kotlin/uuid/")
+        return providedByKotlinRuntime || covered.contains(name) || sourceClassNames.contains(name)
             || name.firstIndex(of: "$").map { sourceClassNames.contains(String(name.prefix(upTo: $0))) } == true
     }
 
@@ -3997,6 +4010,30 @@ final class JVMClasspathIndex {
 }
 
 private extension JVMForeignMethod {
+    func withOwner(_ owner: String) -> JVMForeignMethod {
+        var method = JVMForeignMethod(
+            owner: owner, name: name, descriptor: descriptor, parameters: parameters, result: result,
+            isStatic: isStatic, isInterface: isInterface, isAbstract: isAbstract,
+            isFinal: isFinal, isSpecial: isSpecial, isVarargs: isVarargs, isSuspend: isSuspend,
+            isProtected: isProtected
+        )
+        method.isPackagePrivate = isPackagePrivate
+        method.isSynthetic = isSynthetic
+        method.annotations = annotations
+        method.annotationDefault = annotationDefault
+        method.parameterAnnotations = parameterAnnotations
+        method.kotlinSuspendFunction = kotlinSuspendFunction
+        method.genericResultParameter = genericResultParameter
+        method.genericSignature = genericSignature
+        method.kotlinOwnerResultParameter = kotlinOwnerResultParameter
+        method.kotlinConstructorParameterNames = kotlinConstructorParameterNames
+        method.kotlinConstructorParameterSourceTypes = kotlinConstructorParameterSourceTypes
+        method.kotlinCollisionSourceName = kotlinCollisionSourceName
+        method.kotlinFunction = kotlinFunction
+        method.reifiedBody = reifiedBody
+        return method
+    }
+
     var sourceName: String { kotlinFunction?.name ?? kotlinSuspendFunction?.name ?? kotlinCollisionSourceName ?? name }
     var sourceResult: JVMValueType { kotlinSuspendFunction?.result ?? result }
     var sourceParameters: [JVMValueType] {
