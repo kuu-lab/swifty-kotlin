@@ -1,24 +1,14 @@
 package platform.Foundation
 
-// NSTimeInterval is Double on 64-bit Darwin (NSDate.h).
 public typealias NSTimeInterval = Double
 
-// NSComparisonResult is NS_ENUM(NSInteger) in NSObjCRuntime.h.
 public typealias NSComparisonResult = platform.darwin.NSInteger
 
 public const val NSComparisonResultOrderedAscending: NSComparisonResult = -1L
 public const val NSComparisonResultOrderedSame: NSComparisonResult = 0L
 public const val NSComparisonResultOrderedDescending: NSComparisonResult = 1L
 
-/**
- * Typed facade over a real Foundation NSDate. Mirrors the Kotlin/Native
- * platform.Foundation surface: `timeIntervalSince1970`/`timeIntervalSinceNow`/
- * `timeIntervalSinceReferenceDate` are member properties (they are readonly
- * ObjC properties), while the zero-argument call forms are top-level
- * extensions, matching KN's `platform.Foundation.timeIntervalSince1970`.
- */
 public open class NSDate internal constructor(handle: Long) : NSObject(handle) {
-    /** -[NSDate init]: the current date and time. */
     public constructor() : this(__foundation_date_now())
     public constructor(timeIntervalSinceReferenceDate: NSTimeInterval) :
         this(__foundation_date_create_reference(timeIntervalSinceReferenceDate))
@@ -53,7 +43,6 @@ public open class NSDate internal constructor(handle: Long) : NSObject(handle) {
     public companion object {}
 }
 
-// Kotlin/Native exposes the ObjC class methods as companion members.
 public fun NSDate.Companion.date(): NSDate = NSDate()
 
 public val NSDate.Companion.now: NSDate
@@ -80,8 +69,6 @@ public fun NSDate.Companion.dateWithTimeIntervalSince1970(seconds: NSTimeInterva
 public fun NSDate.Companion.dateWithTimeInterval(seconds: NSTimeInterval, sinceDate: NSDate): NSDate =
     NSDate(__foundation_date_factory_since(seconds, sinceDate.__handle))
 
-// Zero-argument call forms of the readonly ObjC time-interval properties,
-// provided by Kotlin/Native as top-level extensions in platform.Foundation.
 public fun NSDate.timeIntervalSince1970(): NSTimeInterval = timeIntervalSince1970
 public fun NSDate.timeIntervalSinceNow(): NSTimeInterval = timeIntervalSinceNow
 public fun NSDate.timeIntervalSinceReferenceDate(): NSTimeInterval = timeIntervalSinceReferenceDate

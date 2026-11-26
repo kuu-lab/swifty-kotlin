@@ -43,8 +43,6 @@ extension BuildKIRRegressionTests {
         #expect(lambdas.count == 8)
         #expect(lambdas.filter { !$0.isInlineOnly }.count == 5)
         let nonLocalSymbols = Set(nonLocalLambdas.map(\.symbol))
-        // Crossinline arguments may need adapters, but non-local returns
-        // must remain in their inline-only lambdas.
         let lambdaSymbols = Set(lambdas.map(\.symbol))
         #expect(!findAllKIRFunctions(in: module).contains { function in
             guard !lambdaSymbols.contains(function.symbol) else { return false }

@@ -1,9 +1,4 @@
 
-/// This phase is a thin wrapper around ``TypeCheckDriver``, which dispatches
-/// type-checking work to independent delegate classes (`ExprTypeChecker`,
-/// `CallTypeChecker`, `ControlFlowTypeChecker`, etc.). Each delegate holds only
-/// the context it needs, replacing the previous extension-based splitting
-/// where a single monolithic class shared all state across multiple files.
 final class TypeCheckSemaPhase: CompilerPhase {
     static let name = "TypeCheckSema"
 
@@ -39,8 +34,6 @@ final class TypeCheckSemaPhase: CompilerPhase {
             collectLazyBoundObjectLiteralDecls(ast: ast)
         }
 
-        // Run consistency checks for active declarations only, so incremental
-        // frontends can drop stale declarations from the previous compile.
         let activeDeclIDs = ast.activeDeclarationIDs
         withSemaSubPhaseTiming("unbound-decl-check", ctx: ctx) {
             for declID in activeDeclIDs {
@@ -94,12 +87,6 @@ final class TypeCheckSemaPhase: CompilerPhase {
         // recursion headroom is independent of the calling thread, matching
         // `BuildKIRPhase`'s handling of the same class of issue in lowering.
         let work = TypeCheckWork(driver: driver, fileScopes: fileScopes, files: ast.files, frontendJobs: ctx.options.semaParallelEnabled ? ctx.frontendJobs : 1)
-        // KUU-3779: while `type-check` runs, the scope-chain, overload
-        // resolver, constraint solver and type system record hot-path
-        // counters/timers into this collector. It is installed only when
-        // `time-phases` produced a PhaseTimer; the driver prints it after the
-        // phase summary. The window ends with the sub-phase so later pipeline
-        // stages (post-validation, lowering) do not pollute the numbers.
         do {
             if let attribution = ctx.phaseTimer.map({ _ in TypeCheckAttribution() }) {
                 sema.types.attribution = attribution
@@ -118,9 +105,6 @@ final class TypeCheckSemaPhase: CompilerPhase {
         }
 
         withSemaSubPhaseTiming("post-validation", ctx: ctx) {
-            // KUU-3921: expect/actual pairs linked while the actual member's
-            // inferred type was still a header placeholder are re-checked now
-            // that body type checking has published the real types.
             if !ctx.deferredExpectActualTypePairs.isEmpty {
                 DataFlowSemaPhase().verifyDeferredExpectActualTypes(
                     ctx.deferredExpectActualTypePairs,
@@ -208,19 +192,6 @@ final class TypeCheckSemaPhase: CompilerPhase {
         sema.bindings.setNonEscapingComparableCharLocals(nonEscapingLocals)
     }
 
-    /// Collects the lambda arguments whose bodies execute in the caller's own
-    /// control-flow and suspension context:
-    ///
-    /// - `inlineLambdaArguments`: lambdas passed to `inline` callees on
-    ///   parameters that are neither `noinline` nor `crossinline`. These keep
-    ///   the caller's non-local-return and suspension contexts.
-    /// - `suspendLambdaArguments`: lambdas bound to a parameter whose declared
-    ///   type is a `suspend` function type or a SAM type with a suspend method.
-    ///   Such lambdas supply their own suspension context regardless of whether
-    ///   the callee is `inline`, which is required because the lambda's recorded
-    ///   `exprTypes` entry is not always rewritten to the suspend variant after
-    ///   overload resolution picks the bound signature (e.g. `Flow.filter`'s
-    ///   `predicate: suspend (T) -> Boolean`).
     private func collectInlineLambdaArguments(
         ast: ASTModule,
         sema: SemaModule
@@ -299,19 +270,13 @@ final class TypeCheckSemaPhase: CompilerPhase {
             default:
                 continue
             }
-            // The usePinned intrinsic is expanded by the compiler even when
-            // its imported declaration has no serialized inline KIR body.
             let intrinsicInline = sema.bindings.scopeFunctionKind(for: callExprID) == .scopeUsePinned
             recordLambdaArguments(arguments, binding: binding, intrinsicInline: intrinsicInline)
         }
-        // Indexed compound assignments bind get() on the expression itself
-        // and keep the element's plusAssign()/plus() call separately.
         for (exprID, binding) in sema.bindings.indexedCompoundAssignElementOperatorBindings {
             guard case let .indexedCompoundAssign(_, _, _, value, _) = ast.arena.expr(exprID) else { continue }
             recordLambdaArguments([value], binding: binding.call)
         }
-        // Intrinsic Array(size, init) calls have no selected function binding,
-        // but their initializer is inlined just like the bundled factory body.
         for (callExprID, kind) in sema.bindings.stdlibSpecialCallKinds where kind == .arrayConstructor {
             guard case let .call(_, _, args, _) = ast.arena.expr(callExprID),
                   args.count == 2,
@@ -378,11 +343,6 @@ final class TypeCheckSemaPhase: CompilerPhase {
         }
     }
 
-    /// Non-local loop jumps are legal only when every lambda or anonymous
-    /// function boundary between the jump and its loop target belongs to an
-    /// inline parameter that allows non-local control flow. The selected call
-    /// binding is available only after body inference, so this pass reports
-    /// rejected candidate paths here.
     private func validateLoopJumpLambdaPaths(
         ast: ASTModule,
         sema: SemaModule,
@@ -409,13 +369,6 @@ final class TypeCheckSemaPhase: CompilerPhase {
         }
     }
 
-    /// Mirrors kotlinc's `USAGE_IS_NOT_INLINEABLE` /
-    /// `NON_LOCAL_RETURN_NOT_ALLOWED` checks: a functional value parameter of
-    /// an `inline` function that is not `noinline` may only be invoked
-    /// directly or forwarded to another `inline` callee's inlinable parameter.
-    /// Any other use is illegal, and a legal use inside a lambda that will be
-    /// materialized (rather than inlined into the caller) is only permitted
-    /// for `crossinline` parameters.
     private func validateInlineParameterUsages(
         ast: ASTModule,
         sema: SemaModule,
@@ -425,9 +378,6 @@ final class TypeCheckSemaPhase: CompilerPhase {
         inlineLambdaArguments: Set<ExprID>,
         inlineAnonymousFunctionArguments: Set<ExprID>
     ) {
-        // Source-declared callees distinguish `noinline` from `crossinline`
-        // target parameters; `valueParameterAllowsNonLocalReturn` merges both
-        // into `false`.
         var functionDeclBySymbol: [SymbolID: FunDecl] = [:]
         var inlineFunctions: [(decl: FunDecl, signature: FunctionSignature)] = []
         for declID in ast.activeDeclarationIDs {
@@ -437,9 +387,6 @@ final class TypeCheckSemaPhase: CompilerPhase {
                 continue
             }
             functionDeclBySymbol[symbol] = funDecl
-            // The bundled stdlib intentionally forwards inline parameters
-            // into non-inline runtime bridges; it is exempt from the
-            // user-facing kotlinc parity check.
             guard sourceManager.origin(of: funDecl.range.start.file)?.isBundledStdlib != true,
                   funDecl.isInline || funDecl.modifiers.contains(.inline),
                   let signature = sema.symbols.functionSignature(for: symbol)
@@ -466,10 +413,6 @@ final class TypeCheckSemaPhase: CompilerPhase {
     }
 }
 
-/// Holds the non-`Sendable` type-checking inputs and exposes a `@Sendable`
-/// callable surface so the large-stack thread can run `typeCheckModule`
-/// without capturing non-`Sendable` values through `withoutActuallyEscaping`
-/// closures.
 private final class TypeCheckWork: @unchecked Sendable {
     let driver: TypeCheckDriver
     let fileScopes: [Int32: FileScope]
@@ -499,13 +442,11 @@ private final class TypeCheckWork: @unchecked Sendable {
             sourceManager: driver.sourceManager,
             jvmTarget: driver.compilationContext.flatMap { $0.options.emit.isJVM ? $0.options.jvmTarget : nil }
         )
-        // Inferred member types are only registered once bodies have been
-        // type-checked; the declaration-site variance check for them has to
-        // run here rather than in DataFlow.
         DataFlowSemaPhase().validateInferredMemberVariance(
             ast: driver.ast, symbols: driver.sema.symbols,
             bindings: driver.sema.bindings, types: driver.sema.types,
-            diagnostics: driver.diagnostics, interner: driver.interner
+            diagnostics: driver.diagnostics, interner: driver.interner,
+            sourceManager: driver.sourceManager
         )
         DataFlowSemaPhase().validateInferredOverrideReturnTypes(
             ast: driver.ast, symbols: driver.sema.symbols,
@@ -519,18 +460,12 @@ private final class TypeCheckWork: @unchecked Sendable {
             diagnostics: driver.diagnostics, interner: driver.interner,
             compilationModuleName: driver.compilationContext?.options.moduleName ?? "TestModule"
         )
-        // Body-nested declarations (anonymous object literals, local nominal
-        // declarations) bind lazily during type checking, so the OFO walk
-        // never reached their members; validate their overrides now that
-        // member symbols and types are published.
         DataFlowSemaPhase().validateBodyNestedDeclOverrides(
             ast: driver.ast, symbols: driver.sema.symbols,
             bindings: driver.sema.bindings, types: driver.sema.types,
             diagnostics: driver.diagnostics, interner: driver.interner,
             compilationModuleName: driver.compilationContext?.options.moduleName ?? "TestModule"
         )
-        // Body-bound local classes and anonymous objects are only reachable
-        // through expression nodes now that their member symbols exist.
         DataFlowSemaPhase().validateDeferredDiamondOverrides(
             ast: driver.ast, symbols: driver.sema.symbols,
             bindings: driver.sema.bindings,
@@ -540,8 +475,6 @@ private final class TypeCheckWork: @unchecked Sendable {
 }
 
 
-// Inputs are handed to one joined large-stack thread after all body workers
-// finish. The caller owns the resulting binding-table update.
 private final class ComparableCharEscapeWork: @unchecked Sendable {
     let ast: ASTModule
     let sema: SemaModule
@@ -561,24 +494,11 @@ private final class ComparableCharEscapeWork: @unchecked Sendable {
     }
 }
 
-/// Walks the body of one `inline` function and validates every reference to
-/// its restricted (non-`noinline`, functional) value parameters. Legal uses
-/// are direct invocation and forwarding to another `inline` callee's
-/// inlinable parameter; everything else mirrors kotlinc's
-/// `USAGE_IS_NOT_INLINEABLE`. Usages that would otherwise be legal but sit
-/// inside a lambda/anonymous-function/nested-declaration boundary that is
-/// materialized rather than inlined mirror `NON_LOCAL_RETURN_NOT_ALLOWED`
-/// unless the parameter is `crossinline`.
 private final class InlineParameterUsageWalker {
     private enum UsageRole {
-        /// `p(...)` — direct invocation of the parameter.
         case invocationCallee
-        /// `p.invoke(...)` / `p?.invoke(...)` — invocation through a member call.
         case invokeReceiver
-        /// Bare argument of a call, to classify against the resolved callee.
         case callArgument(call: ExprID, argumentIndex: Int)
-        /// Every other position (value read, receiver of a non-`invoke`
-        /// member call, operand, initializer, return value, ...).
         case other
     }
 
@@ -592,11 +512,7 @@ private final class InlineParameterUsageWalker {
     private let inlineAnonymousFunctionArguments: Set<ExprID>
     private let functionDeclBySymbol: [SymbolID: FunDecl]
 
-    /// Restricted parameters of the function currently being checked:
-    /// symbol -> whether it is `crossinline`.
     private var parameterIsCrossinline: [SymbolID: Bool] = [:]
-    /// Diagnostic rendering of each restricted parameter, e.g.
-    /// `'crossinline block: () -> Unit'`.
     private var parameterDisplay: [SymbolID: String] = [:]
 
     init(
@@ -653,8 +569,6 @@ private final class InlineParameterUsageWalker {
         walkFunctionBody(funDecl.body, materialized: false)
     }
 
-    // MARK: - Classification
-
     private func visitExpr(_ exprID: ExprID, role: UsageRole, materialized: Bool) {
         if let parameterSymbol = inlineParameterReference(exprID) {
             classify(parameterSymbol: parameterSymbol, usage: exprID, role: role, materialized: materialized)
@@ -672,12 +586,6 @@ private final class InlineParameterUsageWalker {
     }
 
     private func classify(parameterSymbol: SymbolID, usage: ExprID, role: UsageRole, materialized: Bool) {
-        // `receiver.p(...)` binds the whole memberCall to p — the parameter
-        // invoked through receiver syntax, i.e. `p.invoke(receiver)`. That
-        // is a direct invocation, legal for inline parameters regardless of
-        // where the call expression sits (statement, call argument, ...).
-        // A bare `receiver.p` reference without parens still materializes
-        // the parameter as a value and stays illegal.
         if isCallableValueMemberInvocation(usage) {
             checkMaterializedContext(usage, parameterSymbol: parameterSymbol, materialized: materialized)
             return
@@ -695,16 +603,11 @@ private final class InlineParameterUsageWalker {
         }
     }
 
-    /// A use that is legal inside the inline body is still rejected once it
-    /// sits inside a materialized boundary, unless the parameter is
-    /// `crossinline` (which materializes as a real function object).
     private func checkMaterializedContext(_ usage: ExprID, parameterSymbol: SymbolID, materialized: Bool) {
         guard materialized, parameterIsCrossinline[parameterSymbol] == false else { return }
         reportNonLocalReturn(usage, parameterSymbol: parameterSymbol)
     }
 
-    /// True when `usage` is a member call with explicit call parens — an
-    /// invocation of the callable bound to it, not a value read.
     private func isCallableValueMemberInvocation(_ usage: ExprID) -> Bool {
         guard ast.arena.isExplicitCall(usage),
               let expr = ast.arena.expr(usage)
@@ -746,20 +649,13 @@ private final class InlineParameterUsageWalker {
               signature.valueParameterAllowsNonLocalReturn.indices.contains(parameterIndex),
               case .functionType = sema.types.kind(of: sema.types.makeNonNullable(signature.parameterTypes[parameterIndex]))
         else {
-            // Generic or otherwise non-functional target parameters cannot
-            // hold the inlinable reference.
             reportIllegalUsage(usage, parameterSymbol: parameterSymbol)
             return
         }
         if signature.valueParameterAllowsNonLocalReturn[parameterIndex] {
-            // Forwarding into another inlinable parameter is legal.
             checkMaterializedContext(usage, parameterSymbol: parameterSymbol, materialized: materialized)
             return
         }
-        // The target parameter is `noinline` or `crossinline`; the signature
-        // merges both into `false`, so prefer the source declaration and fall
-        // back to the `crossinline` rule for imported callees, which dominate
-        // bundled-stdlib declarations carrying this flag.
         if let targetDecl = functionDeclBySymbol[binding.chosenCallee],
            targetDecl.valueParams.indices.contains(parameterIndex) {
             let targetParam = targetDecl.valueParams[parameterIndex]
@@ -777,12 +673,6 @@ private final class InlineParameterUsageWalker {
         }
     }
 
-    /// True when `call` is an array `(size, init)` construction that the
-    /// compiler lowers directly: either the intrinsic
-    /// `kotlin.Array(size, init)`/primitive-array form, or a bundled
-    /// source-backed `kotlin.<XArray>(size, init)` factory whose body is not
-    /// inlined for callers (kklib mode). Mirrors the same predicate the
-    /// array-constructor lowerer uses.
     private func isCompilerExpandedArrayInitializerCall(_ call: ExprID) -> Bool {
         if sema.bindings.stdlibSpecialCallKind(for: call) == .arrayConstructor {
             return true
@@ -807,8 +697,6 @@ private final class InlineParameterUsageWalker {
         return true
     }
 
-    // MARK: - Diagnostics
-
     private func reportIllegalUsage(_ usage: ExprID, parameterSymbol: SymbolID) {
         let display = parameterDisplay[parameterSymbol] ?? "'parameter'"
         diagnostics.error(
@@ -826,8 +714,6 @@ private final class InlineParameterUsageWalker {
             range: ast.arena.exprRange(usage)
         )
     }
-
-    // MARK: - Traversal
 
     private func walkFunctionBody(_ body: FunctionBody, materialized: Bool) {
         switch body {
@@ -847,8 +733,6 @@ private final class InlineParameterUsageWalker {
         switch expr {
         case let .call(callee, _, args, _):
             visitExpr(callee, role: .invocationCallee, materialized: materialized)
-            // `contract { callsInPlace(block, ...) }` references restricted
-            // parameters as contract metadata, not as values.
             if !isContractDescriptionCall(callee: callee, args: args) {
                 for (index, argument) in args.enumerated() {
                     visitExpr(
@@ -1025,9 +909,6 @@ private final class InlineParameterUsageWalker {
         }
     }
 
-    /// Bodies of member declarations nested inside the inline function are
-    /// materialized boundaries: they compile to real functions/objects, so a
-    /// restricted parameter escaping into them cannot be inlined.
     private func walkDecl(_ declID: DeclID, materialized: Bool) {
         guard let decl = ast.arena.decl(declID) else { return }
         switch decl {
@@ -1156,9 +1037,6 @@ private final class InlineParameterUsageWalker {
         }
     }
 
-    /// `contract { ... }` is a metadata block whose calls reference the
-    /// function's own parameters (`callsInPlace(block, ...)`); kotlinc treats
-    /// those references as legal regardless of inlinability.
     private func isContractDescriptionCall(callee: ExprID, args: [CallArgument]) -> Bool {
         guard args.count == 1,
               case let .nameRef(calleeName, _) = ast.arena.expr(callee)

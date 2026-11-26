@@ -3,7 +3,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-3647: IntStream callbacks are deferred and terminals stop pulling once decided.
     @Test(arguments: [true, false], [0, 2])
     func testIntStreamLazinessThroughSourceAndFreshArtifact(fromSource: Bool, optimization: Int) throws {
         let directory = FileManager.default.temporaryDirectory

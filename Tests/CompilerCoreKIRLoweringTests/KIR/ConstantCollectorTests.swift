@@ -35,10 +35,6 @@ struct ConstantCollectorTests {
             """
     ]
 
-    /// Built once per process: `static let` initializes under `swift_once`, so
-    /// parallel tests share a single compile. The previous check-then-set over
-    /// a mutable static allowed concurrent tests to each miss the cache and
-    /// re-pay the bundled-stdlib compile.
     private static let _sharedPosCtx = Result<CompilationContext, any Error> {
         let ctx = makeContextFromSources(Self.sharedPosSources)
         try runSema(ctx)
@@ -49,10 +45,6 @@ struct ConstantCollectorTests {
         try Self._sharedPosCtx.get()
     }
 
-    /// Built once per process: `static let` initializes under `swift_once`, so
-    /// parallel tests share a single compile. The previous check-then-set over
-    /// a mutable static allowed concurrent tests to each miss the cache and
-    /// re-pay the bundled-stdlib compile.
     private static let _sharedNegCtx = Result<CompilationContext, any Error> {
         let ctx = makeContextFromSources(Self.sharedNegSources)
         try runSema(ctx)
@@ -201,13 +193,6 @@ struct ConstantCollectorTests {
         #expect(hasBoolTrue, "Expected boolLiteral(true) for !false")
     }
 
-    /// KUU-3784: a read may fold to the initializer's raw scalar only when
-    /// the property's storage holds that same raw scalar. Reference-typed
-    /// vals box their value (an `Any` Double is a heap handle, not the
-    /// literal's bits) and nullable sentinel-colliding primitives
-    /// (`Double?`/`Float?`/`Long?`/`ULong?`) use box-or-sentinel slots. A raw
-    /// `-0.0` or `Long.MIN_VALUE` folded into those reads bit-equals the
-    /// runtime null sentinel, so `x == -0.0` mis-compared as null.
     @Test func testRawScalarLiteralFoldRequiresRawScalarStorage() throws {
         let sources = [
             """
@@ -240,20 +225,15 @@ struct ConstantCollectorTests {
                     sema.symbols.symbol($0)?.kind == .property
                 })
             }
-            // Boxed (`Any`) or box-or-sentinel (`Double?`/`Long?`/`Float?`/
-            // `ULong?`) storage must keep the literal as a real read.
             #expect(mapping[try propertySymbol("anyDouble")] == nil)
             #expect(mapping[try propertySymbol("anyInt")] == nil)
             #expect(mapping[try propertySymbol("nullableDouble")] == nil)
             #expect(mapping[try propertySymbol("nullableLong")] == nil)
             #expect(mapping[try propertySymbol("nullableFloat")] == nil)
             #expect(mapping[try propertySymbol("nullableULong")] == nil)
-            // Raw-scalar storage keeps folding the initializer.
             #expect(mapping[try propertySymbol("nullableInt")] == .intLiteral(5))
             #expect(mapping[try propertySymbol("plainDouble")] == .doubleLiteral(-0.0))
             #expect(mapping[try propertySymbol("plainLong")] == .longLiteral(5))
-            // Non-scalar constants still fold into reference storage: the
-            // string literal is a heap object, not a raw word.
             #expect(mapping[try propertySymbol("anyString")] == .stringLiteral(ctx.interner.intern("hi")))
         }
     }
@@ -314,8 +294,6 @@ struct ConstantCollectorTests {
             sourceByFileID: buildSourceByFileID(ctx: ctx)
         )
 
-        // KUU-3788: a non-constant explicit getter must run at run time; the
-        // backing initializer is not the observed value.
         #expect(mapping[propertySymbol] == nil)
     }
 }

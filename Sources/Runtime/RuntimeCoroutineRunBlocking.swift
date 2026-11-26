@@ -1,8 +1,6 @@
 import Dispatch
 import Foundation
 
-/// An opt-in scheduling policy owned by the source runBlocking builder.
-/// Legacy suspend-value/launcher entry points keep their existing nil policy.
 final class RuntimeBlockingScheduler: @unchecked Sendable {
     enum Destination {
         case eventLoop(RuntimeEventLoop)
@@ -34,7 +32,6 @@ final class RuntimeBlockingScheduler: @unchecked Sendable {
     func scheduleChild(_ work: @escaping @Sendable () -> Void) {
         switch destination {
         case let .eventLoop(loop): loop.enqueue(work)
-        // `dispatchAsync` routes through limited-view gates (KUU-2687).
         case let .dispatcher(dispatcher): dispatcher.dispatchAsync(execute: work)
         case .unconfined: RuntimeUnconfinedRunQueue.startInline(work)
         }
@@ -50,9 +47,6 @@ final class RuntimeBlockingScheduler: @unchecked Sendable {
     }
 }
 
-/// Unconfined starts/resumes on the invoking thread without recursively
-/// reentering a burst whose pending resumption has just been installed.
-/// A nested blocking wait can drain ready work on the same thread.
 private final class RuntimeUnconfinedRunQueue: @unchecked Sendable {
     private static let key = makePthreadKey()
     private var pending: [@Sendable () -> Void] = []
@@ -153,7 +147,6 @@ public func __kk_run_blocking_context(
         let oldDispatcher = RuntimeDispatcher.current
         let waitLoop = oldLoop ?? RuntimeEventLoop()
         let scheduler = runtimeBlockingScheduler(context: context, fallbackLoop: waitLoop)
-        // No interceptor: expose the loop that actually executes the body.
         if context.dispatcherElementHandle == 0 {
             context.installDispatcherElementHandle(waitLoop.elementHandle())
         }
@@ -173,8 +166,6 @@ public func __kk_run_blocking_context(
         invocation.blockingScheduler = scheduler
         invocation.eventLoop = scheduler.eventLoop
         job.continuationState = invocation
-        // Cancellation links exist before parent registration, including the
-        // already-cancelled-parent case. This builder never completes its parent.
         parent?.registerChild(jobRaw)
         RuntimeEventLoop.current = waitLoop
         defer {
@@ -211,7 +202,6 @@ public func __kk_run_blocking_context(
                 RuntimeJobHandle.current = savedJob
                 RuntimeEventLoop.current = savedLoop
                 RuntimeDispatcher.current = savedDispatcher
-                // Publish only after this invocation's ambient bindings restore.
                 if !bodyAsync {
                     outcome.complete(result: result, thrown: thrown)
                     waitLoop.wake()
@@ -224,8 +214,6 @@ public func __kk_run_blocking_context(
             let scopeRaw = Int(bitPattern: Unmanaged.passUnretained(scope).toOpaque())
             if let box = runtimeFunctionValueBox(from: fnOrBox), box.suspendEntryPoint != 0 {
                 if case .dispatcher = scheduler.destination {
-                    // Async drive: completions reach `outcome` through the entry
-                    // loop's onCompletion instead of this work item's return.
                     guard box.arity == 1 else {
                         thrown = runtimeAllocateThrowable(
                             message: "Function invoke arity mismatch: expected \(box.arity), got 1"
@@ -278,8 +266,6 @@ public func __kk_run_blocking_context(
         var thrown = priorChildFailure != 0 ? priorChildFailure
             : (childThrown != 0 && (body.thrown == 0 || kk_is_cancellation_exception(body.thrown) != 0)
                 ? childThrown : body.thrown)
-        // Cancellation after the final body suspension still makes the scoped
-        // BlockingCoroutine complete exceptionally, even if its body returned T.
         if thrown == 0 && job.cancellationSnapshot() {
             thrown = kk_job_get_cancellation_exception(jobRaw)
         }

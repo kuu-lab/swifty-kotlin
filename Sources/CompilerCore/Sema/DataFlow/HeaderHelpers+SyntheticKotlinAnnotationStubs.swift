@@ -1,6 +1,4 @@
 
-/// JVM-specific annotations (`kotlin.jvm.*`) were removed as part of
-/// CLEANUP-STUB-084 since this compiler targets macOS native via LLVM.
 extension DataFlowSemaPhase {
     func registerSyntheticKotlinAnnotationStubs(
         symbols: SymbolTable,
@@ -13,9 +11,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         let kotlinPkgSymbol = symbols.lookup(fqName: kotlinPkg) ?? .invalid
-
-        // Suppress, Deprecated, ReplaceWith, and DeprecatedSinceKotlin are provided by bundled Kotlin source
-        // (Sources/CompilerCore/Stdlib/kotlin/Suppress.kt, Deprecated.kt, and DeprecatedSinceKotlin.kt).
 
         registerSyntheticAnnotationClass(
             named: "WasExperimental",
@@ -40,15 +35,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // kotlin.experimental.ExperimentalTypeInference is now provided by the
-        // bundled Kotlin source `Stdlib/kotlin/experimental/inferenceMarker.kt`
-        // (KSP-668). No synthetic registration is needed here.
-
-        // kotlin.annotation package. KSP-918 owns these six declarations in
-        // bundled source. Keep the old registration below only as a fallback
-        // for configurations that do not inject that source (for example
-        // `--no-stdlib`), so normal source-backed compilation never creates a
-        // synthetic declaration for this API.
         let kotlinAnnotationPkg = ensurePackage(
             path: ["kotlin", "annotation"],
             symbols: symbols,

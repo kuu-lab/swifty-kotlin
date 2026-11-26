@@ -1,21 +1,3 @@
-/// KIR has no first-class notion of "inner class" beyond the `.innerClass`
-/// symbol flag: every inner class reserves a synthetic `$outer` field (the
-/// first own field slot, see `HeaderCollection`'s `collectNestedClassOrInterfaceHeader`)
-/// that stores the enclosing instance passed at construction time. These
-/// free functions read/write that link; every lowering path that needs an
-/// enclosing instance (implicit property/function reads and writes,
-/// `this@Outer`, and constructing `Outer(...).Inner(...)`/bare `Inner(...)`)
-/// goes through `resolveOuterChainValue` so the chain-walking logic exists
-/// exactly once.
-
-/// Walks the `$outer` chain starting at `receiver` (an already-lowered KIR
-/// value) until it reaches an instance of `target` (or a subtype of it),
-/// emitting one `kk_array_get_inbounds` load per `inner class` hop. Returns
-/// `nil` when `target` is never reached — `receiver`'s class is neither
-/// `target` nor an `inner class` with an outer link to follow — so the
-/// caller can fall back to its pre-existing (non-inner-class) behavior.
-/// Labeled `this` callers can disable subtype matching because the label
-/// identifies a specific enclosing instance, not any subtype.
 func resolveOuterChainValue(
     from receiver: KIRExprID,
     to target: SymbolID,
@@ -43,10 +25,6 @@ func resolveOuterChainValue(
     }
 
     guard let receiverType = arena.exprType(receiver) else { return nil }
-    // `target` is usually a nominal class symbol, but a captured local of
-    // an enclosing class is also legal: the class-match checks below then
-    // never apply and each `$outer` hop is probed only for capture
-    // membership (KUU-2955).
     let targetClassSymbol = receiverClassSymbol(for: target)
     let targetType = targetClassSymbol.map {
         sema.types.make(.classType(ClassType(
@@ -111,9 +89,6 @@ func resolveOuterChainValue(
             currentValue = nextValue
             currentType = outerType
             hops += 1
-            // An inner-class nesting chain this deep would already have failed
-            // elsewhere; guards against an (impossible, but not worth trusting
-            // blindly) parentSymbol cycle turning this into an infinite loop.
             if hops > 64 { return nil }
             continue
         }
@@ -192,14 +167,6 @@ func resolveOuterChainValue(
     }
 }
 
-/// Resolves the receiver for a member-property accessor (getter or setter)
-/// reached through the implicit receiver tower. When the property is
-/// declared on an *enclosing* class of an `inner class`, the active
-/// implicit receiver is the inner instance, but the accessor must dispatch
-/// on the enclosing instance reached through the `$outer` chain — the same
-/// hop the backing-field read/write paths already perform. Returns
-/// `receiver` unchanged for non-class owners or when the chain cannot
-/// reach the owner.
 func resolvePropertyOwnerReceiver(
     _ receiver: KIRExprID,
     ownerOf propertySymbol: SymbolID,
@@ -224,9 +191,6 @@ func resolvePropertyOwnerReceiver(
     ) ?? receiver
 }
 
-/// Loads the immediate enclosing instance stored in an inner class's `$outer` field.
-/// Unlike `resolveOuterChainValue`, this does not treat a superclass relationship as
-/// a match: during `super(...)` argument evaluation the subclass instance is not initialized.
 func resolveImmediateOuterInstance(
     from receiver: KIRExprID,
     sema: SemaModule,
@@ -263,15 +227,6 @@ func resolveImmediateOuterInstance(
     return outerValue
 }
 
-/// Allocates a fresh heap object for the class `chosen` (a resolved
-/// constructor symbol) constructs via `kk_object_new`, and performs every
-/// registration a constructor call needs before its `<init>` body runs.
-/// When the constructed class is an `inner class`, the `$outer`
-/// enclosing-instance link is resolved from `outerReceiver` (the
-/// lowered explicit receiver for `outer.Inner(...)`, or the active implicit
-/// receiver for a bare `Inner(...)` call from within `Outer`) and stored.
-/// Returns the allocated object's KIR value, ready to prepend as the
-/// constructor's own `this` argument.
 func allocateAndRegisterConstructedObject(
     chosen: SymbolID,
     boundType: TypeID?,
@@ -409,8 +364,6 @@ func allocateAndRegisterConstructedObject(
             args: [],
             nullability: .nonNull
         )))
-        // Capture a Kotlin-defined Throwable subclass at allocation time,
-        // before its constructor body can observe the receiver.
         if sema.types.isSubtype(ownerType, throwableType) {
             let captureResult = arena.appendTemporary(type: intType)
             emitNonThrowingCall(
@@ -421,11 +374,6 @@ func allocateAndRegisterConstructedObject(
             )
         }
     }
-    // KUU-555: a local class's `<init>` runs as an independent KIR
-    // function — materialize captured outer locals into the fresh
-    // instance's fields here, where the enclosing scope's locals are
-    // still active (same convention as object-literal capture
-    // materialization in `lowerStoredObjectLiteralExpr`).
     if let layout = sema.symbols.nominalLayout(for: ownerNominalSymbol) {
         for capturedSymbol in sema.bindings.objectLiteralCaptureSymbols(for: ownerNominalSymbol) {
             guard let fieldOffset = layout.fieldOffsets[capturedSymbol],
@@ -477,9 +425,6 @@ func allocateAndRegisterConstructedObject(
     return allocatedObj
 }
 
-/// A no-op when `innerClassSymbol` isn't actually an `inner class`, or when
-/// no outer value could be resolved (should not happen for code Sema
-/// accepted).
 func storeOuterInstanceLinkIfNeeded(
     allocatedObject: KIRExprID,
     innerClassSymbol: SymbolID,
@@ -515,17 +460,6 @@ func storeOuterInstanceLinkIfNeeded(
     ))
 }
 
-/// A class that subclasses an `inner class` (`class Local : Outer.Inner()`,
-/// `object : Inner()`, or `inner class Sub : Inner()`) inherits the
-/// superclass's `$outer` field through its layout, but is not itself flagged
-/// `.innerClass`, so `storeOuterInstanceLinkIfNeeded` never runs for it.
-/// Walk the constructed class's superclass chain and store the enclosing
-/// instance each `inner` ancestor expects, resolved from `outerReceiver` (the
-/// `outer.Ctor(...)` qualifier or the active implicit receiver) — the
-/// enclosing instance an inner-class super constructor needs is always in
-/// lexical scope at the construction site. Without this, inherited members
-/// that read `this.$outer` observe a zeroed field and fault in
-/// `kk_array_get_inbounds` (KUU-2959).
 func storeInheritedOuterInstanceLinks(
     allocatedObject: KIRExprID,
     constructedClassSymbol: SymbolID,
@@ -572,9 +506,6 @@ func storeInheritedOuterInstanceLinks(
             )
         }
         if outerValue == nil, sema.symbols.symbol(outerOwner)?.kind == .object {
-            // An inner class nested in a singleton object takes that
-            // singleton as its enclosing instance, reachable from any
-            // construction scope.
             driver.emitObjectLazyInitGuardIfNeeded(
                 objectSymbol: outerOwner,
                 arena: arena,
@@ -589,9 +520,6 @@ func storeInheritedOuterInstanceLinks(
             instructions.append(.constValue(result: objectRef, value: .symbolRef(outerOwner)))
             outerValue = objectRef
         }
-        // The enclosing instance may arrive through a captured receiver
-        // (e.g. a lambda or the active receiver's own nominal type) rather
-        // than through the explicit construction receiver.
         if outerValue == nil {
             outerValue = driver.lambdaLowerer.captureValueExpr(
                 for: outerOwner,
@@ -615,14 +543,6 @@ func storeInheritedOuterInstanceLinks(
 }
 
 extension CallLowerer {
-    /// Lowers `outer.Inner(args)`. Allocates a genuine new `Inner`
-    /// object (via `allocateAndRegisterConstructedObject`, which also
-    /// stores the resolved `outer` value into the new object's `$outer`
-    /// field) instead of treating the lowered receiver as if it already
-    /// were the constructor's own `this` -- seeded by
-    /// `lowerMemberLikeCallExpr`'s early intercept, since every generic
-    /// member-call special case below it assumes a resolved `chosenCallee`
-    /// is an ordinary member function.
     func lowerInnerClassConstructorMemberCall(
         _ exprID: ExprID,
         receiverExpr: ExprID,
@@ -682,8 +602,6 @@ extension CallLowerer {
         )
         var finalArguments = normalized.arguments
         finalArguments.insert(allocatedObj, at: 0)
-        // Constructors store function arguments just like ordinary source-backed
-        // calls. Preserve receiver-lambda captures before default-stub dispatch.
         materializeSourceBackedFunctionValueArguments(
             chosenCallee: chosenCtor,
             sourceArgExprs: args.map(\.expr),

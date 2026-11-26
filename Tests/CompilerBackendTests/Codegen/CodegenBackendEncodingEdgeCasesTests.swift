@@ -77,9 +77,6 @@ struct CodegenBackendEncodingEdgeCasesTests {
         )
     }
 
-    /// KSP-481: HexFormat customization (byteSeparator/prefix/suffix/removeLeadingZeros)
-    /// is exercised through the ordinary named-argument constructor here, so this
-    /// scenario is pinned against a hardcoded expected output instead of a diff case.
     @Test
     func testCodegenCompilesHexFormatCustomization() throws {
         let source = """
@@ -132,7 +129,6 @@ struct CodegenBackendEncodingEdgeCasesTests {
         )
     }
 
-    /// KSP-1420: HexFormat exposes the Kotlin stdlib nested values and its own string form.
     @Test
     func testCodegenCompilesHexFormatPropertiesAndDescription() throws {
         let source = """

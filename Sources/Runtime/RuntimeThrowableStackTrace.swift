@@ -13,9 +13,6 @@ private func backtrace_symbols(
 ) -> UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 #endif
 
-/// Symbolicate the addresses saved at construction, never the formatting call's
-/// stack. Native symbols can include runtime frames and mangled Kotlin names;
-/// stripped binaries still retain an address for each frame.
 func runtimeThrowableStackFrameLines(_ addresses: [Int]) -> [String] {
     guard !addresses.isEmpty else { return [] }
     let pointers = addresses.map { UnsafeMutableRawPointer(bitPattern: $0) }

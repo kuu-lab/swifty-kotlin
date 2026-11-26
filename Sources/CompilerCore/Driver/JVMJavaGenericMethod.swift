@@ -44,6 +44,36 @@ extension JVMClasspathIndex {
         return (bounds, references)
     }
 
+    func classTypeParameterBounds(_ info: JVMClassInfo) -> (bounds: [String], referencedClasses: Set<String>) {
+        guard let metadata = kotlinMetadata(info), !metadata.typeParameters.isEmpty else {
+            return javaTypeParameterBounds(info)
+        }
+        // Classfile signatures erase Kotlin bound nullability; metadata keeps it.
+        var names = Dictionary(metadata.typeParameters.map { ($0.id, $0.name) }, uniquingKeysWith: { _, name in name })
+        var outerName = info.innerClasses.first(where: { $0.name == info.name })?.outerName
+        var visited = Set<String>([info.name])
+        while let outer = outerName, !visited.contains(outer), let outerInfo = classes[outer],
+              let outerMetadata = kotlinMetadata(outerInfo) {
+            visited.insert(outer)
+            for parameter in outerMetadata.typeParameters where names[parameter.id] == nil {
+                names[parameter.id] = parameter.name
+            }
+            outerName = outerInfo.innerClasses.first(where: { $0.name == outerInfo.name })?.outerName
+        }
+        var bounds: [String] = []
+        var references: Set<String> = []
+        for parameter in metadata.typeParameters {
+            for bound in parameter.bounds {
+                var boundReferences = Set<String>()
+                Self.kotlinMetadataClassNames(bound, into: &boundReferences)
+                guard boundReferences.allSatisfy(exposesKotlinMetadataClass) else { continue }
+                bounds.append("`\(parameter.name)`: " + kotlinSourceType(bound, parameters: names))
+                references.formUnion(boundReferences)
+            }
+        }
+        return (bounds, references)
+    }
+
     func javaClassTypeParameterErasure(_ name: String, in info: JVMClassInfo) -> String {
         renderableJavaClassBounds(name, in: info).first.map { "L" + $0.binary + ";" } ?? "Ljava/lang/Object;"
     }

@@ -5,9 +5,6 @@ import Testing
 
 @Suite
 struct ASTContextFunctionTypeTests {
-    /// Compiles a `typealias Handler = <type>` fixture and returns the
-    /// rendered underlying type. The rendered form encodes context receivers,
-    /// `suspend`, receiver, params, return type, and nullability.
     private func renderedHandlerType(from source: String) throws -> String {
         let (ast, ctx) = try buildASTModule(from: source)
         let typeAliasDecl = try #require(firstTypeAliasDecl(named: "Handler", in: ast, interner: ctx.interner))
@@ -39,8 +36,6 @@ struct ASTContextFunctionTypeTests {
         #expect(rendered == "context(A, B) suspend (C, D) -> E")
     }
 
-    /// KUU-4365: Kotlin orders the modifiers `suspend context(R) () -> A`;
-    /// the canonical rendered form keeps context receivers first.
     @Test
     func testBuildASTParsesSuspendBeforeContextFunctionTypeAlias() throws {
         let rendered = try renderedHandlerType(from: """
@@ -136,10 +131,6 @@ struct ASTContextFunctionTypeTests {
         #expect(contextParameter.isContextParameter)
     }
 
-    /// KUU-4291: Kotlin 2.4 context parameters must be named (`name:`) or
-    /// anonymous (`_:`). A bare `context(T)` element is the removed
-    /// context-receiver syntax; kotlinc rejects it per element, so kswiftc
-    /// reports KSWIFTK-PARSE-0030 on each unnamed element.
     @Test
     func testUnnamedContextParameterElementsAreRejected() throws {
         let (ast, ctx) = try buildASTModule(from: """
@@ -156,8 +147,6 @@ struct ASTContextFunctionTypeTests {
         let unnamed = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-PARSE-0030" }
         #expect(unnamed.count == 4, "\(ctx.diagnostics.diagnostics)")
 
-        // The clause still attaches for recovery: bare elements stay legacy
-        // (non-parameter) receivers so downstream phases keep working.
         let single = try #require(firstFunDecl(named: "single", in: ast, interner: ctx.interner))
         #expect(single.contextReceivers.count == 1)
         #expect(single.contextReceivers.first?.isContextParameter == false)
@@ -182,8 +171,6 @@ struct ASTContextFunctionTypeTests {
         )
     }
 
-    /// `context` is a soft keyword usable as an annotation name; `@context(X)`
-    /// must not be mistaken for a context clause (KUU-4291).
     @Test
     func testContextAnnotationNameIsNotAContextClause() throws {
         let (ast, ctx) = try buildASTModule(from: """
@@ -208,9 +195,6 @@ struct ASTContextFunctionTypeTests {
         #expect(rendered == "context(A<B>) (C<D>) -> E")
     }
 
-    /// KSP-603: a `context(...)` function type in the parameter list is not a
-    /// declaration-level context receiver, so the function must not be turned
-    /// into an extension function on the first context type.
     @Test
     func testContextFunctionTypeParameterIsNotADeclarationContextReceiver() throws {
         let source = """
@@ -241,8 +225,6 @@ struct ASTContextFunctionTypeTests {
         #expect(renderTypeRef(blockType, in: ast, interner: ctx.interner) == "context(C) E.() -> Unit")
     }
 
-    /// KUU-915: the first parentheses after `fun <R>` belong to the receiver,
-    /// while the parentheses after the name contain the value parameters.
     @Test
     func testSuspendFunctionTypeExtensionReceiver() throws {
         let source = """

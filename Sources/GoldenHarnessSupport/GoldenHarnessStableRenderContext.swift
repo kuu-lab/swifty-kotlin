@@ -9,33 +9,13 @@ final class StableRenderContext {
 
     private let sourceManager: SourceManager
     private let symbolFQ: [Int32: String]
-    /// FQ names projected onto the public declaration when a symbol is a
-    /// source-backed member alias. RF-GOLDEN-008 made this the spelling the
-    /// ordinary Golden body uses; `symbolFQ` still feeds the legacy `.current`
-    /// topology key for tests that render it explicitly.
     private let publicSymbolFQ: [Int32: String]
     private let publicReferenceKeys: [Int32: String]
     private let symbolOrigins: [Int32: GoldenSymbolOrigin]
-    /// Maps `SymbolID.rawValue` to a stable key derived from the declaration's
-    /// meaning (`<fq>[kind=…;recv=…;params=…]`), not from its position in the
-    /// candidate set. Adding or removing *unreferenced* same-FQName symbols
-    /// never renumbers existing references.
     private let symbolKeys: [Int32: String]
-    /// Maps `ExprID.rawValue` to a stable, source-position-derived key so that
-    /// inserting an expression elsewhere in the file does not renumber every
-    /// later expression in the golden dump.
     private let exprKeys: [Int32: String]
-    /// Maps `FileID.rawValue` to a stable, path-derived key so that inserting
-    /// bundled source files before the test input does not renumber the file line.
     private let fileKeys: [Int32: String]
     private(set) var requiredSymbols = Set<Int32>()
-    /// Declaration-index map for type-parameter symbols, including the
-    /// negative virtual IDs assigned to imported-library type parameters
-    /// (`HeaderHelpers.syntheticTypeParameterBase`). Those symbols are never
-    /// registered in `SymbolTable`, so `symbolFQ` cannot resolve `T#-<id>`
-    /// references inside imported signatures — this map normalizes them to
-    /// `T<declarationIndex>` instead (the same normalization the meaning keys
-    /// in `call=`/`ref=` fields use).
     private let typeParamIndices: [Int32: Int]
 
     // swiftlint:disable:next force_try
@@ -103,18 +83,10 @@ final class StableRenderContext {
         self.publicReferenceKeys = publicKeyComputer.computePublicKeys()
     }
 
-    /// The key never depends on how many other candidates share the FQName,
-    /// their registration order, or SymbolIDs.
     func stableKey(for symbolID: SymbolID) -> String {
         symbolKeys[symbolID.rawValue] ?? "_"
     }
 
-    /// A runtime-linked bundled extension may have both a package-level
-    /// source declaration and a synthetic member alias under its receiver.
-    /// The alias is projected to the source declaration's public FQName only
-    /// when RF-GOLDEN-002 proves a unique bundled sibling with the same
-    /// receiver, signature, and link. The link itself never appears in this
-    /// key, and fixture-owned or unresolved symbols are never projected.
     func publicReferenceKey(for symbolID: SymbolID) -> String {
         publicReferenceKeys[symbolID.rawValue] ?? "_"
     }
@@ -127,10 +99,6 @@ final class StableRenderContext {
         fileKeys[file.rawValue] ?? "f?\(file.rawValue)"
     }
 
-    /// Used for the type positions that have no resolved sema `TypeID` binding
-    /// (local declaration annotations, object-literal supertypes, local-function
-    /// return types). The output never contains arena ordinals, so it stays
-    /// stable across unrelated source edits.
     func renderTypeRef(_ id: TypeRefID) -> String {
         guard let ref = arena.typeRef(id) else { return "?" }
         switch ref {
@@ -179,11 +147,6 @@ final class StableRenderContext {
         return stabilizeTypeRefs(in: raw)
     }
 
-    /// Unlike `renderType`, this method does not add symbols to the
-    /// ordinary transitive metadata set unless `collectRequiredSymbols` is
-    /// passed — the fixture-owned contract does so for ordinary-body renders
-    /// so a fixture type nested inside an external signature or `targs=`
-    /// still earns its `symbol` row.
     func renderPublicType(_ typeID: TypeID, collectRequiredSymbols: Bool = false) -> String {
         let raw = sema.types.renderType(typeID)
         return stabilizeTypeRefs(
@@ -193,8 +156,6 @@ final class StableRenderContext {
         )
     }
 
-    /// Parameter names remain available in the public reference key when
-    /// named-argument resolution depends on them.
     func renderPublicSignature(
         _ signature: FunctionSignature,
         collectRequiredSymbols: Bool = false
@@ -219,9 +180,6 @@ final class StableRenderContext {
         }
     }
 
-    /// Under both contracts the class symbols inside the rendered type join
-    /// `requiredSymbols`, so collection through `type=`/`targs=` fields is
-    /// identical between them.
     func ordinaryType(_ typeID: TypeID) -> String {
         switch contract {
         case .current:
@@ -240,17 +198,6 @@ final class StableRenderContext {
         }
     }
 
-    /// `.current` keeps the historical rule: only declarations whose
-    /// `declSite` sits inside the case file list `flags`/`sig`/`type` —
-    /// library-owned symbols (bundled-stdlib decls, imported `.kklib` decls,
-    /// synthetic stdlib stubs and compiler-internal helpers) have no
-    /// case-file `declSite`, and the expr-level `ref=`/`call=`/`type=` output
-    /// already pins how they resolved, so listing them adds only noise.
-    /// `.fixtureOwned` decides by RF-GOLDEN-002 origin instead of declSite
-    /// presence: `.fixture` rows keep every fixture-owned declaration
-    /// including synthesized members, and `.unknown` stays surfaced rather
-    /// than being silently folded into external coverage. External-owned
-    /// rows are left to the dedicated `section stdlib-targets`.
     func rendersOrdinarySymbolRow(_ symbol: SemanticSymbol, sourceFileID: FileID) -> Bool {
         switch contract {
         case .current:
@@ -302,12 +249,6 @@ final class StableRenderContext {
         requiredSymbols = visited
     }
 
-    /// Each key is derived from the expression's source start position
-    /// (`e@<line>:<column>`) so the dump stays stable when unrelated
-    /// expressions are inserted elsewhere. When several expressions share the
-    /// same start position, a deterministic occurrence suffix (`#0`, `#1`, …)
-    /// in arena order disambiguates them. Synthetic expressions without a
-    /// source range fall back to a re-numbered ordinal (`e?<index>`).
     private static func buildExprKeys(arena: ASTArena, sourceManager: SourceManager) -> [Int32: String] {
         let exprs = arena.exprs
         var baseKeys: [(id: Int32, base: String)] = []
@@ -384,10 +325,6 @@ final class StableRenderContext {
                 }
                 mutable.replaceCharacters(in: match.range, with: fq)
             } else if let index = typeParamIndices[rawID] {
-                // Imported-library type parameters carry negative virtual
-                // SymbolIDs that are never registered in the symbol table —
-                // normalize them to the owner's declaration index so the
-                // rendered type stays stable across artifact layout changes.
                 mutable.replaceCharacters(in: match.range, with: "T\(index)")
             }
         }
@@ -433,11 +370,6 @@ final class StableRenderContext {
 
 }
 
-/// The previous scheme numbered same-FQName candidates `#0`, `#1`, … in
-/// signature order, so adding an *unreferenced* overload renumbered existing
-/// references and a 1→2 candidate transition toggled the suffix entirely.
-/// This computer instead derives each key from the declaration itself:
-///
 ///     <fq>[kind=<k>;recv=<type>;params=<type,…>;susp;gen=<n>;scope=<disc>]
 ///
 /// `kind` is always present. `recv`/`params`/`susp`/`gen` come from the
@@ -445,37 +377,18 @@ final class StableRenderContext {
 /// `scope` is emitted only when several symbols would otherwise produce an
 /// identical key, using the declaration's source position or enclosing symbol —
 /// never a counter or a SymbolID.
-///
-/// Types are encoded structurally (`encodeTypeKey`) rather than reusing the
-/// display `renderType` string, so `(() -> String)?` and `() -> String?`,
-/// `T` / `T?` / `T!`, star/`in`/`out` projections, suspend and context
-/// receivers stay distinct. Type parameters normalize to `T<declarationIndex>`
-/// within their owner instead of names or symbol IDs. All memoization lives in
-/// this per-render computer; nothing crosses case or process boundaries.
 private final class StableSemanticKeyComputer {
     private let sema: SemaModule
     private let interner: StringInterner
     private let symbolFQ: [Int32: String]
     private let fileKeys: [Int32: String]
     private let sourceManager: SourceManager
-    /// Only public-reference keys carry this origin discriminator. It keeps a
-    /// fixture declaration that happens to reuse a library FQName distinct
-    /// from the library API while allowing source/imported/alias forms to
-    /// share one key.
     private let publicOriginBySymbol: [Int32: GoldenSymbolOrigin]
 
     private var typeKeyMemo: [TypeID: String] = [:]
     private var typeParamIndexMemo: [Int32: String] = [:]
-    /// Reverse map `typeParameter symbol → declaration index inside its owner`.
-    /// Built by scanning every signature / nominal parameter list, so a type
-    /// parameter resolves by its declared position even when `parentSymbol`
-    /// or its `fqName` parent is not resolvable (synthetic scopes, merged
-    /// stub declarations).
     private var typeParamIndexBySymbol: [Int32: Int] = [:]
 
-    /// `typeParameter symbol → declaration index inside its owner`, valid
-    /// after `computeKeys()`. Includes unregistered virtual IDs used by
-    /// imported-library type parameters.
     var typeParamIndices: [Int32: Int] {
         typeParamIndexBySymbol
     }
@@ -512,10 +425,6 @@ private final class StableSemanticKeyComputer {
             fullKeyGroups["\(displayFQ)\u{0}\(key)", default: []].append(symbol)
         }
 
-        // Two declarations can only share a full key when they are genuine
-        // same-scope redeclarations (e.g. shadowed locals) or synthetic stubs
-        // that duplicate one declaration. Distinguish them by declaration
-        // scope: source position first, then the enclosing symbol's key.
         for (_, group) in fullKeyGroups where group.count > 1 {
             for symbol in group {
                 guard let scope = scopeDiscriminator(for: symbol) else { continue }
@@ -532,14 +441,6 @@ private final class StableSemanticKeyComputer {
         return result
     }
 
-    /// Unlike `computeKeys()`, this key uses the canonical public FQName
-    /// supplied by the caller and includes the signature facts that affect
-    /// source-level calls: return type, bounds, parameter names, default/vararg
-    /// masks, nullability, variance, suspend and throwing behavior. It
-    /// deliberately does not add declaration-position scopes: a source
-    /// declaration and its proven alias are one public declaration, while
-    /// genuinely different overloads remain distinct through their structural
-    /// contract.
     func computePublicKeys() -> [Int32: String] {
         let allSymbols = sema.symbols.allSymbols()
         indexTypeParameters(in: allSymbols)
@@ -725,9 +626,6 @@ private final class StableSemanticKeyComputer {
         }
     }
 
-    /// Structural type key. Unlike `renderType`, nullability is part of the
-    /// encoded shape: a nullable function type renders `fn{…}?` while a
-    /// nullable return stays inside `ret=…?`, so the two never collapse.
     private func encodeTypeKey(_ typeID: TypeID, depth: Int = 0) -> String {
         if let cached = typeKeyMemo[typeID] {
             return cached
@@ -800,11 +698,6 @@ private final class StableSemanticKeyComputer {
         }
     }
 
-    /// Type parameters key by declaration position (`T0`, `T1`, …) inside their
-    /// owner, so renaming a type parameter or regenerating symbol IDs cannot
-    /// shift references. When the owner scan did not record a position
-    /// (declarations detached from every parameter list), the declared name is
-    /// used as a last-resort discriminator rather than an index.
     private func typeParamKey(_ symbol: SymbolID) -> String {
         if let cached = typeParamIndexMemo[symbol.rawValue] {
             return cached
@@ -821,10 +714,6 @@ private final class StableSemanticKeyComputer {
         return result
     }
 
-    /// Last-resort identity when the semantic key collides: the declaration's
-    /// own source position (stable across unrelated bundled-stdlib edits, same
-    /// convention as `e@line:col` expression keys), or the enclosing symbol's
-    /// key for position-less synthetic declarations.
     private func scopeDiscriminator(for symbol: SemanticSymbol) -> String? {
         if let site = symbol.declSite {
             let position = sourceManager.lineColumn(of: site.start)
@@ -867,9 +756,6 @@ private final class StableSemanticKeyComputer {
         }
     }
 
-    /// Escapes characters that are structural in the key grammar so that
-    /// backtick identifiers or synthetic names can never blur field, list, or
-    /// type boundaries.
     private static let keyReservedCharacters: Set<Character> = [
         "\\", ".", ";", ",", "[", "]", "{", "}", "<", ">", "=", "?", "!", "*", "(", ")", ":", " ",
     ]

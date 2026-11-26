@@ -2,9 +2,6 @@ package kotlin.collections
 
 import kotlin.internal.KsSymbolName
 
-// MIGRATION-COL-011
-// Migration source: Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticBuilderDSLStubs.swift
-
 @KsSymbolName("__kk_builder_list_new")
 @PublishedApi
 internal external fun <E> __kkBuilderListNew(capacity: Int): MutableList<E>

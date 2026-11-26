@@ -1,8 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    // KUU-2341: the intrinsic callable reference must run through both stdlib
-    // routes and optimization levels, alongside the public Kotlin regression.
     @Test(arguments: [true, false], [0, 2])
     func booleanNotIntrinsicCallableReference(
         allowDefaultStdlibLibrary: Bool,

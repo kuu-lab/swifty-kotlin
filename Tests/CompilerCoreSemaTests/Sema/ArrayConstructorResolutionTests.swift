@@ -105,7 +105,6 @@ struct ArrayConstructorResolutionTests {
         do {
             try runSema(ctx)
         } catch {
-            // Keep inspecting recovered bindings to report the selected overload.
         }
 
         #expect(

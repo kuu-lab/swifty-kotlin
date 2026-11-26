@@ -17,54 +17,17 @@ import kotlinx.serialization.internal.*
 import kotlinx.serialization.modules.*
 import kotlin.reflect.*
 
-/**
- * Retrieves a serializer for the given type [T].
- * This overload is a reified version of `serializer(KType)`.
- *
- * @throws SerializationException if serializer cannot be created (provided [T] or its type argument is not serializable).
- * @throws IllegalArgumentException if any of [T]'s type arguments contains star projection
- */
 public inline fun <reified T> serializer(): KSerializer<T> {
     return serializer(typeOf<T>()).cast()
 }
 
-/**
- * Retrieves default serializer for the given type [T] and,
- * if [T] is not serializable, fallbacks to [contextual][SerializersModule.getContextual] lookup.
- *
- * @throws SerializationException if serializer cannot be created (provided [T] or its type argument is not serializable).
- * @throws IllegalArgumentException if any of [T]'s type arguments contains star projection
- */
 public inline fun <reified T> SerializersModule.serializer(): KSerializer<T> {
     return serializer(typeOf<T>()).cast()
 }
 
-/**
- * Creates a serializer for the given [type].
- * [type] argument is usually obtained with [typeOf] method.
- *
- * **Pitfall**: the returned serializer may return incorrect results or throw a [ClassCastException] if it receives
- * a value that's not a valid instance of the [KType], even though the type allows passing such a value.
- * Consider using the `serializer()` overload accepting a type argument (for example, `serializer<List<String>>()`),
- * which returns the serializer with the correct type.
- *
- * @throws SerializationException if serializer cannot be created (provided [type] or its type argument is not serializable).
- * @throws IllegalArgumentException if any of [type]'s arguments contains star projection
- */
 public fun serializer(type: KType): KSerializer<Any?> = EmptySerializersModule().serializer(type)
 
 
-/**
- * Retrieves serializer for the given [kClass].
- * This method uses platform-specific reflection available.
- *
- * If [kClass] is a parametrized type then it is necessary to pass serializers for generic parameters in the [typeArgumentsSerializers].
- * The nullability of returned serializer is specified using the [isNullable].
- *
- * @throws SerializationException if serializer cannot be created (provided [kClass] or its type argument is not serializable)
- * @throws SerializationException if [kClass] is a `kotlin.Array`
- * @throws SerializationException if size of [typeArgumentsSerializers] does not match the expected generic parameters count
- */
 @ExperimentalSerializationApi
 public fun serializer(
     kClass: KClass<*>,
@@ -72,40 +35,13 @@ public fun serializer(
     isNullable: Boolean
 ): KSerializer<Any?> = EmptySerializersModule().serializer(kClass, typeArgumentsSerializers, isNullable)
 
-/**
- * Creates a serializer for the given [type] if possible.
- * [type] argument is usually obtained with [typeOf] method.
- *
- * @return [KSerializer] for the given [type] or `null` if serializer cannot be created (given [type] or its type argument is not serializable).
- * @throws IllegalArgumentException if any of [type]'s arguments contains star projection
- */
 public fun serializerOrNull(type: KType): KSerializer<Any?>? = EmptySerializersModule().serializerOrNull(type)
 
-/**
- * Retrieves default serializer for the given [type] and,
- * if [type] is not serializable, fallbacks to [contextual][SerializersModule.getContextual] lookup.
- * [type] argument is usually obtained with [typeOf] method.
- *
- * @throws SerializationException if serializer cannot be created (provided [type] or its type argument is not serializable and is not registered in [this] module).
- * @throws IllegalArgumentException if any of [type]'s arguments contains star projection
- */
 public fun SerializersModule.serializer(type: KType): KSerializer<Any?> =
     serializerByKTypeImpl(type, failOnMissingTypeArgSerializer = true) ?: type.kclass()
         .serializerNotRegistered()
 
 
-/**
- * Retrieves serializer for the given [kClass] and,
- * if [kClass] is not serializable, fallbacks to [contextual][SerializersModule.getContextual] lookup.
- * This method uses platform-specific reflection available.
- *
- * If [kClass] is a parametrized type then it is necessary to pass serializers for generic parameters in the [typeArgumentsSerializers].
- * The nullability of returned serializer is specified using the [isNullable].
- *
- * @throws SerializationException if serializer cannot be created (provided [kClass] or its type argument is not serializable and is not registered in [this] module)
- * @throws SerializationException if [kClass] is a `kotlin.Array`
- * @throws SerializationException if size of [typeArgumentsSerializers] does not match the expected generic parameters count
- */
 @ExperimentalSerializationApi
 public fun SerializersModule.serializer(
     kClass: KClass<*>,
@@ -115,14 +51,6 @@ public fun SerializersModule.serializer(
     serializerByKClassImpl(kClass as KClass<Any>, typeArgumentsSerializers as List<KSerializer<Any?>>, isNullable)
         ?: kClass.serializerNotRegistered()
 
-/**
- * Retrieves default serializer for the given [type] and,
- * if [type] is not serializable, fallbacks to [contextual][SerializersModule.getContextual] lookup.
- * [type] argument is usually obtained with [typeOf] method.
- *
- * @return [KSerializer] for the given [type] or `null` if serializer cannot be created (given [type] or its type argument is not serializable and is not registered in [this] module).
- * @throws IllegalArgumentException if any of [type]'s arguments contains star projection
- */
 public fun SerializersModule.serializerOrNull(type: KType): KSerializer<Any?>? =
     serializerByKTypeImpl(type, failOnMissingTypeArgSerializer = false)
 
@@ -155,9 +83,6 @@ private fun SerializersModule.serializerByKClassImpl(
     return serializer?.cast<Any>()?.nullable(isNullable)
 }
 
-/**
- * Returns null only if `failOnMissingTypeArgSerializer == false` and at least one parameter serializer not found.
- */
 internal fun SerializersModule.serializersForParameters(
     typeArguments: List<KType>,
     failOnMissingTypeArgSerializer: Boolean
@@ -170,20 +95,9 @@ internal fun SerializersModule.serializersForParameters(
     return serializers
 }
 
-/**
- * Retrieves a [KSerializer] for the given [KClass].
- * The given class must be annotated with [Serializable] or be one of the built-in types.
- *
- * Serializable classes use the reflective fallback supplied by this runtime. The compiler
- * plugin additionally generates the familiar `Owner.serializer()` companion entry point.
- */
 @InternalSerializationApi
 public fun <T : Any> KClass<T>.serializer(): KSerializer<T> = serializerOrNull() ?: serializerNotRegistered()
 
-/**
- * Retrieves a [KSerializer] for the given [KClass] or returns `null` if none is found.
- * The given class must be annotated with [Serializable] or be one of the built-in types.
- */
 @InternalSerializationApi
 public fun <T : Any> KClass<T>.serializerOrNull(): KSerializer<T>? =
     builtinSerializerOrNull(this) ?: if (annotations.any { it is Serializable }) {

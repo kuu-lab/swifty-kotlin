@@ -1,14 +1,30 @@
 
 extension BuildASTPhase.ExpressionParser {
     func isAnonymousFunctionLiteralStart(from offset: Int = 0) -> Bool {
-        guard let token = peek(offset), token.kind == .keyword(.fun) else { return false }
-        if let next = peek(offset + 1), next.kind == .symbol(.lParen) {
+        let startIndex = index + offset
+        guard startIndex >= tokens.startIndex, startIndex < tokens.endIndex else {
+            return false
+        }
+        return Self.isAnonymousFunctionLiteralStart(tokens: tokens, at: startIndex)
+    }
+
+    static func isAnonymousFunctionLiteralStart<Tokens: Collection>(
+        tokens: Tokens,
+        at startIndex: Tokens.Index
+    ) -> Bool where Tokens.Element == Token {
+        guard startIndex != tokens.endIndex,
+              tokens[startIndex].kind == .keyword(.fun)
+        else {
+            return false
+        }
+        var cursor = tokens.index(after: startIndex)
+        if cursor != tokens.endIndex, tokens[cursor].kind == .symbol(.lParen) {
             return true
         }
-        var cursor = offset + 1
         var depth = 0
         var prevNonTriviaKind: TokenKind? = nil
-        while let tok = peek(cursor) {
+        while cursor != tokens.endIndex {
+            let tok = tokens[cursor]
             switch tok.kind {
             case .symbol(.lParen):
                 if depth == 0 {
@@ -38,7 +54,7 @@ extension BuildASTPhase.ExpressionParser {
                 break
             }
             prevNonTriviaKind = tok.kind
-            cursor += 1
+            cursor = tokens.index(after: cursor)
         }
         return false
     }

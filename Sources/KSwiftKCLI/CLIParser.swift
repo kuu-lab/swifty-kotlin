@@ -474,7 +474,6 @@ enum CLIParser {
             emitMode = .executable
             frontendFlags.append("run")
             if !explicitOutputPath {
-                // Only used when the interpreter falls back to a native build.
                 outputPath = FileManager.default.temporaryDirectory
                     .appendingPathComponent("kswiftc-run-\(UUID().uuidString)").path
                 frontendFlags.append("run-temp-output")
@@ -598,8 +597,6 @@ enum CLIParser {
     }
 
     private static func parseTargetTriple(_ value: String) -> TargetTriple? {
-        // WebAssembly spellings. `wasm32-wasi` / `wasm-js` are two-part
-        // shorthand; the unknown-vendor forms normalize to the same triple.
         switch value {
         case "wasm32-wasi", "wasm-wasi", "wasm32-unknown-wasi",
              "wasm32-wasip1", "wasm32-unknown-wasip1":

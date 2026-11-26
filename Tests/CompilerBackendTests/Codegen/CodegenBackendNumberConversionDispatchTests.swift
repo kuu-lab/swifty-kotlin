@@ -30,11 +30,6 @@ struct CodegenBackendNumberConversionDispatchTests {
         )
     }
 
-    // KSP-1540 / DEBT-DIFF-008: a primitive assigned to a `Number`-typed
-    // variable dispatches `toDouble/toFloat/toLong/toInt/toShort/toByte`
-    // through the abstract `kotlin.Number` declaration. Before the fix this
-    // silently returned zero for every conversion (CallLowerer+
-    // NumberConversionMemberCalls.swift / kk_number_to_primitive).
     @Test
     func testNumberTypedPrimitiveDispatchesAllConversions() throws {
         let source = """
@@ -63,15 +58,6 @@ struct CodegenBackendNumberConversionDispatchTests {
         )
     }
 
-    // A boxed primitive and a genuine user-defined `Number` subclass must
-    // coexist correctly through the same abstract dispatch point: the
-    // primitive takes the native-conversion fast path in
-    // kk_number_to_primitive, the user subclass falls back to its own real
-    // vtable slot (kk_vtable_lookup). Before the fix, once any Number
-    // subtype was visible in the program, resolveVtableDispatch stopped
-    // declining and routed the primitive through a genuine vtable lookup —
-    // which crashed (KSWIFTK-RUNTIME-0001) because the built-in boxes carry
-    // no compiler-synthesized class metadata.
     @Test
     func testPrimitiveAndUserDefinedNumberSubclassCoexist() throws {
         let source = """
@@ -101,13 +87,6 @@ struct CodegenBackendNumberConversionDispatchTests {
         )
     }
 
-    // KUU-1372: `Number.toChar()` is the only *open* (non-abstract)
-    // conversion member — its default body is `toInt().toChar()`. It was
-    // missing from the kk_number_to_primitive intercept, so the call took a
-    // real vtable dispatch on `Number` (an abstract class always keeps vtable
-    // dispatch) and kk_vtable_lookup crashed on the metadata-less primitive
-    // boxes (KSWIFTK-RUNTIME-0001). JVM truth (kotlinc -api-version 2.2):
-    // 65→'A', 65.9→'A', 66L→'B', 67.5f→'C', Byte(-1)→'￿', Short(-1)→'￿'.
     @Test
     func testNumberTypedPrimitiveDispatchesToChar() throws {
         let source = """
@@ -134,7 +113,6 @@ struct CodegenBackendNumberConversionDispatchTests {
         )
     }
 
-    // KUU-1372: same dispatch through an erased `T : Number` upper bound.
     @Test
     func testErasedNumberBoundDispatchesToChar() throws {
         let source = """
@@ -148,11 +126,6 @@ struct CodegenBackendNumberConversionDispatchTests {
         try assertKotlinOutput(source, moduleName: "ErasedNumberBoundToChar", expected: "B\n")
     }
 
-    // KUU-1372: a user-defined Number subclass that does NOT override `toChar`
-    // inherits the open default `toInt().toChar()`; its vtable slot 4 holds the
-    // inherited body, which re-dispatches `toInt` through kk_number_to_primitive
-    // and lands back on the subclass's own vtable entry. A primitive box in the
-    // same program must still take the fast path.
     @Test
     func testUserNumberSubclassInheritsToCharDefault() throws {
         let source = """
@@ -180,9 +153,6 @@ struct CodegenBackendNumberConversionDispatchTests {
         )
     }
 
-    // KUU-1372: a user-defined Number subclass overriding `toChar` must have
-    // its override honored through the kk_vtable_lookup fallback — the
-    // intercept must not force the default `toInt().toChar()` body onto it.
     @Test
     func testUserNumberSubclassToCharOverrideWins() throws {
         let source = """

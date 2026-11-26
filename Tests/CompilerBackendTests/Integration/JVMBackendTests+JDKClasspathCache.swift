@@ -38,8 +38,6 @@ extension JVMBackendTests {
         }
     }
 
-    // Backtick-escaped segments (mandatory for keyword package parts such as
-    // `annotation`) must still register the referenced JDK packages.
     @Test
     func jdkClasspathImportScanSeesThroughBacktickedSegments() throws {
         let source = """

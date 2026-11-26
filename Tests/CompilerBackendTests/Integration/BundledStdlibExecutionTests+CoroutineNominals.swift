@@ -55,8 +55,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-4425: a literal passed to `runTest` must execute before control
-    /// returns to its caller when using the bundled `.kklib`.
     @Test
     func testRunTestExecutesBodyAndReturnsToCallerForKUU4425() throws {
         try compileAndRunKotlin(
@@ -104,11 +102,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-2688: `runTest`'s `timeout` is enforced on the wall clock: the
-    /// watchdog cancels the test scope and the caller sees an
-    /// `UncompletedCoroutinesError` (an `AssertionError` subtype) carrying
-    /// upstream's message shape, while virtual-time delays and non-positive
-    /// or infinite budgets behave the way kotlinx-coroutines-test does.
     @Test(arguments: [false, true])
     func testRunTestTimeoutEnforced(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(

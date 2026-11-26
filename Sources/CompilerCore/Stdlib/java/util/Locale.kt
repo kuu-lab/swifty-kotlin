@@ -2,9 +2,6 @@ package java.util
 
 import kotlin.internal.KsSymbolName
 
-/**
- * A locale backed by the runtime's platform locale handle.
- */
 public class Locale {
     @KsSymbolName("__kk_locale_new_flat")
     public constructor(identifier: String)
@@ -44,15 +41,12 @@ public class Locale {
     public val variant: String
         get() = getVariant()
 
-    /** JVM `get`-getter synthetic property view of `getDisplayName()`. */
     public val displayName: String
         get() = getDisplayName()
 
-    /** JVM `get`-getter synthetic property view of `getDisplayLanguage()`. */
     public val displayLanguage: String
         get() = getDisplayLanguage()
 
-    /** JVM `get`-getter synthetic property view of `getDisplayCountry()`. */
     public val displayCountry: String
         get() = getDisplayCountry()
 

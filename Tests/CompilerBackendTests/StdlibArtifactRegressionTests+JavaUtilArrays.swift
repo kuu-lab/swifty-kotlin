@@ -5,7 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-3055: Java array helpers bind and execute through source and artifact stdlib paths.
     @Test
     func testJavaUtilArraysThroughSourceAndFreshArtifactAtO0AndO2() throws {
         let source = try diffCaseSource("java_util_arrays.kt", file: #filePath)

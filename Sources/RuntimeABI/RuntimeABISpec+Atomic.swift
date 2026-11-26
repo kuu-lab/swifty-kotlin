@@ -30,7 +30,6 @@ public extension RuntimeABISpec {
         abi.nt("__kk_atomic_long_decrementAndFetch", "receiver"),
         abi.th("kk_atomic_int_array_create", "size"),
         abi.th("kk_atomic_int_array_size", "receiver"),
-        // KSP-672: raw synchronized-core bridges (bounds checks live in Kotlin).
         abi.nt("__kk_atomic_int_array_load", "receiver index"),
         abi.nt("__kk_atomic_int_array_store", "receiver index value"),
         abi.nt("__kk_atomic_int_array_exchange", "receiver index newValue"),
@@ -40,7 +39,6 @@ public extension RuntimeABISpec {
         abi.nt("__kk_atomic_int_array_addAndFetch", "receiver index delta"),
         abi.th("kk_atomic_long_array_create", "size"),
         abi.th("kk_atomic_long_array_size", "receiver"),
-        // KSP-672: raw synchronized-core bridges (bounds checks live in Kotlin).
         abi.nt("__kk_atomic_long_array_load", "receiver index"),
         abi.nt("__kk_atomic_long_array_store", "receiver index value"),
         abi.nt("__kk_atomic_long_array_exchange", "receiver index newValue"),

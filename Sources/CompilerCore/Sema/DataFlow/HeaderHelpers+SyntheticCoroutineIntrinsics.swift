@@ -9,7 +9,6 @@ extension DataFlowSemaPhase {
         let flowTypeParamSymbol = context.flowTypeParamSymbol!
         let flowRawType = context.flowRawType!
 
-        // Runtime-backed members are only needed without bundled Flow declarations.
         let flowElementType = types.make(.typeParam(TypeParamType(
             symbol: flowTypeParamSymbol,
             nullability: .nonNull

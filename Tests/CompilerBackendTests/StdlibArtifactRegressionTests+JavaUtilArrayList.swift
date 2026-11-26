@@ -6,9 +6,6 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
-    /// Pinned upstream consumer: https://github.com/DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns/blob/1f89f062a056e24cc289ffdd0c6e23cadf8df887/src/main/kotlin/structures/Stack1.kt
-    /// KUU-1857: `java.util.ArrayList` imports and aliases reuse the native
-    /// Kotlin ArrayList while preserving generic element types and constructors.
     @Test
     func testJavaUtilArrayListImportAndAliasAcrossStdlibSurfaces() throws {
         let source = """

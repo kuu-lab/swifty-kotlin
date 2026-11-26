@@ -9,19 +9,12 @@ import Glibc
 public struct GoldenHarnessCase: Sendable {
     public let sourcePath: String
     public let basename: String
-    /// Nil when the case has no spec — or when the spec failed to parse, in
-    /// which case `specErrorDescription` carries the reason so verification
-    /// can fail loudly instead of silently rendering legacy output.
     public let spec: GoldenHarnessCaseSpec?
     public let specErrorDescription: String?
 }
 
 public struct GoldenHarnessBatchResult: Codable, Sendable {
     public let sourcePath: String
-    /// The `stdlib-profile` the case's spec pinned for this render
-    /// (RF-GOLDEN-012), so the test side can verify the intended mode was
-    /// actually used rather than silently falling back. Nil for spec-free
-    /// cases (legacy implicit behavior).
     public let resolvedProfile: String?
     public let output: String?
     public let errorDescription: String?
@@ -80,10 +73,6 @@ public enum GoldenHarness {
     private static let sigkillGracePeriodSeconds: TimeInterval = 1.0
     private static let processPollIntervalSeconds: TimeInterval = 0.05
 
-    /// Environment variable carrying a prebuilt stdlib `.kklib` path into the
-    /// worker process. When set, each dump compiles the case against the
-    /// artifact's serialized metadata instead of re-running the bundled-stdlib
-    /// source pipeline for every case.
     static let stdlibLibraryEnvironmentKey = "KSWIFTK_GOLDEN_STDLIB_LIBRARY"
 
     public static func loadCasesOrCrash(suiteName: String) -> [GoldenHarnessCase] {
@@ -137,16 +126,10 @@ public enum GoldenHarness {
         return normalizedForComparison(suite: resolvedSuite, output: raw)
     }
 
-    /// The `stdlib-profile` a case's spec pins, resolved from the same
-    /// adjacent `.golden-spec` `render` reads. The batch worker reports this
-    /// per case so the test side can verify the intended profile actually
-    /// ran (RF-GOLDEN-012).
     public static func resolvedStdlibProfile(forSourcePath sourcePath: String) -> GoldenStdlibProfile? {
         caseFile(sourcePath: sourcePath).spec?.stdlibProfile
     }
 
-    /// Wall-clock budget one case contributes to its batch's subprocess
-    /// timeout (see `sourceProfileSubprocessTimeout`).
     private static func perCaseSubprocessTimeout(forSourcePath sourcePath: String) -> TimeInterval {
         switch resolvedStdlibProfile(forSourcePath: sourcePath) {
         case .source:
@@ -299,26 +282,19 @@ public enum GoldenHarness {
         stderrWriteHandle.closeFile()
         if terminatedSemaphore.wait(timeout: .now() + timeout) == .timedOut {
             process.terminate()
-            // Wait for process to exit after terminate to avoid zombie processes
             let terminateDeadline = Date().addingTimeInterval(terminationGracePeriodSeconds)
             while process.isRunning, Date() < terminateDeadline {
                 Thread.sleep(forTimeInterval: processPollIntervalSeconds)
             }
             if process.isRunning {
-                // Note: There's a race condition between this check and the kill() call where the process
-                // could exit and the PID could be reused. This is a fundamental limitation of the kill() API.
                 let killResult = kill(process.processIdentifier, SIGKILL)
                 if killResult != 0 && errno != ESRCH {
-                    // ESRCH is expected if process exited between isRunning check and kill call
-                    // Other errors are unusual but we continue anyway
                 }
                 let sigkillDeadline = Date().addingTimeInterval(sigkillGracePeriodSeconds)
                 while process.isRunning, Date() < sigkillDeadline {
                     Thread.sleep(forTimeInterval: processPollIntervalSeconds)
                 }
             }
-            // Process has exited (or survived SIGKILL). The write ends of the pipes are
-            // now closed, so the reader tasks reach EOF and complete.
             ioGroup.wait()
             let stderrText = String(data: stderrAccumulator.snapshot(), encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let errorMessage = process.isRunning
@@ -386,8 +362,6 @@ public enum GoldenHarness {
         return try GoldenHarnessGoldenFileIO.loadExpectedGolden(caseFile: caseFile)
     }
 
-    /// Normalizes suite output before comparison so the checked-in golden can stay
-    /// stable even when a platform injects extra synthetic symbols into the dump.
     public static func normalizedForComparison(suiteName: String, output: String) -> String {
         guard let suite = GoldenHarnessGoldenSuite(rawValue: suiteName) else {
             return output
@@ -650,12 +624,6 @@ private enum GoldenHarnessSemaComparisonNormalizer {
         return mutable as String
     }
 
-    /// Renumbers the process-local IDs captured in group 2 of every `regex`
-    /// match to `0…n` in first-occurrence order (group 1 is preserved
-    /// verbatim). Group 2 may hold several underscore-joined process-local
-    /// IDs (e.g. `$tp123_456`) instead of a single one: every number shares
-    /// one ordinal counter across all matches of `regex`, so the same raw ID
-    /// always renumbers to the same small value wherever it appears.
     private static func rewriteOrdinalMatches(
         in text: String,
         regex: NSRegularExpression

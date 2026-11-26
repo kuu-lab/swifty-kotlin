@@ -59,9 +59,6 @@ extension CollectionLiteralConstructionLoweringPass {
         return (arrayExpr, countExpr)
     }
 
-    /// Registers the rewritten result's nominal vtable implementations when the
-    /// factory produced a concrete-class collection box. See the call-site
-    /// comment in `lowerCallInstruction` for why the box needs them.
     func appendFactoryResultVtableRegistrations(
         result: KIRExprID?,
         module: KIRModule,
@@ -112,8 +109,6 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
 
-        // Keep the Kotlin-source declarations visible to sema, but preserve the
-        // runtime lowering path for primitive boxing and tracked collection IDs.
         if lookup.listFactoryNames.contains(callee),
            isStdlibCollectionFactory(symbol: symbol, lookup: lookup, ctx: ctx) {
             let count = arguments.count
@@ -157,8 +152,6 @@ extension CollectionLiteralConstructionLoweringPass {
             if let symbol, let sema = ctx.sema,
                sema.symbols.symbol(symbol)?.kind == .constructor,
                let signature = sema.symbols.functionSignature(for: symbol) {
-                // Ordinary resolved constructors include the allocated receiver.
-                // The replacement factory allocates its own backing storage.
                 constructorArguments = arguments.count == signature.parameterTypes.count + 1
                     ? Array(arguments.dropFirst()) : arguments
                 resolvedCopyConstructor = signature.parameterTypes.count == 1
@@ -251,8 +244,6 @@ extension CollectionLiteralConstructionLoweringPass {
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             let nullExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: nullExpr, value: .intLiteral(0)))
-            // `mutableSetConstructorNames` holds only HashSet and LinkedHashSet,
-            // so the non-HashSet case here is LinkedHashSet() / LinkedHashSet(capacity).
             loweredBody.append(.call(
                 callee: isHashSetConstructor
                     ? lookup.kkHashSetOfName
@@ -273,10 +264,6 @@ extension CollectionLiteralConstructionLoweringPass {
             sema: ctx.sema,
             interner: ctx.interner
         ) {
-            // KUU-556: LinkedHashMap is now a real HashMap subclass, so its
-            // constructor gets its own runtime tag (kkLinkedHashMapOfName)
-            // instead of sharing the generic kkMapOfName every other mutable
-            // map factory still uses.
             let constructorCallee = mapConstructorName == lookup.hashMapName
                 ? lookup.kkHashMapOfName
                 : lookup.kkLinkedHashMapOfName
@@ -315,7 +302,6 @@ extension CollectionLiteralConstructionLoweringPass {
                     canThrow: false
                 ))
             } else {
-                // 0 args, capacity arg (Int), or unknown arg type → empty map
                 loweredBody.append(.call(callee: constructorCallee, arguments: [nullExpr, nullExpr2, zeroExpr], result: result, canThrow: false))
                 // KUU-4500: `LinkedHashMap(capacity, loadFactor, accessOrder)`
                 // is java.util.LinkedHashMap's LRU-order constructor. The box
@@ -339,30 +325,6 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
 
-        // RF-LOWER-CALL-012 follow-up dropped the `map.count(predicate)` ->
-        // `kk_map_count` branch that used to sit here. It was unreachable:
-        // `Stdlib/kotlin/collections/MapHOF.kt` provides
-        // `Map<K, V>.count(predicate)` as bundled Kotlin source, and
-        // The historical synthetic Map registration path also skipped the
-        // competing synthetic `count` member whenever
-        // `bundledIndex.contains(ownerFQName: mapFQName, name: "count",
-        // arity: 1)` is true, which it is here — so there is no non-source-backed
-        // symbol this call could ever resolve to. This branch runs inside
-        // `rewriteFactoryAndBuilderCall`, which `lowerCallInstruction` calls
-        // *before* the source-backed preservation gate, so unlike the
-        // Map HOF branches CALL-012 removed, this one could not rely on that
-        // later short-circuit and instead carried its own inline
-        // `isSourceBackedBundledFunction` check — which was therefore always
-        // true for a resolved call, keeping the branch itself dead the same
-        // way. `kk_map_count` has no `@_cdecl` in `Sources/Runtime` (only a
-        // `Tests/RuntimeTests/RuntimeCollectionHOF430MapShims.swift` test
-        // shim, like the other RF-LOWER-CALL-012 targets), so reaching it
-        // would have broken at runtime. `MapCountLoweringRoutingTests` pins
-        // the routing.
-
-        // `java.util.TreeSet()` / `TreeSet(comparator)` / `TreeSet(collection)`
-        // / `TreeSet(sortedSet)` -> a sorted RuntimeSetBox. The comparator form
-        // forwards its object handle raw (0 means natural ordering).
         if isTreeSetConstructor(
             callee: callee, symbol: symbol, arguments: arguments, result: result,
             module: module, lookup: lookup, ctx: ctx
@@ -373,8 +335,6 @@ extension CollectionLiteralConstructionLoweringPass {
             ) {
             case .emptyOrComparator:
                 var callArguments: [KIRExprID] = []
-                // `arguments[0]` is the allocated `this`; a second element is
-                // the comparator argument when present.
                 if let argument = arguments.last, arguments.count >= 2 {
                     callArguments = [argument]
                 } else {
@@ -504,10 +464,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 && callee != lookup.linkedMapOfName {
                 loweredBody.append(.call(callee: lookup.kkEmptyMapName, arguments: [], result: result, canThrow: false))
             } else if count == 0 {
-                // KUU-646: `__kk_map_of` is now the read-only `Map` tag used by
-                // `mapOf`. Mutable factories take the same split List/Set
-                // already use: hashMapOf → HashMap, mutableMapOf/linkedMapOf →
-                // LinkedHashMap (Kotlin's mutableMapOf returns LinkedHashMap).
                 let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 let nullKeysExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
@@ -573,14 +529,6 @@ extension CollectionLiteralConstructionLoweringPass {
             }
             return true
         }
-
-        // Sequence factories are lowered through their bundled Kotlin source.
-
-        // The builder DSL rewrite to `__kk_build_*` runtime helpers (STDLIB-002)
-        // is gone: RF-LOWER-CALL-004 (list), -005 (set) and -006 (map) removed
-        // every arm, so `buildList` / `buildSet` / `buildMap` all lower through
-        // `CollectionBuilders.kt`; no legacy Builder DSL predicate or lookup
-        // is needed at this entry point anymore.
 
         return false
     }

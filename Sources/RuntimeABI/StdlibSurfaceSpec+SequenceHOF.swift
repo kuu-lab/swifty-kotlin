@@ -1,7 +1,3 @@
-// Split from `StdlibSurfaceSpec.swift` so that parallel branches adding
-// `kotlin.sequences.Sequence` member entries do not collide on the same
-// central array. New `sequence(...)` entries go here.
-
 extension StdlibSurfaceSpec {
     static let sequenceHOFMembers: [StdlibSurfaceSpec] = [
         sequence("map", 1, "kk_sequence_map", returnStrategy: .sequence, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .any)),

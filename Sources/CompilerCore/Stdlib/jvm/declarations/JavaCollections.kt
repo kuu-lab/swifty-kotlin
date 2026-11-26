@@ -1,6 +1,5 @@
 package java.util
 
-// JDK superclass contracts only; these bodies never enter the runtime JAR.
 abstract class AbstractList<T> protected constructor() {
     open val size: Int get() = 0
     open fun isEmpty(): Boolean = false

@@ -1,8 +1,5 @@
 package kotlin.collections
 
-// MIGRATION-COL-009
-// Migration source: Sources/Runtime/RuntimeCollectionHOF.swift
-
 private external fun <T> __kk_list_chunked(receiver: Iterable<T>, size: Int): List<List<T>>
 private external fun <T, R> __kk_list_chunked_transform(
     receiver: Iterable<T>,
@@ -82,9 +79,6 @@ public inline fun <T, R> Iterable<T>.zipWithNext(transform: (T, T) -> R): List<R
     }
     return result
 }
-
-// Result length equals the shorter of the two iterables, matching Kotlin
-// stdlib and the Swift ABI implementation (min(lhs.count, rhs.count)).
 
 public infix fun <T, R> Iterable<T>.zip(other: Iterable<R>): List<Pair<T, R>> {
     val first = iterator()

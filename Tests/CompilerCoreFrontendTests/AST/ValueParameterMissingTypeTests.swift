@@ -40,8 +40,6 @@ struct ValueParameterMissingTypeTests {
         "fun f(x: Int = 5) {}",
         "val h = { a: Int, b: String -> a }",
         "val j = { a, b -> a }",
-        // Anonymous function literals may leave parameter types implicit; the
-        // expected function type supplies them during Sema.
         "val k: (Int) -> Int = fun(x) { return x }",
         "val l: (Int) -> Int = fun(x: Int) { return x }",
         "fun probe(): (Int) -> Int { return fun(value) { return value + 1 } }",

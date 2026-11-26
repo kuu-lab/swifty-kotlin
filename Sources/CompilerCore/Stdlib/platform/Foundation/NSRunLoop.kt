@@ -20,7 +20,6 @@ public class NSThread internal constructor(handle: Long) : NSObject(handle) {
     public fun start() { __foundation_thread_start(__handle) }
     public companion object { public val currentThread: NSThread get() = NSThread(__foundation_thread_current()) }
 }
-// +[NSThread callStackSymbols]: NSArray of NSString bridged as List<String>.
 public val NSThread.Companion.callStackSymbols: List<String>
     get() = __foundation_thread_callstack()
 public fun NSThread.Companion.isMainThread(): Boolean = __foundation_thread_is_main()

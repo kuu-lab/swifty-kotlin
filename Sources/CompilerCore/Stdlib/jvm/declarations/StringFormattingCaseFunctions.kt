@@ -19,13 +19,17 @@ fun String.decapitalize(): String = null!!
 @OptIn(ExperimentalTypeInference::class)
 @OverloadResolutionByLambdaReturnType
 @JvmName("replaceFirstCharWithChar")
-fun String.replaceFirstChar(transform: (Char) -> Char): String = null!!
+@kotlin.internal.InlineOnly
+public inline fun String.replaceFirstChar(transform: (Char) -> Char): String =
+    if (isNotEmpty()) transform(this[0]) + substring(1) else this
 
 @SinceKotlin("1.5")
 @OptIn(ExperimentalTypeInference::class)
 @OverloadResolutionByLambdaReturnType
 @JvmName("replaceFirstCharWithCharSequence")
-fun String.replaceFirstChar(transform: (Char) -> CharSequence): String = null!!
+@kotlin.internal.InlineOnly
+public inline fun String.replaceFirstChar(transform: (Char) -> CharSequence): String =
+    if (isNotEmpty()) transform(this[0]).toString() + substring(1) else this
 
 fun String.toUpperCase(): String = null!!
 fun String.toLowerCase(): String = null!!

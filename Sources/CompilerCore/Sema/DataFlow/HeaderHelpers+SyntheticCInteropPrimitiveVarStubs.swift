@@ -75,8 +75,6 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
-        // BooleanVarOf<T>/ByteVarOf<T> already subtype CPrimitiveVar; they just
-        // need the `value` bridge. CPointerVarOf<T> stores a pointer word.
         registerAtomicValueProperty(
             ownerSymbol: booleanVarOfSymbol,
             valueType: types.booleanType,
@@ -104,7 +102,6 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
-        // Class type-param substitution fills in the concrete pointee of `ptr`.
         for genericVarSymbol in [booleanVarOfSymbol, byteVarOfSymbol, cPointerVarOfSymbol] {
             guard let tSym = types.nominalTypeParameterSymbols(for: genericVarSymbol).first
             else { continue }
@@ -302,7 +299,6 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
-        // STDLIB-CINTEROP-FN-032: Alias for toKStringFromUtf16(): reuses the same UTF-16 runtime decoder.
         if let uShortVarSymbolForToKString = symbols.lookup(fqName: cinteropPkg + [interner.intern("UShortVar")]) {
             let uShortVarTypeForToKString = types.make(.classType(ClassType(
                 classSymbol: uShortVarSymbolForToKString,

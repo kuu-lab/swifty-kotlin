@@ -109,9 +109,6 @@ struct CodegenBackendCollectionWindowedTransformEdgeCasesTests {
 
     @Test
     func testCodegenWindowChunkTransformKeepsBooleanCharTypeTag() throws {
-        // KUU-1434: a transform returning a concrete Boolean/Char crosses the
-        // erased `R` boundary of the __kk_list_*_transform bridges and of the
-        // function-value ABI; without boxing it prints as 0/1 or a code point.
         let source = """
         fun main() {
             val numbers = listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)

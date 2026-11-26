@@ -46,8 +46,6 @@ extension ExprLowerer {
             let localFunReturnType: TypeID
             if let sig {
                 localFunValueParamList = zip(sig.valueParameterSymbols, sig.parameterTypes).map { pair in
-                    // Sema records the body type for packed vararg parameters;
-                    // the signature still carries their individual element type.
                     KIRParameter(
                         symbol: pair.0,
                         type: sema.symbols.propertyType(for: pair.0) ?? pair.1
@@ -73,7 +71,6 @@ extension ExprLowerer {
             case .unit:
                 break
             }
-            // Default expressions are evaluated in the lifted function's lexical scope too.
             captureBodyExprIDs.append(contentsOf: localFunValueParams.compactMap(\.defaultValue))
 
             var referencedSymbols: [SymbolID] = []
@@ -98,11 +95,6 @@ extension ExprLowerer {
                 if sym == driver.ctx.activeImplicitReceiverSymbol(),
                    driver.ctx.activeImplicitReceiverExprID() != nil { return true }
                 guard let referencedSymbol = sema.symbols.symbol(sym) else {
-                    // Synthetic receiver/parameter symbols (an enclosing
-                    // extension function's `this`, a labeled lambda's receiver)
-                    // never enter the symbol table, but `this@name` binds them
-                    // like any other value — capture them when a live binding
-                    // exists in the enclosing scope (KUU-3671).
                     return driver.ctx.localValue(for: sym) != nil
                 }
                 guard referencedSymbol.kind == .local
@@ -114,9 +106,6 @@ extension ExprLowerer {
                 return driver.ctx.localValue(for: sym) != nil
             }
 
-            // Explicit this/super and implicit member accesses do not
-            // collect the receiver in collectBoundIdentifierSymbols, so check separately —
-            // mirrors the post-filter in lexicalCaptureSymbolsForLambda.
             if localFunReceiverParam == nil,
                let receiverSymbol = driver.ctx.activeImplicitReceiverSymbol(),
                driver.ctx.activeImplicitReceiverExprID() != nil,
@@ -134,12 +123,6 @@ extension ExprLowerer {
                 }
             }
 
-            // Transitive capture: if a captured symbol is a callable with
-            // its own captures, also capture those dependencies so call
-            // sites inside the body can forward correct capture arguments.
-            // Build a deterministic reverse map (KIRExprID → SymbolID) from
-            // current local bindings so we avoid nondeterministic Dictionary
-            // iteration with first(where:).
             var exprIDToSymbol: [KIRExprID: SymbolID] = [:]
             for (sym, expr) in driver.ctx.allLocalValues() {
                 exprIDToSymbol[expr] = sym
@@ -283,11 +266,6 @@ extension ExprLowerer {
                 driver.ctx.setImplicitReceiver(symbol: param.symbol, exprID: receiverExpr)
             }
 
-            // Propagate callable value info for captured callables so that
-            // calls inside the body find correct capture arguments.
-            // Build a direct outer-expr → body-expr mapping from capture
-            // bindings. This works for any expression kind (symbolRef,
-            // intLiteral, etc.) without needing reverse lookups.
             var outerExprToBodyExpr: [KIRExprID: KIRExprID] = [:]
             for capture in captureBindings {
                 if let bodyExpr = driver.ctx.localValue(for: capture.capturedSymbol) {
@@ -331,10 +309,6 @@ extension ExprLowerer {
                 }
             }
 
-            // Re-register the local function symbol inside its own body
-            // so that recursive calls resolve correctly with capture arguments.
-            // Inside the body, capture arguments reference the capture *parameters*
-            // (not the outer values) since we're in the body's scope.
             let bodyFunRef = arena.appendExpr(.symbolRef(symbol), type: funType)
             localFunBodyInstructions.append(.constValue(result: bodyFunRef, value: .symbolRef(symbol)))
             driver.ctx.setLocalValue(bodyFunRef, for: symbol)
@@ -434,10 +408,6 @@ extension ExprLowerer {
 
             let isTailrec = ast.arena.isLocalTailrecFunction(exprID)
             if isTailrec { driver.ctx.markTailrecFunction(symbol) }
-            // A source-level `inline` local function expands at its call sites
-            // like a member inline. Bodies that reach outside their own frame
-            // (non-local returns, enclosing loop jumps) cannot be emitted
-            // standalone at all, so they must also be inline-only.
             let isLocalInline = ast.arena.isLocalInlineFunction(exprID)
             let bodyRequiresInlining = hasNonLocalLoopJump || (isLocalInline && localFunBodyInstructions.contains { instruction in
                 switch instruction {
@@ -469,9 +439,6 @@ extension ExprLowerer {
             )
             driver.ctx.appendGeneratedCallableDecl(localFunDeclID)
 
-            // Call sites route an omitted-argument call through `<name>$default`;
-            // top-level/member functions get that stub from module lowering, but
-            // a local function is only reachable from here.
             let localFunDefaults = localFunValueParams.map(\.defaultValue)
             if let sig, localFunDefaults.contains(where: { $0 != nil }) {
                 let stubID = driver.callSupportLowerer.generateDefaultStubFunction(
@@ -523,35 +490,9 @@ extension ExprLowerer {
                 instructions: &instructions
             )
             if let symbol = sema.bindings.identifierSymbols[exprID] {
-                // Local delegated declaration (custom and, since KSP-491, the
-                // stdlib factories lazy/Delegates.observable/vetoable/notNull
-                // alike -- they all resolve getValue/setValue through the same
-                // operator convention now). `initializer`'s own AST shape here
-                // (unlike a member/top-level PropertyDecl's `delegateExpression`)
-                // already includes any trailing lambda as a normal call
-                // argument, so `lowerExpr` above already invoked the real
-                // factory correctly.
                 let isCustomDelegateDecl = isDelegated
                     && sema.symbols.delegateGetValueSymbol(for: symbol) != nil
                 if isCustomDelegateDecl {
-                    // Local delegate declaration (custom, and since KSP-491 the
-                    // stdlib factories lazy/Delegates.observable/vetoable/notNull
-                    // alike): binds `x`'s storage to the delegate *instance*
-                    // (`Prop()`/`LazyImpl(...)`/...), not its value -- unlike a
-                    // plain local, `x`'s getValue runs at each *read* site (see
-                    // below), not here, which is what keeps `val x by lazy { ... }`'s
-                    // initializer deferred until `x` is first read (BUG-014 /
-                    // KSP-CAP-007's fix for the read side predates this; this
-                    // declaration-site half only resolves the delegate object).
-                    //
-                    // provideDelegate (BUG-146): when the delegate exposes a
-                    // `provideDelegate` operator, the *effective* delegate is
-                    // its return value, mirroring member/top-level lowering in
-                    // KIRLoweringDriver+ProvideDelegate.swift. Call
-                    // `Factory().provideDelegate(null, KProperty("x"))` first and
-                    // resolve getValue/setValue against that result (Sema already
-                    // recorded getValue/setValue for the effective delegate type
-                    // via DeclTypeChecker.typeCheckDelegate).
                     let effectiveDelegateID = lowerLocalProvideDelegateIfNeeded(
                         symbol: symbol,
                         rawDelegateID: initializerID,
@@ -591,9 +532,6 @@ extension ExprLowerer {
                     // leave sentinel-equal bits in the `Long?` slot, which
                     // every null check then reads as `null` (KUU-854).
                     let declaredTypeIsReferenceLike: Bool = switch sema.types.kind(of: declaredType) {
-                    // String has its own aggregate kind instead of `.classType`.
-                    // It still needs declared-type storage when a nullable local
-                    // starts as `null`, so later assignments update the local slot.
                     case .nullableUnit, .platformUnit, .any, .classType, .functionType, .stringStruct, .typeParam:
                         true
                     default:
@@ -673,31 +611,12 @@ extension ExprLowerer {
         } else if let symbol = sema.bindings.identifierSymbols[exprID] {
             let declaredType = driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
             driver.ctx.setLocalDeclaredType(declaredType, for: symbol)
-            // No initializer (e.g. `lateinit var f: (Int) -> Int`): a
-            // lambda capturing `f` before its first real assignment --
-            // a self-referential closure such as `f = { ... f(...) ... }`
-            // -- needs `f`'s mutable-capture cell to already exist so it
-            // can capture a reference to it, but `ensureMutableCaptureCell`
-            // requires a current value to seed the cell with. Captured
-            // mutable locals get a seeded cell below (reference-like types
-            // seed `.null`, primitives a zero bit pattern), mirroring how a
-            // lateinit *property*'s backing storage is seeded with `.null`
-            // in lowerPropertyInitializer. Immutable locals receive a
-            // shared slot below so branch assignments survive joins.
             if !isMutable, !isDelegated {
-                // A definitely-assigned `val` may be written in mutually
-                // exclusive branches. Keep one stable slot so each branch
-                // stores to the same target and reads after the join observe
-                // the value from the branch that ran. Sema remains responsible
-                // for rejecting reads before the first assignment.
                 let localSlot = arena.appendTemporary(type: declaredType)
                 driver.ctx.setLocalValue(localSlot, for: symbol)
                 if sema.bindings.isContractCallsInPlaceInitializedSymbol(symbol),
                    isCapturedByLambda(symbol, sema: sema)
                 {
-                    // Sema approved deferred initialization inside a callback.
-                    // Allocate its shared cell before capture without reading an
-                    // undefined slot; Sema prevents observing the seed value.
                     let seed = deferredLocalCaptureCellSeedValue(
                         for: declaredType, sema: sema, arena: arena, instructions: &instructions
                     )
@@ -709,8 +628,6 @@ extension ExprLowerer {
                 }
             }
             if sema.symbols.symbol(symbol)?.flags.contains(.lateinitProperty) == true {
-                // Store the raw null sentinel. Creating a closure captures
-                // the shared cell without reading/checking its contents.
                 let sentinel = arena.appendExpr(.null, type: declaredType)
                 instructions.append(.constValue(result: sentinel, value: .null))
                 let storage = arena.appendTemporary(type: declaredType)
@@ -816,8 +733,6 @@ extension ExprLowerer {
                 componentName
             }
 
-            // Look up the symbol defined by Sema for this variable first,
-            // so we can use its per-component type (not the expression-level Unit type)
             let candidates = sema.symbols.lookupAll(fqName: [
                 interner.intern("__destructuring_\(exprID.rawValue)"),
                 name,

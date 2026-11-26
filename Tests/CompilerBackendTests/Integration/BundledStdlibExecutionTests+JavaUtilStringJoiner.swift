@@ -2,9 +2,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    // KUU-4450: merge must append the other joiner's elements re-joined with
-    // ITS delimiter (prefix/suffix excluded) as a single element, matching
-    // the JDK StringJoiner.compactElts contract.
     @Test
     func testStringJoinerMergeCollapsesElementsLikeJvm() throws {
         try compileAndRunKotlin(

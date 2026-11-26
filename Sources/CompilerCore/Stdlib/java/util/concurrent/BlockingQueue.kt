@@ -2,10 +2,6 @@ package java.util.concurrent
 
 import java.util.Queue
 
-// KUU-4032: java.util.concurrent.BlockingQueue — the bounded FIFO contract
-// implemented by LinkedBlockingQueue. Producers block in `put` while the
-// queue is full and consumers block in `take` while it is empty; the timed
-// `offer`/`poll` overloads give up after the supplied timeout.
 public interface BlockingQueue<E> : Queue<E> {
     public fun put(element: E): Unit
 

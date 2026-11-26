@@ -14,6 +14,8 @@ extension JVMClasspathIndex {
         if name.hasPrefix("kotlin/reflect/") || ["java/lang/Class", "java/lang/Void", "java/lang/reflect/Field"].contains(name) { return name }
         if ["java/util/NoSuchElementException", "java/util/Locale", "java/lang/StackTraceElement", "java/lang/IllegalAccessException", "java/lang/StringIndexOutOfBoundsException", "java/lang/reflect/Method", "java/lang/reflect/InvocationHandler", "java/nio/charset/Charset"].contains(name) { return name }
         if name == "kotlin/String$Companion" { return "kotlin/jvm/internal/StringCompanionObject" }
+        if name == "kotlin/Float$Companion" { return "kotlin/jvm/internal/FloatCompanionObject" }
+        if name == "kotlin/Double$Companion" { return "kotlin/jvm/internal/DoubleCompanionObject" }
         if name == "kotlin/Annotation" { return "java/lang/annotation/Annotation" }
         if name == "kotlin/annotation/AnnotationTarget" || name == "kotlin/annotation/AnnotationRetention" { return name }
         if name == "kotlin/Enum" { return "java/lang/Enum" }
@@ -37,6 +39,9 @@ extension JVMClasspathIndex {
         if name == "kotlin/Cloneable" { return "java/lang/Cloneable" }
         if name.hasPrefix("kotlin/collections/"), let mapped = collectionNames[String(name.split(separator: "/").last!)] { return mapped }
         if name.hasPrefix("kotlin/"), exceptionNames.contains(String(name.dropFirst(7))) { return "java/lang/" + name.dropFirst(7) }
+        if ["kotlin/concurrent/atomics/AtomicIntArray", "kotlin/concurrent/AtomicIntArray"].contains(name) { return "java/util/concurrent/atomic/AtomicIntegerArray" }
+        if ["kotlin/concurrent/atomics/AtomicLongArray", "kotlin/concurrent/AtomicLongArray"].contains(name) { return "java/util/concurrent/atomic/AtomicLongArray" }
+        if ["kotlin/concurrent/atomics/AtomicArray", "kotlin/concurrent/AtomicArray"].contains(name) { return "java/util/concurrent/atomic/AtomicReferenceArray" }
         return nil
     }
     static func boxed(_ type: JVMValueType) -> JVMValueType {

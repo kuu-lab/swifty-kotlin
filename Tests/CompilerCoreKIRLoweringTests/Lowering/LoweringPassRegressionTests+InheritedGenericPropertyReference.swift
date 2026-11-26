@@ -3,11 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-// KUU-3813: `Type::member` reflects the member in the erased receiver class
-// parameterized by its own type parameters. The callable-reference tag must
-// carry the return type substituted through the supertype instantiation
-// (`A : H<A>` → `A?`), while written LHS type arguments are ignored
-// (`H<A>::parent` stays `T?`).
 extension LoweringPassRegressionTests {
     @Test
     func testInheritedGenericPropertyReferenceTagsSubstitutedReturnType() throws {

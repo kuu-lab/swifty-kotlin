@@ -36,7 +36,6 @@ struct MutexFactoryExecutionTests {
             target: defaultTargetTriple(), optLevel: level, stdlibLibraryPath: stdlib,
             allowDefaultStdlibLibrary: false
         )))
-        // Remove the producer source so only its serialized library crosses the boundary.
         try FileManager.default.removeItem(atPath: producerInput)
 
         let consumerInput = directory.appendingPathComponent("consumer.kt").path

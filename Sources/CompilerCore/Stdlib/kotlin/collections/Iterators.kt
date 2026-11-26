@@ -8,15 +8,10 @@
 
 package kotlin.collections
 
-/**
- * Allows an iterator to be used in a `for` loop without allocating or
- * consuming another iterator.
- */
 public inline operator fun <T> Iterator<T>.iterator(): Iterator<T> = this
 
 public data class IndexedValue<out T>(public val index: Int, public val value: T)
 
-// KSP-977 / KUU-604
 // Iterable.forEach and forEachIndexed stay inline so a direct return in their
 // lambdas can escape the enclosing caller. Compatibility-only runtime bridges
 // remain available for receiver-specific dispatch paths.

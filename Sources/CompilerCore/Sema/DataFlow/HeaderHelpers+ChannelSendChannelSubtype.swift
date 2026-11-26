@@ -1,6 +1,4 @@
 extension DataFlowSemaPhase {
-    /// The runtime Channel handle implements the bundled SendChannel bridge surface.
-    /// Attach this edge after source headers have supplied the interface symbol.
     func registerChannelSendChannelSubtype(
         symbols: SymbolTable,
         types: TypeSystem,

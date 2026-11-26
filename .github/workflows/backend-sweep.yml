@@ -273,7 +273,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: "22"
+          # Pin to a known-good 22.x: node 22.23.x segfaults under node:wasi
+          # (every WASI candidate exits 139); 22.21.0 runs them correctly.
+          node-version: "22.21.0"
       - name: Run WASM backend sweep shard (node engine)
         env:
           DIFF_BACKEND: wasm

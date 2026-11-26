@@ -7,9 +7,6 @@
 
 package kotlin.collections
 
-// Collection type fallbacks remain available for contexts without the bundled
-// stdlib, but Set-specific synthetic shell registration is retired by KSP-704.
-
 public abstract class AbstractSet<out E> protected constructor() : AbstractCollection<E>(), Set<E> {
     override fun equals(other: Any?): Boolean {
         if (other === this) return true

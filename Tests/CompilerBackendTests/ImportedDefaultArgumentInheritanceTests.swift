@@ -7,12 +7,6 @@ import Testing
 
 @Suite(.serialized)
 struct ImportedDefaultArgumentInheritanceTests {
-    /// An override that omits its base's default arguments keeps them through
-    /// a .kklib round-trip: the consumer resolves `Bang().format(7)` against
-    /// `Bang.format` and routes the omitted argument through the emitted
-    /// `Formatter.format$default` stub. Regression coverage for the
-    /// `kotlinx.io.Sink.write` / `Buffer.write` shape, where an imported
-    /// override is excluded from the consumer's defaults-inheritance scan.
     @Test func overrideWithoutDefaultsResolvesBaseStubViaLibrary() throws {
         try withCompiledLibrary(
             source: """

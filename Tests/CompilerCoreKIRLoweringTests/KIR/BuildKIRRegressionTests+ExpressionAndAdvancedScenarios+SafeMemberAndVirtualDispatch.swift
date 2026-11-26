@@ -4,10 +4,6 @@ import Testing
 @testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
-    // BUG-211: an interface property read must remain an itable dispatch in
-    // KIR. The backend then boxes the receiver before doing the dynamic lookup.
-    // CharSequence.length is the property getter after `get` (slot 0) and
-    // `subSequence` (slot 1), so KIR must use method slot 2.
     @Test func testBug211CharSequenceLengthUsesDynamicItableDispatch() throws {
         let source = """
         fun lengthOf(value: CharSequence): Int = value.length
@@ -45,7 +41,6 @@ extension BuildKIRRegressionTests {
         })
     }
 
-    // KSP-817: an interface operator member must remain a dynamic itable call.
     @Test func testKsp817CharSequenceGetUsesDynamicItableDispatch() throws {
         let source = """
         fun getAt(value: CharSequence): Char = value[0]
@@ -69,7 +64,6 @@ extension BuildKIRRegressionTests {
         })
     }
 
-    // KSP-1390: CharSequence.subSequence must use the adjacent dynamic method slot.
     @Test func testKsp1390CharSequenceSubSequenceUsesDynamicItableDispatch() throws {
         let source = """
         fun subSequenceOf(value: CharSequence): CharSequence = value.subSequence(0, 1)

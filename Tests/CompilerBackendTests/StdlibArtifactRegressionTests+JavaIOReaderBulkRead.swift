@@ -5,15 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-4044: `java.io.Reader.read(CharArray)` — the JVM convenience
-    /// overload that delegates to `read(cbuf, 0, cbuf.length)`. Registered
-    /// as a concrete member on the synthetic `Reader` base so every
-    /// `Reader`/`BufferedReader`/`InputStreamReader`/`StringReader` receiver
-    /// resolves it; the `__kk_reader_read` bridge forwards to
-    /// `__kk_reader_read_range`, which for Kotlin-source readers now
-    /// dispatches the subclass's own 3-arg override straight into the
-    /// caller's buffer — a transient charSource staging buffer previously
-    /// swallowed every char past `length`, so chained bulk reads lost data.
     @Test func testJavaIOReaderBulkReadCharArray() throws {
         let source = """
         import java.io.BufferedReader

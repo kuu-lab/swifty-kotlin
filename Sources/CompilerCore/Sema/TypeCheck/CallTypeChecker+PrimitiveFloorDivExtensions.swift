@@ -1,5 +1,4 @@
 extension CallTypeChecker {
-    /// A scoped user extension takes priority over the primitive fallback.
     func hasUserFloorDivExtension(
         _ request: MemberCallInferenceRequest,
         lookupReceiverType: TypeID,

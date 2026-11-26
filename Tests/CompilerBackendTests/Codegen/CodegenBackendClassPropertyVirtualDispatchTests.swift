@@ -5,18 +5,6 @@
 import Foundation
 import Testing
 
-// BUG-227 regression coverage: an open/abstract/override *class* property
-// (stored, custom-getter, or custom-setter) read or written through a
-// base-typed reference must dispatch to the actual runtime type's accessor,
-// exactly like an ordinary open/override method already does. Before the
-// fix, `tryLowerStoredMemberPropertyRead`/`tryLowerMemberPropertyAccessorRead`/
-// `lowerMemberAssignExpr`/`lowerMemberCompoundAssignExpr` resolved the
-// accessor purely from the receiver's *static* type and LayoutSynthesis never
-// gave a property accessor a vtable slot, so a base-typed reference always
-// observed the base declaration's own storage/accessor — basic class
-// inheritance polymorphism was broken for properties while working correctly
-// for methods.
-
 @Suite
 struct CodegenBackendClassPropertyVirtualDispatchTests {
 
@@ -39,7 +27,6 @@ struct CodegenBackendClassPropertyVirtualDispatchTests {
 
     @Test
     func testStoredPropertyReadThroughBaseTypedReference() throws {
-        // The canonical minimal repro from TODO.md BUG-227.
         let source = """
         open class Base {
             open val p = "bp"
@@ -181,8 +168,6 @@ struct CodegenBackendClassPropertyVirtualDispatchTests {
 
     @Test
     func testDirectlyTypedReceiverStillReadsItsOwnOverrideDirectly() throws {
-        // Non-polymorphic access (no upcast) was already correct before the
-        // fix; pin it so virtualizing the base-typed path doesn't regress it.
         let source = """
         open class Base {
             open val p = "bp"
@@ -206,10 +191,10 @@ struct CodegenBackendClassPropertyVirtualDispatchTests {
     @Test
     func testCanonicalDiffCaseClassPropertyVirtualDispatch() throws {
         let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerBackendTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repo root
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
         let caseURL = root.appendingPathComponent(
             "Scripts/diff_cases/class_property_virtual_dispatch.kt",
             isDirectory: false

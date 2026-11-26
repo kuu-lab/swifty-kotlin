@@ -219,8 +219,6 @@ struct CodegenBackendDebugInfoMetadataEmissionTests {
         )
 
         let irText = try String(contentsOfFile: irPath, encoding: .utf8)
-        // When debug locations are set, instructions carry !dbg metadata
-        // references and DISubprogram / DILocation entries appear in the IR.
         #expect(
             irText.contains("!dbg"),
             "Expected !dbg metadata references in IR when debugInfo is enabled"
@@ -278,8 +276,6 @@ struct CodegenBackendDebugInfoMetadataEmissionTests {
         )
 
         let irText = try String(contentsOfFile: irPath, encoding: .utf8)
-        // When local variable debug info is emitted, the IR should contain
-        // DILocalVariable entries and llvm.dbg.declare intrinsic calls.
         #expect(
             irText.contains("DILocalVariable") || irText.contains("dbg.declare"),
             "Expected DILocalVariable or dbg.declare in IR for local variable debug info"

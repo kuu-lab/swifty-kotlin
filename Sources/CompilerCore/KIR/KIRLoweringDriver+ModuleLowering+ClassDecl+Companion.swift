@@ -1,16 +1,5 @@
 
 extension KIRLoweringDriver {
-    /// BUG-274: Kotlin runs a companion object's body lazily, on first
-    /// access, not eagerly at program start. This keeps the eager half --
-    /// the companion's singleton allocation and its type-edge/vtable
-    /// registrations -- running
-    /// unconditionally during module initialization (registered via
-    /// `registerCompanionInitializer`, unchanged from before). The implicit
-    /// super-constructor call, property initializers, and `init` blocks move
-    /// into a separate function guarded by a `$initialized` flag
-    /// (`synthesizeCompanionLazyInit` below), registered via
-    /// `ctx.registerObjectLazyInit` instead so call sites that touch the
-    /// companion's state trigger it on demand rather than at module start.
     func synthesizeCompanionInitializerIfNeeded(
         companionDeclID: DeclID?,
         ownerSymbol: SymbolID,
@@ -41,7 +30,6 @@ extension KIRLoweringDriver {
         )))
 
         var body: KIRLoweringEmitContext = [.beginBlock]
-        // Source singletons need a shared handle even without virtual methods.
         let needsDispatchObject = sema.symbols.isSourceBackedSymbol(companionSymbol)
             || (sema.symbols.nominalLayout(for: companionSymbol)?.vtableSize ?? 0) > 0
         if needsDispatchObject {
@@ -172,11 +160,6 @@ extension KIRLoweringDriver {
         return declIDs
     }
 
-    /// BUG-274: when the companion has a dispatch object, its handle already
-    /// exists (allocated eagerly by `synthesizeCompanionInitializerIfNeeded`),
-    /// so this function only needs to `loadGlobal` it; otherwise it re-derives
-    /// the same bare `symbolRef` value the eager function used transiently for
-    /// its own (now-removed) super-constructor-call argument.
     private func synthesizeCompanionLazyInit(
         _ companionDecl: ObjectDecl,
         ownerSymbol: SymbolID,

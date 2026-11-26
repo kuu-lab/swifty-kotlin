@@ -1,9 +1,4 @@
-/// Split out from `CollectionLiteralLoweringPass+CallRewrite.swift` to
-/// keep the giant `rewriteCalls` body file scoped only to the rewrite
-/// dispatcher.
 extension CollectionLiteralLoweringSupport {
-    /// Resolved constructor ownership or result types take precedence over
-    /// legacy bare collection names, including for source-defined user classes.
     func isStdlibCollectionConstructor(
         symbol: SymbolID?,
         className: InternedString,
@@ -47,7 +42,6 @@ extension CollectionLiteralLoweringSupport {
            sema.symbols.symbol(resultClass.classSymbol) != nil {
             return matchesCollectionSymbol(resultClass.classSymbol, visited: [])
         }
-        // Keep the legacy fallback only when neither symbol nor type is available.
         return true
     }
 
@@ -64,7 +58,6 @@ extension CollectionLiteralLoweringSupport {
         )
     }
 
-    /// Source-backed constructors may carry a mangled callee name in KIR.
     func stdlibMutableMapConstructorName(
         symbol: SymbolID?,
         callee: InternedString,
@@ -138,10 +131,6 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
 
-        // Source-backed implicit constructors can lose their constructor
-        // symbol while the call is converted to KIR. Recover the owner from
-        // the resolved result type before falling back to the generic `<init>`
-        // callee.
         guard callee == ctx.interner.intern("<init>"),
               let result,
               let resultType = module.arena.exprType(result),
@@ -243,10 +232,6 @@ extension CollectionLiteralConstructionLoweringPass {
         case sortedMap
     }
 
-    /// Discriminates the single-argument sorted constructors by the resolved
-    /// constructor's declared parameter FQName first, then by the argument's
-    /// static type FQName — mirroring the JVM overload split between
-    /// `Comparator`, `Collection`/`SortedSet`, and `Map`/`SortedMap`.
     private func sortedConstructorArgumentKind(
         symbol: SymbolID?,
         argument: KIRExprID,
@@ -316,8 +301,6 @@ extension CollectionLiteralConstructionLoweringPass {
         case "comparator":
             return .emptyOrComparator
         default:
-            // Tracked collection expressions with no resolvable class type
-            // still take the Collection overload.
             if state.setExprIDs.contains(argument.rawValue)
                 || state.listExprIDs.contains(argument.rawValue)
                 || state.arrayExprIDs.contains(argument.rawValue)
@@ -364,13 +347,6 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    /// KUU-4500: returns the `accessOrder` argument of a resolved
-    /// `LinkedHashMap(initialCapacity, loadFactor, accessOrder)` call, or nil
-    /// for every other constructor form. The declared three-parameter primary
-    /// is the only LinkedHashMap constructor carrying a Boolean parameter, so
-    /// the last argument's static type distinguishes `LinkedHashMap(16,
-    /// 0.75f, true)` from the capacity/loadFactor-only forms even when the
-    /// allocated `this` receiver is prepended to `arguments`.
     func linkedHashMapAccessOrderArgument(
         symbol: SymbolID?,
         arguments: [KIRExprID],
@@ -389,20 +365,9 @@ extension CollectionLiteralConstructionLoweringPass {
         {
             return signature.parameterTypes.count == 3 ? last : nil
         }
-        // Unresolved bare-name `LinkedHashMap(a, b, c)` calls can only bind to
-        // the three-parameter form, so the Boolean trailing argument still
-        // identifies the access-order constructor.
         return last
     }
 
-    /// Looks up the primitive boxing callee for `type`, resolving a value
-    /// class to its underlying primitive first (see `resolveValueClassKind`)
-    /// so `Meters` boxes exactly like the `Int` it wraps — matching
-    /// `ABILoweringPass`'s typeParam boxing boundary
-    /// (`typeParamBoxingBoundaryCallees`), which every other reference-type
-    /// boxing boundary in this pass is documented to mirror. A value class
-    /// implementing an interface stays boxed instead (see
-    /// `effectiveValueClassUnderlyingType`), so it never reaches this path.
     func primitiveBoxCalleeName(
         for type: TypeID,
         types: TypeSystem,
@@ -413,9 +378,6 @@ extension CollectionLiteralConstructionLoweringPass {
         return BoxingCalleeTable(interner: interner).boxCallee(for: kind, requireNonNull: false)
     }
 
-    /// When the symbol is nil (unresolved) we conservatively allow the rewrite –
-    /// the name check already passed and unresolved symbols are common for
-    /// synthetic stubs that have no KIR-level symbol entry.
     func isStdlibCollectionFactory(
         symbol: SymbolID?,
         lookup: CollectionLiteralLookupTables,
@@ -424,8 +386,6 @@ extension CollectionLiteralConstructionLoweringPass {
         guard let sym = symbol,
               let resolved = ctx.sema?.symbols.symbol(sym)
         else {
-            // No symbol info available – fall through to name-only rewrite
-            // (backwards compatible with pre-symbol resolution passes).
             return true
         }
         let fqName = resolved.fqName
@@ -448,10 +408,6 @@ extension CollectionLiteralConstructionLoweringPass {
             || fqName == lookup.linkedMapOfFQName
     }
 
-    /// Source-backed concrete classes lower through the same runtime bridge as
-    /// the historical name-based constructor path. The resolved callee is
-    /// `<init>` once ArrayList is a real class, so the owner FQName is the
-    /// authoritative discriminator.
     func isStdlibArrayListConstructor(
         symbol: SymbolID?,
         callee: InternedString,
@@ -541,9 +497,6 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    /// True when the resolved callee is a bundled Kotlin source declaration
-    /// or an imported library symbol, meaning the lowering pass should not
-    /// rewrite it to a `kk_*` runtime helper.
     func isSourceBacked(
         symbol: SymbolID?,
         ctx: KIRContext
@@ -557,17 +510,6 @@ extension CollectionLiteralConstructionLoweringPass {
         return sema.symbols.isSourceBackedSymbol(symbol)
     }
 
-    /// The simple name of a resolved `kotlin.sequences`/`kotlin.collections`
-    /// function declaration, or `nil` when the callee is unresolved or belongs
-    /// to any other package (KUU-3850).
-    ///
-    /// kklib-imported stdlib callees reach this pass under `kk_fn_*` link
-    /// names, so a plain `callee == "take"`-style comparison can never see
-    /// them; matching on the resolved declaration keeps working in both
-    /// stdlib modes. `kotlin.collections` is included because this bundled
-    /// stdlib declares some `Sequence` extensions (e.g. `count`) in that
-    /// package; the call-site runtime-box receiver check still discriminates
-    /// same-named `Iterable`/`List` overloads.
     func sequenceExtensionSimpleName(
         symbol: SymbolID?,
         sema: SemaModule?,

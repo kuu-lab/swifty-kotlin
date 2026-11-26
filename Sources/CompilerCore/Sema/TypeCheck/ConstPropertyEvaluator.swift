@@ -57,7 +57,6 @@ package final class ConstPropertyEvaluator {
         }
     }
 
-    /// Share the language's primitive/String constant rules with annotation values.
     func constantExpression(_ expression: ExprID) -> KIRExprKind? {
         let collector = ConstantCollector(
             resolvedConstant: { [self] expr in resolvedConstant(for: expr) },
@@ -118,8 +117,6 @@ package final class ConstPropertyEvaluator {
     }
 
     private func canFoldMemberCall(_ expr: ExprID) -> Bool {
-        // `s[i]` desugars to the String.get operator; only the bundled
-        // kotlin.text.get declaration is foldable.
         if case let .indexedAccess(receiver, indices, _) = ast.arena.expr(expr) {
             guard indices.count == 1,
                   let receiverType = sema.bindings.exprType(for: receiver),
@@ -161,8 +158,6 @@ package final class ConstPropertyEvaluator {
                 && nonNullReceiverType == sema.types.charType
                 && (!isSourceBackedMemberExtensionCall(expr) || isBuiltinCharCodeProperty(expr))
         }
-        // `Double.toInt()` & co. are source-backed `kotlin.*` extensions, but
-        // kotlinc still evaluates them in `const val` initializers.
         if ["toInt", "toLong", "toFloat", "toDouble"].contains(name), isFloatingPrimitiveType(nonNullReceiverType) {
             guard args.isEmpty else { return false }
             guard isSourceBackedMemberExtensionCall(expr) else { return true }
@@ -312,9 +307,6 @@ package final class ConstPropertyEvaluator {
         return sema.symbols.isSourceBackedSymbol(callee) || sema.symbols.isSyntheticStubSymbol(callee)
     }
 
-    /// `kotlin.text.String.compareTo(String)` is a source-backed extension in
-    /// the bundled stdlib; only that canonical declaration may fold, so a
-    /// user extension of the same shape is never treated as constant.
     private func isBuiltinStringCompareToCall(_ expr: ExprID) -> Bool {
         guard let callee = sema.bindings.callBinding(for: expr)?.chosenCallee,
               let symbol = sema.symbols.symbol(callee),
@@ -404,9 +396,6 @@ package final class ConstPropertyEvaluator {
         return receiverType == argumentType && isPrimitiveType(receiverType)
     }
 
-    /// Unary signs and some primitive `compareTo` overloads are represented
-    /// by source-backed extensions in the bundled `kotlin` package. Permit
-    /// only those canonical declarations so user extensions are never folded.
     private func isBuiltinKotlinPrimitiveExtensionCall(
         _ expr: ExprID,
         name: String,
@@ -443,8 +432,6 @@ package final class ConstPropertyEvaluator {
         return true
     }
 
-    // Kotlin's primitive companion constants remain compile-time constants
-    // even when their source-backed stdlib declarations use getters.
     package static func primitiveCompanionConstant(
         for symbol: SymbolID, symbols: SymbolTable, types: TypeSystem, interner: StringInterner
     ) -> KIRExprKind? {

@@ -22,11 +22,6 @@ private external fun <T> AtomicReference<T>.__kkAtomicRefCompareAndExchange(
 
 @SinceKotlin("1.9")
 public class AtomicReference<T> {
-    /**
-     * Allocation stays with the `kk_atomic_ref_create` ABI entry point; the
-     * residual synthetic constructor registration is suppressed by the bundled
-     * index's `<init>` arity tracking.
-     */
     @KsSymbolName("kk_atomic_ref_create")
     public constructor(value: T)
 

@@ -48,16 +48,6 @@ private fun Buffer.readStringImpl(byteCount: Long, charset: Charset): String {
     return result ?: String(readByteArray(byteCount.toInt()), charset)
 }
 
-/**
- * Decodes whole content of this stream into a string using [charset]. Returns empty string if the source is exhausted.
- *
- * @param charset the [Charset] to use for string decoding.
- *
- * @throws IllegalStateException when the source is closed.
- * @throws IOException when some I/O error occurs.
- *
- * @sample kotlinx.io.samples.KotlinxIoSamplesJvm.readWriteStrings
- */
 @OptIn(InternalIoApi::class)
 public fun Source.readString(charset: Charset): String {
     var req = 1L
@@ -67,30 +57,12 @@ public fun Source.readString(charset: Charset): String {
     return buffer.readStringImpl(buffer.size, charset)
 }
 
-/**
- * Decodes [byteCount] bytes of this stream into a string using [charset].
- *
- * @param byteCount the number of bytes to read from the source for decoding.
- * @param charset the [Charset] to use for string decoding.
- *
- * @throws EOFException when the source exhausted before [byteCount] bytes could be read from it.
- * @throws IllegalStateException when the source is closed.
- * @throws IllegalArgumentException if [byteCount] is negative or its value is greater than [Int.MAX_VALUE].
- * @throws IOException when some I/O error occurs.
- *
- * @sample kotlinx.io.samples.KotlinxIoSamplesJvm.readStringBounded
- */
 @OptIn(InternalIoApi::class)
 public fun Source.readString(byteCount: Long, charset: Charset): String {
     require(byteCount)
     return buffer.readStringImpl(byteCount, charset)
 }
 
-/**
- * Returns an input stream that reads from this source. Closing the stream will also close this source.
- *
- * @sample kotlinx.io.samples.KotlinxIoSamplesJvm.asStream
- */
 @OptIn(InternalIoApi::class)
 public fun Source.asInputStream(): InputStream {
     val isClosed: () -> Boolean = when (this) {

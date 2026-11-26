@@ -89,8 +89,6 @@ extension CallTypeChecker {
             let intType = sema.types.intType
             let arrayName = arrayConstructorTarget.name
             let calleeNameStr = interner.resolve(arrayName)
-            // Intrinsic allocation bypasses normal constructor resolution, but
-            // still uses the source-backed array class's opt-in contract.
             if let arraySymbol = sema.symbols.lookup(
                 fqName: [interner.intern("kotlin"), arrayName]
             ) {
@@ -119,8 +117,6 @@ extension CallTypeChecker {
             )
             if args.count == 1 {
                 sema.bindings.markStdlibSpecialCallExpr(id, kind: .arrayConstructor)
-                // Primitive arrays use their nominal source APIs instead of the synthetic
-                // collection/Sequence HOF path.
                 if calleeNameStr == "Array" {
                     sema.bindings.markCollectionExpr(id)
                 }
@@ -161,12 +157,6 @@ extension CallTypeChecker {
                 sema.bindings.bindExprType(id, type: resultType)
                 return resultType
             }
-            // Only extract the generic argument from the expected type when:
-            //   1. The callee is "Array" (not a primitive array like IntArray), AND
-            //   2. The expected type is actually kotlin.Array<...> (not some unrelated
-            //      generic type like List<String>).
-            // Primitive arrays (IntArray, LongArray, etc.) have fixed element types
-            // that must not be overridden by contextual expected types.
             let arrayFQName: [InternedString] = [
                 interner.intern("kotlin"),
                 interner.intern("Array"),
@@ -196,8 +186,6 @@ extension CallTypeChecker {
                     elementReturnType = sema.types.anyType
                 }
             } else if isKotlinArray {
-                // Infer the lambda with `it` constrained to Int, then extract the
-                // actual body return type from bindings to avoid erasing to Any.
                 let lambdaExpected = sema.types.make(.functionType(FunctionType(
                     params: [intType],
                     returnType: sema.types.makeNullable(sema.types.anyType)

@@ -6,8 +6,6 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
-    /// KUU-2298: the bundled JVM Comparator maps its generic method parameters
-    /// to platform types, while source-declared Kotlin interfaces stay strict.
     @Test
     func testNullableArraySlotsMatchJvmComparatorPlatformParameters() throws {
         let comparatorDeclaration = """
@@ -114,7 +112,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-2225: Java and Kotlin Comparator names share one contravariant SAM type.
     @Test
     func testJavaUtilComparatorAliasPreservesTypeIdentityAndVarianceAcrossStdlibSurfaces() throws {
         let source = """

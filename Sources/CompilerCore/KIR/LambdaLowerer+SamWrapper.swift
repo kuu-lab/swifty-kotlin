@@ -317,10 +317,6 @@ extension LambdaLowerer {
             instructions: &instructions
         )
 
-        // Give the shared wrapper identity a stable KClass name so `::class`
-        // on a SAM instance resolves simpleName/qualifiedName/supertypes
-        // instead of reporting "Unknown". Registration is idempotent, so
-        // emitting it per construction site is safe.
         let identityToken = RuntimeTypeCheckToken.encode(
             base: RuntimeTypeCheckToken.nominalBase,
             nullable: false,
@@ -386,8 +382,6 @@ extension LambdaLowerer {
             instructions: &instructions
         )
 
-        // Expose the SAM wrapper as an invokable comparator value so stdlib
-        // comparison lowering can call `compare` directly when needed.
         driver.ctx.registerCallableValue(
             wrapperValue,
             symbol: methodSymbol,
@@ -416,12 +410,6 @@ extension LambdaLowerer {
         return wrapperValue
     }
 
-    /// Returns the shared class-identity symbol for SAM-conversion wrappers
-    /// of `interfaceSymbol`, creating it on first use (KUU-3227). The JVM
-    /// emits one wrapper class per fun interface; every `SAM(...)` instance
-    /// must therefore report the same `::class`. This symbol carries only the
-    /// type identity used for the object header tag and KClass metadata —
-    /// instance layout and dispatch stay on the per-site `wrapperSymbol`.
     private func samWrapperClassIdentitySymbol(
         for interfaceSymbol: SymbolID,
         interfaceType: ClassType,
@@ -453,8 +441,6 @@ extension LambdaLowerer {
             visibility: .private,
             flags: [.synthetic]
         )
-        // Report the fun interface as the wrapper's only supertype so
-        // reflection (`supertypes`, `isInstance`) sees the real shape.
         sema.symbols.setDirectSupertypes([interfaceSymbol], for: identitySymbol)
         sema.types.setNominalDirectSupertypes([interfaceSymbol], for: identitySymbol)
         sema.symbols.setSupertypeTypeArgs(interfaceType.args, for: identitySymbol, supertype: interfaceSymbol)

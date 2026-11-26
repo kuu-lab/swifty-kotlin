@@ -33,23 +33,11 @@ enum ConstraintOperand: Equatable {
     case variable(TypeVarID)
 }
 
-/// Where a constraint originates inside a call candidate's evaluation.
-/// kotlinc names argument-vs-parameter mismatches ARGUMENT_TYPE_MISMATCH, so
-/// call-argument constraints carry `.callArgument` to let a failed solve
-/// surface the position-specific code instead of the generic one.
 enum VariableConstraintOrigin: Equatable {
     case general
     case callArgument
 }
 
-/// JVM integer-literal-type provenance for a lower bound contributed by an
-/// unsuffixed integer literal (or constant expression). This type system
-/// erases the literal's type to its inferred primitive before constraints are
-/// recorded, so the constraint carries the literal back to the join: the JVM
-/// treats `1` as ILT{Byte,Short,Int,Long} — able to adopt any member — while a
-/// declared `Int` is rigid. Signedness distinguishes `1` from `1u`: the two
-/// literal families share no member, so an unsigned literal can never adopt a
-/// signed integer type (and vice versa).
 enum IntegerLiteralProvenance: Equatable {
     case signed(Int64)
     case unsigned(UInt64)
@@ -61,9 +49,6 @@ struct VariableConstraint {
     let right: ConstraintOperand
     let blameRange: SourceRange?
     let origin: VariableConstraintOrigin
-    /// Set when the `.type` operand came from an unsuffixed integer literal
-    /// call argument; lets the lower-bound join distinguish literal-adoptable
-    /// bounds from declared-type bounds the JVM keeps rigid.
     let integerLiteral: IntegerLiteralProvenance?
 
     init(
@@ -142,11 +127,6 @@ final class ConstraintSolver {
         }
     }
 
-    /// Whether a lower-bound type was contributed by an integer-literal call
-    /// argument (`.literal`) or by a rigid source type (`.declared`). A bound
-    /// the program pins declaratively stays declared even when a literal arg
-    /// infers to the same TypeID — `arrayOf(1, i)` joins a declared `Int`
-    /// with a literal `1`, and the `Int` bound is rigid because `i` holds it.
     private enum LowerBoundMark: Equatable {
         case declared
         case literal(IntegerLiteralProvenance)
@@ -255,8 +235,6 @@ final class ConstraintSolver {
                             changed = true
                         } else if mark == .declared,
                                   lowerBoundMarks[rightVar]?[bound] != .declared {
-                            // Declared stays authoritative even when the bound
-                            // already arrived marked literal from another path.
                             lowerBoundMarks[rightVar, default: [:]][bound] = .declared
                             changed = true
                         }

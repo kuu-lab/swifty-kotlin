@@ -258,11 +258,6 @@ struct CodegenBackendStableDurationEdgeCasesTests {
         try assertKotlinOutput(source, moduleName: "DurationStableParseIsoString", expected: "93784\nfalse\ntrue\n", allowDefaultStdlibLibrary: false)
     }
 
-    // KSP-471: Duration.Companion.parse/parseIsoString are Kotlin source (Duration.kt)
-    // wrappers around the canThrow __kk_duration_parse/__kk_duration_parseIsoString
-    // bridges. Verify the thrown exception actually propagates out of the Kotlin
-    // source wrapper (not just the native bridge, which RuntimeDurationTests already
-    // covers directly).
     @Test
     func testDurationStableParseAndParseIsoStringThrowOnInvalidInput() throws {
         let source = """

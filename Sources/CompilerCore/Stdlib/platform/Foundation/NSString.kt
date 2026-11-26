@@ -1,6 +1,5 @@
 package platform.Foundation
 
-// Kotlin strings are the value representation behind the Foundation string bridge.
 public typealias NSString = String
 public typealias NSStringEncoding = ULong
 

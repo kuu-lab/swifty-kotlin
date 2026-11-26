@@ -34,8 +34,6 @@ extension CallLowerer {
                 instructions: &instructions
             )
         }
-        // BUG-206: `?:` short-circuits for the same reason `&&`/`||` do — rhs is
-        // the fallback, so it must not run when lhs is already non-null.
         if op == .elvis {
             return lowerShortCircuitElvisExpr(
                 exprID,
@@ -88,7 +86,6 @@ extension CallLowerer {
             if lhsIsNullLiteral != rhsIsNullLiteral,
                isSentinelCollidingPrimitiveExpr(lhsIsNullLiteral ? rhs : lhs)
             {
-                // Evaluate the operand even though the comparison itself folds.
                 _ = driver.lowerExpr(
                     lhsIsNullLiteral ? rhs : lhs,
                     ast: ast,
@@ -305,10 +302,6 @@ extension CallLowerer {
            sema.types.isBuiltinArithmeticOperand(lhsArithmeticType),
            sema.types.isBuiltinArithmeticOperand(rhsArithmeticType)
         {
-            // A primitive upper-bound operator is a scalar operation even though
-            // its source operands retain erased type-parameter types. Let operator
-            // lowering select the floating-point intrinsic and ABI lowering unbox
-            // each operand from that primitive result type.
             instructions.append(.binary(
                 op: genericFloatingPointArithmeticOp,
                 lhs: lhsID,
@@ -609,9 +602,6 @@ extension CallLowerer {
                 false
             }
             if signature.receiverType != nil || isNominalMemberOperator {
-                // For compareTo desugaring, the call result is Int, not Bool.
-                // For != (equals desugaring), the call result is Bool that needs negation.
-                // We allocate a separate temporary for both cases.
                 let callResult: KIRExprID = if isCompareToDesugaring {
                     arena.appendTemporary(type: intType)
                 } else if isEqualsDesugaring {
@@ -619,9 +609,6 @@ extension CallLowerer {
                 } else {
                     result
                 }
-                // String keeps its flat comparison ABI; source-backed
-                // Comparable.compareTo uses its explicit runtime bridge through
-                // the ordinary member-call lowering below.
                 if isCompareToDesugaring {
                     let lhsTypeForCompare = sema.bindings.exprTypes[lhs]
                     let rhsTypeForCompare = sema.bindings.exprTypes[rhs]
@@ -717,11 +704,6 @@ extension CallLowerer {
                     let stubName = interner.intern(
                         (sema.symbols.symbol(callBinding.chosenCallee).map { interner.resolve($0.name) } ?? "unknown") + "$default"
                     )
-                    // KUU-655: an override that inherits its defaults never
-                    // has its own stub; resolve to the base declaration's
-                    // stub instead (see `defaultStubOwnerSymbol`). Operators
-                    // have no `super.`-qualified call syntax, so there is no
-                    // mask "super call" bit to set here.
                     let stubOwner = driver.callSupportLowerer.defaultStubOwnerSymbol(for: callBinding.chosenCallee, sema: sema)
                     let stubSym = driver.callSupportLowerer.defaultStubSymbol(for: stubOwner)
                     instructions.append(.call(symbol: stubSym, callee: stubName, arguments: finalArguments, result: callResult, canThrow: false))
@@ -744,8 +726,6 @@ extension CallLowerer {
                     } else {
                         interner.intern(op.kotlinFunctionName)
                     }
-                    // An open/abstract member operator must dispatch on the
-                    // receiver's runtime type, exactly like `lhs.plus(rhs)`.
                     if !sourceBackedHashSetEquality,
                        let virtualInstruction = tryEmitVirtualDispatch(
                            chosenCallee: callBinding.chosenCallee,
@@ -827,10 +807,6 @@ extension CallLowerer {
             }
         }
         if case .add = op, sema.bindings.exprTypes[exprID] == stringType {
-            // Kotlin String.plus(other: Any?) calls toString() on the RHS
-            // when it is not already a String. Insert a kk_any_to_string
-            // coercion so that __kk_string_concat_flat always receives two string
-            // aggregate values.
             let rhsExprType = sema.bindings.exprTypes[rhs]
             let effectiveRHS: KIRExprID
             if rhsExprType == stringType {
@@ -931,10 +907,6 @@ extension CallLowerer {
         // to return true.  The typed kk_op_d*/kk_op_f* runtime functions use Swift
         // operators that are IEEE-754 compliant.
         switch op {
-        // .notEqual reaches here only with matching floating-point operands
-        // in practice -- a mixed Double/Int `!=` is rejected by real kotlinc
-        // (this compiler currently accepts it too; tracked separately as
-        // BUG-262), so the widening below is a no-op for legal `!=` sources.
         case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual, .notEqual:
             let lhsSourceTypeID = arena.exprType(lhsID) ?? sema.bindings.exprTypes[lhs]
             let rhsSourceTypeID = arena.exprType(rhsID) ?? sema.bindings.exprTypes[rhs]
@@ -1080,9 +1052,6 @@ extension CallLowerer {
         case .multiply:
             kirOp = .multiply
         case .divide:
-            // PEC-NUM-0002: Integer division must throw ArithmeticException("/ by zero") on zero divisor.
-            // Float/Double division falls through to .binary so OperatorLoweringPass emits kk_op_fdiv/ddiv.
-            // Unsigned operands (UInt/ULong/UByte/UShort) already returned via kk_op_udiv above.
             if let bt = boundType, case let .primitive(prim, _) = sema.types.kind(of: bt),
                prim == .float || prim == .double {
                 kirOp = .divide
@@ -1103,9 +1072,6 @@ extension CallLowerer {
         case .notEqual:
             kirOp = .notEqual
         case .identityEqual, .notIdentityEqual:
-            // Always resolved earlier: builtinBinaryRuntimeCallee (kk_op_eq/kk_op_ne)
-            // for ordinary operands, or the canonical string-handle path above for
-            // String operands. Neither falls through to this raw KIRBinaryOp path.
             preconditionFailure("=== / !== must be lowered before reaching the raw KIRBinaryOp path")
         case .lessThan:
             kirOp = .lessThan
@@ -1279,15 +1245,6 @@ extension CallLowerer {
         return result
     }
 
-    /// The previous strict lowering handed both operands to `kk_op_elvis`, which
-    /// evaluated the fallback unconditionally: `x ?: return -1` always
-    /// returned, `x ?: throw e` always threw, and any fallback with side
-    /// effects always ran (BUG-206).
-    ///
-    /// A `String`-typed result keeps the `kk_any_to_string` conversion the
-    /// strict lowering applied to `kk_op_elvis`'s result -- both operands reach
-    /// here as single-word values, while the result is the flat aggregate --
-    /// but now applies it per branch.
     private func lowerShortCircuitElvisExpr(
         _ exprID: ExprID,
         lhs: ExprID,
@@ -1374,14 +1331,6 @@ extension CallLowerer {
         }
     }
 
-    /// BUG-258: widens an integer-typed comparison operand to the raw
-    /// IEEE-754 bit pattern of `toDouble: true ? Double : Float` so it can be
-    /// compared against a genuine floating-point operand by `kk_op_d*`/
-    /// `kk_op_f*` -- both interpret their arguments as that type's bit
-    /// pattern, so an un-widened Int/Long/Short/Byte value would otherwise be
-    /// misread as an unrelated floating-point value. A value that is already
-    /// the target floating-point type (or of unknown type) passes through
-    /// unchanged.
     func widenIntegerOperandToFloatingPoint(
         _ operandID: KIRExprID,
         operandTypeID: TypeID?,
@@ -1396,10 +1345,6 @@ extension CallLowerer {
         let types = sema.types
         let nonNullType = types.makeNonNullable(operandTypeID)
         if isFloatingPoint {
-            // Already floating-point; a Float still needs widening when
-            // compared against a Double (real Kotlin defines
-            // Float.compareTo(Double)), since kk_op_d* reads its arguments
-            // as Double bit patterns.
             guard toDouble, nonNullType == types.floatType else { return operandID }
             let widened = arena.appendTemporary(type: types.doubleType)
             instructions.append(.call(callee: interner.intern("__kk_float_to_double_bits"), arguments: [operandID], result: widened, canThrow: false))
@@ -1411,9 +1356,6 @@ extension CallLowerer {
         } else if nonNullType == types.intType || nonNullType == types.shortType || nonNullType == types.byteType {
             calleeName = interner.intern(toDouble ? "kk_int_to_double_bits" : "kk_int_to_float_bits")
         } else {
-            // Not a recognized integer primitive (e.g. already the other
-            // floating-point width, or a non-numeric type reached via the
-            // `Any`-erasure fallback below) -- leave it unchanged.
             return operandID
         }
         let widened = arena.appendTemporary(type: toDouble ? types.doubleType : types.floatType)

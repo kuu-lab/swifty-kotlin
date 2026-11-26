@@ -1,9 +1,5 @@
-/// Preparation reads only the frozen AST; registering symbols, synthesizing
-/// members and resolving types stay behind the existing module barriers on
-/// the caller thread.
 struct UnresolvedHeader: @unchecked Sendable {
     let declarationID: DeclID
-    // Decl is an immutable value here; its TypeRefIDs still refer to frozen AST.
     let declaration: Decl
 }
 
@@ -28,8 +24,6 @@ struct PreparedFileHeaders: Sendable {
     }
 }
 
-/// Only immutable AST inputs cross the worker boundary. Sema tables, scopes
-/// and the thread-local bundled registration context are deliberately absent.
 private final class HeaderPreparationWork: @unchecked Sendable {
     let files: [ASTFile]
     let arena: ASTArena

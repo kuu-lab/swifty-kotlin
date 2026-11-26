@@ -4,11 +4,6 @@
 import Foundation
 import Testing
 
-/// STDLIB-ARTIFACT-001: shared stdlib artifact (.kklib) is correctly consumed
-/// by a user module. This is a regression test for the `uuid_basic` shared-path
-/// failure where imported globals such as `Uuid.Companion.NIL` were not declared
-/// in the consumer module, causing `kk_array_get_inbounds` to receive a null
-/// array pointer.
 @Suite
 struct StdlibArtifactRegressionTests {
 
@@ -59,7 +54,6 @@ struct StdlibArtifactRegressionTests {
         return artifactPath
     }
 
-    /// KUU-1263: serialized stdlib metadata must not expose removed clock APIs.
     @Test
     func testRemovedSystemTimeFunctionsAreUnresolvedThroughStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -77,7 +71,6 @@ struct StdlibArtifactRegressionTests {
             do {
                 try runSema(ctx)
             } catch {
-                // Inspect the emitted diagnostics rather than the pipeline error alone.
             }
             let sema = try #require(ctx.sema)
             for name in ["getTimeMillis", "getTimeNanos"] {
@@ -90,8 +83,6 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
-    /// KSP-1165: a named companion object must remain an exact nested type when
-    /// the stdlib is consumed through a precompiled artifact.
     @Test
     func testBase64NamedCompanionTypeThroughPrecompiledStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -118,8 +109,6 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
-    /// Devin review: a regular nested object must use its own initializer
-    /// linkage decision, even when its enclosing class has a companion.
     @Test
     func testRegularNestedObjectDoesNotUseParentCompanionInitializerForGlobalLinkage() throws {
         let source = """
@@ -241,11 +230,6 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
-    /// STDLIB-ARTIFACT-005: synthetic singleton objects without backing state
-    /// (e.g. `kotlin.system.System`) do not require a global root slot in the
-    /// consumer. The CallLowerer emits their `symbolRef`, but the backend must
-    /// not declare an external global for an object that has no initializer,
-    /// no external factory, and no fields.
     @Test
     func testSyntheticSingletonObjectSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -276,11 +260,6 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
-    /// STDLIB-ARTIFACT-006: entries of the synthetic `CoroutineStart` enum come
-    /// from the artifact's precomputed synthesis but have no static initializer
-    /// there, so the consumer must not leave their root slots as undefined
-    /// external references (`kk_global_root_slot_kotlinx_coroutines_CoroutineStart_*`).
-    /// Source-backed enum entries keep the strong library definition.
     @Test
     func testSyntheticEnumEntrySharedPathLinks() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -349,11 +328,6 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
-    /// Two metadata-path warnings used to fire on every artifact compile:
-    /// `KSWIFTK-LIB-0004` because serialized `fieldOffsets` referenced
-    /// `backingField` records the layout resolver did not accept, and
-    /// `KSWIFTK-SEMA-0102` because synthesized enum `values` stubs collided
-    /// with source-backed enum extensions (e.g. `RequiresOptIn.Level.values`).
     @Test
     func testStdlibArtifactImportDoesNotEmitLayoutOrStubOverlapWarnings() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -383,11 +357,6 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-2815 hoisted the synthetic `withContext` stub into the artifact, so
-    /// consumers see it as an imported symbol. The launcher block adapter must
-    /// still apply to it; otherwise the block is wrapped in the boxed
-    /// function-value ABI and coroutine lowering fails with
-    /// `KSWIFTK-CORO-0004: withContext block capture arity mismatch.`
     @Test
     func testWithContextBlockThroughPrecompiledStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()

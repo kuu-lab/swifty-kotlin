@@ -5,9 +5,6 @@ struct RuntimeEnumValueDescriptor {
     let classID: Int64
 }
 
-/// Cache key for `GCState.enumIdentityBoxCache`: the enum class's stable
-/// nominal type ID plus the entry ordinal uniquely identify a Kotlin enum
-/// singleton.
 struct RuntimeEnumBoxCacheKey: Hashable {
     let classID: Int64
     let ordinal: Int
@@ -42,10 +39,6 @@ func runtimeEnumIdentityBox(ordinal: Int, name: String?, classID: Int64) -> Int 
     return handle
 }
 
-/// Enum values are stored as ordinals, so their default object hash must mix
-/// both the enum's nominal identity and the entry ordinal instead of exposing
-/// the ordinal as the hash itself. The final adjustment avoids returning the
-/// ordinal even in the unlikely event that the mixed value collides with it.
 func runtimeEnumIdentityHashCode(_ ordinal: Int, _ classID: Int64) -> Int {
     guard ordinal != runtimeNullSentinelInt else { return 0 }
 
@@ -64,20 +57,16 @@ func runtimeEnumIdentityHashCode(_ ordinal: Int, _ classID: Int64) -> Int {
     return Int(hash)
 }
 
-/// Hashes an unboxed enum entry using the same identity key as Any-erased
-/// enum boxes, whose runtime metadata carries the class ID.
 @_cdecl("kk_enum_hash_code")
 public func kk_enum_hash_code(_ ordinal: Int, _ classID: Int) -> Int {
     runtimeEnumIdentityHashCode(ordinal, Int64(classID))
 }
 
-/// Kotlin's `Enum.compareTo` returns the difference between enum ordinals.
 @_cdecl("kk_enum_compareTo")
 public func kk_enum_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     kk_unbox_int(lhsRaw) - kk_unbox_int(rhsRaw)
 }
 
-/// Reads the declared entry name after the concrete enum type is erased.
 /// Erased toString rendering is registered independently, so this metadata
 /// remains the declaration name even when the enum overrides toString.
 @_cdecl("__kk_enum_name")
@@ -102,9 +91,6 @@ public func kk_enum_valueOf_throw(_ nameRaw: Int, _ outThrown: UnsafeMutablePoin
     }
 }
 
-/// Boxes an enum ordinal for storage in an Any-erased `values()`/`entries`
-/// backing array.
-///
 /// Every other enum value (a direct reference like `Direction.NORTH`, or a
 /// `valueOf`/`$enumOrdinalToName` argument) is a raw ordinal Int. An element
 /// read back out of `values()`/`entries` must round-trip through the same
@@ -139,10 +125,6 @@ public func kk_enum_box_ordinal(_ ordinal: Int, _ namePtr: Int, _ classID: Int) 
 /// ClassCastException (KUU-3548).
 private let runtimeEnumArrayNominalTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.Array")
 
-/// Tags a runtime-allocated enum values array as `kotlin.Array` and installs
-/// the reified component descriptor derived from the enum class's stable
-/// nominal type ID, matching the metadata `arrayOf(...)` arrays receive from
-/// `kk_array_tag_type` + `__kk_array_tag_component` at their creation sites.
 /// `classifier` is the encoded type token for the enum class
 /// (`nominalBase | classID << payloadShift`); `0` leaves the component
 /// untagged.
@@ -158,10 +140,6 @@ private func runtimeRegisterEnumValuesArray(_ box: RuntimeArrayBox, classifier: 
     return raw
 }
 
-/// The lowering stage builds an array of enum singleton objects (`RuntimeArrayBox`) and
-/// passes it to this runtime helper together with the declared size and the
-/// enum class's stable nominal type ID.
-/// Returns `RuntimeArrayBox` to match Kotlin JVM's `Array<T>` return type.
 @_cdecl("kk_enum_make_values_array")
 public func kk_enum_make_values_array(_ valuesRaw: Int, _ count: Int, _ classID: Int) -> Int {
     let classifier = classID != 0 ? runtimeNominalTypeToken(Int64(classID)) : 0
@@ -175,8 +153,6 @@ public func kk_enum_make_values_array(_ valuesRaw: Int, _ count: Int, _ classID:
     return runtimeRegisterEnumValuesArray(box, classifier: classifier)
 }
 
-/// Registers boxed enum values for a reified `enumValues<T>()` call whose T is
-/// only available as a runtime token inside a non-inline function.
 @_cdecl("kk_enum_register_values")
 public func kk_enum_register_values(_ typeToken: Int, _ valuesRaw: Int, _ count: Int) -> Int {
     guard let values = runtimeArrayBox(from: valuesRaw) else {
@@ -199,26 +175,19 @@ public func kk_enum_register_values(_ typeToken: Int, _ valuesRaw: Int, _ count:
     return 0
 }
 
-/// Kotlin's enumValues<T>() returns a new array on each call.
 @_cdecl("kk_enum_values_for_token")
 public func kk_enum_values_for_token(_ typeToken: Int) -> Int {
     guard let values = runtimeStorage.withMetadataLock({ $0.enumValuesByTypeToken[Int64(typeToken)] }) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: enumValues received an unregistered enum type token \(typeToken)")
     }
-    // Elements go through the same canonical cache as kk_enum_box_ordinal so
-    // `enumValues<E>()[0] === E.A` observes JVM singleton identity.
     let handles = values.map { value in
         runtimeEnumIdentityBox(ordinal: value.ordinal, name: value.name, classID: value.classID)
     }
     let box = RuntimeArrayBox(length: handles.count)
     box.elements = handles
-    // `typeToken` is the encoded token kk_enum_register_values keyed this
-    // enum under; it doubles as the component classifier for `as Array<E>`.
     return runtimeRegisterEnumValuesArray(box, classifier: typeToken)
 }
 
-/// `entries` returns `EnumEntries<T>` in Kotlin, which extends `List<E>`.
-/// Returns `RuntimeListBox` to match the List-based API.
 @_cdecl("kk_enum_make_entries_list")
 public func kk_enum_make_entries_list(_ valuesRaw: Int, _ count: Int) -> Int {
     guard let values = runtimeArrayBox(from: valuesRaw) else {
@@ -229,10 +198,6 @@ public func kk_enum_make_entries_list(_ valuesRaw: Int, _ count: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: Array(values.elements.prefix(safeCount))))
 }
 
-/// Creates the per-enum cached `EnumEntries` list used by both `T.entries` and
-/// the reified `enumEntries<T>()` intrinsic. The generated array is retained as
-/// the list's backing view, so the source-backed Array overload remains
-/// no-copy while the reified API preserves stable identity.
 @_cdecl("kk_enum_make_entries_list_cached")
 public func kk_enum_make_entries_list_cached(_ valuesRaw: Int, _ count: Int, _ classID: Int) -> Int {
     guard classID != 0 else {

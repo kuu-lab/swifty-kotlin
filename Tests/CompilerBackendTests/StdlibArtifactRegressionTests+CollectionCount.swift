@@ -5,8 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-1926: a Collection receiver must bind Iterable.count rather than
-    /// emitting a bare count symbol, through both bundled stdlib routes.
     @Test(arguments: [false, true])
     func testCollectionCountPredicate(useArtifact: Bool) throws {
         try checkCollectionCount(

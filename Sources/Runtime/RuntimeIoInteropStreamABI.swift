@@ -16,7 +16,6 @@ public func __kk_input_stream_read_range(
 ) -> Int {
     runtimeThrowingBridge(outThrown, defaultOnFailure: -1) {
         if let callback = runtimeKotlinInputStream(from: stream) {
-            // Kotlin validates the original arguments after checking Source.closed.
             return callback.readRange(bytes, offset, count, outThrown)
         }
         if let pointer = UnsafeMutableRawPointer(bitPattern: stream),
@@ -36,8 +35,6 @@ public func __kk_input_stream_read_range(
         }
         if count == 0 { return 0 }
         if let chunked = input as? RuntimeChunkedInputStream {
-            // A single underlying read: the caller receives whatever the stream
-            // currently yields, matching `InputStream.read(byte[])` semantics.
             let chunk = chunked.readChunk(count)
             for (index, value) in chunk.enumerated() {
                 let byte = Int(Int8(truncatingIfNeeded: value))
@@ -128,7 +125,6 @@ public func __kk_output_stream_close_throwing(_ stream: Int, _ outThrown: Unsafe
     }
 }
 
-// Source bindings use a throwing channel so callback-backed stream close errors survive.
 @_cdecl("__kk_buffered_writer_close_throwing")
 public func __kk_buffered_writer_close_throwing(_ writer: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeThrowingBridge(outThrown) {
@@ -151,7 +147,6 @@ public func __kk_buffered_writer_close_throwing(_ writer: Int, _ outThrown: Unsa
     }
 }
 
-// SequenceInputStream shares the InputStream available/close paths, so these only forward.
 @_cdecl("__kk_sequence_input_stream_available_throwing")
 public func __kk_sequence_input_stream_available_throwing(_ stream: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     __kk_input_stream_available_throwing(stream, outThrown)
