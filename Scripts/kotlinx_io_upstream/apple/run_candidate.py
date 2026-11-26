@@ -147,6 +147,14 @@ def testing_counts(log, expected_methods):
             'duration_seconds':float(elapsed),'successful_methods_and_cases':methods,
             'Swift_Testing_final_summary':summaries[0]}
 
+def stage_command(target, suite, expected_methods):
+    # The method alternation keeps swift_test.sh from inferring the test product,
+    # so name it: otherwise swiftbuild builds and launches every test product.
+    methods_pattern='|'.join(re.escape(method) for method in expected_methods)
+    pattern=(f'^{re.escape(target)}\\.{re.escape(suite)}/'
+             f'(?:{methods_pattern})(?:\\(|$)')
+    return ['bash','Scripts/swift_test.sh','--no-parallel','-j','4','--test-product',target,'--filter',pattern]
+
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--receipts',type=Path,required=True)
     args=parser.parse_args()
@@ -189,10 +197,7 @@ def main():
         for name,target,suite,limit,expected_methods in stages:
             terminal['current_stage']=name
             (output/'terminal.json').write_text(json.dumps(terminal,indent=2)+'\n')
-            methods_pattern='|'.join(re.escape(method) for method in expected_methods)
-            pattern=(f'^{re.escape(target)}\\.{re.escape(suite)}/'
-                     f'(?:{methods_pattern})(?:\\(|$)')
-            execute(['bash','Scripts/swift_test.sh','--no-parallel','-j','4','--filter',pattern],limit,output/name,root)
+            execute(stage_command(target,suite,expected_methods),limit,output/name,root)
             log=(output/(name+'.stdout')).read_text(errors='replace')+(output/(name+'.stderr')).read_text(errors='replace')
             if suite not in log:raise RuntimeError(f'{name}: selected suite missing')
             counts=testing_counts(log,expected_methods)

@@ -73,6 +73,7 @@ struct NativeEmitter {
     let reflectionMetadataSymbolPrefix: String?
     let linkOnceODRSymbols: Set<SymbolID>
     let parallelJobs: Int
+    let maxInstructionsPerObjectPartition: Int
 
     init(
         target: TargetTriple,
@@ -91,6 +92,7 @@ struct NativeEmitter {
         reflectionMetadataSymbolPrefix: String? = nil,
         linkOnceODRSymbols: Set<SymbolID> = [],
         parallelJobs: Int = 1,
+        maxInstructionsPerObjectPartition: Int = CompilerOptions.defaultCodegenPartitionInstructions,
         phaseTimer: PhaseTimer? = nil
     ) {
         self.phaseTimer = phaseTimer
@@ -131,6 +133,7 @@ struct NativeEmitter {
         self.reflectionMetadataSymbolPrefix = reflectionMetadataSymbolPrefix
         self.linkOnceODRSymbols = linkOnceODRSymbols
         self.parallelJobs = parallelJobs
+        self.maxInstructionsPerObjectPartition = maxInstructionsPerObjectPartition
     }
 
     private func collectRuntimeCallbackRawABISymbols() -> Set<SymbolID> {
@@ -537,11 +540,14 @@ struct NativeEmitter {
         }
     }
 
-    func configuredTargetMachine(for llvmModule: LLVMCAPIBindings.LLVMModuleRef) throws -> LLVMCAPIBindings.LLVMTargetMachineRef {
+    func configuredTargetMachine(
+        for llvmModule: LLVMCAPIBindings.LLVMModuleRef,
+        optLevel moduleOptLevel: OptimizationLevel? = nil
+    ) throws -> LLVMCAPIBindings.LLVMTargetMachineRef {
         let triple = targetTripleString()
         bindings.setTarget(llvmModule, triple: triple)
 
-        guard let targetMachine = bindings.createTargetMachine(triple: triple, optLevel: optLevel) else {
+        guard let targetMachine = bindings.createTargetMachine(triple: triple, optLevel: moduleOptLevel ?? optLevel) else {
             throw LLVMBackendError.nativeEmissionFailed(
                 "failed to create LLVM target machine for '\(triple)' (the loaded LLVM may lack this backend)"
             )
