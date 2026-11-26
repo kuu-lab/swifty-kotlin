@@ -14,4 +14,12 @@ fun main() {
     println('\u00A0'.isWhitespace())
     println('x'.isWhitespace())
     println('a'.uppercaseChar())
+    println('\uD7FF'.isHighSurrogate())
+    println('\uD800'.isHighSurrogate())
+    println('\uDBFF'.isHighSurrogate())
+    println('\uDC00'.isHighSurrogate())
+    println('\uDBFF'.isLowSurrogate())
+    println('\uDC00'.isLowSurrogate())
+    println('\uDFFF'.isLowSurrogate())
+    println('\uE000'.isLowSurrogate())
 }

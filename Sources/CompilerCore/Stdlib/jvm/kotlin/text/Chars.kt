@@ -15,6 +15,10 @@ public inline operator fun Char.inc(): Char = (this.code + 1).toChar()
 @kotlin.internal.InlineOnly
 public inline operator fun Char.dec(): Char = (this.code - 1).toChar()
 
+public fun Char.isHighSurrogate(): Boolean = this >= '\uD800' && this <= '\uDBFF'
+
+public fun Char.isLowSurrogate(): Boolean = this >= '\uDC00' && this <= '\uDFFF'
+
 public fun Char.isDigit(): Boolean = __jvmIsDigit(this)
 
 public fun Char.isLowerCase(): Boolean = __jvmIsLowerCase(this)
