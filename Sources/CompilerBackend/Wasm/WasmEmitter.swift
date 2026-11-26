@@ -1370,12 +1370,20 @@ public struct WasmEmitter {
             )
             ctx.functionIndexBySymbol[function.symbol] = index
             let name = interner.resolve(function.name)
-            let key = "\(name)/\(function.params.count)"
-            if aritySeen.contains(key) {
-                ambiguous.insert(key)
-            } else {
-                aritySeen.insert(key)
-                ctx.functionIndexByNameArity[key] = index
+            var lookupKeys = ["\(name)/\(function.params.count)"]
+            if let linkName = symbols?.externalLinkNameIfKnown(for: function.symbol),
+               linkName.hasPrefix("kk_fn_"),
+               linkName != name
+            {
+                lookupKeys.append("\(linkName)/\(function.params.count)")
+            }
+            for key in lookupKeys {
+                if aritySeen.contains(key) {
+                    ambiguous.insert(key)
+                } else {
+                    aritySeen.insert(key)
+                    ctx.functionIndexByNameArity[key] = index
+                }
             }
             var paramLocals: [Int32: Int] = [:]
             for (index, param) in function.params.enumerated() {
