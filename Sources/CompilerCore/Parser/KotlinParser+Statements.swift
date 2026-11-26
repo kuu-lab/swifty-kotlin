@@ -468,11 +468,6 @@ extension KotlinParser {
                 if endsWithPendingInfixOperator(children) {
                     continue
                 }
-                if consumedTokensEndWithContextClause(children),
-                   isAnonymousFunctionExpressionStart()
-                {
-                    continue
-                }
                 break
             }
         }
