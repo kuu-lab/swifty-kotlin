@@ -2292,6 +2292,7 @@ final class JVMClasspathIndex {
             let needsIteratorOperator = method.kotlinFunction?.isOperator != true
                 && method.sourceName == "iterator" && method.sourceParameters.isEmpty
                 && method.result.referenceName == "java/util/Iterator" && inheritsJavaType(info, "java/lang/Iterable")
+                && !(usesKotlinMetadata && kotlinFunction(method)?.isOperator == true)
             if (needsGetOperator && !kotlinDeclaresOperator) || needsIteratorOperator {
                 source += "operator "
             }
