@@ -229,7 +229,7 @@ struct ASTContextFunctionTypeTests {
     func testContextFunctionTypeQualifiedReceiverPreservesOuterTypeArguments() throws {
         let source = """
         package demo
-        fun build(block: context(C) Outer<Int>.Inner.() -> Unit) {}
+        fun build(block: context(C) Outer<Int>.Inner<String>.() -> Unit) {}
         """
         let (ast, ctx) = try buildASTModule(from: source)
         let function = try #require(firstFunDecl(named: "build", in: ast, interner: ctx.interner))
@@ -242,7 +242,7 @@ struct ASTContextFunctionTypeTests {
         }
 
         #expect(path.map { ctx.interner.resolve($0) } == ["Outer", "Inner"])
-        #expect(args.count == 1)
+        #expect(args.map { renderTypeArgRef($0, in: ast, interner: ctx.interner) } == ["Int", "String"])
     }
 
     @Test
