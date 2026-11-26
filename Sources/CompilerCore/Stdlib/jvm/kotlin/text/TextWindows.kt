@@ -46,12 +46,12 @@ fun <R> CharSequence.windowedSequence(size: Int, step: Int = 1, partialWindows: 
 
             override fun next(): R {
                 if (!hasWindow()) throw NoSuchElementException()
-                val end = start + size
+                val windowStart = start
+                start = if (step > finalStartExclusive - windowStart) finalStartExclusive else windowStart + step
+                val end = windowStart + size
                 val length = source.length
                 val coercedEnd = if (end < 0 || end > length) length else end
-                val result = transform(source.subSequence(start, coercedEnd))
-                start = if (step > finalStartExclusive - start) finalStartExclusive else start + step
-                return result
+                return transform(source.subSequence(windowStart, coercedEnd))
             }
         }
     }
