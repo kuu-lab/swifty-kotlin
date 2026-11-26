@@ -7,6 +7,7 @@ import kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
 import kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn
 import kotlin.coroutines.resume
 import kotlin.coroutines.startCoroutine
+import kotlin.reflect.KProperty0
 
 var stored: Continuation<Int>? = null
 
@@ -40,4 +41,7 @@ fun main() {
         }
     })
     println(immediate)
+
+    val markerReference = ::COROUTINE_SUSPENDED
+    println(markerReference is KProperty0<*>)
 }

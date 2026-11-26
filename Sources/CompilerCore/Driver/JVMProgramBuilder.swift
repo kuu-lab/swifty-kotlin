@@ -803,16 +803,6 @@ final class JVMFunctionBuilder {
 
     func rawExpression(_ id: ExprID, discarded: Bool = false) throws -> JVMValue? {
         if program.sema.bindings.stdlibSpecialCallKinds[id] == .contract { return nil }
-        let symbols = program.sema.symbols
-        if let selected = program.sema.bindings.identifierSymbol(for: id) ?? program.sema.bindings.callBinding(for: id)?.chosenCallee {
-            let property = symbols.propertySymbol(forAccessor: selected) ?? selected
-            if symbols.symbol(property)?.fqName == program.knownNames.kotlinCoroutinesIntrinsicsCoroutineSuspendedFQName {
-                let type: JVMValueType = .reference("java/lang/Object", nullable: true), result = try value(type)
-                let getter = JVMForeignMethod(owner: "kotlin/coroutines/intrinsics/IntrinsicsKt", name: "getCOROUTINE_SUSPENDED", descriptor: "()Ljava/lang/Object;", parameters: [], result: type, isStatic: true, isInterface: false, isAbstract: false)
-                instructions.append(.foreignCall(getter, receiver: nil, arguments: [], result: result))
-                return try convert(result, to: program.expressionType(id))
-            }
-        }
         guard let expr = arena.expr(id) else { throw fail("Missing JVM expression.", id) }
         switch expr {
         case let .inExpr(lhs, rhs, _), let .notInExpr(lhs, rhs, _):
