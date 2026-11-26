@@ -69,6 +69,15 @@ extension JVMFunctionBuilder {
         }
     }
 
+    func isStdlibUnsignedArrayViewConversion(_ callee: SymbolID, args: [CallArgument]) -> Bool {
+        guard args.isEmpty, let symbol = program.sema.symbols.symbol(callee),
+              symbol.declSite.map({ context.sourceManager.origin(of: $0.start.file) != .user }) ?? true
+        else { return false }
+        let parts = symbol.fqName.map { context.interner.resolve($0) }
+        guard parts.count == 3, parts[0] == "kotlin", parts[1] == "collections" else { return false }
+        return ["asUByteArray", "asUShortArray", "asUIntArray", "asULongArray", "asByteArray", "asShortArray", "asIntArray", "asLongArray"].contains(parts[2])
+    }
+
     func memberExpression(_ id: ExprID, receiver: ExprID, name: InternedString, typeArgs: [TypeRefID], args: [CallArgument]) throws -> JVMValue? {
         if let argument = samConstructorArgument(args, id: id) { return try expression(argument) }
         if context.interner.resolve(name) == "isInitialized", args.isEmpty, let result = try lateinitInitialized(receiver) { return result }
@@ -81,6 +90,15 @@ extension JVMFunctionBuilder {
            let isFloat = stdlibFromBitsIsFloat(callee, args: args),
            let emitted = try emitFromBits(args: args, isFloat: isFloat, receiver: receiver, id: id) {
             return emitted
+        }
+        if let callee = program.sema.bindings.callBinding(for: id)?.chosenCallee,
+           isStdlibUnsignedArrayViewConversion(callee, args: args) {
+            let source = try requireValue(receiver)
+            let resultType = try program.expressionType(id)
+            guard source.type.descriptor == resultType.descriptor else {
+                throw fail("JVM unsigned array view conversion requires matching physical types.", id)
+            }
+            return try convert(source, to: resultType)
         }
         if let symbol = program.sema.bindings.callBinding(for: id)?.chosenCallee,
            let result = try resultCompanionCall(symbol, args: args, id: id) { return result.value }
