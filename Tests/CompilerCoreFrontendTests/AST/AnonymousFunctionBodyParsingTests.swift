@@ -86,6 +86,21 @@ struct AnonymousFunctionBodyParsingTests {
     }
 
     @Test
+    func malformedContextPrefixInUnbracedIfBranchIsRejected() throws {
+        let (_, context) = try buildASTModule(from: """
+        fun context(x: Int) {}
+        fun main() {
+            if (true) context(42)
+            fun(y: String): String = y
+        }
+        """, includeStdlib: false)
+
+        #expect(context.diagnostics.diagnostics.contains {
+            $0.code == "KSWIFTK-PARSE-0030"
+        }, "\(context.diagnostics.diagnostics)")
+    }
+
+    @Test
     func newlineBetweenContextPrefixAndAnonymousFunctionParsesInTopLevelInitializer() throws {
         let (_, context) = try buildASTModule(from: """
         @file:OptIn(kotlin.ExperimentalContextParameters::class)

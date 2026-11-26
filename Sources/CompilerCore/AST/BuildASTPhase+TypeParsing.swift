@@ -332,6 +332,12 @@ extension BuildASTPhase {
                     "Expected type after ':'.",
                     range: following?.range ?? nameColonRange
                 )
+            } else if !isContextParameter {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0030",
+                    "context parameters must be named. Use '_' to declare an anonymous context parameter.",
+                    range: typeTokens.first?.range ?? tokens.first?.range
+                )
             }
             return nil
         }
