@@ -108,6 +108,47 @@ struct WasmLibraryBodyImportTests {
     }
 
     @Test
+    func superCallDependencyShipsDespiteOpenModality() throws {
+        let libraryPath = try compileWasmLibrary(
+            moduleName: "SuperLib",
+            source: """
+            package test
+
+            open class Base {
+                open fun value(): String = "B"
+            }
+
+            class Child : Base() {
+                override fun value(): String = "C"
+                fun readSuper(): String = super.value()
+            }
+            """
+        )
+        defer { try? FileManager.default.removeItem(atPath: libraryPath) }
+
+        let metadata = try Data(contentsOf: URL(fileURLWithPath: libraryPath + "/metadata.bin"))
+        let valueRecord = try #require(MetadataDecoder().decode(metadata).first {
+            $0.kind == .function && $0.fqName == "test.Base.value"
+        })
+        let linkName = try #require(valueRecord.externalLinkName)
+        let kirPath = libraryPath + "/inline-kir/" + MetadataEncoder.inlineKIRFileName(for: linkName)
+        #expect(FileManager.default.fileExists(atPath: kirPath))
+
+        let wasm = try compileWasmConsumer(
+            moduleName: "SuperConsumer",
+            source: """
+            import test.Child
+
+            fun main() {
+                val x = Child().readSuper()
+            }
+            """,
+            libraryPath: libraryPath
+        )
+        #expect(wasm.range(of: Data("$stub_value".utf8)) == nil)
+    }
+
+    @Test
     func sameNamedPrivateMemberBodiesRemainDistinct() throws {
         let libraryPath = try compileWasmLibrary(
             moduleName: "CollisionLib",

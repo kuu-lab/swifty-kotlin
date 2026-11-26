@@ -393,6 +393,7 @@ public final class CodegenPhase: CompilerPhase {
         }
 
         var initBodyFunctions: [KIRFunction] = []
+        var standaloneBodyFunctions: [KIRFunction] = []
         var serializedSymbols: Set<SymbolID> = []
         for decl in module.arena.declarations {
             guard case let .function(function) = decl else {
@@ -438,13 +439,16 @@ public final class CodegenPhase: CompilerPhase {
             if isInitBody {
                 initBodyFunctions.append(function)
             }
+            if isStandaloneBody {
+                standaloneBodyFunctions.append(function)
+            }
         }
 
         // On wasm the artifact's .o is never linked, so functions that
-        // init-family bodies call (object constructors, top-level `val`
-        // factories) must ship too or their side effects silently drop at
-        // materialization. Serialize the transitive closure keyed by the
-        // callee's deterministic link name.
+        // init-family or standalone bodies call (object constructors, direct
+        // super implementations, top-level `val` factories) must ship too or
+        // their side effects silently drop at materialization. Serialize the
+        // transitive closure keyed by the callee's deterministic link name.
         if ctx.options.target.isWasm {
             var functionsBySymbol: [SymbolID: KIRFunction] = [:]
             for decl in module.arena.declarations {
@@ -453,7 +457,7 @@ public final class CodegenPhase: CompilerPhase {
                 }
                 functionsBySymbol[function.symbol] = function
             }
-            var worklist = initBodyFunctions
+            var worklist = initBodyFunctions + standaloneBodyFunctions
             var visited: Set<SymbolID> = []
             while let function = worklist.popLast() {
                 guard visited.insert(function.symbol).inserted else {
@@ -463,11 +467,16 @@ public final class CodegenPhase: CompilerPhase {
                     ?? module.inlineBodiesBeforeCoroutineLowering[function.symbol]
                     ?? function.body
                 for instruction in body {
-                    guard let target = Self.calledFunctionSymbol(instruction),
-                          let targetFunction = functionsBySymbol[target],
-                          Self.isTransitiveWasmInitDependency(target, symbols: sema.symbols) else {
+                    guard let call = Self.calledFunctionSymbol(instruction),
+                          let targetFunction = functionsBySymbol[call.symbol],
+                          Self.isTransitiveWasmBodyDependency(
+                              call.symbol,
+                              symbols: sema.symbols,
+                              isDirectCall: call.isDirectCall
+                          ) else {
                         continue
                     }
+                    let target = call.symbol
                     if !serializedSymbols.contains(target),
                        let linkName = functionLinkNamesBySymbol[target]
                            ?? sema.symbols.externalLinkName(for: target),
@@ -500,16 +509,22 @@ public final class CodegenPhase: CompilerPhase {
         return !parentInfo.fqName.elementsEqual(info.fqName.dropLast())
     }
 
-    // Constructors and synthetic init factories have no vtable helper surface,
-    // but virtual members do: shipping one through the init dependency closure
-    // would let a materialized body displace the member thunk in consumer
-    // vtables.
-    private static func isTransitiveWasmInitDependency(_ symbol: SymbolID, symbols: SymbolTable) -> Bool {
+    // Direct calls, including super calls, are statically bound and can use
+    // the ordinary receiver ABI. Virtual dispatch stays on the vtable/itable
+    // helper surface so a materialized body cannot displace a member thunk.
+    private static func isTransitiveWasmBodyDependency(
+        _ symbol: SymbolID,
+        symbols: SymbolTable,
+        isDirectCall: Bool
+    ) -> Bool {
         guard let info = symbols.symbol(symbol) else {
             return true
         }
         guard info.kind == .function else {
             return true
+        }
+        if isDirectCall {
+            return !info.flags.contains(.memberExtension)
         }
         return isMaterializableWasmFunction(symbol, symbols: symbols)
     }
@@ -537,12 +552,18 @@ public final class CodegenPhase: CompilerPhase {
         return true
     }
 
-    private static func calledFunctionSymbol(_ instruction: KIRInstruction) -> SymbolID? {
+    private static func calledFunctionSymbol(
+        _ instruction: KIRInstruction
+    ) -> (symbol: SymbolID, isDirectCall: Bool)? {
         switch instruction {
-        case let .call(symbol, _, _, _, _, _, _, _), let .virtualCall(symbol, _, _, _, _, _, _, _):
-            symbol
+        case let .call(symbol, _, _, _, _, _, _, _):
+            guard let symbol else { return nil }
+            return (symbol, true)
+        case let .virtualCall(symbol, _, _, _, _, _, _, _):
+            guard let symbol else { return nil }
+            return (symbol, false)
         default:
-            nil
+            return nil
         }
     }
 
