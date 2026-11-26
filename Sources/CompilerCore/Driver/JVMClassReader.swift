@@ -916,10 +916,12 @@ struct JVMClassReader {
                 var getter = methods.first(where: {
                     !$0.isProtected && $0.name == property.getterName && $0.descriptor == property.getterDescriptor && $0.result != .unit
                 })
-                let physicalConstant = property.fieldName.flatMap { fieldName in
+                let physicalField = property.fieldName.flatMap { fieldName in
                     fields.first { $0.name == fieldName && $0.descriptor == property.fieldDescriptor }
-                }?.constantValue != nil
-                if getter == nil, !physicalConstant, property.fieldName != nil, let fieldDescriptor = property.fieldDescriptor,
+                }
+                let physicalConstant = physicalField?.constantValue != nil
+                let isExposedField = physicalField?.isPublic ?? true
+                if getter == nil, !physicalConstant, isExposedField, property.fieldName != nil, let fieldDescriptor = property.fieldDescriptor,
                    let result = try? JVMDescriptor.parse("()" + fieldDescriptor).1 {
                     // @JvmField properties have no accessor method, but their
                     // metadata still carries the Kotlin property and type.

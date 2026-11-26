@@ -445,6 +445,11 @@ extension JVMBackendTests {
             val y: Int
                 get() = 1
         }
+        open class ProtectedBase {
+            protected val protectedValue: String? = null
+            val y: Int
+                get() = 1
+        }
         object Factory {
             fun makeC(): C = C()
         }
@@ -463,6 +468,13 @@ extension JVMBackendTests {
             try library.write(to: root.appendingPathComponent("lib.kt"), atomically: true, encoding: .utf8)
             _ = try jvmTool("kotlinc", ["-nowarn", "lib.kt", "-d", "lib.jar"], root: root)
             let libraryArtifact = root.appendingPathComponent("lib.jar").path
+            let archive = try ZipArchive(data: Data(contentsOf: root.appendingPathComponent("lib.jar")))
+            let publicEntry = try #require(archive.entries.first { $0.name == "C.class" })
+            var publicReader = JVMClassReader(bytes: Array(try archive.contents(of: publicEntry)))
+            #expect(try publicReader.read().kotlinMemberProperties["x"]?.getter.isAccessorlessField == true)
+            let protectedEntry = try #require(archive.entries.first { $0.name == "ProtectedBase.class" })
+            var protectedReader = JVMClassReader(bytes: Array(try archive.contents(of: protectedEntry)))
+            #expect(try protectedReader.read().kotlinMemberProperties["protectedValue"] == nil)
             let compiled = try compile(consumer, root: root, mode: .jvmJar, classpath: [libraryArtifact])
             try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
             let artifact = root.appendingPathComponent("hello.jar").path
