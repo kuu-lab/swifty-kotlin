@@ -96,7 +96,6 @@ struct ExecutableArgumentsBackendTests {
         do { result = try CommandRunner.run(executable: executable, arguments: args, timeout: 10) }
         catch let CommandRunnerError.nonZeroExit(failed) { result = failed }
         catch {
-            // CommandRunner does not expose partial streams on launch/timeout errors.
             try Data(String(describing: error).utf8).write(to: directory.appendingPathComponent(label + ".error.txt"))
             throw error
         }
@@ -155,8 +154,6 @@ struct ExecutableArgumentsBackendTests {
         completed = true
     }
 
-    // The fixture and expected bytes come from the pinned Kotlin 2.3.10 JVM
-    // argv oracle. Each cell compiles once and runs empty and six-argument cases.
     @Test(arguments: [false, true], [0, 2])
     func argumentsMatchFixedJVMOracleAcrossSourceLibraryO0O2(library: Bool, optimization: Int) throws {
         let level = try #require(OptimizationLevel(rawValue: optimization))
@@ -192,8 +189,6 @@ struct ExecutableArgumentsBackendTests {
         }
     }
 
-    // These two cells exercise the selected args entry's startup guard. The
-    // existing noargs ModuleStartup regression covers other-main calls.
     @Test(arguments: [false, true])
     func argumentsEntryReentryDoesNotRepeatInitializers(library: Bool) throws {
         try withExecutable(source: fixture("MainArgsInitializationControls.kt"), library: library, level: .O2) { output in

@@ -2,10 +2,6 @@ package kotlin.internal
 
 import kotlin.comparisons.minOf
 
-// Shared stable merge sort. Runs in O(n log n) instead of the previous
-// O(n^2) insertion sorts; elements that compare equal under [comparator]
-// keep their original relative order, matching the Kotlin `sorted*` contract.
-
 internal fun <T> MutableList<T>.mergeSortWith(comparator: Comparator<in T>) {
     val n = size
     if (n < 2) return

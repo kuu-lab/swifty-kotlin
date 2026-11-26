@@ -4,10 +4,6 @@ import Foundation
 #if canImport(Testing)
 import Testing
 
-// DEBT-KIR-005: `for (x in array)` silently never executed the loop body
-// because arrays have no real `iterator()` member for Sema to bind, so
-// lowering fell through to the range-iterator intrinsics and misread the
-// array object as a range (hasNext() always false).
 @Suite
 struct CodegenBackendArrayForLoopIterationTests {
 

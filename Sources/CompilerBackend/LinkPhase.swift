@@ -23,9 +23,6 @@ final class LinkPhase: CompilerPhase {
     }
     """
 
-    private let stubLock = NSLock()
-    private var stubDirectory: URL?
-
     private let session: LLVMBackendSession?
 
     init(session: LLVMBackendSession? = nil) { self.session = session }
@@ -199,26 +196,16 @@ final class LinkPhase: CompilerPhase {
             return nil
         }
 
-        stubLock.lock()
-        defer { stubLock.unlock() }
-
-        let stubDirectory = try secureStubDirectory()
+        let stubDirectory = try makeSecureStubDirectory()
 
         let targetKey = CodegenRuntimeSupport.stableFNV1a64Hex(CodegenRuntimeSupport.targetTripleString(target))
         let stubName = "runtime-autolink-\(targetKey).swift"
         let stubURL = stubDirectory.appendingPathComponent(stubName)
-        let currentContents = try? String(contentsOf: stubURL, encoding: .utf8)
-        if currentContents != Self.linuxAutolinkStubContents {
-            try Self.linuxAutolinkStubContents.write(to: stubURL, atomically: true, encoding: .utf8)
-        }
+        try Self.linuxAutolinkStubContents.write(to: stubURL, atomically: true, encoding: .utf8)
         return stubURL.path
     }
 
-    private func secureStubDirectory() throws -> URL {
-        if let cached = stubDirectory {
-            return cached
-        }
-
+    private func makeSecureStubDirectory() throws -> URL {
         let uid = getuid()
         let pid = getpid()
         let uuid = UUID().uuidString
@@ -243,7 +230,6 @@ final class LinkPhase: CompilerPhase {
             throw LinkPhaseStubError.insecurePath(path, "group/other permissions are not allowed")
         }
 
-        self.stubDirectory = stubDirectory
         return stubDirectory
     }
 

@@ -9,9 +9,6 @@ package kotlin
 
 import kotlin.reflect.KClass
 
-/**
- * If a declaration is annotated with [OptIn], its usages are **not** required to opt in to that API.
- */
 @kotlin.annotation.Target(
     AnnotationTarget.CLASS,
     AnnotationTarget.PROPERTY,

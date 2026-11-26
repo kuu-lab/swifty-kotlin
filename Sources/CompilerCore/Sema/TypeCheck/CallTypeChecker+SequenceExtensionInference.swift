@@ -1,8 +1,4 @@
 extension CallTypeChecker {
-    /// SequenceScope is contravariant: calling a SequenceScope<X> extension
-    /// on the builder receiver requires X <: T, just like yield(X). Use the
-    /// selected call's specialized receiver, so rejected overloads contribute
-    /// no bounds and generic extensions retain their inferred arguments.
     func sequenceBuilderExtensionElementTypes(
         lambdaExprID: ExprID,
         ctx: TypeInferenceContext
@@ -24,9 +20,6 @@ extension CallTypeChecker {
             let suppliedByBuilder: Bool
             switch ctx.ast.arena.expr(id) {
             case .call:
-                // The active tower entry deliberately has no capture symbol.
-                // Inherit it through ordinary lambdas, but replace it when a
-                // nested lambda introduces its own receiver.
                 let outerReceiver = sema.symbols.memberExtensionOwnerSymbol(for: binding.chosenCallee) == nil
                     ? sema.bindings.implicitReceiverOuterReceiver(for: id) : nil
                 suppliedByBuilder = (sema.bindings.implicitExtensionReceiver(for: id)

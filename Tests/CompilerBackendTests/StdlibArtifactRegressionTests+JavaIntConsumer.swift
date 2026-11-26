@@ -7,7 +7,6 @@ import Testing
 extension StdlibArtifactRegressionTests {
     @Test
     func testJavaIntConsumerFacadeThroughFreshStdlibArtifactAtO0AndO2() throws {
-        // This regression is compile-only; callback runtime behavior is not exercised here.
         let artifact = try Self.buildStdlibArtifact()
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)

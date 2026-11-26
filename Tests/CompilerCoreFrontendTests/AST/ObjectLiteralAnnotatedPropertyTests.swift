@@ -4,12 +4,6 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-/// Annotated properties in anonymous object bodies must survive the
-/// object-literal member parser as ordinary property declarations.
-///
-/// See `Scripts/diff_cases/annotated_object_literal_property.kt` and the pinned
-/// Kotlin test `AnnotatedLocalObjectProperty.kt` at commit
-/// `679366a83f99851b42f64795f10ed803ff011c73`.
 @Suite
 struct ObjectLiteralAnnotatedPropertyTests {
     private func objectLiteralProperties(_ source: String) throws -> [(String, PropertyDecl)] {

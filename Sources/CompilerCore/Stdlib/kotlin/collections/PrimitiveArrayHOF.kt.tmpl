@@ -1,9 +1,3 @@
-// Primitive-array HOF skeletons: one body stamped once per element type (the
-// format is documented on BundledStdlibTemplate). The outputs were originally
-// byte-identical to the hand-written PrimitiveArrayHOF*.kt files they replaced,
-// drift included, so declaration order and SymbolIDs did not move. Remaining
-// drift is marked with //@ note lines; normalizing it is a behavior change and
-// belongs in a separate change with diff cases.
 //@ file PrimitiveArrayHOF Int Long
 //@ file PrimitiveArrayHOF+ByteShort Byte Short
 //@ file PrimitiveArrayHOF+DoubleFloat Double Float
@@ -12,10 +6,6 @@
 //@ file PrimitiveArrayHOF+UIntULong UInt ULong
 //@ header
 package kotlin.collections
-
-// The generated-looking repetition mirrors Kotlin's specialized primitive-array API
-// and keeps element values typed at the source boundary instead of passing raw words
-// through the former kk_array_* runtime HOF bridges.
 
 //@ body
 //@ note The unsigned arrays carry extra accessors ahead of the shared HOFs.

@@ -3,10 +3,6 @@ import Foundation
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// KUU-4022: `typeOf` on a reified type parameter must keep the
-    /// substituted type's arguments — the hidden reified slot carries the
-    /// full KType, not just the erased nominal token — so KType equality is
-    /// structural for inline substitutions exactly as on the JVM.
     @Test func kuu4022ReifiedTypeOfKeepsTypeArgumentsForEquality() throws {
         try compileAndRunKotlin(
             """
@@ -57,9 +53,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-4022: the reified-KType slot also flows through lambda captures
-    /// and still serves `arrayOfNulls<T>`'s component descriptor, so the
-    /// erased-allocation metadata path is preserved end to end.
     @Test func kuu4022ReifiedKTypeSurvivesLambdaCaptureAndArrayAllocation() throws {
         try compileAndRunKotlin(
             """

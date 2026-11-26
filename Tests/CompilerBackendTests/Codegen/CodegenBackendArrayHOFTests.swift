@@ -115,17 +115,6 @@ struct CodegenBackendArrayHOFTests {
         try assertKotlinOutput(source, moduleName: "ArrayFlatMap", expected: "[1, 10, 2, 20, 3, 30]\n")
     }
 
-    // MARK: - Array HOF gap fix (mapIndexed/filterIndexed/mapNotNull/filterNot/filterNotNull)
-    //
-    // These previously failed Sema member resolution outright with
-    // "Unresolved member function" on Array receivers, despite the identically
-    // named List members already working. See
-    // CallTypeChecker+ArrayMemberFallback.swift and
-    // CallLowerer+UnresolvedMemberCalls.swift (the Lowering-side
-    // CollectionLiteralLoweringPass+VirtualCallRewrite+Array.swift this
-    // comment used to also cite was deleted by RF-LOWER-CALL-013 as dead
-    // code: Array member calls never reach lowering as `.virtualCall`).
-
     @Test func testCodegenArrayMapIndexedComputesIndexedTransform() throws {
         let source = """
         fun main() {

@@ -135,7 +135,7 @@ public final class IncrementalCompilationCache {
 
         // Refuse a cache whose on-disk tree contains an intermediate symlink
         // hop (KUU-806), even when the leaf itself looks regular to lstat.
-        guard CacheSecurity.openSafeDirectory(at: cachePath, allowCreate: false) != nil else {
+        guard CacheSecurity.isSafeDirectory(at: cachePath) else {
             return
         }
 
@@ -323,7 +323,7 @@ public final class IncrementalCompilationCache {
         guard previousBuildConfigurationHash == buildHash else {
             return nil
         }
-        guard CacheSecurity.openSafeDirectory(at: cachePath, allowCreate: false) != nil,
+        guard CacheSecurity.isSafeDirectory(at: cachePath),
               let digests = trustedFileDigests,
               let data = IncrementalCacheTrust.authenticatedFileData(
                   cachePath: cachePath,
@@ -923,6 +923,14 @@ enum CacheSecurity {
         }
 
         return fd
+    }
+
+    static func isSafeDirectory(at path: String) -> Bool {
+        guard let fd = openSafeDirectory(at: path, allowCreate: false) else {
+            return false
+        }
+        close(fd)
+        return true
     }
 
     static func openSubdirectory(in parentFD: Int32, name: String, allowCreate: Bool) -> Int32? {

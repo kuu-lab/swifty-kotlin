@@ -29,7 +29,6 @@ struct CodegenPhaseTimingTests {
         fun overloaded(x: Int): Int = x
         fun overloaded(x: String): String = x
         """
-        // Supply the Enum header because this fixture omits bundled stdlib.
         let enumHeader = "package kotlin\nabstract class Enum<T : Enum<T>> protected constructor(name: String, ordinal: Int)"
         try withTemporaryFile(contents: source) { path in
             let ctx = CompilationContext(
@@ -39,8 +38,6 @@ struct CodegenPhaseTimingTests {
                 ),
                 sourceManager: SourceManager(), diagnostics: DiagnosticEngine(), interner: StringInterner()
             )
-            // Bundled virtual paths permit the nominal shell to be reused.
-            // Keep this header in memory so LoadSources need not read it.
             _ = ctx.sourceManager.addFile(
                 path: "__bundled_projection_Enum.kt", contents: Data(enumHeader.utf8), origin: .bundledStdlib
             )
@@ -130,7 +127,6 @@ struct CodegenPhaseTimingTests {
             }
             if mode == .llvmIR {
                 let timedIR = try String(contentsOfFile: outputPath + ".ll", encoding: .utf8)
-                // Reuse exactly the same semantic/KIR state without a timer.
                 let untimed = CompilationContext(
                     options: ctx.options, sourceManager: ctx.sourceManager,
                     diagnostics: ctx.diagnostics, interner: ctx.interner
@@ -174,14 +170,10 @@ struct CodegenPhaseTimingTests {
         let sema = try #require(consumer.sema)
         #expect(sema.symbols.allSymbols().contains { $0.flags.contains(.importedLibrary) })
         let encoder = MetadataEncoder()
-        // Exercise the projection before the reference path can load lazy metadata.
         let projected = encoder.buildRecords(
             symbols: sema.symbols, types: sema.types, moduleName: "Consumer",
             interner: consumer.interner, functionLinkNames: [:], runtimeReflectionOnly: true
         )
-        // KUU-2675: pending compact-index shells are not reachable from the
-        // compiled program, so the projection omits them instead of decoding
-        // their bodies.
         for symbol in sema.symbols.allSymbols()
             where symbol.flags.contains(.importedLibrary) && sema.symbols.hasPendingImportedMetadata(for: symbol.id)
         {
@@ -215,7 +207,6 @@ struct CodegenPhaseTimingTests {
         let independentSession = LLVMBackendSession()
         let independentBindings = try #require(independentSession.loadBindings())
         #expect(independentBindings !== bindings)
-        // Sharing the library handle must not share mutable LLVM contexts.
         let firstContext = try #require(bindings.createContext())
         defer { bindings.disposeContext(firstContext) }
         let secondContext = try #require(bindings.createContext())

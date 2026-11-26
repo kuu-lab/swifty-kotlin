@@ -11,10 +11,10 @@ struct CodegenBackendIterableSortedTests {
     @Test
     func testCodegenIterableSortedFamilyUsesSourceBackedDeclarations() throws {
         let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerCoreTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repo root
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
         let cases: [(name: String, output: String)] = [
             (
                 "stdlib_kotlin_collections_Iterable_sorted",

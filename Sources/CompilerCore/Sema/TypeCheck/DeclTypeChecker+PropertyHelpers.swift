@@ -1,7 +1,4 @@
 
-// Property accessor type-checking helpers extracted from DeclTypeChecker
-// to keep the main file within SwiftLint length limits.
-
 private struct PropertyDelegateFunctionResolution {
     let symbol: SymbolID?
     let substitutedTypeArguments: [TypeVarID: TypeID]
@@ -40,14 +37,6 @@ extension DeclTypeChecker {
         return signature.contextReceiverTypes
     }
 
-    /// - Parameter baseLocals: Seeds the accessor body's local-name resolution
-    ///   with bindings from an enclosing scope, mirroring
-    ///   `typeCheckFunctionDecl`'s parameter of the same name. Empty for
-    ///   ordinary member properties (a named class has no enclosing local scope
-    ///   to capture). Object-literal member properties pass the enclosing
-    ///   function's `locals` so an accessor body can resolve captured outer
-    ///   variables the same way that literal's member function bodies do
-    ///   (KSP-CAP-001/KSP-CAP-018).
     func typeCheckGetter(
         _ getter: PropertyAccessorDecl,
         property: PropertyDecl,
@@ -58,10 +47,6 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine,
         baseLocals: LocalBindings = [:]
     ) -> TypeID? {
-        // An explicit getter return type must equal the property type, matching
-        // kotlinc ("getter return type must be equal to the type of the
-        // property"). When the property type is absent the builder has already
-        // adopted the getter's return type, so both sides resolve identically.
         if property.type != nil,
            let getterReturnTypeRef = getter.returnType,
            let declaredType = inferredPropertyType,
@@ -87,15 +72,12 @@ extension DeclTypeChecker {
                 )
             }
         }
-        // A bodyless accessor uses the property's default getter. It does not
-        // have a Unit-valued function body to constrain against the property.
         guard getter.body != .unit else { return inferredPropertyType }
         let accessorCtx = driver.helpers.accessorOptInContext(annotations: getter.annotations, ctx: accessorCtx)
         let sema = accessorCtx.sema
         let interner = accessorCtx.interner
         var getterLocals: LocalBindings = baseLocals
         if let receiverType = sema.symbols.extensionPropertyReceiverType(for: symbol) {
-            // Match the property-based receiver parameter used by KIR accessors.
             getterLocals[interner.intern("this")] = (
                 receiverType, SyntheticSymbolScheme.receiverParameterSymbol(for: symbol), false, true
             )
@@ -130,10 +112,6 @@ extension DeclTypeChecker {
             expectedType: inferredPropertyType
         )
         if let declaredType = inferredPropertyType {
-            // Range expressions infer as their scalar element type rather than the
-            // source-level range interface, so `val r: IntRange get() = a..b` skips
-            // the nominal subtype check like the equivalent expression-bodied
-            // function and local declaration do.
             let bodyIsRangeExpr = {
                 guard case let .expr(bodyExprID, _) = getter.body else { return false }
                 return driver.helpers.rangeExprMatchesDeclaredElementType(
@@ -175,9 +153,6 @@ extension DeclTypeChecker {
         var result = inferredPropertyType
         let thisName = interner.intern("this")
         if locals[thisName] == nil, let receiverType = ctx.implicitReceiverType {
-            // Delegate lambdas capture the property's implicit receiver. Keep
-            // that receiver in locals so data-flow analysis can key stable
-            // member-property facts to the same `this` reference.
             locals[thisName] = (
                 receiverType,
                 SyntheticSymbolScheme.receiverParameterSymbol(for: symbol),
@@ -188,10 +163,6 @@ extension DeclTypeChecker {
         let stdlibDelegateKind = StdlibDelegateKind.detect(
             delegateExpr: delegateExpr, ast: ctx.ast, interner: interner
         )
-        // `var name: String by Delegates.notNull()` has nothing to infer the
-        // factory's type argument from except the declared property type, so
-        // feed it back in as the expected delegate type (`Lazy<String>` /
-        // `ReadWriteProperty<Any?, String>`).
         let expectedDelegateType = inferredPropertyType.flatMap { valueType -> TypeID? in
             if let stdlibType = stdlibDelegateInterfaceType(
                 of: valueType, kind: stdlibDelegateKind, sema: sema, interner: interner
@@ -219,13 +190,6 @@ extension DeclTypeChecker {
                 )
             }
             : nil
-        // A `fun interface` SAM constructor used directly as the delegate
-        // (`val p by ReadOnlyProperty { _, property -> property }`, KT-78073)
-        // binds its getValue `thisRef` parameter from the delegate convention —
-        // the only inference source an in-position interface parameter has
-        // when no explicit type arguments or declared property type exist
-        // (KUU-3839). Remaining parameters are inferred from the lambda's
-        // return type inside the SAM constructor path.
         let samConstructorDelegateType = (expectedDelegateType == nil && contextualDelegateType == nil)
             ? samConstructorExpectedDelegateType(
                 for: delegateExpr,
@@ -238,21 +202,15 @@ extension DeclTypeChecker {
             expectedType: expectedDelegateType ?? contextualDelegateType ?? samConstructorDelegateType
         )
 
-        // Record the delegate type for KIR lowering.
         sema.symbols.setPropertyType(
             delegateType,
             for: SymbolID(rawValue: -(symbol.rawValue + 50000))
         )
 
-        // The delegate expression already has a diagnostic. Avoid reporting
-        // follow-on convention errors such as a missing getValue on errorType.
         if delegateType == sema.types.errorType {
             return result ?? sema.types.nullableAnyType
         }
 
-        // Resolve getValue through the property-delegate convention. Unlike a
-        // normal member lookup, the convention also admits visible extension
-        // functions whose receiver is the delegate type.
         let getValueName = interner.intern("getValue")
         let delegateCallRange = ctx.ast.arena.exprRange(delegateExpr) ?? fallbackRange
         let delegateAccessorArgs = propertyDelegateAccessorArgumentTypes(
@@ -293,10 +251,6 @@ extension DeclTypeChecker {
         {
             sema.symbols.setDelegateGetValueSymbol(getValueSymbol, for: symbol)
             if result == nil {
-                // Map's source-backed getValue uses the exact value type
-                // from its receiver. The `V1 : V` return type is represented as a
-                // separate source type parameter, so recover that bound here when
-                // projected receiver lookup cannot substitute it automatically.
                 result = mapDelegateValueType(delegateType, sema: sema, interner: interner)
                     ?? getValueSig.returnType
             }
@@ -357,15 +311,11 @@ extension DeclTypeChecker {
             sema.symbols.setHasProvideDelegate(for: symbol)
             sema.symbols.setDelegateProvideDelegateSymbol(provideDelegateSymbol, for: symbol)
 
-            // When provideDelegate is present, the actual delegate is the return type of
-            // provideDelegate. Re-resolve getValue/setValue against the actual delegate type.
             if let sig = resolvedDelegateCallSignature(
                 for: provideDelegateResolution,
                 sema: sema
             ) {
                 let actualDelegateType = sig.returnType
-                // provideDelegate's return type is the effective delegate, so its
-                // resolution (success or failure) fully supersedes the direct check above.
                 let actualAccessorArgs = propertyDelegateAccessorArgumentTypes(
                     for: symbol,
                     valueType: result,
@@ -387,9 +337,6 @@ extension DeclTypeChecker {
                    let actualGetValueSymbol = actualGetValueResolution.symbol
                 {
                     sema.symbols.setDelegateGetValueSymbol(actualGetValueSymbol, for: symbol)
-                    // When provideDelegate is present, the property type must be inferred from
-                    // the actual delegate's getValue, not the original expression's getValue.
-                    // Only override result if no explicit type annotation was provided.
                     if result == nil,
                        let actualGetValueSig = resolvedDelegateCallSignature(
                            for: actualGetValueResolution,
@@ -415,8 +362,6 @@ extension DeclTypeChecker {
                         locals: locals,
                         allowNonOperatorMemberOverride: true
                     )
-                    // Same rationale as getValueResolved above: provideDelegate's
-                    // return type supersedes the direct check.
                     setValueResolved = false
                     setValueDiagnosticReported = actualSetValueResolution?.diagnostic != nil
                     if let actualSetValueResolution,
@@ -449,11 +394,6 @@ extension DeclTypeChecker {
                 let paramType = index == 0 ? sema.types.anyType : (result ?? sema.types.anyType)
                 bodyLocals[name] = (paramType, paramSymbol, false, true)
             }
-            // `.observable`'s callback always returns Unit and `.vetoable`'s
-            // always returns Boolean (the write proceeds only if true) --
-            // BUG-151. Feeding this back as the expected type lets a body
-            // returning the wrong type surface as an ordinary diagnostic
-            // instead of silently mismatching at the runtime dispatch boundary.
             let expectedBodyType: TypeID? = switch stdlibDelegateKind {
             case .observable: sema.types.unitType
             case .vetoable: sema.types.booleanType
@@ -479,10 +419,6 @@ extension DeclTypeChecker {
             )
         }
 
-        // An explicitly declared delegated-property type is authoritative for
-        // the local/property binding. This matters for generic extension
-        // operators such as Map<in String, V>.getValue(...): V1, whose V1
-        // return type is intentionally inferred from that declaration.
         if let inferredPropertyType {
             return inferredPropertyType
         }
@@ -512,9 +448,6 @@ extension DeclTypeChecker {
         return false
     }
 
-    /// Member candidates are probed first because a member always wins over an
-    /// extension; extensions are then taken from the visible scope and the
-    /// existing bundled-stdlib fallback.
     private func resolvePropertyDelegateFunction(
         named name: InternedString,
         receiverType: TypeID,
@@ -537,10 +470,6 @@ extension DeclTypeChecker {
             if symbol.flags.contains(.operatorFunction) {
                 return true
             }
-            // Kotlin permits an override to omit `operator` when the
-            // overridden declaration introduced the operator convention.
-            // This exception is limited to member overrides; a same-named
-            // non-operator extension is never a delegate convention.
             return allowNonOperatorMemberOverride
                 && symbol.flags.contains(.overrideMember)
                 && !symbol.flags.contains(.synthetic)
@@ -619,13 +548,6 @@ extension DeclTypeChecker {
             return memberResolution
         }
 
-        // A generic factory returning an anonymous implementation can infer
-        // its type argument from the property type, while the anonymous
-        // class's recorded supertype still mentions the factory's source type
-        // parameter. Resolve an interface member against the contextual
-        // interface instantiation as a fallback so that type argument reaches
-        // getValue/setValue substitution. KIR dispatches this abstract symbol
-        // through the delegate's runtime interface table.
         if let fallbackReceiverType,
            fallbackReceiverType != receiverType,
            let fallbackMemberResolution = resolve(
@@ -644,9 +566,6 @@ extension DeclTypeChecker {
             return fallbackMemberResolution
         }
 
-        // Local functions live in LocalBindings rather than the lexical symbol
-        // scopes. Applicable local operator extensions precede outer extensions,
-        // but delegate members retain priority over every extension.
         if let local = locals[name],
            let symbol = ctx.cachedSymbol(local.symbol),
            symbol.kind == .function,
@@ -665,10 +584,6 @@ extension DeclTypeChecker {
             return localResolution
         }
 
-        // Member extensions are declared on the dispatch receiver's class,
-        // while their receiver is the delegate value. Search the lexical
-        // receiver tower for those declarations and keep the two receiver
-        // roles separate during overload resolution.
         let dispatchReceiverEntries = ctx.implicitReceiverMemberLookupEntries()
         let dispatchReceiverTypes = dispatchReceiverEntries.map(\.type)
         var seenMemberExtensionCandidates: Set<SymbolID> = []
@@ -701,9 +616,6 @@ extension DeclTypeChecker {
             }
         }
 
-        // A same-named extension only shadows outer scopes when it can
-        // satisfy this convention call. Check the complete signature before
-        // choosing a lexical tier, including thisRef and generic bounds.
         let scopeCandidates = ctx.scope.lookup(name, matching: { candidate in
             guard let symbol = ctx.cachedSymbol(candidate),
                   symbol.kind == .function,
@@ -793,8 +705,6 @@ extension DeclTypeChecker {
             sema: sema,
             interner: interner
         )
-        // Default-imported collection delegate operators are not covered by
-        // the atomic-only bundled extension fallback.
         let mapCandidates = bundledMapDelegateCandidates(
             named: name,
             sema: sema,
@@ -896,9 +806,6 @@ extension DeclTypeChecker {
         return result
     }
 
-    /// `provideDelegate` receives the containing dispatch receiver for a
-    /// member extension property; its accessors receive the extension
-    /// receiver. Top-level extension properties keep their extension receiver.
     func propertyDelegateProvideDelegateArgumentTypes(
         for propertySymbol: SymbolID,
         ctx: TypeInferenceContext
@@ -946,12 +853,6 @@ extension DeclTypeChecker {
         return [thisRefType, kPropertyType]
     }
 
-    /// Expected type for a `by` delegate written as a bare SAM constructor
-    /// (`InterfaceName { ... }` without explicit type arguments). The delegate
-    /// convention's `getValue` `thisRef` argument is passed back as the
-    /// interface argument for whichever type parameter occupies the SAM
-    /// method's first parameter; the rest stay star-projected so the lambda's
-    /// return type can infer them (KUU-3839).
     private func samConstructorExpectedDelegateType(
         for delegateExpr: ExprID,
         propertySymbol: SymbolID,
@@ -1064,10 +965,6 @@ extension DeclTypeChecker {
         )))
     }
 
-    /// A custom factory can use the property's declared type to infer its
-    /// generic arguments when its result implements `ReadWriteProperty`. Keep
-    /// this contextual type away from other custom delegates, whose convention
-    /// methods need not implement the marker interface.
     private func customDelegateFactoryReturnsReadWriteProperty(
         _ delegateExpr: ExprID?,
         ctx: TypeInferenceContext
@@ -1127,7 +1024,6 @@ extension DeclTypeChecker {
         kind == .lazy ? ["kotlin", "Lazy"] : ["kotlin", "properties", "ReadWriteProperty"]
     }
 
-    /// - Parameter baseLocals: see `typeCheckGetter`.
     func typeCheckSetter(
         _ setter: PropertyAccessorDecl,
         property: PropertyDecl,
@@ -1184,8 +1080,6 @@ extension DeclTypeChecker {
                 lambdaDepth: 0,
                 enclosingFunctionReturnType: sema.types.unitType,
                 enclosingFunctionSymbol: accessorSymbol,
-                // Setters cannot declare a return type, so an expression
-                // body always prohibits `return`.
                 enclosingFunctionProhibitsExpressionBodyReturn: setter.body.isExpressionBody,
                 returnTargetIsInitBlock: false,
                 enclosingLambdaExprIDs: []

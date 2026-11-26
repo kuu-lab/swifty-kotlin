@@ -2,7 +2,6 @@ package java.util
 
 import kotlin.text.format
 
-/** A string-backed subset of java.util.Formatter. */
 public class Formatter {
     private var result: String = ""
 

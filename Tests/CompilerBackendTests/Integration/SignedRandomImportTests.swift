@@ -5,7 +5,6 @@
 import Foundation
 import Testing
 
-/// KUU-2775: signed range overloads are imported extensions, not Random members.
 @Suite
 struct SignedRandomImportTests {
     @Test(arguments: [false, true])

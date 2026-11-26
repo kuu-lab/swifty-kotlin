@@ -99,11 +99,6 @@ struct LibraryMetadataImportIntegrationTests {
         }
     }
 
-    /// KUU-3969: a common `.kklib` may legitimately keep unresolved expects, but
-    /// a consumer compilation must reject them — the expect entries register
-    /// lazily through the compact index, so without an explicit drain the
-    /// validation pass never saw them and their default-returning stubs linked
-    /// silently.
     @Test
     func testImportedUnresolvedExpectClassMembersAreRejected() throws {
         let librarySource = """
@@ -132,9 +127,6 @@ struct LibraryMetadataImportIntegrationTests {
             try LoweringPhase().run(libraryCtx)
             try CodegenPhase().run(libraryCtx)
 
-            // The consumer references the expect class the way the original
-            // report did; validation runs before body analysis, so the
-            // unresolved diagnostics must already be present here.
             let appSource = """
             package consumer
             import counter.Counter
@@ -165,13 +157,6 @@ struct LibraryMetadataImportIntegrationTests {
         }
     }
 
-    /// KUU-4287: expect/actual contracts must reach the matching compilation
-    /// at any visibility — Kotlin/Native klibs carry internal declarations
-    /// and a platform source set is a friend module of its common module, so
-    /// `internal expect` members (the kotlinx-datetime
-    /// `Instant.Companion.MIN` shape) are part of the contract. When the
-    /// metadata export filtered them out by visibility, mismatched or
-    /// missing actuals went undiagnosed.
     @Test
     func testInternalExpectClassMembersAreValidatedAcrossKklib() throws {
         let librarySource = """
@@ -191,9 +176,6 @@ struct LibraryMetadataImportIntegrationTests {
             allowDefaultStdlibLibrary: false,
             frontendFlags: ["common-module"]
         ) { libraryPath in
-            // `hidden()` has no actual at all; `secret` and `FLOOR` actuals
-            // carry the wrong type. All three internal contracts must be
-            // diagnosed.
             let platformSource = """
             package counter
             actual class Counter {
@@ -225,8 +207,6 @@ struct LibraryMetadataImportIntegrationTests {
         }
     }
 
-    /// KUU-4287: the same internal contract must also pair cleanly — matching
-    /// internal actuals produce no diagnostics and link expect to actual.
     @Test
     func testInternalExpectClassMembersLinkToMatchingActuals() throws {
         let librarySource = """
@@ -371,11 +351,6 @@ struct LibraryMetadataImportIntegrationTests {
             try LoweringPhase().run(libraryCtx)
             try CodegenPhase().run(libraryCtx)
 
-            // The source module redeclares `shadow.pool.Box`, shadowing the
-            // imported class. The imported `head: Node?` member must stay
-            // attached to the imported Box — if it were reparented to the
-            // source Box, write lookup would merge `Node?` with `Int` and
-            // reject `head = 1` as an immutable-property assignment.
             let appSource = """
             package shadow.pool
             public open class Box {
@@ -444,11 +419,6 @@ struct LibraryMetadataImportIntegrationTests {
             try LoweringPhase().run(libraryCtx)
             try CodegenPhase().run(libraryCtx)
 
-            // The source module redeclares `shadow.io.Segment` in the same
-            // package. Classifier references must resolve to the source
-            // declaration even though the imported symbol has a lower ID:
-            // `Segment()` must bind the source constructor and `marker()`
-            // only exists on the source class.
             let appSource = """
             package shadow.io
             class Segment {
@@ -504,12 +474,6 @@ struct LibraryMetadataImportIntegrationTests {
             try LoweringPhase().run(libraryCtx)
             try CodegenPhase().run(libraryCtx)
 
-            // Source `bbs.io.buildByteString` has the same FQ name and erased
-            // signature as the imported one. The imported twin must be dropped
-            // from scope candidates: if it stayed, the lambda's expected
-            // receiver could come from the imported signature, leaving
-            // source-only members (`written`, `append`) and the `this::append`
-            // callable reference unresolvable.
             let appSource = """
             package bbs.io
             class LibBuilder {
@@ -547,11 +511,6 @@ struct LibraryMetadataImportIntegrationTests {
 
     @Test
     func testInaccessibleImportedCallableDoesNotBlockOuterScopeOverload() throws {
-        // The bundled stdlib vendors `internal` kotlinx.io.minOf/maxOf
-        // overloads. A file in `package kotlinx.io` sees them in its own
-        // package tier, but they are not callable from user code — the tower
-        // must continue to the default-imported `kotlin.comparisons` overloads
-        // instead of reporting 'cannot access' or 'no viable overload'.
         let artifact = try testStdlibArtifactPath()
         let source = """
         package kotlinx.io
@@ -902,8 +861,6 @@ struct LibraryMetadataImportIntegrationTests {
         }
     }
 
-    // KSP-472 / KSP-803: an inlined property read must retain the producer's
-    // getter link name, either directly or through the consumer accessor symbol.
     @Test
     func testImportedInlineBodyCallsLibraryPropertyGetterByLinkName() throws {
         let librarySource = """
@@ -1464,8 +1421,6 @@ struct LibraryMetadataImportIntegrationTests {
         }
     }
 
-    /// Regression: when metadata provides Collection.contains, listOf(...).contains must not emit VAR-OUT.
-    /// Verifies metadata import and synthetic stub interaction for variance relaxation.
     @Test
     func testMetadataCollectionContainsDoesNotCauseVarOutWithListOf() throws {
         let records = [

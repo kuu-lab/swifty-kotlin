@@ -6,8 +6,6 @@ import Testing
 
 @Suite
 struct DefaultStdlibEmitModeTests {
-    /// KUU-1960: non-executable outputs must use imported stdlib metadata and
-    /// inline KIR without loading bundled source files into the user module.
     @Test(arguments: ["object", "llvmIR", "kirDump", "library"])
     func defaultArtifactProducesRequestedOutput(emitMode: String) throws {
         let emit = try #require(EmitMode(rawValue: emitMode))
@@ -53,8 +51,6 @@ struct DefaultStdlibEmitModeTests {
         }
     }
 
-    /// Imported stdlib references in a user library must survive metadata
-    /// serialization and link against the same stdlib artifact in a consumer.
     @Test
     func defaultArtifactLibraryLinksInExecutableConsumer() throws {
         try withCompiledLibrary(

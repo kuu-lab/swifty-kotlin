@@ -13,17 +13,10 @@ import RuntimeCAtomics
 // threads, which have their own smaller stacks) and cached in a pthread TLS
 // slot so the per-frame check is just one TLS read and a compare.
 
-/// Minimum stack space kept in reserve below the reported overflow bound, so
-/// the StackOverflowError allocation and its propagation still have room to
-/// run before the real guard page is reached.
 private let runtimeStackOverflowMinReserve = 64 * 1024
-/// Cap on the reserve so very large stacks do not give up an excessive margin.
 private let runtimeStackOverflowMaxReserve = 256 * 1024
-/// Fraction of the thread's total stack kept as the guard reserve.
 private let runtimeStackOverflowReserveDivisor = 8
 
-/// TLS slot caching the computed bound for each thread. Lazily initialized on
-/// first use; Swift guarantees atomic single initialization for global lets.
 private let runtimeStackBoundTLSKey: pthread_key_t = {
     var key = pthread_key_t()
     pthread_key_create(&key, nil)
@@ -37,9 +30,6 @@ private func runtimeStackOverflowReserve(forStackSize size: Int) -> Int {
     )
 }
 
-/// Lowest stack address the current thread may use before the runtime reports
-/// an overflow, or 0 when the platform cannot report stack bounds (the guard
-/// then never fires, preserving the previous behaviour on that platform).
 private func runtimeComputeCurrentThreadStackLowBound() -> Int {
     var size: UInt = 0
     let low = Int(kkrt_thread_stack_low_address(&size))
@@ -58,9 +48,6 @@ private func runtimeCurrentThreadStackLowBound() -> Int {
     return bound
 }
 
-/// Per-frame stack guard: returns 0 while `marker` (a stack slot inside the
-/// caller's own frame) is above the current thread's overflow bound, or a
-/// freshly allocated `kotlin.StackOverflowError` handle once it drops below.
 @_cdecl("kk_stack_overflow_check")
 public func kk_stack_overflow_check(_ marker: Int) -> Int {
     let bound = runtimeCurrentThreadStackLowBound()

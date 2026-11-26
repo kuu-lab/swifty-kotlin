@@ -12,13 +12,6 @@ import kotlinx.serialization.*
 import kotlinx.serialization.internal.*
 import kotlin.reflect.*
 
-/**
- * A builder which registers all its content for polymorphic serialization in the scope of the [base class][baseClass].
- * If [baseSerializer] is present, registers it as a serializer for [baseClass] (which will be used if base class is serializable).
- * Subclasses and its serializers can be added with [subclass] builder function.
- *
- * To obtain an instance of this builder, use [SerializersModuleBuilder.polymorphic] DSL function.
- */
 public class PolymorphicModuleBuilder<in Base : Any> @PublishedApi internal constructor(
     private val baseClass: KClass<Base>,
     private val baseSerializer: KSerializer<Base>? = null
@@ -27,22 +20,10 @@ public class PolymorphicModuleBuilder<in Base : Any> @PublishedApi internal cons
     private var defaultSerializerProvider: ((Base) -> SerializationStrategy<Base>?)? = null
     private var defaultDeserializerProvider: ((String?) -> DeserializationStrategy<Base>?)? = null
 
-    /**
-     * Registers a [subclass] [serializer] in the resulting module under the [base class][Base].
-     */
     public fun <T : Base> subclass(subclass: KClass<T>, serializer: KSerializer<T>) {
         subclasses.add(subclass to serializer)
     }
 
-    /**
-     * Adds a default deserializers provider associated with the given [baseClass] to the resulting module.
-     * [defaultDeserializerProvider] is invoked when no polymorphic serializers associated with the `className`
-     * were found. `className` could be `null` for formats that support nullable class discriminators
-     * (currently only `Json` with `JsonBuilder.useArrayPolymorphism` set to `false`)
-     *
-     * Default deserializers provider affects only deserialization process. To affect serialization process, use
-     * [SerializersModuleBuilder.polymorphicDefaultSerializer].
-     */
     public fun defaultDeserializer(defaultDeserializerProvider: (className: String?) -> DeserializationStrategy<Base>?) {
         require(this.defaultDeserializerProvider == null) {
             "Default deserializer provider is already registered for class $baseClass: ${this.defaultDeserializerProvider}"
@@ -50,16 +31,10 @@ public class PolymorphicModuleBuilder<in Base : Any> @PublishedApi internal cons
         this.defaultDeserializerProvider = defaultDeserializerProvider
     }
 
-    /**
-     * Adds a default deserializers provider associated with the given [baseClass] to the resulting module.
-     * This function affects only deserialization process. To avoid confusion, it was deprecated and replaced
-     * with [defaultDeserializer]. To affect serialization process, use
-     * [SerializersModuleBuilder.polymorphicDefaultSerializer].
-     */
     @Deprecated(
         "Deprecated in favor of function with more precise name: defaultDeserializer",
         ReplaceWith("defaultDeserializer(defaultSerializerProvider)"),
-        DeprecationLevel.WARNING // Since 1.5.0. Raise to ERROR in 1.6.0, hide in 1.7.0
+        DeprecationLevel.WARNING
     )
     public fun default(defaultSerializerProvider: (className: String?) -> DeserializationStrategy<Base>?) {
         defaultDeserializer(defaultSerializerProvider)
@@ -89,14 +64,8 @@ public class PolymorphicModuleBuilder<in Base : Any> @PublishedApi internal cons
     }
 }
 
-/**
- * Registers a [subclass] [serializer] in the resulting module under the [base class][Base].
- */
 public inline fun <Base : Any, reified T : Base> PolymorphicModuleBuilder<Base>.subclass(serializer: KSerializer<T>): Unit =
     subclass(T::class, serializer)
 
-/**
- * Registers a serializer for class [T] in the resulting module under the [base class][Base].
- */
 public inline fun <Base : Any, reified T : Base> PolymorphicModuleBuilder<Base>.subclass(clazz: KClass<T>): Unit =
     subclass(clazz, serializer<T>())

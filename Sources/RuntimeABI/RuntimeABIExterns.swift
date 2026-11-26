@@ -1,6 +1,3 @@
-/// `RuntimeABISpec` is the single source of truth. This type keeps the
-/// compiler/test-facing extern view stable without duplicating hundreds of
-/// handwritten declarations.
 public enum RuntimeABIExterns {
     public struct ExternDecl: Equatable, Sendable {
         public let name: String

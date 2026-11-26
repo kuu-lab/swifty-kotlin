@@ -93,10 +93,6 @@ private let runtimeClockNowItableThunk: @convention(c) (Int, UnsafeMutablePointe
     }
 }
 
-/// `TimeSource.asClock()` creates a Swift runtime box rather than a compiler
-/// generated Kotlin object. Register the Clock itable explicitly so calls to
-/// `Clock.now()` can use the same interface-dispatch path as user-defined
-/// Clock implementations.
 private func runtimeRegisterTimeSourceClockItable(_ raw: Int) {
     _ = kk_object_register_itable_iface(raw, Int(runtimeClockInterfaceTypeID), 0)
     _ = kk_object_register_itable_method(
@@ -129,10 +125,6 @@ public func __kk_time_source_mark_now(_ receiver: Int) -> Int {
 public func __kk_time_source_monotonic_mark_now(_ receiver: Int) -> Int {
     __kk_time_source_mark_now(receiver)
 }
-
-// elapsedNow / hasPassedNow / hasNotPassedNow / plus / minus / minus-mark / compareTo now
-// live in Sources/CompilerCore/Stdlib/kotlin/time/TimeMark.kt. Only the mark reading itself
-// (which touches RuntimeTimeMarkBox internals and the monotonic clock) stays native.
 
 private let valueTimeMarkRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.time.TimeSource.Monotonic.ValueTimeMark")
 private let abstractLongTimeMarkRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.time.AbstractLongTimeMark")
@@ -225,7 +217,6 @@ public func __kk_time_mark_reading_nanos(_ markRaw: Int) -> Int {
        let reading = runtimeAbstractDoubleTimeMarkReadingNanos(markRaw) {
         return reading
     }
-    // Fallback for one-field value-class boxes stored at the last slot.
     return box[box.count - 1]
 }
 
@@ -243,7 +234,6 @@ public func kk_instant_to_foundation_date(_ instantRaw: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_instant_to_foundation_date received invalid Instant handle")
     }
     let timeInterval = Double(instant.epochSeconds) + Double(instant.nanoOfSecond) / 1_000_000_000
-    // Represent Foundation.Date as epoch milliseconds in a JS-style box for interop.
     return registerRuntimeObject(RuntimeJSDateBox(epochMilliseconds: timeInterval * 1_000))
 }
 

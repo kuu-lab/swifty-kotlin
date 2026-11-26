@@ -84,34 +84,9 @@ public extension RuntimeABISpec {
                 + "outByteCount:nullableIntptrPointer outHash:nullableIntptrPointer",
             ret: .nullableUInt8Pointer
         ),
-        // KSP-1396: reversed is bundled Kotlin source (StringBasics.kt); its
-        // flat ABI entry was removed.
         stringReplaceFlatSpec,
         stringReplaceFirstFlatSpec,
-        // KSP-406: substring/subSequence/removeRange/replaceRange flat entries removed;
-        // now bundled Kotlin source (StringSubstringSlice.kt).
-        // KSP-1390: padStart/padEnd are bundled Kotlin source (StringHOF.kt);
-        // their flat ABI entries were removed.
-        // KSP-1394: repeat is bundled Kotlin source (StringBasics.kt); its flat
-        // ABI entry was removed.
-        // KSP-407: substringBefore/After/BeforeLast/AfterLast and
-        // replaceBefore/After/BeforeLast/AfterLast are bundled Kotlin source
-        // (StringSearchReplace.kt); their flat ABI entries were removed.
-        // KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source
-        // (StringTakeDrop.kt); their flat ABI entries were removed.
         stringABI.th("kk_string_compareTo_flat", "lhsData:nullableConstUInt8Pointer lhsLength lhsByteCount lhsHash rhsData:nullableConstUInt8Pointer rhsLength rhsByteCount rhsHash"),
-        // KSP-404: kk_string_startsWith_flat / kk_string_endsWith_flat removed;
-        // startsWith/endsWith are bundled Kotlin source (StringPrefixSuffix.kt).
-        // KSP-408: kk_string_contains_str_flat / kk_string_contains_ignoreCase_flat /
-        // kk_string_indexOf_flat / kk_string_indexOf_from_flat /
-        // kk_string_lastIndexOf_flat / kk_string_indexOf_ignoreCase_flat /
-        // kk_string_indexOf_char_flat / kk_string_lastIndexOf_ignoreCase_flat /
-        // kk_string_lastIndexOf_char_flat removed; contains/indexOf/lastIndexOf are
-        // bundled Kotlin source (StringIndexOf.kt).
-        // KSP-413: kk_string_compareToIgnoreCase_flat / kk_string_equalsIgnoreCase_flat /
-        // kk_string_contentEquals_flat / kk_string_contentEquals_ignoreCase_flat removed;
-        // compareTo(ignoreCase) / equals(ignoreCase) / contentEquals are bundled Kotlin
-        // source (StringComparison.kt).
         stringABI.nt("__kk_string_equals_flat", "data:nullableConstUInt8Pointer length byteCount hash otherData:nullableConstUInt8Pointer otherLength otherByteCount otherHash"),
         stringABI.th("__kk_string_first_flat", "data:nullableConstUInt8Pointer length byteCount hash outThrown"),
         stringABI.th("__kk_string_last_flat", "data:nullableConstUInt8Pointer length byteCount hash outThrown"),
@@ -119,11 +94,6 @@ public extension RuntimeABISpec {
         stringABI.nt("__kk_string_firstOrNull_flat", "data:nullableConstUInt8Pointer length byteCount hash"),
         stringABI.nt("__kk_string_lastOrNull_flat", "data:nullableConstUInt8Pointer length byteCount hash"),
         stringABI.nt("__kk_string_singleOrNull_flat", "data:nullableConstUInt8Pointer length byteCount hash"),
-        // KSP-408: kk_string_indexOfFirst_flat / kk_string_indexOfLast_flat removed;
-        // indexOfFirst/indexOfLast are bundled Kotlin source (StringIndexOf.kt).
-        // KSP-410: kk_string_count_flat / kk_string_any_flat / kk_string_all_flat /
-        // kk_string_none_flat removed; count/any/all/none are bundled Kotlin source
-        // (StringHOF.kt).
         stringABI.nt("kk_compare_any", "lhs rhs"),
         charSequenceLengthSpec,
         stringABI.th("kk_char_sequence_get", "sequenceRaw indexRaw outThrown"),
@@ -198,27 +168,14 @@ public extension RuntimeABISpec {
         stringABI.nt("__kk_string_toLongOrNull_flat", "data:nullableConstUInt8Pointer length byteCount hash"),
         stringABI.th("__kk_string_toFloat_flat", "data:nullableConstUInt8Pointer length byteCount hash outThrown"),
         stringABI.nt("__kk_string_toFloatOrNull_flat", "data:nullableConstUInt8Pointer length byteCount hash"),
-        // KSP-408: kk_string_indexOfAny_chars_flat / kk_string_indexOfAny_strings_flat /
-        // kk_string_lastIndexOfAny_chars_flat / kk_string_lastIndexOfAny_strings_flat /
-        // kk_string_findAnyOf_flat / kk_string_findLastAnyOf_flat removed; indexOfAny/
-        // lastIndexOfAny/findAnyOf/findLastAnyOf are bundled Kotlin source (StringIndexOf.kt).
         stringABI.th("__kk_string_get_flat", "data:nullableConstUInt8Pointer length byteCount hash indexRaw outThrown"),
         exceptionABI.th("kk_enum_valueOf_throw", "nameRaw outThrown"),
         enumABI.nt("kk_enum_make_values_array", "valuesRaw count classID"),
-        // KUU-1462: runtime-token dispatch for enumValues<T>() in a noinline lambda.
         enumABI.nt("kk_enum_register_values", "typeToken valuesRaw count"),
         enumABI.nt("kk_enum_values_for_token", "typeToken"),
         enumABI.nt("kk_enum_make_entries_list", "valuesRaw count"),
-        // KSP-1156: cached EnumEntries shared by T.entries and enumEntries<T>().
         enumABI.nt("kk_enum_make_entries_list_cached", "valuesRaw count classID"),
-        // KSP-1156: source-backed internal Array/provider overloads retain the
-        // supplied Array as the EnumEntries backing view.
         enumABI.nt("__kk_enum_entries_from_array", "valuesRaw"),
-        // BUG-177: boxes a values()/entries element as a genuine ordinal Int
-        // (tagged with its declared name for generic Any-printing) instead of
-        // a pre-baked name string. BUG-182: also carries the enum class's
-        // stable nominal type ID so `is`/`as`/`KClass.isInstance` work after
-        // widening to `Any`.
         enumABI.nt("kk_enum_box_ordinal", "ordinal namePtr classID"),
         enumABI.nt("__kk_enum_name", "valueRaw"),
         stringABI.nt("__kk_string_toByteArray_flat", "data:nullableConstUInt8Pointer length byteCount hash"),
@@ -241,8 +198,6 @@ public extension RuntimeABISpec {
         byteArrayABI.th("__kk_bytearray_decodeToString_range", "arrRaw startIndex endIndex outThrown"),
         byteArrayABI.th("__kk_bytearray_decodeToString_range_throw", "arrRaw startIndex endIndex throwOnInvalidSequence outThrown"),
         stringABI.th("kk_char_isIdentifierIgnorable", "value"),
-        // KSP-662: Bridges retained for Unicode case mapping, locale-aware
-        // conversion, and digitOf table lookup after moving Char conversions to Kotlin.
         stringABI.th("__kk_char_uppercase_string", "code"),
         stringABI.th("__kk_char_lowercase_string", "code"),
         stringABI.th("__kk_char_titlecase_string", "code"),
@@ -256,11 +211,7 @@ public extension RuntimeABISpec {
         stringABI.th("kk_char_isJavaIdentifierPart", "value"),
         stringABI.th("kk_char_isJavaIdentifierStart", "value"),
         stringABI.nt("kk_chararray_concatToString", "arrRaw"),
-        // KSP-404: removePrefix/removeSuffix/removeSurrounding flat bridges removed;
-        // implemented in bundled Kotlin source (StringPrefixSuffix.kt).
 
-        // Source-backed declarations retain flat compatibility lowering for
-        // aggregate String receivers.
         stringIfBlankFlatSpec,
         stringIfEmptyFlatSpec,
         stringABI.nt("__kk_string_toBigDecimal_flat", "data:nullableConstUInt8Pointer length byteCount hash outThrown"),
@@ -280,14 +231,8 @@ public extension RuntimeABISpec {
         stringABI.nt("__kk_bignum_toInt", "numRaw"),
         stringABI.nt("__kk_bignum_toShort", "numRaw"),
         stringABI.nt("__kk_bignum_toByte", "numRaw"),
-        // KSP-410: map/mapIndexed/mapNotNull/firstNotNullOf(OrNull)/
-        // filterIndexed/onEachIndexed/reduce family are bundled Kotlin source
-        // (StringHOF.kt); their flat ABI entries were removed.
-        // KSP-405: takeWhile/takeLastWhile/dropWhile are bundled Kotlin source
-        // (StringTakeDrop.kt); their flat ABI entries were removed.
         stringABI.nt("__kk_string_splitToSequence", "strRaw delimRaw"),
         bridgeStringJoinToStringSpec,
-        // MIGRATION-TEXT-006: Internal bridge functions for Kotlin stdlib source
 
         stringABI.th("__kk_string_codePointCount", "strRaw"),
         stringABI.th("__kk_string_codePointCount_from", "strRaw startIndex outThrown"),
@@ -295,7 +240,5 @@ public extension RuntimeABISpec {
         stringABI.nt("__kk_string_compareTo_member", "strRaw otherRaw"),
         stringABI.nt("__kk_string_intern", "strRaw"),
         stringABI.nt("__kk_string_plus", "receiverRaw otherRaw"),
-        // KSP-406: replaceRange_indices/slice_iterable/slice_range removed;
-        // now bundled Kotlin source (StringSubstringSlice.kt).
     ]
 }

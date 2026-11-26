@@ -5,11 +5,9 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2039: stable JVM category numbers and code point boundaries on both surfaces.
     @Test
     func testJavaCharacterUnicodeAcrossStdlibSurfaces() throws {
         let source = try diffCaseSource("java_character_unicode.kt", file: #filePath)
-        // Kotlin/JVM 2.3.10, JDK API 17 reference output, in fixture order.
         let numericOutput = [6, 7, 16] + [1, 1, 1, 1, 1, 2, 2, 2, 2]
             + Array(0...16) + Array(18...30) + [19, 0, 0, 1, 2, 6, 16, 18, 0]
         let expected = (numericOutput.map(String.init)
@@ -20,7 +18,6 @@ extension StdlibArtifactRegressionTests {
                 "true", "true", "true", "A", "a", "65", "97", "A", "65",
                 "9", "9", "-1", "-1", "9", "z", "true", "9", "10", "50",
                 "-2", "-1", "true", "true", "false", "true", "true", "true",
-                // KUU-3987: JDK scalar limits.
                 "2", "16", "6", "0", "65535",
                 "55296", "56319", "56320", "57343", "55296", "57343",
                 "true", "true", "true", "true",

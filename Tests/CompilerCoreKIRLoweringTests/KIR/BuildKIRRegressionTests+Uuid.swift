@@ -77,11 +77,6 @@ extension BuildKIRRegressionTests {
         try expectResolvedKIRCallTargets(in: body, context: ctx)
     }
 
-    /// KSP-508: java.util.UUID.toKotlinUuid() and the java.nio.ByteBuffer.getUuid/putUuid
-    /// extensions are the last pieces of the kotlin.uuid surface. toKotlinUuid still
-    /// needs a native bridge (java.util.UUID interop); the ByteBuffer extensions are
-    /// pure Kotlin now, built on Uuid.fromLongs and the real
-    /// mostSignificantBits/leastSignificantBits stored properties.
     @Test func testUuidByteBufferExtensionsAndJavaInteropLowerThroughKotlinSource() throws {
         let source = """
         @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)

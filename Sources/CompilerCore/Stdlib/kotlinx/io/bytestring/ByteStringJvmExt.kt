@@ -10,26 +10,11 @@ import kotlinx.io.bytestring.unsafe.UnsafeByteStringOperations
 import java.nio.ByteBuffer
 import java.nio.charset.Charset
 
-/**
- * Decodes the content of a byte string to a string using given [charset].
- *
- * @param charset the charset to decode data into a string.
- */
 public fun ByteString.decodeToString(charset: Charset): String = getBackingArrayReference().toString(charset)
 
-/**
- * Encodes a string into a byte string using [charset].
- *
- * @param charset the encoding.
- */
 public fun String.encodeToByteString(charset: Charset): ByteString = ByteString.wrap(toByteArray(charset))
 
 
-/**
- * Returns a new read-only heap [ByteBuffer] wrapping [this] ByteString's content.
- *
- * @sample kotlinx.io.bytestring.samples.ByteStringSamplesJvm.toReadOnlyByteBuffer
- */
 @OptIn(UnsafeByteStringApi::class)
 public fun ByteString.asReadOnlyByteBuffer(): ByteBuffer {
     val data = getBackingArrayReference()
@@ -37,16 +22,6 @@ public fun ByteString.asReadOnlyByteBuffer(): ByteBuffer {
     return ByteBuffer.wrap(data).asReadOnlyBuffer()
 }
 
-/**
- * Reads [length] bytes of data from [this] ByteBuffer starting from the current position and
- * wraps them into a new [ByteString].
- *
- * Upon successful execution, current position will advance by [length].
- *
- * @throws IndexOutOfBoundsException when [length] has negative value or its value exceeds [ByteBuffer.remaining]
- *
- * @sample kotlinx.io.bytestring.samples.ByteStringSamplesJvm.getByteStringFromBuffer
- */
 @OptIn(UnsafeByteStringApi::class)
 public fun ByteBuffer.getByteString(length: Int = remaining()): ByteString {
     if (length < 0) {
@@ -60,17 +35,6 @@ public fun ByteBuffer.getByteString(length: Int = remaining()): ByteString {
     return UnsafeByteStringOperations.wrapUnsafe(bytes)
 }
 
-/**
- * Reads [length] bytes of data from [this] ByteBuffer starting from [at] index and
- * wraps them into a new [ByteString].
- *
- * This function does not update [ByteBuffer.position].
- *
- * @throws IndexOutOfBoundsException when [at] is negative, greater or equal to [ByteBuffer.limit]
- * or [at] + [length] exceeds [ByteBuffer.limit].
- *
- * @sample kotlinx.io.bytestring.samples.ByteStringSamplesJvm.getByteStringFromBufferAbsolute
- */
 @OptIn(UnsafeByteStringApi::class)
 public fun ByteBuffer.getByteString(at: Int, length: Int): ByteString {
     checkIndexAndCapacity(at, length)
@@ -82,16 +46,6 @@ public fun ByteBuffer.getByteString(at: Int, length: Int): ByteString {
     return UnsafeByteStringOperations.wrapUnsafe(bytes)
 }
 
-/**
- * Writes [string] into [this] ByteBuffer starting from the current position.
- *
- * Upon successfully execution [ByteBuffer.position] will advance by the length of [string].
- *
- * @throws java.nio.ReadOnlyBufferException when [this] buffer is read-only
- * @throws java.nio.BufferOverflowException when [string] can't fit into remaining space of this buffer
- *
- * @sample kotlinx.io.bytestring.samples.ByteStringSamplesJvm.putByteStringToBuffer
- */
 @OptIn(UnsafeByteStringApi::class)
 public fun ByteBuffer.putByteString(string: ByteString) {
     UnsafeByteStringOperations.withByteArrayUnsafe(string) {
@@ -99,17 +53,6 @@ public fun ByteBuffer.putByteString(string: ByteString) {
     }
 }
 
-/**
- * Writes [string] into [this] ByteBuffer starting from position [at].
- *
- * This function does not update [ByteBuffer.position].
- *
- * @throws java.nio.ReadOnlyBufferException when [this] buffer is read-only
- * @throws IndexOutOfBoundsException when [at] is negative, exceeds [ByteBuffer.limit], or
- * [at] + [ByteString.size] exceeds [ByteBuffer.limit]
- *
- * @sample kotlinx.io.bytestring.samples.ByteStringSamplesJvm.putByteStringToBufferAbsolute
- */
 public fun ByteBuffer.putByteString(at: Int, string: ByteString) {
     checkIndexAndCapacity(at, string.size)
     // Absolute put(byte[]) was added only in JDK 16

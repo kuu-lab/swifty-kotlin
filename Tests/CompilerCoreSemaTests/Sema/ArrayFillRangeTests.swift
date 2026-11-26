@@ -16,8 +16,6 @@ struct ArrayFillRangeTests {
 
     @Test(arguments: [false, true])
     func rangeDefaultsAndProjectionBoundaries(useStdlibLibrary: Bool) throws {
-        // Share one source compilation across accepted and rejected calls;
-        // diagnostics must be confined to the five invalid declarations.
         let ctx = context("""
         fun clear(xs: Array<Any?>) { xs.fill(null, 1, 2) }
         fun defaults(xs: Array<String>) {

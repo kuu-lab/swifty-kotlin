@@ -18,7 +18,6 @@ struct ExpressionParserDepthTests {
 
     @Test("Parenthesized expressions below the recursion limit still parse")
     func testParenthesizedExpressionBelowDepthLimitParses() {
-        // Each nested expression enters expression, prefix, and primary parsing.
         let (result, diagnostics) = parseParenthesized(
             depth: (BuildASTPhase.ExpressionParser.maxRecursionDepth / 3) - 1
         )

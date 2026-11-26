@@ -21,10 +21,8 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
             return BigDecimal(value.toString())
         }
 
-        /** Returns a `BigDecimal` equal to [value] with scale 0. */
         public fun valueOf(value: Long): BigDecimal = BigDecimal(value.toString())
 
-        /** Returns a `BigDecimal` whose value is `unscaledVal * 10^-scale`. */
         public fun valueOf(unscaledVal: Long, scale: Int): BigDecimal =
             BigDecimal(unscaledVal.toString() + "E" + (-scale.toLong()))
     }
@@ -142,11 +140,6 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
     public fun divide(divisor: BigDecimal, scale: Int, roundingMode: Int): BigDecimal =
         __kk_bignum_divideAtScale(divisor, scale, roundingMode)
 
-    /**
-     * Returns the quotient of `this / divisor` rounded toward zero, with the
-     * JDK `divideToIntegralValue` preferred scale `this.scale() - divisor.scale()`
-     * adjusted only as needed to represent the integral value exactly.
-     */
     public fun divideToIntegralValue(divisor: BigDecimal): BigDecimal {
         val integral = divide(divisor, 0, RoundingMode.DOWN)
         var resultScale = scale().toLong() - divisor.scale().toLong()
@@ -176,18 +169,11 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
         return rounded
     }
 
-    /** Returns a two-element array containing the quotient and remainder of `this / divisor`. */
     public fun divideAndRemainder(divisor: BigDecimal): Array<BigDecimal> {
         val quotient = divideToIntegralValue(divisor)
         return arrayOf(quotient, subtract(quotient.multiply(divisor)))
     }
 
-    /**
-     * Returns a `BigDecimal` whose value is `(this % divisor)`. Like the JDK,
-     * the result is `this - divideToIntegralValue(divisor) * divisor`, so its
-     * sign follows this value and its scale is `max(this.scale(),
-     * divisor.scale())` adjusted by the subtraction.
-     */
     public fun remainder(divisor: BigDecimal): BigDecimal =
         subtract(divideToIntegralValue(divisor).multiply(divisor))
 
@@ -203,16 +189,8 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
 
     public fun scale(): Int = __kk_bignum_scale()
 
-    /** Returns the number of digits in the unscaled value of this `BigDecimal`. */
     public fun precision(): Int = unscaledValue().abs().toString().length
 
-    /**
-     * Returns a `BigDecimal` whose value is `(this^n)`, computed exactly.
-     * Like the JDK, the exponent must satisfy `0 <= n <= 999999999`; the
-     * preferred scale of the result is `this.scale() * n`. Repeated
-     * squaring keeps the number of exact decimal multiplications logarithmic
-     * in `n` while producing the identical unscaled value and scale.
-     */
     public fun pow(n: Int): BigDecimal {
         if (n < 0 || n > 999999999) throw ArithmeticException("Invalid operation")
         if (n == 0) return ONE
@@ -227,26 +205,15 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
         return result
     }
 
-    /**
-     * Returns a `BigDecimal` whose scale is reduced by [n] (value multiplied by 10^n).
-     * Like the JDK, when the resulting scale would go below zero the unscaled
-     * value is padded instead, so the result's scale is never negative.
-     */
     public fun movePointRight(n: Int): BigDecimal {
         val scaled = multiply(BigDecimal("1E" + n))
         return if (scaled.scale() < 0) scaled.setScale(0) else scaled
     }
 
-    /**
-     * Returns a `BigDecimal` whose scale is increased by [n] (value multiplied by 10^-n)
-     * while the unscaled value is preserved. A negative [n] shifts the point right.
-     */
     public fun movePointLeft(n: Int): BigDecimal = movePointRight(-n)
 
-    /** Returns -1, 0, or 1 as this value is negative, zero, or positive. */
     public fun signum(): Int = compareTo(ZERO)
 
-    /** Returns a `BigDecimal` whose value is `(-this)`. */
     public fun negate(): BigDecimal = multiply(BigDecimal("-1"))
 
     public fun abs(): BigDecimal = if (signum() < 0) negate() else this
@@ -315,27 +282,14 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
         return (if (negative) "-" else "") + mantissa + "E" + exponentText
     }
 
-    /** The unscaled integer value carried by this `BigDecimal`. */
-
     public fun unscaledValue(): BigInteger = BigInteger(movePointRight(scale()).toString())
 
-    /** This value converted to a `BigInteger`, dropping any fractional part toward zero. */
     public fun toBigInteger(): BigInteger =
         BigInteger(setScale(0, RoundingMode.DOWN).toString())
 
-    /**
-     * This value converted to a `BigInteger`; throws `ArithmeticException`
-     * if a nonzero fractional part would be dropped.
-     */
     public fun toBigIntegerExact(): BigInteger =
         BigInteger(setScale(0, RoundingMode.UNNECESSARY).toString())
 
-    /**
-     * Returns a `BigDecimal` which is numerically equal to this value but with
-     * any trailing zeros removed from the unscaled value. Like the JDK, the
-     * scale may become negative (e.g. `BigDecimal("1000")` becomes `1E+3`), and
-     * zero returns `BigDecimal.ZERO`.
-     */
     public fun stripTrailingZeros(): BigDecimal {
         val unscaled = unscaledValue()
         if (unscaled.signum() == 0) return ZERO
@@ -383,7 +337,6 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
     public fun max(other: BigDecimal): BigDecimal =
         if (compareTo(other) >= 0) this else other
 
-    /** Returns one unit in the last place of this value, like the JDK `ulp`. */
     public fun ulp(): BigDecimal = BigDecimal("1E" + (-scale().toLong()))
 
     public fun byteValueExact(): Byte = toBigIntegerExact().byteValueExact()

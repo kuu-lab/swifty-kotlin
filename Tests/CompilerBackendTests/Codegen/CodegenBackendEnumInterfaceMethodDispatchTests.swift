@@ -4,17 +4,6 @@
 import Foundation
 import Testing
 
-/// An enum value widened to an interface is a `kk_enum_box_ordinal` box
-/// whose itable slots are registered at the boxing site (enum entries never
-/// run a constructor). Only the interface->slot mapping and property getters
-/// were registered there, so any interface *method* call through the box
-/// panicked with `KSWIFTK-RUNTIME-0001` ("method not found in vtable/itable"),
-/// whether the override lived in an entry body or the enum body. The box now
-/// registers each method, through a bridge that unboxes the ordinal receiver
-/// the enum member / `$enumEntryDispatch$` helper expects. Inline expansion
-/// and statically called interface-receiver members (default methods,
-/// callable-reference thunks) now box an enum argument for an interface slot
-/// instead of passing the raw ordinal.
 @Suite
 struct CodegenBackendEnumInterfaceMethodDispatchTests {
 

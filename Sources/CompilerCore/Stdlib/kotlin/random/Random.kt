@@ -9,9 +9,6 @@ package kotlin.random
 
 import kotlin.math.nextDown
 
-// The public API and state initialization follow kotlin-stdlib's
-// libraries/stdlib/src/kotlin/random/{Random,XorWowRandom}.kt structure so
-// seeded output remains bit-exact with kotlinc.
 // Single-method interfaces expose the Random methods that native runtime
 // helpers call through itable dispatch. Keeping each interface to one method
 // fixes its runtime slot at zero, independent of symbol ordering. They are
@@ -137,9 +134,6 @@ public abstract class Random : RandomSource, RandomLongSource, RandomIntBitsSour
 
     public open fun nextFloat(): Float = nextBits(24) / (1 shl 24).toFloat()
 
-    // Non-standard overloads: real kotlin.random.Random has no nextFloat(Float)
-    // overloads. Kept for backward compatibility with KSwiftK's pre-existing
-    // public surface (formerly kk_random_nextFloat_until/_range).
     public open fun nextFloat(until: Float): Float {
         require(until > 0 && until.isFinite()) {
             "Random range is empty: until must be positive, but was $until."
@@ -148,14 +142,12 @@ public abstract class Random : RandomSource, RandomLongSource, RandomIntBitsSour
     }
 
     public open fun nextFloat(from: Float, until: Float): Float {
-        // See checkRangeBounds below for why the message is precomputed.
         val message = "Random range is empty: $from..$until."
         require(until > from && from.isFinite() && until.isFinite()) { message }
         return from + (nextFloat() * (until - from))
     }
 
     public open fun nextBytes(array: ByteArray, fromIndex: Int = 0, toIndex: Int = array.size): ByteArray {
-        // See checkRangeBounds below for why these messages are precomputed.
         val rangeMessage = "fromIndex ($fromIndex) or toIndex ($toIndex) are out of range: 0..${array.size}."
         require(fromIndex in 0..array.size && toIndex in 0..array.size) { rangeMessage }
         val orderMessage = "fromIndex ($fromIndex) must be not greater than toIndex ($toIndex)."
@@ -228,8 +220,6 @@ internal class XorWowRandom internal constructor(
 
     init {
         require((x or y or z or w or v) != 0) { "Initial state must have at least one non-zero element." }
-        // Some trivial seeds produce several values with zeroes in upper bits,
-        // so discard the first 64 values just like kotlin-stdlib.
         repeat(64) { val _ = nextInt() }
     }
 

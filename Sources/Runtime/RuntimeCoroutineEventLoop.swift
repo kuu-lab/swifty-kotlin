@@ -1,26 +1,10 @@
 import Foundation
 
-/// `kotlinx.coroutines`' `runBlocking` installs a `BlockingEventLoop` as the
-/// dispatcher for its own body and for every child launched into it, then
-/// drains that loop on the thread that called `runBlocking`. Resumptions
-/// therefore happen in strict FIFO order, which is what makes `yield()`
-/// deterministic: it re-queues the current coroutine at the tail, behind
-/// everything already waiting for a turn.
-///
-/// Before this type existed, every resumption hop in this runtime went to
-/// `DispatchQueue.global()` -- a *concurrent* pool -- and `yield()` additionally
-/// waited a millisecond of timer leeway before resuming. The relative order of
-/// two coroutines' resumptions was then decided by thread races rather than by
-/// a queue, so a program's output varied from run to run.
-///
 /// `run(until:)` is deliberately re-entrant. A blocking wait that happens *on*
 /// the loop thread -- a nested `runBlocking`, `Job.join()` from a non-suspend
 /// context, `coroutineScope`'s wait for its children -- drains the queue
 /// instead of parking the only thread that can make the awaited work progress.
 final class RuntimeEventLoop: @unchecked Sendable {
-    /// Completion normally arrives via `enqueue`/`wake` (both broadcast), so
-    /// this bound only matters for a wait satisfied by a third party that
-    /// never signals us: it turns a potential hang into a poll.
     private static let idleWaitSeconds: TimeInterval = 0.005
 
     private let condition = NSCondition()
@@ -46,19 +30,8 @@ final class RuntimeEventLoop: @unchecked Sendable {
         condition.unlock()
     }
 
-    /// Minted lazily so every read of the context resolves to the same
-    /// element object.
     private var cachedElementRaw = 0
 
-    /// The runBlocking event-loop context element, as a registered object.
-    ///
-    /// It is a `RuntimeDispatcher` so `element is CoroutineDispatcher`,
-    /// `element is ContinuationInterceptor`, and the `key`/`get`/`fold`/
-    /// `minusKey` element members bridge like the named dispatchers do. Its
-    /// tag is 0: the loop is the scheduling mechanism itself, so nothing may
-    /// resolve the element to a dispatch queue — `resolveToCoroutineContext`
-    /// maps it to a handle-only context, and interception through it is a
-    /// no-op (`kk_context_get_dispatcher` returns 0).
     func elementHandle() -> Int {
         condition.lock()
         defer { condition.unlock() }
@@ -76,13 +49,6 @@ final class RuntimeEventLoop: @unchecked Sendable {
 
     private static let pthreadKey: pthread_key_t = makePthreadKey()
 
-    /// The event loop the current thread is draining, if any.
-    ///
-    /// Read by the launch entry points and by the suspend-entry loop to decide
-    /// whether a coroutine is loop-bound. A body dispatched onto a real
-    /// dispatcher queue (`withContext(Dispatchers.IO)`, `launch(Dispatchers.Default)`)
-    /// starts on a pool thread where this is `nil`, and so keeps the previous
-    /// global-pool behaviour.
     static var current: RuntimeEventLoop? {
         get { pthreadGetValue(pthreadKey) }
         set { pthreadSetValue(pthreadKey, newValue) }
@@ -95,28 +61,17 @@ final class RuntimeEventLoop: @unchecked Sendable {
         condition.unlock()
     }
 
-    /// `DispatchWorkItem` is not `Sendable`, so it travels inside a box. That is
-    /// safe here for the same reason it is safe in `RuntimePendingLaunchQueue`:
-    /// the loop runs exactly one task at a time and never hands the item to a
-    /// second queue.
     func enqueue(workItem: DispatchWorkItem) {
         let box = RuntimeWorkItemBox(workItem)
         enqueue { box.performUnlessCancelled() }
     }
 
-    /// Used when a wait is satisfied by something that is not a queued task --
-    /// a job completing on a GCD thread, a dispatcher-bound block finishing --
-    /// so the drain does not have to wait out `idleWaitSeconds`.
     func wake() {
         condition.lock()
         condition.broadcast()
         condition.unlock()
     }
 
-    /// `TestCoroutineScheduler` uses this after releasing virtual-time
-    /// continuations so child coroutines make progress before the scheduler
-    /// reports itself idle. This is also safe when called re-entrantly from a
-    /// coroutine that is already running on this loop.
     func runReadyTasks() {
         let saved = RuntimeEventLoop.current
         RuntimeEventLoop.current = self
@@ -140,8 +95,6 @@ final class RuntimeEventLoop: @unchecked Sendable {
             return nil
         }
         let work = pending[nextIndex]
-        // Drop the queue's reference so the task (and anything it captured)
-        // is released as soon as it has run, not when the queue next compacts.
         pending[nextIndex] = {}
         nextIndex += 1
         if nextIndex == pending.count {
@@ -214,9 +167,6 @@ final class RuntimeEventLoop: @unchecked Sendable {
     }
 }
 
-/// One-shot completion flag for waits that need a predicate rather than a
-/// semaphore, because they may be satisfied while the waiting thread is
-/// draining a `RuntimeEventLoop`.
 final class RuntimeCompletionFlag: @unchecked Sendable {
     private let lock = NSLock()
     private var flag = false
@@ -241,8 +191,6 @@ final class RuntimeWorkItemBox: @unchecked Sendable {
         self.workItem = workItem
     }
 
-    /// Mirrors `DispatchQueue.async(execute:)`, which skips a work item that
-    /// was cancelled before it began running.
     func performUnlessCancelled() {
         guard !workItem.isCancelled else { return }
         workItem.perform()

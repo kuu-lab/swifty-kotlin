@@ -52,7 +52,6 @@ struct CodegenBackendMinOfFloatEdgeCasesTests {
         )
     }
 
-    // STDLIB-COMP-FN-040: minOf(a: Float, vararg other: Float) with 4 arguments
     @Test func testCodegenCompilesMinOfFloatVararg() throws {
         let source = """
         fun main() {
@@ -83,10 +82,6 @@ struct CodegenBackendMinOfFloatEdgeCasesTests {
         }
     }
 
-    // minOf(Float, Float) must propagate NaN and distinguish signed zero
-    // regardless of argument order, matching kotlinc's Math.min-backed behavior
-    // (verified against `kotlinc` directly) rather than a plain `<` comparison,
-    // which is always false for NaN operands and treats -0.0 == 0.0.
     @Test func testCodegenCompilesMinOfFloatNaNAndSignedZero() throws {
         let source = """
         fun main() {
@@ -111,8 +106,6 @@ struct CodegenBackendMinOfFloatEdgeCasesTests {
         )
     }
 
-    // 3-arg and vararg minOf(Float) must propagate NaN through every pairwise
-    // step, not just the first/last comparison.
     @Test func testCodegenCompilesMinOfFloatNaNMultiArg() throws {
         let source = """
         fun main() {
@@ -137,8 +130,6 @@ struct CodegenBackendMinOfFloatEdgeCasesTests {
         )
     }
 
-    // Double shares the same lowering path as Float; verify NaN/signed-zero
-    // handling holds for the wider type too.
     @Test func testCodegenCompilesMinOfDoubleNaNAndSignedZero() throws {
         let source = """
         fun main() {

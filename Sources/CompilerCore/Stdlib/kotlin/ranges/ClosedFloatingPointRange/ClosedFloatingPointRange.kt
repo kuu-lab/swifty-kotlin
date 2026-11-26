@@ -7,9 +7,6 @@
 
 package kotlin.ranges
 
-// KUU-763: the `ClosedFloatingPointRange<T>` member declarations are
-// source-backed here, moved out of Ranges.kt alongside the interface itself.
-//
 // Runtime range values (`1.0..2.0`, `x..<y`) are opaque
 // `RuntimeDoubleRangeBox`/`RuntimeFloatRangeBox` handles that do not register
 // interface itables, so interface-typed member calls cannot dispatch through

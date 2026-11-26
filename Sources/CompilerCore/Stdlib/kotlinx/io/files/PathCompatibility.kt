@@ -10,12 +10,6 @@ import kotlinx.io.Source
 import kotlinx.io.buffered
 import kotlin.jvm.JvmName
 
-/**
- * Returns [RawSource] for the given file or throws if path is not a file or does not exist
- *
- * Use of this method is deprecated with warning since kotlinx-io 0.3.0, with error since 0.8.0,
- * and it will be removed in the future.
- */
 @Deprecated(
     message = "Use FileSystem.source instead",
     replaceWith = ReplaceWith(
@@ -27,13 +21,6 @@ import kotlin.jvm.JvmName
 @JvmName("sourceDeprecated")
 public fun Path.source(): Source = SystemFileSystem.source(this).buffered()
 
-/**
- * Returns [RawSink] for the given path, creates file if it doesn't exist, throws if it's a directory,
- * overwrites contents.
- *
- * Use of this method is deprecated with warning since kotlinx-io 0.3.0, with error since 0.8.0,
- * and it will be removed in the future.
- */
 @Deprecated(
     message = "Use FileSystem.sink instead",
     replaceWith = ReplaceWith(

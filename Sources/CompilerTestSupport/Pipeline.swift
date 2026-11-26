@@ -16,10 +16,6 @@ func makeSemaModule(
     return (ctx, symbols, types, StringInterner())
 }
 
-/// Does not prepare the shared precompiled stdlib artifact as a side effect —
-/// callers that need it (because they default to
-/// `allowDefaultStdlibLibrary: true`) are responsible for calling
-/// `TestStdlibCache.shared.prepare()` themselves.
 func defaultTargetTriple() -> TargetTriple {
     TargetTriple.hostDefault()
 }
@@ -88,7 +84,6 @@ func runToLowering(_ ctx: CompilationContext) throws {
     try LoweringPhase().run(ctx)
 }
 
-/// See `makeCompilationContext` for the `allowDefaultStdlibLibrary` default.
 func makeContextFromSource(
     _ source: String,
     moduleName: String = "TestModule",
@@ -109,8 +104,6 @@ func makeContextFromSource(
     return ctx
 }
 
-/// Multi-file variant of `makeContextFromSource`: registers each source
-/// under a distinct fake path without touching the disk.
 func makeContextFromSources(
     _ sources: [String],
     moduleName: String = "TestModule",
@@ -132,8 +125,6 @@ func makeContextFromSources(
     return ctx
 }
 
-/// A stdlib-free `CompilationContext` over a single virtual source, shared by
-/// bound-identity regression tests across test targets.
 func makeBoundIdentityContext(_ source: String) -> CompilationContext {
     let path = "/virtual/bound-identity.kt"
     let context = makeCompilationContext(
@@ -145,10 +136,6 @@ func makeBoundIdentityContext(_ source: String) -> CompilationContext {
     return context
 }
 
-/// A `KIRContext` for tests that drive a single `KIRPass` directly instead of
-/// the whole `LoweringPhase`. `moduleName` is defaulted because no lowering
-/// pass reads `CompilerOptions` — nothing under `Sources/CompilerCore/Lowering`
-/// touches `options`, so the value is unobservable from a pass test.
 func makeKIRContext(
     moduleName: String = "KIRTest",
     interner: StringInterner,
@@ -165,8 +152,6 @@ func makeKIRContext(
     return makeKIRContext(from: ctx, sema: sema)
 }
 
-/// The `KIRContext` that `LoweringPhase.run` builds for `context`, for tests
-/// that run one pass against an already-built `CompilationContext`.
 func makeKIRContext(from context: CompilationContext, sema: SemaModule? = nil) -> KIRContext {
     KIRContext(
         diagnostics: context.diagnostics,
@@ -176,8 +161,6 @@ func makeKIRContext(from context: CompilationContext, sema: SemaModule? = nil) -
     )
 }
 
-/// Run `LoweringPhase` over a hand-built `module`, the shape every
-/// pass-level lowering test needs.
 @discardableResult
 func runLowering(
     module: KIRModule,

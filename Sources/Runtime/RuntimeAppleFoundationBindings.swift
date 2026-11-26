@@ -539,7 +539,6 @@ private final class RuntimeFoundationThreadBody: @unchecked Sendable {
         self.callback = callback
     }
 
-    /// False when the thread was already started.
     func begin() -> Bool {
         lock.lock()
         defer { lock.unlock() }
@@ -655,8 +654,6 @@ public func __kk_foundation_thread_start(_ handle: Int, _ outThrown: UnsafeMutab
     runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
         guard let thread = runtimeForeignResource(handle, as: Thread.self) else { try throwFoundationFailure("Invalid SDK thread") }
         #if !canImport(Darwin)
-        // A second start is a no-op like the Darwin override; a thread the runtime
-        // did not create has no body.
         let body = runtimeFoundationThreadBodiesLock.withLock {
             runtimeFoundationThreadBodies[ObjectIdentifier(thread)]
         }

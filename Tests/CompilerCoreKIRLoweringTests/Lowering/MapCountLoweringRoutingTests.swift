@@ -4,28 +4,6 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-/// RF-LOWER-CALL-012 follow-up: pin the routing of `Map<K, V>.count(predicate)`.
-///
-/// `Stdlib/kotlin/collections/MapHOF.kt` declares
-/// `Map<K, V>.count(predicate: (Map.Entry<K, V>) -> Boolean): Int`, but
-/// `CollectionLiteralLoweringPass+CallRewriteFactories.swift` still carried a
-/// `map.count(predicate)` -> `kk_map_count` rewrite branch. It was
-/// unreachable — the historical synthetic Map registration path skipped the
-/// competing
-/// synthetic `count` member whenever `bundledIndex.contains(ownerFQName:
-/// mapFQName, name: "count", arity: 1)` is true, which it always is once
-/// KSP-430 bundled `MapHOF.kt`, so a resolved `count(predicate)` call on a
-/// Map receiver can only ever be `.sourceBacked` — and the branch's own
-/// inline `isSourceBackedBundledFunction` guard existed for exactly that
-/// resolution, unlike the sibling Map HOF branches CALL-012 removed, which
-/// relied entirely on the source-backed preservation gate running
-/// first. This branch instead sits inside `rewriteFactoryAndBuilderCall`,
-/// which `lowerCallInstruction` calls *before* that later check, so it had
-/// to carry its own resolution test — one that was always false for a call
-/// that reached it with a real symbol. `kk_map_count` has no `@_cdecl` in
-/// `Sources/Runtime`, only a `Tests/RuntimeTests/RuntimeCollectionHOF430MapShims.swift`
-/// test shim, the same pattern as the thirteen `kk_map_*` targets CALL-012
-/// found dead.
 @Suite
 struct MapCountLoweringRoutingTests {
     private static let mapCountSource = """
@@ -47,8 +25,6 @@ struct MapCountLoweringRoutingTests {
     }
     """
 
-    /// `.call` instructions whose callee resolves to `"count"`, with the
-    /// resolved symbol and argument count (receiver + lambda [+ closure word]).
     private static func countCalls(
         in body: [KIRInstruction],
         interner: StringInterner
@@ -61,10 +37,6 @@ struct MapCountLoweringRoutingTests {
         }
     }
 
-    /// Every `Map.count(predicate)` call — on a read-only map, a `HashMap`, a
-    /// `MutableMap`, a chained rewrite result, and an interface-typed
-    /// variable — stays a resolved source call, and `kk_map_count` never
-    /// reaches lowered KIR.
     @Test
     func mapCountPredicateSurvivesAsSourceCallOnEveryMapReceiverShape() throws {
         try withTemporaryFile(contents: Self.mapCountSource) { path in
@@ -91,10 +63,6 @@ struct MapCountLoweringRoutingTests {
                 "The retired Map count bridge must never be emitted; callees: \(callees.sorted())"
             )
 
-            // The exact shape the deleted rewrite branch produced: a
-            // `symbol: nil` call to the bare name "count" with the receiver,
-            // lambda and closure word (3 arguments). Guards against a future
-            // rewrite being re-added without checking reachability first.
             let brokenCountRewrites = body.filter { instruction in
                 guard case let .call(symbol, callee, arguments, _, _, _, _, _) = instruction else { return false }
                 return symbol == nil
@@ -108,9 +76,6 @@ struct MapCountLoweringRoutingTests {
         }
     }
 
-    /// The reason no rewrite fires: every resolved `count(predicate)` callee
-    /// is source-backed in `MapHOF.kt`, so `isSourceBackedBundledFunction`
-    /// (had it stayed) would always have declined the rewrite.
     @Test
     func mapCountPredicateCalleesResolveToMapHOF() throws {
         try withTemporaryFile(contents: Self.mapCountSource) { path in

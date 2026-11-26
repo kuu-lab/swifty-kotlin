@@ -2,8 +2,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    // KUU-2044: pin defaults, range validation, and the persistent-vector calls
-    // through both bundled source and imported metadata at O0 and O2.
     @Test(arguments: [false, true], [false, true])
     func testArrayFillRange(allowDefaultStdlibLibrary: Bool, optimized: Bool) throws {
         try compileAndRunKotlin(

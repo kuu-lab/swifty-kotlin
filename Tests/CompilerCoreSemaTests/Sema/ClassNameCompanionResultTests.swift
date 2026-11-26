@@ -2,10 +2,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// Regression coverage for KUU-3232 / JetBrains `unsignedTypes/kt47716.kt`:
-/// a bare class-name expression (`ULong`) denotes the companion object, so a
-/// compound expression that yields it (try/if/when/elvis/lambda result) must
-/// keep the companion value type for postfix member lookup.
 @Suite
 struct ClassNameCompanionResultTests {
     @Test

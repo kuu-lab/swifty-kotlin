@@ -5,7 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2822: BigInteger.compareTo must link through both stdlib surfaces.
     @Test
     func testBigIntegerCompareToAndPriorityQueueAcrossStdlibSurfaces() throws {
         let repoRoot = URL(fileURLWithPath: #filePath)
@@ -38,9 +37,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-2010: value equality must survive source injection and metadata import.
-    /// Expected output was measured with Kotlin 2.3.10 and JDK 17.
-    /// Multiplication-derived cases remain in the diff fixtures; KUU-2026 blocks them.
     @Test
     func testBigIntegerEqualityAcrossStdlibSurfaces() throws {
         let repoRoot = URL(fileURLWithPath: #filePath)
@@ -75,8 +71,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-2011: preserve the exact ZERO reproducer and arithmetic controls
-    /// through source injection and freshly serialized public metadata.
     @Test(arguments: [false, true], [0, 2])
     func testBigIntegerZeroAcrossStdlibSurfaces(
         useArtifact: Bool,
@@ -115,7 +109,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// A consumer must not be able to replace the public val via either surface.
     @Test(arguments: [false, true])
     func testBigIntegerZeroRejectsReassignment(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try BigIntegerZeroArtifact.path.get() : nil
@@ -132,7 +125,6 @@ extension StdlibArtifactRegressionTests {
             do {
                 try runSema(ctx)
             } catch {
-                // Require the specific diagnostic, not just pipeline failure.
             }
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
             #expect(errors.map(\.code) == ["KSWIFTK-SEMA-0014"])
@@ -163,7 +155,6 @@ private func bigIntegerZeroContext(
 }
 
 private enum BigIntegerZeroArtifact {
-    /// Build one fresh artifact for this matrix without preparing the default cache.
     static let path: Result<String, Error> = Result {
         let outputBase = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString).path

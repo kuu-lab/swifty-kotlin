@@ -41,8 +41,6 @@ struct MacOSLinkerPlanTests {
         #expect(plan(["-force_load", "/a/compat.a", "-dead_strip"]).forceLoadedPaths == ["/a/compat.a"])
         #expect(plan(["a.o", "-force_load", "/a.a", "-force_load", "/b.a"]).forceLoadedPaths == ["/a.a", "/b.a"])
         #expect(plan(["-dead_strip"]).forceLoadedPaths == [])
-        // A flag without an absolute-path argument is a shape we do not
-        // rewrite: extraction reports nil and the pair stays in place.
         #expect(plan(["-force_load", "relative.a"]).forceLoadedPaths == nil)
         #expect(plan(["-force_load"]).forceLoadedPaths == nil)
     }

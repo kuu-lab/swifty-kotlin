@@ -4,15 +4,6 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-/// `null == false` (and other nullable-primitive vs. non-null literal
-/// comparisons) must stay null-aware. kk_op_eq/ne only accept raw
-/// Ints, so ABILoweringPass previously normalized a nullable operand to its
-/// non-null peer's type via kk_unbox_bool/int/char — which map the runtime
-/// null sentinel to 0, collapsing a genuine null into a valid non-null value
-/// before the comparison ran. These assert the lowered KIR routes a
-/// nullable-primitive `==`/`!=` through kk_structural_eq/ne (which already
-/// treats the null sentinel correctly) instead of kk_op_eq/ne, while a
-/// non-null primitive comparison keeps using the cheaper kk_op_eq/ne path.
 extension LoweringPassRegressionTests {
     @Test
     func testSetOfMixedLongLiteralBoxesBothElementsAsLong() throws {
@@ -29,10 +20,6 @@ extension LoweringPassRegressionTests {
         #expect(!boxCallees.contains(RuntimeCall.boxIntStatic.name), "No set element should be boxed as Int: \(boxCallees)")
     }
 
-    // KUU-3789: the list-side factory fast path must contextualize a bare
-    // integer literal through the explicit element type the way the set
-    // factories already do. `mutableListOf<Long>(1)` boxing its element as
-    // Int stores an IntBox that a later Long unbox rejects (CCE panic).
     @Test(arguments: ["mutableListOf", "arrayListOf", "listOfNotNull"])
     func testMutableListFactoriesBoxExplicitLongLiteralAsLong(factory: String) throws {
         let source = """
@@ -53,9 +40,6 @@ extension LoweringPassRegressionTests {
         )
     }
 
-    // A bare constant mixed with a non-literal Long input also widens to the
-    // inferred element type: mutableListOf(1, 1L) is MutableList<Long> on the
-    // JVM, so both elements must reach the backing array as Long boxes.
     @Test(arguments: ["mutableListOf", "arrayListOf", "listOfNotNull"])
     func testMutableListFactoriesBoxMixedLiteralsAsInferredLong(factory: String) throws {
         let source = """

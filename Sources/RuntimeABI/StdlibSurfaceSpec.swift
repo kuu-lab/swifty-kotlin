@@ -74,10 +74,6 @@ public struct StdlibSurfaceSpec: Equatable, Hashable, Sendable {
     public let returnStrategy: StdlibSurfaceReturnStrategy
     public let lambdaExpectation: StdlibSurfaceLambdaExpectation
 
-    /// The per-ownerKind sub-arrays live in dedicated files
-    /// (`StdlibSurfaceSpec+ListHOF.swift`, `+SetHOF.swift`,
-    /// `+MapHOF.swift`, `+SequenceHOF.swift`) so that parallel branches
-    /// adding new entries do not collide on the same central file.
     public static let collectionHOFMembers: [StdlibSurfaceSpec] =
         listHOFMembers + setHOFMembers + mapHOFMembers + sequenceHOFMembers
 

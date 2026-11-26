@@ -9,8 +9,6 @@ package kotlin.random
 
 import kotlin.internal.KsSymbolName
 
-// Unsigned random APIs are package extensions, matching kotlin-stdlib.
-// Keep the existing range engines behind private bridges.
 @KsSymbolName("__kk_random_nextUInt_uintRange")
 private external fun __kk_random_nextUInt_uintRange(random: Random, range: UIntRange): UInt
 
@@ -60,7 +58,6 @@ public fun Random.nextUBytes(array: UByteArray, fromIndex: Int, toIndex: Int): U
     return array
 }
 
-// See checkRangeBounds in Random.kt for why the message is precomputed.
 internal fun checkUIntRangeBounds(from: UInt, until: UInt) {
     val message = boundsErrorMessage(from, until)
     require(until > from) { message }

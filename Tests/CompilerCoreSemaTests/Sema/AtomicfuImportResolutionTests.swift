@@ -7,8 +7,6 @@ import Testing
 struct AtomicfuImportResolutionTests {
     @Test
     func atomicfuImportFormsDoNotCaptureStandardAtomicInt() throws {
-        // This nominal fixture tests import binding only. It intentionally has
-        // no atomic operations and is not evidence for atomic semantics.
         let ctx = makeContextFromSources([
             """
             @file:Suppress("DEPRECATION_ERROR")

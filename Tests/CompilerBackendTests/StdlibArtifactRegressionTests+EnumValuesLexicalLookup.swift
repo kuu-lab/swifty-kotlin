@@ -5,8 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2218: enum `values()` is visible from enum members and companion
-    /// initializers across source and serialized stdlib configurations.
     @Test
     func testUnqualifiedEnumValuesAcrossStdlibSurfaces() throws {
         let artifactPath = try Self.buildStdlibArtifact()

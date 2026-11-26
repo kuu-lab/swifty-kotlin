@@ -1,5 +1,4 @@
 extension TypeCheckDriver {
-    /// Includes implicit operator calls that are stored outside callBindings.
     func suspendingCallNames(for id: ExprID) -> [String] {
         var callees: [SymbolID] = []
         if let call = sema.bindings.callBinding(for: id) { callees.append(call.chosenCallee) }
@@ -33,20 +32,12 @@ extension TypeCheckDriver {
         return names
     }
 
-    /// Validate after inference: inline argument mappings and suspend lambda
-    /// types may not be available while their bodies are first visited.
-    /// `suspendLambdaArguments` records lambda literals bound to a parameter
-    /// declared as a `suspend` function type; that bound signature is
-    /// authoritative even when the lambda's own `exprTypes` entry kept the
-    /// non-suspend inferred shape.
     func validateSuspensionContexts(
         inlineLambdaArguments: Set<ExprID>,
         suspendLambdaArguments: Set<ExprID>
     ) {
         validateJVMSequenceSuspensionContexts(inlineLambdaArguments: inlineLambdaArguments, suspendLambdaArguments: suspendLambdaArguments)
         func functionType(_ exprID: ExprID) -> FunctionType? {
-            // SAM conversion replaces the expression type with the nominal
-            // interface; its callable signature still owns suspension context.
             guard let type = sema.bindings.samUnderlyingFunctionType(for: exprID) ?? sema.bindings.exprTypes[exprID] else { return nil }
             if case let .functionType(function) = sema.types.kind(of: sema.types.makeNonNullable(type)) {
                 return function
@@ -55,8 +46,6 @@ extension TypeCheckDriver {
         }
 
         func allowsSuspension(in context: SuspensionContext) -> Bool {
-            // Only inlined ordinary lambdas may inherit a surrounding
-            // suspension context. A suspend lambda supplies its own context.
             var allowed = context.function.flatMap { sema.symbols.functionSignature(for: $0) }?.isSuspend == true
             for lambda in context.lambdas {
                 if functionType(lambda)?.isSuspend == true || suspendLambdaArguments.contains(lambda) {

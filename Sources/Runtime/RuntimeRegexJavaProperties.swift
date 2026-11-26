@@ -257,17 +257,8 @@ private let jvmRegexBlockNames: Set<String> = [
     "ZNAMENNYMUSICALNOTATION", "ZNAMENNY_MUSICAL_NOTATION",
 ]
 
-// MARK: - Name resolution (mirrors Pattern.family)
-
-/// Whether `name` — the raw text inside `\p{...}` / `\P{...}` — is accepted
-/// by java.util.regex.Pattern#family. `unicodeClasses` is the
-/// UNICODE_CHARACTER_CLASS ((?U)) state at the escape's position; it only
-/// affects the bare-name POSIX lookup, exactly like the JVM.
 func jvmRegexPropertyNameValid(_ name: String, unicodeClasses: Bool) -> Bool {
     if let eq = name.firstIndex(of: "=") {
-        // \p{name=value}: the key is lowercased before dispatch; the value is
-        // resolved by the family-specific lookup (scripts/blocks are
-        // case-insensitive, gc values match forProperty case-sensitively).
         let key = name[..<eq].lowercased()
         let value = name[name.index(after: eq)...]
         switch key {
@@ -278,12 +269,9 @@ func jvmRegexPropertyNameValid(_ name: String, unicodeClasses: Bool) -> Bool {
         }
     }
     if name.hasPrefix("In") {
-        // \p{InBlockName}: Unicode blocks only.
         return jvmRegexBlockNames.contains(name.dropFirst(2).uppercased())
     }
     if name.hasPrefix("Is") {
-        // \p{IsX}: forUnicodeProperty (binary props + POSIX, uppercase),
-        // then forProperty (exact), then forUnicodeScript (uppercase).
         let short = name.dropFirst(2)
         return jvmRegexUnicodePropertyNames.contains(short.uppercased())
             || jvmRegexPosixNames.contains(short.uppercased())
@@ -291,39 +279,9 @@ func jvmRegexPropertyNameValid(_ name: String, unicodeClasses: Bool) -> Bool {
             || jvmRegexScriptNames.contains(short.uppercased())
     }
     if unicodeClasses, jvmRegexPosixNames.contains(name.uppercased()) { return true }
-    // Bare names never consult getUnicodePredicate — binary property names
-    // require the Is prefix (or gc=/etc.).
     return jvmRegexPropertyNames.contains(name)
 }
 
-// MARK: - ICU translation (KUU-4295)
-//
-// `jvmRegexPropertyNameValid` decides which `\p{...}` names the JVM accepts;
-// the helpers below decide what ICU pattern expresses the same predicate.
-// ICU rejects several names the JVM accepts (`gc=Lower`, `LD`, `L1`, `all`,
-// `javaAlphabetic`, `javaIdeographic`, `javaLowerCase`, `javaUpperCase`,
-// every `Is<java*>` form, `IsWORD`, `IsHEXDIGIT`, `InSurrogates_Area`, ...)
-// and resolves a few shared names differently (`javaLowerCase` folds
-// Other_Lowercase into `Lowercase`, `IsWORD` needs the identifier-part
-// union, `IsHEXDIGIT` includes non-ASCII decimal digits). Each rewrite below
-// was checked against `java.util.regex.Pattern` on a discriminating corpus.
-
-/// JVM POSIX `\p{Name}` classes and their US-ASCII expansions.
-///
-/// On the JVM these names match ASCII characters only unless
-/// `UNICODE_CHARACTER_CLASS` is in effect; ICU's `\p{Name}` always uses its
-/// Unicode property tables, so while ASCII mode is active each POSIX name is
-/// rewritten to the explicit ASCII class below (and `\P{Name}` to the
-/// complemented class). Under `(?U)` a *bare* `\p{Name}` is copied through
-/// verbatim: ICU's `\p{Name}` implements the same UTS#18 compatibility
-/// properties the JVM uses in Unicode mode (e.g. `Upper` = `Lu +
-/// Other_Uppercase`, `Cntrl` = `gc=Cc`, `Blank` = `TAB + Zs`, `Space` =
-/// `White_Space`), so the semantics already agree. `gc=`/`general_category=`
-/// values bypass `forPOSIXName` on the JVM and always take this ASCII path.
-///
-/// `\p{ASCII}` is included for completeness — it is `[\x00-\x7F]` on the JVM
-/// in both modes — and all names are matched case-sensitively: the JVM
-/// rejects `\p{lower}` while ICU would accept it.
 private let jvmAsciiPosixClassExpansions: [String: String] = [
     "Lower": "[a-z]",
     "Upper": "[A-Z]",
@@ -340,31 +298,16 @@ private let jvmAsciiPosixClassExpansions: [String: String] = [
     "Space": "[ \\t\\n\\x0B\\f\\r]",
 ]
 
-/// ICU spelling of the JDK `WORD()` predicate behind `IsWORD` /
-/// `Isword` / ... : Java identifier part characters, i.e. letters, marks,
-/// decimal digits, connector punctuation and join controls.
 private let jvmRegexWordClassICU = "[\\p{Alphabetic}\\p{M}\\p{Nd}\\p{Pc}\\p{Join_Control}]"
 
-/// ICU spelling of the JDK `HEX_DIGIT()` predicate behind `IsHEXDIGIT` /
-/// `IsHEX_DIGIT` / `IsXDIGIT` and their case variants: every decimal digit
-/// (`Nd`, which also covers the fullwidth digits), ASCII hex letters, and
-/// the fullwidth hex letters.
 private let jvmRegexHexDigitClassICU = "[\\p{Nd}A-Fa-f\\uFF21-\\uFF26\\uFF41-\\uFF46]"
 
-/// Negates a `[...]` class expression by inserting `^` after the opening
-/// bracket — the same trick the POSIX `\P{Name}` expansion uses.
 private func jvmRegexComplementedClass(_ cls: String) -> String {
     var complemented = cls
     complemented.insert("^", at: complemented.index(after: complemented.startIndex))
     return complemented
 }
 
-/// ICU class/escape equivalent of `java.util.regex` `forProperty(name)` —
-/// the predicate behind bare `\p{Name}` outside `(?U)`, `gc=` /
-/// `general_category=` values, and the `Is<Name>` stage-3 lookup. Returns
-/// nil for names ICU already expresses correctly (general categories,
-/// `LC`, the `java*` names ICU resolves identically, ...), which then pass
-/// through verbatim.
 private func jvmRegexForPropertyICU(_ name: String, negated: Bool) -> String? {
     if let asciiClass = jvmAsciiPosixClassExpansions[name] {
         return negated ? jvmRegexComplementedClass(asciiClass) : asciiClass
@@ -382,25 +325,6 @@ private func jvmRegexForPropertyICU(_ name: String, negated: Bool) -> String? {
     }
 }
 
-/// Returns the ICU replacement for the contents of a `\p{...}` / `\P{...}`
-/// escape, or nil when the escape should be copied through verbatim.
-///
-/// This mirrors `Pattern.family`'s dispatch — `name=value` keys, `In*` blocks,
-/// `Is*` (Unicode property → `forProperty` → Unicode script), then bare
-/// names — so names ICU cannot express get the expression with the same
-/// match set while everything else keeps passing through. `negated` selects
-/// the `\P` complement and `unicodeClasses` the UNICODE_CHARACTER_CLASS
-/// state, matching `jvmRegexPropertyNameValid`.
-/// Marker-space rewrites for the escape-pair ICU encoding (KUU-4590): the
-/// ICU subject carries isolated surrogates as `\uE800\uE0XX` pairs and real
-/// E000...E801 scalars as `\uE801\uXXXX` pairs, so property names covering
-/// those code-point spaces need sequence rewrites instead of classes.
-/// `\\p{Name}` as a character-class MEMBER in the encoded domain (KUU-4590):
-/// returns the marker-safe scalar text plus the member's coverage of the two
-/// encoded spaces — the caller union-merges the coverage to decide which
-/// escape-pair alternatives the enclosing class needs. `ranges` only reports
-/// coverage inside D800...DFFF / E000...E801; other scalars ride along in
-/// `text`. nil for property names this pass does not model.
 func jvmRegexMemberSpaceCoverage(_ name: String, negated: Bool) -> (text: String, ranges: [(Int, Int)])? {
     let markerRange = (0xE000, 0xE801)
     let surrogateRange = (0xD800, 0xDFFF)
@@ -419,9 +343,6 @@ func jvmRegexMemberSpaceCoverage(_ name: String, negated: Bool) -> (text: String
             if block.hasPrefix("BLK") { block = String(block.dropFirst(3)) }
             return jvmRegexMemberBlockCoverage(block, negated: negated)
         case "sc", "script":
-            // Only script Unknown (Zzzz) covers marker-space scalars
-            // (surrogates and PUA are sc=Unknown); every real script misses
-            // the marker space entirely and stays verbatim.
             let script = normalized(value)
             if script == "UNKNOWN" || script == "ZZZZ" {
                 return negated
@@ -440,9 +361,6 @@ func jvmRegexMemberSpaceCoverage(_ name: String, negated: Bool) -> (text: String
     }
     switch lookup {
     case "Unknown", "Zzzz":
-        // `\p{IsUnknown}` / `\p{IsZzzz}`: script Unknown covers every
-        // marker-space scalar, so the positive member needs both pair arms;
-        // its complement covers none of them.
         return negated
             ? ("\\P{sc=Unknown}", [])
             : ("[\\p{sc=Unknown}--[\\uE000-\\uE801]]", [surrogateRange, markerRange])
@@ -463,10 +381,6 @@ func jvmRegexMemberSpaceCoverage(_ name: String, negated: Bool) -> (text: String
             ? ("[^\\s\\S]", [])
             : ("[^\\uE000-\\uE801]", [surrogateRange, markerRange])
     case "Assigned":
-        // Assigned = \P{Cn}: it covers both escape-pair spaces (surrogates
-        // are Cs, marker scalars are Co — both assigned) but excludes
-        // unassigned scalars like U+0378, so the plain arm must keep the
-        // property rather than collapsing to `[^\uE000-\uE801]`.
         return negated
             ? ("[\\P{Assigned}]", [])
             : ("[\\p{Assigned}--[\\uE000-\\uE801]]", [surrogateRange, markerRange])
@@ -479,7 +393,6 @@ func jvmRegexMemberSpaceCoverage(_ name: String, negated: Bool) -> (text: String
     }
 }
 
-/// Surrogate Unicode-block coverage for `\\p{InBlock}` class members.
 func jvmRegexMemberBlockCoverage(_ block: String, negated: Bool) -> (text: String, ranges: [(Int, Int)])? {
     let markerRange = (0xE000, 0xE801)
     let markerSpace = (0xE000, 0xE801)
@@ -490,7 +403,6 @@ func jvmRegexMemberBlockCoverage(_ block: String, negated: Bool) -> (text: Strin
     case "HIGHPRIVATEUSESURROGATES": subrange = (0xDB80, 0xDBFF)
     case "LOWSURROGATES": subrange = (0xDC00, 0xDFFF)
     case "SURROGATESAREA", "SURROGATES":
-        // Java's SURROGATES_AREA block has no members.
         return negated
             ? ("[^\\uE000-\\uE801]", [surrogateSpace, markerSpace])
             : ("[^\\s\\S]", [])
@@ -503,8 +415,6 @@ func jvmRegexMemberBlockCoverage(_ block: String, negated: Bool) -> (text: Strin
     }
     guard let subrange else { return nil }
     if negated {
-        // The complement covers the rest of the surrogate space plus every
-        // marker scalar; the scalar part is the UTF-16 complement class.
         var ranges = regexSubtractAllMarkerSpace([surrogateSpace], [subrange])
         ranges.append(markerRange)
         return ("[^\\u" + String(format: "%04X", subrange.0) + "-\\u" + String(format: "%04X", subrange.1) + "\\uE000-\\uE801]", ranges)
@@ -520,7 +430,6 @@ private func jvmRegexSurrogateSpaceReplacement(_ name: String, negated: Bool) ->
     case "Cs":
         return negated ? "(?:\(nonPairScalar)|\(privateSeq))" : surrogateSeq
     case "C":
-        // Surrogates and private-use scalars are members of C on the JVM.
         return negated
             ? "\\P{C}"
             : "(?:[\\p{C}--[\\uE000-\\uE801]]|\(surrogateSeq)|\(privateSeq))"
@@ -533,9 +442,6 @@ private func jvmRegexSurrogateSpaceReplacement(_ name: String, negated: Bool) ->
     }
 }
 
-/// \p{InBlockName} rewrites for the surrogate blocks (KUU-4590): the encoded
-/// subject carries each surrogate as `\uE800<marker>` where the marker range
-/// mirrors the UTF-16 sub-block offsets.
 private func jvmRegexSurrogateBlockReplacement(_ block: String, negated: Bool) -> String? {
     let normalized = block.uppercased().filter { $0 != " " && $0 != "_" && $0 != "-" }
     let markerRange: String
@@ -546,8 +452,6 @@ private func jvmRegexSurrogateBlockReplacement(_ block: String, negated: Bool) -
     default: return nil
     }
     if !negated { return "\\uE800[\(markerRange)]" }
-    // Complement: every unit except the block's surrogate range — non-pair
-    // scalars, private pairs, and surrogate pairs with other markers.
     return "(?:[^\\uE000-\\uE801]|\\uE801[\\uE000-\\uE801]|\\uE800[^\(markerRange)\\uE800-\\uE801])"
 }
 
@@ -556,10 +460,6 @@ func jvmRegexICUPropertyReplacement(_ name: String, negated: Bool, unicodeClasse
         negated ? "\\P{\(value)}" : "\\p{\(value)}"
     }
     if let eq = name.firstIndex(of: "=") {
-        // \p{name=value}: the key is lowercased before dispatch, exactly like
-        // Pattern.family. gc=/general_category= resolve through forProperty —
-        // identical to a bare \p{value} outside (?U), including the ASCII
-        // POSIX expansions which forProperty applies in every mode.
         let key = name[..<eq].lowercased()
         let value = String(name[name.index(after: eq)...])
         switch key {
@@ -570,9 +470,6 @@ func jvmRegexICUPropertyReplacement(_ name: String, negated: Bool, unicodeClasse
             }
             return jvmRegexForPropertyICU(value, negated: negated) ?? propertyEscape(value)
         case "blk", "block":
-            // Java's UnicodeBlock.SURROGATES_AREA has no member code points,
-            // so the JVM predicate never matches; \P{Any} is the empty class
-            // and \p{Any} its complement.
             if value.uppercased() == "SURROGATES_AREA" {
                 return negated ? "\\p{Any}" : "\\P{Any}"
             }
@@ -582,17 +479,12 @@ func jvmRegexICUPropertyReplacement(_ name: String, negated: Bool, unicodeClasse
         }
     }
     if name.hasPrefix("In") {
-        // \p{InBlockName}: Unicode blocks only. SURROGATES_AREA is the one
-        // block ICU cannot name (and which is empty on the JVM anyway).
         if name.dropFirst(2).uppercased() == "SURROGATES_AREA" {
             return negated ? "\\p{Any}" : "\\P{Any}"
         }
         if let rewrite = jvmRegexSurrogateBlockReplacement(String(name.dropFirst(2)), negated: negated) {
             return rewrite
         }
-        // The encoded subject maps E000...E801 scalars to \uE801\uXXXX
-        // pairs, so the private-use block's marker-space portion needs a
-        // sequence alternative.
         let block = name.dropFirst(2).uppercased().filter { $0 != " " && $0 != "_" && $0 != "-" }
         if block == "PRIVATEUSEAREA" {
             return negated
@@ -602,57 +494,37 @@ func jvmRegexICUPropertyReplacement(_ name: String, negated: Bool, unicodeClasse
         return nil
     }
     if name.hasPrefix("Is") {
-        // \p{IsX}: forUnicodeProperty (binary props + POSIX, uppercase),
-        // then forProperty (exact case), then forUnicodeScript (uppercase).
         let short = String(name.dropFirst(2))
         let upper = short.uppercased()
         if jvmRegexUnicodePropertyNames.contains(upper) || jvmRegexPosixNames.contains(upper) {
-            // The JDK Unicode predicates agree with ICU's \p{IsX} resolution
-            // except WORD (identifier-part union) and the HEXDIGIT spellings
-            // (JDK adds every Nd digit plus fullwidth hex letters).
             switch upper {
             case "WORD":
                 return negated ? jvmRegexComplementedClass(jvmRegexWordClassICU) : jvmRegexWordClassICU
             case "HEXDIGIT", "HEX_DIGIT", "XDIGIT":
                 return negated ? jvmRegexComplementedClass(jvmRegexHexDigitClassICU) : jvmRegexHexDigitClassICU
             case "GRAPH", "PRINT":
-                // ICU's graph/print cover the private-use marker scalars, so
-                // a bare passthrough would match half an escape pair (KUU-4590).
-                // Markers are literal-PUA originals, so the positive form
-                // keeps the \uE801 pair arm; surrogates are not graph/print.
                 if negated {
                     return "(?:[\\P{Is\(upper)}--[\\uE000-\\uE801]]|\\uE800[\\uE000-\\uE7FF])"
                 }
                 return "(?:[\\p{Is\(upper)}--[\\uE000-\\uE801]]|\\uE801[\\uE000-\\uE801])"
             default:
-                // ICU does not know the `Is`-prefixed spelling of binary
-                // properties (e.g. `\p{IsAssigned}`): emit the bare name.
-                // POSIX names stay verbatim — their bare spellings differ.
                 return jvmRegexPosixNames.contains(upper) ? nil : propertyEscape(short)
             }
         }
         if jvmRegexPropertyNames.contains(short) {
-            // forProperty(short) is the same predicate a bare \p{short} gets
-            // outside (?U); ICU only fails because it does not know the
-            // Is-prefixed spelling, so emit the bare form.
             if let rewrite = jvmRegexSurrogateSpaceReplacement(short, negated: negated) {
                 return rewrite
             }
             return jvmRegexForPropertyICU(short, negated: negated) ?? propertyEscape(short)
         }
-        // forUnicodeScript: ICU resolves \p{Is<Script>} identically.
         return nil
     }
-    // Bare \p{Name}: forPOSIXName applies only under (?U) and only to the 12
-    // POSIX names; every other name reaches forProperty in both modes.
     if unicodeClasses, jvmRegexPosixNames.contains(name.uppercased()) { return nil }
     if let rewrite = jvmRegexSurrogateSpaceReplacement(name, negated: negated) {
         return rewrite
     }
     return jvmRegexForPropertyICU(name, negated: negated)
 }
-
-// MARK: - Pattern scanner
 
 private struct JVMRegexScanMode {
     var unicodeClasses = false
@@ -675,15 +547,6 @@ private func jvmRegexIsLineSeparator(_ c: Character, unixLines: Bool) -> Bool {
     }
 }
 
-/// Returns the first java.util.regex syntax error found while scanning for
-/// \p/\P property escapes, or nil when every property escape is valid.
-///
-/// Mirrors the parts of java.util.regex.Pattern that decide which `\p{...}`
-/// names are legal: inline flag groups `(?flags)` / `(?flags:...)` /
-/// `(?flags-flags...)`, group scoping, character classes (including nested
-/// classes, where `#` comments and whitespace still apply in COMMENTS mode
-/// but flag groups are literal), and `\Q...\E` quoting. Only property-name
-/// validity is reported — other syntax errors remain ICU's concern.
 func jvmRegexPropertyError(
     _ pattern: String,
     commentsInitially: Bool = false,
@@ -702,8 +565,6 @@ func jvmRegexPropertyError(
 
     func isFlag(_ c: Character) -> Bool { "idmsucxU".contains(c) }
 
-    // Skips whitespace and #-comments the way java.util.regex does in
-    // COMMENTS mode (ASCII.isSpace + '#'-to-EOL).
     func skipCommentsAndSpace(_ i: inout Int) {
         guard mode.comments else { return }
         while i < chars.count {
@@ -724,7 +585,6 @@ func jvmRegexPropertyError(
             guard index + 1 < chars.count else { index += 1; continue }
             let escape = chars[index + 1]
             if escape == "Q" {
-                // \Q ... \E literal quote (unterminated runs to end).
                 var end = index + 2
                 while end < chars.count, !(chars[end] == "\\" && end + 1 < chars.count && chars[end + 1] == "E") {
                     end += 1
@@ -740,11 +600,6 @@ func jvmRegexPropertyError(
                     break
                 }
                 if chars[cursor] == "{" {
-                    // Braced \p{...}: leading whitespace/comments inside the
-                    // braces are skipped in COMMENTS mode; the name then runs
-                    // raw to the next '}' (which comment text can also supply,
-                    // matching java.util.regex' read()-based scan closely
-                    // enough that the accept/reject verdict is identical).
                     var nameStart = cursor + 1
                     skipCommentsAndSpace(&nameStart)
                     var nameEnd = nameStart
@@ -762,8 +617,6 @@ func jvmRegexPropertyError(
                     index = nameEnd + 1
                     continue
                 }
-                // Unbraced \pX: a single-letter category — the JVM accepts
-                // exactly L M N P S Z C without braces.
                 let scalar = chars[cursor].unicodeScalars.first!
                 if !"LMNPSZC".unicodeScalars.contains(scalar) {
                     error = "Unknown character property name {\(chars[cursor])}"
@@ -788,7 +641,6 @@ func jvmRegexPropertyError(
         if c == "[" {
             classDepth = 1
             index += 1
-            // A leading `^` and a leading `]` are literal members.
             if index < chars.count, chars[index] == "^" { index += 1 }
             if index < chars.count, chars[index] == "]" { index += 1 }
             continue
@@ -840,9 +692,6 @@ func jvmRegexPropertyError(
                 index = cursor + 1
                 continue
             }
-            // Some other `(?...)` construct (lookaround, named group, atomic
-            // group, ...): it still opens a group, so flag directives inside
-            // it end at its `)`.
             stack.append(mode)
             index += 1
             continue

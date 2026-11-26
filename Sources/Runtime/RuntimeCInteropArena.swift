@@ -14,8 +14,6 @@ import Darwin
 import Glibc
 #endif
 
-/// `aggregate` covers struct vars (CPointerVar-like opaque pointees) where a
-/// machine word is stored.
 enum RuntimeCInteropVarKind: Equatable {
     case boolean, int8, uint8, int16, uint16, int32, uint32
     case int64, uint64, float32, float64, char16
@@ -63,9 +61,6 @@ func runtimeCInteropVarKind(forTypeToken token: Int) -> RuntimeCInteropVarKind? 
     }
 }
 
-/// Both the `FooVar` typealias target spelling and the generic `FooVarOf`
-/// class resolve to the same kind so `alloc<IntVar>()` and
-/// `alloc<IntVarOf<Int>>()` allocate identically.
 func runtimeCInteropVarKind(forNominalTypeID typeID: Int64) -> RuntimeCInteropVarKind? {
     let names: [(String, RuntimeCInteropVarKind)] = [
         ("BooleanVar", .boolean), ("BooleanVarOf", .boolean),
@@ -91,7 +86,6 @@ func runtimeCInteropVarKind(forNominalTypeID typeID: Int64) -> RuntimeCInteropVa
     return nil
 }
 
-/// Returns the raw payload when the token is nominal, else 0 (opaque).
 func runtimeCInteropNominalTypeID(forTypeToken token: Int) -> Int64 {
     let wide = Int64(truncatingIfNeeded: token)
     guard wide & RuntimeTypeTokenEncoding.baseMask == RuntimeTypeTokenEncoding.nominalBase else {
@@ -104,9 +98,7 @@ func runtimeCInteropNominalTypeID(forTypeToken token: Int) -> Int64 {
 final class RuntimeCInteropArenaBox: @unchecked Sendable {
     private let lock = NSLock()
     private var allocations: [UInt] = []
-    /// `() -> Unit` Kotlin block handles registered via `defer`, run LIFO.
     private var deferredBlocks: [Int] = []
-    /// Set once `clear()` has run; later allocation attempts trap.
     private var cleared = false
     init() {}
 
@@ -144,7 +136,6 @@ final class RuntimeCInteropArenaBox: @unchecked Sendable {
         return raw
     }
 
-    /// Free one tracked allocation early (NativeFreeablePlacement.free).
     /// Arena allocations are arena-owned; `free` on them releases immediately
     /// and untracks the address so `clear()` does not double-free it.
     func freeNow(_ address: UInt) -> Bool {
@@ -237,8 +228,6 @@ final class RuntimeCInteropNativePtrBox: @unchecked Sendable {
 /// `owner` keeps the arena alive while any var aliasing its memory survives.
 final class RuntimeCInteropVarBox: @unchecked Sendable {
     let address: UInt
-    /// Nominal typeID of the pointee type (IntVar, CPointerVar, ...), 0 for
-    /// untyped aggregate storage.
     let pointeeTypeID: Int64
     let owner: AnyObject?
 
@@ -272,15 +261,10 @@ private let cinteropByteVarTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.
 private let cinteropByteVarOfTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.cinterop.ByteVarOf")
 
 private func cinteropVariableClassID(for pointeeTypeID: Int64) -> Int64 {
-    // ByteVar is an alias; runtime casts use its concrete ByteVarOf class.
     if pointeeTypeID == cinteropByteVarTypeID { return cinteropByteVarOfTypeID }
     return pointeeTypeID != 0 ? pointeeTypeID : cinteropCVariableTypeID
 }
 
-/// Installs the MemScope/Arena/nativeHeap subtype edges once per metadata
-/// generation. Mirrors `registerReflectionRuntimeTypeMetadata`'s flag
-/// handling: `kk_runtime_reset_metadata` clears `typeParents` and the flag so
-/// test isolation re-registers on the next arena creation.
 func registerCInteropRuntimeTypeMetadata() {
     runtimeStorage.withMetadataLock { state in
         if state.cinteropTypeEdgesRegistered {
@@ -370,8 +354,6 @@ func resolveCOpaquePointerBox(from handle: Int) -> RuntimeCOpaquePointerBox? {
 }
 
 
-/// `MemScope()` / `memScoped` scope object. Registered as MemScope so `is`
-/// checks see MemScope <: ArenaBase <: AutofreeScope <: NativePlacement.
 @_cdecl("kk_memscope_new")
 public func kk_memscope_new() -> Int {
     registerCInteropRuntimeTypeMetadata()
@@ -528,10 +510,6 @@ public func kk_cvar_raw_ptr(_ varHandle: Int) -> Int {
         typeID: cinteropNativePtrTypeID
     )
 }
-
-//
-// `value` properties resolve to `kk_cvar_<kind>_load` reads; assignment lowers
-// through the `_store` twin selected by the property-store convention.
 
 @inline(__always)
 private func cinteropLoadValue(_ varHandle: Int, _ read: (UnsafeRawPointer) -> Int) -> Int {
@@ -746,7 +724,6 @@ public func kk_cpointer_pointed(_ handle: Int) -> Int {
     )
 }
 
-/// `index` arrives as a boxed Int.
 @_cdecl("kk_cpointer_get")
 public func kk_cpointer_get(_ handle: Int, _ index: Int) -> Int {
     guard let box = resolveCPointerBox(from: handle) else { return 0 }
@@ -772,15 +749,12 @@ public func kk_cpointer_reinterpret(_ handle: Int, _ typeToken: Int) -> Int {
     )
 }
 
-/// `CPointer<T>.getPointer(scope)` — upstream returns `this`; the scope is
-/// accepted for signature parity and ignored.
 @_cdecl("kk_cpointer_get_pointer")
 public func kk_cpointer_get_pointer(_ handle: Int, _ scope: Int) -> Int {
     _ = scope
     return handle
 }
 
-/// `CPointer<T>.rawValue` — the raw address as a `NativePtr` box.
 @_cdecl("kk_cpointer_raw_ptr")
 public func kk_cpointer_raw_ptr(_ handle: Int) -> Int {
     let address = resolveCPointerBox(from: handle)?.address ?? 0
@@ -790,8 +764,6 @@ public func kk_cpointer_raw_ptr(_ handle: Int) -> Int {
     )
 }
 
-/// `plus`/`set` accept the index as a boxed Int on the `Int` overload and a
-/// boxed Long on the `Long` overload; both unbox through the same helper.
 @inline(__always)
 private func cinteropIndexValue(_ raw: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
@@ -804,10 +776,6 @@ private func cinteropIndexValue(_ raw: Int) -> Int {
     return raw
 }
 
-/// `CPointer<T>?.plus(index)` — the stride is `sizeOf<pointee>()`, recovered
-/// from the pointee type token stored on the box at allocation time. A null
-/// receiver produces the null sentinel, matching upstream's nullable
-/// receiver/return shape.
 @_cdecl("kk_cpointer_plus")
 public func kk_cpointer_plus(_ handle: Int, _ index: Int) -> Int {
     guard handle != 0, handle != runtimeNullSentinelInt else {
@@ -825,9 +793,6 @@ public func kk_cpointer_plus(_ handle: Int, _ index: Int) -> Int {
     )
 }
 
-/// Shared store path for the per-kind `CPointer<XVarOf<T>>.set` bridges: the
-/// element offset uses the pointee stride stored on the box; `write` stores
-/// the raw `value` word at the computed address.
 @inline(__always)
 private func cinteropStoreCPointerElement(
     _ handle: Int,
@@ -929,8 +894,6 @@ public func kk_cpointer_set_double(_ handle: Int, _ index: Int, _ value: Int) ->
     }
 }
 
-/// `CPointer<CPointerVarOf<P>>.set(index, value)` — stores the pointee
-/// pointer word; a null `P?` stores 0, matching `kk_cvar_cpointer_store`.
 @_cdecl("kk_cpointer_set_cpointer")
 public func kk_cpointer_set_cpointer(_ handle: Int, _ index: Int, _ value: Int) -> Int {
     cinteropStoreCPointerElement(handle, index, value) { ptr, v in
@@ -958,8 +921,6 @@ public func kk_interpret_cpointer(_ nativePtrHandle: Int, _ typeToken: Int) -> I
     )
 }
 
-/// `Long.toCPointer<T>()` / `NativePtr.toCPointer<T>()` — resolves a boxed
-/// Long or NativePtr box; nonzero addresses box, zero produces null.
 @_cdecl("kk_long_to_cpointer")
 public func kk_long_to_cpointer(_ value: Int, _ typeToken: Int) -> Int {
     let address: UInt
@@ -1050,7 +1011,6 @@ public func kk_cvalues_get_pointer(_ cvaluesHandle: Int, _ scope: Int) -> Int {
 }
 
 
-/// `NativePtr.toLong()` — raw Long (primitive values are raw in KIR temps).
 @_cdecl("kk_native_ptr_toLong")
 public func kk_native_ptr_toLong(_ handle: Int) -> Int {
     guard let box = resolveCInteropNativePtrBox(from: handle) else { return 0 }
@@ -1066,13 +1026,11 @@ public func kk_native_null_ptr() -> Int {
 }
 
 
-/// Returns a raw Long.
 @_cdecl("kk_cinterop_sizeof")
 public func kk_cinterop_sizeof(_ typeToken: Int) -> Int {
     runtimeCInteropVarKind(forTypeToken: typeToken)?.size ?? 0
 }
 
-/// Returns a raw Long.
 @_cdecl("kk_cinterop_alignof")
 public func kk_cinterop_alignof(_ typeToken: Int) -> Int {
     runtimeCInteropVarKind(forTypeToken: typeToken)?.align ?? 0

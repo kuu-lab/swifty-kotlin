@@ -17,10 +17,6 @@ public extension RuntimeABISpec {
         abi.nt("__kk_float_range_isEmpty", "rangeRaw"),
         abi.nt("__kk_double_range_lessThanOrEquals", "rangeRaw a b"),
         abi.nt("__kk_float_range_lessThanOrEquals", "rangeRaw a b"),
-        // KUU-763: `runtimeNullSentinelInt`-returning probes let interface-typed
-        // `ClosedRange`/`ClosedFloatingPointRange` member calls take the
-        // runtime-box fast path and fall back to itable dispatch only for
-        // user-defined implementations.
         abi.nt("__kk_floating_range_contains_or_null", "rangeRaw value"),
         abi.nt("__kk_floating_range_isEmpty_or_null", "rangeRaw"),
         abi.nt("__kk_floating_range_lessThanOrEquals_or_null", "rangeRaw a b"),

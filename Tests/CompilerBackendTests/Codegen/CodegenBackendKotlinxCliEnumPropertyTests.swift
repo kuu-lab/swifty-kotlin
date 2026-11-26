@@ -5,8 +5,6 @@ import Testing
 @Suite
 struct CodegenBackendKotlinxCliEnumPropertyTests {
 
-    /// KUU-3085: enum properties read through a star-projected parsing value
-    /// must retain their enum type after Set.union and forEach.
     @Test
     func testEnumPropertyThroughStarProjectedSetUnionForEach() throws {
         let source = """

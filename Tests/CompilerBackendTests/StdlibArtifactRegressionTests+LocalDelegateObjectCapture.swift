@@ -5,9 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2949: an anonymous object (or local class) capturing a delegated
-    /// local must re-register it as delegate storage, not a boxed cell, so
-    /// member-body writes dispatch `setValue` and reads dispatch `getValue`.
     @Test
     func testLocalDelegateCaptureInAnonymousObjectMember() throws {
         let artifactPath = try Self.buildStdlibArtifact()

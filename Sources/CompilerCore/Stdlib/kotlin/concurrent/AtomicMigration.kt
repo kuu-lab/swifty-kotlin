@@ -3,28 +3,6 @@ package kotlin.concurrent
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.internal.KsSymbolName
 
-// MIGRATION-ATOMIC-001 / KSP-670 / KSP-688
-// AtomicInt / AtomicLong / AtomicReference / AtomicBoolean API migrated to
-// Kotlin source.
-// get/set/getAndSet delegate to load/store/exchange bridge members;
-// incrementAndGet/decrementAndGet/addAndGet delegate to the
-// incrementAndFetch/decrementAndFetch/addAndFetch bridge members.
-// KSP-671: the fetchAnd* reverse variants and compareAndSet delegate to the
-// same retained bridge members (addAndFetch/incrementAndFetch/
-// decrementAndFetch/compareAndExchange). The CPU-instruction cores stay as
-// internal bridges; their public Kotlin API wrappers are defined below.
-// KSP-688: AtomicBoolean and AtomicReference compareAndSet use the same
-// compareAndExchange delegation. AtomicReference compares references by
-// identity, so its wrapper uses referential equality (===).
-// getAndUpdate/updateAndGet/fetchAndUpdate/updateAndFetch are CAS retry loops
-// built on the load/compareAndSet members (KSP-CAP-004 / KSP-673).
-// java.util.concurrent.atomic.AtomicInteger shares the scalar __kk_atomic_int_*
-// core bridge, so its update operators are migrated here as well.
-// Migration source: Sources/Runtime/RuntimeAtomic.swift
-//   __kk_atomic_int_*/__kk_atomic_long_*/__kk_atomic_bool_*/__kk_atomic_ref_*
-
-// Scalar atomic operations are runtime-backed cores. Keep their public Kotlin
-// surface in this bundled source while exposing only internal bridge symbols.
 @KsSymbolName("__kk_atomic_int_compareAndExchange")
 private external fun AtomicInt.__kkCompareAndExchange(expectedValue: Int, newValue: Int): Int
 
@@ -145,8 +123,6 @@ public fun AtomicBoolean.getAndSet(newValue: Boolean): Boolean = exchange(newVal
 public fun AtomicBoolean.compareAndSet(expectedValue: Boolean, newValue: Boolean): Boolean =
     compareAndExchange(expectedValue, newValue) == expectedValue
 
-// The canonical `kotlin.concurrent.atomics.AtomicBoolean` is a distinct
-// class after KSP-1100, so the legacy receiver keeps its own `toString`.
 public fun AtomicBoolean.toString(): String = load().toString()
 
 public fun AtomicBoolean.getAndUpdate(transform: (Boolean) -> Boolean): Boolean {
