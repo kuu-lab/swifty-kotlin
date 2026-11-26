@@ -34,6 +34,15 @@ class SuperRemovingMap : MutableMap<Int, String> by mutableMapOf(1 to "a") {
     }
 }
 
+class InstrumentedDelegatedList(
+    private val backing: MutableList<Int>
+) : MutableList<Int> by backing {
+    override fun add(element: Int): Boolean {
+        println("instrumented add")
+        return backing.add(element)
+    }
+}
+
 fun main() {
     val values = mutableListOf(1, 2)
     values.addFirst(0)
@@ -48,6 +57,12 @@ fun main() {
     delegated.addFirst(0)
     println(delegated.size)
     println(delegated[0])
+
+    val instrumentedBacking = mutableListOf<Int>()
+    val instrumented = InstrumentedDelegatedList(instrumentedBacking)
+    val instrumentedAsList: MutableList<Int> = instrumented
+    instrumentedAsList.addLast(9)
+    println(instrumentedBacking)
 
     val named = mutableMapOf(1 to "a")
     println(named.remove(value = "a", key = 1))

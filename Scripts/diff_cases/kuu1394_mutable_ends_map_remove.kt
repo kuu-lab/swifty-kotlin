@@ -37,6 +37,10 @@ fun main() {
     val p: MutableMap<out Int, String> = mutableMapOf(5 to "v")
     println(p.remove(5, "v"))
 
+    val oneArgProjection: MutableMap<out Int, String> = mutableMapOf(6 to "w")
+    println(oneArgProjection.remove(6))
+    println(oneArgProjection.remove(6))
+
     println(m)
     println(l)
 }

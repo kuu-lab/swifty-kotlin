@@ -38,6 +38,17 @@ extension CallTypeChecker {
         guard let symbol = sema.symbols.symbol(candidate) else { return false }
         let knownNames = KnownCompilerNames(interner: interner)
         let ownerFQName = Array(symbol.fqName.dropLast())
+        if ownerFQName == knownNames.kotlinCollectionsMutableMapFQName,
+           symbol.name == interner.intern("remove"),
+           let signature = sema.symbols.functionSignature(for: candidate) {
+            let isInlineOnlyProjectionExtension = sema.symbols.annotations(for: candidate).contains {
+                KnownCompilerAnnotation.inlineOnly.matches($0.annotationFQName)
+            }
+            if signature.parameterTypes.count == 2, !isInlineOnlyProjectionExtension {
+                return true
+            }
+            return signature.parameterTypes.count == 1 && isInlineOnlyProjectionExtension
+        }
         switch (ownerFQName, symbol.name) {
         case (knownNames.kotlinCollectionsListFQName, interner.intern("contains")),
              (knownNames.kotlinCollectionsListFQName, interner.intern("containsAll")),
@@ -96,8 +107,7 @@ extension CallTypeChecker {
              (knownNames.kotlinCollectionsMapFQName, interner.intern("containsValue")),
              (knownNames.kotlinCollectionsMapFQName, interner.intern("getOrDefault")),
              (knownNames.kotlinCollectionsMapFQName, interner.intern("getOrElse")),
-             (knownNames.kotlinCollectionsMapFQName, interner.intern("getValue")),
-             (knownNames.kotlinCollectionsMutableMapFQName, interner.intern("remove")):
+             (knownNames.kotlinCollectionsMapFQName, interner.intern("getValue")):
             return true
         default:
             return false

@@ -110,5 +110,9 @@ interface MutableMap<K, V>: Map<K, V> {
     fun clear()
 }
 
+@kotlin.internal.InlineOnly
+public inline fun <@kotlin.internal.OnlyInputTypes K, V> MutableMap<out K, V>.remove(key: K): V? =
+    @Suppress("UNCHECKED_CAST") (this as MutableMap<K, V>).remove(key)
+
 external operator fun <K, V> Map.Entry<K, V>.component1(): K
 external operator fun <K, V> Map.Entry<K, V>.component2(): V
