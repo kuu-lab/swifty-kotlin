@@ -731,6 +731,12 @@
       "runtimeFacade": "kotlin/collections/SetsKt"
     },
     {
+      "path": "declarations/SequenceElementOperators.kt",
+      "virtualPath": "<kswiftk-jvm>/sequence-element-operators.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/sequences/SequencesKt"
+    },
+    {
       "path": "kotlin/collections/CollectionAssignments.kt",
       "virtualPath": "<kswiftk-jvm>/collection-assignments.kt",
       "excludeFromStdlibBuild": true,
