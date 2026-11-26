@@ -4,8 +4,6 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-/// KUU-4625: `a?.f(<args>)` skips argument evaluation when `a` is null, so a
-/// definite assignment performed inside the arguments must stay conditional.
 @Suite
 struct SafeCallArgumentDefiniteAssignmentTests {
     @Test
@@ -37,12 +35,8 @@ struct SafeCallArgumentDefiniteAssignmentTests {
             }
             """,
         ]
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-            for path in paths {
-                assertHasDiagnostic("KSWIFTK-SEMA-0031", in: diagnosticsForPath(path, in: ctx))
-            }
+        for source in sources {
+            _ = try semaContext(from: [source], expecting: [.error("KSWIFTK-SEMA-0031")])
         }
     }
 
@@ -66,13 +60,8 @@ struct SafeCallArgumentDefiniteAssignmentTests {
             }
             """,
         ]
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-            for path in paths {
-                let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
-                #expect(errors.isEmpty, "\(path): \(errors)")
-            }
+        for source in sources {
+            _ = try semaContext(from: [source])
         }
     }
 
@@ -88,13 +77,8 @@ struct SafeCallArgumentDefiniteAssignmentTests {
             }
             """,
         ]
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-            for path in paths {
-                let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
-                #expect(errors.isEmpty, "\(path): \(errors)")
-            }
+        for source in sources {
+            _ = try semaContext(from: [source])
         }
     }
 
@@ -111,12 +95,8 @@ struct SafeCallArgumentDefiniteAssignmentTests {
             }
             """,
         ]
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-            for path in paths {
-                assertHasDiagnostic("KSWIFTK-SEMA-0014", in: diagnosticsForPath(path, in: ctx))
-            }
+        for source in sources {
+            _ = try semaContext(from: [source], expecting: [.error("KSWIFTK-SEMA-0014")])
         }
     }
 
@@ -132,13 +112,8 @@ struct SafeCallArgumentDefiniteAssignmentTests {
             }
             """,
         ]
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-            for path in paths {
-                let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
-                #expect(errors.isEmpty, "\(path): \(errors)")
-            }
+        for source in sources {
+            _ = try semaContext(from: [source])
         }
     }
 
@@ -159,12 +134,8 @@ struct SafeCallArgumentDefiniteAssignmentTests {
             }
             """,
         ]
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-            for path in paths {
-                assertHasDiagnostic("KSWIFTK-SEMA-0014", in: diagnosticsForPath(path, in: ctx))
-            }
+        for source in sources {
+            _ = try semaContext(from: [source], expecting: [.error("KSWIFTK-SEMA-0014")])
         }
     }
 
@@ -184,13 +155,8 @@ struct SafeCallArgumentDefiniteAssignmentTests {
             }
             """,
         ]
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-            for path in paths {
-                let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
-                #expect(errors.isEmpty, "\(path): \(errors)")
-            }
+        for source in sources {
+            _ = try semaContext(from: [source])
         }
     }
 
@@ -213,12 +179,8 @@ struct SafeCallArgumentDefiniteAssignmentTests {
             }
             """,
         ]
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-            for path in paths {
-                assertHasDiagnostic("KSWIFTK-SEMA-0014", in: diagnosticsForPath(path, in: ctx))
-            }
+        for source in sources {
+            _ = try semaContext(from: [source], expecting: [.error("KSWIFTK-SEMA-0014")])
         }
     }
 
@@ -245,13 +207,8 @@ struct SafeCallArgumentDefiniteAssignmentTests {
             }
             """,
         ]
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-            for path in paths {
-                let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
-                #expect(errors.isEmpty, "\(path): \(errors)")
-            }
+        for source in sources {
+            _ = try semaContext(from: [source])
         }
     }
 }
