@@ -14,6 +14,8 @@ extension JVMClasspathIndex {
         if name.hasPrefix("kotlin/reflect/") || ["java/lang/Class", "java/lang/Void", "java/lang/reflect/Field"].contains(name) { return name }
         if ["java/util/NoSuchElementException", "java/util/Locale", "java/lang/StackTraceElement", "java/lang/IllegalAccessException", "java/lang/StringIndexOutOfBoundsException", "java/lang/reflect/Method", "java/lang/reflect/InvocationHandler", "java/nio/charset/Charset"].contains(name) { return name }
         if name == "kotlin/String$Companion" { return "kotlin/jvm/internal/StringCompanionObject" }
+        if name == "kotlin/Float$Companion" { return "kotlin/jvm/internal/FloatCompanionObject" }
+        if name == "kotlin/Double$Companion" { return "kotlin/jvm/internal/DoubleCompanionObject" }
         if name == "kotlin/Annotation" { return "java/lang/annotation/Annotation" }
         if name == "kotlin/annotation/AnnotationTarget" || name == "kotlin/annotation/AnnotationRetention" { return name }
         if name == "kotlin/Enum" { return "java/lang/Enum" }

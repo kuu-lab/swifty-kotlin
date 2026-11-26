@@ -42,8 +42,9 @@ extension JVMFunctionBuilder {
         }
     }
 
-    func emitFromBits(args: [CallArgument], isFloat: Bool, id: ExprID) throws -> JVMValue? {
+    func emitFromBits(args: [CallArgument], isFloat: Bool, receiver: ExprID? = nil, id: ExprID) throws -> JVMValue? {
         guard args.count == 1 else { return nil }
+        if let receiver { _ = try expression(receiver, discarded: true) }
         let argument = try requireValue(args[0].expr)
         if isFloat {
             let bits = try convert(argument, to: .int)
@@ -78,7 +79,7 @@ extension JVMFunctionBuilder {
         }
         if let callee = program.sema.bindings.callBinding(for: id)?.chosenCallee,
            let isFloat = stdlibFromBitsIsFloat(callee, args: args),
-           let emitted = try emitFromBits(args: args, isFloat: isFloat, id: id) {
+           let emitted = try emitFromBits(args: args, isFloat: isFloat, receiver: receiver, id: id) {
             return emitted
         }
         if let symbol = program.sema.bindings.callBinding(for: id)?.chosenCallee,
@@ -88,8 +89,10 @@ extension JVMFunctionBuilder {
         if !arena.isExplicitCall(id), let value = try nominalValue(id) { return value }
         if !arena.isExplicitCall(id), let value = try readCompositionLocal(id, receiver: receiver) { return value }
         if !arena.isExplicitCall(id), context.interner.resolve(name) == "Companion",
-           let receiverSymbol = program.sema.bindings.identifierSymbol(for: receiver),
-           let value = try importedCompanionValue(for: receiverSymbol) { return value }
+           let receiverSymbol = program.sema.bindings.identifierSymbol(for: receiver) {
+            if let value = try primitiveCompanionValue(for: receiverSymbol) { return value }
+            if let value = try importedCompanionValue(for: receiverSymbol) { return value }
+        }
         if let value = try nominalCall(id, receiver: receiver, name: context.interner.resolve(name), args: args) { return value.value }
         let member = context.interner.resolve(name)
         let collectionOwners: Set<String> = ["java/lang/Iterable", "java/util/Iterator", "java/util/ListIterator", "java/util/Collection", "java/util/List", "java/util/Set", "java/util/Map", "java/util/ArrayList", "kotlin/enums/EnumEntries"]
