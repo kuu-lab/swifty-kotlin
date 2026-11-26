@@ -1047,7 +1047,11 @@ extension JVMFunctionBuilder {
     }
     func indexedCompound(_ op: CompoundAssignOp, _ receiver: ExprID, _ indices: [ExprID], _ source: ExprID, _ id: ExprID) throws -> JVMValue? {
         guard indices.count == 1 else { throw fail("JVM indexing requires one index.", id) }
-        let object = try requireValue(receiver), index = try requireValue(indices[0])
+        var object = try requireValue(receiver)
+        if let owner = try mappedIndexedJavaOwner(id) {
+            object = try convert(object, to: .reference(owner, nullable: false))
+        }
+        let index = try requireValue(indices[0])
         try requireWritableArguments(receiver, at: id)
         if object.type.referenceName?.hasPrefix("[") != true && object.type.referenceName != "java/lang/StringBuilder" { try requireMutableCollection(receiver, at: id) }
         let type: JVMValueType

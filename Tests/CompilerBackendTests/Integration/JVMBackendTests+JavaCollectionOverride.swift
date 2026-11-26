@@ -38,6 +38,20 @@ extension JVMBackendTests {
     }
 
     @Test
+    func arrayListSubclassInheritedIndexedCompoundAssignmentOnJVM() throws {
+        try assertJVM("""
+        class A : ArrayList<Int>()
+
+        fun main() {
+            val a = A()
+            a.add(1)
+            a[0] += 1
+            println(a[0])
+        }
+        """, "2\n")
+    }
+
+    @Test
     func intermediateArrayListSubclassSuperCallsUseBaseImplementationsOnJVM() throws {
         try assertJVM("""
         open class B : ArrayList<Int>()
