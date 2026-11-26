@@ -47,17 +47,23 @@ extension JVMBackendTests {
     func throwableSuppressedCallableReferencesMatchRuntimeParity(mode: EmitMode) throws {
         try withWorkspace { root in
             try runRuntimeParity("""
+            import kotlin.reflect.KClass
             fun main() {
                 val exception = RuntimeException("x")
                 exception.addSuppressed(IllegalArgumentException("s"))
                 val bound: () -> Array<Throwable> = exception::getSuppressed
                 println(bound().size)
                 println(bound()[0].message)
-                val unbound: (Throwable) -> Array<Throwable> = Throwable::getSuppressed
+                val reflected = Throwable::getSuppressed
+                val unbound: (Throwable) -> Array<Throwable> = reflected
                 println(unbound(exception).size)
                 println(unbound(exception)[0].message)
+                println((reflected.returnType.classifier as KClass<*>).simpleName)
+                println(reflected.returnType.arguments.size)
+                println((reflected.returnType.arguments[0].type?.classifier as KClass<*>).simpleName)
+                println(reflected.returnType.isMarkedNullable)
             }
-            """, expected: "1\ns\n1\ns\n", mode: mode, root: root)
+            """, expected: "1\ns\n1\ns\nArray\n1\nThrowable\nfalse\n", mode: mode, root: root)
         }
     }
 }
