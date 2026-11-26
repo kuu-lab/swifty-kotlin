@@ -304,6 +304,8 @@ extension DataFlowSemaPhase {
                     in: namedType,
                     for: resolved.id,
                     symbols: symbols,
+                    types: types,
+                    imports: imports,
                     diagnostics: diagnostics,
                     range: usageRange
                 )
@@ -435,6 +437,8 @@ extension DataFlowSemaPhase {
                     in: namedType,
                     for: builtinNestedSymbol.id,
                     symbols: symbols,
+                    types: types,
+                    imports: imports,
                     diagnostics: diagnostics,
                     range: usageRange
                 )

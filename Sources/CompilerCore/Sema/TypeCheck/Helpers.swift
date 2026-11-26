@@ -836,6 +836,8 @@ struct TypeCheckHelpers {
             let path = namedType.path
             let argRefs = namedType.args
             let nullable = namedType.nullable
+            let sourceFileID = usageRange?.start.file ?? inferenceContext?.currentFileID
+            let imports = sourceFileID.flatMap { ast.file(for: $0)?.imports } ?? []
             guard let shortName = path.last else {
                 return sema.types.errorType
             }
@@ -1031,6 +1033,8 @@ struct TypeCheckHelpers {
                         in: namedType,
                         for: symbolID,
                         symbols: sema.symbols,
+                        types: sema.types,
+                        imports: imports,
                         diagnostics: diagnostics,
                         range: usageRange
                     )

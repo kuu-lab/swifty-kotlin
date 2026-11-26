@@ -787,6 +787,8 @@ extension DataFlowSemaPhase {
                     in: namedType,
                     for: symbol,
                     symbols: symbols,
+                    types: types,
+                    imports: imports,
                     diagnostics: diagnostics,
                     range: usageRange
                 )),
@@ -1206,6 +1208,8 @@ extension DataFlowSemaPhase {
                         in: namedType,
                         for: nominalSymbol,
                         symbols: symbols,
+                        types: types,
+                        imports: imports,
                         diagnostics: diagnostics,
                         range: usageRange
                     )),
