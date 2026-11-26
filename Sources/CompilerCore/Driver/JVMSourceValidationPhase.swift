@@ -523,7 +523,10 @@ private struct JVMSourceGrammar {
         var lookahead = self
         do {
             try lookahead.contextParameters()
-            return lookahead.kind == .keyword(.fun)
+            guard lookahead.take(.keyword(.fun)) else { return false }
+            if lookahead.kind == .symbol(.lParen) { return true }
+            try lookahead.type(receiverSuffix: false)
+            return lookahead.kind == .symbol(.dot) || lookahead.kind == .symbol(.questionDot)
         } catch {
             return false
         }
