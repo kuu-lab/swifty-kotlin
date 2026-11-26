@@ -50,7 +50,9 @@ extension JVMBackendTests {
                 println(delegated.putIfAbsent("key", "replacement"))
 
                 println(ChildMap().addMissing())
-                println(QualifiedChildMap().addMissing())
+                val qualifiedChild = QualifiedChildMap()
+                println(qualifiedChild.addMissing())
+                println(qualifiedChild.get("qualified"))
 
                 val referenceMap: MutableMap<String, String> = linkedMapOf()
                 val reference: (String, String) -> String? = referenceMap::putIfAbsent
@@ -80,6 +82,7 @@ extension JVMBackendTests {
             first
             null
             null
+            inserted
             null
             first
             inserted
