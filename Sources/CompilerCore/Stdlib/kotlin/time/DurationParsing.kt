@@ -95,10 +95,15 @@ private fun durationParseFraction(value: String, startIndex: Int): DurationFract
 }
 
 // All parser inputs to this rounding helper are non-negative and far below the
-// Long range. For those values, truncating `value + 0.5` is Kotlin `roundToLong`:
-// nearest integer, with halfway cases rounded toward positive infinity. Keeping
-// the operation in source avoids a target-runtime math bridge on Wasm.
-private fun durationRoundPositiveToLong(value: Double): Long = (value + 0.5).toLong()
+// Long range. Compare the exact fractional part instead of truncating
+// `value + 0.5`: that addition can itself round a just-below-half input up to
+// 1.0, while Kotlin `roundToLong` rounds halfway cases toward positive infinity
+// and leaves smaller values down. Keeping the operation in source avoids a
+// target-runtime math bridge on Wasm.
+private fun durationRoundPositiveToLong(value: Double): Long {
+    val whole = value.toLong()
+    return if (value - whole.toDouble() >= 0.5) whole + 1L else whole
+}
 
 private fun durationFractionDigitsToNanos(fractionDigits: Long, multiplier: Double): Long =
     durationRoundPositiveToLong(fractionDigits * multiplier)
@@ -331,6 +336,33 @@ private fun combineDurationParseResult(totalMillis: Long, totalNanos: Long): Lon
     return addDurationRaw(millisDuration, nanosDuration)
 }
 
+// Case-insensitive comparison specialized for the fixed ASCII literal
+// "infinity". Kotlin's ignore-case Char comparison also folds the dotted and
+// dotless Turkish I variants to ASCII I; spelling this out keeps the parser
+// independent of target-specific Unicode case-conversion tables.
+private fun durationInfinityCharEquals(value: Char, expected: Char): Boolean {
+    if (value == expected) return true
+    if (expected == 'i') return value == 'I' || value == 'ı' || value == 'İ'
+    return when (expected) {
+        'n' -> value == 'N'
+        'f' -> value == 'F'
+        't' -> value == 'T'
+        'y' -> value == 'Y'
+        else -> false
+    }
+}
+
+private fun durationIsInfinityLiteral(value: String, startIndex: Int): Boolean {
+    val length = DURATION_PARSE_INFINITY_STRING.length
+    if (value.length - startIndex != length) return false
+    var offset = 0
+    while (offset < length) {
+        if (!durationInfinityCharEquals(value[startIndex + offset], DURATION_PARSE_INFINITY_STRING[offset])) return false
+        offset += 1
+    }
+    return true
+}
+
 internal fun durationParseRawOrNull(value: String, strictIso: Boolean): Long? {
     if (value.isEmpty()) return null
     var index = 0
@@ -349,14 +381,7 @@ internal fun durationParseRawOrNull(value: String, strictIso: Boolean): Long? {
         parsed = durationParseIsoFormat(value, index + 1)
     } else if (strictIso) {
         return null
-    } else if (value.regionMatches(
-            index,
-            DURATION_PARSE_INFINITY_STRING,
-            0,
-            length = maxOf(value.length - index, DURATION_PARSE_INFINITY_STRING.length),
-            ignoreCase = true,
-        )
-    ) {
+    } else if (durationIsInfinityLiteral(value, index)) {
         parsed = Long.MAX_VALUE
     } else {
         parsed = durationParseDefaultFormat(value, index, hasSign)
