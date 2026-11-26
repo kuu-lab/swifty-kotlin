@@ -428,6 +428,7 @@ extension JVMProgramBuilder {
                     property.field = duplicate
                 } else {
                     property.relocatedField = field
+                    property.isMovedFromInterfaceCompanion = classes[companionOwner]?.isInterface == true
                     property.field = nil
                 }
                 return property

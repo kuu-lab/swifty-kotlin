@@ -340,6 +340,7 @@ public struct JVMProperty {
     public var customGetter: Bool = false
     public var customSetter: Bool = false
     var isDirectField = false
+    public var isMovedFromInterfaceCompanion = false
     public var isGetterInline: Bool = false
     public var isSetterInline: Bool = false
     var accessesForeignField = false
