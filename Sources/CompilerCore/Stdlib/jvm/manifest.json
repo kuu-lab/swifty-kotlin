@@ -261,6 +261,12 @@
       "excludeFromStdlibBuild": false
     },
     {
+      "path": "kotlin/UnsignedConstructors.kt",
+      "virtualPath": "<kswiftk-jvm>/unsigned-constructors.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/UnsignedConstructorsKt"
+    },
+    {
       "path": "declarations/Text.kt",
       "virtualPath": "<kswiftk-jvm>/text.kt",
       "excludeFromStdlibBuild": true
