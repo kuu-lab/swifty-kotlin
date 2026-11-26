@@ -33,6 +33,12 @@ extension JVMBackendTests {
                 @JvmField val values: List<String> = listOf("x")
             }
         }
+        class PublicCollisionHolder {
+            @JvmField var x: String = "a"
+            companion object {
+                @JvmField var x: Int = 2
+            }
+        }
         fun main() {}
         """
         let javaSource = #"""
@@ -91,6 +97,20 @@ extension JVMBackendTests {
 
                 Field values = Class.forName("GenericCompanionHolder").getDeclaredField("values");
                 System.out.println("valuesGeneric=" + values.getGenericType().getTypeName());
+
+                Class<?> publicCollisionType = Class.forName("PublicCollisionHolder");
+                Object publicCollision = publicCollisionType.getDeclaredConstructor().newInstance();
+                Field publicStatic = null;
+                Field publicInstance = null;
+                for (Field field : publicCollisionType.getDeclaredFields()) {
+                    if (!field.getName().equals("x")) continue;
+                    if (Modifier.isStatic(field.getModifiers())) publicStatic = field;
+                    else publicInstance = field;
+                }
+                System.out.println("publicStaticType=" + publicStatic.getType().getName());
+                System.out.println("publicStatic=" + publicStatic.getInt(null));
+                System.out.println("publicInstanceType=" + publicInstance.getType().getName());
+                System.out.println("publicInstance=" + publicInstance.get(publicCollision));
             }
         }
         """#
@@ -128,9 +148,64 @@ extension JVMBackendTests {
             collisionExposedStatic=true
             collisionExposed=2
             valuesGeneric=java.util.List<java.lang.String>
+            publicStaticType=int
+            publicStatic=2
+            publicInstanceType=java.lang.String
+            publicInstance=a
             """ + "\n")
             #expect(reference.stderr.isEmpty)
             #expect(candidate.stderr.isEmpty)
+        }
+    }
+
+    @Test
+    func rejectsEnumEntryCollisionWithRenamedBackingField() throws {
+        let source = """
+        enum class Holder {
+            `x$1`;
+            val x: Holder? = null
+            companion object {
+                @JvmField val x: Holder? = null
+            }
+        }
+        fun main() {}
+        """
+        try withWorkspace { root in
+            let compiled = try compile(source, root: root, mode: .jvmJar)
+            #expect(compiled.0 == 1)
+            #expect(compiled.1.contains { $0.severity == .error && $0.message.contains("platform declaration clash") })
+
+            do {
+                _ = try jvmTool("kotlinc", ["-nowarn", "hello.kt", "-d", "reference.jar"], root: root)
+                Issue.record("kotlinc accepted an enum entry collision with a renamed backing field")
+            } catch CommandRunnerError.nonZeroExit(let error) {
+                #expect(error.exitCode != 0)
+            }
+        }
+    }
+
+    @Test
+    func rejectsExposedJvmFieldPlatformClash() throws {
+        let source = """
+        class Holder {
+            @JvmField var x: Int = 1
+            companion object {
+                @JvmField var x: Int = 2
+            }
+        }
+        fun main() {}
+        """
+        try withWorkspace { root in
+            let compiled = try compile(source, root: root, mode: .jvmJar)
+            #expect(compiled.0 == 1)
+            #expect(compiled.1.contains { $0.severity == .error && $0.message.contains("platform declaration clash") })
+
+            do {
+                _ = try jvmTool("kotlinc", ["-nowarn", "hello.kt", "-d", "reference.jar"], root: root)
+                Issue.record("kotlinc accepted an exposed field platform clash")
+            } catch CommandRunnerError.nonZeroExit(let error) {
+                #expect(error.exitCode != 0)
+            }
         }
     }
 

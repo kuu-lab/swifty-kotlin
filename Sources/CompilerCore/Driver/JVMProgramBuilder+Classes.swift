@@ -252,7 +252,7 @@ extension JVMProgramBuilder {
                 }
             }
         }
-        renameOwnerBackingFieldsForCompanionCollisions()
+        try renameOwnerBackingFieldsForCompanionCollisions()
     }
 
     private func renamedField(_ field: JVMField, name: String) -> JVMField {
@@ -263,7 +263,7 @@ extension JVMProgramBuilder {
         return renamed
     }
 
-    private func renameOwnerBackingFieldsForCompanionCollisions() {
+    private func renameOwnerBackingFieldsForCompanionCollisions() throws {
         for companion in classes.values where companion.companionOwner != nil {
             guard interfaceCompanionStorage(companion) == nil,
                   let ownerSymbol = companion.companionOwner,
@@ -273,23 +273,29 @@ extension JVMProgramBuilder {
                 field.access & 8 != 0 && field.owner == owner.name
             }
             guard !relocated.isEmpty else { continue }
-            var reservedNames = Set(owner.properties.compactMap { $0.2.field?.name })
-            reservedNames.formUnion(owner.delegateFields.map { $0.2.name })
-            reservedNames.formUnion(owner.propertyTokens.values.map(\.name))
-            reservedNames.insert(singletonField(companion).name)
             for index in owner.properties.indices {
                 let entry = owner.properties[index]
                 var property = entry.2
-                guard let field = property.field,
-                      relocated.contains(where: { $0.name == field.name })
-                else { continue }
-                var suffix = 1
-                var candidate = field.name + "$" + String(suffix)
-                while reservedNames.contains(candidate) {
-                    suffix += 1
-                    candidate = field.name + "$" + String(suffix)
+                guard let field = property.field else { continue }
+                let collisions = relocated.filter { $0.name == field.name }
+                guard !collisions.isEmpty else { continue }
+                if field.access & 2 == 0 {
+                    guard !collisions.contains(where: { $0.type.descriptor == field.type.descriptor }) else {
+                        throw JVMFrontendError(message: "JVM platform declaration clash on field '\(field.name)'.", range: entry.1.range)
+                    }
+                    continue
                 }
-                reservedNames.insert(candidate)
+                let candidate = field.name + "$1"
+                let ownerCollision = owner.properties.contains {
+                    $0.2.field?.name == candidate && $0.2.field?.type.descriptor == field.type.descriptor
+                } || relocated.contains {
+                    $0.name == candidate && $0.type.descriptor == field.type.descriptor
+                } || (owner.declaration?.enumEntries.contains {
+                    context.interner.resolve($0.name) == candidate && field.type.referenceName == owner.name
+                } ?? false)
+                guard !ownerCollision else {
+                    throw JVMFrontendError(message: "JVM platform declaration clash on field '\(candidate)'.", range: entry.1.range)
+                }
                 property.field = renamedField(field, name: candidate)
                 owner.properties[index] = (entry.0, entry.1, property)
                 if let symbol = sema.bindings.declSymbol(for: entry.0) { properties[symbol] = property }
