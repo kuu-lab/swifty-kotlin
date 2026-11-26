@@ -593,6 +593,7 @@ package struct KnownCompilerNames {
     package let kotlinLengthGetFQName: [InternedString]
     let kotlinTextRegexCompanionFQName: [InternedString]
     let kotlinTextRegexOptionFQName: [InternedString]
+    let kotlinTextCharDirectionalityFQName: [InternedString]
     let kotlinTextMatchResultFQName: [InternedString]
     let kotlinCollectionsListIteratorFQName: [InternedString]
     let kotlinCollectionsFillFQName: [InternedString]
@@ -1254,6 +1255,7 @@ package struct KnownCompilerNames {
         kotlinLengthGetFQName = ["kotlin", "length", "$get"].map(interner.intern)
         kotlinTextRegexCompanionFQName = [kotlin, kotlinText, regex, interner.intern("Companion")]
         kotlinTextRegexOptionFQName = [kotlin, kotlinText, interner.intern("RegexOption")]
+        kotlinTextCharDirectionalityFQName = [kotlin, kotlinText, interner.intern("CharDirectionality")]
         kotlinTextMatchResultFQName = [kotlin, kotlinText, interner.intern("MatchResult")]
         kotlinCollectionsListIteratorFQName = [kotlin, kotlinCollections, interner.intern("ListIterator")]
         kotlinCollectionsFillFQName = [kotlin, kotlinCollections, interner.intern("fill")]

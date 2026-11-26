@@ -1,3 +1,4 @@
+// DIFF_JVM
 @file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
 
 fun main() {

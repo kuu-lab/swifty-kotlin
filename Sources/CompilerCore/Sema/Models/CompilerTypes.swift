@@ -545,6 +545,17 @@ public struct CompilerOptions: Equatable {
         return Self.defaultFrontendJobs
     }
 
+    public static let defaultCodegenPartitionInstructions = 131_072
+
+    public var codegenPartitionInstructions: Int {
+        for flag in frontendFlags where flag.hasPrefix("codegen-partition-instructions=") {
+            if let n = Int(flag.dropFirst("codegen-partition-instructions=".count)), n >= 1 {
+                return n
+            }
+        }
+        return Self.defaultCodegenPartitionInstructions
+    }
+
     /// Whether Sema may use independent preparation/body workers. Enabled by
     /// default when `frontendJobs > 1`; `-Xfrontend sema-serial` forces the
     /// serial path, and `-Xfrontend sema-parallel` remains accepted for

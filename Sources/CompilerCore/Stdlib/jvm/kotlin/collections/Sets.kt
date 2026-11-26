@@ -15,6 +15,16 @@ public fun <T> setOf(vararg elements: T): Set<T> {
     for (element in elements) result.add(element)
     return result
 }
+public fun <T : Any> setOfNotNull(element: T?): Set<T> =
+    if (element != null) setOf(element) else emptySet()
+
+public fun <T : Any> setOfNotNull(vararg elements: T?): Set<T> {
+    val result = __jvmNewSet<T>()
+    for (element in elements) {
+        if (element != null) result.add(element)
+    }
+    return result
+}
 public fun <T> mutableSetOf(vararg elements: T): MutableSet<T> {
     val result = __jvmNewSet<T>()
     for (element in elements) result.add(element)

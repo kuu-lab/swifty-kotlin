@@ -76,9 +76,11 @@ extension JVMFunctionBuilder {
                 field = JVMField(owner: "kotlin/text/Regex", name: "Companion", type: .reference("kotlin/text/Regex$Companion", nullable: false), access: 0x19)
             } else if fqName == knownNames.kotlinCoroutinesContinuationInterceptorFQName || fqName == knownNames.kotlinCoroutinesContinuationInterceptorKeyFQName {
                 field = JVMField(owner: "kotlin/coroutines/ContinuationInterceptor", name: "Key", type: .reference("kotlin/coroutines/ContinuationInterceptor$Key", nullable: false), access: 0x19)
-            } else if fqName.count == 4 && fqName.starts(with: knownNames.kotlinTextRegexOptionFQName) {
+            } else if entry.kind == .field && fqName.count == 4 && fqName.starts(with: knownNames.kotlinTextRegexOptionFQName) {
                 field = JVMField(owner: "kotlin/text/RegexOption", name: context.interner.resolve(fqName[3]), type: .reference("kotlin/text/RegexOption", nullable: false), access: 0x4019)
-            } else if fqName.count == 4 && fqName.starts(with: knownNames.kotlinTimeDurationUnitFQName) {
+            } else if entry.kind == .field && fqName.count == 4 && fqName.starts(with: knownNames.kotlinTextCharDirectionalityFQName) {
+                field = JVMField(owner: "kotlin/text/CharDirectionality", name: context.interner.resolve(fqName[3]), type: .reference("kotlin/text/CharDirectionality", nullable: false), access: 0x4019)
+            } else if entry.kind == .field && fqName.count == 4 && fqName.starts(with: knownNames.kotlinTimeDurationUnitFQName) {
                 field = JVMField(owner: "kotlin/time/DurationUnit", name: context.interner.resolve(fqName[3]), type: .reference("kotlin/time/DurationUnit", nullable: false), access: 0x4019)
             } else { field = nil }
             if let field { let result = try value(field.type); instructions.append(.getStatic(field, result)); return result }

@@ -271,6 +271,14 @@ extension JVMProgramBuilder {
             ].contains(path) {
                 try visit(file.topLevelDecls, path: path)
             }
+            if path == "<kswiftk-jvm>/grouping.kt" {
+                // Inline Grouping helpers (e.g. foldTo) call sourceIterator/keyOf
+                // on kotlin.collections.Grouping, so bind its interface members.
+                try visit(file.topLevelDecls.filter { id in
+                    if case .interfaceDecl = ast.arena.decl(id) { return true }
+                    return false
+                }, path: path)
+            }
             if path == "<kswiftk-jvm>/string-constructors.kt" {
                 for id in file.topLevelDecls {
                     guard case let .funDecl(declaration) = ast.arena.decl(id),
@@ -309,7 +317,7 @@ extension JVMProgramBuilder {
                     else { continue }
                     try registerMapEntryComponent(id)
                 }
-                let factories: Set<String> = ["arrayListOf", "listOf", "listOfNotNull", "setOf", "mapOf", "mutableListOf", "mutableSetOf", "linkedSetOf", "mutableMapOf", "emptyList", "emptySet", "emptyMap"]
+                let factories: Set<String> = ["arrayListOf", "listOf", "listOfNotNull", "setOf", "setOfNotNull", "mapOf", "mutableListOf", "mutableSetOf", "linkedSetOf", "mutableMapOf", "emptyList", "emptySet", "emptyMap"]
                 try visit(file.topLevelDecls.filter { id in if case let .funDecl(f) = ast.arena.decl(id) { return factories.contains(context.interner.resolve(f.name)) }; return false }, path: "<kswiftk-jvm>/m20-factories-runtime.kt")
             }
             if path.hasPrefix("<kswiftk-jvm>/m19-") || path.hasPrefix("<kswiftk-jvm>/m20-") || path.hasPrefix("<kswiftk-jvm>/m21-") { try visit(file.topLevelDecls, path: path) }

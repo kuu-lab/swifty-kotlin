@@ -205,11 +205,16 @@ final class ControlFlowTypeChecker {
             chosenCallee: nextChosen
         )
 
-        let elementType = TypeCheckHelpers().mapEntryElementType(
+        // A Map's stdlib iterator() yields its entries, but a user-declared
+        // iterator() operator on a map type decides its own element type.
+        let usesStdlibMapIterator = iteratorCall.map {
+            isKotlinPackageSymbol($0.chosenCallee, sema: sema, interner: interner)
+        } ?? true
+        let elementType = (usesStdlibMapIterator ? TypeCheckHelpers().mapEntryElementType(
             for: nonNullIterableType,
             sema: sema,
             interner: interner
-        ) ?? substituteResolvedType(
+        ) : nil) ?? substituteResolvedType(
             nextSignature.returnType,
             signature: nextSignature,
             substitutedTypeArguments: nextResolution.call.substitutedTypeArguments,
@@ -464,6 +469,14 @@ final class ControlFlowTypeChecker {
             nullability: .nonNull
         )))
         return sema.types.isSubtype(sema.types.makeNonNullable(type), iteratorType)
+    }
+
+    private func isKotlinPackageSymbol(
+        _ symbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        sema.symbols.symbol(symbol)?.fqName.first == interner.intern("kotlin")
     }
 
     private func isStdlibIteratorIdentityExtension(
