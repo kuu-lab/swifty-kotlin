@@ -76,6 +76,12 @@ extension JVMFunctionBuilder {
         }
         if context.options.stdlibOnly, fq.hasPrefix("kotlin/jvm/internal/__jvm") {
             let values = try args.map { try requireValue($0.expr) }
+            if name == "__jvmReinterpret", values.count == 1 {
+                guard values[0].type.descriptor == resultType.descriptor else {
+                    throw fail("JVM reinterpret requires matching physical types.", id)
+                }
+                return JVMIntrinsicResult(value: try convert(values[0], to: resultType))
+            }
             if name == "__jvmEnumEntries", values.count == 1 {
                 let array: JVMValueType = .reference("[Ljava/lang/Enum;", nullable: false)
                 return JVMIntrinsicResult(value: try convert(constructJDK(program.coroutineIntrinsicOwner + "$EnumEntries", parameters: [array], arguments: [convert(values[0], to: array)]), to: resultType))
