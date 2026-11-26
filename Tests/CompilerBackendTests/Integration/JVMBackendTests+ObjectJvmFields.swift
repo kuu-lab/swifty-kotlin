@@ -494,6 +494,35 @@ extension JVMBackendTests {
     }
 
     @Test
+    func interfaceCompanionMovedMetadataIsScopedToInterfaceCompanions() throws {
+        let source = """
+        interface InterfaceHolder {
+            companion object {
+                @JvmField val x: Int = 3
+            }
+        }
+        class ClassHolder {
+            companion object {
+                @JvmField val x: Int = 4
+            }
+        }
+        fun main() {}
+        """
+        try withWorkspace { root in
+            let compiled = try compile(source, root: root, mode: .jvmJar)
+            try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
+            let archive = try ZipArchive(data: Data(contentsOf: root.appendingPathComponent("hello.jar")))
+            func moved(_ entryName: String) throws -> Bool {
+                let entry = try #require(archive.entries.first { $0.name == entryName })
+                var reader = JVMClassReader(bytes: Array(try archive.contents(of: entry)))
+                return try reader.read().kotlinMovedInterfaceCompanionProperties.contains("x")
+            }
+            #expect(try moved("InterfaceHolder$Companion.class"))
+            #expect(try !moved("ClassHolder$Companion.class"))
+        }
+    }
+
+    @Test
     func rejectsInvalidInterfaceCompanionJvmFieldShapes() throws {
         for (name, members) in [
             ("var", "@JvmField var x: Int = 3"),

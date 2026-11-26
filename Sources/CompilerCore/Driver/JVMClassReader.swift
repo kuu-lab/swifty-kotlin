@@ -32,6 +32,7 @@ struct JVMClassInfo {
     var kotlinAnnotationVarargElementNames: Set<String> = []
     var kotlinStaticProperties: [String: (getter: JVMForeignMethod, isNullable: Bool)] = [:]
     var kotlinMemberProperties: [String: (getter: JVMForeignMethod, setter: JVMForeignMethod?, sourceType: String)] = [:]
+    var kotlinMovedInterfaceCompanionProperties: Set<String> = []
     var kotlinTopLevelConstants: [String: String] = [:]
     var kotlinTopLevelProperties: [(source: JVMKotlinTopLevelProperty, getter: JVMForeignMethod)] = []
     var kotlinMultifileParts: [String] = []
@@ -932,6 +933,7 @@ struct JVMClassReader {
                     syntheticGetter.isAccessorlessField = true
                     getter = syntheticGetter
                 }
+                if property.isMovedFromInterfaceCompanion { info.kotlinMovedInterfaceCompanionProperties.insert(property.name) }
                 guard let getter else { continue }
                 // Kotlin metadata keeps @get:JvmSynthetic properties callable from Kotlin unless HIDDEN-deprecated.
                 let isHiddenByDeprecation = Self.isHiddenByDeprecation(propertyGetter: getter, methods: methods)

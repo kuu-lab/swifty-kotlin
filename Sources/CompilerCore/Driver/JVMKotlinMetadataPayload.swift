@@ -76,6 +76,7 @@ struct JVMKotlinClassProperty {
     let setterDescriptor: String?
     let isSourceVisible: Bool
     let sourceType: String?
+    let isMovedFromInterfaceCompanion: Bool
 }
 
 struct JVMKotlinTopLevelProperty {
@@ -404,7 +405,8 @@ struct JVMKotlinMetadataPayload {
                                            isNullable: type.nullable, isVar: flags & (1 << 8) != 0 || setter != nil,
                                            setterName: setterName, setterDescriptor: setterDescriptor,
                                            isSourceVisible: visibility == 2 || visibility == 3,
-                                           sourceType: sourceType)
+                                           sourceType: sourceType,
+                                           isMovedFromInterfaceCompanion: property.int32(101) == 1)
         }
     }
 
