@@ -9307,6 +9307,20 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64Eq)
         code.op(WasmOpcode.i32And)
         code.openIf()
+        for (classID, primitive) in Self.valueClassHashPrimitives(ctx)
+        where primitive == .long || primitive == .ulong
+        {
+            code.localGet(paL)
+            code.i64Const(classID)
+            code.op(WasmOpcode.i64Eq)
+            code.openIf()
+            emitLoadAt(&code, baseLocal: 0, byteOffset: L.valueClassBoxPayloadOffset)
+            emitLoadAt(&code, baseLocal: 1, byteOffset: L.valueClassBoxPayloadOffset)
+            code.op(WasmOpcode.i64Eq)
+            code.i64ExtendFromComparison()
+            code.op(WasmOpcode.return)
+            code.end()
+        }
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.valueClassBoxPayloadOffset)
         emitLoadAt(&code, baseLocal: 1, byteOffset: L.valueClassBoxPayloadOffset)
         code.call(ctx.emittedHelperIndex(for: "__kk_wasm_elem_eq", argumentCount: 2))
@@ -10015,8 +10029,6 @@ enum WasmRuntimeHelpers {
         valueLocal: Int
     ) {
         let boxedTypeID: Int64? = switch primitive {
-        case .long: Self.stableNominalTypeID("kotlin.Long")
-        case .ulong: Self.stableNominalTypeID("kotlin.ULong")
         case .float: Self.stableNominalTypeID("kotlin.Float")
         case .double: Self.stableNominalTypeID("kotlin.Double")
         default: nil

@@ -669,7 +669,14 @@ func emitBoxCallWithValueClassTag<C: RangeReplaceableCollection>(
     // A nullable payload needs a nominal wrapper to distinguish `V(null)`
     // from null. A reference payload also needs a wrapper rather than tagging
     // the original object, which may be shared outside the value class.
+    let sentinelCollidingLongBoxCallees: Set<InternedString> = [
+        interner.intern("kk_box_long_nonnull"),
+        interner.intern("kk_box_long_nonnull_static"),
+        interner.intern("kk_box_ulong_nonnull"),
+        interner.intern("kk_box_ulong_nonnull_static"),
+    ]
     if boxCallee == interner.intern("kk_value_class_box")
+        || sentinelCollidingLongBoxCallees.contains(boxCallee)
         || nullableUnderlyingValueClassSymbol(of: rawSourceKind, types: types, symbols: symbols) != nil
     {
         emitValueClassBoxCall(

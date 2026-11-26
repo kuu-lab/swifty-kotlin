@@ -37,6 +37,11 @@ fun sameDoubleThroughAny(left: Double?, right: Any): Boolean = left == right
 fun sameFloatThroughAny(left: Float?, right: Any): Boolean = left == right
 
 fun main() {
+    val stableCounterBox: Any = boxedCounterAny(Counter(4096L))
+    println(stableCounterBox.hashCode())
+    boxedLongMinimum()
+    println(stableCounterBox.hashCode())
+
     val missingLong: Long? = null
     val presentLong: Long? = 42L
     println(missingLong == null)
