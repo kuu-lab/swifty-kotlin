@@ -27,6 +27,13 @@ class DelegatedList : MutableList<Int> by mutableListOf(1, 2) {
     }
 }
 
+class SuperRemovingMap : MutableMap<Int, String> by mutableMapOf(1 to "a") {
+    override fun remove(key: Int, value: String): Boolean {
+        println("override remove")
+        return super<MutableMap>.remove(key, value)
+    }
+}
+
 fun main() {
     val values = mutableListOf(1, 2)
     values.addFirst(0)
@@ -45,4 +52,8 @@ fun main() {
     val named = mutableMapOf(1 to "a")
     println(named.remove(value = "a", key = 1))
     println(named)
+
+    val superRemoving = SuperRemovingMap()
+    println(superRemoving.remove(1, "a"))
+    println(superRemoving.size)
 }
