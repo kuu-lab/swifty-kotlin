@@ -242,7 +242,8 @@ extension JVMFunctionBuilder {
             implementationArguments.append(dynamicInputs[contextIndex])
         }
         let receiverInputCount = isExtension && !bound ? 1 : 0
-        for parameterIndex in function.params.indices {
+        let valueInputCount = inputs.count - contextCount - receiverInputCount
+        for parameterIndex in 0..<valueInputCount {
             let inputIndex = contextCount + receiverInputCount + parameterIndex
             guard dynamicInputs.indices.contains(inputIndex) else { throw fail("JVM local reference value input mismatch.", id) }
             implementationArguments.append(dynamicInputs[inputIndex])
