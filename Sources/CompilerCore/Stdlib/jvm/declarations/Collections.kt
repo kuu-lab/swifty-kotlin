@@ -2,6 +2,7 @@ package kotlin.collections
 
 import java.util.Spliterator
 import java.util.stream.Stream
+import kotlin.internal.NonStableParameterNames
 
 interface Iterator<out T> { operator fun hasNext(): Boolean; operator fun next(): T }
 interface Iterable<out E> {
@@ -49,6 +50,24 @@ interface MutableList<E>: List<E>, MutableCollection<E> {
     fun add(index: Int, element: E)
     fun addAll(index: Int, elements: Collection<out E>): Boolean
     fun removeAt(index: Int): E
+    @NonStableParameterNames
+    fun addFirst(element: E) {
+        add(0, element)
+    }
+    @NonStableParameterNames
+    fun addLast(element: E) {
+        add(element)
+    }
+    @NonStableParameterNames
+    fun removeFirst(): E {
+        if (isEmpty()) throw NoSuchElementException()
+        return removeAt(0)
+    }
+    @NonStableParameterNames
+    fun removeLast(): E {
+        if (isEmpty()) throw NoSuchElementException()
+        return removeAt(size - 1)
+    }
     override fun listIterator(): MutableListIterator<E>
     override fun listIterator(index: Int): MutableListIterator<E>
     override fun subList(fromIndex: Int, toIndex: Int): MutableList<E>
@@ -82,8 +101,18 @@ interface MutableMap<K, V>: Map<K, V> {
     }
     operator fun set(key: K, value: V)
     fun remove(key: K): V?
+    fun remove(key: K, value: V): Boolean {
+        val current = get(key)
+        if (current != value || (current == null && !containsKey(key))) return false
+        remove(key)
+        return true
+    }
     fun clear()
 }
+
+@kotlin.internal.InlineOnly
+public inline fun <@kotlin.internal.OnlyInputTypes K, V> MutableMap<out K, V>.remove(key: K): V? =
+    @Suppress("UNCHECKED_CAST") (this as MutableMap<K, V>).remove(key)
 
 external operator fun <K, V> Map.Entry<K, V>.component1(): K
 external operator fun <K, V> Map.Entry<K, V>.component2(): V

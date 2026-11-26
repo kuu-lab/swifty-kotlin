@@ -320,10 +320,16 @@ extension JVMProgramBuilder {
                     return false
                 }, path: path)
                 for id in file.topLevelDecls {
-                    guard case let .funDecl(declaration) = ast.arena.decl(id),
-                          ["component1", "component2"].contains(context.interner.resolve(declaration.name))
-                    else { continue }
-                    try registerMapEntryComponent(id)
+                    guard case let .funDecl(declaration) = ast.arena.decl(id) else { continue }
+                    if ["component1", "component2"].contains(context.interner.resolve(declaration.name)) {
+                        try registerMapEntryComponent(id)
+                    }
+                    if declaration.isInline,
+                       declaration.receiverType != nil,
+                       context.interner.resolve(declaration.name) == "remove",
+                       let symbol = sema.bindings.declSymbol(for: id) {
+                        inlineDeclarations[symbol] = declaration
+                    }
                 }
                 let factories: Set<String> = ["arrayListOf", "listOf", "listOfNotNull", "setOf", "setOfNotNull", "mapOf", "mutableListOf", "mutableSetOf", "linkedSetOf", "mutableMapOf", "emptyList", "emptySet", "emptyMap"]
                 try visit(file.topLevelDecls.filter { id in if case let .funDecl(f) = ast.arena.decl(id) { return factories.contains(context.interner.resolve(f.name)) }; return false }, path: "<kswiftk-jvm>/m20-factories-runtime.kt")

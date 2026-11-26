@@ -425,10 +425,6 @@ extension CallTypeChecker {
                 || locals[request.calleeName]?.symbol == candidate
                 || allowsImportlessAtomicExtensions
         }
-        guard !allCandidates.isEmpty else {
-            return nil
-        }
-
         if request.calleeName == request.knownNames.remove,
            ReceiverClassifier(sema: request.sema, interner: request.interner).isMutableMapType(memberLookupType),
            request.args.count == 1
@@ -446,7 +442,11 @@ extension CallTypeChecker {
                 else {
                     return false
                 }
+                let isProjectionOvercomingStdlibExtension = request.sema.symbols.annotations(for: candidate).contains {
+                    KnownCompilerAnnotation.inlineOnly.matches($0.annotationFQName)
+                }
                 return symbol.fqName == request.knownNames.kotlinCollectionsMutableMapFQName
+                    && isProjectionOvercomingStdlibExtension
             }
             if !mutableMapRemoveCandidates.isEmpty {
                 allCandidates = mutableMapRemoveCandidates
@@ -492,6 +492,9 @@ extension CallTypeChecker {
             if !mapGetValueCandidates.isEmpty {
                 allCandidates = mapGetValueCandidates
             }
+        }
+        guard !allCandidates.isEmpty else {
+            return nil
         }
 
         let isNullLiteralReceiver = if case .nullLiteral = request.ast.arena.expr(request.receiverID) {

@@ -118,7 +118,10 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         let isMutableListPredicateName = calleeStr == "removeAll" || calleeStr == "retainAll"
         let hasMutableListPredicateArgument = args.count == 1
             && (ast.arena.expr(args[0].expr)?.isLambdaOrCallableRef ?? false)
+        let isJVMSequencedCollectionMember = driver.compilationContext?.options.emit.isJVM == true
+            && (calleeStr == "removeFirst" || calleeStr == "removeLast")
         if isMutableListReceiver,
+           !isJVMSequencedCollectionMember,
            (!isMutableListPredicateName || hasMutableListPredicateArgument),
            [
                "asReversed", "remove", "removeFirst", "removeFirstOrNull",
