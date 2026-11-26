@@ -401,11 +401,25 @@ public final class CodegenPhase: CompilerPhase {
             let functionName = ctx.interner.resolve(function.name)
             let isInitBody = ctx.options.target.isWasm
                 && Self.isLibraryInitBodyName(functionName)
-            guard function.isInline || isInitBody else {
+            // On wasm the artifact's .o is never linked, so a non-inline
+            // top-level function's body must ship as serialized KIR keyed by
+            // its link name; otherwise a declaration call from a consumer has
+            // no body to materialize and `WasmEmitter` stubs it to `0`.
+            // Members stay out: their vtable/itable slots and direct calls
+            // resolve through wasm helper thunks that a materialized body
+            // would displace.
+            let isStandaloneBody = ctx.options.target.isWasm
+                && !function.isInline
+                && !function.isInlineOnly
+                && !function.isSuspend
+                && !function.body.isEmpty
+                && Self.isTopLevelFunction(function.symbol, symbols: sema.symbols)
+            guard function.isInline || isInitBody || isStandaloneBody else {
                 continue
             }
             let mangled: String
-            if isInitBody, let linkName = functionLinkNamesBySymbol[function.symbol] {
+            if isInitBody || isStandaloneBody,
+               let linkName = functionLinkNamesBySymbol[function.symbol] {
                 mangled = linkName
             } else if let symbol = sema.symbols.symbol(function.symbol) {
                 mangled = mangler.mangle(
@@ -459,6 +473,24 @@ public final class CodegenPhase: CompilerPhase {
                 }
             }
         }
+    }
+
+    /// A function is a member when its owner's FQ name is exactly its own FQ
+    /// name minus the last segment and that owner is not a package. Top-level
+    /// extension functions can carry the receiver type as their registered
+    /// parent without being members of it, so the parent kind alone is not
+    /// enough.
+    private static func isTopLevelFunction(_ symbol: SymbolID, symbols: SymbolTable) -> Bool {
+        guard let info = symbols.symbol(symbol), info.kind == .function else {
+            return false
+        }
+        guard let parent = symbols.parentSymbolIfKnown(for: symbol),
+              let parentInfo = symbols.symbol(parent),
+              parentInfo.kind != .package
+        else {
+            return true
+        }
+        return !parentInfo.fqName.elementsEqual(info.fqName.dropLast())
     }
 
     private static func calledFunctionSymbol(_ instruction: KIRInstruction) -> SymbolID? {
