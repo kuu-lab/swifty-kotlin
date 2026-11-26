@@ -269,8 +269,7 @@ extension DataFlowSemaPhase {
 
         let nativeHeapPropertyName = interner.intern("nativeHeap")
         let nativeHeapPropertyFQName = cinteropPkg + [nativeHeapPropertyName]
-        if symbols.lookupAll(fqName: nativeHeapPropertyFQName).contains(where: { symbols.symbol($0)?.kind == .property }) {
-        } else {
+        if !symbols.lookupAll(fqName: nativeHeapPropertyFQName).contains(where: { symbols.symbol($0)?.kind == .property }) {
             let nativeHeapPropertySymbol = symbols.define(
                 kind: .property,
                 name: nativeHeapPropertyName,
