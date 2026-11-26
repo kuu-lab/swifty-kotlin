@@ -22,6 +22,9 @@ if [[ -z "$LLVM_OBJDUMP" && -n "$CLANG_PATH" && -x "$(dirname "$CLANG_PATH")/llv
   LLVM_OBJDUMP="$(dirname "$CLANG_PATH")/llvm-objdump"
 fi
 if [[ -z "$LLVM_OBJDUMP" ]]; then
+  LLVM_OBJDUMP="$(command -v llvm-objdump || true)"
+fi
+if [[ -z "$LLVM_OBJDUMP" ]]; then
   echo "llvm-objdump is required to validate the generated parser body" >&2
   exit 1
 fi
