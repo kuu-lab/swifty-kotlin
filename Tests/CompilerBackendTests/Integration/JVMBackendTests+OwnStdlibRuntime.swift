@@ -45,6 +45,29 @@ extension JVMBackendTests {
         }
     }
 
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func kuu4741OfficialClasspathInlineCharFunctions(mode: EmitMode) throws {
+        try withWorkspace { root in
+            let source = """
+            fun main() {
+                println('5'.isDigit())
+                println('a'.isLowerCase())
+                println('A'.isUpperCase())
+                println('a'.uppercaseChar())
+                println('A'.lowercaseChar())
+                println('a'.uppercase())
+                println('A'.lowercase())
+                println('a'.titlecase())
+                println(' '.isWhitespace())
+                println('a'.toFloat())
+                println('a'.equals('A', ignoreCase = true))
+            }
+            """
+            let expected = "true\ntrue\ntrue\nA\na\nA\na\nA\ntrue\n97.0\ntrue\n"
+            try runRuntimeParity(source, expected: expected, mode: mode, root: root)
+        }
+    }
+
     func runRuntimeParity(_ source: String, expected: String, mode: EmitMode, root: URL) throws {
         let official = try m11Runtime()
         let library = try JVMOwnStdlibCache.shared.library()

@@ -230,6 +230,12 @@ extension JVMClasspathIndex {
                 companion object {
                     external fun isDigit(value: Char): Boolean
                     external fun isDigit(value: Int): Boolean
+                    external fun isLowerCase(value: Char): Boolean
+                    external fun isLowerCase(value: Int): Boolean
+                    external fun isUpperCase(value: Char): Boolean
+                    external fun isUpperCase(value: Int): Boolean
+                    external fun toLowerCase(value: Char): Char
+                    external fun toLowerCase(value: Int): Int
                     external fun toUpperCase(value: Char): Char
                     external fun toUpperCase(value: Int): Int
                 }
@@ -237,6 +243,12 @@ extension JVMClasspathIndex {
             """, 0x0011, "java/lang/Object", [
                 method("java/lang/Character", "isDigit", [.char], .boolean, staticMember: true),
                 method("java/lang/Character", "isDigit", [.int], .boolean, staticMember: true),
+                method("java/lang/Character", "isLowerCase", [.char], .boolean, staticMember: true),
+                method("java/lang/Character", "isLowerCase", [.int], .boolean, staticMember: true),
+                method("java/lang/Character", "isUpperCase", [.char], .boolean, staticMember: true),
+                method("java/lang/Character", "isUpperCase", [.int], .boolean, staticMember: true),
+                method("java/lang/Character", "toLowerCase", [.char], .char, staticMember: true),
+                method("java/lang/Character", "toLowerCase", [.int], .int, staticMember: true),
                 method("java/lang/Character", "toUpperCase", [.char], .char, staticMember: true),
                 method("java/lang/Character", "toUpperCase", [.int], .int, staticMember: true),
             ]),
