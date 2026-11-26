@@ -13790,6 +13790,18 @@ enum WasmRuntimeHelpers {
         code.openIf()
         emitParseFail(&code, ctx: ctx, orNull: orNull)
         code.end()
+        if wide, orNull {
+            // -0.0 has the same bit pattern as the nullable sentinel. Box that
+            // one valid value so downstream null checks can distinguish it.
+            code.localGet(bits)
+            code.i64Const(L.nullSentinel)
+            code.op(WasmOpcode.i64Eq)
+            code.openIf()
+            code.localGet(bits)
+            code.call(ctx.emittedHelperIndex(for: "__kk_wasm_box_double", argumentCount: 1))
+            code.op(WasmOpcode.return)
+            code.end()
+        }
         code.localGet(bits)
     }
 
