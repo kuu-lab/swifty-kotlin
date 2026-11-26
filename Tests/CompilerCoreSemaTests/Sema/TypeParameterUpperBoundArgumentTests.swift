@@ -278,6 +278,11 @@ struct TypeParameterUpperBoundArgumentTests {
             let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
             try runSema(ctx)
             #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let foldLike = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("foldLike")]))
+            let binding = try #require(sema.bindings.callBindings.values.first { $0.chosenCallee == foldLike })
+            let inferredValueType = try #require(binding.substitutedTypeArguments.first)
+            #expect(inferredValueType == sema.types.makeNullable(sema.types.intType))
         }
     }
 }
