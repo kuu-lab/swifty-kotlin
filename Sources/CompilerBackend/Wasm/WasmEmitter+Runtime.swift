@@ -4352,17 +4352,14 @@ enum WasmRuntimeHelpers {
     /// signed-decimal rendering of the raw i64 (Float/Double bit patterns
     /// included — full numeric formatting is a stdlib milestone).
     private static func emitAnyToStringBody(_ code: inout WasmCode, ctx: WasmModuleContext) {
-        // Tags 5/6/7 carry scalar payloads and decode before every object/null
-        // check — the lowering pre-guards nullable receivers (see
-        // CallLowerer.emitAnyToStringWithNullGuard). Float and Double values
-        // are usually raw bits, but a value colliding with the null sentinel
-        // can be boxed, so pass them through the representation-aware unboxer.
+        // Tags 5/6/7 carry raw scalar payloads and decode before every
+        // object/null check — the lowering pre-guards nullable receivers (see
+        // CallLowerer.emitAnyToStringWithNullGuard).
         code.localGet(1)
         code.i64Const(6)
         code.op(WasmOpcode.i64Eq)
         code.openIf()
         code.localGet(0)
-        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_unbox_double", argumentCount: 1))
         code.call(ctx.emittedHelperIndex(for: "__kk_wasm_format_double", argumentCount: 1))
         code.op(WasmOpcode.return)
         code.end()
@@ -4371,7 +4368,6 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64Eq)
         code.openIf()
         code.localGet(0)
-        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_unbox_float", argumentCount: 1))
         code.call(ctx.emittedHelperIndex(for: "__kk_wasm_format_float", argumentCount: 1))
         code.op(WasmOpcode.return)
         code.end()

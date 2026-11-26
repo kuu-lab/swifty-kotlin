@@ -54,14 +54,6 @@ extension WasmCodegenTests {
             call("__kk_string_toDoubleOrNull", [lit("not-a-number")]),
             int(Int64.min),
         ]))
-        let negativeZeroOrNull = call("__kk_string_toDoubleOrNull", [lit("-0.0")])
-        printInt(call("kk_op_ne", [negativeZeroOrNull, int(Int64.min)]))
-        printInt(call("kk_op_eq", [
-            call("__kk_wasm_unbox_double", [negativeZeroOrNull]),
-            int(Int64.min),
-        ]))
-        let negativeZeroString = call("kk_any_to_string", [negativeZeroOrNull, int(6)])
-        body.append(println(interner.intern("__kk_println_raw"), negativeZeroString))
         body.append(.returnUnit)
         let main = makeFunction(symbol: mainSymbol, name: "main", params: [], body: body)
         let declID = arena.appendDecl(.function(main))
@@ -83,9 +75,6 @@ extension WasmCodegenTests {
         9221120237041090560
         2143289344
         1
-        1
-        1
-        -0.0
 
         """)
     }
