@@ -797,7 +797,7 @@ enum WasmRuntimeHelpers {
         "__kk_string_toFloat", "__kk_string_toFloatOrNull",
         "__kk_string_toDouble_flat", "__kk_string_toDoubleOrNull_flat",
         "__kk_string_toFloat_flat", "__kk_string_toFloatOrNull_flat",
-        "__kk_wasm_decimal_parse_exact", "$__kk_wasm_decimal_scratch",
+        "__kk_wasm_decimal_parse_exact",
         "__kk_wasm_error", "__kk_wasm_todo",
     ]
 
@@ -2475,42 +2475,24 @@ enum WasmRuntimeHelpers {
         case "__kk_wasm_string_to_boolean":
             extraLocals = 2
             emitStringToBooleanBody(&code, argumentCount: argumentCount)
-        case "$__kk_wasm_decimal_scratch":
-            extraLocals = 1
-            let cachedPointer = ctx.module.addGlobal(initialValue: 0, name: "$__kk_decimal_scratch_ptr")
-            let cachedSize = ctx.module.addGlobal(initialValue: 0, name: "$__kk_decimal_scratch_size")
-            code.globalGet(cachedSize)
-            code.localGet(0)
-            code.op(WasmOpcode.i64GeU)
-            code.openIf(result: .i64)
-            code.globalGet(cachedPointer)
-            code.elseBranch()
-            code.localGet(0)
-            code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
-            code.localTee(1)
-            code.globalSet(cachedPointer)
-            code.localGet(0)
-            code.globalSet(cachedSize)
-            code.localGet(1)
-            code.end()
         case "__kk_wasm_string_to_double", "__kk_string_toDouble",
              "__kk_string_toDouble_flat":
-            extraLocals = 4
+            extraLocals = 6
             emitStringParseFpBody(&code, ctx: ctx, wide: true, orNull: false,
                                   argumentCount: argumentCount)
         case "__kk_wasm_string_to_float", "__kk_string_toFloat",
              "__kk_string_toFloat_flat":
-            extraLocals = 4
+            extraLocals = 6
             emitStringParseFpBody(&code, ctx: ctx, wide: false, orNull: false,
                                   argumentCount: argumentCount)
         case "__kk_wasm_string_to_double_or_null",
              "__kk_string_toDoubleOrNull", "__kk_string_toDoubleOrNull_flat":
-            extraLocals = 4
+            extraLocals = 6
             emitStringParseFpBody(&code, ctx: ctx, wide: true, orNull: true,
                                   argumentCount: argumentCount)
         case "__kk_wasm_string_to_float_or_null",
              "__kk_string_toFloatOrNull", "__kk_string_toFloatOrNull_flat":
-            extraLocals = 4
+            extraLocals = 6
             emitStringParseFpBody(&code, ctx: ctx, wide: false, orNull: true,
                                   argumentCount: argumentCount)
         case "__kk_wasm_string_substring_after",
@@ -13769,6 +13751,7 @@ enum WasmRuntimeHelpers {
     ) {
         let len = argumentCount, data = argumentCount + 1
         let scratch = argumentCount + 2, bits = argumentCount + 3
+        let heapBefore = argumentCount + 4, scratchSize = argumentCount + 5
         emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
         code.localSet(len)
         emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
@@ -13776,8 +13759,11 @@ enum WasmRuntimeHelpers {
 
         // wasm_decimal_parse.c lays scratch out as the length-byte digit copy,
         // 8-byte alignment padding, nine (length + 1024)-limb u32 big integers,
-        // and 64 bytes of slack. The parser is synchronous and non-reentrant,
-        // so one cached scratch allocation can be reused across conversions.
+        // and 64 bytes of slack. The generated parser performs no allocations,
+        // so its allocation is always the heap top. Zero it before rewinding:
+        // later object allocations rely on fresh linear memory being zeroed.
+        code.globalGet(ctx.heapGlobal)
+        code.localSet(heapBefore)
         code.localGet(len)
         code.i64Const(7)
         code.op(WasmOpcode.i64Add)
@@ -13789,7 +13775,8 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64Add)
         code.i64Const(36 * 1024 + 64)
         code.op(WasmOpcode.i64Add)
-        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_decimal_scratch", argumentCount: 1))
+        code.localTee(scratchSize)
+        code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_alloc", argumentCount: 1))
         code.localSet(scratch)
 
         code.localGet(data)
@@ -13798,24 +13785,28 @@ enum WasmRuntimeHelpers {
         code.i64Const(wide ? 0 : 1)
         code.call(ctx.emittedHelperIndex(for: "__kk_wasm_decimal_parse_exact", argumentCount: 4))
         code.localSet(bits)
+        code.localGet(scratch)
+        code.i64Const(16)
+        code.op(WasmOpcode.i64Sub)
+        code.op(WasmOpcode.i32WrapI64)
+        code.i32Const(0)
+        code.localGet(scratchSize)
+        code.i64Const(16 + 7)
+        code.op(WasmOpcode.i64Add)
+        code.i64Const(-8)
+        code.op(WasmOpcode.i64And)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.truncSatPrefix)
+        code.u(WasmOpcode.memoryFillSubopcode)
+        code.u(0)
+        code.localGet(heapBefore)
+        code.globalSet(ctx.heapGlobal)
         code.localGet(bits)
         code.i64Const(-1)
         code.op(WasmOpcode.i64Eq)
         code.openIf()
         emitParseFail(&code, ctx: ctx, orNull: orNull)
         code.end()
-        if wide, orNull {
-            // -0.0 has the same bit pattern as the nullable sentinel. Box that
-            // one valid value so downstream null checks can distinguish it.
-            code.localGet(bits)
-            code.i64Const(L.nullSentinel)
-            code.op(WasmOpcode.i64Eq)
-            code.openIf()
-            code.localGet(bits)
-            code.call(ctx.emittedHelperIndex(for: "__kk_wasm_box_double", argumentCount: 1))
-            code.op(WasmOpcode.return)
-            code.end()
-        }
         code.localGet(bits)
     }
 
