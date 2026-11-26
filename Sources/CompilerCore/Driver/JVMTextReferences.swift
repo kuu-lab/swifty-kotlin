@@ -39,7 +39,7 @@ extension JVMFunctionBuilder {
         let receiverName: String
         switch receiver.referenceName {
         case "[C": receiverName = "CharArray"
-        case "java/lang/CharSequence": receiverName = "CharSequence"
+        case "java/lang/CharSequence": receiverName = receiver.isNullable ? "CharSequence?" : "CharSequence"
         case "java/lang/String": receiverName = receiver.isNullable ? "String?" : "String"
         default: return nil
         }

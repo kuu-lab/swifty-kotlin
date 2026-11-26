@@ -122,7 +122,6 @@ struct JavaLangIllegalArgumentExceptionTests {
         expectedStdout: "OK\nOK\n")
     }
 
-    /// Uses Matrix.kt from https://github.com/DmitryTsyvtsyn/Kotlin-Algorithms-and-Design-Patterns/blob/1f89f062a056e24cc289ffdd0c6e23cadf8df887/src/main/kotlin/structures/Matrix.kt.
     @Test
     func pinnedMatrixConsumerKeepsItsOutput() throws {
         let matrixPath = URL(fileURLWithPath: #filePath)

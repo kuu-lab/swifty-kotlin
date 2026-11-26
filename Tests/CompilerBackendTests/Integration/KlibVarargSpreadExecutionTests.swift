@@ -28,7 +28,6 @@ struct KlibVarargSpreadExecutionTests {
         #expect(!result.diagnostics.contains { $0.code == "KSWIFTK-LIB-0029" })
         let run = try CommandRunner.run(executable: output, arguments: [], timeout: 30)
         #expect(run.exitCode == 0, "\(run.stderr)")
-        // Checked against Kotlin/JVM 2.4.21 with the same producer and consumer sources.
         #expect(run.stdout == """
         10
         5

@@ -58,16 +58,6 @@ struct CodegenBackendMutableCollectionEdgeCasesTests {
         )
     }
 
-    // Regression for the covariance gap where `.iterator()` on a
-    // MutableList/MutableSet/MutableCollection-typed receiver resolved to
-    // Collection's `Iterator<E>` instead of the covariant `MutableIterator<E>`
-    // (KSWIFTK-TYPE-0001 on any override declared `MutableIterator<E>`), and
-    // the sibling gaps found alongside it: MutableList.subList returning
-    // `List<E>` instead of `MutableList<E>`, and the entirely-missing
-    // MutableList.listIterator(Int)/addAll(Int, Collection<E>) overloads
-    // ("No viable overload found for call"). This is the exact shape of class
-    // that failed to compile before the fix: a hand-written MutableList<Int>
-    // implementation delegating every member to a backing mutableListOf().
     @Test
     func testCodegenClassImplementingMutableListCompilesWithCovariantIteratorSubListAndIndexedOverloads() throws {
         let source = """
@@ -139,10 +129,6 @@ struct CodegenBackendMutableCollectionEdgeCasesTests {
         )
     }
 
-    // MutableList.iterator()/MutableSet.iterator() must report MutableIterator<E>
-    // (assignability checked at the `val ...: MutableIterator<Int> = ...` sites
-    // below), not just compile via type inference. for-loops go through a
-    // separate resolution path (ControlFlowTypeChecker) and must keep working.
     @Test
     func testCodegenMutableListAndMutableSetIteratorReturnMutableIterator() throws {
         let source = """
@@ -172,9 +158,6 @@ struct CodegenBackendMutableCollectionEdgeCasesTests {
         )
     }
 
-    // MutableList.subList(...) is a live view backed by the parent list. Both
-    // element replacement and structural removal through the view must update
-    // the parent list as they do in the Kotlin stdlib.
     @Test
     func testCodegenMutableListSubListMutatesParentList() throws {
         let source = """
@@ -195,11 +178,6 @@ struct CodegenBackendMutableCollectionEdgeCasesTests {
         )
     }
 
-    // MutableList.listIterator(index)/addAll(index, elements) were previously
-    // unregistered overloads ("No viable overload found for call"). Covers
-    // both the mutable and read-only listIterator(index) overload together
-    // since they share the same runtime primitive (kk_list_iterator_at) with
-    // different Sema-level return types.
     @Test
     func testCodegenListIteratorAtIndexAndMutableListAddAllAtIndex() throws {
         let source = """
@@ -252,13 +230,6 @@ struct CodegenBackendMutableCollectionEdgeCasesTests {
         )
     }
 
-    // MutableListIterator.add/set had no external link name, so codegen fell
-    // back to a direct call to the bare Kotlin name ("_add"/"_set"),
-    // undefined at link time. `remove` happened to *link* anyway because
-    // "_remove" collides with libc's `remove(const char *)`, silently
-    // misinterpreting the iterator handle as a path instead of mutating the
-    // list. `set`/`add`/`remove` require a preceding `next()` call in real
-    // Kotlin (otherwise IllegalStateException), so this traverses first.
     @Test
     func testCodegenMutableListIteratorSetAddRemoveMutateBackingList() throws {
         let source = """

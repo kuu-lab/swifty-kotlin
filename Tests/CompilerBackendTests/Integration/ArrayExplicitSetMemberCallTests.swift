@@ -65,7 +65,6 @@ struct ArrayExplicitSetMemberCallTests {
         try assertSetCalls(using: .sourceInjection, optimization: 0)
     }
 
-    // Source-mode O2 IR also exposes a separate function-object arity failure tracked by KUU-2241.
     @Test
     func sourceO2KIRResolvesSetCalls() throws {
         let source = try diffCaseSource("array_explicit_set.kt", file: #filePath)

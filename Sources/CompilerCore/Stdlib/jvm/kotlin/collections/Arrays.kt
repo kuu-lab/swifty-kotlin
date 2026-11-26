@@ -389,3 +389,11 @@ fun ByteArray.isNotEmpty(): Boolean = this.size != 0
 fun ShortArray.toList(): List<Short> = this.asSequence().toList()
 fun ShortArray.isEmpty(): Boolean = this.size == 0
 fun ShortArray.isNotEmpty(): Boolean = this.size != 0
+
+public fun <T> Array<out Array<out T>>.flatten(): List<T> {
+    val result = mutableListOf<T>()
+    for (element in this) {
+        for (nestedElement in element) result.add(nestedElement)
+    }
+    return result
+}

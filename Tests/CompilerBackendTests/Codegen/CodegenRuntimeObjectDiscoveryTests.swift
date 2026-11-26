@@ -3,12 +3,6 @@
 import Foundation
 import Testing
 
-// Regression coverage for BUG-051: `discoverScratchRuntimeObjectPaths` only
-// searched for objects inside a "Runtime.build"/"Runtime-t.build" products
-// directory. A whole-module-optimization (WMO) toolchain instead emits a
-// single consolidated "Runtime.o" placed directly in the build directory,
-// which the directory-name based search missed, causing
-// `KSWIFTK-LINK-0001: Unable to locate packaged runtime object files`.
 @Suite(.serialized)
 struct CodegenRuntimeObjectDiscoveryTests {
     private func withScratchLayout(
@@ -18,7 +12,6 @@ struct CodegenRuntimeObjectDiscoveryTests {
         let fileManager = FileManager.default
         let scratchRoot = fileManager.temporaryDirectory
             .appendingPathComponent("bug051-\(UUID().uuidString)", isDirectory: true)
-        // Mirror the real scratch layout: <root>/<triple>/<configuration>/Runtime.build
         let buildDirectory = scratchRoot
             .appendingPathComponent("x86_64-unknown-linux-gnu", isDirectory: true)
             .appendingPathComponent(configuration.rawValue, isDirectory: true)
@@ -136,8 +129,6 @@ struct CodegenRuntimeObjectDiscoveryTests {
         }
     }
 
-    // The core BUG-051 case: WMO emits a single "Runtime.o" directly in the
-    // build directory (Runtime.build exists but holds no objects).
     @Test
     func testFallsBackToWholeModuleRuntimeObject() throws {
         try withScratchLayout { buildDirectory, scratchRoot in
@@ -205,7 +196,6 @@ struct CodegenRuntimeObjectDiscoveryTests {
         }
     }
 
-    // Per-file objects must win over the WMO fallback when both exist.
     @Test
     func testPrefersPerFileObjectsOverWholeModuleFallback() throws {
         try withScratchLayout { buildDirectory, scratchRoot in
@@ -224,9 +214,6 @@ struct CodegenRuntimeObjectDiscoveryTests {
         }
     }
 
-    // The AST-wrapper object SwiftPM emits under "Modules/Runtime.o" (only
-    // "__Swift_AST", no runtime code) and other targets' objects must not be
-    // mistaken for the runtime object.
     @Test
     func testIgnoresModulesAstWrapperAndUnrelatedObjects() throws {
         try withScratchLayout { buildDirectory, scratchRoot in
@@ -245,7 +232,6 @@ struct CodegenRuntimeObjectDiscoveryTests {
         }
     }
 
-    // Accepts the alternate WMO object name some toolchains produce.
     @Test
     func testFallsBackToWholeModuleRuntimeSwiftObject() throws {
         try withScratchLayout { buildDirectory, scratchRoot in
@@ -262,10 +248,6 @@ struct CodegenRuntimeObjectDiscoveryTests {
         }
     }
 
-    // A scratch directory holding objects but no completion manifest must be
-    // treated as a cache miss: an interrupted or still-running (orphaned)
-    // `swift build` leaves a partial object set behind, and linking it fails
-    // with undefined `kk_*` runtime symbols.
     @Test
     func testObjectsWithoutManifestAreNotACacheHit() throws {
         try withScratchLayout { buildDirectory, scratchRoot in
@@ -301,8 +283,6 @@ struct CodegenRuntimeObjectDiscoveryTests {
         }
     }
 
-    // A manifest naming an object that has since disappeared is stale and
-    // must report a miss so the runtime build re-runs.
     @Test
     func testManifestListingMissingObjectIsStale() throws {
         try withScratchLayout { buildDirectory, scratchRoot in
@@ -351,9 +331,6 @@ struct CodegenRuntimeObjectDiscoveryTests {
         #expect(timeout == 900)
     }
 
-    // Unparseable, non-positive, or non-finite overrides must not produce a
-    // zero/negative/infinite timeout that either fires immediately or never
-    // fires at all; fall back to the default instead.
     @Test(arguments: ["not-a-number", "0", "-5", "", "inf", "nan"])
     func testRuntimeBuildTimeoutIgnoresInvalidOverride(rawValue: String) {
         let timeout = CodegenRuntimeSupport.runtimeBuildTimeoutSeconds(
@@ -362,11 +339,6 @@ struct CodegenRuntimeObjectDiscoveryTests {
         #expect(timeout == 600)
     }
 
-    // MARK: KUU-788 — an untrusted Package.swift must never drive the Runtime build
-
-    // Builds a directory that looks like a KSwiftK checkout (manifest with the
-    // right package name plus the Runtime source directories) with correct
-    // ownership and permissions.
     private func makeFakeRuntimePackageRoot(
         manifest: String = """
         // swift-tools-version: 6.2
@@ -392,9 +364,6 @@ struct CodegenRuntimeObjectDiscoveryTests {
         return root
     }
 
-    // The implicit search anchors only in the compiler binary's own location
-    // and the build-time source path — never the process working directory,
-    // which belongs to the compiled project.
     @Test
     func testPackageRootSearchStartsAreCompilerOwned() {
         let fakeExecutable = URL(fileURLWithPath: "/opt/kswiftk/bin/kswiftc")
@@ -423,8 +392,6 @@ struct CodegenRuntimeObjectDiscoveryTests {
         let root = try makeFakeRuntimePackageRoot()
         defer { try? FileManager.default.removeItem(at: root) }
 
-        // The override may point anywhere inside the checkout; the nearest
-        // ancestor manifest is what gets verified and used.
         for overridePath in [root.path, root.appendingPathComponent("Sources/Runtime").path] {
             let resolved = try CodegenRuntimeSupport.runtimePackageRootURL(
                 environment: ["KSWIFTK_PACKAGE_ROOT": overridePath]
@@ -455,7 +422,6 @@ struct CodegenRuntimeObjectDiscoveryTests {
     func testOverridePackageRootRejectsWorldWritableTree() throws {
         let root = try makeFakeRuntimePackageRoot()
         defer {
-            // Restore permissions so the cleanup below is allowed everywhere.
             try? FileManager.default.setAttributes(
                 [.posixPermissions: 0o755],
                 ofItemAtPath: root.path
@@ -503,9 +469,6 @@ struct CodegenRuntimeObjectDiscoveryTests {
         }
     }
 
-    // A Package.swift sitting in the working directory — even one that would
-    // pass verification — must not be picked up: the working directory is not
-    // a search start at all.
     @Test
     func testWorkingDirectoryManifestIsNotEvaluated() throws {
         let fileManager = FileManager.default
@@ -529,10 +492,6 @@ struct CodegenRuntimeObjectDiscoveryTests {
         #expect(!arguments.contains("--disable-sandbox"))
     }
 
-    // The fingerprint is reused across processes through the scratch-root
-    // sidecar, so it must stay byte-identical for an untouched tree, change on
-    // any content edit, and survive metadata-only rewrites (e.g. checkout
-    // touching mtimes) without serving a stale value.
     @Test
     func testRuntimeSourceFingerprintPersistsAcrossCallsAndTracksContent() throws {
         let fileManager = FileManager.default
@@ -556,13 +515,11 @@ struct CodegenRuntimeObjectDiscoveryTests {
             atPath: scratchRoot.appendingPathComponent("source-fingerprints.json").path
         ))
 
-        // An untouched tree resolves to the same fingerprint on a later call.
         let second = try CodegenRuntimeSupport.runtimeSourceFingerprint(
             packageRoot: packageRoot, scratchRoot: scratchRoot
         )
         #expect(second == first)
 
-        // Editing a Runtime source changes the fingerprint.
         try "func runtimeA() { print(1) }".write(
             to: runtimeFile, atomically: true, encoding: .utf8
         )
@@ -571,8 +528,6 @@ struct CodegenRuntimeObjectDiscoveryTests {
         )
         #expect(edited != first)
 
-        // Metadata-only rewrites (new mtime, same bytes) recompute but yield
-        // the identical content fingerprint — never a stale reuse.
         try fileManager.setAttributes(
             [.modificationDate: Date()], ofItemAtPath: runtimeFile.path
         )
@@ -582,14 +537,6 @@ struct CodegenRuntimeObjectDiscoveryTests {
         #expect(retouched == edited)
     }
 
-    // KUU-3773: a persisted-fingerprint hit must not re-read Runtime sources —
-    // the stat-signature guard exists so an unchanged tree pays only stat(2)
-    // calls plus the small sidecar read, never ~236 file reads. After seeding
-    // the sidecar, make a source unreadable: the hit still returns the seeded
-    // fingerprint, while a regression that re-reads content would hash an
-    // empty payload for the unreadable file (or throw) and change it. Mode
-    // bits are not part of the signature, so the chmod keeps the hit valid.
-    // (Vacuous when run as root, which can read mode-000 files anyway.)
     @Test
     func testPersistedRuntimeFingerprintHitReadsNoFileContents() throws {
         let fileManager = FileManager.default

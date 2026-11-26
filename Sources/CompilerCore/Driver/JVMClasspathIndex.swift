@@ -2292,6 +2292,7 @@ final class JVMClasspathIndex {
             let needsIteratorOperator = method.kotlinFunction?.isOperator != true
                 && method.sourceName == "iterator" && method.sourceParameters.isEmpty
                 && method.result.referenceName == "java/util/Iterator" && inheritsJavaType(info, "java/lang/Iterable")
+                && !(usesKotlinMetadata && kotlinFunction(method)?.isOperator == true)
             if (needsGetOperator && !kotlinDeclaresOperator) || needsIteratorOperator {
                 source += "operator "
             }
@@ -3587,9 +3588,8 @@ final class JVMClasspathIndex {
                 }
             }
             let mangledMembers = info.methods.filter { method in
-                guard method.sourceName == name,
-                      method.kotlinFunction?.mangledMemberParameterDescriptors == logicalParameters
-                else { return false }
+                let descriptors = method.kotlinFunction?.mangledMemberParameterDescriptors ?? method.kotlinFunction?.valueMemberParameterDescriptors
+                guard method.sourceName == name, descriptors == logicalParameters else { return false }
                 // A value class and its underlying type share an erased
                 // descriptor (`Dp` erases to `F`), so descriptor equality
                 // alone would also match `foo(Float)` calls against a

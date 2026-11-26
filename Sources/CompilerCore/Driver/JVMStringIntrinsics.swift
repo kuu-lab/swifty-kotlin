@@ -118,7 +118,7 @@ extension JVMFunctionBuilder {
         let candidates = JVMTextOperation.operations.filter { op in
             guard op.name == name else { return false }
             if op.receiver == "CharArray" { return type.referenceName == "[C" }
-            return type.isCharSequence && (type.referenceName == "java/lang/String" || op.receiver == "CharSequence")
+            return type.isCharSequence && (type.referenceName == "java/lang/String" || op.receiver == "CharSequence" || op.receiver == "CharSequence?")
         }
         let operation = candidates.first { op in
             guard let signatureTypes else { return op.parameters.count == args.count && !op.parameters.contains(where: \.variadic) }
@@ -232,6 +232,7 @@ extension JVMFunctionBuilder {
         case "space": return try constant(.int(32), .char)
         case "empty": return try constant(.string(""), .string)
         case "margin": return try constant(.string("|"), .string)
+        case "indent": return try constant(.string("    "), .string)
         case "this": return source
         case "length": return try textLength(source)
         case "lastIndex":

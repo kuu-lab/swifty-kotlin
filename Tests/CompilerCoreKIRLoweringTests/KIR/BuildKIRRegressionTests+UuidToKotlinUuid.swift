@@ -19,12 +19,6 @@ extension BuildKIRRegressionTests {
         try runToKIR(ctx)
 
         let module = try #require(ctx.kir)
-        // KSP-476: toKotlinUuid() is now a regular Kotlin function whose body
-        // calls the private __kk_uuid_toKotlinUuid bridge. At this frontend-only
-        // stage the bridge call isn't visible from `convert`'s own KIR body (the
-        // wrapper's body isn't lowered into this module) — only the call-site's
-        // simple callee name is. Full bridge verification lives in
-        // RuntimeUuidToKotlinUuidTests and diff_kotlinc.
         let body = try findKIRFunctionBody(named: "convert", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 

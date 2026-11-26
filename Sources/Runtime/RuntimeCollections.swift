@@ -118,6 +118,24 @@ func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int =
         }
         return
     }
+    // Must agree with `runtimeNonNullValuesEqual`'s BigDecimal branch (KUU-4630).
+    if let bigNumber = tryCast(pointer, to: RuntimeBigNumberBox.self) {
+        hasher.combine(19)
+        hasher.combine(bigNumber.value)
+        return
+    }
+    // Must stay in sync with `runtimeNonNullValuesEqual`'s Result branch: the
+    // success/failure discriminator plus the wrapped value or exception.
+    if let resultBox = tryCast(pointer, to: RuntimeResultBox.self) {
+        hasher.combine(20)
+        hasher.combine(resultBox.isSuccess)
+        runtimeElementKeyHash(
+            resultBox.isSuccess ? resultBox.value : resultBox.exception,
+            into: &hasher,
+            depth: depth + 1
+        )
+        return
+    }
     if runtimeIsUnitBox(value) {
         hasher.combine(13)
         return

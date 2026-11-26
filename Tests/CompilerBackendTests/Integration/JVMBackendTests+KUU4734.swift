@@ -35,6 +35,8 @@ extension JVMBackendTests {
         val trimChars: (String, CharArray) -> String = String::trim
         println(trimChars("xxaxx", charArrayOf('x')))
         println(listOf("  |x").map(String::trimMargin))
+        println(listOf("x").map(String::prependIndent))
+        println(listOf("  |x").map(String::replaceIndentByMargin))
         println(listOf("12").map(String::toInt))
         val pad: (String, Int) -> String = String::padStart
         println(pad("7", 3))
@@ -62,6 +64,8 @@ extension JVMBackendTests {
     hel
     ABC
     a
+    [x]
+    [    x]
     [x]
     [12]
       7

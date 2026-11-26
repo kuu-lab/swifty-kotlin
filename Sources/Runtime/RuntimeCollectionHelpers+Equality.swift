@@ -294,6 +294,13 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     guard let lhsPtr, let rhsPtr else {
         return lhs == rhs
     }
+    if let lhsBig = tryCast(lhsPtr, to: RuntimeBigNumberBox.self) {
+        guard let rhsBig = tryCast(rhsPtr, to: RuntimeBigNumberBox.self) else { return false }
+        return lhsBig.kind == rhsBig.kind && lhsBig.value == rhsBig.value
+    }
+    if tryCast(rhsPtr, to: RuntimeBigNumberBox.self) != nil {
+        return false
+    }
     if let lhsResult = tryCast(lhsPtr, to: RuntimeResultBox.self),
        let rhsResult = tryCast(rhsPtr, to: RuntimeResultBox.self)
     {

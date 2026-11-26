@@ -37,8 +37,6 @@ struct JVMBackendTests {
     func java(_ arguments: [String]) throws -> CommandResult {
         let executable = CommandRunner.resolveExecutable("java", fallback: "/usr/bin/java")
         let result = try CommandRunner.run(executable: executable, arguments: ["-Xverify:all", "-Dfile.encoding=UTF-8"] + arguments, timeout: 20)
-        // The launcher/JVM "Picked up ..." notes for JVM options set through the
-        // environment are toolchain output, not program stderr; keep program stderr strict.
         return result.withoutJavaLauncherNotes
     }
 

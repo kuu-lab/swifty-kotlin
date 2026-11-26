@@ -2,10 +2,6 @@
 import Foundation
 import Testing
 
-/// Serialized `v++` / `v--` reach KlibBodyLowerer as `inc()` / `dec()`
-/// intrinsics. Byte/Short/UByte/UShort keep the operand type, so the 64-bit
-/// slot must wrap back to that width, and Float/Double slots hold IEEE bit
-/// patterns that need the floating-point add/sub.
 @Suite
 struct KlibIncDecExecutionTests {
     @Test(arguments: [0, 2])
@@ -39,7 +35,6 @@ struct KlibIncDecExecutionTests {
             println(floatDec(0.5f))
         }
         """.write(to: source, atomically: true, encoding: .utf8)
-        // Checked against Kotlin/JVM 2.4.21 with IncDec.kt as source.
         let expected = """
         -128
         127

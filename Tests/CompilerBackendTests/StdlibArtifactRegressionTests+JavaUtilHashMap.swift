@@ -6,8 +6,6 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
-    /// KUU-2234/KUU-2401: Java-FQN HashMap imports reuse the Kotlin HashMap
-    /// API, copy entries, and preserve runtime identity across stdlib surfaces.
     @Test
     func testJavaUtilHashMapFacadeRunsAcrossSourceAndArtifact() throws {
         let source = """
