@@ -91,7 +91,7 @@ extension JVMFunctionBuilder {
                 return try adaptedReference(id, symbol: symbol, receiver: receiver, unbound: unbound)
             }
         }
-        let sourceBacked = program.textLibraryMethods[symbol]
+        let sourceBacked = program.textLibraryMethods[symbol].flatMap { $0.adaptation == nil ? $0 : nil }
         let method = program.methods[symbol] ?? context.jvmImports?.method(for: symbol) ?? sourceBacked?.method
         let ref = program.references[symbol]
         guard method != nil || ref != nil else { throw fail("Unsupported JVM callable reference target.", id) }
