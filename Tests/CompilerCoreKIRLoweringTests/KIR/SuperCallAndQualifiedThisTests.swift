@@ -610,7 +610,7 @@ struct SuperCallAndQualifiedThisTests {
 
     @Test(arguments: [false, true])
     func testSuperIndexedAccessAndAssignmentStayDirectCalls(fullyLowered: Bool) throws {
-        let ctx = makeContextFromSource("""
+        let source = """
         open class Base<T> {
             open operator fun get(index: T): Int = 1
             open operator fun set(index: T, value: Int) {}
@@ -626,13 +626,12 @@ struct SuperCallAndQualifiedThisTests {
                 super["x"] += 1
             }
         }
-        """)
-        if fullyLowered {
-            try runToLowering(ctx)
+        """
+        let ctx = if fullyLowered {
+            try loweringContext(from: source)
         } else {
-            try runToKIR(ctx)
+            try kirContext(from: source)
         }
-        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
 
         let module = try #require(ctx.kir)
         var superCalls: [String] = []
