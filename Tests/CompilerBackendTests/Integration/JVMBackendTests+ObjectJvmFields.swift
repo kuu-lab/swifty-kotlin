@@ -34,9 +34,16 @@ extension JVMBackendTests {
             }
         }
         class PublicCollisionHolder {
-            @JvmField var x: String = "a"
+            @JvmField var x: List<String> = listOf("a")
             companion object {
                 @JvmField var x: Int = 2
+            }
+        }
+        class PrivateConstantCollisionHolder {
+            @JvmField var x: String = "a"
+            companion object {
+                private const val x: Int = 2
+                fun read() = x
             }
         }
         fun main() {}
@@ -108,9 +115,18 @@ extension JVMBackendTests {
                     else publicInstance = field;
                 }
                 System.out.println("publicStaticType=" + publicStatic.getType().getName());
+                System.out.println("publicStaticGeneric=" + publicStatic.getGenericType().getTypeName());
                 System.out.println("publicStatic=" + publicStatic.getInt(null));
                 System.out.println("publicInstanceType=" + publicInstance.getType().getName());
+                System.out.println("publicInstanceGeneric=" + publicInstance.getGenericType().getTypeName());
                 System.out.println("publicInstance=" + publicInstance.get(publicCollision));
+
+                Class<?> privateConstantType = Class.forName("PrivateConstantCollisionHolder");
+                Field privateConstant = privateConstantType.getDeclaredField("x$1");
+                privateConstant.setAccessible(true);
+                int privateConstantModifiers = privateConstant.getModifiers();
+                System.out.println("privateConstantModifiers=" + Modifier.isPrivate(privateConstantModifiers) + ":" + Modifier.isStatic(privateConstantModifiers) + ":" + Modifier.isFinal(privateConstantModifiers));
+                System.out.println("privateConstant=" + privateConstant.getInt(null));
             }
         }
         """#
@@ -149,9 +165,13 @@ extension JVMBackendTests {
             collisionExposed=2
             valuesGeneric=java.util.List<java.lang.String>
             publicStaticType=int
+            publicStaticGeneric=int
             publicStatic=2
-            publicInstanceType=java.lang.String
-            publicInstance=a
+            publicInstanceType=java.util.List
+            publicInstanceGeneric=java.util.List<java.lang.String>
+            publicInstance=[a]
+            privateConstantModifiers=true:true:true
+            privateConstant=2
             """ + "\n")
             #expect(reference.stderr.isEmpty)
             #expect(candidate.stderr.isEmpty)
@@ -180,6 +200,7 @@ extension JVMBackendTests {
                 Issue.record("kotlinc accepted an enum entry collision with a renamed backing field")
             } catch CommandRunnerError.nonZeroExit(let error) {
                 #expect(error.exitCode != 0)
+                #expect(error.stderr.contains("platform declaration clash"), "\(error.stderr)")
             }
         }
     }
@@ -205,6 +226,7 @@ extension JVMBackendTests {
                 Issue.record("kotlinc accepted an exposed field platform clash")
             } catch CommandRunnerError.nonZeroExit(let error) {
                 #expect(error.exitCode != 0)
+                #expect(error.stderr.contains("platform declaration clash"), "\(error.stderr)")
             }
         }
     }

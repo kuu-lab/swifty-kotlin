@@ -263,6 +263,27 @@ extension JVMProgramBuilder {
         return renamed
     }
 
+    private func ownerFieldCollision(owner: JVMClassPlan, companion: JVMClassPlan, name: String, type: JVMValueType) -> Bool {
+        owner.properties.contains {
+            $0.2.field?.name == name && $0.2.field?.type.descriptor == type.descriptor
+        } || companion.properties.contains {
+            $0.2.field?.name == name && $0.2.field?.type.descriptor == type.descriptor
+        } || (owner.declaration?.enumEntries.contains {
+            context.interner.resolve($0.name) == name && type.referenceName == owner.name
+        } ?? false)
+    }
+
+    private func renameCompanionField(_ companion: JVMClassPlan, field: JVMField, name: String) throws {
+        guard let index = companion.properties.firstIndex(where: {
+            $0.2.field?.name == field.name && $0.2.field?.type.descriptor == field.type.descriptor
+        }) else { throw JVMFrontendError(message: "Missing JVM companion backing field.") }
+        let entry = companion.properties[index]
+        var property = entry.2
+        property.field = renamedField(field, name: name)
+        companion.properties[index] = (entry.0, entry.1, property)
+        if let symbol = sema.bindings.declSymbol(for: entry.0) { properties[symbol] = property }
+    }
+
     private func renameOwnerBackingFieldsForCompanionCollisions() throws {
         for companion in classes.values where companion.companionOwner != nil {
             guard interfaceCompanionStorage(companion) == nil,
@@ -279,26 +300,25 @@ extension JVMProgramBuilder {
                 guard let field = property.field else { continue }
                 let collisions = relocated.filter { $0.name == field.name }
                 guard !collisions.isEmpty else { continue }
-                if field.access & 2 == 0 {
+                if field.access & 2 != 0 {
+                    let candidate = field.name + "$1"
+                    guard !ownerFieldCollision(owner: owner, companion: companion, name: candidate, type: field.type) else {
+                        throw JVMFrontendError(message: "JVM platform declaration clash on field '\(candidate)'.", range: entry.1.range)
+                    }
+                    property.field = renamedField(field, name: candidate)
+                    owner.properties[index] = (entry.0, entry.1, property)
+                    if let symbol = sema.bindings.declSymbol(for: entry.0) { properties[symbol] = property }
+                } else if let privateCollision = collisions.first(where: { $0.access & 2 != 0 }) {
+                    let candidate = privateCollision.name + "$1"
+                    guard !ownerFieldCollision(owner: owner, companion: companion, name: candidate, type: privateCollision.type) else {
+                        throw JVMFrontendError(message: "JVM platform declaration clash on field '\(candidate)'.", range: entry.1.range)
+                    }
+                    try renameCompanionField(companion, field: privateCollision, name: candidate)
+                } else {
                     guard !collisions.contains(where: { $0.type.descriptor == field.type.descriptor }) else {
                         throw JVMFrontendError(message: "JVM platform declaration clash on field '\(field.name)'.", range: entry.1.range)
                     }
-                    continue
                 }
-                let candidate = field.name + "$1"
-                let ownerCollision = owner.properties.contains {
-                    $0.2.field?.name == candidate && $0.2.field?.type.descriptor == field.type.descriptor
-                } || relocated.contains {
-                    $0.name == candidate && $0.type.descriptor == field.type.descriptor
-                } || (owner.declaration?.enumEntries.contains {
-                    context.interner.resolve($0.name) == candidate && field.type.referenceName == owner.name
-                } ?? false)
-                guard !ownerCollision else {
-                    throw JVMFrontendError(message: "JVM platform declaration clash on field '\(candidate)'.", range: entry.1.range)
-                }
-                property.field = renamedField(field, name: candidate)
-                owner.properties[index] = (entry.0, entry.1, property)
-                if let symbol = sema.bindings.declSymbol(for: entry.0) { properties[symbol] = property }
             }
         }
     }

@@ -461,7 +461,7 @@ extension JVMProgramBuilder {
                 result.extraFields.append(field)
                 if let signature = property.fieldGenericSignature ?? property.genericSignature,
                    signature != field.type.descriptor {
-                    result.extraFieldSignatures[field.name] = signature
+                    result.extraFieldSignatures[field.key] = signature
                 }
             }
         }
