@@ -885,6 +885,7 @@ enum WasmRuntimeHelpers {
             extraLocals = 0
             emitLoadMetaBody(&code)
             code.op(WasmOpcode.i64Eqz)
+            code.i64ExtendFromComparison()
         case "kk_any_to_string", "kk_any_to_string_nullable":
             // Body uses fixed locals 2...9; extras must cover index 9 for
             // whatever arity was requested first.
