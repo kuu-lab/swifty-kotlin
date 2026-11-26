@@ -4,10 +4,6 @@ import Foundation
 import Testing
 
 extension JVMBackendTests {
-    /// KUU-4733: functions served by `JVMTextOperation.operations` failed under an
-    /// aliased import ("Unsupported JVM member") and as callable references
-    /// ("Missing JVM adapted reference target" / "Unsupported JVM callable
-    /// reference target"), because both paths looked the table up by call-site name.
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func textOperationsResolveThroughAliasedImportsAndCallableReferences(mode: EmitMode) throws {
         try withWorkspace { root in
@@ -49,20 +45,28 @@ extension JVMBackendTests {
                 val suspended: suspend (String) -> String = String::trimIndent
                 println(suspended("   y"))
                 println((String::trimIndent as (String) -> String) == Holder().indent())
+                val same: (CharSequence, CharSequence?) -> Boolean = CharSequence::contentEquals
+                println(same("a", null))
+                println(same(StringBuilder("ab"), "ab"))
+                val sameCase: (CharSequence, CharSequence?, Boolean) -> Boolean = CharSequence::contentEquals
+                println(sameCase("AB", "ab", true))
+                val nothing: String? = null
+                val boundNull: (CharSequence?) -> Boolean = nothing::contentEquals
+                println(boundNull(null))
+                println(boundNull("a"))
+                val strip: (String, Char, Char) -> String = String::tr
+                println(strip("-+a+-", '-', '+'))
+                val strip2: (String, Char, Char) -> String = String::tr
+                println(strip == strip2)
+                val splitTwo: (String, String, String) -> List<String> = String::split
+                println(splitTwo("a,b;c", ",", ";"))
             }
 
             class Holder { fun indent(): (String) -> String = String::trimIndent }
-            """, expected: "true\ntrue\n255\na\ntrue\ntrue\ntrue\nfalse\ntrue\nABC\ntrue\na\n43\n[true, false]\ntrimIndent\ntrue\nfalse\ny\ntrue\n", mode: mode, root: root)
+            """, expected: "true\ntrue\n255\na\ntrue\ntrue\ntrue\nfalse\ntrue\nABC\ntrue\na\n43\n[true, false]\ntrimIndent\ntrue\nfalse\ny\ntrue\nfalse\ntrue\ntrue\ntrue\nfalse\na\ntrue\n[a, b, c]\n", mode: mode, root: root)
         }
     }
 
-    /// The bundled runtime's reflective `call` resolves a reference by owner
-    /// and JVM signature, so text references point it at a generated bridge:
-    /// the table row's own target may be an instance JDK method
-    /// (`String.codePointAt`) or not exist at all (`uppercase` is emitted
-    /// inline). Official kotlin-reflect resolves through Kotlin metadata
-    /// instead and rejects these InlineOnly targets under kotlinc too, so this
-    /// runs on the repository stdlib only (KUU-4733).
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func textOperationReferencesSupportReflectiveCallOnRepositoryStdlib(mode: EmitMode) throws {
         try repositoryStdlibRuntimeRegression(name: "textOperationReferenceCall", mode: mode)

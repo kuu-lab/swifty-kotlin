@@ -1,13 +1,7 @@
 import Foundation
 
 extension JVMFunctionBuilder {
-    /// Lowers a callable reference to a JVM text stub (`"abc"::endsWith`,
-    /// `String::uppercase`). The stubs have no JVM method of their own; calls
-    /// go through `JVMTextOperation.operations`, so the reference gets a helper
-    /// that runs the same table emission as a direct call, with omitted
-    /// defaults filled from the table's fallbacks (KUU-4733).
     func textOperationReference(_ id: ExprID, symbol: SymbolID, receiver: ExprID?, unbound: Bool) throws -> JVMValue? {
-        // Stubs that already map to a real JVM method keep the regular reference lowering.
         guard program.methods[symbol] == nil, program.references[symbol] == nil, program.textLibraryMethods[symbol] == nil,
               context.jvmImports?.method(for: symbol) == nil,
               let name = textStubName(symbol),
@@ -17,9 +11,6 @@ extension JVMFunctionBuilder {
         let candidates = textOperationCandidates(name, receiver: receiverType)
         guard !candidates.isEmpty else { return nil }
         let signatureTypes = try signature.parameterTypes.map(program.type)
-        // A stub may split a defaulted table row into its own overload
-        // (`CharSequence.contains(other)` versus `contains(other, ignoreCase)`);
-        // the reference then targets the full row with the tail defaulted.
         let defaultedTail = candidates.first { op in
             signatureTypes.count < op.parameters.count
                 && zip(signatureTypes, op.parameters).allSatisfy { $0.descriptor == $1.type.descriptor && !$1.variadic }
@@ -28,7 +19,6 @@ extension JVMFunctionBuilder {
         guard let op = exactTextOperation(candidates, parameterTypes: signatureTypes) ?? defaultedTail else {
             throw fail("Unsupported JVM text reference overload: " + name + " (" + signatureTypes.map(\.descriptor).joined() + ").", id)
         }
-        // Exact-signature references may carry no binding; that means identity mapping and no adaptation.
         let binding = program.sema.bindings.callableReferenceBinding(for: id)
         guard let function = functionType(id), function.contextReceivers.isEmpty,
               binding?.boundContextParameterTypes.isEmpty != false else {
@@ -86,18 +76,13 @@ extension JVMFunctionBuilder {
         if varargConversion { flags |= 2 }
         if function.isSuspend { flags |= 4 }
         if unitConversion { flags |= 8 }
-        // Reflective `call` resolves the owner and signature, so they name the
-        // bridge (which exists) while `name` keeps the Kotlin declaration name.
+        // The row's own target (e.g. String.codePointAt, or the inline-emitted uppercase) has no
+        // static StringsKt method, so a reflective `call` resolved from owner/signature would fail.
         try initializeReferenceSuperclass(&generated, arity: arity, bound: bound, sourceOwner: bridge.owner!, sourceName: bridge.name, sourceDescriptor: bridge.descriptor, flags: flags, displayName: name)
         program.closureClasses.append(generated)
         return try constructJDK(className, parameters: captures.map(\.type), arguments: captures)
     }
 
-    /// A static method with the table row's JVM shape (receiver, every
-    /// parameter, result) that runs the table emission. Reflective `call` on a
-    /// text reference lands here, since the row's own JVM target may not exist
-    /// (an instance JDK method, or an op emitted inline such as `uppercase`).
-    /// One bridge per row and facade keeps equal references equal.
     func textOperationBridge(_ op: JVMTextOperation, id: ExprID) throws -> JVMFunctionReference {
         let parameters = [op.receiverType] + op.parameters.map { $0.variadic ? JVMValueType.reference("[" + $0.type.descriptor, nullable: false) : $0.type }
         let result: JVMValueType = op.sourceResult == "String" ? .string : op.result

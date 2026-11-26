@@ -61,4 +61,19 @@ suspend fun main() {
     println(suspended("   y"))
     val codePoint = String::codePointAt
     println(codePoint("abc", 1))
+    val same: (CharSequence, CharSequence?) -> Boolean = CharSequence::contentEquals
+    println(same("a", null))
+    println(same(StringBuilder("ab"), "ab"))
+    val sameCase: (CharSequence, CharSequence?, Boolean) -> Boolean = CharSequence::contentEquals
+    println(sameCase("AB", "ab", true))
+    val nothing: String? = null
+    val boundNull: (CharSequence?) -> Boolean = nothing::contentEquals
+    println(boundNull(null))
+    println(boundNull("a"))
+    val strip: (String, Char, Char) -> String = String::tr
+    println(strip("-+a+-", '-', '+'))
+    val strip2: (String, Char, Char) -> String = String::tr
+    println(strip == strip2)
+    val splitTwo: (String, String, String) -> List<String> = String::split
+    println(splitTwo("a,b;c", ",", ";"))
 }

@@ -140,7 +140,6 @@ extension JVMFunctionBuilder {
         return JVMIntrinsicResult(value: try emitTextOperation(op, source: source, values: values))
     }
 
-    /// Table operations a `name` call on a `type` receiver may select.
     func textOperationCandidates(_ name: String, receiver type: JVMValueType) -> [JVMTextOperation] {
         JVMTextOperation.operations.filter { op in
             guard op.name == name else { return false }
@@ -158,17 +157,12 @@ extension JVMFunctionBuilder {
         }
     }
 
-    /// The declared name of a JVM text stub callee. An aliased import
-    /// (`import kotlin.text.endsWith as ew`) leaves the call-site name
-    /// outside the operation table, so lookups go through the declaration
-    /// the call resolved to instead (KUU-4733).
     func textStubName(_ symbol: SymbolID) -> String? {
         guard let declared = program.sema.symbols.symbol(symbol), let site = declared.declSite,
-              context.sourceManager.path(of: site.start.file).hasPrefix("<kswiftk-jvm>/") else { return nil }
+              context.sourceManager.path(of: site.start.file).hasPrefix("<kswiftk-jvm>/text") else { return nil }
         return context.interner.resolve(declared.name)
     }
 
-    /// Emits `op` on `source` with fully assembled, parameter-ordered `values`.
     func emitTextOperation(_ op: JVMTextOperation, source: JVMValue, values: [JVMValue]) throws -> JVMValue {
         let name = op.name
         if ["isEmpty", "isNotEmpty"].contains(name) {
@@ -238,8 +232,6 @@ extension JVMFunctionBuilder {
         return try completeTextArguments(op, supplied: supplied, source: source, id: id)
     }
 
-    /// Orders `supplied` arguments by parameter and fills omitted ones from
-    /// the table's fallbacks. A supplied vararg is already the packed array.
     func completeTextArguments(_ op: JVMTextOperation, supplied: [Int: JVMValue], source: JVMValue, id: ExprID) throws -> [JVMValue] {
         var values: [JVMValue] = []
         for (index, p) in op.parameters.enumerated() {
