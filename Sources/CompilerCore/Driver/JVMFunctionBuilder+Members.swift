@@ -212,7 +212,7 @@ extension JVMFunctionBuilder {
                 let names: [String]
                 if info.flags & 0x2000 != 0
                     || javaMapViewMethod != nil
-                    || (name == "size" && context.jvmImports?.isJavaCollectionOrMapClass(owner) == true) {
+                    || (name == "size" && (owner.hasPrefix("java/util/") || context.jvmImports?.isJavaCollectionOrMapClass(owner) == true)) {
                     names = [javaMapViewMethod ?? name]
                 } else {
                     names = name.hasPrefix("is") && name.count > 2 ? [name, "get" + capital] : ["get" + capital]
@@ -337,7 +337,7 @@ extension JVMFunctionBuilder {
         return selected
     }
     func implicitPropertyReceiver(_ property: JVMProperty, at id: ExprID) throws -> JVMValue {
-        if property.getter.parameters.isEmpty { return try instance(id) }
+        if property.getter.parameters.isEmpty || property.getter.composePropertyABI(hasReceiver: false) { return try instance(id) }
         guard let receiver = implicitExtensionReceiver(id) else { throw fail("Missing JVM extension property receiver.", id) }
         return receiver
     }
@@ -345,7 +345,9 @@ extension JVMFunctionBuilder {
     private func propertyDispatch(_ property: JVMProperty, receiver: JVMValue, at id: ExprID) throws -> JVMValue? {
         let getter = property.getter
         if getter.isStatic { return nil }
-        if getter.parameters.isEmpty { return receiver }
+        // A Compose-lowered member getter takes only the Composer and its
+        // changed mask; it still dispatches on the ordinary member receiver.
+        if getter.parameters.isEmpty || getter.composePropertyABI(hasReceiver: false) { return receiver }
         let bindings = program.sema.bindings
         if let symbol = bindings.extensionPropertyGetterCalls[id]?.dispatchReceiverSymbol
             ?? bindings.callBinding(for: id)?.dispatchReceiverSymbol {
@@ -586,6 +588,8 @@ extension JVMProgramBuilder {
             f.typeParameters = accessorTypeParameters
             let setter = f.reference.result == .unit
             if let symbol = propertySymbol {
+                // Keep an explicit accessor name through value-class lowering (which would hash it).
+                f.jvmName = try explicitAccessorJvmName(for: symbol, target: setter ? "set" : "get")
                 f.isSynchronized = try annotationRecords(for: symbol).contains {
                     $0.annotationFQName == KnownCompilerAnnotation.jvmSynchronized.qualifiedName
                         && $0.useSiteTarget == (setter ? "set" : "get")

@@ -190,8 +190,6 @@ extension JVMFunctionBuilder {
         }
         if plan.anonymousSuper == nil { plan.captures = captures }
         else if plan.captures.count == captures.count {
-            // Every instantiation shares the lexical class layout, even when
-            // a caller supplies a more specific type during AST inlining.
             for i in captures.indices { values[i] = try convert(values[i], to: plan.captures[i].field.type) }
             captures = plan.captures
         }

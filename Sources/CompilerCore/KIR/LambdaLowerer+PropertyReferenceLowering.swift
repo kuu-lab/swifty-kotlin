@@ -36,8 +36,6 @@ extension LambdaLowerer {
         let ownerType: TypeID?
     }
 
-    /// KProperty2 is intentionally left on the legacy path until its
-    /// receiver/capture ABI is specified separately.
     func lowerPropertyReferenceWrapperValue(
         _ exprID: ExprID,
         targetSymbol: SymbolID?,
@@ -143,9 +141,6 @@ extension LambdaLowerer {
             captureFields.append(fieldSymbol)
         }
 
-        // The `get`/`set`/`invoke` mirror the erased KPropertyN arity: every
-        // leading interface type argument is a receiver parameter (dispatch
-        // owner first for member extensions), followed by the value for `set`.
         let interfaceReceiverTypes: [TypeID] = referenceType.args.dropLast().compactMap { arg in
             switch arg {
             case let .invariant(type), let .out(type), let .in(type): type
@@ -397,11 +392,6 @@ extension LambdaLowerer {
         return result.sorted { $0.rawValue < $1.rawValue }
     }
 
-    /// Erased class through which the reference is taken: the first
-    /// `KPropertyN` type argument for unbound `Type::member` references, or
-    /// the bound receiver's static type for `expr::member`. Only the nominal
-    /// symbol matters — the written type arguments are dropped, matching the
-    /// JVM's raw `KClass` owner.
     private func propertyReferenceReceiverClassSymbol(
         shape: PropertyReferenceShape,
         isUnbound: Bool,
@@ -430,11 +420,6 @@ extension LambdaLowerer {
         return receiver.classSymbol
     }
 
-    /// The `receiverClass` instantiation of the declaring class's parameters,
-    /// applied to the declared property type — the "member scope" type of the
-    /// property as seen from the receiver class. Falls back to the declared
-    /// type whenever no substitution applies (non-class owner, non-generic
-    /// declaring class, or unreachable supertype).
     private func propertyReferenceReflectedType(
         propertySymbol: SymbolID,
         propertyType: TypeID,
@@ -481,10 +466,6 @@ extension LambdaLowerer {
         )
     }
 
-    /// INSTANCE parameter type of the reflected member: the erased receiver
-    /// class parameterized by its own type parameters (e.g. `A` for
-    /// `A::parent`, `H<T>` for `H<A>::parent`). Extension properties keep
-    /// their declared receiver type.
     private func propertyReferenceReceiverParameterType(
         accessor: PropertyReferenceAccessor,
         receiverClassSymbol: SymbolID?,
@@ -538,17 +519,10 @@ extension LambdaLowerer {
         return nil
     }
 
-    /// `lowerPropertyReferenceWrapperValue` only covers the KProperty shapes,
     /// and the property symbol itself has no emitted function behind it, so
     /// every other consumer has to fall back to the generated accessor —
     /// otherwise codegen emits a direct call to a nonexistent symbol named
     /// after the property and the program fails to link.
-    ///
-    /// The accessor's signature already matches both callable-reference
-    /// shapes: `(receiver) -> value` for a member property (the receiver is
-    /// the function type's single parameter for `Type::member`, or the
-    /// captured receiver for `instance::member`) and `() -> value` for a
-    /// top-level or `object`-owned one.
     func propertyReferenceFunctionCallTarget(
         targetSymbol: SymbolID,
         ast: ASTModule,
@@ -766,9 +740,6 @@ extension LambdaLowerer {
         )
     }
 
-    /// The `$enumConstructorProperty$` / `$enumPropertySetter$` placeholder
-    /// callee for an enum-owned property accessor, or nil when the property
-    /// keeps ordinary instance/global storage.
     private func enumPropertyAccessorPlaceholder(
         for propertySymbol: SymbolID,
         kind: PropertyAccessorKind,
@@ -902,8 +873,6 @@ extension LambdaLowerer {
            let externalLinkName = sema.symbols.externalLinkName(for: propertySymbol),
            !externalLinkName.isEmpty
         {
-            // Runtime-backed properties retain their bridge even when bundled
-            // source declares the property without a getter body.
             let result = arena.appendTemporary(type: propertyType)
             body.append(.call(
                 symbol: propertySymbol,
@@ -918,9 +887,6 @@ extension LambdaLowerer {
                   isSyntheticEnumNameOrdinalProperty,
                   let enumPropertyInfo
         {
-            // Enum headers synthesize these properties on each concrete enum.
-            // Route them through the enum name/ordinal lowering instead of the
-            // constructor-property slot helpers used by ordinary enum fields.
             let result = arena.appendTemporary(type: propertyType)
             body.append(.call(callee: enumPropertyInfo.name, arguments: [receiverExpr], result: result, canThrow: false))
             body.append(.returnValue(result))
@@ -937,8 +903,6 @@ extension LambdaLowerer {
                       instructions: &body
                   )
         {
-            // Enum.name and Enum.ordinal are compiler-owned views over the
-            // boxed ordinal, not fields in Enum's nominal object layout.
             body.append(.returnValue(enumBaseValue))
         } else if let receiverExpr,
                   let enumHelperCallee = enumPropertyAccessorPlaceholder(
@@ -1174,11 +1138,6 @@ extension LambdaLowerer {
         ))))
     }
 
-    /// `(receiver) -> value` function-value target for an interface / open /
-    /// abstract member property. The plain accessor is the declaring type's
-    /// own (possibly abstract-stub) getter, so the function value needs a
-    /// thunk that dispatches through the itable / vtable. Returns `nil` when
-    /// the property needs no dispatch.
     private func virtualPropertyGetterThunk(
         accessor: PropertyReferenceAccessor,
         sema: SemaModule,
@@ -1191,8 +1150,6 @@ extension LambdaLowerer {
         if let existing = sema.symbols.lookup(fqName: thunkFQName) {
             return (existing, getName)
         }
-        // Probe applicability before defining anything, so a property that
-        // needs no dispatch never leaves a body-less thunk symbol behind.
         var probe: [KIRInstruction] = []
         let probeReceiver = arena.appendExpr(.intLiteral(0), type: ownerType)
         guard emitVirtualPropertyReferenceGetterRead(
@@ -1355,8 +1312,6 @@ extension LambdaLowerer {
         ))))
     }
 
-    /// KUU-3803: KSP-505 keeps a bound `O::member` on a singleton `object`
-    /// from capturing a receiver, because the synthesized accessors for
     /// *stored* object properties are receiver-less globals. A delegated
     /// (`var x by D`) or custom-accessor member instead compiles to a real
     /// accessor whose signature still takes the owner instance as its
@@ -1386,8 +1341,6 @@ extension LambdaLowerer {
               sema.symbols.symbol(ownerSymbol)?.kind == .object,
               !sema.bindings.isObjectLiteralPropertySymbol(accessor.propertySymbol)
         else { return nil }
-        // Reading the singleton's member state triggers its lazy
-        // clinit-equivalent, mirroring the ordinary `O.member` access path.
         driver.emitObjectLazyInitGuardIfNeeded(
             objectSymbol: ownerSymbol, arena: arena, sema: sema,
             interner: interner, instructions: &instructions
@@ -1400,13 +1353,6 @@ extension LambdaLowerer {
         return receiverExpr
     }
 
-    /// `getDelegate()` mirrors the JVM contract: `null` for a property with
-    /// no `by` delegate, and the stored delegate object for a delegated one.
-    /// The delegate lives in the same storage the lowered accessors use — a
-    /// global slot for top-level/object/extension properties, an instance
-    /// field for class members, or the per-entry enum slot — so the wrapper
-    /// reads it directly instead of throwing the old
-    /// KotlinReflectionNotSupportedError stub (KUU-3694).
     private func emitPropertyReferenceGetDelegate(
         methodSymbol: SymbolID,
         wrapperType: TypeID,
@@ -1426,9 +1372,6 @@ extension LambdaLowerer {
         let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: wrapperType)
         var body: [KIRInstruction] = [.beginBlock, .constValue(result: receiverExpr, value: .symbolRef(receiverSymbol))]
 
-        // The instance whose delegate field to read for a member property:
-        // the receiver parameter for an unbound `C::m`, or the bound receiver
-        // captured into the first wrapper field for a bound `c::m`.
         var memberReceiverExpr: KIRExprID?
         if shape.arity > 0, let parameter = params.dropFirst().first {
             let parameterExpr = arena.appendExpr(.symbolRef(parameter.symbol), type: parameter.type)
@@ -1478,10 +1421,6 @@ extension LambdaLowerer {
                       let memberReceiverExpr,
                       let storageName = sema.symbols.symbol(delegateStorage)?.name
             {
-                // Enum values are ordinal-backed: delegate handles live in
-                // per-entry slots behind `$enumConstructorProperty$` — the
-                // same placeholder the accessor's loadDelegateHandle emits
-                // (rewritten by EnumNameAccessLoweringPass).
                 let helperName = EnumPropertyHelperNames.placeholder(
                     prefix: EnumPropertyHelperNames.getterPrefix,
                     ownerSymbol: ownerSymbol,
@@ -1492,8 +1431,6 @@ extension LambdaLowerer {
                 body.append(.call(callee: helperName, arguments: [memberReceiverExpr], result: result, canThrow: false))
                 body.append(.returnValue(result))
             } else {
-                // Top-level, object-member and extension delegates sit in one
-                // global slot — `loadGlobal` mirrors loadDelegateHandle.
                 let result = arena.appendTemporary(type: sema.types.anyType)
                 body.append(.loadGlobal(result: result, symbol: delegateStorage))
                 body.append(.returnValue(result))
@@ -1518,10 +1455,6 @@ extension LambdaLowerer {
     /// Delegate storage is registered when the `by` property itself lowers,
     /// but a `::prop` reference can be emitted before that point (e.g. `main`
     /// sits above the property). Recreate the storage symbol on demand using
-    /// the same `$delegate_<name>` scheme `resolveDelegateStorageSymbol` /
-    /// `objectLiteralDelegateStorageSymbol` apply, so `getDelegate` reads the
-    /// slot the property's init will fill. Member storage already exists from
-    /// header collection, so this is a no-op there.
     private func ensurePropertyReferenceDelegateStorage(
         accessor: PropertyReferenceAccessor,
         sema: SemaModule,
@@ -1692,13 +1625,6 @@ extension LambdaLowerer {
         return bridgeSymbol
     }
 
-    /// KUU-3194: a delegated property hands a `KProperty` object to
-    /// getValue/setValue/provideDelegate. The runtime `RuntimeKPropertyStub`
-    /// only registered `KCallable` metadata, so `p.get()`/`p.set()` through
-    /// the erased `KPropertyN`/`KMutablePropertyN` interfaces crashed
-    /// (`useKPropertyLater`). Build the same accessor-backed wrapper object
-    /// `::prop` references use: JVM maps each delegate-site property onto a
-    /// `PropertyReferenceN` whose `get`/`set` call the real accessor.
     func lowerDelegatedPropertyStubWrapper(
         propertySymbol: SymbolID,
         propertyName: InternedString,
@@ -1713,7 +1639,6 @@ extension LambdaLowerer {
         let ownerIsNominal = ownerSymbol.flatMap { sema.symbols.symbol($0)?.kind }
             .map { [.class, .interface, .object, .enumClass, .annotationClass].contains($0) } == true
         let extensionReceiverType = sema.symbols.extensionPropertyReceiverType(for: propertySymbol)
-        // JVM receiver order: a member extension binds (dispatch, extension).
         var receiverTypes: [TypeID] = []
         if ownerIsNominal, let ownerSymbol {
             receiverTypes.append(sema.types.make(.classType(ClassType(
@@ -1980,8 +1905,6 @@ extension LambdaLowerer {
         return taggedValue
     }
 
-    /// `set` on a delegated stub forwards every receiver parameter plus the
-    /// trailing value to the real setter accessor. The accessor body calls
     /// `Delegate.setValue`, which can throw, so the call keeps its thrown
     /// channel rather than `emitPropertyReferenceSetter`'s non-throwing form.
     private func emitDelegatedStubSetter(

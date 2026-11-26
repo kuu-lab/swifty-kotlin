@@ -12,9 +12,6 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
-        // When kk_list_sortedWith is emitted as a .call (from synthetic stub),
-        // the comparator argument needs trampoline/closure expansion.
-        // args layout: [receiver, comparatorExpr]
         if callee == lookup.kkListSortedWithName, arguments.count == 2 {
             let receiverID = arguments[0]
             let comparatorExpr = arguments[1]

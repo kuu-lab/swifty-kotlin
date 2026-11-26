@@ -5,8 +5,6 @@ import TestStdlibCache
 import Testing
 @testable import CompilerTestSupport
 
-/// Pinned API declarations are checked independently of their execution-test results.
-/// KLIB property/getter and PublishedApi duplicates are views of one semantic symbol.
 @Suite
 struct ByteStringAPIShapeTests {
     private struct Index: Decodable {
@@ -251,8 +249,6 @@ struct ByteStringAPIShapeTests {
         }
         #expect(matched.count == 60, "The 65 ledger views map to exactly 60 semantic declarations")
         func isImportedInitializer(_ symbol: SemanticSymbol) -> Bool {
-            // LibraryImport reconstructs these ABI helpers from owner metadata links.
-            // Imported public APIs are also synthetic, so flags/names alone cannot exclude them.
             guard symbol.kind == .function,
                   symbol.flags == [.synthetic, .importedLibrary],
                   symbol.declSite == nil,
@@ -265,7 +261,6 @@ struct ByteStringAPIShapeTests {
                   fn.receiverType == nil, fn.contextReceiverTypes.isEmpty,
                   fn.parameterTypes.isEmpty, fn.typeParameterSymbols.isEmpty,
                   !fn.isSuspend, fn.returnType == sema.types.unitType else { return false }
-            // Lazy initializer symbol.name is the external link; its FQ suffix is reserved.
             switch symbol.fqName.last.map(resolve) {
             case "__object_init":
                 return owner.kind == .object && symbols.objectInitializerSymbol(for: ownerID) == symbol.id
@@ -306,7 +301,6 @@ struct ByteStringAPIShapeTests {
                   !canonicalAccessorViews.contains(symbol.id),
                   symbols.propertySymbol(forAccessor: symbol.id) == nil,
                   symbols.accessorOwnerProperty(for: symbol.id) == nil else { return false }
-            // Annotation Any members are inherited compiler-generated surface, not upstream declarations.
             return !["equals", "hashCode", "toString"].contains(fq.replacingOccurrences(of: "kotlinx.io.bytestring.unsafe.UnsafeByteStringApi.", with: ""))
                 || !fq.hasPrefix("kotlinx.io.bytestring.unsafe.UnsafeByteStringApi.")
         }
@@ -346,8 +340,6 @@ struct ByteStringAPIShapeTests {
                 }
                 switch argument.kind {
                 case "string":
-                    // These pinned string constants contain no quote/plus characters. The
-                    // compiler may serialize a constant concat expression instead of folding it.
                     let flattened = text.replacingOccurrences(of: "\"", with: "").replacingOccurrences(of: "+", with: "")
                     #expect(flattened == argument.value, "\(row.rowID) full annotation string")
                 case "enum", "classLiteral":

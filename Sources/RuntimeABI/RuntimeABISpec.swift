@@ -35,11 +35,7 @@ public struct RuntimeABIFunctionSpec: Equatable, Sendable {
     public let parameters: [RuntimeABIParameter]
     public let returnType: RuntimeABICType
     public let section: String
-    /// Whether the runtime callee may throw (Kotlin exception propagation via `outThrown`).
-    /// Defaults to `true`; non-throwing callees omit the `outThrown` ABI lowering path.
     public let isThrowing: Bool
-    /// Whether the callee returns a raw 0/1 Boolean instead of a boxed Boolean handle.
-    /// When set, ABILoweringPass does not insert `kk_unbox_bool` on the call result.
     public let returnsRawBoolean: Bool
 
     public init(
@@ -77,7 +73,6 @@ public struct RuntimeABIFunctionSpec: Equatable, Sendable {
 }
 
 public enum RuntimeABISpec {
-    /// Computed at first access so parallel PRs no longer need to update a hardcoded hash line.
     public static let specVersion: String = {
         let canonical = allFunctions.map { spec in
             let params = spec.parameters.map { "\($0.name):\($0.type.rawValue)" }.joined(separator: ",")
@@ -85,12 +80,6 @@ public enum RuntimeABISpec {
         }.joined(separator: "\n")
         return SHA256.hex(Array(canonical.utf8))
     }()
-    /// The sub-arrays are listed in alphabetical order, one entry per line, so that
-    /// parallel branches adding a new category insert their entry at a unique
-    /// alphabetic position instead of appending to the same trailing line.
-    ///
-    /// When adding a new sub-array, insert its name in alphabetical position.
-    /// Do NOT append at the end — that re-introduces the trailing-line conflict pattern.
     public static let allFunctions: [RuntimeABIFunctionSpec] = ([
         abiParityFunctions,
         appleFoundationFunctions,
@@ -153,8 +142,6 @@ public enum RuntimeABISpec {
         uuidFunctions,
     ] as [[RuntimeABIFunctionSpec]]).flatMap { $0 }
 
-    /// Keeps the first spec per name, matching
-    /// `allFunctions.first(where: { $0.name == ... })` semantics.
     public static let byName: [String: RuntimeABIFunctionSpec] = Dictionary(
         allFunctions.map { ($0.name, $0) },
         uniquingKeysWith: { first, _ in first }

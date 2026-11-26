@@ -6,9 +6,6 @@ import Testing
 
 @Suite
 struct ValueClassUnboxingInitSideEffectTests {
-    /// Whether any lowered function still calls a constructor (or its
-    /// `$default` stub) belonging to a value class. Init-bearing value-class
-    /// constructors must keep executing so their side effects survive.
     private func hasLiveValueClassConstructorCall(
         in module: KIRModule,
         ctx: CompilationContext
@@ -38,9 +35,6 @@ struct ValueClassUnboxingInitSideEffectTests {
 
     @Test
     func testInitBlockConstructorCallSurvivesUnboxing() throws {
-        // KUU-3113: `Meter(42)` must still execute the init block — the pass
-        // used to replace the constructor call with a bare payload copy,
-        // dropping the `count += amount` side effect.
         let source = """
         var count = 0
         value class Meter(val amount: Int) {
@@ -88,9 +82,6 @@ struct ValueClassUnboxingInitSideEffectTests {
 
     @Test
     func testDefaultArgumentConstructionDoesNotDangle() throws {
-        // `Meter()` goes through `Meter$default`: the payload is not an
-        // argument of the call, so eliding it used to leave an undefined read
-        // (KIR verifier KSWIFTK-KIR-0003).
         let source = """
         var count = 0
         value class Meter(val amount: Int = 5) {
@@ -119,11 +110,6 @@ struct ValueClassUnboxingInitSideEffectTests {
         )
     }
 
-    /// KUU-3830: `this(listOf(v))` lowers the collection literal through
-    /// `kk_array_set(array, 0, v)` on a temporary container — not on `this`.
-    /// The pass used to adopt that store's index as the underlying field
-    /// offset, so the post-delegation extraction read box word 0 (the object
-    /// header) instead of the stored payload and the value came back null.
     @Test
     func testSecondaryConstructorCollectionDelegationReadsUnderlyingField() throws {
         let source = """
@@ -150,8 +136,6 @@ struct ValueClassUnboxingInitSideEffectTests {
             "IC should have its single underlying field laid out"
         )
 
-        // Only the caller's extraction read is inspected — stdlib functions
-        // legitimately index real arrays at offset 0.
         var readOffsets: [Int64] = []
         for function in findAllKIRFunctions(in: module)
             where interner.resolve(function.name) == "create"

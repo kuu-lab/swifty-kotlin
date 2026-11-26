@@ -8,28 +8,18 @@ final class RuntimeSetBox {
 
     private var storage: [RuntimeValue]
     private var index: [RuntimeElementKey: Int]
-    /// Non-nil for the mutable `entries`/`keys` views returned by
-    /// `MutableMap`. The view reads/writes through to the destination map
-    /// on every access (including iterator removal) instead of
-    /// materializing a disconnected snapshot.
     private let backingMapRaw: Int?
     private let backingMapViewKind: MapViewKind
     private let viewParent: RuntimeSetBox?
     private let rangeView: RuntimeSortedRange?
     private let rangeBounds: RuntimeSortedBounds?
     private let isDescendingView: Bool
-    /// KUU-1361: java.util.TreeSet ordering — `sorted` selects comparator
-    /// order over insertion order, `comparatorRaw` holds the user
-    /// `Comparator` object (0 = natural `Comparable` order), and
-    /// `invertCompare` flips it for descending views.
     private(set) var sorted: Bool
     private(set) var comparatorRaw: Int
     private(set) var invertCompare: Bool
     private(set) var isReadOnly = false
     private var directModCount: Int = 0
 
-    /// Structural-modification counter. An entries view has no storage of
-    /// its own, so it forwards to the backing map's counter.
     var modCount: Int {
         if let viewParent {
             return viewParent.modCount
@@ -40,9 +30,6 @@ final class RuntimeSetBox {
         return directModCount
     }
 
-    /// Backing map and view kind of a `MutableMap.keys` / `.entries` view
-    /// (KUU-3963): reflection names the view after the map's implementation
-    /// (`java.util.LinkedHashMap$LinkedKeySet`, `java.util.HashMap$EntrySet`).
     var mapViewBacking: (mapRaw: Int, kind: MapViewKind)? {
         backingMapRaw.map { ($0, backingMapViewKind) }
     }
@@ -248,7 +235,6 @@ final class RuntimeSetBox {
         return value
     }
 
-    /// Returns an element in the set's current iteration order.
     func rawValue(at index: Int) -> Int? {
         if viewParent != nil {
             guard values.indices.contains(index) else { return nil }
@@ -504,8 +490,6 @@ final class RuntimeSetBox {
         index.reserveCapacity(storage.count)
         for (offset, value) in storage.enumerated() {
             let key = RuntimeElementKey(runtimeValue: value)
-            // Keep the first position for malformed duplicate input, matching
-            // the legacy linear lookup behavior.
             if index[key] == nil {
                 index[key] = offset
             }
@@ -532,10 +516,6 @@ final class RuntimeSetBox {
         isReadOnly = true
     }
 }
-
-// These conformances enable the recursive BFS freeze in kk_freeze_object to
-// traverse all reachable object references when freezing an object graph.
-// Only types that store `Int` child handles need to conform.
 
 extension RuntimeSetBox: RuntimeChildReferenceProviding {
     var childRefs: [Int] {

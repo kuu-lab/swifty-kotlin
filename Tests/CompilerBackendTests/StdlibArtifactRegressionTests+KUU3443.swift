@@ -5,7 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-3443: Java functional interfaces, streams, and primitive optionals are bundled APIs.
     @Test
     func testJavaUtilFunctionsStreamsAndPrimitiveOptionals() throws {
         let artifactDirectory = FileManager.default.temporaryDirectory

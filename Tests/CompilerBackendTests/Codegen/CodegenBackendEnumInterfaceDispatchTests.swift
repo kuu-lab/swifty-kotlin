@@ -4,15 +4,6 @@
 import Foundation
 import Testing
 
-/// An enum entry that crosses an Any-erased collection/vararg boundary
-/// (`listOf`, `arrayOf`, `vararg xs: I`) is boxed with `kk_enum_box_ordinal`
-/// and must carry the same itable registrations as a direct `val i: I = E.A`
-/// conversion: interface property getters, interface methods (including
-/// interface default bodies), with the enum receiver unboxed back to its raw
-/// ordinal before the member body runs. Before the fix, those boundaries
-/// boxed without `SemaModule`, so only the interface->slot mapping was
-/// registered and the first interface call panicked with "Virtual dispatch
-/// failed: method not found in vtable/itable".
 @Suite
 struct CodegenBackendEnumInterfaceDispatchTests {
 
@@ -68,9 +59,6 @@ struct CodegenBackendEnumInterfaceDispatchTests {
         )
     }
 
-    /// A class-level member overridden in an entry body must dispatch
-    /// through the enum's `$enumEntryDispatch$` helper from the itable too,
-    /// matching the statically typed `Sq.A.label()` call.
     @Test
     func testEntryBodyOverrideThroughInterface() throws {
         let source = """

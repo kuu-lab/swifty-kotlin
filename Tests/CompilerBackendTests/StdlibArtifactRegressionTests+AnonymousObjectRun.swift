@@ -5,7 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2043: an inapplicable outer member must not hide stdlib run.
     @Test(arguments: [false, true], [0, 2])
     func testAnonymousObjectOuterRun(useArtifact: Bool, optimization: Int) throws {
         let optLevel = try #require(OptimizationLevel(rawValue: optimization))

@@ -2,16 +2,10 @@ private let abi = RuntimeABISectionBuilder("JavaNet")
 private let abiAwt = RuntimeABISectionBuilder("Awt")
 
 public extension RuntimeABISpec {
-    /// Runtime bridges for the bundled `java.net` compatibility layer
-    /// (InetAddress/DNS, Socket/ServerSocket over POSIX sockets, URL and
-    /// URLConnection over Foundation/file I/O) and the small AWT support
-    /// surface (headless detection and pointer location for MouseInfo).
     static let javaNetFunctions: [RuntimeABIFunctionSpec] = [
-        // DNS / InetAddress
         abi.th("__kk_net_resolve", "hostRaw outThrown"),
         abi.nt("__kk_net_reverse_lookup", "addressRaw"),
         abi.nt("__kk_net_local_host_name"),
-        // Socket
         abi.nt("__kk_net_socket_create"),
         abi.th("__kk_net_socket_connect", "boxRaw hostRaw port timeoutMillis outThrown", ret: .void),
         abi.th("__kk_net_socket_bind", "boxRaw hostRaw port outThrown", ret: .void),
@@ -30,7 +24,6 @@ public extension RuntimeABISpec {
         abi.nt("__kk_net_socket_shutdown", "boxRaw how", ret: .void),
         abi.nt("__kk_net_socket_is_input_shutdown", "boxRaw", raw: true),
         abi.nt("__kk_net_socket_is_output_shutdown", "boxRaw", raw: true),
-        // ServerSocket
         abi.nt("__kk_net_server_socket_create"),
         abi.th("__kk_net_server_socket_bind", "boxRaw hostRaw port backlog outThrown", ret: .void),
         abi.th("__kk_net_server_socket_accept", "boxRaw outThrown"),
@@ -43,7 +36,6 @@ public extension RuntimeABISpec {
         abi.nt("__kk_net_server_socket_set_timeout", "boxRaw timeoutMillis", ret: .void),
         abi.nt("__kk_net_server_socket_get_reuse_address", "boxRaw"),
         abi.nt("__kk_net_server_socket_set_reuse_address", "boxRaw value", ret: .void),
-        // URL / URLConnection
         abi.th("__kk_net_url_open_stream", "specRaw outThrown"),
         abi.nt("__kk_net_url_connection_new", "specRaw"),
         abi.nt("__kk_net_url_connection_set_method", "boxRaw methodRaw", ret: .void),
@@ -60,7 +52,6 @@ public extension RuntimeABISpec {
         abi.nt("__kk_net_url_connection_response_code", "boxRaw"),
         abi.nt("__kk_net_url_connection_response_message", "boxRaw"),
         abi.nt("__kk_net_url_connection_disconnect", "boxRaw", ret: .void),
-        // AWT environment
         abiAwt.nt("__kk_awt_is_headless", raw: true),
         abiAwt.th("__kk_awt_pointer_location", "outThrown"),
     ]

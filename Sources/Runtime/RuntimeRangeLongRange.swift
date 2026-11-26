@@ -264,13 +264,6 @@ func runtimeRegisteredInterfaceSlot(objectRaw: Int, interfaceTypeID: Int64) -> I
     }
 }
 
-/// Like `kk_itable_lookup`, but for call sites where the receiver's static
-/// type was the interface itself (e.g. a function parameter typed
-/// `d: SomeInterface`) rather than a concrete class — the compiler doesn't
-/// know which itable slot the eventual concrete class assigned to that
-/// interface, so it's resolved here from the object's own registration
-/// (recorded by kk_object_register_itable_iface at construction time) keyed
-/// by the interface's stable type ID instead of a fixed slot index.
 @_cdecl("kk_itable_lookup_dynamic")
 public func kk_itable_lookup_dynamic(_ receiver: Int, _ interfaceTypeID: Int, _ methodSlot: Int) -> Int {
     if let nativeMethod = runtimeCoroutineContextElementMethod(receiver, interfaceTypeID, methodSlot) {

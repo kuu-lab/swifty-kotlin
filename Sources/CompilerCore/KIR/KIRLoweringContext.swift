@@ -26,60 +26,22 @@ final class KIRLoweringContext {
     var localValuesBySymbol: [SymbolID: KIRExprID] = [:]
     var localDeclaredTypesBySymbol: [SymbolID: TypeID] = [:]
     var mutableCaptureCellsBySymbol: [SymbolID: KIRExprID] = [:]
-    /// Needed so a later assignment to a `var` local delegate can re-invoke
-    /// `setValue` on the same instance instead of overwriting the local's
-    /// value register directly.
     var localDelegateStorageBySymbol: [SymbolID: KIRExprID] = [:]
-    /// Lambda param name → symbol for resolving nameRef when identifierSymbols is unbound
-    /// (e.g. collection HOF lambdas inferred via fallback).
     var lambdaParamNameToSymbol: [InternedString: SymbolID] = [:]
-    /// JVM file facade names attached to lambda function values for Native reflection.
     var lambdaEnclosingClassNamesByFileID: [FileID: String] = [:]
     var currentImplicitReceiverExprID: KIRExprID?
     var currentImplicitReceiverSymbol: SymbolID?
-    /// Inner-class `super(...)` arguments run before this instance is initialized.
-    /// A closure that captures the dispatch receiver must use the enclosing instance.
     var superConstructorArgumentReceiverOverride: SuperConstructorArgumentReceiverOverride?
-    /// Qualified receiver values that remain visible while an inline object
-    /// literal property initializer is lowered. The active receiver changes
-    /// to the object literal itself, but `this@Outer` must still use the
-    /// enclosing receiver value.
     private var qualifiedThisReceiverExprsByLabel: [InternedString: KIRExprID] = [:]
-    /// Captured enclosing class instances keyed by their nominal owner. Used
-    /// while lowering anonymous object members that access mutable outer fields.
     private var capturedOuterReceiverExprsByOwner: [SymbolID: KIRExprID] = [:]
     private var contextReceiverValueStack: [[ContextReceiverValue]] = []
     var currentFunctionSymbol: SymbolID?
-    /// Set while lowering a lambda body that is passed to a non-crossinline
-    /// parameter of an inline function. A label-free return in that body exits
-    /// the caller rather than the lambda.
     var currentLambdaAllowsNonLocalReturn = false
-    /// Inline lambdas may also jump to loops that enclose the inline call.
     var currentLambdaAllowsNonLocalBreakContinue = false
     var nonLocalReturnTarget: SymbolID?
-    /// One-shot allowance installed by CallLowerer for the lambda argument it
-    /// is about to lower. This prevents nested lambdas from inheriting the
-    /// enclosing lambda's non-local-return permission.
     var pendingLambdaNonLocalReturnAllowance = false
     var loopControlStack: [(continueLabel: Int32, breakLabel: Int32, name: InternedString?)] = []
-    /// Loops in the caller or enclosing inline lambda, visible to a lambda
-    /// body whose parameter allows non-local break/continue.
     var enclosingLoopControlStack: [(continueLabel: Int32, breakLabel: Int32, name: InternedString?)] = []
-    /// Stack of enclosing finally block entries.
-    /// Each entry records the finally block expression ID and the loop-control-stack
-    /// depth at the time the try-finally scope was entered.  This depth is used to
-    /// determine whether a `break`/`continue` exits the try scope (and should inline
-    /// the finally block) or stays within the same try scope (and should skip it).
-    /// It also records the exception-handler depth outside the owning try so an
-    /// exception from an inlined finally can bypass handlers whose cleanup has run.
-    ///
-    /// When a `return`, `break`, or `continue` is lowered inside a try-finally,
-    /// the compiler inlines the finally block code before the control-flow transfer
-    /// so that finally semantics are preserved (CODE-001).
-    ///
-    /// Use `pushFinallyBlock`, `popFinallyBlock`, `enclosingFinallyBlocks`,
-    /// `enclosingFinallyBlocksForControlFlow`, and `withFinallyStackDepth`
-    /// instead of mutating this property directly.
     private(set) var finallyBlockStack: [(exprID: ExprID, loopDepth: Int, exceptionHandlerDepth: Int)] = []
     private(set) var exceptionHandlerStack: [ExceptionHandler] = []
     var nextLoopLabel: Int32 = 10000
@@ -87,15 +49,9 @@ final class KIRLoweringContext {
 
     var lazyThreadSafetyMode: LazyDelegateThreadSafetyMode = .synchronized
 
-    /// `-Xassertions=` mode for this compilation (KUU-3817). Call lowering
-    /// erases `kotlin.assert` calls outright under `always-disable`, matching
-    /// kotlinc: neither the condition nor the lazy message evaluates.
     var assertionsMode: AssertionsMode = .jvm
 
     private var functionDefaultArgumentsBySymbol: [SymbolID: [ExprID?]] = [:]
-    /// Functions declared `tailrec` whose body is currently being (or has been) lowered.
-    /// Self-calls to these expand omitted defaults at the call site so the
-    /// TailrecLoweringPass sees a plain self-call instead of a `$default` detour.
     private(set) var tailrecFunctionSymbols: Set<SymbolID> = []
     var pendingGeneratedCallableDeclIDs: [KIRDeclID] = []
     var callableValueInfoByExprID: [KIRExprID: KIRCallableValueInfo] = [:]
@@ -108,13 +64,7 @@ final class KIRLoweringContext {
     /// never marked, so its thunk keeps the captures-first layout and seeding
     /// the receiver at launcherArgs[0] would corrupt a capture slot.
     var receiverFirstLauncherLambdaSymbols: Set<SymbolID> = []
-    /// Runtime scope handles have no Kotlin CoroutineScope property itable.
-    /// ExprIDs are arena-unique; retain their provenance across nested captures.
     var runtimeCoroutineScopeReceiverExprIDs: Set<KIRExprID> = []
-    /// Per erased-return lambda (see `erasedLambdaReturnClaim(for:ast:sema:)`):
-    /// the declared return type parameter symbol and the call-site
-    /// substitution the lambda's own invoke() is specialized to. `nil` until
-    /// the first lookup builds it.
     var erasedGenericReturnLambdaClaims: [ExprID: (declaredSymbol: SymbolID, substituted: TypeID)]?
     /// While lowering a lambda body that returns into an erased generic
     /// position, the declared `T` symbol and its per-call-site substitution.
@@ -125,58 +75,26 @@ final class KIRLoweringContext {
     var erasedLambdaReturnClaimStack: [(declaredSymbol: SymbolID, substituted: TypeID)] = []
     var syntheticObjectLiteralSymbolsByExprID: [ExprID: (nominalSymbol: SymbolID, constructorSymbol: SymbolID, constructorName: InternedString)] = [:]
     var emittedObjectLiteralExprIDs: Set<ExprID> = []
-    /// Caches itable ABI bridge symbols keyed by the interface/implementation pair.
     var itableBridgeSymbolsByKey: [String: SymbolID] = [:]
-    /// Shared runtime class identity for SAM-conversion wrappers, keyed by the
-    /// fun interface symbol (KUU-3227). Every `SAM(...)` wrapper of one
-    /// interface reports the same `::class`, matching the JVM model where
-    /// each SAM interface has exactly one generated wrapper class.
     var samWrapperClassIdentitySymbols: [SymbolID: SymbolID] = [:]
-    /// Caches raw-returning bridges used by runtime Any.toString dispatch.
     var anyToStringBridgeSymbolsByImplementation: [SymbolID: SymbolID] = [:]
-    /// Caches raw-returning bridges registered in the Throwable `message` vtable slot.
     var throwableMessageBridgeSymbolsByGetter: [SymbolID: SymbolID] = [:]
-    /// Per-nominal vtable/itable registration entries, computed once per type
-    /// instead of once per construction site.
     let nominalDispatchCache = KIRNominalDispatchCache()
     var nextSyntheticLambdaSymbolRawValue: Int32 = -60_000_000
 
-    /// Companion object initializer functions registered during class lowering.
-    /// These are called in order during module initialization.
     private var companionInitializerFunctions: [(symbol: SymbolID, name: InternedString)] = []
     private var reflectionInitializerFunctions: [(symbol: SymbolID, name: InternedString)] = []
 
-    /// BUG-274: maps a source-backed `object`/`companion object`'s own
-    /// symbol to its lazily-run "ensure initialized" function and its
-    /// `$initialized` flag global. Populated only for objects synthesized in
-    /// THIS compilation via `synthesizeObjectInitializer`/
-    /// `synthesizeCompanionInitializerIfNeeded`. Imported-library entries
-    /// live in `SymbolTable` after metadata restoration instead.
     private var objectLazyInitBySymbol: [SymbolID: ObjectLazyInit] = [:]
 
-    /// Guard calls for source objects whose declarations have not been lowered yet.
     private(set) var deferredObjectLazyInitSymbols: [SymbolID: SymbolID] = [:]
 
-    /// Tracks object allocation initializers synthesized during module
-    /// lowering so recursive nested-object passes do not emit duplicates.
     private var objectInitializerSymbols: Set<SymbolID> = []
 
-    /// Objects whose declarations are intentionally omitted from this module's
-    /// KIR output (currently bundled stdlib files skipped for `.kirDump`).
-    /// Guard calls for them must be dropped rather than resolved to a
-    /// same-module lazy initializer that will never be emitted.
     private var objectLazyInitOmittedSymbols: Set<SymbolID> = []
 
-    /// Maps a source-backed enum class to the guarded function that
-    /// constructs its entries once (constructor arguments, body property
-    /// initializers, `init` blocks, entry-body properties). Entry references
-    /// lowered in this compilation get a call to it inserted before them.
     private(set) var enumLazyInitByOwner: [SymbolID: (symbol: SymbolID, name: InternedString)] = [:]
 
-    /// While an enum entry is being constructed inside its class's lazy
-    /// initializer, maps each stored property symbol to the per-entry global
-    /// slot that receives its value; `emitFieldStore` writes there instead
-    /// of into instance-field storage the ordinal-backed value does not have.
     var enumEntryStorageSlots: [SymbolID: SymbolID] = [:]
 
 
@@ -381,17 +299,12 @@ final class KIRLoweringContext {
         capturedOuterReceiverExprsByOwner[owner]
     }
 
-    /// A captured outer receiver whose declared owner is `owner` itself, a
-    /// nominal subtype of it (a member extension's `Derived` dispatch
-    /// receiver holds inherited `Base` members), or an inner-class receiver
-    /// whose `$outer` chain reaches it.
     func capturedOuterReceiverExprID(reaching owner: SymbolID, sema: SemaModule) -> KIRExprID? {
         capturedOuterReceiverOwner(reaching: owner, sema: sema).flatMap {
             capturedOuterReceiverExprsByOwner[$0]
         }
     }
 
-    /// Entries are probed in symbol order so codegen stays deterministic.
     func capturedOuterReceiverOwner(reaching owner: SymbolID, sema: SemaModule) -> SymbolID? {
         for registeredOwner in capturedOuterReceiverExprsByOwner.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
             if receiverOwnerReaches(registeredOwner, target: owner, sema: sema) {
@@ -479,7 +392,6 @@ final class KIRLoweringContext {
         finallyBlockStack.popLast()?.exprID
     }
 
-    /// Returns the current stack of enclosing finally block expression IDs (outermost first).
     func enclosingFinallyBlocks() -> [ExprID] {
         finallyBlockStack.map(\.exprID)
     }
@@ -530,20 +442,6 @@ final class KIRLoweringContext {
         return finallyBlockStack[stackIndex].exceptionHandlerDepth
     }
 
-    /// Returns enclosing finally block expression IDs (with their original
-    /// indices into `finallyBlockStack`) that should be inlined for a `break`
-    /// or `continue` targeting the loop at `targetLoopDepth`.
-    ///
-    /// A finally block should be inlined only when the break/continue exits
-    /// its enclosing try scope.  A finally entry with `loopDepth > targetLoopDepth`
-    /// means the try was entered when more loops were on the stack than the
-    /// target loop's position, i.e. the try is nested inside the target loop,
-    /// so the break/continue exits the try scope and must run finally.
-    ///
-    /// Entries with `loopDepth <= targetLoopDepth` mean the try encloses the
-    /// target loop, so break/continue stays within the try scope and the
-    /// finally block should NOT be inlined.
-    ///
     /// The returned `stackIndex` is the position of each entry in the full
     /// `finallyBlockStack`.  Callers must use this index (not the array
     /// position in the returned list) when trimming the stack via
@@ -555,8 +453,6 @@ final class KIRLoweringContext {
             .map { (exprID: $0.element.exprID, stackIndex: $0.offset) }
     }
 
-    /// Returns the loop-control-stack depth for the loop targeted by a `break`.
-    /// This is the index of the target loop entry in `loopControlStack`.
     func breakTargetLoopDepth(for name: InternedString?) -> Int {
         if let name {
             if let idx = loopControlStack.lastIndex(where: { $0.name == name }) {
@@ -577,8 +473,6 @@ final class KIRLoweringContext {
         return max(0, loopControlStack.count - 1)
     }
 
-    /// Uses suffix save/restore to avoid copy-on-write of the full array
-    /// (CODE-001).
     func withFinallyStackDepth<T>(_ depth: Int, _ body: () throws -> T) rethrows -> T {
         let removedSuffix = Array(finallyBlockStack[depth...])
         finallyBlockStack.removeSubrange(depth..<finallyBlockStack.count)
@@ -754,9 +648,6 @@ final class KIRLoweringContext {
         reflectionInitializerFunctions
     }
 
-    /// BUG-274: registers `objectSymbol`'s lazy "ensure initialized"
-    /// function so read/write/call sites that touch its state can insert a
-    /// guard call before the eager module-init call is removed for it.
     func registerObjectLazyInit(
         for objectSymbol: SymbolID,
         ensureInitSymbol: SymbolID,
@@ -768,9 +659,6 @@ final class KIRLoweringContext {
         )
     }
 
-    /// Returns `objectSymbol`'s lazy-init entry, or `nil` for any object this
-    /// compilation did not itself synthesize an initializer for. Imported
-    /// library singletons are restored separately in `SymbolTable`.
     func objectLazyInit(for objectSymbol: SymbolID) -> ObjectLazyInit? {
         objectLazyInitBySymbol[objectSymbol]
     }

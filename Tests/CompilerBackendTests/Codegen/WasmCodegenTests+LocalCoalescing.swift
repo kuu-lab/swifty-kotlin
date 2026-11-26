@@ -35,7 +35,7 @@ struct WasmLocalCoalescingTests {
                     var locals: UInt64 = 0
                     for _ in 0..<declGroups {
                         locals += readULEB()
-                        idx += 1 // valtype
+                        idx += 1
                     }
                     maxLocals = max(maxLocals, locals)
                     idx = bodyStart + bodySize
@@ -53,7 +53,6 @@ struct WasmLocalCoalescingTests {
         let mainSymbol = SymbolID(rawValue: 1)
         let helperSymbol = SymbolID(rawValue: 2)
 
-        // Helper: fun id(x: Int): Int = x
         let pSym = SymbolID(rawValue: 3)
         let pExpr = arena.appendExpr(.symbolRef(pSym))
         let helperFn = KIRFunction(
@@ -66,8 +65,6 @@ struct WasmLocalCoalescingTests {
             isInline: false
         )
 
-        // Main: 55,000 sequential const + call steps (110,000 assigned KIRExprIDs),
-        // which overflows WebAssembly's 50,000-local limit without local coalescing.
         let one = arena.appendExpr(.intLiteral(1))
         let acc = arena.appendExpr(.unit)
         var body: [KIRInstruction] = [
@@ -123,8 +120,6 @@ struct WasmLocalCoalescingTests {
         let arena = KIRArena()
         let mainSymbol = SymbolID(rawValue: 1)
 
-        // Loop accumulating sum over 0..<4 while keeping a conditional flag
-        // defined before and overwritten inside an if-branch within the loop.
         let i = arena.appendExpr(.unit)
         let acc = arena.appendExpr(.unit)
         let bonus = arena.appendExpr(.unit)
@@ -188,7 +183,6 @@ struct WasmLocalCoalescingTests {
         )
         #expect(!diagnostics.hasError)
 
-        // If node is available, run and verify expected sum: 10 + 10 + 100 + 100 = 220
         let searchDirs = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"]
         if let nodePath = searchDirs.map({ "\($0)/node" }).first(where: { FileManager.default.isExecutableFile(atPath: $0) }) {
             let dir = FileManager.default.temporaryDirectory

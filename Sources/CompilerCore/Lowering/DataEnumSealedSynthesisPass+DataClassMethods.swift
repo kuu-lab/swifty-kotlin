@@ -38,16 +38,12 @@ extension DataEnumSealedSynthesisPass {
         )
         let selfParam = KIRParameter(symbol: selfParamSymbol, type: receiverType)
 
-        // Prefer the declared constructor symbol by FQName to stay aligned with
-        // the lowered constructor body that codegen will emit.
         let initName = interner.intern("<init>")
         let ctorFQName = owner.fqName + [initName]
         let ctorSymbol = sema.symbols.lookupAll(fqName: ctorFQName).first { symbolID in
             sema.symbols.symbol(symbolID)?.kind == .constructor
         }
 
-        // Guard: if no constructor is found, emit a simple self-returning copy()
-        // to avoid generating an invalid .call instruction with nil symbol.
         guard let resolvedCtorSymbol = ctorSymbol,
               let ctorSignature = sema.symbols.functionSignature(for: resolvedCtorSymbol)
         else {
@@ -108,8 +104,6 @@ extension DataEnumSealedSynthesisPass {
             (ctorParamSymbols[i], ctorParamTypes[i])
         }
 
-        // Each copy parameter mirrors the corresponding constructor parameter name
-        // (e.g. name, age) so diagnostics and dumps reflect Kotlin's copy(name=..., age=...).
         var allParams: [KIRParameter] = [selfParam]
         var allParamSymbols: [SymbolID] = [selfParamSymbol]
         var allParamTypes: [TypeID] = [receiverType]
@@ -261,9 +255,6 @@ extension DataEnumSealedSynthesisPass {
             }
         }
 
-        // A local data class restores enclosing captures from its instance
-        // fields inside <init>. Preserve those fields before running the new
-        // instance's initializers; body properties themselves are reinitialized.
         let capturedSymbols = sema.bindings.objectLiteralCaptureSymbols(for: owner.id)
         if !capturedSymbols.isEmpty {
             let selfRef = module.arena.appendExpr(.symbolRef(selfParamSymbol), type: receiverType)
@@ -542,7 +533,6 @@ extension DataEnumSealedSynthesisPass {
         )
     }
 
-    /// Uses existingSymbol when provided (from Sema) so call resolution matches the KIR function.
     func appendSyntheticDataObjectToStringIfNeeded(
         name: InternedString,
         owner: SemanticSymbol,
@@ -719,7 +709,6 @@ extension DataEnumSealedSynthesisPass {
         )
         let receiverParam = KIRParameter(symbol: receiverParamSymbol, type: receiverType)
 
-        // Kotlin's synthesized hashCode uses only primary-constructor properties, in declaration order.
         let propertySymbols = dataClassPropertySymbols(owner: owner, symbols: sema.symbols)
 
         var body: [KIRInstruction] = []
@@ -846,7 +835,6 @@ extension DataEnumSealedSynthesisPass {
                 }
             }
             if owner.kind == .annotationClass {
-                // Member sums wrap in Kotlin's signed 32-bit Int domain.
                 let normalized = module.arena.appendTemporary(type: intType)
                 body.append(.call(callee: interner.intern("kk_long_to_int"), arguments: [resultExpr!], result: normalized, canThrow: false))
                 resultExpr = normalized
@@ -935,7 +923,6 @@ extension DataEnumSealedSynthesisPass {
         }
     }
 
-    /// Output format: "ClassName(prop1=val1, prop2=val2)"
     func appendSyntheticDataClassToStringIfNeeded(
         name: InternedString,
         owner: SemanticSymbol,
@@ -975,9 +962,6 @@ extension DataEnumSealedSynthesisPass {
         let parameter = KIRParameter(symbol: parameterSymbol, type: receiverType)
 
         var body: [KIRInstruction] = []
-        // Freshly synthesized function body, so label numbers only need to be
-        // unique within it — safe to start from 0 (mirrors the equals()
-        // synthesis below).
         var nextLabel: Int32 = 0
         func allocateLabel() -> Int32 {
             defer { nextLabel += 1 }
@@ -1072,8 +1056,6 @@ extension DataEnumSealedSynthesisPass {
                 canThrow: false
             ))
 
-            // Read the constructor-backed field directly so data-class synthesis
-            // does not depend on separate property accessor emission.
             let receiverRef = module.arena.appendExpr(.symbolRef(parameterSymbol), type: receiverType)
             body.append(.constValue(result: receiverRef, value: .symbolRef(parameterSymbol)))
 
@@ -1198,9 +1180,6 @@ extension DataEnumSealedSynthesisPass {
                         toStringCall(propStr)
                     }
                 } else {
-                    // Without an own implementation, preserve the nominal tag
-                    // at the erased Any boundary so primitive payloads keep
-                    // their value-class identity.
                     let boxedValue = boxValueForAnySlot(
                         propValue,
                         sourceType: propType,
@@ -1308,8 +1287,6 @@ extension DataEnumSealedSynthesisPass {
                     body.append(toStringCall(propStr))
                 }
             } else {
-                // Convert to string via kk_any_to_string using the same tag convention
-                // as Any.toString lowering.
                 let anyTag = computeAnyFallbackTag(for: propType, sema: sema)
                 let tagExpr = module.arena.appendTemporary(type: intType
                 )
@@ -1532,7 +1509,6 @@ extension DataEnumSealedSynthesisPass {
             body.append(.constValue(result: receiverRef, value: .symbolRef(receiverParam.symbol)))
             body.append(.constValue(result: otherRef, value: .symbolRef(paramSymbol)))
 
-            // With no value properties, equality falls back to reference equality.
             body.append(.call(callee: interner.intern("kk_op_eq"), arguments: [receiverRef, otherRef], result: resultExpr, canThrow: false))
             body.append(.returnValue(resultExpr))
         } else {
@@ -1597,9 +1573,6 @@ extension DataEnumSealedSynthesisPass {
 
                 let cmpResult = module.arena.appendTemporary(type: boolType
                 )
-                // Use structural equality for reference types (String, class instances, etc.)
-                // to match Kotlin data class equals() semantics. Primitive types can use
-                // pointer/value equality via kk_op_eq.
                 let eqCallee: String = if owner.kind == .annotationClass,
                     isAnnotationArrayType(propType, sema: sema, interner: interner)
                 {
@@ -1749,7 +1722,7 @@ extension DataEnumSealedSynthesisPass {
         guard !keys.isEmpty else { return [] }
         var table: [[String]] = []
         var capacity = 0
-        var threshold = 1 // tableSizeFor(0)
+        var threshold = 1
         var size = 0
 
         func jvmHash(_ string: String) -> Int32 {

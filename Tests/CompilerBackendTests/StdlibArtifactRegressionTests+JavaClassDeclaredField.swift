@@ -4,7 +4,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2186: enum entry fields expose runtime-retained annotations through java.lang.reflect.Field.
     @Test
     func javaClassDeclaredEnumFieldAnnotationsAcrossStdlibSurfaces() throws {
         let source = """

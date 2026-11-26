@@ -8,9 +8,6 @@ extension DataFlowSemaPhase {
     ) {
         _ = ensureKotlinTextPackage(symbols: symbols, interner: interner)
         let kotlinRootPkg = ensurePackage(path: ["kotlin"], symbols: symbols, interner: interner)
-        // String is a compiler/runtime nominal shell. The bundled source owns
-        // CharSequence whenever it is available; the fallback keeps bootstrap
-        // contexts that intentionally omit bundled stdlib headers functional.
         let charSequenceSymbol = symbols.lookup(
             fqName: kotlinRootPkg + [interner.intern("CharSequence")]
         ) ?? ensureInterfaceSymbol(
@@ -28,8 +25,6 @@ extension DataFlowSemaPhase {
             context: context,
             includeJavaMathBigDecimal: !isJVMTarget
         )
-        // String itself remains a compiler/runtime nominal shell, so retain a
-        // Companion anchor for the source-backed extensions in StringFormat.kt.
         _ = ensureStringCompanionSymbol(
             ownerSymbol: stringClassSymbol,
             symbols: symbols,

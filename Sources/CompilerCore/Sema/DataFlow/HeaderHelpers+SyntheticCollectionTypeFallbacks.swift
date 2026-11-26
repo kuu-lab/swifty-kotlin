@@ -1,8 +1,4 @@
 
-// Fallback declarations for collection and sequence nominal types.
-// These compiler-side shells remain available for --no-stdlib and precompiled
-// metadata contexts until the corresponding KSP migration removes them.
-
 extension DataFlowSemaPhase {
     func registerSyntheticCollectionStub(
         symbols: SymbolTable,
@@ -103,7 +99,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // Registered inline because size is a .property, not a function.
         let sizeName = interner.intern("size")
         let sizeFQName = collectionFQName + [sizeName]
         if symbols.lookup(fqName: sizeFQName) == nil {
@@ -206,14 +201,6 @@ extension DataFlowSemaPhase {
 
         return collectionInterfaceSymbol
     }
-
-    /// Register `kotlin.collections.AbstractCollection<E>` surface (STDLIB-COL-TYPE-001).
-    ///
-    /// KSP-633: the nominal declaration is source-backed by
-    /// `Stdlib/kotlin/collections/AbstractCollection.kt`, which reuses this shell on
-    /// bundle load (the `.synthetic` flag is cleared then). The shell stays as the
-    /// fallback for non-bundled contexts (`--no-stdlib`, precompiled stdlib artifacts),
-    /// where library metadata carries no nominal type parameters.
 
     func registerSyntheticAbstractCollectionStub(
         symbols: SymbolTable,
@@ -333,9 +320,6 @@ extension DataFlowSemaPhase {
         return abstractCollectionSymbol
     }
 
-    /// Add a concrete signature-only override for a skeletal collection base.
-    /// Bundled declarations can adopt these symbols; the JVM fallback relies on
-    /// platform implementations. These shells never emit method bodies.
     func registerSyntheticCollectionClassFunctionStub(
         name: String,
         ownerSymbol: SymbolID,
@@ -547,11 +531,6 @@ extension DataFlowSemaPhase {
         return mutableCollectionSymbol
     }
 
-    /// Register `kotlin.collections.AbstractMutableCollection<E>` surface (STDLIB-COL-TYPE-003).
-
-    ///
-    /// KSP-633: source-backed by `Stdlib/kotlin/collections/AbstractMutableCollection.kt`;
-    /// this shell is reused on bundle load and kept as the non-bundled fallback.
     func registerSyntheticAbstractMutableCollectionStub(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -662,8 +641,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // Source-declared or imported Iterable keeps its real type parameter;
-        // only the synthetic fallback shell is decorated.
         if !symbols.isSourceBackedSymbol(iterableInterfaceSymbol) {
             types.setNominalTypeParameterSymbols([typeParamSymbol], for: iterableInterfaceSymbol)
             types.setNominalTypeParameterVariances([.out], for: iterableInterfaceSymbol)
@@ -812,10 +789,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // KSP-664: AbstractIterator<T> and the primitive iterator shells are
-        // bundled Kotlin source (collections/AbstractIterator.kt, PrimitiveIterators.kt).
-
-        // MutableIterator<T> : Iterator<T> (STDLIB-221)
         let mutableIteratorName = interner.intern("MutableIterator")
         let mutableIteratorFQName = kotlinCollectionsPkg + [mutableIteratorName]
         let mutableIteratorSymbol: SymbolID = if let existing = symbols.lookup(fqName: mutableIteratorFQName) {
@@ -882,13 +855,6 @@ extension DataFlowSemaPhase {
         return iterableInterfaceSymbol
     }
 
-    /// Register `kotlin.collections.MutableIterable<T>` surface (STDLIB-COL-TYPE-005).
-    ///
-    /// KSP-633/KSP-1070: the nominal declaration and its covariant
-    /// `iterator(): MutableIterator<T>` member are source-backed by
-    /// `Stdlib/kotlin/collections/MutableIterable.kt`, which reuses this shell on
-    /// bundle load (the `.synthetic` flag is cleared then); the shell also stays as
-    /// the fallback for non-bundled contexts.
     func registerSyntheticMutableIterableStub(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -972,18 +938,12 @@ extension DataFlowSemaPhase {
         return mutableIterableSymbol
     }
 
-    // KSP-1519: relocated from HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift
-    // (deleted). Source-aware fallback for kotlin.sequences.Sequence, kept in this
-    // file per docs/stdlib-pipeline.md §9's stated placement for Collection/Sequence
-    // fallback shells.
     func registerSyntheticSequenceStub(
         packageFQName: [InternedString],
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
     ) -> SymbolID {
-        // KSP-701: only the source-less fallback may synthesize Sequence.
-        // Bundled source declarations, including Sequence.iterator, remain authoritative.
         let sequenceFQName = packageFQName + [interner.intern("Sequence")]
         // lookupNominal: `kotlin.sequences.Sequence` also names the bundled
         // `Sequence(iterator)` factory; the factory is source-backed yet is
@@ -1004,7 +964,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Idempotent fallback for contexts without the bundled Sequence declaration.
     func ensureSyntheticSequenceStub(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -1028,8 +987,6 @@ extension DataFlowSemaPhase {
 
         let sequenceName = interner.intern("Sequence")
         let sequenceFQName = kotlinSequencesPkg + [sequenceName]
-        // lookupNominal: `kotlin.sequences.Sequence` also names the bundled
-        // `Sequence(iterator)` factory (KUU-3246).
         let sequenceSymbol: SymbolID = if let existing = symbols.lookupNominal(fqName: sequenceFQName) {
             existing
         } else {
@@ -1054,16 +1011,12 @@ extension DataFlowSemaPhase {
                 visibility: .private,
                 flags: []
             )
-            // Source-declared or imported Sequence keeps its own type
-            // parameter; only the synthetic fallback shell is decorated.
             if !symbols.isSourceBackedSymbol(sequenceSymbol) {
                 types.setNominalTypeParameterSymbols([seqTypeParamSymbol], for: sequenceSymbol)
                 types.setNominalTypeParameterVariances([.out], for: sequenceSymbol)
             }
         }
 
-        // Register iterator() independently of the type parameter block above,
-        // so it's added even when Sequence<T> was created elsewhere.
         let iterFnName = interner.intern("iterator")
         let iterFnFQName = sequenceFQName + [iterFnName]
         let hasSourceIterator = bundledIndex.contains(

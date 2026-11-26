@@ -1,11 +1,6 @@
 
 extension CallLowerer {
 
-    /// KFunctionN/KSuspendFunctionN share the KFunction runtime dispatch
-    /// identity: on the JVM they are compiler-synthesized descriptors whose
-    /// instances are ordinary KFunction objects (KUU-3841). Match every arity
-    /// spelling here so member reads on reflective receivers reach the
-    /// callable-metadata fast path.
     private func isKFunctionFamilyInterfaceName(_ resolvedName: String) -> Bool {
         if resolvedName == "KFunction" {
             return true
@@ -94,8 +89,6 @@ extension CallLowerer {
         return result
     }
 
-    /// Emits a KCallable metadata property after the safe-call null check has
-    /// already passed.
     func tryLowerKCallableNameAccess(
         propertySymbol: SymbolID?,
         receiverType: TypeID,
@@ -315,9 +308,6 @@ extension CallLowerer {
 
     }
 
-    /// Context parameters are not represented in the erased KProperty1 API.
-    /// For a statically known unbound property reference, lower `get` against
-    /// the accessor so the invocation site's context values reach its ABI.
     func tryLowerContextualKProperty1GetInvocation(
         _ exprID: ExprID,
         receiverExpr: ExprID,
@@ -368,7 +358,6 @@ extension CallLowerer {
         )
         guard contextArguments.count == signature.contextParameterTypes.count else { return nil }
 
-        // Keep receiver evaluation so a property holding the reference still initializes.
         let referenceValue = driver.exprLowerer.lowerExpr(
             receiverExpr,
             ast: ast,
@@ -536,11 +525,6 @@ extension CallLowerer {
         return typedResult
     }
 
-    /// `KPropertyN.getDelegate`: delegated-property stubs keep their delegate
-    /// in `RuntimeKPropertyStub.delegateRaw` (set beside each getValue/
-    /// setValue call), so the runtime helper answers it directly; every other
-    /// receiver (`::prop` wrappers) dispatches through the registered itable
-    /// method — the same dual behavior `__kk_kproperty0_get` uses for `get`.
     func tryLowerKPropertyGetDelegateInvocation(
         _ exprID: ExprID,
         receiverExpr: ExprID,
@@ -588,8 +572,6 @@ extension CallLowerer {
         instructions.append(.constValue(result: interfaceTypeIDExpr, value: .intLiteral(interfaceTypeID)))
         let methodSlotExpr = arena.appendExpr(.intLiteral(Int64(methodSlot)), type: sema.types.intType)
         instructions.append(.constValue(result: methodSlotExpr, value: .intLiteral(Int64(methodSlot))))
-        // KProperty1/2 take receiver arguments; the erased handles are boxed
-        // to Any so the itable impl sees its declared erased-`T` convention.
         var forwardedArgs: [KIRExprID] = []
         for arg in args {
             let lowered = driver.exprLowerer.lowerExpr(

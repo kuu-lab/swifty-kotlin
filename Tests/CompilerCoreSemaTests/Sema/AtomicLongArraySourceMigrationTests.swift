@@ -3,8 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// KSP-1093: the legacy AtomicLongArray constructor overloads are source-backed
-/// while the allocation and residual member operations retain their runtime ABI.
 @Suite(.serialized)
 struct AtomicLongArraySourceMigrationTests {
     @Test

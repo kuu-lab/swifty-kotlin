@@ -118,7 +118,7 @@ extension JVMFunctionBuilder {
         let candidates = JVMTextOperation.operations.filter { op in
             guard op.name == name else { return false }
             if op.receiver == "CharArray" { return type.referenceName == "[C" }
-            return type.isCharSequence && (type.referenceName == "java/lang/String" || op.receiver == "CharSequence")
+            return type.isCharSequence && (type.referenceName == "java/lang/String" || op.receiver == "CharSequence" || op.receiver == "CharSequence?")
         }
         let operation = candidates.first { op in
             guard let signatureTypes else { return op.parameters.count == args.count && !op.parameters.contains(where: \.variadic) }
@@ -202,8 +202,6 @@ extension JVMFunctionBuilder {
                     let snapshot = try jdkCall("java/util/Arrays", "copyOf", [erased, .int], erased, arguments: [input, textLength(input)], resolved: array)!
                     variadic.append((snapshot, true))
                 } else { variadic.append((input, spread)) }
-                // Later named arguments must observe the completed copy, even
-                // for a single primitive spread or a named array argument.
                 if i == lastVararg { supplied[index] = try textVararg(variadic, element: parameter.type) }
             } else {
                 guard !arg.isSpread, supplied[index] == nil else { throw fail("Duplicate JVM text argument.", id) }

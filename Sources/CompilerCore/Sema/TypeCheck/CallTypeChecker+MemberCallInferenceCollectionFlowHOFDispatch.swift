@@ -57,8 +57,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 return inferredType
             }
             if didReturnNil { return nil }
-            // Original single-switch `default:` arm: callees matched by no
-            // segment left resultType untouched; normalize to anyType.
             if resultType == sema.types.errorType {
                 resultType = sema.types.anyType
             }
@@ -119,9 +117,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
                     }
                 } else if isSetReceiver, bindBundledSetSourceFunction(locals: &locals) {
-                    // Set has a more specific source-backed overload than
-                    // Iterable; keep that receiver path ahead of the generic
-                    // Iterable declaration.
                     if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
                     }
@@ -136,21 +131,11 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                               overrideTypeArguments: [collectionElementType, initialType],
                               allowIterableReceiver: true
                           , locals: &locals) {
-                    // No dedicated Iterable source declaration or synthetic
-                    // stub was found for this aggregate HOF (unlike reduce);
-                    // fall back to the bundled Sequence<T> source body, which
-                    // is plain iteration and therefore valid for any Iterable
-                    // receiver.
                     if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
                     }
                 }
             } else if (calleeStr == "reduce" || calleeStr == "reduceOrNull" || calleeStr == "reduceIndexed" || calleeStr == "reduceIndexedOrNull"), args.count == 1 {
-                // Iterable reduce-family source declarations are bound directly
-                // below. Do not fall back to a Sequence declaration
-                // for these names: the receiver may be a plain Set or another
-                // Iterable, and the source-backed Iterable implementation is
-                // the canonical dispatch target.
                 if calleeStr == "reduce", isListReceiver,
                    bindBundledIterableSourceFunction(
                        typeArguments: [collectionElementType, collectionElementType],
@@ -172,10 +157,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     }
                 }
             }
-            // KSP-435/KSP-986: any/all/last/requireNoNulls/none on a nominal Collection/Iterable
-            // receiver are bundled Kotlin source (Stdlib/kotlin/collections/Iterables.kt).
-            // The name-keyed fast path above only computes a result type, so the call
-            // would otherwise stay unresolved and lower to the bare member name.
             if sema.bindings.callBindings[id] == nil,
                !isSequenceReceiver,
                (isCollectionReceiver || (isIterableReceiver && calleeStr == "none")),
@@ -186,8 +167,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     : [collectionElementType]
                 let didBindSource: Bool
                 if calleeStr == "requireNoNulls" {
-                    // Prefer the List-specific overload when the receiver is a
-                    // concrete List; its return type preserves the List contract.
                     didBindSource = bindBundledListSourceFunction(
                         typeArguments: iterableSourceTypeArguments
                     ) || bindBundledIterableSourceFunction(
@@ -211,9 +190,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             // binding Iterable.filter first would make the result depend on
             // bundled source load order.
             if isSetReceiver, sema.bindings.callBindings[id] == nil, bindBundledSetSourceFunction(locals: &locals) {
-                // The call now targets an ordinary Kotlin declaration, so its lambda
-                // arguments are boxed callables rather than native (closureObj, it)
-                // collection-HOF lambdas.
                 for arg in args {
                     if let lambdaExpr = ast.arena.expr(arg.expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(arg.expr)
@@ -221,12 +197,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 }
             }
 
-            // KSP-984/KUU-542: bind the exact source-backed Iterable extrema and
-            // sorting declarations after List/Set/Map-specific ownership has had
-            // priority. Concrete Set and Collection receivers are admitted too:
-            // the per-candidate Iterable subtype check keeps Map and other
-            // non-Iterable receivers out. The selector parameter match keeps
-            // minOf/minOfOrNull's Comparable/Double/Float overloads distinct.
             if sema.bindings.callBindings[id] == nil,
                let sourceBackedIterableAggregateTypeArguments,
                bindBundledIterableSourceFunction(
@@ -244,12 +214,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 }
             }
 
-            // KSP-701: these generic collection extensions are ordinary
-            // bundled Kotlin declarations on Iterable<T>. Keep the explicit
-            // binding here for a statically Iterable receiver (and for
-            // concrete collection receivers without a more specific source
-            // overload) so the call never falls through to a Sequence-shaped
-            // declaration or a removed synthetic runtime bridge.
             if sema.bindings.callBindings[id] == nil,
                !isSequenceReceiver,
                isCollectionReceiver,
@@ -265,16 +229,10 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 bindBundledSequenceAggregateSource(typeArguments: sourceBackedSequenceAggregateTypeArguments, locals: &locals)
             }
 
-            // Bind once the result element type is known. Do not override
-            // an already-bound CallBinding from a list/aggregate source path.
             if isSequenceReceiver, sema.bindings.callBindings[id] == nil {
                 _ = bindBundledSequenceSourceIfAvailable(resultType: resultType, locals: &locals)
             }
 
-            // Sequence.sum()/average() only have the monomorphic numeric
-            // source overloads (Byte/Short/Int/Long/Float/Double/unsigned).
-            // Do not let an unsupported concrete element type fall through to
-            // the raw runtime bridge with the wrong ABI shape.
             if isSequenceReceiver,
                sema.bindings.callBindings[id] == nil,
                ["sum", "average"].contains(calleeStr)

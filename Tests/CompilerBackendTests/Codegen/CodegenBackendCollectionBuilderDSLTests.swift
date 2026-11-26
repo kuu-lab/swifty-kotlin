@@ -5,16 +5,6 @@
 import Foundation
 import Testing
 
-/// RF-LOWER-CALL-001: end-to-end counterpart of
-/// `BuilderDSLLoweringRoutingTests`.  The existing backend coverage
-/// (`CodegenBackendIOHelpersTests.testCodegenBuildListProducesCorrectly`,
-/// `testCodegenBuildMapUseRuntimeBuilder`, `testCodegenBuildSetUseRuntimeBuilder`)
-/// only exercises the no-capacity overloads and never asserts *which* runtime
-/// helper runs.  The capacity, negative-capacity and freeze contracts lived
-/// solely in `Scripts/diff_cases/ksp950_build_family.kt`, whose CI step is
-/// `continue-on-error`; the execution tests below make them blocking.  Those
-/// execution tests run through `assertKotlinOutput`, i.e. `emit == .executable`
-/// with the process-wide default stdlib artifact.
 @Suite
 struct CodegenBackendCollectionBuilderDSLTests {
     /// Legacy runtime entry points the `CollectionLiteralLoweringPass` rewrite
@@ -58,8 +48,6 @@ struct CodegenBackendCollectionBuilderDSLTests {
         return try String(contentsOfFile: llvmPath, encoding: .utf8)
     }
 
-    /// Artifact path: explicitly select the shared precompiled `.kklib`
-    /// so this test exercises imported stdlib symbols.
     @Test
     func builderDSLLowersToSourceBackedHelpersThroughStdlibArtifact() throws {
         try withTemporaryFile(contents: Self.allOverloadsSource) { path in
@@ -80,7 +68,6 @@ struct CodegenBackendCollectionBuilderDSLTests {
         }
     }
 
-    /// Source path: the bundled stdlib is compiled alongside the module.
     @Test
     func builderDSLLowersToSourceBackedHelpersWithStdlibFromSource() throws {
         try withTemporaryFile(contents: Self.allOverloadsSource) { path in
@@ -99,10 +86,6 @@ struct CodegenBackendCollectionBuilderDSLTests {
         }
     }
 
-    // MARK: - execution contracts
-
-    /// The capacity overloads are a reservation hint only: element count,
-    /// `Set` de-duplication and `Map` key overwrite stay identical.
     @Test
     func buildFamilyCapacityOverloadsPreserveContents() throws {
         let source = """
@@ -126,8 +109,6 @@ struct CodegenBackendCollectionBuilderDSLTests {
         )
     }
 
-    /// `require(capacity >= 0)` in `CollectionBuilders.kt` must surface as a
-    /// catchable `IllegalArgumentException` for all three builders.
     @Test
     func buildFamilyNegativeCapacityThrowsIllegalArgumentException() throws {
         let source = """
@@ -160,8 +141,6 @@ struct CodegenBackendCollectionBuilderDSLTests {
         )
     }
 
-    /// A builder receiver captured out of the lambda must observe the freeze
-    /// applied to the same box before it is returned as read-only.
     @Test
     func buildFamilyFreezesReceiverLeakedFromBuilder() throws {
         let source = """
@@ -205,11 +184,6 @@ struct CodegenBackendCollectionBuilderDSLTests {
         )
     }
 
-    /// KUU-646: frozen / read-only maps must not be rewritten through
-    /// `as MutableMap`. `mapOf` uses the read-only Map tag (ClassCastException,
-    /// matching `listOf as MutableList`). `buildMap` keeps the builder's
-    /// MutableMap identity after freeze, so the cast succeeds and mutation
-    /// throws UnsupportedOperationException.
     @Test
     func readOnlyMapRejectsMutableMapCastAndFrozenMutation() throws {
         let source = """

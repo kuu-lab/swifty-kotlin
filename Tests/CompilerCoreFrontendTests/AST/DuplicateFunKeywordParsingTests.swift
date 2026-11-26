@@ -22,8 +22,6 @@ struct DuplicateFunKeywordParsingTests {
 
     @Test
     func newlineSeparatedFunctionsStillRejectWithoutParseError() throws {
-        // `fun tailrec` / `fun tr` on separate lines parses as two declarations;
-        // the bodiless `tailrec` fails in sema rather than the parser.
         try withTemporaryFile(contents: "fun tailrec\nfun tr(n: Int): Int = n") { path in
             let context = makeCompilationContext(inputs: [path], includeStdlib: false)
             try runSema(context)

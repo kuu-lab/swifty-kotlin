@@ -1,10 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    // KUU-4137: `kotlin.Int::plus` / `kotlin.Boolean::and` write the receiver
-    // as a `memberCall` qualifier chain; the intrinsic operator binding must
-    // fire the same way as for the bare forms, and through both stdlib
-    // routes and optimization levels.
     @Test(arguments: [true, false], [0, 2])
     func qualifiedPrimitiveCallableReference(
         allowDefaultStdlibLibrary: Bool,

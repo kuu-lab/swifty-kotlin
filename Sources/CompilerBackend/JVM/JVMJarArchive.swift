@@ -1,7 +1,5 @@
 import Foundation
 
-/// A deterministic, uncompressed ZIP archive. JVM output does not require a
-/// JDK, an external jar tool, or a Native linker on the compilation host.
 enum JVMJarArchive {
     static func emit(className: String, classFile: Data, hasMain: Bool = true, module: (String, Data)? = nil, classes: [(String, Data)] = []) throws -> Data {
         let mainClass = className.replacingOccurrences(of: "/", with: ".")

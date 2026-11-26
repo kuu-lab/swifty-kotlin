@@ -20,8 +20,6 @@ extension JVMFunctionBuilder {
     private func isDirectInlineArrayInitializer(_ id: ExprID) -> Bool {
         guard case let .nameRef(name, _) = arena.expr(id) else { return false }
         if inlineArgument(name) != nil { return true }
-        // Producer bodies have ordinary locals rather than expanded lambdas.
-        // Compare semantic symbols so a local with the same name remains legal.
         guard declaration.isInline,
               let symbol = program.sema.bindings.identifierSymbol(for: id),
               let index = semanticSignature?.valueParameterSymbols.firstIndex(of: symbol),
@@ -69,6 +67,36 @@ extension JVMFunctionBuilder {
         }
         return result
     }
+
+    func atomicArrayConstructor(_ args: [CallArgument], id: ExprID, long: Bool) throws -> JVMValue {
+        guard (1...2).contains(args.count), args.allSatisfy({ !$0.isSpread }) else {
+            throw fail("Unsupported JVM atomic array constructor.", id)
+        }
+        let owner = long ? "java/util/concurrent/atomic/AtomicLongArray" : "java/util/concurrent/atomic/AtomicIntegerArray"
+        let element: JVMValueType = long ? .long : .int
+        let size = try convert(requireValue(args[0].expr), to: .int)
+        let result = try constructJDK(owner, parameters: [.int], arguments: [size])
+        guard args.count == 2 else {
+            return try convert(result, to: program.expressionType(id))
+        }
+        guard let signature = functionType(args[1].expr) else {
+            throw fail("Atomic array initializer requires a function.", id)
+        }
+        let callback = try requireValue(args[1].expr)
+        let index = try value(.int), test = label(), end = label()
+        instructions.append(.constant(.int(0), index)); mark(test)
+        let check = try value(.boolean)
+        instructions.append(.binary(.lessThan, index, size, check))
+        instructions.append(.jumpIfFalse(check, end))
+        guard let initialized = try invoke(callback, signature: signature, arguments: [index], resultType: element) else {
+            throw fail("Atomic array initializer must produce an element.", id)
+        }
+        _ = try jdkCall(owner, "set", [.int, element], .unit, receiver: result, arguments: [index, try convert(initialized, to: element)])
+        let one = try constant(.int(1), .int)
+        instructions.append(.binary(.add, index, one, index)); jump(test); mark(end)
+        return try convert(result, to: program.expressionType(id))
+    }
+
     func higherOrder(_ receiverID: ExprID, operation: String, args: [CallArgument], id: ExprID) throws -> JVMValue? {
         guard higherOrderReceiver(receiverID) else { throw fail("JVM higher-order operations require an array or Iterable.", id) }
         guard args.count == (operation == "fold" ? 2 : 1), args.allSatisfy({ !$0.isSpread }) else { throw fail("Unsupported JVM higher-order arguments.", id) }

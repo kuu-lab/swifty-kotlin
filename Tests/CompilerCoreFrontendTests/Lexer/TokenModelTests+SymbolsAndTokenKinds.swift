@@ -3,12 +3,7 @@
 import Testing
 
 extension TokenModelTests {
-    // MARK: - Symbol
 
-    /// Spelling table for every `Symbol`. Unlike `Keyword`/`SoftKeyword`, these
-    /// raw values are written out explicitly in `TokenModel.swift`, and the
-    /// lexer derives byte ranges from them, so the spellings are real contract.
-    /// The `allCases` guard keeps the table from drifting behind the enum.
     private static let symbolSpellings: [(Symbol, String)] = [
         (.plus, "+"),
         (.minus, "-"),
@@ -84,8 +79,6 @@ extension TokenModelTests {
         #expect(TokenKind.symbol(.lParen) != TokenKind.symbol(.rParen))
     }
 
-    // MARK: - TokenKind
-
     /// `TokenKind` carries associated values (and an `indirect` case), so it
     /// cannot be `CaseIterable`; this list is maintained by hand. Keep one
     /// entry per case so the matrix below covers the whole enum.
@@ -128,9 +121,6 @@ extension TokenModelTests {
         }
     }
 
-    /// Cases whose payload participates in equality: two values of the *same*
-    /// case must still differ when their payloads differ. The mutual-distinctness
-    /// matrix above only carries one payload per case, so it cannot see this.
     @Test
     func testTokenKindPayloadsParticipateInEquality() {
         let interner = StringInterner()
@@ -153,8 +143,6 @@ extension TokenModelTests {
         #expect(TokenKind.softKeyword(.get) != .softKeyword(.set))
         #expect(TokenKind.symbol(.lParen) != .symbol(.rParen))
 
-        // `missing` is `indirect`: its payload is itself a TokenKind, and a
-        // missing token is never equal to the token it stands in for.
         #expect(TokenKind.missing(expected: .keyword(.val)) == .missing(expected: .keyword(.val)))
         #expect(TokenKind.missing(expected: .keyword(.val)) != .missing(expected: .keyword(.var)))
         #expect(TokenKind.missing(expected: .keyword(.val)) != .keyword(.val))

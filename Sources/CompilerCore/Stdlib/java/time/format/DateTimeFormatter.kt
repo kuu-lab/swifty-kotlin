@@ -11,7 +11,6 @@ import java.time.DateTimeException
 import java.time.javaTimeFormatYear
 import java.time.javaTimeTwoDigits
 
-/** Formats the bundled java.time value types using ISO or a common Java pattern. */
 public class DateTimeFormatter private constructor(
     private val pattern: String,
     private val isoKind: Int,

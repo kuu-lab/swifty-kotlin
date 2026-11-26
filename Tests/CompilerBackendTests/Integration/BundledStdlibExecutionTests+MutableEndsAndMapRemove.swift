@@ -1,10 +1,5 @@
 import Testing
 
-// KUU-1394: MutableList.addFirst/addLast and MutableMap.remove(key, value)
-// are real JVM APIs (java.util.SequencedCollection members on List /
-// java.util.Map.remove(key, value)) that the bundled stdlib lacks. Both are
-// source-backed Kotlin extensions — pin them in the source and artifact
-// stdlib profiles.
 extension BundledStdlibExecutionTests {
     @Test(arguments: [true, false])
     func testMutableListAddFirstAddLastExecuteThroughBundledKotlin(allowDefaultStdlibLibrary: Bool) throws {

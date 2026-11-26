@@ -7,10 +7,6 @@ import Testing
 @Suite
 struct BuildKIRRegressionTests {
 
-    /// Built once per process: `static let` initializes under `swift_once`, so
-    /// parallel tests share a single compile. The previous check-then-set over
-    /// a mutable static allowed concurrent tests to each miss the cache and
-    /// re-pay the bundled-stdlib compile.
     private static let _sharedBuildKIRCtx = Result<CompilationContext, any Error> {
         let sources: [String] = [
             """
@@ -84,10 +80,6 @@ struct BuildKIRRegressionTests {
         try Self._sharedBuildKIRCtx.get()
     }
 
-    /// Built once per process: `static let` initializes under `swift_once`, so
-    /// parallel tests share a single compile. The previous check-then-set over
-    /// a mutable static allowed concurrent tests to each miss the cache and
-    /// re-pay the bundled-stdlib compile.
     private static let _sharedBuildKIRLoweredCtx = Result<CompilationContext, any Error> {
         let sources: [String] = [
             """
@@ -187,7 +179,6 @@ struct BuildKIRRegressionTests {
             "IntegerNarrowing",
             "ABILowering",
         ])
-        // Source defines add, susp, chooser, main
         #expect(module.functionCount >= 4)
     }
 
@@ -283,9 +274,6 @@ struct BuildKIRRegressionTests {
             return op
         }
 
-        // `!=` stays a binary op here (like `==`): OperatorLoweringPass resolves
-        // it to kk_structural_ne for reference/nullable-primitive operands or
-        // kk_op_ne for primitives.
         #expect(binaryOps.contains(.notEqual))
         #expect(callees.contains(runtime[.less]))
         #expect(callees.contains(runtime[.lessOrEqual]))
@@ -511,11 +499,6 @@ struct BuildKIRRegressionTests {
         }))
     }
 
-    // `val x: Any = 42L` must box the literal so its runtime representation
-    // carries Long type info. Before the fix, a local decl's "declared type"
-    // was taken from the initializer's own arena type (Long) instead of the
-    // symbol's Sema-recorded declared type (Any), so the local aliased the
-    // raw unboxed literal register and no box call was ever emitted.
     @Test func testLocalDeclBoxesLiteralWhenWidenedToAny() throws {
         let runtime = try RuntimeNames()
         let ctx = try sharedBuildKIRLoweredCtx()
@@ -545,9 +528,6 @@ struct BuildKIRRegressionTests {
         #expect(callees.contains(runtime[.boxLongNonnullStatic]))
     }
 
-    /// `!=` on reference-typed operands must use structural equality: the raw
-    /// word-compare `kk_op_ne` treats two distinct boxes of the same value as
-    /// "not equal", which broke `AbstractList.equals` on boxed elements.
     @Test func testNotEqualOnAnyLowersToStructuralCall() throws {
         let runtime = try RuntimeNames()
         let ctx = try sharedBuildKIRLoweredCtx()

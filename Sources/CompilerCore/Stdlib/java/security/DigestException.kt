@@ -1,9 +1,5 @@
 package java.security
 
-// JDK java.security.DigestException — thrown by
-// MessageDigest.digest(byte[], int, int) when the requested length is below
-// digestLength or the offset/length pair cannot hold the digest in the
-// output buffer.
 public open class DigestException : GeneralSecurityException {
     public constructor() : super()
 

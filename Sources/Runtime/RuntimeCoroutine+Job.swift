@@ -34,8 +34,6 @@ private enum RuntimeJobState: Equatable, Sendable {
     }
 }
 
-/// Per-thread holder of the current task key. The key itself is a plain value;
-/// this box only provides pthread-TLS storage for it.
 private final class RuntimeTaskKeyBox {
     let key: RuntimeTaskKey
 
@@ -137,8 +135,6 @@ enum RuntimePendingLaunchQueue {
         currentBox().items.append((job, workItem))
     }
 
-    /// Jobs already cancelled while pending are dropped instead of dispatched --
-    /// equivalent to `DispatchWorkItem.cancel()` winning before the block runs.
     static func flush() {
         let box = currentBox()
         guard !box.items.isEmpty else { return }
@@ -198,44 +194,17 @@ final class RuntimeJobHandle: @unchecked Sendable {
     private var producerCompletionPending = false
     private var childJobHandles: [Int] = []
     private weak var parentJob: RuntimeJobHandle?
-    /// Set on the handle returned by `kotlinx.coroutines.SupervisorJob()`. Lets
-    /// `CoroutineScope(context)` (see `kk_coroutine_scope_new_with_context`) tell a plain
-    /// `Job()` in the context apart from a `SupervisorJob()`, so the constructed scope gets
-    /// the right sibling-failure-isolation semantics.
     var isSupervisorMarker = false
-    /// Scoped builders report failures through their caller's throw channel.
     var propagatesFailureToParent = true
     private var childFailureObservers: [@Sendable (Int) -> Void] = []
-    /// KUU-1386: nominal identity a bare job handle claims in `kk_op_is`
-    /// nominal checks. Bound wrapper jobs take their wrapper's nominal (so a
-    /// `Job()` job surfaced via `coroutineContext.job` still answers
-    /// `is CompletableJob`/`is JobImpl`), `kk_job_new`/`kk_supervisor_job_new`
-    /// factory jobs claim JobImpl, and 0 falls back to the generic
-    /// coroutine-job claim (AbstractCoroutine-family, like kotlinx's
-    /// BlockingCoroutine/StandaloneCoroutine jobs).
     var nominalJobTypeID: Int64 = 0
-    /// KUU-1352: kotlinx `toDebugString()` class name for jobs that have no
-    /// bound source wrapper — set by the launcher that mints the handle
-    /// (`"BlockingCoroutine"`, `"StandaloneCoroutine"`, ...). Bound wrapper
-    /// jobs ignore this: `runtimeJobToStringName` resolves their name from
-    /// the wrapper class's nominal ID instead, like kotlinx's
-    /// `classSimpleName`.
     var debugName: String? = nil
     /// Set to true when user code consumes this handle's passRetained
     /// (via kk_job_join). Checked by scope's waitForChildren
     /// to avoid double-releasing the original passRetained.
     private var isConsumedByUserCode = false
-    /// The underlying dispatch work item for fire-and-forget launches. Kept weak
-    /// so that cancellation can prevent the body from starting when the job is
-    /// cancelled before the dispatched closure begins.
     weak var dispatchWorkItem: DispatchWorkItem? = nil
-    /// Distinguishes a scheduled active job from one whose body has begun.
-    /// Cancellation can complete the former immediately when its work item is
-    /// cancelled before execution starts.
     private var hasStartedExecuting = false
-    /// CORO-004: Resumers invoked with the terminal value when the job completes.
-    /// Lets a suspend-aware `Job.join()` caller resume via its continuation instead
-    /// of blocking a GCD thread on `completionSemaphore`.
     private var joinResumers: [@Sendable (Int) -> Void] = []
     /// KUU-CORO-101: backing for `Job.invokeOnCompletion`. Each entry fires at
     /// most once and is then removed: an `onCancelling` entry fires as soon as
@@ -305,8 +274,6 @@ final class RuntimeJobHandle: @unchecked Sendable {
         lock.unlock()
     }
 
-    /// Publishes the active state as soon as launch returns, before the
-    /// dispatch queue gets a chance to run the body.
     func markScheduled() {
         lock.lock()
         if state == .new {
@@ -343,9 +310,6 @@ final class RuntimeJobHandle: @unchecked Sendable {
         lock.unlock()
     }
 
-    /// KUU-1352: kotlinx `JobSupport.stateString` mapping — the `{State}`
-    /// component of `toString()`. Exceptional completion renders as
-    /// `Cancelled` (a failed `Deferred` prints `{Cancelled}` on the JVM).
     func toStringStateName() -> String {
         lock.lock()
         let current = state
@@ -417,8 +381,6 @@ final class RuntimeJobHandle: @unchecked Sendable {
         }
     }
 
-    /// Structured completion also needs terminal children's exceptions: a
-    /// child can publish its value/state just before notifying its parent.
     func registeredChildrenSnapshot() -> [Int] {
         lock.lock()
         let children = childJobHandles
@@ -438,9 +400,6 @@ final class RuntimeJobHandle: @unchecked Sendable {
         return isConsumedByUserCode
     }
 
-    /// CORO-004: Register a resumer invoked with the terminal value when the job
-    /// completes (normally, exceptionally, or via cancellation). If the job is
-    /// already complete, the resumer runs immediately on the calling thread.
     func addJoinResumer(_ resumer: @escaping @Sendable (Int) -> Void) {
         lock.lock()
         if state.isCompleted, !producerCompletionPending {
@@ -477,8 +436,6 @@ final class RuntimeJobHandle: @unchecked Sendable {
         return id
     }
 
-    /// KUU-CORO-101: dispose a completion handler registered via
-    /// `addCompletionHandler`. A no-op if it already fired or was disposed.
     func removeCompletionHandler(id: Int) {
         guard id != 0 else { return }
         lock.lock()
@@ -567,9 +524,6 @@ final class RuntimeJobHandle: @unchecked Sendable {
             }
             return true
         case .cancelling:
-            // The coroutine body has finished executing (including catch/finally blocks)
-            // after observing cancellation. Transition to fully cancelled so that
-            // join() can return. The cancelCause is preserved from when cancel() was called.
             if successState == .failed, failureValue != 0, kk_is_cancellation_exception(failureValue) == 0 {
                 let resolvedFailure = cancelCause != 0 && kk_is_cancellation_exception(cancelCause) == 0
                     ? cancelCause : failureValue
@@ -687,9 +641,6 @@ final class RuntimeJobHandle: @unchecked Sendable {
     private func cancel(message: String, cause: Int, usesDefaultMessage: Bool) -> Bool {
         let resolvedCause = cause != 0 && cause != runtimeNullSentinelInt
             ? cause : runtimeAllocateCancellationException(message: message, cancellationJob: self)
-        // If the dispatch work item has not begun executing, cancel it now so
-        // the body never runs. The state update below is the authoritative
-        // completion signal if cancellation already lost the race.
         dispatchWorkItem?.cancel()
         var childrenToCancel: [Int] = []
         var stateToResume: RuntimeContinuationState?
@@ -717,10 +668,6 @@ final class RuntimeJobHandle: @unchecked Sendable {
             cancelMessage = message
             usesDefaultCancellationMessage = usesDefaultMessage
             setTerminalValuesLocked(result: 0, failure: 0, cancelCause: resolvedCause)
-            // A job that has not started executing can become terminal
-            // immediately. Once execution has begun, keep the intermediate
-            // cancelling state so explicit completion mirrors lifecycle
-            // semantics.
             if state == .new || (state == .active && !hasStartedExecuting) {
                 state = .cancelled
                 shouldSignalCompletion = true
@@ -733,10 +680,6 @@ final class RuntimeJobHandle: @unchecked Sendable {
             } else {
                 state = .cancelling
                 stateToResume = continuationState
-                // KUU-CORO-101: an `onCancelling` handler fires as soon as
-                // cancellation begins, not when the job finally reaches a
-                // terminal state (which may wait on `finally` blocks). The
-                // remaining handlers stay registered for that later firing.
                 onCancellingHandlersToRun = completionHandlers.filter { $0.onCancelling }
                 completionHandlers.removeAll { $0.onCancelling }
             }
@@ -771,9 +714,6 @@ final class RuntimeJobHandle: @unchecked Sendable {
         return true
     }
 
-    /// Suspend-aware joining (which avoids blocking a GCD thread) is handled by
-    /// `kk_job_join` via `addJoinResumer` (CORO-004); this method is the
-    /// synchronous fallback for non-suspend contexts.
     func join() -> Int {
         startIfNeeded()
         // BUG-041: this (or a sibling launched on the same thread) may still be
@@ -849,8 +789,6 @@ final class RuntimeJobHandle: @unchecked Sendable {
         return cancelCause
     }
 
-    /// A finally failure can replace an earlier cancellation. Read the final
-    /// root cause rather than reusing the original cancellation's message.
     func cancellationExceptionSnapshot() -> (cause: Int, message: String) {
         lock.lock()
         let failed = state == .failed
@@ -896,10 +834,6 @@ final class RuntimeJobHandle: @unchecked Sendable {
     }
 }
 
-/// Concrete object behind an opaque job/task handle pointer: a launched
-/// `RuntimeJobHandle` or an async `RuntimeAsyncTask`. Resolving once per call
-/// keeps join/cancel/status ABI entry points from re-running the `as?` chain
-/// for every operation they perform on the same handle.
 enum RuntimeJobOrTask {
     case job(RuntimeJobHandle)
     case task(RuntimeAsyncTask)
@@ -961,16 +895,6 @@ private func runtimeBindJobSupportWrapperIfNeeded(_ wrapper: RuntimeObjectBox) -
     }
 }
 
-/// CORO-003: Per-thread task key used to index into the task-scope map.
-///
-/// Each thread participating in a suspend-entry loop gets a unique sentinel
-/// object stored in a pthread thread-local.  This is *not* the scope itself --
-/// it is only a key that lets `RuntimeCoroutineScope.current` find which scope
-/// is active on this thread.  The actual scope lives in the continuation
-/// context and is propagated to child coroutines explicitly.
-///
-/// Migrated from `Thread.current.threadDictionary` to `pthread_key_t` for
-/// lighter-weight access (single pointer lookup vs dictionary hash).
 enum RuntimeCoroutineScopeTaskKey {
     private static let pthreadKey: pthread_key_t = makePthreadKey()
 

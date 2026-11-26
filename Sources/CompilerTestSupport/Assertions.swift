@@ -16,9 +16,6 @@ func requireTestValue<T>(
     return value
 }
 
-/// Mirrors ``DiagnosticEngine/hasError`` for the plain diagnostic arrays that
-/// `diagnosticsForPath` and `DriverResult` hand back, so tests spell the check
-/// the same way whichever side they are holding.
 extension Collection where Element == Diagnostic {
     var hasError: Bool { contains { $0.severity == .error } }
 }
@@ -39,10 +36,6 @@ func diagnosticsForPath(
     diagnosticsForPath(path, in: ctx).filter { $0.code == code }
 }
 
-// The `CompilationContext` overloads below snapshot `ctx.diagnostics` once and
-// delegate to the `[Diagnostic]` form, so a failure is reported at the calling
-// test rather than inside this file.
-//
 // `Testing.SourceLocation` must stay qualified: CompilerCore declares its own
 // `SourceLocation`, so the bare name is ambiguous in any file that also does
 // `@testable import CompilerCore`.

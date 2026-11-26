@@ -6,7 +6,6 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
-    /// KUU-1343: Channel<T> retains its SendChannel<T> view in both stdlib modes.
     @Test(arguments: [false, true])
     func testChannelSendChannelSubtype(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
@@ -31,8 +30,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-3641: explicit receive() keeps the channel element type through
-    /// source and fresh-library compilation, including projections and safe calls.
     @Test(arguments: [true, false], [0, 2])
     func testChannelReceivePreservesElementType(fromSource: Bool, optimization: Int) throws {
         let artifactPath = fromSource ? nil : try Self.buildStdlibArtifact()
@@ -66,8 +63,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-3641: a correctly typed receive result must still reject an
-    /// incompatible return type and the property-like `channel.receive` form.
     @Test(arguments: [true, false], [0, 2])
     func testChannelReceiveRejectsInvalidResultAndBareSyntax(fromSource: Bool, optimization: Int) throws {
         let artifactPath = fromSource ? nil : try Self.buildStdlibArtifact()
@@ -105,7 +100,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-971: nullable channel exception messages survive source and artifact compilation.
     @Test(arguments: [false, true])
     func testChannelExceptionsNullableMessage(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try testStdlibArtifactPath() : nil
@@ -138,8 +132,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-1133: Channel.kt's SendChannel extension must remain visible in all
-    /// ProducerScope builders, alongside the distinct Channel extension.
     @Test(arguments: [false, true])
     func testProducerScopeClosedForSend(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try testStdlibArtifactPath() : nil
@@ -181,11 +173,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KSP-1571: the bundled channel send/close/consume surface (trySend,
-    /// close(cause), isClosedForSend, isEmpty, consumeEach, cancel,
-    /// ChannelResult holder API) must compile and run when the bundled
-    /// Channel.kt / ChannelResult.kt come from a precompiled .kklib artifact,
-    /// and the new `__kk_channel_*` / `kk_channel_*` bridges must link.
     @Test
     func testChannelSendApisThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()

@@ -1,17 +1,4 @@
 #if canImport(Testing)
-// BUG-264: End-to-end execution tests for *named* object declarations
-// (`object Named : Base(args) { ... }`) that inherit an open *class*.
-// KSP-CAP-018 fixed the same shape for anonymous object expressions
-// (`object : Base(x) { ... }`), but named object declarations were out of
-// its scope: `synthesizeObjectInitializer` ran property initializers and
-// init blocks yet never emitted the superclass constructor call, so the
-// arguments were silently discarded and every inherited property kept its
-// zeroed default (printing `0` instead of `7` for `object Named : Base2(7)`).
-// The same gap also meant a `Base()` superclass's own property initializers
-// and init blocks never ran at all. Nested objects with only a class
-// superclass additionally never got an initializer at all (the nested-object
-// gate only looked for interface supertypes), so reads of inherited members
-// panicked at runtime.
 @testable import CompilerCore
 @testable import CompilerBackend
 @testable import CompilerTestSupport

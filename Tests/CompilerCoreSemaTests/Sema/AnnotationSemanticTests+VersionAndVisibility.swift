@@ -4,14 +4,10 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-/// `SinceKotlin` / data-class copy-visibility / DSL-marker / and other
-/// version- and visibility-related annotation tests, split out from
-/// `AnnotationSemanticTests` to keep each test source under ~1500 lines.
 extension AnnotationSemanticTests {
 
     @Test func testVersionAndVisibilitySema() throws {
         let sources: [String] = [
-            // testSinceKotlinAcceptsDocumentedDeclarationTargets
             """
             package sample0
                     @SinceKotlin("1.0")
@@ -28,7 +24,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testSinceKotlinRejectsFileTarget
             """
             package sample1
                     @file:SinceKotlin("1.0")
@@ -36,7 +31,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testDslMarkerAcceptsAnnotationClassTarget
             """
             package sample2
                     @DslMarker
@@ -44,7 +38,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testDslMarkerRejectsRegularClassTarget
             """
             package sample3
                     @DslMarker
@@ -52,14 +45,12 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testIntroducedAtAllowsValueParameterUse
             """
             package sample4
                     fun sample(@IntroducedAt("1.1") value: Int = 0): Int = value
 
             """,
 
-            // testIntroducedAtRejectsClassTarget
             """
             package sample5
                     @IntroducedAt("1.1")
@@ -67,7 +58,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testOptionalExpectationAcceptsAnnotationClassTarget
             """
             package sample6
                     @OptionalExpectation
@@ -75,7 +65,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testOptionalExpectationRejectsFunctionTarget
             """
             package sample7
                     @OptIn(ExperimentalMultiplatform::class)
@@ -84,7 +73,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testRootThrowsAcceptsDocumentedDeclarationTargets
             """
             package sample8
                     class Host @Throws(Throwable::class) constructor() {
@@ -100,7 +88,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testRootThrowsRejectsClassTarget
             """
             package sample9
                     @Throws(Throwable::class)
@@ -108,7 +95,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testTargetAnnotationIsRejectedOnRegularClass
             """
             package sample10
                     @Target(AnnotationTarget.CLASS)
@@ -116,7 +102,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testTargetAnnotationAllowsAnnotationClassButRejectsFunctionUsage
             """
             package sample11
                     @Target(AnnotationTarget.CLASS)
@@ -130,14 +115,12 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testAnnotationClassInheritsKotlinAnnotation
             """
             package sample12
                     annotation class MyAnnotation
 
             """,
 
-            // testExperimentalExtendedContractsRequiresOptIn
             """
             package sample13
                     import kotlin.contracts.ExperimentalExtendedContracts
@@ -149,7 +132,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testOverloadResolutionByLambdaReturnTypeRejectsClassTarget
             """
             package sample14
                     import kotlin.OverloadResolutionByLambdaReturnType
@@ -163,7 +145,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testExperimentalTypeInferenceAcceptsFunctionTarget
             """
             package sample15
                     import kotlin.experimental.ExperimentalTypeInference
@@ -173,7 +154,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testOverloadResolutionByLambdaReturnTypeRequiresOptIn
             """
             package sample16
                     import kotlin.OverloadResolutionByLambdaReturnType
@@ -183,7 +163,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testOverloadResolutionByLambdaReturnTypeAcceptsOptIn
             """
             package sample17
                     import kotlin.OptIn
@@ -196,7 +175,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testFieldTargetAllowsBackedFieldAndRejectsMissingBackingField
             """
             package sample18
                     @Target(value = [AnnotationTarget.FIELD])
@@ -213,7 +191,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testFieldTargetRejectsExtensionProperty
             """
             package sample19
                     @Target(value = [AnnotationTarget.FIELD])
@@ -225,7 +202,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testAnnotationTargetSuppressionAliasSuppressesDiagnostic
             """
             package sample20
                     @Suppress("ANNOTATION_TARGET")
@@ -234,7 +210,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testWasExperimentalAnnotationIsCollectedOnDeclaration
             """
             package sample21
                     annotation class ExperimentalApi
@@ -244,7 +219,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testExtensionFunctionTypeRejectsFunction0
             """
             package sample22
                     interface Host {
@@ -253,7 +227,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testExtensionFunctionTypeRejectsNonFunctionNominalType
             """
             package sample23
                     interface Host {
@@ -262,7 +235,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testTypeAnnotationTargetValidationRejectsClassOnlyAnnotationOnTypeUsage
             """
             package sample24
                     @Target(AnnotationTarget.CLASS)
@@ -274,7 +246,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testTypeAnnotationRejectsUseSiteTarget
             """
             package sample25
                     interface Host {
@@ -283,7 +254,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testCompilerMetadataAutoAttachedToNominalDeclarations
             """
             package sample26
                     class Plain
@@ -294,7 +264,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testOptInAllowsExperimentalStdlibApiUsage
             """
             package sample27
                     @OptIn(ExperimentalStdlibApi::class)
@@ -305,21 +274,18 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testStableHexApiWithoutOptIn
             """
             package sample28
                     fun hex(): String = 255.toHexString()
 
             """,
 
-            // testStableHexApiWithDefaultPropertyWithoutOptIn
             """
             package sample29
                     fun hex(): String = 42.toHexString(HexFormat.Default)
 
             """,
 
-            // testExperimentalVersionOverloadingAnnotationRequiresOptIn
             """
             package sample30
                     import kotlin.ExperimentalVersionOverloading
@@ -332,7 +298,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testExperimentalVersionOverloadingAnnotationAcceptsOptIn
             """
             package sample31
                     import kotlin.ExperimentalVersionOverloading
@@ -346,7 +311,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testExperimentalContextParametersMarkerRequiresOptIn
             """
             package sample32
                     import kotlin.ExperimentalContextParameters
@@ -358,7 +322,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testExperimentalContextParametersMarkerAcceptsOptIn
             """
             package sample33
                     import kotlin.ExperimentalContextParameters
@@ -371,7 +334,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testSubclassOptInRequiredRejectsSubclassWithoutOptIn
             """
             package sample34
                     @RequiresOptIn
@@ -384,7 +346,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testSubclassOptInRequiredAllowsSubclassWithOptIn
             """
             package sample35
                     @RequiresOptIn
@@ -398,7 +359,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testSubclassOptInRequiredPropagatesThroughSupertypeChain
             """
             package sample36
                     @RequiresOptIn
@@ -414,7 +374,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testSubclassOptInRequiredRejectsNonOptInMarkerClass
             """
             package sample37
                     annotation class PlainMarker
@@ -426,7 +385,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testFileLevelOptInAllowsExperimentalStdlibApiUsage
             """
             package sample38
                     @file:OptIn(ExperimentalStdlibApi::class)
@@ -438,7 +396,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testExperimentalAssociatedObjectsMarkerRequiresOptIn
             """
             package sample39
                     import kotlin.reflect.ExperimentalAssociatedObjects
@@ -450,7 +407,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testExperimentalAssociatedObjectsMarkerAllowsExplicitOptIn
             """
             package sample40
                     import kotlin.reflect.ExperimentalAssociatedObjects
@@ -463,7 +419,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testOptInSuppressionAliasSuppressesDiagnostic
             """
             package sample41
                     @Suppress("OPT_IN_USAGE")
@@ -474,7 +429,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testSubclassOptInRequiredDoesNotPropagateThroughConsentedSupertype
             """
             package sample42
                     @RequiresOptIn
@@ -490,7 +444,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testSubclassOptInRequiredOnSubclassConsentsToItsOwnSupertypes
             """
             package sample43
                     @RequiresOptIn
@@ -504,7 +457,6 @@ extension AnnotationSemanticTests {
 
             """,
 
-            // testSubclassOptInRequiredOnEnclosingClassConsentsToNestedSubclass
             """
             package sample44
                     @RequiresOptIn
@@ -525,7 +477,6 @@ extension AnnotationSemanticTests {
             let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
 
-            // testSinceKotlinAcceptsDocumentedDeclarationTargets
             do {
                 let samplePath = paths[0]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -534,7 +485,6 @@ extension AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected SinceKotlin declaration targets to be accepted, got: \(sampleDiags)")
             }
-            // testSinceKotlinRejectsFileTarget
             do {
                 let samplePath = paths[1]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -545,7 +495,6 @@ extension AnnotationSemanticTests {
                 let v1 = diagnostics.allSatisfy(isError)
                 #expect(v1, "Annotation-target diagnostics should be errors")
             }
-            // testDslMarkerAcceptsAnnotationClassTarget
             do {
                 let samplePath = paths[2]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -554,7 +503,6 @@ extension AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected DslMarker to be accepted on annotation classes, got: \(sampleDiags)")
             }
-            // testDslMarkerRejectsRegularClassTarget
             do {
                 let samplePath = paths[3]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -565,7 +513,6 @@ extension AnnotationSemanticTests {
                 let v6 = diagnostics.allSatisfy(isError)
                 #expect(v6, "Annotation-target diagnostics should be errors")
             }
-            // testIntroducedAtAllowsValueParameterUse
             do {
                 let samplePath = paths[4]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -574,7 +521,6 @@ extension AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected IntroducedAt value-parameter target to be accepted, got: \(sampleDiags)")
             }
-            // testIntroducedAtRejectsClassTarget
             do {
                 let samplePath = paths[5]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -585,7 +531,6 @@ extension AnnotationSemanticTests {
                 let v10 = diagnostics.allSatisfy(isError)
                 #expect(v10, "Annotation-target diagnostics should be errors")
             }
-            // testOptionalExpectationAcceptsAnnotationClassTarget
             do {
                 let samplePath = paths[6]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -594,7 +539,6 @@ extension AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected OptionalExpectation annotation-class target to be accepted, got: \(sampleDiags)")
             }
-            // testOptionalExpectationRejectsFunctionTarget
             do {
                 let samplePath = paths[7]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -605,7 +549,6 @@ extension AnnotationSemanticTests {
                 let v13 = diagnostics.allSatisfy(isError)
                 #expect(v13, "Annotation-target diagnostics should be errors")
             }
-            // testRootThrowsAcceptsDocumentedDeclarationTargets
             do {
                 let samplePath = paths[8]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -614,7 +557,6 @@ extension AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected Throws declaration targets to be accepted, got: \(sampleDiags)")
             }
-            // testRootThrowsRejectsClassTarget
             do {
                 let samplePath = paths[9]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -625,7 +567,6 @@ extension AnnotationSemanticTests {
                 let v15 = diagnostics.allSatisfy(isError)
                 #expect(v15, "Annotation-target diagnostics should be errors")
             }
-            // testTargetAnnotationIsRejectedOnRegularClass
             do {
                 let samplePath = paths[10]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -636,7 +577,6 @@ extension AnnotationSemanticTests {
                 let v16 = diagnostics.allSatisfy(isError)
                 #expect(v16, "Annotation-target diagnostics should be errors")
             }
-            // testTargetAnnotationAllowsAnnotationClassButRejectsFunctionUsage
             do {
                 let samplePath = paths[11]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -647,7 +587,6 @@ extension AnnotationSemanticTests {
                 let v17 = diagnostics.allSatisfy(isError)
                 #expect(v17, "Annotation-target diagnostics should be errors")
             }
-            // testAnnotationClassInheritsKotlinAnnotation
             do {
 
 
@@ -666,7 +605,6 @@ extension AnnotationSemanticTests {
                     "Annotation classes should implicitly inherit kotlin.Annotation"
                 )
             }
-            // testExperimentalExtendedContractsRequiresOptIn
             do {
                 let samplePath = paths[13]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -677,7 +615,6 @@ extension AnnotationSemanticTests {
                 let v25 = diagnostics.allSatisfy(isError)
                 #expect(v25, "ExperimentalExtendedContracts opt-in diagnostics should be errors")
             }
-            // testOverloadResolutionByLambdaReturnTypeRejectsClassTarget
             do {
                 let samplePath = paths[14]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -688,7 +625,6 @@ extension AnnotationSemanticTests {
                 let v26 = diagnostics.allSatisfy(isError)
                 #expect(v26, "Annotation-target diagnostics should be errors")
             }
-            // testExperimentalTypeInferenceAcceptsFunctionTarget
             do {
                 let samplePath = paths[15]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -697,7 +633,6 @@ extension AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "ExperimentalTypeInference should be accepted on functions, got: \(sampleDiags)")
             }
-            // testOverloadResolutionByLambdaReturnTypeRequiresOptIn
             do {
                 let samplePath = paths[16]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -708,7 +643,6 @@ extension AnnotationSemanticTests {
                 let v27 = diagnostics.allSatisfy(isError)
                 #expect(v27, "Opt-in diagnostics should be errors")
             }
-            // testOverloadResolutionByLambdaReturnTypeAcceptsOptIn
             do {
                 let samplePath = paths[17]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -717,7 +651,6 @@ extension AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected opt-in diagnostic to be suppressed by @OptIn, got: \(sampleDiags)")
             }
-            // testFieldTargetAllowsBackedFieldAndRejectsMissingBackingField
             do {
                 let samplePath = paths[18]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -728,7 +661,6 @@ extension AnnotationSemanticTests {
                 let v28 = diagnostics.allSatisfy(isError)
                 #expect(v28, "Annotation-target diagnostics should be errors")
             }
-            // testFieldTargetRejectsExtensionProperty
             do {
                 let samplePath = paths[19]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -739,7 +671,6 @@ extension AnnotationSemanticTests {
                 let v29 = diagnostics.allSatisfy(isError)
                 #expect(v29, "Annotation-target diagnostics should be errors")
             }
-            // testAnnotationTargetSuppressionAliasSuppressesDiagnostic
             do {
                 let samplePath = paths[20]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -748,7 +679,6 @@ extension AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected ANNOTATION_TARGET suppression alias to suppress annotation-target diagnostics, got: \(sampleDiags)")
             }
-            // testWasExperimentalAnnotationIsCollectedOnDeclaration
             do {
 
 
@@ -761,7 +691,6 @@ extension AnnotationSemanticTests {
 
                 #expect(annotation.arguments == ["markerClass=ExperimentalApi::class"])
             }
-            // testExtensionFunctionTypeRejectsFunction0
             do {
                 let samplePath = paths[22]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -772,7 +701,6 @@ extension AnnotationSemanticTests {
                 let v30 = diagnostics.allSatisfy(isError)
                 #expect(v30, "Extension-function-type diagnostics should be errors")
             }
-            // testExtensionFunctionTypeRejectsNonFunctionNominalType
             do {
                 let samplePath = paths[23]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -783,7 +711,6 @@ extension AnnotationSemanticTests {
                 let v31 = diagnostics.allSatisfy(isError)
                 #expect(v31, "Extension-function-type diagnostics should be errors")
             }
-            // testTypeAnnotationTargetValidationRejectsClassOnlyAnnotationOnTypeUsage
             do {
                 let samplePath = paths[24]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -794,7 +721,6 @@ extension AnnotationSemanticTests {
                 let v32 = diagnostics.allSatisfy(isError)
                 #expect(v32, "Annotation-target diagnostics should be errors")
             }
-            // testTypeAnnotationRejectsUseSiteTarget
             do {
                 let samplePath = paths[25]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -805,7 +731,6 @@ extension AnnotationSemanticTests {
                 let v33 = diagnostics.allSatisfy(isError)
                 #expect(v33, "Type-annotation parse diagnostics should be errors")
             }
-            // testCompilerMetadataAutoAttachedToNominalDeclarations
             do {
                 let samplePath = paths[26]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -828,7 +753,6 @@ extension AnnotationSemanticTests {
                     )
                 }
             }
-            // testOptInAllowsExperimentalStdlibApiUsage
             do {
                 let samplePath = paths[27]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -837,21 +761,18 @@ extension AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected opt-in annotated function to use experimental API without diagnostics, got: \(sampleDiags)")
             }
-            // testStableHexApiWithoutOptIn
             do {
                 let samplePath = paths[28]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
 
                 #expect(sampleDiags.isEmpty, "Expected stable toHexString() to need no opt-in, got: \(sampleDiags)")
             }
-            // testStableHexApiWithDefaultPropertyWithoutOptIn
             do {
                 let samplePath = paths[29]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
 
                 #expect(sampleDiags.isEmpty, "Expected stable HexFormat.Default to need no opt-in, got: \(sampleDiags)")
             }
-            // testExperimentalVersionOverloadingAnnotationRequiresOptIn
             do {
                 let samplePath = paths[30]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -862,7 +783,6 @@ extension AnnotationSemanticTests {
                 let v37 = diagnostics.allSatisfy(isError)
                 #expect(v37, "ExperimentalVersionOverloading opt-in diagnostics should be errors")
             }
-            // testExperimentalVersionOverloadingAnnotationAcceptsOptIn
             do {
                 let samplePath = paths[31]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -871,7 +791,6 @@ extension AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected @OptIn to suppress ExperimentalVersionOverloading diagnostics, got: \(sampleDiags)")
             }
-            // testExperimentalContextParametersMarkerRequiresOptIn
             do {
                 let samplePath = paths[32]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -886,7 +805,6 @@ extension AnnotationSemanticTests {
                     "Expected diagnostic to include the ExperimentalContextParameters message, got: \(diagnostics)"
                 )
             }
-            // testExperimentalContextParametersMarkerAcceptsOptIn
             do {
                 let samplePath = paths[33]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -895,7 +813,6 @@ extension AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected @OptIn to suppress ExperimentalContextParameters diagnostics, got: \(sampleDiags)")
             }
-            // testSubclassOptInRequiredRejectsSubclassWithoutOptIn
             do {
                 let samplePath = paths[34]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -906,7 +823,6 @@ extension AnnotationSemanticTests {
                 let v39 = diagnostics.contains(where: isError)
                 #expect(v39, "Subclass opt-in diagnostic should follow ERROR marker severity")
             }
-            // testSubclassOptInRequiredAllowsSubclassWithOptIn
             do {
                 let samplePath = paths[35]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -915,7 +831,6 @@ extension AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected @OptIn to satisfy subclass opt-in requirement, got: \(sampleDiags)")
             }
-            // testSubclassOptInRequiredPropagatesThroughSupertypeChain
             do {
                 let samplePath = paths[36]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -924,7 +839,6 @@ extension AnnotationSemanticTests {
 
                 #expect(diagnostics.count == 1, "Expected inherited subclass opt-in requirement to reach Child, got: \(sampleDiags)")
             }
-            // testSubclassOptInRequiredRejectsNonOptInMarkerClass
             do {
                 let samplePath = paths[37]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -934,7 +848,6 @@ extension AnnotationSemanticTests {
                 #expect(diagnostics.count == 1, "Expected misuse diagnostic for non opt-in marker, got: \(sampleDiags)")
                 #expect(diagnostics.first?.message.contains("markerClass") == true)
             }
-            // testFileLevelOptInAllowsExperimentalStdlibApiUsage
             do {
                 let samplePath = paths[38]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -943,7 +856,6 @@ extension AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected file-level opt-in to suppress experimental API diagnostics, got: \(sampleDiags)")
             }
-            // testExperimentalAssociatedObjectsMarkerRequiresOptIn
             do {
                 let samplePath = paths[39]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -957,7 +869,6 @@ extension AnnotationSemanticTests {
                     "Expected diagnostic to mention ExperimentalAssociatedObjects, got: \(diagnostics)"
                 )
             }
-            // testExperimentalAssociatedObjectsMarkerAllowsExplicitOptIn
             do {
                 let samplePath = paths[40]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -966,7 +877,6 @@ extension AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected @OptIn to suppress ExperimentalAssociatedObjects diagnostics, got: \(sampleDiags)")
             }
-            // testOptInSuppressionAliasSuppressesDiagnostic
             do {
                 let samplePath = paths[41]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -975,7 +885,6 @@ extension AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected OPT_IN_USAGE suppression alias to suppress opt-in diagnostics, got: \(sampleDiags)")
             }
-            // testSubclassOptInRequiredDoesNotPropagateThroughConsentedSupertype
             do {
                 let samplePath = paths[42]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -984,7 +893,6 @@ extension AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected an '@OptIn'-consenting supertype to consume the requirement instead of propagating it, got: \(sampleDiags)")
             }
-            // testSubclassOptInRequiredOnSubclassConsentsToItsOwnSupertypes
             do {
                 let samplePath = paths[43]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -993,7 +901,6 @@ extension AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected '@SubclassOptInRequired' on the subclass to consent to its supertypes, got: \(sampleDiags)")
             }
-            // testSubclassOptInRequiredOnEnclosingClassConsentsToNestedSubclass
             do {
                 let samplePath = paths[44]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -1011,42 +918,34 @@ extension AnnotationSemanticTests {
 
     @Test func testAnnotationSemanticVersionAndVisibilitySurfaceRegistrations() throws {
         let sources: [String] = [
-            // testSinceKotlinSurfaceHasVersionPropertyConstructorAndTargets
             """
             package sample0
             class Host
             """,
-            // testDslMarkerSurfaceHasDocumentedMetadata
             """
             package sample1
             fun noop() {}
             """,
-            // testIntroducedAtSurfaceHasVersionPropertyConstructorAndValueParameterTarget
             """
             package sample2
             class Host
             """,
-            // testOptionalExpectationSurfaceIsSyntheticTargetedAndExperimental
             """
             package sample3
             class Host
             """,
-            // testRootThrowsSurfaceHasVarargKClassPropertyConstructorAndTargets
             """
             package sample4
             class Host
             """,
-            // testMustBeDocumentedAnnotationIsSourceBackedAndTargetedToAnnotationClasses
             """
             package sample5
             annotation class ExperimentalApi
             """,
-            // testExperimentalContractsAnnotationIsSourceBackedAnnotationClass
             """
             package sample6
             annotation class ExperimentalApi
             """,
-            // testExperimentalExtendedContractsAnnotationIsSyntheticOptInMarker
             """
             package sample7
             fun noop() {}
@@ -1059,7 +958,6 @@ extension AnnotationSemanticTests {
 
             let sema = try #require(ctx.sema)
 
-            // testSinceKotlinSurfaceHasVersionPropertyConstructorAndTargets
             do {
             let sinceKotlinFQName = [
                 ctx.interner.intern("kotlin"),
@@ -1114,7 +1012,6 @@ extension AnnotationSemanticTests {
             #expect(parameter.name == versionFQName.last)
 
             }
-            // testDslMarkerSurfaceHasDocumentedMetadata
             do {
             let dslMarkerFQName = [
                 ctx.interner.intern("kotlin"),
@@ -1164,7 +1061,6 @@ extension AnnotationSemanticTests {
             )
 
             }
-            // testIntroducedAtSurfaceHasVersionPropertyConstructorAndValueParameterTarget
             do {
             let introducedAtFQName = [
                 ctx.interner.intern("kotlin"),
@@ -1221,7 +1117,6 @@ extension AnnotationSemanticTests {
             #expect(parameter.name == versionFQName.last)
 
             }
-            // testOptionalExpectationSurfaceIsSourceBackedTargetedAndExperimental
             do {
             let optionalExpectationFQName = [
                 ctx.interner.intern("kotlin"),
@@ -1266,7 +1161,6 @@ extension AnnotationSemanticTests {
             )
 
             }
-            // testRootThrowsSurfaceHasVarargKClassPropertyConstructorAndTargets
             do {
             let throwsFQName = [
                 ctx.interner.intern("kotlin"),
@@ -1318,7 +1212,6 @@ extension AnnotationSemanticTests {
             #expect(parameter.name == exceptionClassesFQName.last)
 
             }
-            // testMustBeDocumentedAnnotationIsSourceBackedAndTargetedToAnnotationClasses
             do {
             let mustBeDocumentedFQName = [
                 ctx.interner.intern("kotlin"),
@@ -1346,7 +1239,6 @@ extension AnnotationSemanticTests {
             )
 
             }
-            // testExperimentalContractsAnnotationIsSourceBackedAnnotationClass
             do {
             let fqName = [
                 ctx.interner.intern("kotlin"),
@@ -1408,7 +1300,6 @@ extension AnnotationSemanticTests {
             )
 
             }
-            // testExperimentalExtendedContractsAnnotationIsSourceBackedOptInMarker
             do {
             let fqName = [
                 ctx.interner.intern("kotlin"),
@@ -1676,7 +1567,6 @@ extension AnnotationSemanticTests {
         do {
             try runSema(ctx)
         } catch {
-            // Error diagnostics are asserted by each test.
         }
         return ctx
     }

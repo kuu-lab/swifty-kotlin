@@ -5,8 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2016: preserve the exact reduced OSS consumer and exercise actual
-    /// stream wrapping through both stdlib owners at both optimization levels.
     @Test func testJavaReaderConstructorsAcrossStdlibSurfaces() throws {
         let minimal = """
         import java.io.InputStreamReader

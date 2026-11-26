@@ -9,12 +9,6 @@ package kotlin.enums
 
 import kotlin.internal.KsSymbolName
 
-/**
- * The compiler expands this declaration at a concrete call site to the
- * enum-specific cached runtime representation. The placeholder body mirrors
- * the existing enumValues intrinsic pattern; the generic body itself is never
- * executed by the compiler-generated stdlib path.
- */
 @kotlin.WasExperimental(kotlin.ExperimentalStdlibApi::class)
 @SinceKotlin("2.0")
 public inline fun <reified T : Enum<T>> enumEntries(): EnumEntries<T> =
@@ -29,7 +23,6 @@ internal external fun <T : Enum<T>> enumEntriesIntrinsic(): EnumEntries<T>
 internal fun <E : Enum<E>> enumEntries(entriesProvider: () -> Array<E>): EnumEntries<E> =
     enumEntriesFromArray(entriesProvider())
 
-/** Builds an entries view over the supplied array without copying it. */
 @PublishedApi
 @SinceKotlin("1.8")
 internal fun <E : Enum<E>> enumEntries(entries: Array<E>): EnumEntries<E> =

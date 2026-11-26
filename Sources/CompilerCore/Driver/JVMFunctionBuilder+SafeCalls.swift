@@ -3,7 +3,6 @@ extension JVMFunctionBuilder {
     // no kotlin.NumbersKt facade method to call. Match them by the *callee* symbol
     // (not the call-site name, so aliased imports resolve too) and only for the
     // bundled-stdlib declarations, so user/library extensions of the same name win.
-    // Returns whether the bits are raw (toRawBits) or canonicalized (toBits).
     func stdlibBitReinterpretIsRaw(_ callee: SymbolID, args: [CallArgument]) -> Bool? {
         guard args.isEmpty, let symbol = program.sema.symbols.symbol(callee),
               symbol.declSite.map({ context.sourceManager.origin(of: $0.start.file) != .user }) ?? true
@@ -21,10 +20,6 @@ extension JVMFunctionBuilder {
         }
     }
 
-    // Lower a Float/Double bit-reinterpret call to the java.lang.Float/Double
-    // intrinsic, matching how kotlinc inlines the real @InlineOnly actuals. The
-    // primitive float/double type is taken from the callee's receiver signature and
-    // the receiver converted to it, so a boxed receiver is handled uniformly.
     func emitBitReinterpret(callee: SymbolID, receiver: JVMValue, isRaw: Bool, id: ExprID) throws -> JVMValue? {
         guard let signature = program.sema.symbols.functionSignature(for: callee),
               let receiverTypeRef = signature.receiverType else { return nil }
@@ -77,8 +72,6 @@ extension JVMFunctionBuilder {
             else if case let .nameRef(qualifier, _) = arena.expr(receiver), !scopes.contains(where: { $0[qualifier] != nil }),
                     let plan = program.classes.values.first(where: { $0.name == property.getter.owner && $0.isObject }),
                     program.sema.symbols.symbol(plan.symbol)?.name == qualifier {
-                // A qualified delegated property can bind its owner without
-                // attaching a separate value binding to the object qualifier.
                 object = try singleton(plan)
             } else { object = try requireValue(receiver) }
             return try convert(readProperty(property, receiver: object, at: id, special: isSuper(receiver), superReceiver: receiver), to: program.expressionType(id))
@@ -87,12 +80,15 @@ extension JVMFunctionBuilder {
         if let result = try nominalPropertyInvocation(id, receiver: receiver, args: args) { return result.value }
         if let result = try textLibraryCall(args, receiver: receiver, id: id) { return result.value }
         if let result = try inlineCall(args, receiver: receiver, id: id) { return result.value }
-        // Route KCallable.call through reflection before generic vararg binding.
         if member == "call",
            let result = try reflectionMember(receiver, name: member, args: args, id: id) { return result.value }
         if let result = try sourceCall(args, receiver: receiver, id: id) { return result.value }
         if let result = try extensionOrInvoke(receiver, name: name, args: args, id: id) { return result.value }
         if let result = try intrinsicMember(receiver, name: name, args: args, id: id) { return result.value }
+        if let atomicArray = try javaAtomicArrayMethod(receiver, id: id, name: name, args: args) {
+            let object = try convert(requireValue(receiver), to: .reference(atomicArray.owner, nullable: false))
+            return try jdkCall(atomicArray.owner, atomicArray.name, atomicArray.parameters, atomicArray.result, receiver: object, arguments: try args.map { try requireValue($0.expr) }, resolved: atomicArray.resolved)
+        }
         if let atomic = try javaAtomicReferenceMethod(id, name: name, args: args) {
             let object = try convert(requireValue(receiver), to: .reference("java/util/concurrent/atomic/AtomicReference", nullable: false))
             return try jdkCall("java/util/concurrent/atomic/AtomicReference", atomic.name, atomic.parameters, atomic.result, receiver: object, arguments: try args.map { try requireValue($0.expr) }, resolved: atomic.resolved)
@@ -154,9 +150,55 @@ extension JVMFunctionBuilder {
         return (javaName, parameters, result, try program.expressionType(id))
     }
 
+    private func javaAtomicArrayMethod(_ receiver: ExprID, id: ExprID, name: InternedString, args: [CallArgument]) throws -> (owner: String, name: String, parameters: [JVMValueType], result: JVMValueType, resolved: JVMValueType)? {
+        guard let binding = program.sema.bindings.callBinding(for: id),
+              let symbol = program.sema.symbols.symbol(binding.chosenCallee),
+              symbol.declSite.map({ context.sourceManager.origin(of: $0.start.file) != .user }) ?? true,
+              args.allSatisfy({ $0.label == nil && !$0.isSpread }),
+              let receiverType = try? program.expressionType(receiver),
+              let owner = receiverType.referenceName else { return nil }
+        let element: JVMValueType
+        switch owner {
+        case "java/util/concurrent/atomic/AtomicIntegerArray": element = .int
+        case "java/util/concurrent/atomic/AtomicLongArray": element = .long
+        default: return nil
+        }
+        if context.interner.resolve(name) == "compareAndExchangeAt", context.options.jvmTarget == .java8 { return nil }
+        let index: JVMValueType = .int
+        let javaName: String
+        let parameters: [JVMValueType]
+        let result: JVMValueType
+        switch context.interner.resolve(name) {
+        case "loadAt":
+            javaName = "get"; parameters = [index]; result = element
+        case "storeAt":
+            javaName = "set"; parameters = [index, element]; result = .unit
+        case "exchangeAt":
+            javaName = "getAndSet"; parameters = [index, element]; result = element
+        case "compareAndSetAt":
+            javaName = "compareAndSet"; parameters = [index, element, element]; result = .boolean
+        case "compareAndExchangeAt":
+            javaName = "compareAndExchange"; parameters = [index, element, element]; result = element
+        case "fetchAndAddAt":
+            javaName = "getAndAdd"; parameters = [index, element]; result = element
+        case "addAndFetchAt":
+            javaName = "addAndGet"; parameters = [index, element]; result = element
+        case "fetchAndIncrementAt":
+            javaName = "getAndIncrement"; parameters = [index]; result = element
+        case "incrementAndFetchAt":
+            javaName = "incrementAndGet"; parameters = [index]; result = element
+        case "fetchAndDecrementAt":
+            javaName = "getAndDecrement"; parameters = [index]; result = element
+        case "decrementAndFetchAt":
+            javaName = "decrementAndGet"; parameters = [index]; result = element
+        default:
+            return nil
+        }
+        guard args.count == parameters.count else { return nil }
+        return (owner, javaName, parameters, result, try program.expressionType(id))
+    }
+
     func safeMemberExpression(_ id: ExprID, receiver: ExprID, name: InternedString, typeArgs: [TypeRefID], args: [CallArgument], discarded: Bool) throws -> JVMValue? {
-        // Snapshot the receiver before branching. Arguments and the ordinary
-        // member dispatcher execute only on the non-null edge.
         let source = try requireValue(receiver)
         let type = try program.expressionType(id)
         if source.type.referenceName == nil {

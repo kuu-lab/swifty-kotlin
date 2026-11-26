@@ -1,6 +1,5 @@
 import Foundation
 
-/// The source signature of a suspend declaration linked to a classfile method.
 struct JVMKotlinSuspendFunction {
     struct Parameter {
         let name: String?
@@ -16,9 +15,6 @@ struct JVMKotlinSuspendFunction {
     let typeParameters: [JVMKotlinFunction.TypeParameter]
 }
 
-/// The Kotlin source signature of a classpath function whose erased JVM
-/// parameters include function types. The physical descriptor stays on
-/// `JVMForeignMethod`; this carries only the declaration shape Sema needs.
 struct JVMKotlinFunction {
     static let valueOperators: Set<String> = ["plus", "minus", "times", "div", "rem", "compareTo"]
 
@@ -49,6 +45,7 @@ struct JVMKotlinFunction {
     var isOperator = false
     var isInfix = false
     var valueOperatorParameterDescriptors: [String]?
+    var valueMemberParameterDescriptors: [String]?
     var mangledMemberParameterDescriptors: [String]?
     var mangledExtensionReceiverDescriptor: String?
     var isGenericFinalGetter = false
@@ -94,8 +91,6 @@ struct JVMKotlinValueConstructor {
     let visibility: String
 }
 
-/// Reads the class and file-facade subset of Kotlin's JVM metadata. Field
-/// numbers follow metadata.proto and jvm_metadata.proto.
 struct JVMKotlinMetadataPayload {
     var kind: Int32 = 1
     var version: [Int32] = []
@@ -308,7 +303,6 @@ struct JVMKotlinMetadataPayload {
                 returnType.type.int32(7).map { $0 == parameter.int32(1) } == true
                     || returnType.type.int32(9).map { $0 == parameter.int32(2) } == true
             }) {
-                // Type-parameter results travel as boxed objects across the continuation boundary.
                 carrier = .reference("java/lang/Object", nullable: true)
             } else {
                 continue
@@ -354,9 +348,6 @@ struct JVMKotlinMetadataPayload {
         return result
     }
 
-    /// Names of primary-constructor parameters declared `vararg`. Annotation
-    /// classes expose those parameters as element methods, so classfile flags
-    /// alone cannot recover the Kotlin source shape.
     func annotationVarargElements(byteLimit: Int) throws -> Set<String> {
         guard kind == 1, let major = version.first, (1...2).contains(major) else { return [] }
         let bytes = try decodedData(limit: byteLimit)
@@ -373,7 +364,6 @@ struct JVMKotlinMetadataPayload {
         return result
     }
 
-    /// Static properties exposed by Kotlin objects through @JvmStatic accessors.
     func classPropertyCandidates(byteLimit: Int) throws -> [JVMKotlinClassProperty] {
         guard kind == 1, let major = version.first, (1...2).contains(major) else { return [] }
         let (declaration, names) = try declarationData(byteLimit: byteLimit)
@@ -408,7 +398,6 @@ struct JVMKotlinMetadataPayload {
         return (try ProtoFields(bytes[cursor.position...]), names)
     }
 
-    /// Names of public Kotlin declarations keyed by the physical JVM method.
     func collidingMemberSourceNames(byteLimit: Int) throws -> [String: String] {
         guard kind == 1, let major = version.first, (1...2).contains(major) else { return [:] }
         let (declaration, names) = try declarationData(byteLimit: byteLimit)
@@ -451,8 +440,6 @@ struct JVMKotlinMetadataPayload {
         let types = try TypeTable(declaration.message(30))
         var result: [String: [String]] = [:]
         for constructor in try declaration.messages(8) {
-            // Classfile visibility can expose Kotlin-internal constructors.
-            // Only public and protected declarations supply source labels.
             let flags = constructor.int32(1) ?? 6
             guard (flags >> 1) & 7 == 3 || (flags >> 1) & 7 == 2 else { continue }
             let parameters = try constructor.messages(2)
@@ -637,7 +624,6 @@ struct JVMKotlinMetadataPayload {
     ) throws -> JVMValueType? {
         let (type, nullable) = resolved
         guard let name = try names.resolve(type.int32(6)) else {
-            // The classpath importer exposes erased method type parameters.
             return type.has(7) || type.has(9) ? .reference("java/lang/Object", nullable: true) : nil
         }
         switch name {
@@ -681,9 +667,6 @@ struct JVMKotlinMetadataPayload {
         }
     }
 
-    /// Functions whose Kotlin signature cannot be recovered from the erased JVM
-    /// descriptor, plus every top-level file-facade function so lazy classpath
-    /// roots can be found by callable name.
     func functions(in table: FunctionTable, isValueClass: Bool = false, hasReadOnlyListSupertype: Bool = false, functionTypeMemberNames: Set<String> = [], metroFactory: Bool = false, defaultMethodNames: Set<String> = [], composableMemberNames: Set<String> = [], ownerIsInterface: Bool = false, ownerIsSAM: Bool = false) throws -> [JVMKotlinFunction] {
         let names = table.names
         let classTypes = table.types
@@ -762,8 +745,11 @@ struct JVMKotlinMetadataPayload {
                     hasDefaultValue: hasDefaultValue, isCrossinline: flags & 4 != 0, isNoinline: flags & 8 != 0))
                 hasFunctionTypes = hasFunctionTypes || type.contains("->")
             }
+            let isSuspend = flags & (1 << 13) != 0
             let isValueOperator = isValueClass && isOperator && receiver == nil && contextParameters.isEmpty
                 && JVMKotlinFunction.valueOperators.contains(name) && descriptor != nil
+            let isValueMember = isValueClass && !isSuspend && !isOperator && receiver == nil && contextParameters.isEmpty
+                && jvmName?.hasPrefix(name + "-") == true && descriptor != nil
             let isMangledMember = isFileFacade != true && receiver == nil && contextParameters.isEmpty
                 && jvmName?.hasPrefix(name + "-") == true && descriptor != nil && !isValueClass
             let mangledExtensionReceiverDescriptor: String? = if isFileFacade != true, contextParameters.isEmpty,
@@ -780,11 +766,10 @@ struct JVMKotlinMetadataPayload {
                 })
             guard valid, composableMemberNames.contains(jvmName ?? name)
                 || functionTypeMemberNames.contains(jvmName ?? name) && resultType.hasPrefix("kotlinx.coroutines.flow.Flow<")
-                || hasFunctionTypes || (isFileFacade == true) || receiver != nil || isInfix || isOperator || isValueOperator || isSubList
+                || hasFunctionTypes || (isFileFacade == true) || receiver != nil || isInfix || isOperator || isValueOperator || isValueMember || isSubList
                 || isGenericFinalGetter || isMangledMember || hasStableParameters || hasMemberDefaults else { continue }
-            let isSuspend = flags & (1 << 13) != 0
             var logicalParameterDescriptors: [String]?
-            if isValueOperator || isMangledMember {
+            if isValueOperator || isValueMember || isMangledMember {
                 let descriptors = try parameterMessages.compactMap { parameter in
                     try types.resolve(parameter, inline: 3, indexed: 5).flatMap {
                         try Self.resultType($0, types: types, names: names)?.descriptor
@@ -794,9 +779,6 @@ struct JVMKotlinMetadataPayload {
                 logicalParameterDescriptors = descriptors
             }
             if descriptor == nil, !isSuspend {
-                // The signature extension can omit descriptors that the JVM
-                // backend derives from Kotlin types. Recover them so overloads
-                // with the same arity are matched by their actual carriers.
                 var inputs = contextTypes + [receiver].compactMap { $0 }
                 for parameter in parameterMessages {
                     if let type = try types.resolve(parameter, inline: 3, indexed: 5) {
@@ -825,6 +807,7 @@ struct JVMKotlinMetadataPayload {
                 isOperator: isOperator,
                 isInfix: isInfix,
                 valueOperatorParameterDescriptors: isValueOperator ? logicalParameterDescriptors : nil,
+                valueMemberParameterDescriptors: isValueMember ? logicalParameterDescriptors : nil,
                 mangledMemberParameterDescriptors: isMangledMember ? logicalParameterDescriptors : nil,
                 mangledExtensionReceiverDescriptor: mangledExtensionReceiverDescriptor,
                 isGenericFinalGetter: isGenericFinalGetter,
@@ -985,7 +968,6 @@ struct JVMKotlinMetadataPayload {
         for (index, chunk) in data1.enumerated() {
             let units = chunk.utf16
             for unit in units.dropFirst(index == 0 && hasMarker ? 1 : 0) {
-                // The annotation can reference the same pool string repeatedly.
                 guard unitCount < limit else { throw JVMClassReader.Invalid() }
                 unitCount += 1
                 if rawBytes {

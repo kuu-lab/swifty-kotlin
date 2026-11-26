@@ -55,8 +55,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-2059: preserve the four factories' views, mutable mapped returns,
-    /// generic constraints, and exceptions through both stdlib routes.
     @Test
     func testJavaCollectionsViewsThroughSourceAndFreshArtifactAtO0AndO2() throws {
         let source = try diffCaseSource("java_util_collections_views.kt", file: #filePath)
@@ -113,7 +111,6 @@ extension StdlibArtifactRegressionTests {
                 try withTemporaryFile(contents: source) { input in
                     let context = javaCollectionsContext(input: input, output: input + ".out", libraryPath: libraryPath, optLevel: optLevel)
                     do { try runSema(context) } catch {
-                        // Assert diagnostics for every independent declaration.
                     }
                     let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
                     let lines = Set(errors.compactMap { diagnostic -> Int? in

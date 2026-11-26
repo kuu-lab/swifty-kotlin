@@ -16,13 +16,6 @@ extension DataFlowSemaPhase {
         let deferredSymbol = context.deferredSymbol!
         let deferredType = context.deferredType!
 
-        // KSP-678: the `Channel()` / `Channel(capacity)` factories are now
-        // provided by bundled Kotlin source
-        // (Sources/CompilerCore/Stdlib/kotlin/coroutines/channels/Channels.kt),
-        // which bridges to the residual kk_channel_create runtime entry point via
-        // @KsSymbolName. No synthetic constructor or factory bridges are
-        // registered here.
-
         // STDLIB-CORO-078: `ReceiveChannel<T>` is the read-only view of `Channel<T>`
         // that `produce { }` returns in real kotlinx.coroutines. Registered as a
         // type alias (rather than a separate interface) so send/receive/close/
@@ -84,9 +77,6 @@ extension DataFlowSemaPhase {
             jobMembers.fn("completeExceptionally", "kk_job_complete_exceptionally", [(name: "exception", type: types.nullableAnyType)], ret: types.booleanType)
         }
 
-        // STDLIB-CORO-BUG-04: bare `isActive` reference (no explicit
-        // CoroutineScope receiver) inside a coroutine builder body, e.g.
-        // `launch { if (isActive) { ... } }`.
         registerSyntheticCoroutineTopLevelProperty(
             named: "isActive",
             packageFQName: coroutinesPkg,
@@ -164,17 +154,6 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
-        // `CoroutineScope.launch { block }`: a receiver-bearing member call. The general
-        // member-call emission path (appendReceiverToMemberArguments in
-        // CallLowerer+MemberCallEmission.swift) already prepends the receiver as
-        // arguments[0] whenever the chosen callee's FunctionSignature.receiverType is
-        // set, so this call reaches CoroutineLoweringPass as a 2-argument call
-        // [receiverExpr, blockRef] -- the same shape as the dispatcher-aware top-level
-        // `launch(dispatcher) { }`. CoroutineLoweringPass+LauncherSupport.swift's
-        // rewriteLauncherCall special-cases this externalLinkName up front and routes
-        // it through rewriteCoroutineScopeLaunchCall, which threads the receiver through
-        // to a dedicated `kk_coroutine_scope_launch(scopeHandle, entryPointRaw,
-        // functionID)` runtime entry point.
         let coroutineScopeMembers = coroutineMemberRows(of: coroutineScopeSymbol, type: coroutineScopeType, symbols: symbols, interner: interner)
         if !bundledIndex.contains(ownerFQName: coroutinesPkg + [interner.intern("CoroutineScope")], name: interner.intern("launch"), arity: 3) {
             coroutineScopeMembers.fn(
@@ -202,9 +181,6 @@ extension DataFlowSemaPhase {
             let deferredMembers = coroutineMemberRows(of: deferredSymbol, type: deferredType, symbols: symbols, interner: interner)
             deferredMembers.fn("await", "kk_kxmini_async_await", ret: types.anyType)
         }
-        // KSP-676: StateFlow / MutableStateFlow and Flow.stateIn are bundled
-        // Kotlin source (StateFlow.kt), so no synthetic constructor or member
-        // stubs are registered here.
         let channelMembers = coroutineMemberRows(of: channelSymbol, type: channelType, symbols: symbols, interner: interner)
         let channelElementType = types.nominalTypeParameterSymbols(for: channelSymbol).first.map {
             types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull)))
@@ -217,12 +193,5 @@ extension DataFlowSemaPhase {
             classTypeParameterCount: types.nominalTypeParameterSymbols(for: channelSymbol).count,
             isSuspend: true
         )
-        // KSP-678: Channel.close / isClosedForSend / isClosedForReceive are now
-        // provided by bundled Kotlin source
-        // (Sources/CompilerCore/Stdlib/kotlin/coroutines/channels/Channels.kt),
-        // which bridges to the residual kk_channel_close /
-        // kk_channel_is_closed_for_send / kk_channel_is_closed_for_receive
-        // runtime entry points via @KsSymbolName. No synthetic stubs are
-        // registered for them here.
     }
 }

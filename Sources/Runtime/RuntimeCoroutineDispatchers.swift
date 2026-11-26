@@ -101,9 +101,6 @@ private func runtimeReleaseRunnableBoxIfOwned(_ raw: Int) {
     _ = runtimeReleaseObject(raw)
 }
 
-/// A runtime view of a source-defined CoroutineDispatcher. Its bridge method
-/// enters the Kotlin override, while RuntimeRunnableBox restores the runtime's
-/// dispatcher identity when the executor eventually invokes the task.
 private final class RuntimeSourceCoroutineDispatcher: RuntimeDispatcher, @unchecked Sendable {
     let sourceHandle: Int
     private let sourcePin: RuntimeObjectPin
@@ -188,11 +185,6 @@ func runtimeIsSourceCoroutineDispatcher(_ raw: Int) -> Bool {
     ) != nil
 }
 
-/// KUU-3719: resolves a `ContinuationInterceptor` element to a
-/// `RuntimeDispatcher` when the interceptor is dispatcher-backed (a
-/// `CoroutineDispatcher` object, a dispatcher tag, or a native dispatcher).
-/// Returns nil for user-defined interceptors so their custom interception
-/// still runs through `interceptContinuation`.
 func runtimeInterceptorDispatcher(_ interceptorRaw: Int) -> RuntimeDispatcher? {
     guard interceptorRaw != 0 else {
         return nil

@@ -5,7 +5,6 @@
  */
 package kotlinx.io.bytestring
 
-/** A growable byte sequence for creating immutable [ByteString] values. */
 public class ByteStringBuilder(initialCapacity: Int = 0) {
     private var buffer: ByteArray = ByteArray(initialCapacity)
     private var offset: Int = 0

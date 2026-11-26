@@ -1,30 +1,10 @@
 import Foundation
 
-/// Result of an in-process KIR execution attempt (`kswiftc --run`).
 public enum KIRInterpreterOutcome: Equatable, Sendable {
-    /// The program ran to completion inside the interpreter; `stdout` is
-    /// everything it printed (buffered so a late bail-out stays side-effect free).
     case completed(stdout: String)
-    /// The program uses something the interpreter does not model. Nothing was
-    /// observable; the caller must compile and run it natively instead.
     case fallback(reason: String)
 }
 
-/// Tree-walking interpreter over lowered KIR. It exists for the edit→run dev
-/// loop: it skips Codegen + Link entirely, but only models a deliberately small
-/// "pure logic" subset (Int/Boolean/String values, control flow, calls between
-/// user functions, console output). Everything else is reported through
-/// `.fallback`, decided in two layers:
-///
-/// 1. a static scan of every function reachable from the entry point
-///    (unsupported instruction / callee / global ⇒ fallback before running);
-/// 2. runtime bail-outs for conditions that depend on values (division by
-///    zero, call depth). Output is buffered, so a runtime bail-out also leaves
-///    no trace and the native path re-runs the program from scratch.
-///
-/// Runtime calls are executed by a small table that mirrors the semantics of
-/// the native runtime / emitter for the same `kk_*` names (all values are
-/// 64-bit words there, boxing is the identity here).
 public enum KIRInterpreter {
     public static func run(context ctx: CompilationContext) -> KIRInterpreterOutcome {
         guard let kir = ctx.kir, let ast = ctx.ast, let sema = ctx.sema else {
@@ -38,7 +18,6 @@ public enum KIRInterpreter {
         }
         let engine = KIRInterpreterEngine(kir: kir, sema: sema, interner: ctx.interner)
         let box = KIRInterpreterEngineBox(engine)
-        // Interpreter frames recurse on the Swift stack; run on a large one.
         let outcome = try? LargeStackExecutor.run { box.engine.execute(entry: entry) }
         return outcome ?? .fallback(reason: "interpreter failed to start")
     }
@@ -63,7 +42,6 @@ private struct InterpreterBail: Error {
 private final class KIRInterpreterEngine {
     private static let maxCallDepth = 5000
 
-    /// Callees that mirror a native runtime/emitter operation on plain words.
     private static let supportedBuiltins: Set<String> = [
         "kk_unbox_int_static", "kk_unbox_bool_static", "kk_unbox_long_static",
         "kk_box_int", "kk_box_bool", "kk_box_long", "kk_box_long_nonnull",
@@ -82,13 +60,9 @@ private final class KIRInterpreterEngine {
         "__kk_int_range_induction_le", "__kk_int_range_induction_add",
         "__kk_string_concat_flat", "kk_any_to_string",
         "__kk_print_raw", "__kk_println_raw",
-        // Present in every `main` prologue; their results only feed coroutine
-        // state that no supported program reads.
         "kk_coroutine_current_context", "kk_native_heap_get", "kk_coroutine_current_is_active",
     ]
 
-    /// Stdlib singleton/enum initialisers run from the `main` prologue. With no
-    /// stdlib code executed (anything else falls back), nothing reads them.
     private static let stdlibInitPrefixes = [
         "kk_fn___companion_init_", "kk_fn___object_init_",
         "kk_fn___enum_static_init_", "kk_fn___kk_library_top_level_init_",
@@ -121,8 +95,6 @@ private final class KIRInterpreterEngine {
         globalSymbols = globals
     }
 
-    // MARK: - Entry
-
     func execute(entry: SymbolID) -> KIRInterpreterOutcome {
         guard let function = kir.arena.function(for: entry) else {
             return .fallback(reason: "entry function has no body")
@@ -143,8 +115,6 @@ private final class KIRInterpreterEngine {
         }
     }
 
-    // MARK: - Static analysis
-
     private func resolveCallee(symbol: SymbolID?, name: InternedString) -> Callee? {
         if let symbol, let function = kir.arena.function(for: symbol) {
             return .user(function)
@@ -162,7 +132,6 @@ private final class KIRInterpreterEngine {
         return nil
     }
 
-    /// `kotlin.io.print/println` with no argument or one non-null `String`.
     private func consoleCallee(_ symbol: SymbolID) -> Callee? {
         guard let info = sema.symbols.symbol(symbol), info.fqName.count == 3,
               interner.resolve(info.fqName[0]) == "kotlin", interner.resolve(info.fqName[1]) == "io"
@@ -183,7 +152,6 @@ private final class KIRInterpreterEngine {
         return nil
     }
 
-    /// Returns the first reason the program cannot be interpreted, or nil.
     private func analyze(entry: KIRFunction) -> String? {
         var visited: Set<SymbolID> = [entry.symbol]
         var worklist = [entry]
@@ -222,8 +190,6 @@ private final class KIRInterpreterEngine {
         }
         return nil
     }
-
-    // MARK: - Execution
 
     private func labelIndex(for function: KIRFunction) -> [Int32: Int] {
         if let cached = labelIndexByFunction[function.symbol] { return cached }
@@ -293,7 +259,7 @@ private final class KIRInterpreterEngine {
                 if try read(value) != .null { try jump(to: target) }
             case let .constValue(result, value):
                 if case let .symbolRef(symbol) = value, params[symbol] == nil, globalSymbols.contains(symbol) {
-                    break // alias binding only; the global keeps its value
+                    break
                 }
                 registers[result.rawValue] = try constant(value, params: params)
             case let .copy(from, to):
@@ -319,8 +285,6 @@ private final class KIRInterpreterEngine {
                 case .stdlibInit: value = .unit
                 }
                 if let result { write(result, value) }
-                // No supported callee throws (those paths bail out), so the
-                // thrown channel always reports "no exception".
                 if let thrownResult { registers[thrownResult.rawValue] = .int(0) }
             default:
                 throw InterpreterBail(reason: "instruction \(instruction)")
@@ -381,7 +345,6 @@ private final class KIRInterpreterEngine {
         case "kk_op_mul": return .int(try int(0) &* int(1))
         case "kk_op_div", "kk_op_mod", "kk_op_rem":
             let lhs = try int(0), rhs = try int(1)
-            // ArithmeticException must be catchable natively; not modelled here.
             guard rhs != 0 else { throw InterpreterBail(reason: "division by zero") }
             if lhs == .min && rhs == -1 { return .int(name == "kk_op_div" ? .min : 0) }
             return .int(name == "kk_op_div" ? lhs / rhs : lhs % rhs)

@@ -4,17 +4,11 @@
 import Foundation
 import Testing
 
-/// RF-LOWER-CALL-015: source-backed preservation is a resolution decision, not
-/// a second list of migrated API names. Runtime Sequence boxes are the only
-/// representation-specific exception; collection intrinsics are emitted under
-/// their ABI callee before this policy is consulted.
 @Suite
 struct SourceBackedCallPreservationPolicyTests {
     private static func makePolicy() -> SourceBackedCallPreservationPolicy {
         SourceBackedCallPreservationPolicy()
     }
-
-    // MARK: - callee resolution
 
     @Test
     func nilSymbolIsUnresolved() {
@@ -93,8 +87,6 @@ struct SourceBackedCallPreservationPolicyTests {
         #expect(SourceBackedCalleeResolution(symbol: symbol, sema: sema) == .sourceBacked)
     }
 
-    // MARK: - policy
-
     @Test
     func onlySourceBackedDeclarationsCanBePreserved() {
         let policy = Self.makePolicy()
@@ -149,11 +141,6 @@ struct SourceBackedCallPreservationPolicyTests {
         )
     }
 
-    // MARK: - production path
-
-    /// A user declaration can share a migrated stdlib name without being
-    /// redirected to a runtime entry point. The direct and virtual call entry
-    /// points both use the same resolution-based policy.
     @Test
     func userFunctionsSharingMigratedNamesSurviveLowering() throws {
         let source = """

@@ -1,7 +1,5 @@
 import Foundation
 
-/// The manifest is shared by source injection, library generation and auditing.
-/// Declaration-only contracts are deliberately separate from compiled bodies.
 package enum JVMStdlibCatalog {
     struct Manifest: Decodable {
         let schemaVersion: Int
@@ -58,8 +56,6 @@ package enum JVMStdlibCatalog {
         return ContentAddressedStore.makeKey(parts: parts)
     }
 
-    /// Classpath imports must not redeclare types whose source contracts are
-    /// already selected. Nested binary names are filtered by the class reader.
     static func nominalNames(in ctx: CompilationContext) throws -> Set<String> {
         let package = try NSRegularExpression(pattern: #"(?m)^\s*package\s+([A-Za-z_][A-Za-z0-9_.]*)"#)
         let nominal = try NSRegularExpression(pattern: #"(?m)^\s*(?:(?:public|private|internal|protected|open|abstract|sealed|data|enum|annotation|value|fun)\s+)*(?:class|interface|object|typealias)\s+([A-Za-z_][A-Za-z0-9_]*)"#)
@@ -117,8 +113,6 @@ package enum JVMStdlibCatalog {
             || path == "declarations/PathPredicates.kt"
     }
 
-    // Optional adapters can refer to platform classes whose signatures pull
-    // more dependencies into the lazy importer. Load those contracts on use.
     private static func sourceReferences(to identifiers: Set<String>, in ctx: CompilationContext) -> Set<String> {
         guard !identifiers.isEmpty else { return [] }
         var referenced: Set<String> = []

@@ -7,12 +7,6 @@ import kotlin.random.Random
 public inline fun <T> List(size: Int, init: (index: Int) -> T): List<T> =
     MutableList(size, init)
 
-// MIGRATION-COL-007
-// List access helpers migrated to Kotlin source.
-// Migration source: Sources/Runtime/RuntimeCollections.swift (kk_list_getOrNull,
-// kk_list_elementAt*, kk_list_elementAt) and RuntimeCollectionHOF.swift
-// (kk_list_getOrElse, kk_list_elementAtOrElse).
-
 public fun <T> List<T>.getOrNull(index: Int): T? {
     if (index >= 0 && index < size) {
         return this[index]
@@ -46,7 +40,6 @@ public inline fun <T> List<T>.elementAtOrElse(index: Int, defaultValue: (Int) ->
     return defaultValue(index)
 }
 
-// KSP-1509
 // List-specific random()/randomOrNull() overrides. Collection<T>'s versions in
 // Collections.kt were unreachable for List receivers because a member function
 // always wins over an extension with the same name, and List used to declare

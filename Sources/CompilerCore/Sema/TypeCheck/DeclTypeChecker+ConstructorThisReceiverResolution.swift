@@ -1,11 +1,4 @@
 extension DeclTypeChecker {
-    /// Supertype delegation arguments check inside the nominal's own header
-    /// scope, where the superclass's companion object is the innermost
-    /// implicit receiver: an unqualified `this` binds to the companion and
-    /// its members resolve without a qualifier — `Sub : Base(this)` passes
-    /// `Base.Companion`, not an enclosing receiver (KUU-4517). Returns the
-    /// updated context and locals, or the inputs unchanged when the
-    /// superclass declares no companion.
     func companionHeaderDelegationContext(
         superclassSymbol: SymbolID,
         ctx: TypeInferenceContext,

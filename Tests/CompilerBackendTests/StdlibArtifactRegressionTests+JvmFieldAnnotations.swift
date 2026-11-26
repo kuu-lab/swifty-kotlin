@@ -5,7 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-3068: default imports and field use-site targets resolve in both stdlib modes.
     @Test
     func testJvmFieldAnnotationsAcrossStdlibSurfaces() throws {
         let source = try diffCaseSource("jvm_field_annotations.kt", file: #filePath)
@@ -61,7 +60,6 @@ extension StdlibArtifactRegressionTests {
                 do {
                     try runSema(context)
                 } catch {
-                    // Both annotations are restricted to backing fields.
                 }
                 let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
                 #expect(errors.count == 2, "\(errors)")

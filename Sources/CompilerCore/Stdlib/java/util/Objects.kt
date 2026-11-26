@@ -3,7 +3,6 @@ package java.util
 import kotlin.internal.KsSymbolName
 import java.util.function.Supplier
 
-// The runtime owns erased object-method pointers and their exception channel.
 @KsSymbolName("__kk_objects_equals")
 private external fun objectsEquals(a: Any, b: Any?): Boolean
 
@@ -45,8 +44,6 @@ public object Objects {
         return value
     }
 
-    // JDK semantics: the fallback is itself required to be non-null, so
-    // requireNonNullElse(null, null) throws NullPointerException.
     public fun <T> requireNonNullElse(value: T?, defaultObj: T?): T {
         return if (value != null) value else requireNonNull(defaultObj)
     }
@@ -108,7 +105,6 @@ public object Objects {
             }
             return true
         }
-        // Non-arrays retain the first operand's ordinary equals dispatch.
         return objectsEquals(a, b)
     }
 }

@@ -1,9 +1,4 @@
 #if canImport(Testing)
-// KSP-CAP-001: End-to-end execution tests for object-expression member
-// function bodies capturing outer local variables/parameters. Property
-// initializer capture already worked (inlined at the construction site);
-// member function bodies are lowered as independent KIR functions, so the
-// captured values must be threaded through instance fields instead.
 @testable import CompilerCore
 @testable import CompilerBackend
 @testable import CompilerTestSupport
@@ -165,8 +160,6 @@ struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
         )
     }
 
-    // KUU-2111: an outer class property read by an anonymous object's inline
-    // property initializer must use the enclosing instance, not the new object.
     @Test
     func testCodegenObjectLiteralPropertyInitializerCapturesOuterImmutableProperty() throws {
         let source = """
@@ -290,10 +283,6 @@ struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
         )
     }
 
-    // Verified against real kotlinc (kotlinc-jvm): a bare reference inside
-    // the member function binds to the captured outer local, not the object
-    // literal's own member of the same name -- the outer local wins, and the
-    // object's own member would only be reachable via explicit `this.x`.
     @Test
     func testCodegenObjectLiteralCapturedOuterLocalShadowsOwnPropertyOfSameName() throws {
         let source = """
@@ -351,13 +340,6 @@ struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
         )
     }
 
-    // KUU-3181 (JetBrains classes/kt1918): `recv.fn()` / `recv?.fn()` where
-    // `fn` is an outer function-typed parameter of extension-function type
-    // binds `fn`'s symbol on the member-call expr through
-    // `CallableValueCallBinding.extensionCallableExpr`, not a `.nameRef` child.
-    // `CaptureAnalyzer` never read that binding, so the object literal's (and
-    // a local class's) capture set missed `fn` and the invoke lowered to a raw
-    // `symbolRef` of a parameter not in scope — "Invalid function value".
     @Test
     func testCodegenObjectLiteralMemberFunctionInvokesCapturedExtensionLambda() throws {
         let source = """
@@ -384,8 +366,6 @@ struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
         )
     }
 
-    // KUU-3592: a concrete receiver in an ordinary interface method must still
-    // invoke an extension-function parameter captured by the object literal.
     @Test
     func testCodegenObjectLiteralInvokesCapturedExtensionFunctionParameter() throws {
         let source = """
@@ -443,8 +423,6 @@ struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
 
     @Test
     func testCodegenObjectLiteralMultipleInstancesCaptureIndependentMutableState() throws {
-        // Two separate makeCounter() calls must not share the same captured
-        // `count` box -- each object literal instance captures its own.
         let source = """
         interface Counter {
             fun increment(): Int
@@ -484,8 +462,6 @@ struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
         )
     }
 
-    // KSP-441: for-in over a generic object-expression Sequence/Iterator pipeline
-    // whose `map` is inferred from the receiver's element type.
     @Test
     func testCodegenForInOverGenericObjectExpressionSequence() throws {
         let source = """
@@ -545,8 +521,6 @@ struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
         )
     }
 
-    // KSP-441: trailing-lambda type inference for a member function of a
-    // user-defined generic class must substitute the receiver's type args.
     @Test
     func testCodegenGenericClassMemberTrailingLambdaTypeInference() throws {
         let source = """
@@ -567,16 +541,6 @@ struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
         )
     }
 
-    // KSP-CAP-001 (follow-up): a *bare* (unqualified) read of an enclosing
-    // class's mutable property from inside an object literal's member
-    // function previously crashed with `KSWIFTK-RUNTIME-0001:
-    // kk_array_get_inbounds precondition failed`. Such a read resolves
-    // through plain lexical scope lookup rather than
-    // `resolveImplicitReceiverMember`, so it never set
-    // `implicitReceiverMemberNames` and the generic field-offset read
-    // fallback in ExprLowerer+ControlFlowAndBlocks.swift used the object
-    // literal's own receiver with the enclosing class's field offset instead
-    // of walking the already-captured outer-receiver chain.
     @Test
     func testCodegenObjectLiteralMemberFunctionBareReadsOuterMutableProperty() throws {
         let source = """
@@ -605,13 +569,6 @@ struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
         )
     }
 
-    // KSP-CAP-001 (follow-up): a bare *write-only* reference (no read of the
-    // same property anywhere in the object literal's body) was invisible to
-    // `CaptureAnalyzer.collectCapturedOuterSymbols`, which only recorded
-    // `.nameRef` reads -- so `capturesMutableOuterProperty` never fired, no
-    // capture slot was allocated, and the write landed on the object
-    // literal's own (much smaller) instance, throwing an unhandled
-    // out-of-bounds exception.
     @Test
     func testCodegenObjectLiteralMemberFunctionBareWriteOnlyToOuterMutableProperty() throws {
         let source = """
@@ -641,7 +598,6 @@ struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
         )
     }
 
-    // Companion to the write-only case above, for `+=` instead of `=`.
     @Test
     func testCodegenObjectLiteralMemberFunctionBareCompoundAssignOnlyToOuterMutableProperty() throws {
         let source = """
@@ -671,10 +627,6 @@ struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
         )
     }
 
-    // KUU-3193: a `by lazy` delegate body inside an anonymous object nested
-    // in another nominal's member reloads the outer parameter from the inner
-    // literal's own capture field — the enclosing literal must forward the
-    // inner one's registered capture set or the field is never stored.
     @Test
     func testCodegenNestedObjectLiteralLazyDelegateCapturesOuterParameter() throws {
         let source = """
@@ -706,9 +658,6 @@ struct CodegenBackendObjectLiteralLocalCaptureExecutionTests {
         )
     }
 
-    // Same forwarding gap for the other member-body kinds an anonymous
-    // literal carries: a `by` delegate expression's argument, a custom
-    // accessor body, and an `init {}` block.
     @Test
     func testCodegenNestedObjectLiteralMemberBodiesCaptureOuterParameter() throws {
         let source = """

@@ -1,6 +1,5 @@
 import Foundation
 
-/// Reads selected runtime-image classes through the JDK's jrt file system.
 enum JVMJDKImageReader {
     static func read(image: URL, jimage: URL, patterns: [String]) -> [JVMJDKClasspath.ClassFile]? {
         let bin = jimage.deletingLastPathComponent()

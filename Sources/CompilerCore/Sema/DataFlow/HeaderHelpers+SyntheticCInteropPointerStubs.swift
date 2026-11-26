@@ -97,8 +97,6 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) -> TypeID {
-        // Declare T so member lookups can substitute the pointee type for
-        // `pointed`, `get`, and `reinterpret`.
         configureSingleTypeParameterNominal(
             ownerSymbol: cPointerSymbol,
             fqName: cinteropPkg + [interner.intern("CPointer")],
@@ -127,8 +125,6 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        // Reads the pointee var box via kk_cpointer_pointed (structural
-        // CVariable value on the same address).
         registerAtomicReadOnlyProperty(
             ownerSymbol: cPointerSymbol,
             propertyName: "pointed",
@@ -415,8 +411,7 @@ extension DataFlowSemaPhase {
             )))
             let cstrPropertyName = interner.intern("cstr")
             let cstrPropertyFQName = cinteropPkg + [interner.intern("MemScope"), cstrPropertyName]
-            if symbols.lookupAll(fqName: cstrPropertyFQName).contains(where: { symbols.symbol($0)?.kind == .property }) {
-            } else {
+            if !symbols.lookupAll(fqName: cstrPropertyFQName).contains(where: { symbols.symbol($0)?.kind == .property }) {
                 let cstrPropertySymbol = symbols.define(
                     kind: .property,
                     name: cstrPropertyName,

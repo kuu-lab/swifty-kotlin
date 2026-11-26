@@ -59,8 +59,6 @@ struct CodegenBackendStringEdgeCasesTests {
 
     @Test
     func testCodegenReplaceFirstCharCharSequenceOverload() throws {
-        // KUU-654: `{ it.lowercase() }` / `{ it.uppercase() }` return String, so they
-        // must bind to replaceFirstChar((Char) -> CharSequence), not the Char overload.
         let source = """
         fun main() {
             println("aBc".replaceFirstChar { it.lowercase() })

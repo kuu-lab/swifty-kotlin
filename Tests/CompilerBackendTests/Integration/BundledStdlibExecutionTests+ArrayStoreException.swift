@@ -1,9 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    // KUU-4439: stores through unchecked widened views must throw
-    // ArrayStoreException like JVM reified arrays, while valid stores,
-    // nullable elements, primitive arrays, and bulk fill keep working.
     @Test
     func testCovariantArrayViewRejectsMismatchedStores() throws {
         try assertKotlinOutput(

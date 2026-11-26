@@ -1,12 +1,5 @@
 
 public struct IncrementalFrontendState: Codable {
-    // Version 6 combines typed annotation tokens, local lateinit modifiers,
-    // and trailing-lambda syntax on call arguments.
-    // It also stores canonical annotation string arguments instead of
-    // adding quotes around segments and dollar prefixes to closing quotes.
-    // Version 7 preserves expression annotation prefixes in AST snapshots.
-    // Version 8 preserves the source delimiter for for-loop destructuring.
-    // Version 9 preserves explicit for-loop destructuring entry types.
     public static let supportedVersion = 9
 
     public let version: Int

@@ -5,14 +5,6 @@ import Testing
 
 @Suite
 struct CodegenBackendCustomCollectionIsEmptyTests {
-    // A user-defined AbstractCollection subclass has no runtime list/set box,
-    // so a Collection<T>-typed receiver's isEmpty()/size dispatch through the
-    // Collection interface's itable getter slot (kk_itable_lookup_dynamic +
-    // runtimeCollectionSizeGetterSlot in RuntimeCollectionHelpers.swift)
-    // instead of a concrete-type runtime bridge. That slot number must track
-    // Collection's own vtable method count; see KSP-960 (#6172), which shrank
-    // it by removing the synthetic Collection.random/randomOrNull members
-    // once they became source-backed extensions.
     @Test
     func testCodegenCustomAbstractCollectionIsEmptyUsesItableDispatch() throws {
         let source = """

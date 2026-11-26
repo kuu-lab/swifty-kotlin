@@ -5,8 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2198: annotated anonymous-object properties compile, link, and read
-    /// their stored fields through both stdlib surfaces and optimization levels.
     @Test(arguments: [false, true], [0, 2])
     func testAnnotatedObjectLiteralPropertyAcrossStdlibSurfaces(
         useArtifact: Bool,

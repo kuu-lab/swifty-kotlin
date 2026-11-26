@@ -1,5 +1,3 @@
-/// Typed, stack-neutral JVM IR. Each value has a fixed local slot; branches
-/// have empty operand stacks, allowing deterministic verifier frames.
 public enum JVMValueType: Hashable, Sendable {
     case int, long, float, double, boolean, byte, short, char, uint, ulong, ubyte, ushort, string, unit
     case unsignedArray(PrimitiveType, nullable: Bool)
@@ -26,8 +24,6 @@ public enum JVMValueType: Hashable, Sendable {
         self == .unit ? .reference("kotlin/Unit", nullable: false) : self
     }
     public var isNumeric: Bool { [.int, .long, .float, .double, .byte, .short, .char, .uint, .ulong, .ubyte, .ushort].contains(self) }
-    /// The primitive carrier used for numeric operations, without changing the
-    /// reference descriptor required by generic bounds and nullable values.
     var numericCarrier: JVMValueType? {
         if isNumeric { return self }
         return switch referenceName {
@@ -194,7 +190,6 @@ public struct JVMFunction {
     public var definitelyNotNullParameterSlots: Set<Int> = []
     public var instructions: [JVMInstruction]
     public var parameterNames: [String]
-    /// Java reflection names and flags in JVM descriptor order.
     public var javaParameters: [JVMMethodParameter] = []
     public var isInternal: Bool
     public var owner: String? = nil
@@ -208,12 +203,9 @@ public struct JVMFunction {
     public var typeParameters: [JVMTypeParameter] = []
     public var kotlinParameters: [JVMKotlinType] = []
     public var kotlinResult: JVMKotlinType? = nil
-    /// The indexed Boolean value parameter is true after any normal return.
     public var normalReturnConditionParameter: Int? = nil
     public var kotlinReceiver: JVMKotlinType? = nil
     public var isSynthetic: Bool = false
-    /// User-declared `@JvmSynthetic`: stays in Kotlin metadata while the
-    /// classfile method carries ACC_SYNTHETIC, hiding it from Java sources.
     public var isJvmSynthetic: Bool = false
     public var isMetadataHidden: Bool = false
     public var isSuspend = false
@@ -281,7 +273,6 @@ public struct JVMForeignMethod: Sendable {
     var isSynthetic = false
     public var annotations: [JVMAnnotation] = []
     public var annotationDefault: JVMAnnotationValue? = nil
-    // Classpath methods keep their physical descriptor until bound to a Kotlin call.
     var parameterAnnotations: [[JVMAnnotation]] = []
     var kotlinSuspendFunction: JVMKotlinSuspendFunction?
     var genericResultParameter: (name: String, classParameterIndices: Set<Int>)?
@@ -290,7 +281,19 @@ public struct JVMForeignMethod: Sendable {
     var kotlinConstructorParameterNames: [String]?
     var kotlinCollisionSourceName: String?
     var kotlinFunction: JVMKotlinFunction?
+    /// Set when the classfile body calls `reifiedOperationMarker`: it cannot run
+    /// directly and needs a per-call-site clone with the markers resolved.
+    public var reifiedBody: JVMReifiedBody?
     public var isConstructor: Bool { name == "<init>" }
+    var isHiddenByDeprecation: Bool {
+        annotations.contains { annotation in
+            guard annotation.descriptor == "Lkotlin/Deprecated;" else { return false }
+            return annotation.values.contains { name, value in
+                if name == "level", case .enumEntry("Lkotlin/DeprecationLevel;", "HIDDEN") = value { return true }
+                return false
+            }
+        }
+    }
 }
 
 public struct JVMField {
@@ -364,7 +367,6 @@ public struct JVMClass {
     public var isFileFacade = false
     public var sourceFileName: String? = nil
     public var emitMetadata = true
-    // The bundled JVM runtime can supply this compiler-generated compatibility class.
     package var isRuntimeFallback = false
     public var isObject = false
     public var isCompanion = false
@@ -391,7 +393,51 @@ public struct JVMClass {
     public var typeParameters: [JVMTypeParameter] = []
     public var kotlinSupertypes: [JVMKotlinType] = []
     public var modifiers: Modifiers = []
+    /// Clones of classpath bodies. All clones of a class share the constant
+    /// pool of the classfile they were copied from.
+    public var reifiedClones: [JVMReifiedClone] = []
     public var isInterface: Bool { access & 0x0200 != 0 }
+}
+
+/// A copy of a classpath method body with its `reifiedOperationMarker`
+/// sequences replaced by operations on concrete types. The copy keeps the
+/// source class's constant pool indices, so only the patched sequences differ.
+public struct JVMReifiedClone: Sendable {
+    public enum Operation: Sendable {
+        case anewarray(String)
+        case checkcast(String)
+        /// Fails on null with `message` before casting, like a Kotlin `as` to a non-null type.
+        case checkcastNotNull(String, message: String)
+        case instanceOf(String)
+        case ldcClass(String)
+        /// Calls a static helper in the clone's class, then optionally casts the result.
+        case helperCall(name: String, descriptor: String, checkcast: String?)
+    }
+
+    public struct Patch: Sendable {
+        /// The marker's first instruction and the end of its placeholder instruction.
+        public let start: Int
+        public let end: Int
+        public let operation: Operation
+
+        public init(start: Int, end: Int, operation: Operation) {
+            self.start = start
+            self.end = end
+            self.operation = operation
+        }
+    }
+
+    public let name: String
+    public let descriptor: String
+    public let body: JVMReifiedBody
+    public let patches: [Patch]
+
+    public init(name: String, descriptor: String, body: JVMReifiedBody, patches: [Patch]) {
+        self.name = name
+        self.descriptor = descriptor
+        self.body = body
+        self.patches = patches
+    }
 }
 
 public struct JVMExceptionHandler {
@@ -401,7 +447,6 @@ public struct JVMExceptionHandler {
     public let type: String?
 }
 
-/// Source types retained independently of JVM erasure for Kotlin consumers.
 public indirect enum JVMKotlinType {
     case named(String, [JVMKotlinTypeArgument], nullable: Bool)
     case parameter(Int, nullable: Bool, definitelyNotNull: Bool)
@@ -447,7 +492,6 @@ public struct JVMTypeAlias {
     public var annotations: [JVMAnnotation] = []
 }
 
-/// Reference value classes return raw storage synchronously and boxed values on resume.
 public struct JVMSuspendValueResult {
     public let boxed: JVMValueType
     public let underlying: JVMValueType

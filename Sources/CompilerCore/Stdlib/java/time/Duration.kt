@@ -1,6 +1,5 @@
 package java.time
 
-/** A time-based amount of time stored as seconds and nanoseconds. */
 public class Duration private constructor(
     public val seconds: Long,
     public val nano: Int,

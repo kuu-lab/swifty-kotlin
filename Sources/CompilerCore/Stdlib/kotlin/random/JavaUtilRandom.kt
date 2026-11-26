@@ -57,8 +57,6 @@ public open class Random {
         source = delegate
     }
 
-    // Kotlin view of this Random. Wrapping instances hand back the Kotlin
-    // Random they were built from; LCG-backed ones adapt their own bit stream.
     public val delegate: KotlinRandom
         get() = source ?: JavaRandomAsKotlinRandom(this)
 
@@ -222,8 +220,6 @@ public open class Random {
 
 private fun scrambleSeed(seed: Long): Long = (seed xor 0x5DEECE66DL) and 0xFFFFFFFFFFFFL
 
-// Exposes a LCG-backed java.util.Random as a kotlin.random.Random
-// (Random.asKotlinRandom()), drawing every value from the Java bit stream.
 private class JavaRandomAsKotlinRandom(private val java: Random) : KotlinRandom() {
     override fun nextBits(bitCount: Int): Int = java.nextBits(bitCount)
 }

@@ -23,10 +23,6 @@ extension BuildKIRRegressionTests {
         }
     }
 
-    // KUU-3109: a `Double` data class property must compare with
-    // `Double.equals` semantics — NaN equals NaN regardless of payload while
-    // -0.0 differs from +0.0 — which neither the raw bit-pattern `kk_op_eq`
-    // nor the IEEE `kk_op_deq` provides.
     @Test
     func dataClassEqualsUsesCanonicalDoubleEquality() throws {
         let context = makeContextFromSource("""
@@ -44,7 +40,6 @@ extension BuildKIRRegressionTests {
         #expect(!callees.contains("kk_op_eq"))
     }
 
-    // Same contract for `Float` properties.
     @Test
     func dataClassEqualsUsesCanonicalFloatEquality() throws {
         let context = makeContextFromSource("""
@@ -62,8 +57,6 @@ extension BuildKIRRegressionTests {
         #expect(!callees.contains("kk_op_eq"))
     }
 
-    // Other primitives keep the raw `kk_op_eq` comparison — the canonical
-    // float callees must not leak into non-float properties.
     @Test
     func dataClassEqualsKeepsOpEqForIntegerProperties() throws {
         let context = makeContextFromSource("""

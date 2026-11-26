@@ -13,6 +13,5 @@ public class NSMutableData internal constructor(handle: Long) : NSData(handle) {
     }
 }
 
-// +dataWithLength: (NSMutableDataCreation category).
 public fun NSMutableData.Companion.create(length: ULong): NSMutableData? =
     __foundation_mutable_data_create_length(length)?.let { NSMutableData(it) }

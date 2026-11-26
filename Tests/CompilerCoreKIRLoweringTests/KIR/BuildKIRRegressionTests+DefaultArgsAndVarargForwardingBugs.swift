@@ -3,15 +3,7 @@
 @testable import CompilerTestSupport
 import Testing
 
-/// Regression coverage for four default-argument / vararg lowering bugs whose
-/// executable counterparts live in `Scripts/diff_cases/`
-/// (`vararg_forward_spread`, `ctor_defaults_this_delegation`,
-/// `default_function_typed_param`, `local_function_defaults`).
 extension BuildKIRRegressionTests {
-    /// The empty-vararg path used to hand the callee a bare `kk_array_new(0)`
-    /// while a non-empty call passed `__kk_array_toList(...)`, so a vararg
-    /// parameter was an Array or a List depending on the caller's arguments.
-    /// Since #7800/#8313 user varargs keep array storage for both shapes.
     @Test
     func emptyVarargArgumentPacksLikeNonEmptyPacking() throws {
         let source = """
@@ -31,9 +23,6 @@ extension BuildKIRRegressionTests {
         }
     }
 
-    /// A function-typed parameter's default lambda must be wrapped into a
-    /// function value (`kk_function_create_N`) inside the `$default` stub,
-    /// otherwise `kk_function_invoke` sees a raw code pointer and yields null.
     @Test
     func functionTypedDefaultValueIsMaterializedInDefaultStub() throws {
         let source = """
@@ -52,8 +41,6 @@ extension BuildKIRRegressionTests {
         #expect(callees.contains(runtimeCallee(.functionCreate1)), "Got: \(callees)")
     }
 
-    /// Call sites of a local function with omitted arguments call
-    /// `<name>$default`; before the fix no such stub was ever emitted.
     @Test
     func localFunctionDefaultsGenerateStubThatForwardsCaptures() throws {
         let source = """
@@ -71,7 +58,6 @@ extension BuildKIRRegressionTests {
         let stub = try #require(findAllKIRFunctions(in: module).first {
             $0.symbol == SyntheticSymbolScheme.defaultStubSymbol(for: original.symbol)
         })
-        // capture(base) + x + extra + default mask
         #expect(stub.params.count == 4, "Got: \(stub.params.count)")
         #expect(original.params.count == 3, "Got: \(original.params.count)")
 
@@ -82,8 +68,6 @@ extension BuildKIRRegressionTests {
         })
     }
 
-    /// Callable-reference adapters must forward their own capture parameters
-    /// into a local function's default-argument stub.
     @Test
     func localFunctionCallableReferenceDefaultsUseAdapterCaptures() throws {
         let source = """
@@ -118,9 +102,6 @@ extension BuildKIRRegressionTests {
         }
     }
 
-    /// `this(...)` used to lower the delegation args positionally into a plain
-    /// `<init>` call (3 args for a 4-slot constructor), reading garbage for the
-    /// omitted defaults.
     @Test
     func secondaryConstructorThisDelegationRoutesThroughDefaultStub() throws {
         let source = """

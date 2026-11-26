@@ -1,17 +1,11 @@
 package kotlin.text
 
-// The public surface follows the Kotlin 2.3 stdlib model: HexFormat owns immutable
-// BytesHexFormat and NumberHexFormat values, while Builder owns their mutable builders.
-// The legacy named-argument constructor is retained for existing KSwiftK callers and
-// maps its flat options into the corresponding nested formats.
-//
 // All character scanning below uses index-based `while` loops rather than
 // `for (ch in someString)` or `for (i in 0 until n)`: both mistype the loop-bound
 // element when a `Char` member function is subsequently called on it. Likewise,
 // null-checked locals are re-bound via `!!` rather than relied upon via smart-cast,
 // since `if (a == null || b == null) throw ...` does not narrow `a`/`b` afterwards.
 // (Same constraints already observed and worked around in Stdlib/kotlin/uuid/Uuid.kt.)
-//
 // Default-valued parameters below call `defaultHexFormat()` (a plain top-level
 // function) rather than `HexFormat.Default` or `HexFormat()` directly: a default
 // parameter value that itself constructs a class instance or reads a companion
@@ -24,7 +18,6 @@ public class HexFormat internal constructor(
     public val bytes: BytesHexFormat,
     public val number: NumberHexFormat,
 ) {
-    /** Compatibility constructor for the pre-nested KSwiftK HexFormat surface. */
     public constructor(
         upperCase: Boolean = false,
         byteSeparator: String = "",
@@ -352,10 +345,6 @@ private fun stripPrefixSuffix(str: String, format: HexFormat): String {
     return working
 }
 
-/**
- * Validates [hex] is all hex digits and fits within [maxDigits], tolerating extra
- * leading zero digits beyond [maxDigits]. Returns the (possibly-trimmed) digit string.
- */
 private fun fitHexDigits(original: String, hex: String, maxDigits: Int): String {
     if (hex.isEmpty()) {
         throw NumberFormatException("For hex string \"$original\": not a valid hexadecimal string")

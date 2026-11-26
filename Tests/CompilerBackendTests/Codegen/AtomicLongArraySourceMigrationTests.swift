@@ -2,7 +2,6 @@
 @testable import CompilerCore
 import Testing
 
-/// KSP-1093: execute the source-backed size and copy overloads and verify copy isolation.
 @Suite
 struct AtomicLongArraySourceMigrationCodegenTests {
     @Test

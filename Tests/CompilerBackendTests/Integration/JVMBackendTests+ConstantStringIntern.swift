@@ -5,9 +5,6 @@ import Foundation
 import Testing
 
 extension JVMBackendTests {
-    // KUU-3983: a compile-time constant String `+` or template folds into the
-    // interned literal — `ldc` — so `===` observes the shared instance, while
-    // a runtime concatenation keeps its fresh non-interned String.
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func constantStringConcatenationFoldsToInternedLiteral(mode: EmitMode) throws {
         let source = """

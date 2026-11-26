@@ -1,10 +1,4 @@
 
-/// Synthetic fallback registrations for the Kotlin/Native platform surface.
-///
-/// The historical TODO/IO bucket was split by responsibility in KUU-587.
-/// Public TODO/console APIs are bundled Kotlin source; this file is the
-/// compiler-only fallback for source-backed Native declarations plus the
-/// synthetic MemoryModel enum surface.
 extension DataFlowSemaPhase {
     func registerSyntheticNativePlatformStubs(
         symbols: SymbolTable,
@@ -16,8 +10,6 @@ extension DataFlowSemaPhase {
             fqName: [interner.intern("kotlin"), interner.intern("native")],
             symbols: symbols
         )
-        // KSP-1210: use the bundled declaration when available so enum entry
-        // order and generated enum APIs come from the Kotlin source contract.
         let osFamilyFQName = kotlinNativePkg + [interner.intern("OsFamily")]
         let osFamilySymbol = symbols.lookup(fqName: osFamilyFQName)
             ?? ensureSyntheticPlatformEnumClass(
@@ -41,8 +33,6 @@ extension DataFlowSemaPhase {
             symbols: symbols
         )
 
-        // KSP-1198: use the bundled declaration when available so bitness,
-        // enum entry order, and generated enum APIs follow the source contract.
         let cpuArchitectureFQName = kotlinNativePkg + [interner.intern("CpuArchitecture")]
         let cpuArchitectureSymbol = symbols.lookup(fqName: cpuArchitectureFQName)
             ?? ensureSyntheticPlatformEnumClass(
@@ -260,9 +250,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Registers the generated enum APIs for the synthetic Native MemoryModel.
-    /// The generic enum lowering pass reuses these symbols when it emits the
-    /// values(), entries, and valueOf() bodies for the nominal enum owner.
     func registerSyntheticMemoryModelEnumMembers(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -273,8 +260,6 @@ extension DataFlowSemaPhase {
             interner.intern("native"),
             interner.intern("MemoryModel"),
         ]
-        // KSP-1191: Platform.kt owns the enum declaration and the compiler's
-        // normal enum header pass synthesizes its generated members.
         guard !BundledSyntheticStubRegistration.bundledIndex.containsNominal(
             fqName: memoryModelFQName
         ) else {

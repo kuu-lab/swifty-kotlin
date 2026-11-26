@@ -14,8 +14,6 @@ extension NativeEmitter {
         let context: LLVMCAPIBindings.LLVMContextRef?
         let module: LLVMCAPIBindings.LLVMModuleRef?
         let typeLowering: LLVMTypeLowering?
-        /// Entry block of the function being emitted, used to keep stack slots out
-        /// of loop bodies (see `LLVMCAPIBindings.buildEntryAlloca`).
         let entryBlock: LLVMCAPIBindings.LLVMBasicBlockRef?
         let allocaBuilder: LLVMCAPIBindings.LLVMBuilderRef?
 
@@ -65,8 +63,6 @@ extension NativeEmitter {
             bindings.buildICmpNotEqual(state.builder, lhs: value, rhs: state.zeroValue, name: name)
         }
 
-        // Implemented as `(value << 32) >>a 32` so it needs no dedicated i32 type / SExt
-        // binding. This enforces Kotlin's two's-complement `Int` wraparound.
         func narrowTo32(_ value: LLVMCAPIBindings.LLVMValueRef?, name: String) -> LLVMCAPIBindings.LLVMValueRef? {
             guard let value,
                   let thirtyTwo = bindings.constInt(state.int64Type, value: 32),
@@ -130,8 +126,6 @@ extension NativeEmitter {
                 return (false, nil)
             }
             let firstType = argumentTypes.first.flatMap { $0 }
-            // `length` is also a legal Kotlin member name. Preserve calls on a
-            // known non-String receiver for normal member-function lowering.
             if calleeName == "length",
                let firstType,
                !stringAggregateBridge.isStringAggregateType(firstType)
@@ -309,7 +303,6 @@ extension NativeEmitter {
                 lowered = nil
             }
         case "kk_op_ishl":
-            // Kotlin `Int.shl`: shift distance is `rhs and 31`; result wraps to 32 bits.
             if let mask = bindings.constInt(state.int64Type, value: 31),
                let amount = bindings.buildAnd(state.builder, lhs: rhs, rhs: mask, name: "ishl_amt_\(instructionIndex)"),
                let shifted = bindings.buildShl(state.builder, lhs: lhs, rhs: amount, name: "ishl_s_\(instructionIndex)")
@@ -319,7 +312,6 @@ extension NativeEmitter {
                 lowered = nil
             }
         case "kk_op_ishr":
-            // Kotlin `Int.shr`: arithmetic (sign-propagating) shift by `rhs and 31`.
             if let mask = bindings.constInt(state.int64Type, value: 31),
                let amount = bindings.buildAnd(state.builder, lhs: rhs, rhs: mask, name: "ishr_amt_\(instructionIndex)"),
                let signExtended = narrowTo32(lhs, name: "ishr_in")
@@ -329,7 +321,6 @@ extension NativeEmitter {
                 lowered = nil
             }
         case "kk_op_iushr":
-            // Kotlin `Int.ushr`: logical shift of the 32-bit value by `rhs and 31`.
             if let mask = bindings.constInt(state.int64Type, value: 31),
                let lowMask = bindings.constInt(state.int64Type, value: 0xFFFF_FFFF),
                let amount = bindings.buildAnd(state.builder, lhs: rhs, rhs: mask, name: "iushr_amt_\(instructionIndex)"),
@@ -341,7 +332,6 @@ extension NativeEmitter {
                 lowered = nil
             }
         case "kk_op_lshl":
-            // Kotlin `Long.shl`: shift distance is `rhs and 63` (64-bit result).
             if let mask = bindings.constInt(state.int64Type, value: 63),
                let amount = bindings.buildAnd(state.builder, lhs: rhs, rhs: mask, name: "lshl_amt_\(instructionIndex)")
             {
@@ -350,7 +340,6 @@ extension NativeEmitter {
                 lowered = nil
             }
         case "kk_op_lshr":
-            // Kotlin `Long.shr`: arithmetic shift by `rhs and 63`.
             if let mask = bindings.constInt(state.int64Type, value: 63),
                let amount = bindings.buildAnd(state.builder, lhs: rhs, rhs: mask, name: "lshr_amt_\(instructionIndex)")
             {
@@ -359,7 +348,6 @@ extension NativeEmitter {
                 lowered = nil
             }
         case "kk_op_lushr":
-            // Kotlin `Long.ushr`: logical shift by `rhs and 63`.
             if let mask = bindings.constInt(state.int64Type, value: 63),
                let amount = bindings.buildAnd(state.builder, lhs: rhs, rhs: mask, name: "lushr_amt_\(instructionIndex)")
             {
@@ -596,9 +584,6 @@ extension NativeEmitter {
             {
                 return functionPointer
             }
-            // Global slots always hold raw runtime handles (i64); bridge to the
-            // lowered aggregate representation only when the expected KIR type is
-            // the String struct.
             if let globalPtr = globalVariables[symbol] {
                 guard let loaded = bindings.buildLoad(
                     state.builder,
@@ -613,12 +598,6 @@ extension NativeEmitter {
                     suffix: nameCounter.nextName("global_")
                 ) ?? loaded
             }
-            // Imported library artifact functions are not internal to the current module,
-            // but they may be referenced as function pointers (e.g. for vtable/itable
-            // registration). Resolve them by their external link name.
-            //
-            // Function addresses and direct calls share a module-wide declaration;
-            // both must use the imported signature, including aggregate String types.
             if let externFn = declareExternalSymbolFunction(symbol),
                let functionPointer = bindings.buildPtrToInt(
                    state.builder,

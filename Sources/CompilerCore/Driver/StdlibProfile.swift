@@ -1,16 +1,5 @@
 import Foundation
 
-/// Selects which bundled stdlib sources make up a stdlib artifact (KUU-3016).
-///
-/// `full` is every bundled source (the historical behavior). `minimal`
-/// leaves out the packages a program only reaches through an explicit
-/// `import` that is outside the compiler's default-import set, so the
-/// artifact — and therefore the import-side index the compiler decodes and
-/// builds lookup maps over — is substantially smaller.
-///
-/// A minimal artifact never falls back to the full one on its own: a symbol
-/// that lives in an excluded package is reported as an explicit
-/// `KSWIFTK-LIB-0036` diagnostic that names the profile switch.
 public enum StdlibProfile: String, CaseIterable, Sendable {
     case full
     case minimal
@@ -47,7 +36,6 @@ public enum StdlibProfile: String, CaseIterable, Sendable {
         "java.text",
     ]
 
-    /// File name of the default-resolved artifact for this profile.
     public var artifactFileName: String {
         switch self {
         case .full: "KSwiftKStdlib.kklib"
@@ -55,7 +43,6 @@ public enum StdlibProfile: String, CaseIterable, Sendable {
         }
     }
 
-    /// Whether a source declaring `package` belongs to this profile.
     public func includes(package: String) -> Bool {
         switch self {
         case .full:
@@ -65,7 +52,6 @@ public enum StdlibProfile: String, CaseIterable, Sendable {
         }
     }
 
-    /// Whether `package` (a dotted name) is excluded from the minimal profile.
     public static func isExcludedFromMinimal(package: String) -> Bool {
         if minimalExcludedExactPackages.contains(package) {
             return true
@@ -78,8 +64,6 @@ public enum StdlibProfile: String, CaseIterable, Sendable {
         return false
     }
 
-    /// Extracts the `package` declaration from a Kotlin source without
-    /// lexing it: the first line that starts with `package `.
     static func declaredPackage(in contents: Data) -> String {
         guard let text = String(data: contents, encoding: .utf8) else { return "" }
         for line in text.split(separator: "\n", omittingEmptySubsequences: true) {

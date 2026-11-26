@@ -91,8 +91,6 @@ extension JVMFunctionBuilder {
                 return try adaptedReference(id, symbol: symbol, receiver: receiver, unbound: unbound)
             }
         }
-        // Source-backed inline declarations also retain an ordinary runtime
-        // entry for references, independently of call-site body expansion.
         let sourceBacked = program.inlineDeclarations[symbol] != nil ? program.textLibraryMethods[symbol] : nil
         let method = program.methods[symbol] ?? context.jvmImports?.method(for: symbol) ?? sourceBacked?.method
         let ref = program.references[symbol]
@@ -100,9 +98,13 @@ extension JVMFunctionBuilder {
         let constructor = method?.isConstructor == true
         let isExtension = program.extensionSymbols.contains(symbol) || context.jvmImports?.extensionSymbols.contains(symbol) == true || sourceBacked?.extensionReceiver != nil
         let ownerName = ref?.owner ?? method!.owner
-        let staticTarget = ref != nil || method?.isStatic == true
-        let bound = !unbound && !constructor && (!staticTarget || isExtension) ? try receiver.map(requireValue) ?? instance(id) : nil
-        let params = ref?.parameters ?? method!.parameters
+        let valueMember = ref == nil && method?.isStatic == true && method?.kotlinFunction?.valueMemberParameterDescriptors != nil
+        let staticTarget = !valueMember && (ref != nil || method?.isStatic == true)
+        var bound = !unbound && !constructor && (!staticTarget || isExtension) ? try receiver.map(requireValue) ?? instance(id) : nil
+        if valueMember, let captured = bound, let method {
+            bound = try convert(captured, to: .reference(method.owner, nullable: false))
+        }
+        let params = ref?.parameters ?? (valueMember ? Array(method!.parameters.dropFirst()) : method!.parameters)
         let suspended = ref?.isSuspend ?? method?.isSuspend ?? false
         let arity = params.count + (!staticTarget && !constructor && bound == nil ? 1 : 0) - (staticTarget && isExtension && bound != nil ? 1 : 0) + (suspended ? 1 : 0)
         guard arity <= 22 else { throw fail("JVM callable reference arity exceeds 22.", id) }
@@ -229,8 +231,6 @@ extension JVMFunctionBuilder {
             return JVMIntrinsicResult(value: try jdkCall(ownerName, name, [.reference("java/lang/Class", nullable: false)], .reference("java/lang/annotation/Annotation", nullable: true), receiver: requireValue(receiverID), arguments: [requireValue(args[0].expr)], resolved: program.expressionType(id)))
         }
         if isClass, name == "java", args.isEmpty {
-            // A class reference already has a JVM Class token. Only a
-            // standalone KClass value needs the Kotlin reflection wrapper.
             if case let .callableRef(receiver, member, _) = arena.expr(receiverID),
                context.interner.resolve(member) == "class" {
                 return JVMIntrinsicResult(value: try javaClassForClassReference(receiverID, receiver: receiver))

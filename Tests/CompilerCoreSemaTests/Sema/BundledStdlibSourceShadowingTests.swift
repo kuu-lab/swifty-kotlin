@@ -4,12 +4,6 @@ import Testing
 import TestStdlibCache
 @testable import CompilerTestSupport
 
-/// KUU-4305: when the module under compilation declares its own
-/// `kotlinx.coroutines.channels.produce` overloads (upstream
-/// kotlinx-coroutines sources), the bundled stdlib artifact's simplified
-/// `produce(capacity, block)` twin must not win overload resolution — its
-/// serialized return type is the bundled `Channel<E>`, which cannot satisfy
-/// the source `ReceiveChannel<Unit>` the module declares.
 @Suite
 struct BundledStdlibSourceShadowingTests {
     private let declarations = """
@@ -56,10 +50,6 @@ struct BundledStdlibSourceShadowingTests {
     }
     """
 
-    /// KUU-4313: the same source-declared overloads must also win when the
-    /// call sits in val position — `E` is recoverable only from the builder
-    /// lambda's `send` arguments there, which ordinary overload resolution
-    /// cannot see.
     private let valPositionConsumer = """
     package kotlinx.coroutines.flow
 
@@ -129,16 +119,9 @@ struct BundledStdlibSourceShadowingTests {
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.isEmpty, "\(errors.map { "\($0.code): \($0.message)" })")
 
-        // The chosen callee must be one of the source-declared overloads,
-        // not the bundled stdlib `produce(capacity, block)` twin.
         try assertProduceCallsBindSourceDeclared(ctx, expectedCount: 1)
     }
 
-    /// KUU-4177: a source-declared extension with a signature identical to
-    /// the bundled stdlib artifact's must shadow it outright — upstream
-    /// kotlinx-coroutines `Builders.common.kt` calls
-    /// `newContext.ensureActive()` where both decls are viable and used to
-    /// collide as SEMA-0003.
     private let ensureActiveDeclarations = """
     package kotlinx.coroutines
 
@@ -200,10 +183,6 @@ struct BundledStdlibSourceShadowingTests {
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.isEmpty, "\(errors.map { "\($0.code): \($0.message)" })")
 
-        // All val-position calls must bind a source-declared overload with
-        // the element type recovered from the lambda's `send` arguments —
-        // `return values` against `ReceiveChannel<Unit>` would fail if the
-        // inferred element type were not `Unit`.
         try assertProduceCallsBindSourceDeclared(ctx, expectedCount: 3)
     }
 }

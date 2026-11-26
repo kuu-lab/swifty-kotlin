@@ -1,8 +1,6 @@
 import Foundation
 
 extension DataFlowSemaPhase {
-    /// Returns the symbols sorted by index order (T0, T1, T2, ...) matching the
-    /// original generic parameter list.
     private func collectSyntheticTypeParameters(_ typeID: TypeID, types: TypeSystem) -> [SymbolID] {
         var collected: Set<SymbolID> = []
         collectSyntheticTypeParamsRecursive(typeID, types: types, base: Self.syntheticTypeParameterBase, into: &collected)
@@ -176,9 +174,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Nominal owner for a member record at `fqName`. Imported members prefer
-    /// the imported nominal so a shadowing source class does not absorb them;
-    /// when no imported nominal exists they get no nominal owner at all.
     func preferredNominalOwnerSymbol(
         among nominalOwners: [SemanticSymbol],
         forMember member: SymbolID,
@@ -224,7 +219,6 @@ extension DataFlowSemaPhase {
                 if case .primitive(_, .nonNull) = types.kind(of: signature.parameterTypes[index]) { return false }
                 return true
             }
-            // KLIB bodies are lowered locally and use the compiler's array storage.
             if !binding.isKlib, usesLegacyABI, hasReferenceVararg,
                CallLowerer.isSourceBackedLinkName(record.externalLinkName)
             {
@@ -299,17 +293,11 @@ extension DataFlowSemaPhase {
                         MetadataEncoder.inlineKIRFileName(for: defaultStubLink)
                     ).resolvingSymlinksInPath().standardizedFileURL.path
                     let attributes = try? FileManager.default.attributesOfItem(atPath: path)
-                    // Older libraries may have only a native default stub.
                     if path.hasPrefix(directory.path + "/"), attributes?[.type] as? FileAttributeType == .typeRegular {
                         importedInlineFunctions.register(
                             ImportedInlineFunctionStore.Descriptor(
                                 path: path, signature: symbols.functionSignature(for: stubSymbol),
                                 name: interner.intern(interner.resolve(record.fqName.last ?? interner.intern("_")) + "$default"),
-                                // Stub signature already contains explicit
-                                // hidden Int words/mask; only physical value
-                                // storage needs replacement, after its leading
-                                // member-extension parameters. The receiver
-                                // remains the signature's separate first slot.
                                 packedValueParameterTypes: importedInlinePackedValueTypes(
                                     signature, binding: binding, symbol: symbol,
                                     symbols: symbols, types: types, interner: interner
@@ -371,16 +359,11 @@ extension DataFlowSemaPhase {
            let constValue = MetadataConstValueCoder.decode(constValueLiteral, interner: { interner.intern($0) })
         {
             symbols.setConstValueExprKind(constValue, for: symbol)
-            // Both metadata encoders reserve property const literals for
-            // declarations that carry the const contract.
             if record.kind == .property, !record.isMutable {
                 symbols.insertFlags(.constValue, for: symbol)
             }
         }
 
-        // Extension properties are compiled as precompiled getter functions in
-        // the artifact objects; we synthesize the accessor symbol and point it
-        // at that link name.
         if let receiverSig = record.propertyReceiverTypeSignature,
            let receiverType = decodeImportedTypeSignature(
                token: receiverSig,
@@ -781,9 +764,6 @@ extension DataFlowSemaPhase {
             pendingSupertypeEdges.append((subtype: binding.symbol, superFQName: superFQName))
         }
 
-        // The precompiled initializer stubs (object/companion/enum static)
-        // are compact-index facts and are already synthesized at shell
-        // registration; this call only fills any path that still lacks them.
         applyImportedInitializerShells(
             record: record,
             symbol: binding.symbol,
@@ -793,10 +773,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Restores the declaration-order type parameters of an imported generic
-    /// nominal type. Without them the consumer treats the type as non-generic,
-    /// so explicit type arguments (`ArrayDeque<Int>()`) and member type
-    /// substitution fail to resolve.
     private func applyImportedNominalTypeParameters(
         _ binding: ImportedLibraryBinding,
         symbols: SymbolTable,

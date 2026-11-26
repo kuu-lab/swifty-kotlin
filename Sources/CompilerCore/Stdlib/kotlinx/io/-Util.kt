@@ -97,8 +97,6 @@ internal fun Int.toHexString(): String {
     }
     var first = 0
     while (first < result.size && result[first] == '0') first += 1
-    // The ranged CharArray.concatToString overload is being added independently
-    // (KUU-931); keep this foundation usable on its own.
     val text = StringBuilder()
     while (first < result.size) {
         text.append(result[first])

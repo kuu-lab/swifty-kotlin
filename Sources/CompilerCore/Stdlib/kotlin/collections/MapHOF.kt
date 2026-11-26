@@ -9,11 +9,6 @@ import kotlin.contracts.contract
 @PublishedApi
 internal external fun <K, V> __kkMapIsEmpty(map: Map<out K, V>): Boolean
 
-// MIGRATION-COL-015
-// Map higher-order functions migrated from Swift Runtime
-// Sources/Runtime/RuntimeCollectionHOF.swift (kk_map_* HOFs)
-// Sources/Runtime/RuntimeSetAndMap.swift (kk_map_plus / kk_map_minus)
-
 public inline fun <K, V> Map<out K, V>.isNotEmpty(): Boolean = !__kkMapIsEmpty(this)
 
 @SinceKotlin("1.3")

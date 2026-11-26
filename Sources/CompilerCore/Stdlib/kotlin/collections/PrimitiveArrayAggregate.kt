@@ -1,7 +1,5 @@
 package kotlin.collections
 
-// KUU-1105: primitive-array overloads keep their exact element types.
-
 public fun IntArray.average(): Double = asList().average()
 
 public fun IntArray.min(): Int = asList().min()

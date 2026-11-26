@@ -31,7 +31,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-3578: named FunctionN checks and function-type subclasses work above arity 22.
     @Test(arguments: [false, true])
     func testFunctionNNominalTypesBeyond22CompileAndRun(allowDefaultStdlibLibrary: Bool) throws {
         let repository = URL(fileURLWithPath: #filePath)

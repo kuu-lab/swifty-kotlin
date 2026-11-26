@@ -6,7 +6,6 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
-    /// KUU-2447: enum entry init blocks initialize entry-owned storage in source order.
     @Test(arguments: [0, 2], [false, true])
     func testEnumEntryInitBlockInitializesEntryProperties(
         optimization: Int,
@@ -70,7 +69,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-2414: enum and companion initialization order for Kotlin source input.
     @Test(arguments: [0, 2])
     func testEnumCompanionInitFromSource(optimization: Int) throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -98,7 +96,6 @@ extension StdlibArtifactRegressionTests {
         #expect(result.exitCode == 0, "Execution stderr: \(result.stderr)")
     }
 
-    /// The pinned JetBrains box case also exercises `Enum.values()` through a fresh stdlib artifact.
     @Test(arguments: [0, 2])
     func testJetBrainsEnumCompanionInitThroughFreshArtifact(optimization: Int) throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -147,7 +144,6 @@ extension StdlibArtifactRegressionTests {
         #expect(minimalResult.exitCode == 0, "Execution stderr: \(minimalResult.stderr)")
     }
 
-    /// KUU-2414: execute the same public box test while lowering the bundled stdlib from source.
     @Test(arguments: [0, 2])
     func testJetBrainsEnumCompanionInitThroughBundledStdlibSource(optimization: Int) throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -174,7 +170,6 @@ extension StdlibArtifactRegressionTests {
         #expect(result.stdout == "OK\n")
     }
 
-    /// KUU-1320: reified enumValues specializes in both stdlib modes.
     @Test(arguments: [false, true])
     func testReifiedEnumValues(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try testStdlibArtifactPath() : nil
@@ -199,7 +194,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-1462: a reified enum token remains available inside a noinline lambda.
     @Test(arguments: [false, true])
     func testReifiedEnumValuesInsideNoinlineLambda(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try testStdlibArtifactPath() : nil
@@ -269,11 +263,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// STDLIB-ARTIFACT-006: enum entry references from a precompiled stdlib
-    /// artifact must have their global ordinal slots initialized. The shared
-    /// artifact contains the `__enum_static_init_*` function; the consumer's
-    /// top-level initializer must call it before `main` so that enum entry
-    /// objects such as `Base64.PaddingOption.ABSENT` behave correctly.
     @Test
     func testEnumEntryStaticInitializerSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -313,8 +302,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-3550: enum class initialization wraps a non-Error initializer
-    /// failure in ExceptionInInitializerError and preserves the original cause.
     @Test
     func testThrowingEnumEntryInitializerIsWrappedThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -355,11 +342,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// STDLIB-ARTIFACT-015: imported synthetic enum entries (e.g.
-    /// `RegexOption`) must carry `.constValue` and an ordinal expression so
-    /// the shared stdlib path emits `intLiteral` values instead of unresolved
-    /// `symbolRef` constants. Otherwise `Regex(..., RegexOption.XXX)` is passed
-    /// an object pointer or ignored by the runtime.
     @Test
     func testRegexOptionConstantsSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -402,8 +384,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// STDLIB-ARTIFACT-016: source-backed CharDirectionality entries must
-    /// preserve ordinal comparisons through the shared stdlib artifact.
     @Test
     func testCharDirectionalityConstantsSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -443,10 +423,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// Imported enum declarations have no AST, so the per-decl synthesis that
-    /// normally registers `values()` / `valueOf(_:)` / `entries` / `name` /
-    /// `ordinal` never ran for them. Consumers of a precompiled stdlib
-    /// artifact must still resolve the full implicit enum API.
     @Test
     func testImportedEnumImplicitMembersThroughPrecompiledStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()

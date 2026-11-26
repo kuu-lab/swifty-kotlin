@@ -7,7 +7,4 @@
 
 package kotlin
 
-// The existing synthetic placeholder in registerSyntheticAnyStub is reused on
-// bundle load so early type-system wiring (annotation class supertypes,
-// BuiltinTypeNames, findAssociatedObject bound) keeps resolving.
 public interface Annotation {}

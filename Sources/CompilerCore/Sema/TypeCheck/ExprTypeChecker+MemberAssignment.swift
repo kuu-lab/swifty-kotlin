@@ -33,9 +33,6 @@ extension ExprTypeChecker {
         isSafeCall: Bool = false
     ) -> TypeID {
         let sema = ctx.sema
-        // The receiver of `a?.b = v` is evaluated iff the assignment itself
-        // is — it keeps the conditionality this node was entered with, not
-        // the raised flag that gates the value write (KUU-3966).
         var receiverCtx = ctx
         receiverCtx.isConditionallyEvaluated = ctx.receiverConditionallyEvaluated
         let inferredReceiver = driver.inferExpr(receiver, ctx: receiverCtx, locals: &locals, expectedType: nil)
@@ -56,9 +53,6 @@ extension ExprTypeChecker {
                 ctx: ctx
             )
         }
-        // The invalid super receiver already emitted its own diagnostic;
-        // looking a member up on the error type adds a second, unrelated
-        // "unresolved" error.
         if receiverType == sema.types.errorType,
            case .superRef = ctx.ast.arena.expr(receiver)
         {
@@ -90,9 +84,6 @@ extension ExprTypeChecker {
                 ) {
                     memberResult = companionMember
                     memberWriteReceiverType = scopeType
-                    // Re-bind the qualifier to the companion scope so
-                    // lowering emits the object value a member write
-                    // actually dispatches on.
                     sema.bindings.bindExprType(receiver, type: scopeType)
                     break
                 }
@@ -100,8 +91,6 @@ extension ExprTypeChecker {
         }
         if let member = memberResult {
             let writeSymbol = member.writeSymbol ?? member.symbol
-            // Resolve the write type before inferring the RHS, including contextual
-            // integer literals and lambdas. The read type is unsafe for projections.
             let writeType = driver.helpers.memberPropertyWriteType(
                 symbol: writeSymbol, receiverType: memberWriteReceiverType, fallback: member.type, sema: sema
             )
@@ -194,17 +183,9 @@ extension ExprTypeChecker {
                 )
             }
         } else {
-            // Extension setter resolution provides the RHS context when its
-            // candidates agree on a value type, just as member-property writes do.
             let errorsBeforeResolution = sema.diagnostics.errorCount
             var setter: SymbolID?
             if let ownerNominal = classNameOwnerNominal {
-                // A source `companion object`'s type admits ordinary
-                // extensions on it (`var A.Companion.x`, `var Any.x`) — the
-                // retype above normally covers this, but probe it explicitly
-                // for owners whose expression type never retyped (e.g. an
-                // alias receiver). A `companion { }` block object is not a
-                // value receiver and deliberately gets no unfiltered probe.
                 let sourceCompanionSymbol = sema.symbols.companionObjectSymbol(for: ownerNominal)
                     ?? sema.symbols.actualSymbol(for: ownerNominal).flatMap {
                         sema.symbols.companionObjectSymbol(for: $0)
@@ -228,10 +209,6 @@ extension ExprTypeChecker {
                         sema.bindings.bindExprType(receiver, type: companionObjectType)
                     }
                 }
-                // `companion`-marked extensions (`companion var A.x`) resolve
-                // against the owner nominal — the receiver the read path uses
-                // for the same qualifier. The companion-only filter keeps a
-                // plain `var A.x` from binding where Kotlin reports unresolved.
                 if setter == nil,
                    sema.diagnostics.errorCount == errorsBeforeResolution
                 {

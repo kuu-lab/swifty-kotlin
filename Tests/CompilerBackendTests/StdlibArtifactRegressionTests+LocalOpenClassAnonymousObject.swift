@@ -6,7 +6,6 @@ import Testing
 import TestStdlibCache
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2224: local class modality must allow anonymous-object inheritance.
     @Test(arguments: [false, true], [0, 2])
     func testAnonymousObjectCanInheritOpenLocalClass(useArtifact: Bool, optimization: Int) throws {
         let optLevel = try #require(OptimizationLevel(rawValue: optimization))

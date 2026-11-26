@@ -20,6 +20,7 @@ final class JVMProgramBuilder {
     private var _exprRangeIndex: [FileID: [(start: Int, end: Int, expr: ExprID)]]?
     var metroFactoryFields: [SymbolID: JVMField] = [:]
     var metroClasses: [JVMClass] = []
+    var reifiedHosts: [String: JVMReifiedHost] = [:]
     var functionArities: Set<Int> = []
     var nextClosure = 0
     var needsSuspendCoroutine = false
@@ -28,7 +29,6 @@ final class JVMProgramBuilder {
     var inlineDeclarations: [SymbolID: FunDecl] = [:]
     var sourceParameters: [SymbolID: [ValueParamDecl]] = [:]
     var sourceDeclarations: [SymbolID: FunDecl] = [:]
-    // Sema has finished binding declarations before JVM emission begins.
     lazy var declarationIDsBySymbol: [SymbolID: [DeclID]] = {
         sema.bindings.declSymbols.reduce(into: [:]) { result, binding in
             result[binding.value, default: []].append(binding.key)
@@ -39,6 +39,8 @@ final class JVMProgramBuilder {
     var textLibraryMethods: [SymbolID: JVMTextLibraryMethod] = [:] { didSet { methodTablesVersion &+= 1 } }
     var textLibraryProperties: [SymbolID: JVMForeignMethod] = [:]
     var textLibraryFields: [SymbolID: JVMField] = [:]
+    /// `kotlin.text.Charsets` members that have no `StandardCharsets` field (UTF_32*); value is the JDK charset name.
+    var textLibraryCharsetNames: [SymbolID: String] = [:]
     let platformOperations: [String: JVMPlatformOperation]
     var rawAnnotationConstructions: [String: ExprID] = [:]
 
@@ -114,9 +116,6 @@ final class JVMProgramBuilder {
         return index
     }
 
-    /// Consumer compiles without an explicit JVM classpath keep the legacy
-    /// long facade ABI used for the official runtime; explicit stdlib jars use
-    /// the real value-class ABI.
     func usesLegacyDurationLongMapping() -> Bool {
         !context.options.stdlibOnly && context.options.jvmClasspath.isEmpty
     }
@@ -163,13 +162,8 @@ final class JVMProgramBuilder {
         let mapped = try self.type(type)
         if mapped == .int, sema.bindings.isFloatingPointRangeExpr(id),
            !sema.bindings.isOpenFloatingPointRangeExpr(id) {
-            // Sema keeps floating-point ranges on its scalar range marker;
-            // JVM values use the common ClosedFloatingPointRange interface.
             return .reference("kotlin/ranges/ClosedFloatingPointRange", nullable: false)
         }
-        // Primitive range expressions carry their scalar element type in exprTypes,
-        // but the JVM materializes a nominal range object. A source-backed rangeTo
-        // may return another declared type, so preserve its resolved result type.
         if sema.bindings.isRangeExpr(id), mapped.referenceName == nil {
             if hasSourceRangeOperator(id),
                let callee = sema.bindings.callBinding(for: id)?.chosenCallee,
@@ -190,9 +184,6 @@ final class JVMProgramBuilder {
         return mapped
     }
 
-    /// A function whose body is a range expression carries the scalar range
-    /// marker as its Sema return type; its JVM signature must name the nominal
-    /// range class the body actually materializes.
     func nominalRangeResultType(for symbol: SymbolID, mapped: JVMValueType) -> JVMValueType? {
         guard mapped.referenceName == nil, sema.bindings.isRangeSymbol(symbol) else { return nil }
         if sema.bindings.isCharRangeSymbol(symbol) {
@@ -216,7 +207,6 @@ final class JVMProgramBuilder {
         return bytes.dropFirst().allSatisfy { start($0) || (48...57).contains($0) }
     }
 
-    /// Kotlin class names may use Unicode identifier scalars in JVM internal names.
     static func isJvmClassIdentifier(_ value: String) -> Bool {
         let scalars = value.unicodeScalars
         guard let first = scalars.first,
@@ -224,7 +214,6 @@ final class JVMProgramBuilder {
         return scalars.dropFirst().allSatisfy { $0.value == 0x5F || $0.properties.isIDContinue }
     }
 
-    /// Checks the JVMS unqualified-name restrictions for user-defined methods.
     static func isUnqualifiedJvmMethodName(_ value: String) -> Bool {
         guard !value.isEmpty else { return false }
         for scalar in value.unicodeScalars {
@@ -248,8 +237,6 @@ final class JVMProgramBuilder {
         }
         var facade = String(stem.prefix(1)).uppercased() + stem.dropFirst() + "Kt"
         let jvmNameFQName = ["kotlin", "jvm", "JvmName"].map(context.interner.intern)
-        // Other file annotations have independent Sema effects. Resolve only
-        // possible JvmName spellings here and keep unsupported aliases strict.
         var jvmNameSpellings: Set<String> = ["kotlin.jvm.JvmName", "JvmName"]
         for imported in file.imports {
             let importPath = imported.path.map(context.interner.resolve).joined(separator: ".")
@@ -341,9 +328,6 @@ final class JVMProgramBuilder {
                 && property.delegateExpression == nil && property.explicitBackingField == nil
         }
 
-        // A Kotlin Multiplatform target compiles its common and platform source
-        // sets together; Sema matched each `expect` with its `actual`, which
-        // alone produces bytecode.
         let files = ast.files.filter { context.sourceManager.origin(of: $0.fileID) == .user }.map { file in
             ASTFile(
                 fileID: file.fileID, packageFQName: file.packageFQName, imports: file.imports,
@@ -488,7 +472,6 @@ final class JVMProgramBuilder {
             }
             facades = merged
         }
-        // The manifest and launcher belong to the file containing main.
         if let main = facades.firstIndex(where: \.hasMain), main != 0 { facades.swapAt(0, main) }
         facadeName = facades[0].internalClassName
         var emittedClasses = try emitClasses()
@@ -500,7 +483,7 @@ final class JVMProgramBuilder {
         }
         emittedClasses += try repeatableContainers()
         if context.options.stdlibOnly { functionArities.insert(0) }
-        emittedClasses += metroClasses + closureClasses + functionRuntime() + enumRuntime()
+        emittedClasses += metroClasses + closureClasses + functionRuntime() + enumRuntime() + reifiedHostClasses()
         var output = facades.removeFirst()
         syntheticFunctions[coroutineIntrinsicOwner, default: []] += coroutineIntrinsics()
         output.functions += (syntheticFunctions[output.internalClassName] ?? [])
@@ -629,6 +612,9 @@ final class JVMFunctionBuilder {
     func jump(_ label: Int) { instructions.append(.jump(label)); terminated = true }
     func lookup(_ name: InternedString) throws -> Local {
         for scope in scopes.reversed() { if let local = scope[name] { return local } }
+        if program.hasUnsupportedSerializableClass(named: name) {
+            throw fail("The JVM backend does not generate a serializer for @Serializable class \(context.interner.resolve(name)); it supports non-generic classes whose serializable properties are all primary constructor properties of Boolean, Byte, Short, Char, Int, Long, Float, Double or String (nullable allowed) with literal defaults.")
+        }
         throw fail("JVM local variable is not in scope: \(context.interner.resolve(name)).")
     }
     func requireValue(_ id: ExprID) throws -> JVMValue {
@@ -767,7 +753,6 @@ final class JVMFunctionBuilder {
         if isStaticBody { function.access = 0x1009; function.isSynthetic = true }
         function.isSuspend = declaration.isSuspend || isSuspendBody
         function.isInline = declaration.isInline
-        // Sema includes modifiers inherited by overrides in the symbol flags.
         let semanticFlags = functionSymbol.flatMap { program.sema.symbols.symbol($0)?.flags }
         function.isOperator = declaration.modifiers.contains(.operator) || semanticFlags?.contains(.operatorFunction) == true
         function.isInfix = declaration.modifiers.contains(.infix) || semanticFlags?.contains(.infixFunction) == true
@@ -777,7 +762,6 @@ final class JVMFunctionBuilder {
         function.parameterDefaultFlags = declaration.valueParams.map(\.hasDefaultValue)
         function.parameterInlineFlags = declaration.valueParams.map { $0.isCrossinline || $0.isNoinline ? 8 : 0 }
         if activeComposer != nil && declaration.valueParams.contains(where: \.hasDefaultValue) {
-            // Omitted non-null parameters arrive as null placeholders.
             function.checksParameters = false
         }
         function.handlers = handlers
@@ -789,13 +773,10 @@ final class JVMFunctionBuilder {
         if declaration.modifiers.contains(.abstract) || (owner?.isInterface == true && declaration.body == .unit) { return finish(abstract: true) }
         if let mask = try beginComposableBody() {
             let inputs = declaration.valueParams.map { scopes[0][$0.name]!.value }
-            // Compose defaults may call composables. Evaluate them within the
-            // callee's composition with only earlier parameters in scope.
             scopes[0].removeAll()
             try program.applyDefaults(self, parameters: declaration.valueParams, inputs: inputs, masks: [mask])
         }
         try prepareTailrec()
-        // A function body may shadow a parameter, as ordinary nested blocks do.
         scopes.append([:])
         switch declaration.body {
         case let .block(statements, _):
@@ -825,7 +806,6 @@ final class JVMFunctionBuilder {
         guard let expr = arena.expr(id) else { throw fail("Missing JVM expression.", id) }
         switch expr {
         case let .inExpr(lhs, rhs, _), let .notInExpr(lhs, rhs, _):
-            // Operator expansion evaluates the container before its element.
             let container = try requireValue(rhs), element = try requireValue(lhs)
             let saved = evaluatedOperands
             evaluatedOperands[rhs] = container; evaluatedOperands[lhs] = element
@@ -944,7 +924,6 @@ final class JVMFunctionBuilder {
                 guard let type = semanticType else { throw fail("Missing JVM local type binding.", id) }
                 declaredType = try localStorageType(type)
             } else if let semanticType, case .functionType = program.sema.types.kind(of: semanticType) {
-                // Distinct generated callable classes share their inferred function storage.
                 declaredType = try localStorageType(semanticType)
             } else { declaredType = nil }
             let initial = try initializer.map { try requireValue($0) }
@@ -955,14 +934,9 @@ final class JVMFunctionBuilder {
             binding.symbol = symbol
             if !mutable, local.type.referenceName == "java/lang/Comparable",
                let initial, initial.type.isNumeric {
-                // Retain the evaluated primitive behind this immutable box.
-                // Closure helpers deliberately reconstruct locals without it.
                 binding.numericBoxingOrigin = initial
             }
             binding.deferredInitialization = initial == nil && !mutable
-            // Sema owns definite assignment, including mutually exclusive val
-            // writes. Deferred callback initialization needs the same shared
-            // storage as a mutable captured local.
             if mutable || (initializer == nil && symbol.map { program.sema.bindings.isContractCallsInPlaceInitializedSymbol($0) } == true) {
                 let element = try binding.symbol.flatMap { program.sema.bindings.capturedLocalType(for: $0) }.map { try erasedLocalStorageType($0) } ?? local.type
                 let cell = try value(.reference("[" + element.descriptor, nullable: false)), count = try constant(.int(1), .int), index = try constant(.int(0), .int)
@@ -1037,12 +1011,31 @@ final class JVMFunctionBuilder {
                 try writeLocal(local, converted)
                 return arena.incrementDecrementReturnsValue(id) ? converted : nil
             }
-            guard local.mutable, local.value.type.isNumeric || local.value.type.isText else { throw fail("JVM compound assignment requires a mutable numeric local.", id) }
-            let rawRight = try compoundOperand(rhs, target: old.type)
+            if local.value.type.isText {
+                guard local.mutable else { throw fail("JVM compound assignment requires a mutable numeric local.", id) }
+                let rawRight = try compoundOperand(rhs, target: old.type)
+                if terminated { return nil }
+                guard try permitsCompound(old.type, rawRight.type) else { throw fail("JVM compound assignment cannot narrow its numeric result.", id) }
+                let right = rawRight
+                let result = try value(old.type)
+                let binary: BinaryOp
+                switch op {
+                case .plusAssign: binary = .add
+                case .minusAssign: binary = .subtract
+                case .timesAssign: binary = .multiply
+                case .divAssign: binary = .divide
+                case .modAssign: binary = .modulo
+                }
+                try compoundInstruction(binary, old, right, result); try writeLocal(local, result)
+                return arena.incrementDecrementReturnsValue(id) ? result : nil
+            }
+            guard local.mutable, let carrier = local.value.type.numericCarrier else { throw fail("JVM compound assignment requires a mutable numeric local.", id) }
+            let left = try convert(old, to: carrier)
+            let rawRight = try compoundOperand(rhs, target: carrier)
             if terminated { return nil }
-            guard try permitsCompound(old.type, rawRight.type) else { throw fail("JVM compound assignment cannot narrow its numeric result.", id) }
-            let right = rawRight
-            let result = try value(old.type)
+            guard try permitsCompound(carrier, rawRight.type) else { throw fail("JVM compound assignment cannot narrow its numeric result.", id) }
+            let right = try convert(rawRight, to: carrier)
+            let result = try value(carrier)
             let binary: BinaryOp
             switch op {
             case .plusAssign: binary = .add
@@ -1051,8 +1044,10 @@ final class JVMFunctionBuilder {
             case .divAssign: binary = .divide
             case .modAssign: binary = .modulo
             }
-            try compoundInstruction(binary, old, right, result); try writeLocal(local, result)
-            return arena.incrementDecrementReturnsValue(id) ? result : nil
+            try compoundInstruction(binary, left, right, result)
+            let stored = try convert(result, to: local.value.type)
+            try writeLocal(local, stored)
+            return arena.incrementDecrementReturnsValue(id) ? stored : nil
         case let .binary(op, lhs, rhs, _):
             if op == .add, let folded = try constantFoldedText(id) { return folded }
             return try binary(op, lhs, rhs, id)
@@ -1069,6 +1064,9 @@ final class JVMFunctionBuilder {
             if let argument = samConstructorArgument(args, id: id) { return try expression(argument) }
             if program.sema.bindings.stdlibSpecialCallKinds[id] == .arrayConstructor {
                 return try arrayConstructor(args, id: id)
+            }
+            if let kind = program.sema.bindings.stdlibSpecialCallKinds[id], kind == .atomicIntArrayFactory || kind == .atomicLongArrayFactory {
+                return try atomicArrayConstructor(args, id: id, long: kind == .atomicLongArrayFactory)
             }
             if program.sema.bindings.stdlibSpecialCallKinds[id] == .enumValues,
                let result = try enumValuesCall(args, id: id) {
@@ -1179,7 +1177,6 @@ final class JVMFunctionBuilder {
             let start = self.label(), test = self.label(), exit = self.label()
             scopes.append([:]); defer { scopes.removeLast() }
             mark(start); loops.append(LoopFrame(label: label, exit: exit, next: test, allocationDepth: pendingAllocations.count))
-            // Kotlin keeps do-body declarations visible in its condition.
             if case let .blockExpr(statements, trailing, _) = arena.expr(body) {
                 for statement in statements where !terminated { _ = try expression(statement, discarded: true) }
                 if let trailing, !terminated { _ = try expression(trailing, discarded: true) }
@@ -1195,8 +1192,6 @@ final class JVMFunctionBuilder {
                 guard let check, check.type == .boolean else { throw fail("JVM do-while condition must be Boolean.", id) }
                 instructions.append(.jumpIfFalse(check, exit)); jump(start); mark(exit)
             } else if instructions.contains(where: { if case let .jump(target) = $0 { return target == exit }; return false }) {
-                // A break in the body can still reach the exit when evaluating
-                // the condition returns or throws on the other path.
                 mark(exit)
             }
             return nil
@@ -1272,9 +1267,6 @@ extension JVMFunctionBuilder {
         for (index, pair) in zip(args, method.parameters).enumerated() {
             let (arg, type) = pair
             var source = try requireValue(arg.expr)
-            // Imported static methods are represented by companion stubs.
-            // Retain the resolved nominal target even if their SAM adaptation
-            // was inferred through the ordinary member-call path.
             if source.type.referenceName?.hasPrefix("kotlin/jvm/functions/Function") == true,
                let binding = program.sema.bindings.callBinding(for: id),
                let signature = program.sema.symbols.functionSignature(for: binding.chosenCallee),

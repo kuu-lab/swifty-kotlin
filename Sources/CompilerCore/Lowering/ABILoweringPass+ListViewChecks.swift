@@ -1,9 +1,6 @@
 import RuntimeABI
 
 extension ABILoweringPass {
-    /// Per-symbol predicate equivalent to membership in the set of every
-    /// `kotlin.collections` list-view owner member. Evaluated on demand so the
-    /// pass no longer scans the whole symbol table up front.
     struct ListViewMemberMatcher {
         let symbols: SymbolTable?
         let kotlin: InternedString
@@ -53,7 +50,6 @@ extension ABILoweringPass {
                 result[interner.intern(spec.name)] = indices
             }
         }
-        // For-loop bridges accept both ranges and collections.
         result[interner.intern("__kk_range_iterator")] = [0]
         result[interner.intern("__kk_range_for_in_iterator")] = [0]
         return result

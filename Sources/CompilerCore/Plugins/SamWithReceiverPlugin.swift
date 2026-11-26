@@ -1,10 +1,3 @@
-/// kotlinc `kotlin-sam-with-receiver` equivalent.
-/// Functional (`fun interface`) interfaces annotated with a configured annotation
-/// have the first parameter of their single abstract method converted into the
-/// implicit receiver (`this`) of SAM lambda conversions.
-///
-/// Configuration (repeatable):
-///   -P plugin:org.jetbrains.kotlin.samWithReceiver:annotation=<fqName>
 struct SamWithReceiverPlugin: CompilerPlugin {
     let id = "org.jetbrains.kotlin.samWithReceiver"
 

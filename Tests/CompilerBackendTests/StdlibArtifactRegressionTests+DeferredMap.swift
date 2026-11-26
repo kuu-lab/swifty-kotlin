@@ -3,8 +3,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-1977: preserve the original async/await/awaitAll reproducer and
-    /// exercise both map receiver types through source and fresh metadata.
     @Test(arguments: [false, true], [0, 2])
     func testDeferredMapThroughSourceAndFreshArtifact(fromSource: Bool, optimization: Int) throws {
         let directory = FileManager.default.temporaryDirectory

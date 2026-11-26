@@ -1,8 +1,5 @@
 package kotlin
 
-// The unsigned conversions preserve Kotlin's saturating behavior for NaN,
-// negative values, and values outside the destination type's range.
-
 public inline fun doubleArrayOf(vararg elements: Double): DoubleArray {
     val result = DoubleArray(elements.size)
     var i = 0

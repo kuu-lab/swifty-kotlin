@@ -1,6 +1,3 @@
-// KSP-703: runtime map boxes bypass itable registration. Keep only the
-// direct ABI-backed properties and mutation members needed by those boxes.
-
 extension DataFlowSemaPhase {
     func registerSyntheticMapRuntimeResiduals(
         symbols: SymbolTable,

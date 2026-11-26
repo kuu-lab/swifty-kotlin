@@ -5,7 +5,6 @@
 import Foundation
 import Testing
 
-/// KUU-1335: private properties must retain independent file-local storage.
 @Suite
 struct FilePrivateTopLevelPropertyCodegenTests {
     @Test(arguments: ["", "package demo"], ["private val", "private var", "private const val"])

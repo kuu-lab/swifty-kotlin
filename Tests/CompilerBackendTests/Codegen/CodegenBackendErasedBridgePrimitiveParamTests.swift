@@ -4,9 +4,6 @@
 import Foundation
 import Testing
 
-/// Callers of an erased `T` parameter box primitives, so vtable/itable bridges
-/// must unbox them before forwarding to an override that declares the raw
-/// primitive (otherwise e.g. `Double` arithmetic ran on box-pointer bits).
 @Suite
 struct CodegenBackendErasedBridgePrimitiveParamTests {
     @Test

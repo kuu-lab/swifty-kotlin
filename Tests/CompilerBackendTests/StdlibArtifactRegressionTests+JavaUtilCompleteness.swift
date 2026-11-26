@@ -5,7 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-3366: Java utility facades missing from the bundled stdlib resolve and execute.
     @Test
     func testJavaUtilCompletenessSurface() throws {
         let artifactPath = try Self.buildStdlibArtifact()

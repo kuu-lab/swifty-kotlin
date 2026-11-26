@@ -9,10 +9,8 @@ package kotlin.coroutines.debug
 
 import kotlin.coroutines.ExperimentalStdlibCoroutineSupportApi
 
-/** Allows a throwable to supply its own copy for coroutine stack trace recovery. */
 @SinceKotlin("2.4")
 @ExperimentalStdlibCoroutineSupportApi
 public interface StackTraceRecoverable<T> where T : Throwable, T : StackTraceRecoverable<T> {
-    /** Returns a copy, preferably with the original throwable as its cause, or null to decline recovery. */
     public fun copyForStackTraceRecovery(): T?
 }

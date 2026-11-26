@@ -1,8 +1,6 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
-    /// `earlyReturnType` carries a bound result when a rule short-circuits;
-    /// otherwise the surviving candidate set is returned (never empty).
     func filterRegularMemberCallCandidates(
         _ request: MemberCallInferenceRequest,
         allCandidates: [SymbolID],
@@ -125,10 +123,6 @@ extension CallTypeChecker {
                 }
             }
         }
-        // Kotlin selects MutableMap.withDefault over the less-specific
-        // Map.withDefault extension for a MutableMap receiver. Resolve this
-        // subtype preference before trailing-lambda overload inference sees
-        // two otherwise identical function shapes.
         if request.calleeName == request.knownNames.withDefault,
            ReceiverClassifier(sema: request.sema, interner: request.interner).isMutableMapType(lookupReceiverType)
         {
@@ -150,9 +144,6 @@ extension CallTypeChecker {
         if request.calleeName == request.knownNames.coerceIn,
            !request.args.contains(where: { request.sema.bindings.isFloatingPointRangeExpr($0.expr) })
         {
-            // The generic ClosedFloatingPointRange overload must not turn a
-            // scalar call with the wrong arity or argument type into a type
-            // constraint failure. Kotlin reports those calls as no overload.
             candidates.removeAll { candidate in
                 guard let signature = request.sema.symbols.functionSignature(for: candidate),
                       signature.typeParameterSymbols.count == 1,
@@ -169,10 +160,6 @@ extension CallTypeChecker {
         if request.calleeName == request.knownNames.coerceIn,
            request.args.contains(where: { request.sema.bindings.isFloatingPointRangeExpr($0.expr) })
         {
-            // Imported `.kklib` metadata does not make a generic extension whose
-            // receiver is a type parameter visible through the receiver-type
-            // fallback above. Recover the source-backed range overloads here so
-            // the same call resolves with bundled source injection and a library.
             let genericRangeCandidates = request.sema.symbols.lookupByShortName(request.calleeName).filter { candidate in
                 guard let symbol = request.sema.symbols.symbol(candidate),
                       symbol.kind == .function,
@@ -254,10 +241,6 @@ extension CallTypeChecker {
                request.sema.symbols.functionSignature(for: candidate)?.receiverType == request.sema.types.makeNullable(charSequenceType)
            })
         {
-            // Kotlin stdlib also provides Array/Collection/Map nullable-receiver
-            // isNullOrEmpty overloads. They are still lowered through synthetic
-            // typed-receiver fallbacks here, but a bare null receiver must see the
-            // same ambiguous overload set as kotlinc.
             request.ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0003",
                 "Ambiguous overload resolution.",

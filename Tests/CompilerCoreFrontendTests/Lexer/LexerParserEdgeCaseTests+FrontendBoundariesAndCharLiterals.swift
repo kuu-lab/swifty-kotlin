@@ -253,7 +253,6 @@ extension LexerParserEdgeCaseTests {
 
     @Test
     func testUnicodeEscapeInCharLiteralProducesCorrectScalar() {
-        // A bare 'A' and its \u0041 escape must both land on 65.
         let source = "'A' '\\u0041' '\\u0000' '\\uFFFF' '\\u2764'"
         let result = lex(source)
         #expect(charValues(in: result.tokens) == [65, 65, 0, 65535, 10084])
@@ -344,7 +343,6 @@ extension LexerParserEdgeCaseTests {
 
             let binaryTypes = binaryExprTypes(ast: ast, sema: sema)
 
-            // 'a' + 1 -> Char, 'z' - 'a' -> Int, 'z' - 1 -> Char
             #expect(binaryTypes.contains("add:Char"), "Expected 'a' + 1 to produce Char, got: \(binaryTypes)")
             #expect(binaryTypes.contains("subtract:Int"), "Expected 'z' - 'a' to produce Int, got: \(binaryTypes)")
             #expect(binaryTypes.contains("subtract:Char"), "Expected 'z' - 1 to produce Char, got: \(binaryTypes)")
@@ -380,7 +378,6 @@ extension LexerParserEdgeCaseTests {
             try runSema(ctx)
             let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
             #expect(errors.count == expressions.count, "Expected each invalid Char operation to be rejected: \(errors)")
-            // An operator on a nullable receiver is UNSAFE_OPERATOR_CALL (#10898).
             let nullableReceiverCount = expressions.filter { $0.hasPrefix("nc ") }.count
             #expect(errors.filter { $0.code == "KSWIFTK-SEMA-0026" }.count == nullableReceiverCount, "\(errors)")
             #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0002" || $0.code == "KSWIFTK-SEMA-0026" }, "\(errors)")
@@ -595,8 +592,6 @@ extension LexerParserEdgeCaseTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            // Compound assignment on Char should not produce errors
-            // (would fail if type corrupted to Int, causing subsequent mismatches)
             #expect(!(ctx.diagnostics.hasError), "Char compound assignment should not produce errors, got: \(ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" })")
         }
     }
@@ -621,8 +616,6 @@ extension LexerParserEdgeCaseTests {
 
             let binaryTypes = binaryExprTypes(ast: ast, sema: sema)
 
-            // Int + Int -> Int, Double + Int -> Double, Long - Int -> Long,
-            // String + Int -> String, Float * Int -> Float
             #expect(binaryTypes.contains("add:Int"), "Expected Int + Int -> Int, got: \(binaryTypes)")
             #expect(binaryTypes.contains("add:Double"), "Expected Double + Int -> Double, got: \(binaryTypes)")
             #expect(binaryTypes.contains("subtract:Long"), "Expected Long - Int -> Long, got: \(binaryTypes)")
@@ -651,9 +644,6 @@ extension LexerParserEdgeCaseTests {
     }
 }
 
-/// `"<op>:<renderedType>"` for every binary expression in the arena, in arena
-/// order. Note this spans bundled stdlib expressions too, which is why callers
-/// assert with `contains` rather than on the whole list.
 private func binaryExprTypes(ast: ASTModule, sema: SemaModule) -> [String] {
     ast.arena.exprs.indices.compactMap { index in
         let exprID = ExprID(rawValue: Int32(index))
