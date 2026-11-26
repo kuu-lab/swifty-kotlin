@@ -24,6 +24,7 @@ final class JVMProgramBuilder {
     var functionArities: Set<Int> = []
     var nextClosure = 0
     var needsSuspendCoroutine = false
+    var needsSuspendCoroutineUninterceptedOrReturn = false
     var coroutineIntrinsicOwner = ""
     var extensionSymbols: Set<SymbolID> = []
     var inlineDeclarations: [SymbolID: FunDecl] = [:]

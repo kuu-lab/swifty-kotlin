@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-642: DeepRecursiveFunction trampoline + exception propagation.
 fun main() {
     val sumTo = DeepRecursiveFunction<Int, Int> {

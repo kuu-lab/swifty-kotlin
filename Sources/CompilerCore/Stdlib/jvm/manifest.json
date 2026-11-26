@@ -3,6 +3,7 @@
   "commonSources": [
     "kotlin/Pair/Pair.kt",
     "kotlin/Function.kt",
+    "kotlin/ExperimentalStdlibApi.kt",
     "kotlin/IgnorableReturnValue.kt",
     "kotlin/Unit.kt",
     "kotlin/annotations/ExperimentalUnsignedTypes.kt",
@@ -179,6 +180,12 @@
       "virtualPath": "<kswiftk-jvm>/javaCollections.kt",
       "excludeFromStdlibBuild": false,
       "onlyForStdlibBuild": true
+    },
+    {
+      "path": "declarations/DeepRecursive.kt",
+      "virtualPath": "<kswiftk-jvm>/deep-recursive.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/DeepRecursiveKt"
     },
     {
       "path": "declarations/Delegates.kt",
