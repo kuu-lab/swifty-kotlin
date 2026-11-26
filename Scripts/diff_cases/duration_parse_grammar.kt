@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.time.Duration
 
 fun main() {
