@@ -81,7 +81,13 @@ final class JVMMethodEmitter {
         let targetArray: Bool = { if case .unsignedArray = to { return true }; return false }()
         if let target = to.referenceName, !targetArray {
             if let name = from.boxName {
-                if sourceArray && target.hasPrefix("[") { return }
+                if sourceArray && target.hasPrefix("[") {
+                    if !to.isNullable && from.isNullable {
+                        try invoke("java/util/Objects", "requireNonNull", "(Ljava/lang/Object;)Ljava/lang/Object;")
+                        assembler.code.u1(0xC0); assembler.code.u2(try pool.classInfo(to.descriptor))
+                    }
+                    return
+                }
                 try invoke(name, from.unsignedName == nil ? "valueOf" : "box-impl", "(" + from.descriptor + ")L" + name + ";")
                 if target != "java/lang/Object" && target != name { assembler.code.u1(0xC0); assembler.code.u2(try pool.classInfo(target)) }
                 return
@@ -94,6 +100,9 @@ final class JVMMethodEmitter {
         }
         if from.referenceName != nil && !sourceArray {
             if targetArray && from.referenceName?.hasPrefix("[") == true {
+                if !to.isNullable && from.isNullable {
+                    try invoke("java/util/Objects", "requireNonNull", "(Ljava/lang/Object;)Ljava/lang/Object;")
+                }
                 assembler.code.u1(0xC0); assembler.code.u2(try pool.classInfo(to.descriptor)); return
             }
             guard let name = to.boxName else { throw JVMEmissionError.limit("Unsupported JVM unboxing conversion.") }

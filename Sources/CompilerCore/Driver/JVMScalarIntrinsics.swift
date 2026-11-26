@@ -6,6 +6,12 @@ extension JVMFunctionBuilder {
         "toLong": .long, "toFloat": .float, "toDouble": .double,
         "toUByte": .ubyte, "toUShort": .ushort, "toUInt": .uint, "toULong": .ulong,
     ]
+    // The consumer contracts declare these as `null!!` stubs, so they must be inlined.
+    static let charSurrogateConstants: [String: Int32] = [
+        "MIN_HIGH_SURROGATE": 0xD800, "MAX_HIGH_SURROGATE": 0xDBFF,
+        "MIN_LOW_SURROGATE": 0xDC00, "MAX_LOW_SURROGATE": 0xDFFF,
+        "MIN_SURROGATE": 0xD800, "MAX_SURROGATE": 0xDFFF,
+    ]
 
     func charFromCode(_ input: JVMValue) throws -> JVMValue {
         let code = try convert(input, to: .int), check = try value(.boolean), result = try value(.char)
@@ -48,6 +54,9 @@ extension JVMFunctionBuilder {
             default: return nil
             }
             return try constant(type == .float ? .float(Float(number)) : .double(number), type)
+        }
+        if type == .char, let surrogate = Self.charSurrogateConstants[member] {
+            return try constant(.int(surrogate), .char)
         }
         guard member == "MIN_VALUE" || member == "MAX_VALUE" else { return nil }
         let minimum = member == "MIN_VALUE"

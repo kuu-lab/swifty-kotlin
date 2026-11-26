@@ -144,22 +144,33 @@ extension JVMFunctionBuilder {
         }
         let source = try loadReceiver()
         let values = try textArguments(op, args: args, binding: binding, source: source, id: id)
+        return JVMIntrinsicResult(value: try emitTextOperation(op, source: source, values: values))
+    }
+
+    func textStubName(_ symbol: SymbolID) -> String? {
+        guard let declared = program.sema.symbols.symbol(symbol), let site = declared.declSite,
+              context.sourceManager.path(of: site.start.file).hasPrefix("<kswiftk-jvm>/text") else { return nil }
+        return context.interner.resolve(declared.name)
+    }
+
+    func emitTextOperation(_ op: JVMTextOperation, source: JVMValue, values: [JVMValue]) throws -> JVMValue {
+        let name = op.name
         if ["isEmpty", "isNotEmpty"].contains(name) {
-            let result = try value(.boolean); instructions.append(.binary(name == "isEmpty" ? .equal : .notEqual, try textLength(source), try constant(.int(0), .int), result)); return JVMIntrinsicResult(value: result)
+            let result = try value(.boolean); instructions.append(.binary(name == "isEmpty" ? .equal : .notEqual, try textLength(source), try constant(.int(0), .int), result)); return result
         }
         if name == "isNotBlank" {
             let result = try jdkCall(op.owner, "isBlank", [op.receiverType], .boolean, arguments: [source])!
-            instructions.append(.unary(.not, result, result)); return JVMIntrinsicResult(value: result)
+            instructions.append(.unary(.not, result, result)); return result
         }
         if name == "uppercase" || name == "lowercase" {
             let locale = try value(.reference("java/util/Locale", nullable: false))
             instructions.append(.getStatic(JVMField(owner: "java/util/Locale", name: "ROOT", type: locale.type, access: 0x19), locale))
-            return JVMIntrinsicResult(value: try jdkCall("java/lang/String", name == "uppercase" ? "toUpperCase" : "toLowerCase", [locale.type], .string, receiver: source, arguments: [locale]))
+            return try jdkCall("java/lang/String", name == "uppercase" ? "toUpperCase" : "toLowerCase", [locale.type], .string, receiver: source, arguments: [locale])!
         }
         if name == "reversed" {
             let builder = try constructJDK("java/lang/StringBuilder", parameters: [.string], arguments: [source])
             _ = try jdkCall("java/lang/StringBuilder", "reverse", [], builder.type, receiver: builder)
-            return JVMIntrinsicResult(value: try jdkCall("java/lang/StringBuilder", "toString", [], .string, receiver: builder))
+            return try jdkCall("java/lang/StringBuilder", "toString", [], .string, receiver: builder)!
         }
         var parameters = op.parameters.map { $0.variadic ? JVMValueType.reference("[" + $0.type.descriptor, nullable: false) : $0.type }
         var arguments = values
@@ -174,9 +185,9 @@ extension JVMFunctionBuilder {
             result = try jdkCall(op.owner, op.method ?? name, parameters, op.result, arguments: arguments)!
         }
         if op.sourceResult == "String", result.type != .string {
-            return JVMIntrinsicResult(value: try jdkCall("java/lang/Object", "toString", [], .string, receiver: result))
+            return try jdkCall("java/lang/Object", "toString", [], .string, receiver: result)!
         }
-        return JVMIntrinsicResult(value: result)
+        return result
     }
 
     func textArguments(_ op: JVMTextOperation, args: [CallArgument], binding: CallBinding?, source: JVMValue, id: ExprID) throws -> [JVMValue] {
@@ -212,24 +223,26 @@ extension JVMFunctionBuilder {
         for (index, p) in op.parameters.enumerated() {
             if p.variadic { values.append(try supplied[index] ?? textVararg([], element: p.type)); continue }
             if let input = supplied[index] { values.append(try convert(input, to: p.type)); continue }
-            let fallback: JVMValue
-            switch p.fallback {
-            case "false": fallback = try constant(.boolean(false), .boolean)
-            case "0": fallback = try constant(.int(0), .int)
-            case "10": fallback = try constant(.int(10), .int)
-            case "space": fallback = try constant(.int(32), .char)
-            case "empty": fallback = try constant(.string(""), .string)
-            case "margin": fallback = try constant(.string("|"), .string)
-            case "indent": fallback = try constant(.string("    "), .string)
-            case "this": fallback = source
-            case "length": fallback = try textLength(source)
-            case "lastIndex":
-                fallback = try value(.int); instructions.append(.binary(.subtract, try textLength(source), try constant(.int(1), .int), fallback))
-            default: throw fail("Missing required JVM text argument.", id)
-            }
-            values.append(fallback)
+            values.append(try textFallback(p, source: source, id: id))
         }
         return values
+    }
+    func textFallback(_ p: JVMTextParameter, source: JVMValue, id: ExprID) throws -> JVMValue {
+        switch p.fallback {
+        case "false": return try constant(.boolean(false), .boolean)
+        case "0": return try constant(.int(0), .int)
+        case "10": return try constant(.int(10), .int)
+        case "space": return try constant(.int(32), .char)
+        case "empty": return try constant(.string(""), .string)
+        case "margin": return try constant(.string("|"), .string)
+        case "indent": return try constant(.string("    "), .string)
+        case "this": return source
+        case "length": return try textLength(source)
+        case "lastIndex":
+            let fallback = try value(.int); instructions.append(.binary(.subtract, try textLength(source), try constant(.int(1), .int), fallback))
+            return fallback
+        default: throw fail("Missing required JVM text argument.", id)
+        }
     }
     func textVararg(_ inputs: [(JVMValue, Bool)], element: JVMValueType) throws -> JVMValue {
         let count = try value(.int), one = try constant(.int(1), .int)

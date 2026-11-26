@@ -11,6 +11,7 @@ import kotlin.math.roundToLong
 
 private const val DURATION_PARSE_FRACTION_LIMIT: Int = 15
 private const val DURATION_PARSE_INVALID_MILLIS: Long = Long.MIN_VALUE
+private const val DURATION_PARSE_INFINITY_STRING: String = "infinity"
 
 private class DurationLongParse(
     val endIndex: Int,
@@ -309,6 +310,33 @@ private fun combineDurationParseResult(totalMillis: Long, totalNanos: Long): Lon
     return addDurationRaw(millisDuration, nanosDuration)
 }
 
+// Case-insensitive comparison specialized for the fixed ASCII literal
+// "infinity". Kotlin's ignore-case Char comparison also folds the dotted and
+// dotless Turkish I variants to ASCII I; spelling this out keeps the parser
+// independent of target-specific Unicode case-conversion tables.
+private fun durationInfinityCharEquals(value: Char, expected: Char): Boolean {
+    if (value == expected) return true
+    if (expected == 'i') return value == 'I' || value == 'ı' || value == 'İ'
+    return when (expected) {
+        'n' -> value == 'N'
+        'f' -> value == 'F'
+        't' -> value == 'T'
+        'y' -> value == 'Y'
+        else -> false
+    }
+}
+
+private fun durationIsInfinityLiteral(value: String, startIndex: Int): Boolean {
+    val length = DURATION_PARSE_INFINITY_STRING.length
+    if (value.length - startIndex != length) return false
+    var offset = 0
+    while (offset < length) {
+        if (!durationInfinityCharEquals(value[startIndex + offset], DURATION_PARSE_INFINITY_STRING[offset])) return false
+        offset += 1
+    }
+    return true
+}
+
 internal fun durationParseRawOrNull(value: String, strictIso: Boolean): Long? {
     if (value.isEmpty()) return null
     var index = 0
@@ -327,7 +355,7 @@ internal fun durationParseRawOrNull(value: String, strictIso: Boolean): Long? {
         parsed = durationParseIsoFormat(value, index + 1)
     } else if (strictIso) {
         return null
-    } else if (value.substring(index).lowercase() == "infinity") {
+    } else if (durationIsInfinityLiteral(value, index)) {
         parsed = Long.MAX_VALUE
     } else {
         parsed = durationParseDefaultFormat(value, index, hasSign)

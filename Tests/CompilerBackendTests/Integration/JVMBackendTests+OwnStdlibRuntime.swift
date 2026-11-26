@@ -235,6 +235,7 @@ extension JVMBackendTests {
         "m17SignedNarrowTypesAndUnicode",
         "m17UnsignedArithmeticConversionsAndBits",
         "m17UnsignedArraysBoxingGenericsAndCapture",
+        "unsignedArrayViewConversions",
         "m17SuspendInlineAndValueClassCarriers",
         "m17NarrowAnnotationConstants",
         "m17NullableArrayTransportAndUnsignedConstructors",

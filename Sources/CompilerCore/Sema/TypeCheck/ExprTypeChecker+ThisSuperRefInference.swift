@@ -165,7 +165,15 @@ extension ExprTypeChecker {
             return kind == .class || kind == .enumClass
         }
         if let superclass = classSupertypes.first {
-            let superType = sema.types.make(.classType(ClassType(classSymbol: superclass)))
+            let typeArgs: [TypeArg]
+            if case let .classType(currentClass) = sema.types.kind(of: receiverType) {
+                typeArgs = sema.types.liftedNominalSupertypeArgs(
+                    from: classSymbol, childArgs: currentClass.args, to: superclass
+                ) ?? []
+            } else {
+                typeArgs = []
+            }
+            let superType = sema.types.make(.classType(ClassType(classSymbol: superclass, args: typeArgs)))
             sema.bindings.bindExprType(id, type: superType)
             return superType
         }

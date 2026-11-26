@@ -50,6 +50,26 @@ extension JVMFunctionBuilder {
         return try javaClass(token == .unit ? .reference("kotlin/Unit", nullable: false) : JVMClasspathIndex.boxed(token))
     }
 
+    private func throwableJDKReferenceMethod(for symbol: SymbolID) -> JVMForeignMethod? {
+        guard let info = program.sema.symbols.symbol(symbol), info.fqName.count == 3,
+              context.interner.resolve(info.fqName[0]) == "kotlin",
+              context.interner.resolve(info.fqName[1]) == "Throwable",
+              context.interner.resolve(info.fqName[2]) == "getSuppressed"
+        else { return nil }
+        var method = JVMForeignMethod(
+            owner: "java/lang/Throwable",
+            name: "getSuppressed",
+            descriptor: "()[Ljava/lang/Throwable;",
+            parameters: [],
+            result: .reference("[Ljava/lang/Throwable;", nullable: false),
+            isStatic: false,
+            isInterface: false,
+            isAbstract: false
+        )
+        method.isFinal = true
+        return method
+    }
+
     func reflectionReference(_ id: ExprID, receiver: ExprID?, member: InternedString) throws -> JVMValue {
         if context.interner.resolve(member) == "class" {
             let klass = try javaClassForClassReference(id, receiver: receiver)
@@ -84,6 +104,7 @@ extension JVMFunctionBuilder {
         if inlineOnly || program.sema.symbols.functionSignature(for: symbol)?.reifiedTypeParameterIndices.isEmpty == false {
             return try inlinedReference(id, symbol: symbol, receiver: receiver, unbound: unbound)
         }
+        if let text = try textReference(id, symbol: symbol, receiver: receiver, unbound: unbound) { return text }
         if let binding = program.sema.bindings.callableReferenceBinding(for: id), let function = functionType(id),
            let signature = program.sema.symbols.functionSignature(for: symbol) {
             let unitConversion = try program.type(function.returnType) == .unit && program.type(signature.returnType) != .unit
@@ -91,15 +112,14 @@ extension JVMFunctionBuilder {
                 return try adaptedReference(id, symbol: symbol, receiver: receiver, unbound: unbound)
             }
         }
-        let sourceBacked = program.inlineDeclarations[symbol] != nil ? program.textLibraryMethods[symbol] : nil
+        let sourceBacked = program.textLibraryMethods[symbol].flatMap { $0.adaptation == nil ? $0 : nil }
         let collectionMethod = program.collectionInterfaceMethods[symbol]
         let supportedCollectionReference = collectionMethod?.owner == "java/util/Map" && collectionMethod?.name == "putIfAbsent"
-        let textOperation = try textOperationReferenceTarget(symbol)
-        let method = program.methods[symbol] ?? (supportedCollectionReference ? collectionMethod : nil) ?? context.jvmImports?.method(for: symbol) ?? sourceBacked?.method ?? textOperation?.method
+        let method = program.methods[symbol] ?? (supportedCollectionReference ? collectionMethod : nil) ?? context.jvmImports?.method(for: symbol) ?? sourceBacked?.method ?? throwableJDKReferenceMethod(for: symbol)
         let ref = program.references[symbol]
         guard method != nil || ref != nil else { throw fail("Unsupported JVM callable reference target.", id) }
         let constructor = method?.isConstructor == true
-        let isExtension = program.extensionSymbols.contains(symbol) || context.jvmImports?.extensionSymbols.contains(symbol) == true || sourceBacked?.extensionReceiver != nil || textOperation?.extensionReceiver != nil
+        let isExtension = program.extensionSymbols.contains(symbol) || context.jvmImports?.extensionSymbols.contains(symbol) == true || sourceBacked?.extensionReceiver != nil
         let ownerName = ref?.owner ?? method!.owner
         let valueMember = ref == nil && method?.isStatic == true && method?.kotlinFunction?.valueMemberParameterDescriptors != nil
         let staticTarget = !valueMember && (ref != nil || method?.isStatic == true)
@@ -155,38 +175,6 @@ extension JVMFunctionBuilder {
         declaration.emitMetadata = false; program.closureClasses.append(declaration)
         return try constructJDK(generated, parameters: types, arguments: values)
     }
-
-    private func textOperationReferenceTarget(_ symbol: SymbolID) throws -> JVMTextLibraryMethod? {
-        guard let info = program.sema.symbols.symbol(symbol),
-              let site = info.declSite,
-              context.sourceManager.path(of: site.start.file).hasPrefix("<kswiftk-jvm>/text"),
-              let signature = program.sema.symbols.functionSignature(for: symbol),
-              let receiverSemantic = signature.receiverType,
-              let receiverType = try? program.type(receiverSemantic),
-              let parameterTypes = try? signature.parameterTypes.map(program.type)
-        else { return nil }
-        let name = context.interner.resolve(info.name)
-        guard let operation = JVMTextOperation.operations.first(where: { operation in
-            guard operation.name == name,
-                  operation.owner == "kotlin/text/StringsKt",
-                  !operation.instance,
-                  operation.receiverType.descriptor == receiverType.descriptor,
-                  operation.parameters.count == parameterTypes.count
-            else { return false }
-            return zip(operation.parameters, parameterTypes).allSatisfy { parameter, type in
-                parameter.type.descriptor == type.descriptor || parameter.variadic && type.descriptor == "[" + parameter.type.descriptor
-            }
-        }) else { return nil }
-        let explicitParameters = operation.parameters.map { parameter in
-            parameter.variadic ? JVMValueType.reference("[" + parameter.type.descriptor, nullable: false) : parameter.type
-        }
-        let parameters = [receiverType] + explicitParameters
-        let result = try program.type(signature.returnType)
-        var foreign = JVMForeignMethod(owner: operation.owner, name: operation.method ?? operation.name, descriptor: "(" + parameters.map(\.descriptor).joined() + ")" + result.descriptor, parameters: parameters, result: result, isStatic: true, isInterface: false, isAbstract: false)
-        foreign.isSuspend = signature.isSuspend
-        return JVMTextLibraryMethod(method: foreign, declarations: [], extensionReceiver: receiverType)
-    }
-
     func objectArray(_ values: [JVMValue]) throws -> JVMValue {
         let object: JVMValueType = .reference("java/lang/Object", nullable: true)
         let result = try value(.reference("[Ljava/lang/Object;", nullable: false)), count = try constant(.int(Int32(values.count)), .int)
