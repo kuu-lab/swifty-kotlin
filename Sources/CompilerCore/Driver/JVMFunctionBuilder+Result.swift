@@ -9,19 +9,47 @@ extension JVMFunctionBuilder {
         else { return nil }
 
         let argument = try requireValue(args[0].expr)
+        let carrier: JVMValueType = .reference("java/lang/Object", nullable: true)
+        let resultType = try program.expressionType(id)
         switch context.interner.resolve(symbol.name) {
         case "success":
-            return JVMIntrinsicResult(value: try convert(argument, to: program.expressionType(id)))
-        case "failure":
-            let throwable: JVMValueType = .reference("java/lang/Throwable", nullable: false)
-            let object: JVMValueType = .reference("java/lang/Object", nullable: true)
+            if !context.options.stdlibOnly {
+                return JVMIntrinsicResult(value: try convert(argument, to: resultType))
+            }
+            let value = try convert(argument, to: carrier)
             return JVMIntrinsicResult(value: try jdkCall(
+                "kotlin/Result",
+                "box-impl",
+                [carrier],
+                resultType,
+                arguments: [value]
+            ))
+        case "failure":
+            if !context.options.stdlibOnly {
+                let throwable: JVMValueType = .reference("java/lang/Throwable", nullable: false)
+                return JVMIntrinsicResult(value: try jdkCall(
+                    "kotlin/ResultKt",
+                    "createFailure",
+                    [throwable],
+                    carrier,
+                    arguments: [argument],
+                    resolved: resultType
+                ))
+            }
+            let throwable: JVMValueType = .reference("java/lang/Throwable", nullable: false)
+            let failure = try jdkCall(
                 "kotlin/ResultKt",
                 "createFailure",
                 [throwable],
-                object,
-                arguments: [argument],
-                resolved: program.expressionType(id)
+                carrier,
+                arguments: [argument]
+            )!
+            return JVMIntrinsicResult(value: try jdkCall(
+                "kotlin/Result",
+                "box-impl",
+                [carrier],
+                resultType,
+                arguments: [failure]
             ))
         default:
             return nil
