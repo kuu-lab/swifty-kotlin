@@ -39,5 +39,25 @@ extension JVMBackendTests {
             """, expected: "{a=12, b=15, c=6}\n{z=1, a=112, b=15, c=6}\ntrue\n{a=apple+avocado, b=banana+blueberry, c=cherry}\n[a, b, c]\n{}\n", mode: mode, root: root)
         }
     }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func groupingAggregateToAcceptsConcreteMapDestinations(mode: EmitMode) throws {
+        try withWorkspace { root in
+            try runM11("""
+            fun main() {
+                val grouping = listOf("apple", "banana", "avocado", "blueberry", "cherry")
+                    .groupingBy { it.substring(0, 1) }
+
+                val linked = linkedMapOf("a" to 1)
+                val linkedResult = grouping.aggregateTo(linked) { _, n: Int?, e, _ -> (n ?: 0) + e.length }
+                println(linkedResult)
+                println(linkedResult === linked)
+
+                val hashed = hashMapOf("z" to 5)
+                println(grouping.aggregateTo(hashed) { _, n: Int?, e, first -> if (first) e.length else n!! + e.length })
+            }
+            """, expected: "{a=13, b=15, c=6}\ntrue\n{a=12, z=5, b=15, c=6}\n", mode: mode, root: root)
+        }
+    }
 }
 #endif
