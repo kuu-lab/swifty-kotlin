@@ -47,6 +47,13 @@ extension JVMBackendTests {
             #expect(ownExecution.stdout == expected)
             #expect(ownExecution.stderr.isEmpty)
 
+            let foreignConsumer = try jvmTool(
+                "kotlinc",
+                ["-no-stdlib", "-no-reflect", "-cp", library.path, "ResultApi.kt", "-d", "foreign-consumer.jar"],
+                root: root
+            )
+            try #require(foreignConsumer.exitCode == 0, "\(foreignConsumer.stderr)")
+
             _ = try jvmTool("kotlinc", ["ResultApi.kt", "-cp", runtime, "-d", "reference.jar"], root: root)
             let reference = try java([
                 "-cp", root.appendingPathComponent("reference.jar").path + ":" + runtime, "ResultApiKt",
