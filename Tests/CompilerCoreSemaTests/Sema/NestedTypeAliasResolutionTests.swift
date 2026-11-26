@@ -43,6 +43,18 @@ struct NestedTypeAliasResolutionTests {
         _ = try expectAlias(["Alias"], target: ["Outer", "Nested"], in: ctx)
     }
 
+    @Test
+    func genericNestedTypeAliasResolvesBeforeTypeParameterRegistration() throws {
+        let ctx = try context(["""
+        class Outer { class Nested<T> }
+        typealias Box = Outer.Nested<String>
+        """])
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let alias = try expectAlias(["Box"], target: ["Outer", "Nested"], in: ctx)
+        #expect(alias.args.count == 1)
+    }
+
     @Test(arguments: [true, false])
     func importedNestedTypesResolveAcrossFiles(ownerFirst: Bool) throws {
         let owner = """

@@ -64,7 +64,10 @@ enum NamedTypeArgumentSegments {
         if symbol.kind == .typeAlias {
             return symbols.typeAliasTypeParameters(for: symbolID).count
         }
-        return types.nominalTypeParameterSymbols(for: symbolID).count
+        return max(
+            types.nominalTypeParameterSymbols(for: symbolID).count,
+            types.nominalTypeParameterVariances(for: symbolID).count
+        )
     }
 
     private static func isTypeSymbol(_ symbolID: SymbolID, symbols: SymbolTable) -> Bool {
