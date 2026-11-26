@@ -147,6 +147,12 @@ extension JVMFunctionBuilder {
         return JVMIntrinsicResult(value: try emitTextOperation(op, source: source, values: values))
     }
 
+    func textStubName(_ symbol: SymbolID) -> String? {
+        guard let declared = program.sema.symbols.symbol(symbol), let site = declared.declSite,
+              context.sourceManager.path(of: site.start.file).hasPrefix("<kswiftk-jvm>/text") else { return nil }
+        return context.interner.resolve(declared.name)
+    }
+
     func emitTextOperation(_ op: JVMTextOperation, source: JVMValue, values: [JVMValue]) throws -> JVMValue {
         let name = op.name
         if ["isEmpty", "isNotEmpty"].contains(name) {

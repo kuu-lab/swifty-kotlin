@@ -349,7 +349,8 @@ extension JVMFunctionBuilder {
                 break
             }
         }
-        if let text = try stringMember(receiverID, name: member, args: args, id: id) { return text }
+        let textName = program.sema.bindings.callBinding(for: id).flatMap { textStubName($0.chosenCallee) } ?? member
+        if let text = try stringMember(receiverID, name: textName, args: args, id: id) { return text }
         if let scalar = try scalarMember(receiverID, name: member, args: args, id: id) { return scalar }
         if member == "floorDiv", let floor = try numericFloorDiv(receiverID, args: args, id: id) { return floor }
         if let reflection = try reflectionMember(receiverID, name: member, args: args, id: id) { return reflection }
