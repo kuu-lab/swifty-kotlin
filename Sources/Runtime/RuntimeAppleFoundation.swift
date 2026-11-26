@@ -119,8 +119,6 @@ func runtimeCancelFoundationRunLoops() {
 }
 
 #if canImport(Darwin)
-/// Holds the original Kotlin throwable in NSError.userInfo without retyping it
-/// into an invented Kotlin NSData/NSError implementation.
 final class RuntimeFoundationKotlinError: NSObject {
     let raw: Int
     private let pin: RuntimeForeignCallbackPin
@@ -151,8 +149,6 @@ final class RuntimeFoundationStreamDispatch: @unchecked Sendable {
     }
 }
 
-/// Real Foundation SDK subclass. All IO/state decisions enter the Kotlin
-/// controller. Foundation retains neither a fake NSData nor an array model.
 final class RuntimeFoundationInputStream: InputStream, StreamDelegate {
     let dispatch: RuntimeFoundationStreamDispatch
     private weak var assignedDelegate: (any StreamDelegate)?
@@ -301,10 +297,6 @@ func foundationStreamCall(_ handle: Int, _ operation: Int, _ arg1: Int, _ arg2: 
         guard let input = stream as? InputStream else { return kk_box_bool(0) }
         let pointerAddress = resolveCPointerBox(from: arg1)?.address ?? 0
         let lengthAddress = resolveCPointerBox(from: arg2)?.address ?? 0
-        // Kotlin keeps nullable CPointer syntax; Foundation requires both native
-        // outpointers. Reject missing/null storage before the SDK call, as the
-        // read/write cases reject missing native buffers. Valid outputs retain
-        // their original addresses and are written directly by Foundation.
         guard let buffer = UnsafeMutablePointer<UnsafeMutablePointer<UInt8>?>(bitPattern: pointerAddress),
               let length = UnsafeMutablePointer<Int>(bitPattern: lengthAddress) else { return kk_box_bool(0) }
         return kk_box_bool(input.getBuffer(buffer, length: length) ? 1 : 0)

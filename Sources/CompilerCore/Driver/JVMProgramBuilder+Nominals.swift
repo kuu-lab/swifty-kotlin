@@ -360,6 +360,7 @@ extension JVMProgramBuilder {
             }
         }
         if plan.modifiers.contains(.sealed) { functions += try sealedConstructors(plan, existing: existing) }
+        functions += try serializationMembers(plan)
         let initializers = functions.filter { $0.reference.name == "<clinit>" }
         if initializers.count > 1 {
             var locals: [JVMValue] = [], code: [JVMInstruction] = [], handlers: [JVMExceptionHandler] = [], slot = 0, labelOffset = 0
@@ -440,6 +441,7 @@ extension JVMProgramBuilder {
             result.innerName = nil
         }
         result.nestedNames = classes.values.filter { $0.outer == plan.symbol && $0.enumParent == nil }.map { String($0.name.split(separator: "$").last!) }.sorted()
+        if serializationPlan(for: plan) != nil { result.nestedNames.append("$serializer") }
         result.companionName = classes.values.first(where: { $0.companionOwner == plan.symbol }).map { context.interner.resolve(sema.symbols.symbol($0.symbol)!.name) }
         if result.isSealed {
             let subclasses = sema.symbols.sealedSubclasses(for: plan.symbol)

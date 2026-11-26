@@ -68,9 +68,6 @@ public fun Long.takeHighestOneBit(): Long {
 
 public fun Long.takeLowestOneBit(): Long = this and (-this)
 
-// KUU-1098: bit-count and one-bit extensions for the remaining integer types,
-// mirroring the real Kotlin stdlib formulas (operands masked to their width).
-
 public fun Byte.countOneBits(): Int = (toInt() and 0xFF).countOneBits()
 
 public fun Byte.countLeadingZeroBits(): Int =
@@ -133,7 +130,6 @@ public fun UShort.takeHighestOneBit(): UShort = toInt().takeHighestOneBit().toUS
 
 public fun UShort.takeLowestOneBit(): UShort = toInt().takeLowestOneBit().toUShort()
 
-// KUU-1257: reuse signed rotations while preserving the unsigned bit pattern.
 public fun UInt.rotateLeft(bitCount: Int): UInt = toInt().rotateLeft(bitCount).toUInt()
 
 public fun UInt.rotateRight(bitCount: Int): UInt = toInt().rotateRight(bitCount).toUInt()
@@ -142,8 +138,6 @@ public fun ULong.rotateLeft(bitCount: Int): ULong = toLong().rotateLeft(bitCount
 
 public fun ULong.rotateRight(bitCount: Int): ULong = toLong().rotateRight(bitCount).toULong()
 
-// KUU-1277: rotate within the receiver width, excluding sign extension from
-// the logical right shift. Mask counts before subtraction to handle Int extremes.
 public fun Byte.rotateLeft(bitCount: Int): Byte =
     ((toInt() shl (bitCount and 7)) or ((toInt() and 0xFF) ushr (8 - (bitCount and 7)))).toByte()
 

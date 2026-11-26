@@ -4,8 +4,6 @@ import Foundation
 import Testing
 
 extension JVMBackendTests {
-    /// KUU-4524: an erased Java `Class<?>` return must be usable as the receiver
-    /// of a Kotlin generic `Class<T>` extension.
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func kuu4524JavaWildcardClassReceiverCompilesAndRuns(mode: EmitMode) throws {
         try withWorkspace { root in

@@ -3,16 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// KSP-496 moved the type-kind members (isEnum/isInterface/isObject) to
-/// ordinary Kotlin extension properties
-/// (Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt), so `main`'s
-/// KIR body calls the Kotlin getter directly — the `__kk_kclass_is_*` runtime
-/// call happens one level deeper, inside that getter's own KIR function body.
-/// The class-kind flags (isData/isSealed/isValue/isFun/…) and collection
-/// members are declared on KClass/KDeclarationContainer themselves, so their
-/// reads emit the `__kk_kclass_*` runtime call directly in `main` — KClass
-/// handles are runtime boxes with no source itable. These tests assert both
-/// receiver forms (`T::class.x` and `val k: KClass<T>`).
 @Suite
 struct KClassBooleanIntrospectionTests {
 
@@ -47,8 +37,6 @@ struct KClassBooleanIntrospectionTests {
         let creation = try #require(calls.first { $0.callee == KIRRuntimeFunction.kClassCreate.name(in: ctx.interner) })
         let classValue = try #require(creation.result)
         let typeToken = try #require(creation.arguments.first)
-        // The flag bits are read from the metadata registry, so the literal-class
-        // query must also register the metadata (keyed by the same type token).
         let metadata = try #require(calls.first { $0.callee == KIRRuntimeFunction.kClassMetadata.name(in: ctx.interner) })
         #expect(metadata.arguments.first == typeToken)
         #expect(flagCall.arguments.first == classValue)
@@ -82,9 +70,6 @@ struct KClassBooleanIntrospectionTests {
         )
     }
 
-    /// The type-kind members that remain kotlin.reflect extensions
-    /// (isEnum/isInterface/isObject) resolve to their Kotlin getters; isFun is
-    /// a KDeclarationContainer member and emits the runtime call directly.
     @Test func testClassLiteralTypeKindMembersEmitRuntimeCalls() throws {
         let extensionCases: [(decl: String, reference: String, member: String)] = [
             ("enum class Color { RED }", "Color", "isEnum"),
@@ -134,8 +119,6 @@ struct KClassBooleanIntrospectionTests {
     }
 
     @Test func testVariableReceiverStandaloneClassRefRegistersMetadata() throws {
-        // A standalone `T::class` stored in a variable must register metadata so a
-        // later `k.isData` resolves the flag even when the class is never built.
         let (ctx, calls) = try callsForMain("""
         import kotlin.reflect.KClass
         data class Point(val x: Int)

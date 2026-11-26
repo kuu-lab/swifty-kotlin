@@ -39,7 +39,6 @@ public value class Future<T> @PublishedApi internal constructor(public val id: I
     @PublishedApi
     internal external fun consumeValue(): T
 
-    /** Blocks execution until the future is ready and consumes its result. */
     public inline fun <R> consume(code: (T) -> R): R = when (state) {
         FutureState.SCHEDULED, FutureState.COMPUTED -> {
             val value = __kkFutureConsume<T>(id)
@@ -57,7 +56,6 @@ public value class Future<T> @PublishedApi internal constructor(public val id: I
         }
     }
 
-    /** Blocks execution until the future is ready. */
     public val result: T
         get() = consumeValue()
 

@@ -3,13 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-// BUG-227: an annotated secondary constructor placed after a `;`-terminated
-// statement on the same physical line (e.g. `val y = 1; @Anno constructor() : this(0)`)
-// used to be dropped from the AST entirely, because the parser's block-level
-// declaration gate only recognized a leading newline or block-start as a
-// fresh statement boundary — not an explicit `;` separator. See
-// Tests/CompilerCoreTests/Parser/DeclarationBoundaryTests.swift for the
-// parser/CST-level regression coverage of the same fix.
 @Suite("SecondaryConstructorBoundary")
 struct SecondaryConstructorBoundaryTests {
 

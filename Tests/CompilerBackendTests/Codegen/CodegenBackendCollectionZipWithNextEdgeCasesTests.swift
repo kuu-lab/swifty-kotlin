@@ -23,9 +23,6 @@ struct CodegenBackendCollectionZipWithNextEdgeCasesTests {
 
     @Test
     func testCodegenCollectionZipWithNextRangeReceiver() throws {
-        // KUU-3978: a RuntimeRangeBox receiver is a valid Iterable source for
-        // the generic zipWithNext bridge (previously panicked with
-        // "invalid collection handle").
         let source = """
         fun main() {
             println((1..5).zipWithNext())

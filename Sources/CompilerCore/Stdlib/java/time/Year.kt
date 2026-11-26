@@ -1,6 +1,5 @@
 package java.time
 
-/** A year in the ISO-8601 calendar system. */
 public class Year private constructor(
     public val value: Int,
 ) : Comparable<Year> {

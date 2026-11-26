@@ -15,8 +15,6 @@ import kotlin.native.internal.NativePtr
 import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.ExperimentalForeignApi
 
-// KSwiftK represents C pointers as runtime handles. Reuse the existing
-// cinterop handle constructor for the NativePtr-to-CPointer identity cast.
 @KsSymbolName("kk_cpointer_new")
 private external fun __interpretCPointer(rawValue: NativePtr): COpaquePointer?
 
@@ -56,11 +54,6 @@ public class DetachedObjectGraph<T> internal constructor(pointer: NativePtr) {
     public fun asCPointer(): COpaquePointer? = __interpretCPointer(stable.value)
 }
 
-/**
- * Please note, that once object graph is attached, the [DetachedObjectGraph.stable] pointer does not
- * make sense anymore, and shall be discarded, so attach of one DetachedObjectGraph object can only
- * happen once.
- */
 // KSwiftK keeps the managed reference itself as the opaque stable token (see
 // __kk_native_concurrent_detach_object_graph / __kk_native_concurrent_attach_object_graph)
 // and the synthetic `kotlin.native.internal.NativePtr` has no `NULL` constant,

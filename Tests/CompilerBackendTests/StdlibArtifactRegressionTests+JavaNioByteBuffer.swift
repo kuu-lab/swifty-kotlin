@@ -4,7 +4,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-3064: typed ByteBuffer operations and byte order survive source and artifact compilation.
     @Test
     func testJavaNioByteBufferTypedAccessorsAcrossSourceAndFreshLibrary() throws {
         let directory = FileManager.default.temporaryDirectory

@@ -2,7 +2,6 @@ package java.util
 
 import kotlin.internal.KsSymbolName
 
-/** A Gregorian calendar backed by the platform calendar implementation. */
 public class GregorianCalendar : Calendar {
     public constructor() : super(TimeZone.getDefault())
 
@@ -26,7 +25,6 @@ public class GregorianCalendar : Calendar {
             )
         )
 
-    /** JVM `isLeapYear`: proleptic Gregorian leap-year rule. */
     public fun isLeapYear(year: Int): Boolean =
         year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
 
@@ -36,8 +34,6 @@ public class GregorianCalendar : Calendar {
     }
 }
 
-// The runtime resolves the field set atomically so intermediate overflow
-// normalization (e.g. Feb 30 rolling into March) cannot corrupt other fields.
 @KsSymbolName("__kk_calendar_create_fields")
 private external fun calendarCreateFields(
     timeZoneRaw: Long,

@@ -4,7 +4,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2284: java.net.URI remains explicitly importable through a fresh library.
     @Test
     func testJavaNetURIExplicitImportAcrossFreshLibrary() throws {
         let artifactPath = try testStdlibArtifactPath()
@@ -43,7 +42,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-3364: the Java-facing URI, Path, and Charset APIs survive stdlib packaging.
     @Test
     func testJavaNetURIPathAndCharsetMembersAcrossSourceAndFreshLibrary() throws {
         let artifactPath = try Self.buildStdlibArtifact()

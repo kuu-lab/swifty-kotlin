@@ -28,6 +28,12 @@ extension JVMBackendTests {
         fun hidden(): Int = 1
 
         fun visible(): Int = 2
+
+        class DeprecatedProperties {
+            @Deprecated("hidden", level = DeprecationLevel.HIDDEN)
+            val hidden: Int = 1
+            val visible: Int = 2
+        }
         """.write(to: root.appendingPathComponent("HiddenLibrary.kt"), atomically: true, encoding: .utf8)
         _ = try jvmTool("kotlinc", ["HiddenLibrary.kt", "-d", "hidden-library.jar"], root: root)
         return root.appendingPathComponent("hidden-library.jar")
@@ -81,6 +87,26 @@ extension JVMBackendTests {
         """.write(to: root.appendingPathComponent("CallbackLazy.kt"), atomically: true, encoding: .utf8)
         _ = try jvmTool("kotlinc", ["CallbackLazy.kt", "-d", "callback-lazy.jar"], root: root)
         return root.appendingPathComponent("callback-lazy.jar")
+    }
+
+    private func externalJvmSyntheticPropertyLibraryJar(_ root: URL) throws -> URL {
+        try """
+        package fixture
+
+        import kotlin.jvm.JvmSynthetic
+
+        class Properties {
+            @get:JvmSynthetic
+            val hidden: Int = 42
+            val visible: Int = 3
+        }
+
+        @get:JvmSynthetic
+        val topHidden: Int = 5
+        val topVisible: Int = 6
+        """.write(to: root.appendingPathComponent("SyntheticProperties.kt"), atomically: true, encoding: .utf8)
+        _ = try jvmTool("kotlinc", ["SyntheticProperties.kt", "-d", "synthetic-properties.jar"], root: root)
+        return root.appendingPathComponent("synthetic-properties.jar")
     }
 
     @Test
@@ -208,6 +234,67 @@ extension JVMBackendTests {
             let facade = String(decoding: ctx.sourceManager.contents(of: facadeID), as: UTF8.self)
             #expect(facade.contains("`visible`"))
             #expect(!facade.contains("`hidden`"))
+
+            let classPath = "<kswiftk-jvm-import>/fixture/DeprecatedProperties.kt"
+            let classID = try #require(ctx.sourceManager.fileID(forPath: classPath))
+            let classSource = String(decoding: ctx.sourceManager.contents(of: classID), as: UTF8.self)
+            #expect(classSource.contains("`visible`"))
+            #expect(!classSource.contains("`hidden`"))
+        }
+    }
+
+    @Test
+    func externalKotlinJvmSyntheticPropertyReadsMatchKotlinc() throws {
+        try withWorkspace { root in
+            let library = try externalJvmSyntheticPropertyLibraryJar(root)
+            let compiled = try compile("""
+            import fixture.Properties
+            import fixture.topHidden
+            import fixture.topVisible
+
+            fun main() {
+                val properties = Properties()
+                println(properties.hidden)
+                println(properties.visible)
+                println(topHidden)
+                println(topVisible)
+            }
+            """, root: root, mode: .jvmJar, classpath: [library.path])
+            try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
+
+            let runtime = try m11Runtime()
+            let dependencies = library.path + ":" + runtime
+            let generated = try java(["-cp", root.appendingPathComponent("hello.jar").path + ":" + dependencies, "HelloKt"])
+            #expect(generated.stderr.isEmpty)
+            #expect(generated.stdout == "42\n3\n5\n6\n")
+
+            let referenceCompile = try jvmTool("kotlinc", ["hello.kt", "-cp", library.path, "-d", "reference.jar"], root: root)
+            #expect(referenceCompile.exitCode == 0, "\(referenceCompile.stderr)")
+            let reference = try java(["-cp", root.appendingPathComponent("reference.jar").path + ":" + dependencies, "HelloKt"])
+            #expect(reference.stderr.isEmpty)
+            #expect(reference.stdout == generated.stdout)
+
+            let javaProbe = root.appendingPathComponent("JavaProbe.java")
+            try """
+            import fixture.Properties;
+            import fixture.SyntheticPropertiesKt;
+
+            public class JavaProbe {
+                public static void main(String[] args) {
+                    System.out.println(new Properties().getHidden());
+                    System.out.println(SyntheticPropertiesKt.getTopHidden());
+                }
+            }
+            """.write(to: javaProbe, atomically: true, encoding: .utf8)
+            var rejected = false
+            do {
+                _ = try javac(["-cp", library.path, "-d", root.appendingPathComponent("java-probe-out").path, javaProbe.path])
+            } catch CommandRunnerError.nonZeroExit(let rejection) {
+                rejected = true
+                #expect(rejection.stderr.contains("cannot find symbol")
+                    || rejection.stdout.contains("cannot find symbol"))
+            }
+            #expect(rejected, "javac resolved @get:JvmSynthetic property getters")
         }
     }
 }

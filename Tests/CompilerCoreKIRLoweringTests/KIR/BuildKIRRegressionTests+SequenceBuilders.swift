@@ -47,11 +47,6 @@ extension BuildKIRRegressionTests {
         #expect(!callees.contains("kk_duration_times_int"), "Builder loop Int arithmetic must not use Duration.times(Int), got: \(callees)")
     }
 
-    /// KUU-3075: a `sequence {}`/`iterator {}` block that captures the outer
-    /// class receiver must keep its own `SequenceScope` receiver param as the
-    /// implicit receiver. Rebinding the packed/raw `this` capture used to
-    /// overwrite it, so `yield` was emitted with the captured class handle as
-    /// the builder handle and panicked at runtime (invalid builder handle).
     @Test func testBuilderLambdaCapturingOuterReceiverKeepsBuilderReceiver() throws {
         let source = """
         class Grid(val w: Int) {
@@ -89,8 +84,6 @@ extension BuildKIRRegressionTests {
 
         var checkedYields = 0
         for function in findAllKIRFunctions(in: module) where lambdaSymbols.contains(function.symbol) {
-            // The builder lambda takes (closureEnv, receiver); `yield`'s first
-            // argument must be that receiver param, not a restored capture.
             guard let receiverSymbol = function.params.last?.symbol else { continue }
             for instruction in function.body {
                 guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,

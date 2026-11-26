@@ -5,7 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-3482: fully-qualified BigDecimal construction must resolve like BigInteger.
     @Test(arguments: [false, true])
     func testBigDecimalFullyQualifiedConstructorAcrossStdlibSurfaces(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try BigDecimalZeroArtifact.path.get() : nil
@@ -26,14 +25,11 @@ extension StdlibArtifactRegressionTests {
             do {
                 try runSema(context)
             } catch {
-                // Assert on diagnostics below so the failure reports the unresolved name.
             }
             #expect(!context.diagnostics.hasError, "Unexpected diagnostics: \(context.diagnostics.diagnostics)")
         }
     }
 
-    /// KUU-2232: resolve BigDecimal constants from source and fresh metadata at O0/O2.
-    /// This is compile-only coverage; it intentionally does not execute generated functions.
     @Test(arguments: [false, true], [0, 2])
     func testBigDecimalConstantsAcrossStdlibSurfaces(
         useArtifact: Bool,
@@ -75,7 +71,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// A consumer must not be able to assign to the public ZERO property.
     @Test(arguments: [false, true])
     func testBigDecimalZeroRejectsReassignment(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try BigDecimalZeroArtifact.path.get() : nil
@@ -93,7 +88,6 @@ extension StdlibArtifactRegressionTests {
             do {
                 try runSema(context)
             } catch {
-                // Require the specific diagnostic, not just pipeline failure.
             }
             let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
             #expect(errors.map(\.code) == ["KSWIFTK-SEMA-0014"])
@@ -101,7 +95,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-2233: BigDecimal's Number conversions survive a fresh .kklib and O0/O2 consumers.
     @Test(arguments: [0, 2])
     func testBigDecimalNumberConversionsThroughFreshStdlibArtifact(optLevelRawValue: Int) throws {
         let optLevel = try #require(OptimizationLevel(rawValue: optLevelRawValue))
@@ -135,7 +128,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-3061: arithmetic and scale rounding work through a fresh stdlib artifact at O0/O2.
     @Test(arguments: [0, 2])
     func testBigDecimalArithmeticThroughFreshStdlibArtifact(optLevelRawValue: Int) throws {
         let optLevel = try #require(OptimizationLevel(rawValue: optLevelRawValue))
@@ -246,7 +238,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-3367: the public Double constructor preserves Java's exact binary-to-decimal value.
     @Test(arguments: [0, 2])
     func testBigDecimalDoubleConstructorThroughFreshStdlibArtifact(optLevelRawValue: Int) throws {
         let optLevel = try #require(OptimizationLevel(rawValue: optLevelRawValue))
@@ -280,7 +271,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-3400: primitive numbers convert to BigDecimal through the bundled stdlib.
     @Test(arguments: [0, 2])
     func testPrimitiveToBigDecimalThroughFreshStdlibArtifact(optLevelRawValue: Int) throws {
         let optLevel = try #require(OptimizationLevel(rawValue: optLevelRawValue))
@@ -341,7 +331,6 @@ private func bigDecimalZeroContext(
 }
 
 private enum BigDecimalZeroArtifact {
-    /// Build a fresh artifact for this test without preparing the default cache.
     static let path: Result<String, Error> = Result {
         let outputBase = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString).path

@@ -1,6 +1,5 @@
 package java.time
 
-/** A date-based amount of time measured in years, months, and days. */
 public class Period private constructor(
     public val years: Int,
     public val months: Int,

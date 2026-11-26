@@ -27,8 +27,6 @@ struct CodegenBackendEscapingLambdaStringABIRegressionTests {
         )
     }
 
-    /// `{ params -> ... }` as an if/when branch body is a function literal, not
-    /// a block.
     @Test
     func testBraceLambdaLiteralAsIfAndWhenBranchRegression() throws {
         let source = """

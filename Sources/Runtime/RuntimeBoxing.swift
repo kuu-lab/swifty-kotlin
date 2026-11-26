@@ -1,7 +1,6 @@
 
 @_cdecl("kk_box_unit")
 public func kk_box_unit(_ value: Int) -> Int {
-    // Nullable Unit results (e.g. withTimeoutOrNull) retain null at erased boundaries.
     if value == runtimeNullSentinelInt {
         return value
     }
@@ -10,7 +9,6 @@ public func kk_box_unit(_ value: Int) -> Int {
             return Int(bitPattern: pointer)
         }
 
-        // Boxed Unit is a singleton at every Any/reference boundary.
         let box = RuntimeUnitBox()
         let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
         let pointer = UInt(bitPattern: opaque)
@@ -166,17 +164,9 @@ private func runtimeStaticBox<T: AnyObject>(
         {
             return value
         }
-        // A tagged handle is already the result of this fast path. Keeping this
-        // check makes the helper idempotent for compiler-generated value flows
-        // without reintroducing the object registry lookup used by the legacy ABI.
         if runtimePrimitiveBoxBasePointer(from: value) != nil {
             return value
         }
-        // JVM-compatible identity cache: an in-range scalar produces the one
-        // shared box for its (kind, value) so `===` sees reference identity
-        // rather than value equality (KUU-1385). Out-of-range values and
-        // deliberately uncached kinds (Float/Double/unsigned) keep per-call
-        // fresh boxes.
         if let identityCacheKey,
            let cached = state.identityPrimitiveBoxCache[identityCacheKey]
         {
@@ -212,18 +202,12 @@ private func runtimeStaticUnbox<T: AnyObject>(
     guard isRegisteredHandle else {
         return fallback()
     }
-    // The tag is emitted only for a statically-known primitive box. If a
-    // malformed or mismatched handle reaches this helper, retain the legacy
-    // registry-checked behavior as a safe fallback.
     guard let box = tryCast(pointer, to: type) else {
         return fallback()
     }
     return extract(box)
 }
 
-/// Unbox entry points receive raw payloads far more often than boxes (every
-/// non-null `Int` operand is unboxed defensively at ABI boundaries), so
-/// rule out values outside the registry's address range before locking.
 @inline(__always)
 func runtimeIsRegisteredObjectPointer(_ key: UInt) -> Bool {
     guard runtimePointerSetMayContain(key) else { return false }
@@ -273,9 +257,6 @@ public func kk_box_ushort(_ value: Int) -> Int {
 
 @_cdecl("kk_box_bool")
 public func kk_box_bool(_ value: Int) -> Int {
-    // If the value is already a registered runtime object (e.g. a Boolean
-    // returned by a runtime helper that already boxed it), pass it through
-    // without double-boxing so source-level println() preserves the value.
     runtimeBoxPrimitive(
         value,
         identityCacheKey: runtimePrimitiveIdentityCacheKey(
@@ -412,11 +393,6 @@ public func kk_unbox_long(_ obj: Int) -> Int {
 
 @_cdecl("kk_box_ulong")
 public func kk_box_ulong(_ value: Int) -> Int {
-    // See kk_box_long: callers whose source may genuinely be null rely on
-    // the sentinel pass-through. kk_box_ulong_nonnull is the counterpart used
-    // when the source's static type is provably non-null. Pass-through is
-    // restricted to known primitive-slot carriers — a raw ULong scalar can
-    // coincide with an unrelated object's address (KUU-3686).
     return runtimeBoxPrimitive(value, registeredPassThrough: runtimeIsPrimitiveSlotCarrier) {
         RuntimeULongBox(value)
     }
@@ -439,7 +415,6 @@ public func kk_box_ulong_nonnull(_ value: Int) -> Int {
 
 @_cdecl("kk_unbox_ulong")
 public func kk_unbox_ulong(_ obj: Int) -> Int {
-    // NOTE: no early-return for runtimeNullSentinelInt — see kk_unbox_long.
     guard let objPointer = UnsafeMutableRawPointer(bitPattern: obj) else { return 0 }
     let isObjectPointer = runtimeIsRegisteredObjectPointer(UInt(bitPattern: objPointer))
     guard isObjectPointer else { return obj }
@@ -468,7 +443,6 @@ public func kk_box_float(_ value: Int) -> Int {
 
 @_cdecl("kk_unbox_float")
 public func kk_unbox_float(_ obj: Int) -> Int {
-    // NOTE: keep the null sentinel — see kk_unbox_int.
     if obj == runtimeNullSentinelInt { return obj }
     guard let objPointer = UnsafeMutableRawPointer(bitPattern: obj) else { return obj }
     let isObjectPointer = runtimeIsRegisteredObjectPointer(UInt(bitPattern: objPointer))
@@ -484,9 +458,6 @@ public func kk_unbox_float(_ obj: Int) -> Int {
 
 @_cdecl("kk_box_double")
 public func kk_box_double(_ value: Int) -> Int {
-    // Callers whose source may genuinely be null rely on the sentinel
-    // pass-through — see kk_box_double_nonnull below for the counterpart used
-    // when the source's static type is provably non-null.
     // A nullable Double? read out of a generic container is already a
     // RuntimeDoubleBox pointer; re-boxing it would reinterpret the pointer
     // as an IEEE754 payload (mirrors kk_box_int / kk_box_long). Pass-through
@@ -516,7 +487,6 @@ public func kk_box_double_nonnull(_ value: Int) -> Int {
 
 @_cdecl("kk_unbox_double")
 public func kk_unbox_double(_ obj: Int) -> Int {
-    // NOTE: keep the null sentinel — see kk_unbox_int.
     if obj == runtimeNullSentinelInt { return obj }
     guard let objPointer = UnsafeMutableRawPointer(bitPattern: obj) else { return obj }
     let isObjectPointer = runtimeIsRegisteredObjectPointer(UInt(bitPattern: objPointer))
@@ -530,7 +500,6 @@ public func kk_unbox_double(_ obj: Int) -> Int {
     return obj
 }
 
-/// Non-null Double words may contain -0.0, whose bits match the null sentinel.
 @_cdecl("kk_unbox_double_nonnull")
 public func kk_unbox_double_nonnull(_ obj: Int) -> Int {
     if obj == runtimeNullSentinelInt { return obj }
@@ -551,7 +520,6 @@ public func kk_box_char(_ value: Int) -> Int {
 
 @_cdecl("kk_unbox_char")
 public func kk_unbox_char(_ obj: Int) -> Int {
-    // NOTE: keep the null sentinel — see kk_unbox_int.
     if obj == runtimeNullSentinelInt { return obj }
     guard let objPointer = UnsafeMutableRawPointer(bitPattern: obj) else { return obj }
     let isObjectPointer = runtimeIsRegisteredObjectPointer(UInt(bitPattern: objPointer))
@@ -564,12 +532,6 @@ public func kk_unbox_char(_ obj: Int) -> Int {
     #endif
     return obj
 }
-//
-// These entry points are selected by ABILoweringPass only when the source or
-// target primitive type is known at compile time. They preserve the canonical
-// Swift ARC box and objectPointers registration from ARCH-015, but tag the
-// handle so the paired unbox can avoid the registry lock. The legacy entry
-// points above remain the compatibility path for ambiguous runtime values.
 
 @_cdecl("kk_box_int_static")
 public func kk_box_int_static(_ value: Int) -> Int {
@@ -867,10 +829,6 @@ public func kk_value_class_box(_ payload: Int, _ classID: Int) -> Int {
     return Int(bitPattern: opaque)
 }
 
-/// Inverse of `kk_value_class_box`: unwraps a `V?`-slot value to the payload a
-/// `V`-typed slot expects. The class-ID check keeps the operation idempotent —
-/// a slot already holding the raw payload, the null sentinel, or an unrelated
-/// object passes through unchanged, matching the `kk_unbox_*` convention.
 @_cdecl("kk_value_class_unbox")
 public func kk_value_class_unbox(_ rawValue: Int, _ classID: Int) -> Int {
     guard classID != 0,

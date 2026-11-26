@@ -14,8 +14,6 @@ struct CollectionBuilderExpectedTypeTests {
         """
     }
 
-    // KUU-1912: retain the map receiver across apply's receiver and let's
-    // ordinary, destructured parameter scope, including Unit coercion.
     @Test(arguments: ["buildMap", "buildMap<Point,Int>"])
     func bfsRetainsExpectedMapTypeAndNestedScopes(builder: String) throws {
         try withTemporaryFile(contents: bfsSource(builder: builder)) { path in
@@ -37,8 +35,6 @@ struct CollectionBuilderExpectedTypeTests {
             let binding = try #require(sema.bindings.callBinding(for: call))
             #expect(binding.substitutedTypeArguments == [pointType, sema.types.intType])
 
-            // Inspect typechecked operations; normalization also leaves unused
-            // copies of the destructured lambda's operations in the arena.
             let operations = allExprIDs(in: ast, path: path, ctx: ctx) { exprID, expr in
                 guard sema.bindings.exprType(for: exprID) != nil else { return false }
                 switch expr {
@@ -155,9 +151,6 @@ struct CollectionBuilderExpectedTypeTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
-    /// `MutableList`/`ArrayList` are invariant, so the target's element type
-    /// must win over the lub of the arguments whenever every argument conforms
-    /// to it; `mutableListOf`/`arrayListOf` used to infer `Int` here.
     @Test(arguments: [
         "val xs: MutableList<Number> = mutableListOf(77)",
         "val xs: MutableList<Any> = mutableListOf(1)",
@@ -181,10 +174,6 @@ struct CollectionBuilderExpectedTypeTests {
         #expect(ctx.diagnostics.hasError, "\(declaration) must stay a type error")
     }
 
-    /// KUU-4417: `add`/`put` reached through nested parameter lambdas
-    /// (`run`, `forEach`, ...) still targets the builder receiver, so the
-    /// mutation scan must descend into them instead of leaving the builder
-    /// type variables unresolved (SEMA-0473).
     @Test
     func nestedLambdaReceiverCallsInferBuilderTypes() throws {
         let ctx = makeContextFromSource("""
@@ -207,9 +196,6 @@ struct CollectionBuilderExpectedTypeTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
-    /// KUU-4417: receiver lambdas install their own `this`; `add` inside
-    /// `xs.apply`/`with(xs)`/`xs.run` binds that receiver when it is a
-    /// collection, so it must not widen the outer builder's element type.
     @Test(arguments: [
         "xs.apply { add(1) }",
         "with(xs) { add(1) }",
@@ -230,9 +216,6 @@ struct CollectionBuilderExpectedTypeTests {
         #expect(!ctx.diagnostics.hasError, "\(receiverCall): \(ctx.diagnostics.diagnostics)")
     }
 
-    /// KUU-4417: a nested `buildList`/`buildMap` installs its own mutable
-    /// receiver; its `add`/`put` calls belong to the inner builder and must
-    /// not constrain the outer one.
     @Test
     func nestedSameNamespaceBuilderDoesNotLeakIntoOuterBuilder() throws {
         let ctx = makeContextFromSource("""

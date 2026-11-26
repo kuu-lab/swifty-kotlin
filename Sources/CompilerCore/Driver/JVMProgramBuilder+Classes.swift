@@ -172,6 +172,7 @@ extension JVMProgramBuilder {
             }
         }
         try prepareLocalNominalCaptures()
+        try prepareSerialization()
         for plan in classes.values.sorted(by: { $0.name < $1.name }) {
             let numberSubclass = isKotlinNumberSubclass(plan.symbol)
             guard plan.name.split(whereSeparator: { $0 == "/" || $0 == "$" }).allSatisfy({ component in
@@ -266,8 +267,8 @@ extension JVMProgramBuilder {
             let name = context.interner.resolve(p.name)
             let mappedPropertyType = plan.isAnnotation ? try annotationElementType(self.type(propertyType)) : try self.type(propertyType)
             let type = nominalRangeResultType(for: symbol, mapped: mappedPropertyType) ?? mappedPropertyType
-            let backingFieldSemanticType = sema.symbols.backingFieldSymbol(for: symbol)
-                .flatMap { sema.symbols.propertyType(for: $0) } ?? propertyType
+            let backingFieldSemanticType = p.explicitBackingField == nil ? propertyType : (sema.symbols.backingFieldSymbol(for: symbol)
+                .flatMap { sema.symbols.propertyType(for: $0) } ?? propertyType)
             let mappedBackingFieldType = try self.type(backingFieldSemanticType)
             let backingFieldType = nominalRangeResultType(for: symbol, mapped: mappedBackingFieldType)
                 ?? mappedBackingFieldType
@@ -462,6 +463,7 @@ extension JVMProgramBuilder {
             let parents = ([plan.superclass] + plan.interfaces).map { parentSignatures[$0] ?? "L" + $0 + ";" }
             result.genericSignature = (result.typeParameters.isEmpty ? "" : "<" + result.typeParameters.map(\.signature).joined() + ">") + parents.joined()
             results.append(result)
+            if let serializer = try serializerClass(for: plan) { results.append(serializer) }
             if let defaultImpls { results.append(defaultImpls) }
         }
         return results

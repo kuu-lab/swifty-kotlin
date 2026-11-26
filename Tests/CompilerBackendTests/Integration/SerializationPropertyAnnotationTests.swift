@@ -79,7 +79,6 @@ struct SerializationPropertyAnnotationTests {
         for (field, annotation) in [("required", "Required"), ("temporary", "Transient"), ("optional", "EncodeDefault")] {
             let record = try #require(records.first { $0.fqName == "producer.FieldModel." + field })
             let stored = try #require(record.annotations.first { $0.annotationFQName == "kotlinx.serialization." + annotation })
-            // Legacy-compatible metadata omits the default RUNTIME value.
             #expect(stored.retention == nil || stored.retention == .runtime)
             #expect(stored.factoryLinkName != nil)
         }

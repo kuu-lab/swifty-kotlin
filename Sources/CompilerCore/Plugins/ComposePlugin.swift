@@ -130,6 +130,11 @@ struct ComposePlugin: CompilerPlugin {
         return false
     }
 
+    private static func stubCompanion(_ companion: DeclID?, at range: SourceRange, context: CompilerPluginSemaContext) -> [DeclID] {
+        guard let companion, context.sema.jvmClasspathStubFiles.contains(range.start.file) else { return [] }
+        return [companion]
+    }
+
     private static func scanDeclRecursively(
         declID: DeclID,
         context: CompilerPluginSemaContext,
@@ -157,7 +162,7 @@ struct ComposePlugin: CompilerPlugin {
                     context.sema.stableAnnotatedSymbols.insert(symID)
                 }
             }
-            for childDecl in classDecl.memberFunctions + classDecl.memberProperties + classDecl.nestedClasses + classDecl.nestedObjects {
+            for childDecl in classDecl.memberFunctions + classDecl.memberProperties + classDecl.nestedClasses + classDecl.nestedObjects + stubCompanion(classDecl.companionObject, at: classDecl.range, context: context) {
                 scanDeclRecursively(
                     declID: childDecl,
                     context: context,
@@ -170,7 +175,7 @@ struct ComposePlugin: CompilerPlugin {
             }
 
         case let .interfaceDecl(interfaceDecl):
-            for childDecl in interfaceDecl.memberFunctions + interfaceDecl.memberProperties + interfaceDecl.nestedClasses + interfaceDecl.nestedObjects {
+            for childDecl in interfaceDecl.memberFunctions + interfaceDecl.memberProperties + interfaceDecl.nestedClasses + interfaceDecl.nestedObjects + stubCompanion(interfaceDecl.companionObject, at: interfaceDecl.range, context: context) {
                 scanDeclRecursively(
                     declID: childDecl,
                     context: context,

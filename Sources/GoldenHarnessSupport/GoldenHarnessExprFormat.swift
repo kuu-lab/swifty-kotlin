@@ -5,7 +5,6 @@ enum GoldenHarnessExprFormat {
         let interner = ctx.interner
         switch expr {
         case .nullLiteral:
-            // Preserve the established golden spelling for null literals.
             return "name(null)"
         case let .intLiteral(value, _):
             return renderLiteral("int", value)

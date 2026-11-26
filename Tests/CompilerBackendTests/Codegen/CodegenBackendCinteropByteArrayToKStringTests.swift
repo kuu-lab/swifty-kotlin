@@ -7,7 +7,6 @@ import Testing
 @Suite
 struct CodegenBackendCinteropByteArrayToKStringTests {
 
-    // STDLIB-CINTEROP-FN-029: ByteArray.toKString(startIndex, endIndex, throwOnInvalidSequence)
     @Test
     func testCodegenCinteropByteArrayToKString() throws {
         let source = """

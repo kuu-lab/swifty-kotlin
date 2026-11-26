@@ -86,7 +86,6 @@ func firstExprID(
     return nil
 }
 
-/// First call expression whose callee is a bare name reference to `name`.
 func nameRefCallExprID(
     named name: String,
     in ast: ASTModule,
@@ -104,15 +103,12 @@ func nameRefCallExprID(
 }
 
 extension KIRDecl {
-    /// The wrapped function, or `nil` when this declaration is not a function.
     var function: KIRFunction? {
         guard case let .function(fn) = self else { return nil }
         return fn
     }
 }
 
-/// Build a single-function `KIRModule` around `body` — the fixture shape every
-/// pass-level lowering test needs.
 func makeModule(
     body: [KIRInstruction],
     interner: StringInterner,

@@ -3,7 +3,6 @@
 import Foundation
 import Testing
 
-/// KUU-2061: unsigned random overloads are imported extensions, not members.
 @Suite
 struct UnsignedRandomImportTests {
     @Test(arguments: [false, true])
@@ -78,7 +77,6 @@ struct UnsignedRandomImportTests {
                 paths.append(path)
             }
         }
-        // Each file keeps independent imports while sharing one stdlib source compilation.
         let ctx = makeCompilationContext(
             inputs: paths, includeStdlib: !artifact,
             stdlibLibraryPath: library, allowDefaultStdlibLibrary: false

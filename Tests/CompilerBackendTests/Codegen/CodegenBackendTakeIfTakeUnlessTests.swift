@@ -7,7 +7,6 @@ import Testing
 @Suite
 struct CodegenBackendTakeIfTakeUnlessTests {
 
-    // STDLIB-TEXT-FN-079: String.takeIf / String.takeUnless
     @Test
     func testCodegenStringTakeIfTakeUnless() throws {
         let source = """

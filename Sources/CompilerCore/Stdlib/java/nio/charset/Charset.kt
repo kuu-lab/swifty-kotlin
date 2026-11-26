@@ -52,16 +52,8 @@ public class Charset internal constructor(internal val tag: Int) : Comparable<Ch
     public override fun toString(): String = name()
 
     public companion object {
-        /**
-         * Native defaults to UTF-8, matching Kotlin String and stream encoding.
-         * The host locale and JVM file.encoding property do not select a codec.
-         */
         public fun defaultCharset(): Charset = Charsets.UTF_8
 
-        /**
-         * Returns the charsets supported by the bundled native codecs, keyed
-         * by their canonical names in natural string order.
-         */
         public fun availableCharsets(): SortedMap<String, Charset> {
             val charsets = TreeMap<String, Charset>()
             val available = listOf(

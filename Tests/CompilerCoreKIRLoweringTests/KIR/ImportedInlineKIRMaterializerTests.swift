@@ -279,8 +279,6 @@ struct ImportedInlineKIRMaterializerTests {
             returnType: types.unitType,
             body: [
                 .constValue(result: definedID, value: .unit),
-                // A serialized body can retain a throw-check operand whose
-                // defining exception channel is supplied only by codegen.
                 .jumpIfNotNull(value: unresolvedThrowSlot, target: 1),
                 .returnValue(definedID),
             ],

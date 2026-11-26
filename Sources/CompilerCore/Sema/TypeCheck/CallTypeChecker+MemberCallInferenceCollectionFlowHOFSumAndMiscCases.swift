@@ -8,11 +8,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 sema.bindings.bindExprType(id, type: sema.types.anyType)
                 return sema.types.anyType
             }
-            // If the receiver call has explicit type arguments (e.g. listOf<Int>())
-            // and the explicit element type is a known non-collection, flatten() is
-            // invalid — reject before the type-inference result can mask the error.
-            // This handles cases where kswiftc infers List<Any> despite <Int> being
-            // written explicitly (type-inference gap for empty collection literals).
             if !isSequenceReceiver,
                let receiverExpr = ast.arena.expr(receiverID),
                case let .call(_, receiverTypeArgs, _, _) = receiverExpr,
@@ -41,17 +36,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
             }
-            // KUU-461 / BUG-237: on a Sequence receiver, flatten() only
-            // exists as Sequence<Iterable<T>>.flatten() or
-            // Sequence<Sequence<T>>.flatten(). Accept the call only when
-            // the element type satisfies exactly one of those
-            // constraints: Sequence<Any>, Sequence<Int>, or an
-            // unbounded type parameter satisfies neither (kotlinc:
-            // cannot infer the type parameter), while Sequence<Nothing>
-            // or a type implementing both Iterable and Sequence
-            // satisfies both (kotlinc: overload ambiguity). errorType
-            // stays lenient — the element failure was already diagnosed
-            // upstream.
             if isSequenceReceiver, collectionElementType != sema.types.errorType {
                 let flattenSourcePackages: [[InternedString]] = [
                     [interner.intern("kotlin"), interner.intern("sequences")],
@@ -114,9 +98,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 resultType = sema.types.anyType
             }
             if !isSequenceReceiver {
-                // List.flatten and Iterable.flatten share the public name,
-                // but the statically Iterable path must not fall through
-                // without a source-backed callee binding.
                 _ = bindBundledListSourceFunction(typeArguments: [flattenedElementType])
                     || bindBundledIterableSourceFunction(typeArguments: [flattenedElementType])
             }
@@ -165,8 +146,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     sema.bindings.bindExprType(id, type: sema.types.anyType)
                     return sema.types.anyType
                 }
-                // Kotlin's transform is (T, T) -> R with unbounded R, so the
-                // erased placeholder must accept nullable results (Any?).
                 let lambdaReturnType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs) ?? sema.types.nullableAnyType
                 let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [collectionElementType, collectionElementType],
@@ -354,9 +333,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             }
             let isListSumOf = calleeStr == "sumOf"
                 && (receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver)
-            // KSP-1359: a Sequence receiver's sumOf selector is likewise
-            // inferred against Any so its concrete return type can pick the
-            // matching bundled overload below.
             let isSequenceSumOf = calleeStr == "sumOf" && isSequenceReceiver
             let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                 params: [collectionElementType],
@@ -383,11 +359,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 || selectorType == sema.types.ulongType
             if isSequenceReceiver {
                 if calleeStr == "sumOf" {
-                    // KSP-1359: bind the bundled Sequence<T>.sumOf overload
-                    // matching the inferred selector return type
-                    // (Int/Long/Double/UInt/ULong). An unsupported selector
-                    // type has no viable overload upstream and must not
-                    // fall through to the first-arity-match binder.
                     guard let sequenceSumOfType = bindSequenceSumOfSourceForSelectorType(
                         selectorReturnType: selectorType
                     ) else {
@@ -404,9 +375,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     }
                     resultType = sequenceSumOfType
                     if case .lambdaLiteral = ast.arena.expr(args[0].expr) {
-                        // Same lambda-type restoration as the List branch:
-                        // the boxed selector's result ABI must match the
-                        // bound overload's primitive return type.
                         sema.bindings.bindExprType(
                             args[0].expr,
                             type: sema.types.make(.functionType(FunctionType(
@@ -479,15 +447,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                             : nil
                     )
                     : bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
-                // BUG-256 sibling: a concrete List<T> receiver whose
-                // selector return type has no List<T>.sumOf overload
-                // (UInt/ULong) never matches above. Fall back to the
-                // generic Iterable<T>.sumOf family instead of leaving
-                // the call unbound. The lambda was already inferred
-                // above against this same selectorType, so bind
-                // directly by that known type rather than calling
-                // bindBundledIterableSumOfSource() (which would
-                // re-infer the same lambda expr).
                 if !didBindSource,
                    calleeStr == "sumOf",
                    isListSumOf,
@@ -498,10 +457,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                        selectorReturnType: selectorType
                    ) != nil
                 {
-                    // resultType is already `selectorType` from the
-                    // isListSumOf/selectorHasIterableSumOfOverload branch
-                    // above -- the matched Iterable<T>.sumOf overload's
-                    // return type is that same selectorType by construction.
                     didBindSource = true
                 }
                 if didBindSource,
@@ -947,8 +902,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             _ = driver.inferExpr(args[args.count - 1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
             resultType = sema.types.intType
             if bindBundledListBinarySearchSource() {
-                // The bundled selector returns an erased K, so use the
-                // Kotlin function-value ABI rather than a raw HOF callback.
                 sema.bindings.unmarkCollectionHOFLambdaExpr(args[args.count - 1].expr)
             }
 
@@ -957,8 +910,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 sema.bindings.bindExprType(id, type: sema.types.anyType)
                 return sema.types.anyType
             }
-            // Kotlin's selector is (T) -> K with unbounded K, so the erased
-            // placeholder must accept nullable keys (Any?) like map/groupBy.
             let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                 params: [collectionElementType],
                 returnType: sema.types.nullableAnyType,

@@ -29,8 +29,6 @@ private external fun __kkFloatArrayToList(array: FloatArray): List<Float>
 @KsSymbolName("__kk_array_toList")
 private external fun <T> __kkArrayToList(array: Array<out T>): List<T>
 
-// KSP-1516: array asList() keeps the Kotlin view contract. The runtime bridge
-// only creates a List view over the existing array storage.
 @KsSymbolName("__kk_array_asList")
 private external fun <T> __kkArrayAsList(array: Array<out T>): List<T>
 
@@ -58,8 +56,6 @@ private external fun __kkDoubleArrayAsList(array: DoubleArray): List<Double>
 @KsSymbolName("__kk_floatArray_asList")
 private external fun __kkFloatArrayAsList(array: FloatArray): List<Float>
 
-// `size` uses the intrinsic declarations in kotlin.ArrayIntrinsics.kt, while
-// `toList` delegates to the typed runtime bridge for correct primitive boxing.
 public val IntArray.size: Int get() = __kkIntArraySize(this)
 public val LongArray.size: Int get() = __kkLongArraySize(this)
 public val ShortArray.size: Int get() = __kkShortArraySize(this)
@@ -98,9 +94,6 @@ public fun CharArray.toMutableList(): MutableList<Char> = this.toList().toMutabl
 public fun BooleanArray.toMutableList(): MutableList<Boolean> = this.toList().toMutableList()
 public fun DoubleArray.toMutableList(): MutableList<Double> = this.toList().toMutableList()
 public fun FloatArray.toMutableList(): MutableList<Float> = this.toList().toMutableList()
-
-// Typed constructors and indexed access keep allocation and boxing at the
-// compiler-provided array boundary.
 
 @Suppress("UNCHECKED_CAST")
 public fun <T> Array<T>.sliceArray(indices: Collection<Int>): Array<T> {
@@ -599,9 +592,6 @@ public fun ULongArray.toTypedArray(): Array<ULong> {
     return result as Array<ULong>
 }
 
-// Fresh storage comes from the array constructors / arrayOfNulls, so only the
-// per-array-type allocation core stays in the Swift runtime.
-
 @Suppress("UNCHECKED_CAST")
 public inline fun <reified T> List<T>.toTypedArray(): Array<T> {
     val size = this.size
@@ -1034,8 +1024,6 @@ public fun ULongArray.reverse() {
 
 public fun ULongArray.reversed(): List<ULong> = this.toList().reversed()
 
-// `toMap` mirrors the Iterable/Sequence/Map overloads from kotlin-stdlib
-// Maps.kt; vararg parameters arrive at the call site as `Array<out Pair<...>>`.
 @Suppress("UNCHECKED_CAST")
 public fun <K, V> Array<out Pair<K, V>>.toMap(): Map<K, V> {
     val result = mutableMapOf<K, V>()

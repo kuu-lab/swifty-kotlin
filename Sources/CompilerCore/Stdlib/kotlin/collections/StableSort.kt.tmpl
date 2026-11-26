@@ -1,7 +1,3 @@
-// Primitive-array stable sort: one body stamped once per element type (the
-// format is documented on BundledStdlibTemplate). The output is byte-identical
-// to the hand-written StableSort.kt it replaced, so declaration order and
-// SymbolIDs did not move.
 //@ file StableSort Int Long Byte Short Char Double Float UByte UShort UInt ULong
 //@ header
 package kotlin.collections
@@ -9,14 +5,6 @@ package kotlin.collections
 import kotlin.comparisons.compareValuesBy
 import kotlin.comparisons.minOf as comparisonMinOf
 
-// Shared stable sort core for the source-backed stdlib. Every sort entry point
-// in ArraySortingHOF.kt, ListSortingHOF.kt and Iterables.kt routes through the
-// helpers here: a bottom-up merge sort over one scratch buffer that falls back
-// to insertion sort for runs of at most STABLE_SORT_RUN elements. The sort is
-// stable, preserving the ordering contract of sortedBy / sortedWith, and runs
-// in O(n log n) comparisons instead of the previous O(n^2) hand-written
-// insertion/bubble sorts.
-//
 // The sort bodies call comparator.compare (or the selector / comparison lambda
 // parameters) directly. Selector and comparison lambdas are deliberately passed
 // through ordinary function parameters rather than stored on helper classes or
@@ -224,14 +212,12 @@ internal fun <T> Array<T>.stableSortWith(comparator: Comparator<T>) {
     while (width < n) {
         var i = 0
         while (i < n) {
-            // `i >= n - width` etc. keep the bounds overflow-free for large n.
             val mid = if (i >= n - width) n else i + width
             val end = if (mid >= n - width) n else mid + width
             var a = i
             var b = mid
             var k = i
             while (a < mid && b < end) {
-                // Left wins ties to keep the sort stable.
                 if (comparator.compare(src[b], src[a]) < 0) {
                     dst[k] = src[b]
                     b += 1
@@ -338,11 +324,6 @@ internal fun <T> MutableList<T>.stableSortWith(comparator: Comparator<T>) {
     }
 }
 
-
-// Stability is unobservable for primitive elements, but the same bottom-up
-// merge structure is kept so every array type shares the O(n log n) shape.
-// Primitive helpers sort directly on element comparisons, so no comparator
-// adapter is needed.
 
 //@ body
 internal fun {{T}}Array.stableSortImpl(descending: Boolean) {

@@ -5,8 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2239: resolve the SimpleDateFormat constructor and Date-returning
-    /// parse call through source injection and a fresh shared stdlib artifact.
     @Test
     func testSimpleDateFormatSurfaceThroughSourceAndFreshArtifactAtO0AndO2() throws {
         let artifact = try Self.buildStdlibArtifact()

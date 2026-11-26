@@ -4,7 +4,6 @@
 import Testing
 
 extension BuildKIRRegressionTests {
-    // KUU-3589: a user-defined List must keep ordinary member-property resolution.
     @Test func testUserDefinedListMemberPropertyAccessDoesNotUseCollectionFallback() throws {
         try withTemporaryFile(contents: """
         class List<T>(val head: T, val tail: List<T>? = null)

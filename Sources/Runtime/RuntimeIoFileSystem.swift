@@ -367,7 +367,6 @@ public func __kk_io_fs_close(_ descriptor: Int, _ outThrown: UnsafeMutablePointe
     }
 }
 
-// Host information boundary; public Path construction remains in Kotlin.
 @_cdecl("__kk_io_fs_temporary_directory")
 public func __kk_io_fs_temporary_directory() -> Int {
     #if canImport(Darwin)

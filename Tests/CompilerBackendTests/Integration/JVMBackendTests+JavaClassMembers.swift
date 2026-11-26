@@ -5,9 +5,6 @@ import Foundation
 import Testing
 
 extension JVMBackendTests {
-    /// Java classfile members that Kotlin exposes through mapped shapes:
-    /// `static final` constants, JavaBeans get/set pairs, `isX()` accessors,
-    /// nested SAM interfaces, and inherited accessor pairs.
     private func javaMembersFixture(_ root: URL) throws -> URL {
         let sources: [String: String] = [
             "Constants": """

@@ -8,10 +8,6 @@ package kotlin.concurrent
 
 import kotlin.internal.KsSymbolName
 
-/**
- * The allocation remains in the shared runtime atomic box; this declaration
- * provides the source-backed stdlib entry point for the existing runtime ABI.
- */
 @SinceKotlin("1.9")
 @KsSymbolName("kk_atomic_long_create")
 public external fun AtomicLong(value: Long): AtomicLong

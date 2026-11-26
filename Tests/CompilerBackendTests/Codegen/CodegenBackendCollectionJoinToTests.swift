@@ -80,8 +80,6 @@ struct CodegenBackendCollectionJoinToTests {
         )
     }
 
-    // KSP-435: Iterable.joinTo is bundled Kotlin source, so the call lowers to
-    // the source function instead of the kk_iterable_joinTo runtime bridge.
     @Test func testCodegenIterableJoinToUsesBundledSource() throws {
         let source = """
         import kotlin.text.StringBuilder

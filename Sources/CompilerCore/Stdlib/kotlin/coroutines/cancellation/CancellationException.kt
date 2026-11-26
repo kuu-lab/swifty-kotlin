@@ -23,8 +23,6 @@ internal external fun createCancellationException(
 @KsSymbolName("__kk_cancellation_exception_new_cause")
 internal external fun createCancellationException(cause: Throwable?): CancellationException
 
-// The Native constructors are declared in CancellationExceptionH.kt. These
-// hidden factories preserve the common expect/actual API's source ownership.
 @SinceKotlin("1.4")
 @Deprecated("Provided for expect-actual matching", level = DeprecationLevel.HIDDEN)
 @InlineOnly

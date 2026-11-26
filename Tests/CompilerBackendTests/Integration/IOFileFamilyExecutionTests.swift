@@ -70,8 +70,6 @@ struct IOFileFamilyExecutionTests {
                                     stdlib: stdlib, producer: producer, lane: lane, timeout: timeout)
     }
 
-    /// KUU-2032: the exported interface-typed val must capture an allocated,
-    /// registered singleton before consumers dispatch exists/source through it.
     @Test(arguments: [false, true], [0, 2])
     func systemFileSystemValueDispatch(library: Bool, optimization: Int) throws {
         let stdlib = library ? try artifact() : nil
@@ -127,7 +125,6 @@ struct IOFileFamilyExecutionTests {
         var expected = ""
         for (index, relative) in fixtures.enumerated() {
             let original = try String(contentsOf: repository.appendingPathComponent(relative), encoding: .utf8)
-            // Package insertion follows an existing @file directive and preserves all original bytes.
             let prefixEnd = original.hasPrefix("@file:") ? try #require(original.firstIndex(of: "\n")) : original.startIndex
             let insertion = original.hasPrefix("@file:") ? original.index(after: prefixEnd) : prefixEnd
             let packaged = String(original[..<insertion]) + "package b06fixture\(index)\n\n" + String(original[insertion...])
@@ -168,7 +165,6 @@ struct IOFileFamilyExecutionTests {
         try #require(String(decoding: expected, as: UTF8.self).split(separator: "\n").count == 5)
         let input = root.appendingPathComponent("Closed.kt")
         try source.write(to: input)
-        // executeAndKeepProof checks this input hash before successful owned cleanup.
         let binary = root.appendingPathComponent("candidate")
         let hashes = try io1761InputHashes([input.path])
         try compile(inputs: [input.path], output: binary.path, stdlib: stdlib, optimization: optimization)
@@ -228,7 +224,6 @@ struct IOFileFamilyExecutionTests {
         }
         """.write(to: consumer, atomically: true, encoding: .utf8)
         let binary = root.appendingPathComponent("candidate")
-        // The producer Kotlin file is deliberately absent from consumer inputs.
         inputHashes.merge(try io1761InputHashes([consumer.path])) { original, _ in original }
         try #require(consumer.path != producer.path)
         try compile(inputs: [consumer.path], output: binary.path, stdlib: stdlib, optimization: optimization,

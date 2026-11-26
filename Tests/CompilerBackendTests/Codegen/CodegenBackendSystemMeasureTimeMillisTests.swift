@@ -61,8 +61,6 @@ struct CodegenBackendSystemMeasureTimeMillisTests {
         try assertKotlinOutput(source, moduleName: "MeasureTimeMillisSideEffects", expected: "3\n")
     }
 
-    /// KSP-617: measureTimeMillis is a bundled Kotlin inline function, so an
-    /// exception thrown by the block must propagate to the caller.
     @Test
     func testMeasureTimeMillisPropagatesExceptionFromBlock() throws {
         let source = """
