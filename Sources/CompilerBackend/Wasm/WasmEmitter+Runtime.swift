@@ -116,8 +116,6 @@ enum WasmRuntimeHelpers {
         }
     }
 
-    /// Floating-point boxes and sentinel-colliding Long/ULong values use
-    /// nominal heap boxes; the other `kk_box_*` callees keep the raw-i64 form.
     private static func boxHelperName(for name: String) -> String? {
         switch name {
         case "kk_box_double", "kk_box_double_static":
@@ -9639,9 +9637,23 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
         code.op(WasmOpcode.i64Ne)
         code.openIf(result: .i64)
+        code.localGet(1)
+        code.i64Const(L.nullSentinel)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf(result: .i64)
+        code.i64Const(0)
+        code.elseBranch()
         emitPrimitiveBoxRawEquality(&code, boxLocal: 0, rawLocal: 1)
+        code.end()
+        code.elseBranch()
+        code.localGet(0)
+        code.i64Const(L.nullSentinel)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf(result: .i64)
+        code.i64Const(0)
         code.elseBranch()
         emitPrimitiveBoxRawEquality(&code, boxLocal: 1, rawLocal: 0)
+        code.end()
         code.end()
         code.elseBranch()
         code.i64Const(0)
@@ -9781,6 +9793,20 @@ enum WasmRuntimeHelpers {
             callArgs: [0], recL: argumentCount + 5, fnL: argumentCount + 6
         )
         code.end()
+        code.localGet(tidL)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64GtS)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.valueClassBoxMarkerOffset)
+        code.i64Const(L.valueClassBoxMarker)
+        code.op(WasmOpcode.i64Eq)
+        code.op(WasmOpcode.i32And)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.valueClassBoxPayloadOffset)
+        code.call(ctx.emittedHelperIndex(
+            for: "__kk_wasm_elem_hash", argumentCount: 1
+        ))
+        code.op(WasmOpcode.return)
+        code.end()
         // String: h = 31*h + byte (JVM folds UTF-16 chars; our storage is
         // UTF-8 — equal strings still hash equal, only the value differs).
         code.localGet(tidL)
@@ -9828,20 +9854,57 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64Eq)
         code.openIf()
         emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.op(WasmOpcode.f64ReinterpretI64)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.op(WasmOpcode.f64ReinterpretI64)
+        code.op(WasmOpcode.f64Ne)
+        code.openIf(result: .i64)
+        code.i64Const(0x7FF8_0000)
+        code.elseBranch()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
         code.localTee(hL)
         code.localGet(hL)
         code.i64Const(32)
         code.op(WasmOpcode.i64ShrU)
         code.op(WasmOpcode.i64Xor)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.i64ExtendI32S)
+        code.end()
         code.op(WasmOpcode.return)
         code.end()
+        for fqName in ["kotlin.Long", "kotlin.ULong"] {
+            code.localGet(tidL)
+            code.i64Const(Self.stableNominalTypeID(fqName))
+            code.op(WasmOpcode.i64Eq)
+            code.openIf()
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+            code.i64Const(32)
+            code.op(WasmOpcode.i64ShrU)
+            code.op(WasmOpcode.i64Xor)
+            code.op(WasmOpcode.i32WrapI64)
+            code.op(WasmOpcode.i64ExtendI32S)
+            code.op(WasmOpcode.return)
+            code.end()
+        }
         code.localGet(tidL)
         code.i64Const(Self.stableNominalTypeID("kotlin.Float"))
         code.op(WasmOpcode.i64Eq)
         code.openIf()
         emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
         code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.f32ReinterpretI32)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.f32ReinterpretI32)
+        code.op(WasmOpcode.f32Ne)
+        code.openIf(result: .i64)
+        code.i64Const(0x7FC0_0000)
+        code.elseBranch()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.op(WasmOpcode.i32WrapI64)
         code.op(WasmOpcode.i64ExtendI32S)
+        code.end()
         code.op(WasmOpcode.return)
         code.end()
         for (i, fqName) in [
@@ -13607,10 +13670,55 @@ enum WasmRuntimeHelpers {
         code.end()
         code.end()
 
+        emitNullableLongBoundaryBoxEquality(&code, ctx: ctx, negate: negate)
+
         code.localGet(0)
         code.localGet(1)
         code.call(ctx.emittedHelperIndex(for: "__kk_wasm_elem_eq", argumentCount: 2))
         emitNullablePrimitiveEqualityNegation(&code, negate: negate)
+    }
+
+    private static func emitNullableLongBoundaryBoxEquality(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        negate: Bool
+    ) {
+        code.localGet(2)
+        code.op(WasmOpcode.i64Eqz)
+        code.localGet(1)
+        code.i64Const(L.nullSentinel)
+        code.op(WasmOpcode.i64Eq)
+        code.op(WasmOpcode.i32And)
+        code.localGet(0)
+        code.globalGet(ctx.dataEndGlobal)
+        code.op(WasmOpcode.i64GeU)
+        code.localGet(0)
+        code.globalGet(ctx.heapGlobal)
+        code.op(WasmOpcode.i64LtU)
+        code.op(WasmOpcode.i32And)
+        code.localGet(0)
+        code.i64Const(7)
+        code.op(WasmOpcode.i64And)
+        code.op(WasmOpcode.i64Eqz)
+        code.op(WasmOpcode.i32And)
+        code.op(WasmOpcode.i32And)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.i64Const(Self.stableNominalTypeID("kotlin.Long"))
+        code.op(WasmOpcode.i64Eq)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.i64Const(Self.stableNominalTypeID("kotlin.ULong"))
+        code.op(WasmOpcode.i64Eq)
+        code.op(WasmOpcode.i32Or)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
+        code.localGet(1)
+        code.op(WasmOpcode.i64Eq)
+        code.i64ExtendFromComparison()
+        emitNullablePrimitiveEqualityNegation(&code, negate: negate)
+        code.op(WasmOpcode.return)
+        code.end()
+        code.end()
     }
 
     private static func emitNullableFloatingPrimitiveEqualityBody(

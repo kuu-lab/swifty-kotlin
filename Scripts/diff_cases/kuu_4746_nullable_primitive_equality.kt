@@ -5,9 +5,20 @@ import kotlin.time.Duration.Companion.seconds
 @JvmInline
 value class Counter(val raw: Long)
 
+@JvmInline
+value class NullableText(val value: String?)
+
 fun boxedCounter(value: Counter): Counter? = value
 
+fun boxedCounterAny(value: Counter): Any = value
+
+fun boxedLongMinimum(): Any = Long.MIN_VALUE
+
 fun sameCounter(left: Counter?, right: Counter): Boolean = left == right
+
+fun showNullableText(value: NullableText?) {
+    println(value?.value)
+}
 
 fun sameDoubleThroughAny(left: Double?, right: Any): Boolean = left == right
 
@@ -46,6 +57,23 @@ fun main() {
     println(sameCounter(boxedCounter, Counter(1L)))
     println(sameCounter(boxedCounter, Counter(2L)))
     println(sameCounter(null, Counter(1L)))
+
+    showNullableText(NullableText("a"))
+    showNullableText(NullableText(null))
+    showNullableText(null)
+
+    val counterBoxOne: Any = boxedCounterAny(Counter(1L))
+    val counterBoxTwo: Any = boxedCounterAny(Counter(1L))
+    println(counterBoxOne == counterBoxTwo)
+    println(counterBoxOne.hashCode() == counterBoxTwo.hashCode())
+    val longBoxOne = boxedLongMinimum()
+    val longBoxTwo = boxedLongMinimum()
+    println(longBoxOne == longBoxTwo)
+    println(longBoxOne.hashCode() == longBoxTwo.hashCode())
+
+    val minimumLongList = listOf<Long?>(Long.MIN_VALUE)
+    println(minimumLongList.contains(null))
+    println(minimumLongList.contains(Long.MIN_VALUE))
 
     println(sameDoubleThroughAny(-0.0, 0.0))
     println(sameDoubleThroughAny(Double.NaN, Double.NaN))
