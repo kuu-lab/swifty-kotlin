@@ -11,4 +11,8 @@ fun main() {
     println("abc".replaceBefore(':', "X", "MISS"))
     println("abc".replaceBefore(':', "X"))
     println("abc".replaceBefore('c', "X", "MISS"))
+    val unbound: (String, String, String, String) -> String = String::replaceBefore
+    println(unbound("a:b:c", ":", "X", "MISS"))
+    val bound: (String, String, String) -> String = "a:b:c"::replaceBefore
+    println(bound(":", "X", "MISS"))
 }
