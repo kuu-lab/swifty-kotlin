@@ -180,8 +180,6 @@ public open class ArrayList<E> : MutableList<E>, RandomAccess, AbstractMutableLi
     @KsSymbolName("kk_list_subList")
     override external fun subList(fromIndex: Int, toIndex: Int): MutableList<E>
 
-    // Capacity is managed by the runtime list box; the contract only promises
-    // the list stays usable, so both members are contract-only no-ops.
     public fun trimToSize() {
     }
 

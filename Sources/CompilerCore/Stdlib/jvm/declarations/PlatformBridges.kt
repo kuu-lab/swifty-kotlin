@@ -41,6 +41,7 @@ fun __jvmNewline() {}
 fun __jvmWhitespace(value: Char): Boolean = false
 fun __jvmSpaceChar(value: Char): Boolean = false
 fun __jvmIsDigit(value: Char): Boolean = false
+fun __jvmDirectionality(value: Char): Int = 0
 fun __jvmIsUpperCase(value: Char): Boolean = false
 fun __jvmIsLowerCase(value: Char): Boolean = false
 fun __jvmSubstring(value: String, start: Int, end: Int): String = null!!
@@ -115,6 +116,7 @@ fun __jvmAtomicReference(value: Any?): Any = null!!
 fun __jvmAtomicGet(state: Any): Any? = null
 fun __jvmAtomicCAS(state: Any, expected: Any?, value: Any?): Boolean = false
 fun __jvmResume(continuation: kotlin.coroutines.Continuation<*>, value: Any?) {}
+suspend fun <T> __jvmSuspendCoroutineUninterceptedOrReturn(block: (kotlin.coroutines.Continuation<T>) -> Any?): T = null!!
 fun __jvmLatch(count: Int = 1): Any = null!!
 fun __jvmCountDown(latch: Any) {}
 fun __jvmAwait(latch: Any) {}
@@ -198,6 +200,7 @@ fun __jvmDeepString(values: Array<Any?>): String = null!!
 fun <T> __jvmCopyArray(array: Array<T>, size: Int): Array<T> = null!!
 fun __jvmUtf8String(bytes: ByteArray, charset: String): String = null!!
 fun __jvmUtf8Bytes(value: String, charset: String): ByteArray = null!!
+fun __jvmMalformedInputException(inputLength: Int): Throwable = null!!
 fun <T> __jvmUnmodifiableSet(value: Set<T>): Set<T> = null!!
 fun __jvmUIntDivide(first: Int, second: Int): Int = 0
 fun __jvmUIntRemainder(first: Int, second: Int): Int = 0

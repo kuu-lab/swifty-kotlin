@@ -75,6 +75,11 @@ interface MutableMap<K, V>: Map<K, V> {
     }
     override val entries: MutableSet<MutableEntry<K, V>>
     fun put(key: K, value: V): V?
+    fun putIfAbsent(key: K, value: V): V? {
+        val oldValue = get(key)
+        if (oldValue != null) return oldValue
+        return put(key, value)
+    }
     operator fun set(key: K, value: V)
     fun remove(key: K): V?
     fun clear()

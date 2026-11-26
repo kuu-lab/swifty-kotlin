@@ -434,11 +434,12 @@ struct JVMKotlinMetadataPayload {
         return sourceNames
     }
 
-    func constructorParameterNames(byteLimit: Int) throws -> [String: [String]] {
+    func constructorParameterNames(byteLimit: Int) throws -> [String: (names: [String], sourceTypes: [String]?)] {
         guard kind == 1, let major = version.first, (1...2).contains(major) else { return [:] }
         let (declaration, names) = try declarationData(byteLimit: byteLimit)
-        let types = try TypeTable(declaration.message(30))
-        var result: [String: [String]] = [:]
+        var types = try TypeTable(declaration.message(30))
+        types.parameterNames = try Self.classTypeParameters(declaration, names: names)
+        var result: [String: (names: [String], sourceTypes: [String]?)] = [:]
         for constructor in try declaration.messages(8) {
             let flags = constructor.int32(1) ?? 6
             guard (flags >> 1) & 7 == 3 || (flags >> 1) & 7 == 2 else { continue }
@@ -447,9 +448,19 @@ struct JVMKotlinMetadataPayload {
             let labels = try parameters.compactMap { try names.resolve($0.int32(2)) }
             guard labels.count == parameters.count, Set(labels).count == labels.count,
                   labels.allSatisfy(JVMProgramBuilder.isIdentifier) else { continue }
+            let rendered = try parameters.map { parameter -> String? in
+                let isVararg = parameter.has(4) || parameter.has(6)
+                return try types.resolve(parameter, inline: isVararg ? 4 : 3, indexed: isVararg ? 6 : 5).flatMap {
+                    try Self.sourceType($0, types: types, names: names)
+                }
+            }
+            let isSource = { (type: String?) in
+                type.map { !$0.contains("(*") && !$0.contains("*)") && !$0.contains(", *,") } ?? false
+            }
+            let sourceTypes = rendered.allSatisfy(isSource) ? rendered.compactMap { $0 } : nil
             let signature = try constructor.message(100)
             if let descriptor = try names.resolve(signature?.int32(2)) {
-                result[descriptor] = labels
+                result[descriptor] = (labels, sourceTypes)
                 continue
             }
             let carriers = try parameters.compactMap { parameter in
@@ -459,7 +470,7 @@ struct JVMKotlinMetadataPayload {
             }
             guard carriers.count == parameters.count else { continue }
             let descriptor = "(" + carriers.map(\.descriptor).joined() + ")V"
-            result[descriptor] = labels
+            result[descriptor] = (labels, sourceTypes)
         }
         return result
     }

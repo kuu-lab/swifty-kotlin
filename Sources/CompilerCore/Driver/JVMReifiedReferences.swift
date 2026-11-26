@@ -116,7 +116,8 @@ extension JVMFunctionBuilder {
         var adaptationFlags: Int32 = member ? 0 : 1
         if suspendConversion { adaptationFlags |= 4 }
         if unitConversion { adaptationFlags |= 8 }
-        var code: [JVMInstruction] = [.constant(.int(Int32(arity)), count), .classLiteral(sourceOwner, klass), .constant(.string(sourceName.components(separatedBy: "$unsigned$")[0]), methodName), .callableSignature(sourceOwner, sourceName, sourceDescriptor, descriptor), .constant(.int(adaptationFlags), flags)]
+        let kotlinName = program.sema.symbols.symbol(symbol).map { context.interner.resolve($0.name) } ?? sourceName.components(separatedBy: "$unsigned$")[0]
+        var code: [JVMInstruction] = [.constant(.int(Int32(arity)), count), .classLiteral(sourceOwner, klass), .constant(.string(kotlinName), methodName), .callableSignature(sourceOwner, sourceName, sourceDescriptor, descriptor), .constant(.int(adaptationFlags), flags)]
         var superArgs = [count]
         if bound != nil { let object = temporary(.reference("java/lang/Object", nullable: true)); code.append(.copy(ctor.locals[1], object)); superArgs.append(object) }
         superArgs += [klass, methodName, descriptor, flags]

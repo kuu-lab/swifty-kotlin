@@ -279,6 +279,7 @@ public struct JVMForeignMethod: Sendable {
     var genericSignature: String?
     var kotlinOwnerResultParameter: String?
     var kotlinConstructorParameterNames: [String]?
+    var kotlinConstructorParameterSourceTypes: [String]?
     var kotlinCollisionSourceName: String?
     var kotlinFunction: JVMKotlinFunction?
     /// Set when the classfile body calls `reifiedOperationMarker`: it cannot run

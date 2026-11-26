@@ -56,14 +56,22 @@ extension BuildASTPhase.ExpressionParser {
             {
                 let bodyEnd = controlFlowStatementEnd(in: remaining, before: statementEnd)
                 let bodySlice = remaining[statementStart ..< bodyEnd]
+                let speculationCheckpoint = diagnostics?.checkpoint()
+                func undoFailedSpeculation() {
+                    if let speculationCheckpoint {
+                        diagnostics?.rollback(to: speculationCheckpoint)
+                    }
+                }
                 if let localDecl = parseLocalDeclFromSlice(bodySlice[...]) {
                     index = startIndex + bodyEnd
                     return localDecl
                 }
+                undoFailedSpeculation()
                 if let localAssign = parseLocalAssignFromSlice(bodySlice[...], requiresCompleteExpressions: true) {
                     index = startIndex + bodyEnd
                     return localAssign
                 }
+                undoFailedSpeculation()
             }
         }
         if matches(.symbol(.at)) {

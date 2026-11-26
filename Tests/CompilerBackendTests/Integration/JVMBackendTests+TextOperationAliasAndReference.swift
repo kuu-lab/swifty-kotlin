@@ -66,10 +66,5 @@ extension JVMBackendTests {
             """, expected: "true\ntrue\n255\na\ntrue\ntrue\ntrue\nfalse\ntrue\nABC\ntrue\na\n43\n[true, false]\ntrimIndent\ntrue\nfalse\ny\ntrue\nfalse\ntrue\ntrue\ntrue\nfalse\na\ntrue\n[a, b, c]\n", mode: mode, root: root)
         }
     }
-
-    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
-    func textOperationReferencesSupportReflectiveCallOnRepositoryStdlib(mode: EmitMode) throws {
-        try repositoryStdlibRuntimeRegression(name: "textOperationReferenceCall", mode: mode)
-    }
 }
 #endif

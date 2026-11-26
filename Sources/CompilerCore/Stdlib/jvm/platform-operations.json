@@ -203,6 +203,13 @@
     "kind": "static"
   },
   {
+    "symbol": "__jvmDirectionality",
+    "owner": "java/lang/Character",
+    "name": "getDirectionality",
+    "descriptor": "(C)B",
+    "kind": "static"
+  },
+  {
     "symbol": "__jvmIsUpperCase",
     "owner": "java/lang/Character",
     "name": "isUpperCase",
@@ -1272,6 +1279,13 @@
     "name": "getBytes",
     "descriptor": "(Ljava/lang/String;)[B",
     "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmMalformedInputException",
+    "owner": "java/nio/charset/MalformedInputException",
+    "name": "<init>",
+    "descriptor": "(I)V",
+    "kind": "constructor"
   },
   {
     "symbol": "__jvmUnmodifiableSet",

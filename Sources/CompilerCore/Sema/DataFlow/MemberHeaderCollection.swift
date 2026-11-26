@@ -1258,6 +1258,19 @@ extension DataFlowSemaPhase {
                 nestedScope.insert(secCtorSymbol)
                 symbols.setParentSymbol(nestedSymbol, for: secCtorSymbol)
                 let localNamespaceFQName = nestedCtorFQName + [interner.intern("$sec\(ctorIndex)_\(secCtorSymbol.rawValue)")]
+                registerAnnotations(
+                    secondaryCtor.annotations,
+                    symbol: secCtorSymbol,
+                    declRange: declarationRangeIncludingAnnotationTokens(
+                        secondaryCtor.annotations, declarationRange: secondaryCtor.range
+                    ),
+                    sourceFileID: sourceFileID,
+                    sourceFile: sourceFile,
+                    sourceManager: sourceManager,
+                    interner: interner,
+                    symbols: symbols,
+                    diagnostics: diagnostics
+                )
                 let params = collectValueParameters(
                     secondaryCtor.valueParams,
                     localNamespaceFQName: localNamespaceFQName,
@@ -1285,19 +1298,6 @@ extension DataFlowSemaPhase {
                         classTypeParameterCount: nestedClassTypeParameterSymbols.count
                     ),
                     for: secCtorSymbol
-                )
-                registerAnnotations(
-                    secondaryCtor.annotations,
-                    symbol: secCtorSymbol,
-                    declRange: declarationRangeIncludingAnnotationTokens(
-                        secondaryCtor.annotations, declarationRange: secondaryCtor.range
-                    ),
-                    sourceFileID: sourceFileID,
-                    sourceFile: sourceFile,
-                    sourceManager: sourceManager,
-                    interner: interner,
-                    symbols: symbols,
-                    diagnostics: diagnostics
                 )
             }
 

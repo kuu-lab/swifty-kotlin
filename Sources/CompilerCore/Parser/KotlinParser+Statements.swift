@@ -152,7 +152,8 @@ extension KotlinParser {
                !canContinueWithSymbol,
                !canContinueWithElseLikeKeyword,
                !endsWithPendingInfixOperator(children),
-               !endsWithControlFlowCondition(children)
+               !endsWithControlFlowCondition(children),
+               !(consumedTokensEndWithContextClause(children) && isAnonymousFunctionExpressionStart())
             {
                 break
             }
@@ -432,7 +433,8 @@ extension KotlinParser {
                children.count > startChildCount,
                atBodyBoundary,
                hasLeadingNewline(token),
-               shouldSplitStatementOnNewline(token.kind)
+               shouldSplitStatementOnNewline(token.kind),
+               !(consumedTokensEndWithContextClause(children) && isAnonymousFunctionExpressionStart())
             {
                 break
             }
@@ -592,6 +594,49 @@ extension KotlinParser {
                     return token.kind == .keyword(.when)
                 }
             }
+        }
+        return false
+    }
+
+    private func consumedTokensEndWithContextClause(_ children: [SyntaxChild]) -> Bool {
+        var flatTokens: [Token] = []
+        for child in children {
+            guard case let .token(tokenID) = child, let token = arena.token(tokenID) else {
+                flatTokens.removeAll()
+                continue
+            }
+            flatTokens.append(token)
+        }
+        guard flatTokens.last?.kind == .symbol(.rParen) else {
+            return false
+        }
+
+        var depth = 0
+        var index = flatTokens.count - 1
+        while index >= 0 {
+            switch flatTokens[index].kind {
+            case .symbol(.rParen):
+                depth += 1
+            case .symbol(.lParen):
+                depth -= 1
+                if depth == 0 {
+                    guard index > 0,
+                          flatTokens[index - 1].kind == .softKeyword(.context)
+                    else {
+                        return false
+                    }
+                    if index > 1,
+                       flatTokens[index - 2].kind == .symbol(.dot)
+                        || flatTokens[index - 2].kind == .symbol(.questionDot)
+                    {
+                        return false
+                    }
+                    return true
+                }
+            default:
+                break
+            }
+            index -= 1
         }
         return false
     }
@@ -1401,6 +1446,11 @@ extension KotlinParser {
                     || (allowsWhereClauseContinuation && stream.peek().kind == .softKeyword(.where))
                     || endsWithPendingInfixOperator(children)
                     || endsWithControlFlowCondition(children)
+                {
+                    continue
+                }
+                if consumedTokensEndWithContextClause(children),
+                   isAnonymousFunctionExpressionStart()
                 {
                     continue
                 }

@@ -49,6 +49,7 @@ enum WasmOpcode {
     static let memorySize: UInt8 = 0x3F
     static let memoryGrow: UInt8 = 0x40
     static let memoryCopySubopcode: UInt64 = 10
+    static let memoryFillSubopcode: UInt64 = 11
     static let i32Const: UInt8 = 0x41
     static let i64Const: UInt8 = 0x42
     static let i32Eqz: UInt8 = 0x45

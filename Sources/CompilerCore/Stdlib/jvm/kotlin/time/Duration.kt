@@ -63,6 +63,20 @@ public value class Duration private constructor(private val rawValue: Long) : Co
         public val INFINITE: Duration get() = Duration(Long.MAX_VALUE)
 
         internal fun fromRawValue(rawValue: Long): Duration = Duration(rawValue)
+
+        public fun parse(value: String): Duration =
+            durationParseRawOrNull(value, strictIso = false)?.let { Duration(it) }
+                ?: throw IllegalArgumentException("Invalid duration string format: '$value'.")
+
+        public fun parseOrNull(value: String): Duration? =
+            durationParseRawOrNull(value, strictIso = false)?.let { Duration(it) }
+
+        public fun parseIsoString(value: String): Duration =
+            durationParseRawOrNull(value, strictIso = true)?.let { Duration(it) }
+                ?: throw IllegalArgumentException("Invalid ISO duration string format: '$value'.")
+
+        public fun parseIsoStringOrNull(value: String): Duration? =
+            durationParseRawOrNull(value, strictIso = true)?.let { Duration(it) }
     }
 }
 

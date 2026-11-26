@@ -115,11 +115,18 @@ extension JVMFunctionBuilder {
         let binding = program.sema.bindings.callBinding(for: id)
         let signature = binding.flatMap { program.sema.symbols.functionSignature(for: $0.chosenCallee) }
         let signatureTypes = try signature?.parameterTypes.map(program.type)
-        let candidates = textOperationCandidates(name, receiver: type)
-        let exact: JVMTextOperation?
-        if let signatureTypes { exact = exactTextOperation(candidates, parameterTypes: signatureTypes) }
-        else { exact = candidates.first { $0.parameters.count == args.count && !$0.parameters.contains(where: \.variadic) } }
-        let operation = exact ?? candidates.first { op in
+        let candidates = JVMTextOperation.operations.filter { op in
+            guard op.name == name else { return false }
+            if op.receiver == "CharArray" { return type.referenceName == "[C" }
+            return type.isCharSequence && (type.referenceName == "java/lang/String" || op.receiver == "CharSequence" || op.receiver == "CharSequence?")
+        }
+        let operation = candidates.first { op in
+            guard let signatureTypes else { return op.parameters.count == args.count && !op.parameters.contains(where: \.variadic) }
+            guard signatureTypes.count == op.parameters.count else { return false }
+            return zip(signatureTypes, op.parameters).allSatisfy { actual, parameter in
+                actual.descriptor == parameter.type.descriptor || parameter.variadic && actual.descriptor == "[" + parameter.type.descriptor
+            }
+        } ?? candidates.first { op in
             var supplied: Set<Int> = []
             for (i, arg) in args.enumerated() {
                 let index = arg.label.flatMap { label in op.parameters.firstIndex { $0.name == context.interner.resolve(label) } } ?? op.parameters.firstIndex(where: \.variadic) ?? i
@@ -138,23 +145,6 @@ extension JVMFunctionBuilder {
         let source = try loadReceiver()
         let values = try textArguments(op, args: args, binding: binding, source: source, id: id)
         return JVMIntrinsicResult(value: try emitTextOperation(op, source: source, values: values))
-    }
-
-    func textOperationCandidates(_ name: String, receiver type: JVMValueType) -> [JVMTextOperation] {
-        JVMTextOperation.operations.filter { op in
-            guard op.name == name else { return false }
-            if op.receiver == "CharArray" { return type.referenceName == "[C" }
-            return type.isCharSequence && (type.referenceName == "java/lang/String" || op.receiver == "CharSequence" || op.receiver == "CharSequence?")
-        }
-    }
-
-    func exactTextOperation(_ candidates: [JVMTextOperation], parameterTypes: [JVMValueType]) -> JVMTextOperation? {
-        candidates.first { op in
-            guard parameterTypes.count == op.parameters.count else { return false }
-            return zip(parameterTypes, op.parameters).allSatisfy { actual, parameter in
-                actual.descriptor == parameter.type.descriptor || parameter.variadic && actual.descriptor == "[" + parameter.type.descriptor
-            }
-        }
     }
 
     func textStubName(_ symbol: SymbolID) -> String? {
@@ -229,32 +219,30 @@ extension JVMFunctionBuilder {
                 supplied[index] = input
             }
         }
-        return try completeTextArguments(op, supplied: supplied, source: source, id: id)
-    }
-
-    func completeTextArguments(_ op: JVMTextOperation, supplied: [Int: JVMValue], source: JVMValue, id: ExprID) throws -> [JVMValue] {
         var values: [JVMValue] = []
         for (index, p) in op.parameters.enumerated() {
             if p.variadic { values.append(try supplied[index] ?? textVararg([], element: p.type)); continue }
             if let input = supplied[index] { values.append(try convert(input, to: p.type)); continue }
-            let fallback: JVMValue
-            switch p.fallback {
-            case "false": fallback = try constant(.boolean(false), .boolean)
-            case "0": fallback = try constant(.int(0), .int)
-            case "10": fallback = try constant(.int(10), .int)
-            case "space": fallback = try constant(.int(32), .char)
-            case "empty": fallback = try constant(.string(""), .string)
-            case "margin": fallback = try constant(.string("|"), .string)
-            case "indent": fallback = try constant(.string("    "), .string)
-            case "this": fallback = source
-            case "length": fallback = try textLength(source)
-            case "lastIndex":
-                fallback = try value(.int); instructions.append(.binary(.subtract, try textLength(source), try constant(.int(1), .int), fallback))
-            default: throw fail("Missing required JVM text argument.", id)
-            }
-            values.append(fallback)
+            values.append(try textFallback(p, source: source, id: id))
         }
         return values
+    }
+    func textFallback(_ p: JVMTextParameter, source: JVMValue, id: ExprID) throws -> JVMValue {
+        switch p.fallback {
+        case "false": return try constant(.boolean(false), .boolean)
+        case "0": return try constant(.int(0), .int)
+        case "10": return try constant(.int(10), .int)
+        case "space": return try constant(.int(32), .char)
+        case "empty": return try constant(.string(""), .string)
+        case "margin": return try constant(.string("|"), .string)
+        case "indent": return try constant(.string("    "), .string)
+        case "this": return source
+        case "length": return try textLength(source)
+        case "lastIndex":
+            let fallback = try value(.int); instructions.append(.binary(.subtract, try textLength(source), try constant(.int(1), .int), fallback))
+            return fallback
+        default: throw fail("Missing required JVM text argument.", id)
+        }
     }
     func textVararg(_ inputs: [(JVMValue, Bool)], element: JVMValueType) throws -> JVMValue {
         let count = try value(.int), one = try constant(.int(1), .int)
