@@ -14,6 +14,7 @@ open class Throwable {
 
     fun initCause(cause: Throwable?): Throwable = this
     fun addSuppressed(exception: Throwable) {}
+    fun getSuppressed(): Array<Throwable> = null!!
     fun printStackTrace() {}
     fun fillInStackTrace(): Throwable = this
 }

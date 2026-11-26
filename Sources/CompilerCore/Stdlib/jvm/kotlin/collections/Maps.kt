@@ -5,6 +5,7 @@ import kotlin.sequences.asIterable
 import kotlin.jvm.internal.__jvmArrayList
 import kotlin.jvm.internal.__jvmRemoveAllCollection
 import kotlin.jvm.internal.__jvmNewMap
+import kotlin.jvm.internal.__jvmNewHashMapCapacity
 import kotlin.jvm.internal.__jvmCopyMap
 import kotlin.jvm.internal.__jvmPutAllMap
 import kotlin.jvm.internal.__jvmSingletonMap
@@ -33,7 +34,9 @@ public fun <K, V> mutableMapOf(vararg pairs: Pair<K, V>): MutableMap<K, V> {
     return result
 }
 public fun <K, V> hashMapOf(vararg pairs: Pair<K, V>): java.util.HashMap<K, V> {
-    val result = java.util.HashMap<K, V>()
+    // HashMap iteration order depends on the table size; match the official
+    // initial capacity so printed maps agree with kotlin-stdlib.
+    val result = __jvmNewHashMapCapacity<K, V>(mapCapacity(pairs.size))
     for (pair in pairs) result.put(pair.first, pair.second)
     return result
 }

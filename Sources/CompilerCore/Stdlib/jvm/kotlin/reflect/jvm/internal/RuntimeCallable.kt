@@ -75,6 +75,14 @@ internal class RuntimeClassType(
         return name + projections + if (isMarkedNullable) "?" else ""
     }
 }
+internal fun javaRuntimeType(type: Any): KType {
+    if (__jvmClassName(type) == "void") return RuntimeClassType(Unit::class.java)
+    if (!__jvmClassIsArray(type)) return RuntimeClassType(type)
+    val component = __jvmComponentType(type)
+    if (__jvmClassIsPrimitive(component)) return RuntimeClassType(type)
+    return RuntimeClassType(type, false, listOf(KTypeProjection(KVariance.OUT, javaRuntimeType(component))))
+}
+
 internal class RuntimeParameter(private val key: RuntimeCallable, override val index: Int, override val name: String?, override val isOptional: Boolean, override val annotations: List<Annotation>): KParameter {
     override fun equals(other: Any?): Boolean = other is RuntimeParameter && key == other.key && index == other.index
     override fun hashCode(): Int = key.hashCode() * 31 + index
@@ -126,7 +134,11 @@ open class RuntimeCallable(
     }
     override val name: String get() = displayName
     override val isSuspend: Boolean get() = (node.number(9) and 8192) != 0
-    override val returnType: KType get() = if (displayName == "<init>") RuntimeClassType(ownerClass, metadata) else RuntimeType(metadata, metadata.type(node, 3, 7), node.children(4))
+    override val returnType: KType get() {
+        if (displayName == "<init>") return RuntimeClassType(ownerClass, metadata)
+        if (metadata.strings.isEmpty()) return javaRuntimeType(__jvmMethodReturn(method))
+        return RuntimeType(metadata, metadata.type(node, 3, 7), node.children(4))
+    }
     override val typeParameters: List<KTypeParameter> get() {
         val result = mutableListOf<KTypeParameter>()
         for (parameter in node.children(4)) result.add(RuntimeTypeParameter(metadata, parameter))
@@ -150,6 +162,15 @@ open class RuntimeCallable(
         if (instance && !bound) result.add(RuntimeParameter(this, 0, null, false, emptyList()))
         val declarations = node.children(if (displayName == "<init>") 2 else 6)
         val annotations = __jvmExecutableParamAnnotations(method)
+        if (node.bytes.isEmpty()) {
+            val parameterTypes = __jvmExecutableParams(method)
+            var parameterIndex = 0
+            while (parameterIndex < parameterTypes.size) {
+                result.add(RuntimeParameter(this, result.size, null, false, if (parameterIndex < annotations.size) expandAnnotations(annotations[parameterIndex]) else emptyList()))
+                parameterIndex++
+            }
+            return result
+        }
         val receiverOffset = if (node.has(5)) 1 else 0
         if (receiverOffset == 1 && !bound) result.add(RuntimeParameter(this, result.size, null, false, if (annotations.size > 0) expandAnnotations(annotations[0]) else emptyList()))
         var index = 0

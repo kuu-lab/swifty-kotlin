@@ -226,6 +226,26 @@ struct ASTContextFunctionTypeTests {
     }
 
     @Test
+    func testContextFunctionTypeQualifiedReceiverPreservesOuterTypeArguments() throws {
+        let source = """
+        package demo
+        fun build(block: context(C) Outer<Int>.Inner<String>.() -> Unit) {}
+        """
+        let (ast, ctx) = try buildASTModule(from: source)
+        let function = try #require(firstFunDecl(named: "build", in: ast, interner: ctx.interner))
+        let blockType = try #require(function.valueParams.first?.type)
+        guard case let .functionType(_, receiver?, _, _, _, _) = ast.arena.typeRef(blockType),
+              case let .named(path, args, _) = ast.arena.typeRef(receiver)
+        else {
+            Issue.record("Expected a qualified named receiver on the contextual function type")
+            return
+        }
+
+        #expect(path.map { ctx.interner.resolve($0) } == ["Outer", "Inner"])
+        #expect(args.map { renderTypeArgRef($0, in: ast, interner: ctx.interner) } == ["Int", "String"])
+    }
+
+    @Test
     func testSuspendFunctionTypeExtensionReceiver() throws {
         let source = """
         package demo

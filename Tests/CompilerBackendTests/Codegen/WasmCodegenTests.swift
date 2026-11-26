@@ -167,7 +167,7 @@ struct WasmCodegenTests {
         #expect(result.stubbedCallees.contains("kk_some_missing_runtime_fn"))
     }
 
-    private func nodePath() -> String? {
+    func nodePath() -> String? {
         let env = ProcessInfo.processInfo.environment["PATH"] ?? ""
         for dir in env.split(separator: ":") {
             let candidate = "\(dir)/node"
@@ -243,7 +243,7 @@ struct WasmCodegenTests {
         return (stdout, stderr, process.terminationStatus)
     }
 
-    private func makeFunction(
+    func makeFunction(
         symbol: SymbolID,
         name: String,
         params: [KIRParameter],
@@ -260,7 +260,7 @@ struct WasmCodegenTests {
         )
     }
 
-    private func println(_ callee: InternedString, _ arg: KIRExprID) -> KIRInstruction {
+    func println(_ callee: InternedString, _ arg: KIRExprID) -> KIRInstruction {
         .call(
             symbol: nil,
             callee: callee,

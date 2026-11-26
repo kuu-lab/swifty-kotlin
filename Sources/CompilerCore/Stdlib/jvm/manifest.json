@@ -3,6 +3,7 @@
   "commonSources": [
     "kotlin/Pair/Pair.kt",
     "kotlin/Function.kt",
+    "kotlin/ExperimentalStdlibApi.kt",
     "kotlin/IgnorableReturnValue.kt",
     "kotlin/Unit.kt",
     "kotlin/annotations/ExperimentalUnsignedTypes.kt",
@@ -186,6 +187,12 @@
       "virtualPath": "<kswiftk-jvm>/javaCollections.kt",
       "excludeFromStdlibBuild": false,
       "onlyForStdlibBuild": true
+    },
+    {
+      "path": "declarations/DeepRecursive.kt",
+      "virtualPath": "<kswiftk-jvm>/deep-recursive.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/DeepRecursiveKt"
     },
     {
       "path": "declarations/Delegates.kt",
@@ -558,6 +565,12 @@
       "runtimeFacade": "kotlin/collections/unsigned/UArraysKt"
     },
     {
+      "path": "declarations/UnsignedArrayConversions.kt",
+      "virtualPath": "<kswiftk-jvm>/unsigned-array-conversions.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/unsigned/UArraysKt"
+    },
+    {
       "path": "declarations/UnsignedArrayOperations.kt",
       "virtualPath": "<kswiftk-jvm>/m20-unsigned-array-operations.kt",
       "excludeFromStdlibBuild": true,
@@ -724,6 +737,12 @@
       "runtimeFacade": "kotlin/collections/SetsKt"
     },
     {
+      "path": "declarations/SequenceElementOperators.kt",
+      "virtualPath": "<kswiftk-jvm>/sequence-element-operators.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/sequences/SequencesKt"
+    },
+    {
       "path": "kotlin/collections/CollectionAssignments.kt",
       "virtualPath": "<kswiftk-jvm>/collection-assignments.kt",
       "excludeFromStdlibBuild": true,
@@ -776,6 +795,11 @@
       "virtualPath": "<kswiftk-jvm>/grouping-each-count.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/collections/GroupingKt"
+    },
+    {
+      "path": "declarations/GroupingAggregate.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-grouping-aggregate-inline.kt",
+      "excludeFromStdlibBuild": true
     },
     {
       "path": "declarations/GroupingFoldTo.kt",
