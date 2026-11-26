@@ -48,16 +48,24 @@ extension JVMBackendTests {
                 println(containsChar("abc", 'z'))
                 val suspended: suspend (String) -> String = String::trimIndent
                 println(suspended("   y"))
-                // Reflective `call` resolves through the generated bridge; the
-                // row's own target here is an instance JDK method.
-                println(String::codePointAt.call("abc", 1))
-                println("abc"::codePointAt.call(2))
                 println((String::trimIndent as (String) -> String) == Holder().indent())
             }
 
             class Holder { fun indent(): (String) -> String = String::trimIndent }
-            """, expected: "true\ntrue\n255\na\ntrue\ntrue\ntrue\nfalse\ntrue\nABC\ntrue\na\n43\n[true, false]\ntrimIndent\ntrue\nfalse\ny\n98\n99\ntrue\n", mode: mode, root: root)
+            """, expected: "true\ntrue\n255\na\ntrue\ntrue\ntrue\nfalse\ntrue\nABC\ntrue\na\n43\n[true, false]\ntrimIndent\ntrue\nfalse\ny\ntrue\n", mode: mode, root: root)
         }
+    }
+
+    /// The bundled runtime's reflective `call` resolves a reference by owner
+    /// and JVM signature, so text references point it at a generated bridge:
+    /// the table row's own target may be an instance JDK method
+    /// (`String.codePointAt`) or not exist at all (`uppercase` is emitted
+    /// inline). Official kotlin-reflect resolves through Kotlin metadata
+    /// instead and rejects these InlineOnly targets under kotlinc too, so this
+    /// runs on the repository stdlib only (KUU-4733).
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func textOperationReferencesSupportReflectiveCallOnRepositoryStdlib(mode: EmitMode) throws {
+        try repositoryStdlibRuntimeRegression(name: "textOperationReferenceCall", mode: mode)
     }
 }
 #endif
