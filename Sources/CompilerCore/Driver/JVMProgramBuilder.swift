@@ -24,6 +24,7 @@ final class JVMProgramBuilder {
     var functionArities: Set<Int> = []
     var nextClosure = 0
     var needsSuspendCoroutine = false
+    var needsSuspendCoroutineUninterceptedOrReturn = false
     var coroutineIntrinsicOwner = ""
     var extensionSymbols: Set<SymbolID> = []
     var inlineDeclarations: [SymbolID: FunDecl] = [:]
@@ -42,6 +43,7 @@ final class JVMProgramBuilder {
     /// `kotlin.text.Charsets` members that have no `StandardCharsets` field (UTF_32*); value is the JDK charset name.
     var textLibraryCharsetNames: [SymbolID: String] = [:]
     let platformOperations: [String: JVMPlatformOperation]
+    lazy var knownNames = KnownCompilerNames(interner: context.interner)
     var rawAnnotationConstructions: [String: ExprID] = [:]
 
     private var methodsByOwnerCache: [String: [SymbolID]]?

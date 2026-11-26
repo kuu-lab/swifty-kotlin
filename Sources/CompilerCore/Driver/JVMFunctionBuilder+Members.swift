@@ -138,6 +138,12 @@ extension JVMFunctionBuilder {
                 ?? sema.symbols.accessorOwnerProperty(for: selected)
                 ?? selected
             if let semanticSymbol = sema.symbols.symbol(symbol), semanticSymbol.kind == .property,
+               semanticSymbol.fqName == program.knownNames.kotlinCoroutinesIntrinsicsCoroutineSuspendedFQName {
+                let type: JVMValueType = .reference("java/lang/Object", nullable: true)
+                let getter = JVMForeignMethod(owner: "kotlin/coroutines/intrinsics/IntrinsicsKt", name: "getCOROUTINE_SUSPENDED", descriptor: "()Ljava/lang/Object;", parameters: [], result: type, isStatic: true, isInterface: false, isAbstract: false)
+                return JVMProperty(name: "COROUTINE_SUSPENDED", type: type, getter: getter, setter: nil, field: nil, modifiers: [.public])
+            }
+            if let semanticSymbol = sema.symbols.symbol(symbol), semanticSymbol.kind == .property,
                let parent = sema.symbols.parentSymbol(for: symbol),
                let resolvedOwner = importedPropertyOwner(parent: parent),
                let propertyType = sema.symbols.propertyType(for: symbol),

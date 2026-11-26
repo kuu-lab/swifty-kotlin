@@ -116,6 +116,7 @@ fun __jvmAtomicReference(value: Any?): Any = null!!
 fun __jvmAtomicGet(state: Any): Any? = null
 fun __jvmAtomicCAS(state: Any, expected: Any?, value: Any?): Boolean = false
 fun __jvmResume(continuation: kotlin.coroutines.Continuation<*>, value: Any?) {}
+suspend fun <T> __jvmSuspendCoroutineUninterceptedOrReturn(block: (kotlin.coroutines.Continuation<T>) -> Any?): T = null!!
 fun __jvmLatch(count: Int = 1): Any = null!!
 fun __jvmCountDown(latch: Any) {}
 fun __jvmAwait(latch: Any) {}

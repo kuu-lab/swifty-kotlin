@@ -27,7 +27,7 @@ extension DataFlowSemaPhase {
             registerSyntheticCoroutineTopLevelProperty(
                 named: "COROUTINE_SUSPENDED",
                 packageFQName: intrinsicsPkg,
-                returnType: types.nullableAnyType,
+                returnType: types.anyType,
                 externalLinkName: "kk_coroutine_suspended",
                 symbols: symbols,
                 interner: interner

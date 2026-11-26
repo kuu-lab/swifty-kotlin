@@ -166,7 +166,7 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
-        let coroutineSuspendedType = types.nullableAnyType
+        let coroutineSuspendedType = types.anyType
 
         symbols.setPropertyType(jobType, for: jobSymbol)
         symbols.setPropertyType(deferredType, for: deferredSymbol)
