@@ -723,6 +723,12 @@
       "runtimeFacade": "kotlin/collections/CollectionsKt"
     },
     {
+      "path": "declarations/SequenceNullability.kt",
+      "virtualPath": "<kswiftk-jvm>/sequence-nullability.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/sequences/SequencesKt"
+    },
+    {
       "path": "declarations/MapsOperators.kt",
       "virtualPath": "<kswiftk-jvm>/map-operators.kt",
       "excludeFromStdlibBuild": true,
