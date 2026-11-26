@@ -210,17 +210,8 @@ public fun String.replaceFirstChar(transform: (Char) -> Char): String {
 @OptIn(ExperimentalTypeInference::class)
 @OverloadResolutionByLambdaReturnType
 @JvmName("replaceFirstCharWithCharSequence")
-public fun String.replaceFirstChar(transform: (Char) -> CharSequence): String {
-    if (this.length == 0) return this
-    val result = StringBuilder()
-    result.append(transform(this[0]))
-    var index = 1
-    while (index < this.length) {
-        result.append(this[index])
-        index++
-    }
-    return result.toString()
-}
+public fun String.replaceFirstChar(transform: (Char) -> CharSequence): String =
+    if (isNotEmpty()) transform(this[0]).toString() + substring(1) else this
 
 public fun String.reversed(): String {
     val builder = StringBuilder(this)

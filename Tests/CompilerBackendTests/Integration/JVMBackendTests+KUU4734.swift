@@ -182,6 +182,31 @@ extension JVMBackendTests {
     }
 
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func kuu4734ReplaceFirstCharKeepsKotlinNameAndUpstreamText(mode: EmitMode) throws {
+        try withWorkspace { root in
+            try runRuntimeParity("""
+            import kotlin.reflect.KFunction
+
+            class Odd : CharSequence {
+                override val length: Int get() = 1
+                override fun get(index: Int): Char = 'c'
+                override fun subSequence(startIndex: Int, endIndex: Int): CharSequence = "c"
+                override fun toString(): String = "T"
+            }
+
+            fun main() {
+                val withChar: (String, (Char) -> Char) -> String = String::replaceFirstChar
+                val withText: (String, (Char) -> CharSequence) -> String = String::replaceFirstChar
+                println("abc".replaceFirstChar { Odd() })
+                println(withText("abc") { Odd() })
+                println((withChar as KFunction<*>).name)
+                println((withText as KFunction<*>).name)
+            }
+            """, expected: "Tbc\nTbc\nreplaceFirstChar\nreplaceFirstChar\n", mode: mode, root: root)
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func kuu4734SuspendConvertedTextReference(mode: EmitMode) throws {
         try withWorkspace { root in
             try runRuntimeParity("""
