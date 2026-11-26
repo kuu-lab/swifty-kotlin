@@ -537,7 +537,7 @@ extension JVMProgramBuilder {
             accessorTypeParameters = try typeParameters(propertyParameterSymbols, declarations: declaration.typeParams)
         }
         var functions: [JVMFunction] = []
-        for setter in [false, true] where !declaration.modifiers.contains(.const) && !property.usesPrivateBackingField {
+        for setter in [false, true] where !declaration.modifiers.contains(.const) && !property.usesPrivateBackingField && !property.isDirectField {
             guard let method = setter ? property.setter : property.getter else { continue }
             let accessor = setter ? declaration.setter : declaration.getter
             var modifiers = declaration.modifiers
