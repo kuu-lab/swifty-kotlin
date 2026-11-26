@@ -9,6 +9,9 @@ fun main() {
     }
     val zeroParameters = context(a: String) fun() = a
     println(zeroParameters("Z"))
+    val multi = context(a: String, b: Int) fun(): String = a + b
+    println(multi("M", 2))
     val extension = context(a: String) fun String.() = this + a
     println(extension("P", "Q"))
+    with("R") { println("S".extension()) }
 }
