@@ -21,9 +21,20 @@ LLVM_OBJDUMP="${LLVM_OBJDUMP:-}"
 if [[ -z "$LLVM_OBJDUMP" && -n "$CLANG_PATH" && -x "$(dirname "$CLANG_PATH")/llvm-objdump" ]]; then
   LLVM_OBJDUMP="$(dirname "$CLANG_PATH")/llvm-objdump"
 fi
-if [[ -n "$LLVM_OBJDUMP" ]] && \
-   "$LLVM_OBJDUMP" -d "$TMP_DIR/decimal_parse.wasm" 2>/dev/null | grep -Eq '^[[:space:]]+[0-9a-f]+:([[:space:]][0-9a-f]{2})+[[:space:]]+call[[:space:]]'; then
+if [[ -z "$LLVM_OBJDUMP" ]]; then
+  echo "llvm-objdump is required to validate the generated parser body" >&2
+  exit 1
+fi
+if ! DISASSEMBLY="$("$LLVM_OBJDUMP" -d "$TMP_DIR/decimal_parse.wasm" 2>/dev/null)"; then
+  echo "llvm-objdump failed; refusing to emit an unvalidated parser body" >&2
+  exit 1
+fi
+if grep -Eq '^[[:space:]]+[0-9a-f]+:([[:space:]][0-9a-f]{2})+[[:space:]]+call[[:space:]]' <<<"$DISASSEMBLY"; then
   echo "generated function contains a direct call; force-inlining failed" >&2
+  exit 1
+fi
+if grep -Eq '^[[:space:]]+[0-9a-f]+:([[:space:]][0-9a-f]{2})+[[:space:]]+global\.(get|set)[[:space:]]' <<<"$DISASSEMBLY"; then
+  echo "generated function references wasm globals; refusing external state" >&2
   exit 1
 fi
 
@@ -50,6 +61,10 @@ while pos < len(data):
     section_id = data[pos]
     pos += 1
     section_size, pos = read_uleb(pos)
+    if section_id == 2:
+        count, _ = read_uleb(pos)
+        if count:
+            raise SystemExit("generated parser module has import entries; refusing external state")
     if section_id == 10:
         cursor = pos
         count, cursor = read_uleb(cursor)
@@ -57,7 +72,6 @@ while pos < len(data):
             body_size, cursor = read_uleb(cursor)
             bodies.append(data[cursor:cursor + body_size])
             cursor += body_size
-        break
     pos += section_size
 
 if len(bodies) != 1:
