@@ -5,15 +5,6 @@
 import Foundation
 import Testing
 
-/// KUU-545: declaring a bundled `internal external fun <interface>.member()`
-/// extension must not corrupt itable dispatch for that interface. The KSP-443
-/// lookup alias registered under the receiver nominal used to be counted as a
-/// real interface method, inflating `CharSequence`'s `vtableSize` and moving
-/// the `length` property getter off itable slot 2 — the fixed slot that
-/// `runtimeRegisterCharSequenceItable` registers for String objects — so any
-/// `CharSequence`-typed `length`/`get` call panicked with
-/// `KSWIFTK-RUNTIME-0001` even when the new function was never called.
-///
 /// The trigger must be a bundled-source declaration (`external fun` and
 /// `@KsSymbolName` are bundled-only) compiled alongside the bundled stdlib
 /// sources, so this test injects an extra bundled file and compiles the stdlib
