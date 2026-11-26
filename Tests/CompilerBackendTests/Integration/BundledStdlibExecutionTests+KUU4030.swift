@@ -1,11 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// KUU-4030: a `var` property obtained through `memberProperties`/
-    /// `declaredMemberProperties` reflects as `KMutablePropertyN` (and a
-    /// `val` as `KPropertyN`) like the JVM — the member reflection handle
-    /// previously dropped mutability/arity metadata, so
-    /// `p is KMutableProperty` answered false.
     @Test(arguments: [true, false])
     func memberPropertyVarReflectsAsKMutableProperty(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
@@ -43,9 +38,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-4030: a member extension property reflects as the arity-2
-    /// `KMutableProperty2`/`KProperty2` its two receivers (dispatch +
-    /// extension) imply, matching the unbound `C::ext` reference shape.
     @Test(arguments: [true, false])
     func memberExtensionPropertyReflectsMutableArity(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(

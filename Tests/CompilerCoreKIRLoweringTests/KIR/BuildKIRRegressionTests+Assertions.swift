@@ -5,8 +5,6 @@ import Testing
 @testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
-    /// Test-facing selectors must resolve to an ABI declaration or internal callee.
-    /// Missing catalogue entries fail even when the caller asserts their absence.
     enum RuntimeCall: String, CaseIterable {
         case arraySize = "__kk_array_size"
         case stringConcat = "__kk_string_concat_flat"
@@ -66,7 +64,6 @@ extension BuildKIRRegressionTests {
         }
 
         subscript(_ call: RuntimeCall) -> String {
-            // Initialization requires an entry for every enum case.
             names[call]!
         }
 
@@ -92,7 +89,6 @@ extension BuildKIRRegressionTests {
         }
     }
 
-    /// Fixture names are resolved to semantic identities, including their owner.
     func sourceSymbol(
         named name: String,
         kind: SymbolKind = .function,
@@ -111,8 +107,6 @@ extension BuildKIRRegressionTests {
         return candidates[0].id
     }
 
-    /// Callable metadata identifies generated adapters and their unboxed targets
-    /// without relying on generated function names or symbol-number ranges.
     func callableAdapterSymbols(in module: KIRModule) -> Set<SymbolID> {
         Set(module.arena.callableValueInfoByExprID.values
             .filter(\.hasClosureParam).map(\.symbol))

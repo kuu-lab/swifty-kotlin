@@ -42,7 +42,6 @@ extension JVMBackendTests {
             let ordinaryCarrier = Data("kotlin/jvm/functions/Function0".utf8)
             let composeCarrier = Data("kotlin/jvm/functions/Function2".utf8)
             try #require(classfile.range(of: ordinaryCarrier) != nil)
-            // Model the Compose plugin's erased ABI while retaining Kotlin's logical function type.
             while let range = classfile.range(of: ordinaryCarrier) {
                 classfile.replaceSubrange(range, with: composeCarrier)
             }

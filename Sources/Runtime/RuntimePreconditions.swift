@@ -17,10 +17,6 @@ public func __kk_synchronized(_ lock: Int, _ fnPtr: Int, _ closureRaw: Int, _ ou
 }
 
 private let runtimeLockStorage = NSLock()
-// Lock entries are retained only while a caller owns or is waiting for the
-// corresponding lock. Both `synchronized(lock)` and `lazy(lock)` use this
-// table so they honor Kotlin's shared-monitor semantics without leaking one
-// lock per object for the lifetime of the process.
 private struct RuntimeLockEntry {
     let lock: NSRecursiveLock
     var users: Int
@@ -70,8 +66,6 @@ public func __kk_lazy_sync_lock(_ handle: Int) -> Int {
 
 @_cdecl("__kk_lazy_sync_unlock")
 public func __kk_lazy_sync_unlock(_ handle: Int) -> Int {
-    // The bridge ABI carries only the key. The shared lock table guarantees
-    // that the current key resolves to the same lock while it is held.
     runtimeLockStorage.lock()
     let lock = runtimeLocks[handle]?.lock
     runtimeLockStorage.unlock()

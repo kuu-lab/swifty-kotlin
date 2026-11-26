@@ -2,11 +2,6 @@
 
 package kotlin.concurrent
 
-/**
- * The array's synchronized storage remains in the runtime. These members reuse
- * the `*At` boundary functions from `AtomicArrayCompatMigration.kt`, keeping
- * bounds checks and the raw atomic operations in one implementation.
- */
 @SinceKotlin("1.9")
 @ExperimentalStdlibApi
 public class AtomicIntArray private constructor() {

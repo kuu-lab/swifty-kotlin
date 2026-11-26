@@ -5,9 +5,6 @@ import Foundation
 import Testing
 
 extension JVMBackendTests {
-    /// Regression for the method-owner index: data-class synthetic lookups
-    /// (`dataMethods`) and supertype bridge lookups (`bridges`) must keep working
-    /// after methods are registered and replaced during emission.
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func methodOwnerIndexPreservesDataClassAndDelegationBehavior(mode: EmitMode) throws {
         try withWorkspace { root in

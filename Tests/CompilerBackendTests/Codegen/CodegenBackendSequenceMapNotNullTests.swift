@@ -22,7 +22,6 @@ struct CodegenBackendSequenceMapNotNullTests {
         try assertKotlinOutput(source, moduleName: "SequenceMapNotNullRuntime", expected: "[20, 40]\n")
     }
 
-    /// KSP-441: `mapNotNull` comes from the bundled Kotlin transform pipeline.
     @Test
     func testCodegenSequenceMapNotNullUsesBundledSourceImplementation() throws {
         let source = """

@@ -5,8 +5,6 @@ import Testing
 
 @Suite(.serialized)
 struct LibraryStdlibCallTests {
-    /// KUU-1969: source-backed stdlib callees need bodies in a library object,
-    /// or an imported link name when the producer uses a stdlib artifact.
     @Test(arguments: [0, 2])
     func stdlibCallsLinkAcrossLibraryBoundary(optimization: Int) throws {
         let level = try #require(OptimizationLevel(rawValue: optimization))
@@ -14,8 +12,6 @@ struct LibraryStdlibCallTests {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let stdlib = try testStdlibArtifactPath()
-        // A source-mode consumer of an artifact-backed producer must still link
-        // that producer's stdlib dependency without importing its metadata.
         let dependencyArchive = directory.appendingPathComponent("libStdlibDependency.a").path
         let dependencyObjects = LinkPhase().discoverLibraryObjects(searchPaths: [stdlib])
         try #require(!dependencyObjects.isEmpty)

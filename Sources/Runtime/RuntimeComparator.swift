@@ -98,9 +98,6 @@ func runtimeCompareNullableValues(_ a: Int, _ b: Int) -> Int {
     return runtimeCompareValues(a, b)
 }
 
-/// Emitted when a generic `T : Comparable<T>` receiver calls `.compareTo(other)` and no
-/// concrete primitive or synthetic-stub handler matches (e.g. inside `sorted()` or
-/// `kotlin.comparisons.compareValues`).
 @_cdecl("__kk_comparable_compareTo")
 public func __kk_comparable_compareTo(
     _ lhsRaw: Int,
@@ -144,7 +141,6 @@ public func __kk_comparable_compareTo(
     }
 }
 
-/// Emitted for `maxOf`/`minOf` with an explicit comparator argument.
 @_cdecl("__kk_compare_with_comparator")
 public func __kk_compare_with_comparator(
     _ comparatorRaw: Int,

@@ -69,7 +69,6 @@ internal class RealSource(
         try {
             require(byteCount)
         } catch (e: EOFException) {
-            // The underlying source is exhausted. Copy the bytes we got before rethrowing.
             sink.write(bufferField, bufferField.size)
             throw e
         }

@@ -66,8 +66,6 @@ extension LoweringPassRegressionTests {
             return expr
         }
         #expect(returnValues.count == 1)
-        // The inline result is materialized into the call result register, so the
-        // caller's return value uses that register and a preceding copy exists.
         #expect(returnValues.first == callerResult)
 
         let addResult = loweredCaller.body.compactMap { instruction -> KIRExprID? in
@@ -116,8 +114,6 @@ extension LoweringPassRegressionTests {
             declSite: nil,
             visibility: .public
         )
-        // Enum entries must be owned by the enum class for enumEntrySymbols
-        // to discover them (children(of:) + enumOwnerSymbol).
         symbols.setParentSymbol(colorSymbol, for: redSymbol)
         symbols.setParentSymbol(colorSymbol, for: blueSymbol)
 
@@ -234,15 +230,10 @@ extension LoweringPassRegressionTests {
             declSite: nil,
             visibility: .public
         )
-        // Enum entries must be owned by the enum class: enumEntrySymbols
-        // discovers them via children(of:) filtered by enumOwnerSymbol, both
-        // of which need the registered parent edge that sema sets for real
-        // entries (HeaderCollection+CollectHeader).
         symbols.setParentSymbol(colorSymbol, for: redSymbol)
         symbols.setParentSymbol(colorSymbol, for: greenSymbol)
         symbols.setParentSymbol(colorSymbol, for: blueSymbol)
 
-        // Entries are looked up by parent symbol since #9176, not by fqName prefix.
         for entrySymbol in [redSymbol, greenSymbol, blueSymbol] {
             symbols.setParentSymbol(colorSymbol, for: entrySymbol)
         }
@@ -265,21 +256,17 @@ extension LoweringPassRegressionTests {
         #expect(functionNames.contains("GREEN$enumOrdinal$\(colorSuffix)"), "Missing GREEN$enumOrdinal$\(colorSuffix), got: \(functionNames)")
         #expect(functionNames.contains("BLUE$enumOrdinal$\(colorSuffix)"), "Missing BLUE$enumOrdinal$\(colorSuffix), got: \(functionNames)")
 
-        // Verify per-entry name helpers
         #expect(functionNames.contains("RED$enumName$\(colorSuffix)"), "Missing RED$enumName$\(colorSuffix), got: \(functionNames)")
         #expect(functionNames.contains("GREEN$enumName$\(colorSuffix)"), "Missing GREEN$enumName$\(colorSuffix), got: \(functionNames)")
         #expect(functionNames.contains("BLUE$enumName$\(colorSuffix)"), "Missing BLUE$enumName$\(colorSuffix), got: \(functionNames)")
 
-        // Verify values() and valueOf() enum-owner functions
         #expect(functionNames.contains("values"), "Missing values, got: \(functionNames)")
         #expect(functionNames.contains("valueOf"), "Missing valueOf, got: \(functionNames)")
 
-        // Verify ordinal values are correct (0-based)
         let redOrdinal = try findKIRFunction(named: "RED$enumOrdinal$\(colorSuffix)", in: module, interner: interner)
         let greenOrdinal = try findKIRFunction(named: "GREEN$enumOrdinal$\(colorSuffix)", in: module, interner: interner)
         let blueOrdinal = try findKIRFunction(named: "BLUE$enumOrdinal$\(colorSuffix)", in: module, interner: interner)
 
-        // Each ordinal function should have a constValue instruction with the correct ordinal
         let redConst = redOrdinal.body.compactMap { inst -> Int64? in
             guard case let .constValue(_, value) = inst, case let .intLiteral(v) = value else { return nil }
             return v
@@ -298,7 +285,6 @@ extension LoweringPassRegressionTests {
         }
         #expect(blueConst.contains(2), "BLUE ordinal should be 2, got consts: \(blueConst)")
 
-        // Verify name functions return correct string literals
         let redName = try findKIRFunction(named: "RED$enumName$\(colorSuffix)", in: module, interner: interner)
         let redNameConsts = redName.body.compactMap { inst -> InternedString? in
             guard case let .constValue(_, value) = inst, case let .stringLiteral(s) = value else { return nil }
@@ -306,17 +292,14 @@ extension LoweringPassRegressionTests {
         }
         #expect(redNameConsts.contains(interner.intern("RED")), "RED name function should return \"RED\"")
 
-        // Verify valueOf has only the name parameter when owned by the enum
         let valueOfFn = try findKIRFunction(named: "valueOf", in: module, interner: interner)
         #expect(valueOfFn.params.count == 1, "valueOf should have 1 name parameter")
 
-        // Verify valueOf body contains string comparison calls
         let valueOfCallees = extractCallees(from: valueOfFn.body, interner: interner)
         #expect(valueOfCallees.contains(RuntimeCall.stringEqualsFlat.name), "valueOf should call __kk_string_equals_flat")
         #expect(valueOfCallees.contains(RuntimeCall.stringConcatFlat.name), "valueOf should call __kk_string_concat_flat to build 'ClassName.value' for error message")
         #expect(valueOfCallees.contains(RuntimeCall.enumValueOfThrow.name), "valueOf should call kk_enum_valueOf_throw for no-match case")
 
-        // Verify valueOf body contains the fully qualified class name prefix string "demo.Color."
         let valueOfStringConsts = valueOfFn.body.compactMap { inst -> InternedString? in
             guard case let .constValue(_, value) = inst, case let .stringLiteral(s) = value else { return nil }
             return s
@@ -324,8 +307,6 @@ extension LoweringPassRegressionTests {
         #expect(valueOfStringConsts.contains(interner.intern("demo.Color.")),
                 "valueOf should contain 'demo.Color.' prefix for Kotlin-compatible error message")
     }
-
-    // MARK: - DATA-003: hashCode() synthesis for data classes
 
     @Test(arguments: [
         "Int", "Double", "Long", "ULong", "Array", "ByteArray", "ShortArray", "IntArray", "LongArray",
@@ -416,7 +397,6 @@ extension LoweringPassRegressionTests {
         symbols.setParentSymbol(pointSymbol, for: ySymbol)
         symbols.setPropertyType(propertyType, for: ySymbol)
 
-        // Primary constructor: synthesized hashCode only covers constructor parameters.
         let ctorSymbolpointSymbol = symbols.define(
             kind: .constructor,
             name: interner.intern("<init>"),
@@ -449,7 +429,6 @@ extension LoweringPassRegressionTests {
             for: ctorSymbolpointSymbol
         )
 
-        // Register synthetic hashCode symbol (as Sema would)
         let hashCodeName = interner.intern("hashCode")
         let hashCodeFQName = pointFQName + [hashCodeName]
         let hashCodeSymbol = symbols.define(
@@ -486,7 +465,6 @@ extension LoweringPassRegressionTests {
         }
         #expect(functionNames.contains("hashCode"), "Missing hashCode, got: \(functionNames)")
 
-        // Verify hashCode function has receiver parameter
         let hashCodeFn = try findKIRFunction(named: "hashCode", in: module, interner: interner)
         #expect(hashCodeFn.params.count == 1, "hashCode should have 1 receiver parameter")
 
@@ -522,11 +500,9 @@ extension LoweringPassRegressionTests {
             #expect(hashArguments.allSatisfy { boxedResults.contains($0) })
         }
 
-        // With 2 properties, should use 31 * result + hash pattern
         #expect(callees.contains(CompilerCall.opMul.name), "hashCode with 2+ properties should call kk_op_mul")
         #expect(callees.contains(CompilerCall.opAdd.name), "hashCode with 2+ properties should call kk_op_add")
 
-        // Verify the constant 31 is used in the body
         let intConsts = hashCodeFn.body.compactMap { inst -> Int64? in
             guard case let .constValue(_, value) = inst, case let .intLiteral(v) = value else { return nil }
             return v
@@ -546,7 +522,6 @@ extension LoweringPassRegressionTests {
         let packageName = interner.intern("demo")
         let packagePath = [packageName]
 
-        // Define a data class Empty with no properties
         let emptyName = interner.intern("Empty")
         let emptyFQName = packagePath + [emptyName]
         let emptySymbol = symbols.define(
@@ -598,14 +573,12 @@ extension LoweringPassRegressionTests {
 
         let hashCodeFn = try findKIRFunction(named: "hashCode", in: module, interner: interner)
 
-        // With no properties, should return 0 directly
         let intConsts = hashCodeFn.body.compactMap { inst -> Int64? in
             guard case let .constValue(_, value) = inst, case let .intLiteral(v) = value else { return nil }
             return v
         }
         #expect(intConsts.contains(0), "hashCode with no properties should return 0")
 
-        // Should NOT use mul/add since there's nothing to combine
         let callees = extractCallees(from: hashCodeFn.body, interner: interner)
         #expect(!callees.contains(CompilerCall.opMul.name), "hashCode with no properties should not call kk_op_mul")
         #expect(!callees.contains(CompilerCall.opAdd.name), "hashCode with no properties should not call kk_op_add")
@@ -652,7 +625,6 @@ extension LoweringPassRegressionTests {
         symbols.setParentSymbol(wrapperSymbol, for: valueSymbol)
         symbols.setPropertyType(intType, for: valueSymbol)
 
-        // Primary constructor: synthesized hashCode only covers constructor parameters.
         let ctorSymbolwrapperSymbol = symbols.define(
             kind: .constructor,
             name: interner.intern("<init>"),
@@ -719,15 +691,11 @@ extension LoweringPassRegressionTests {
         let hashCodeFn = try findKIRFunction(named: "hashCode", in: module, interner: interner)
         let callees = extractCallees(from: hashCodeFn.body, interner: interner)
 
-        // Single property: field is read via kk_array_get_inbounds, then
-        // result = kk_any_hashCode(fieldValue, tag), no mul/add needed
         #expect(callees.contains(RuntimeCall.arrayGetInbounds.name), "hashCode should read the field before hashing it")
         #expect(callees.contains(RuntimeCall.anyHashCode.name), "hashCode should call kk_any_hashCode")
         #expect(!callees.contains(CompilerCall.opMul.name), "hashCode with single property should not call kk_op_mul")
         #expect(!callees.contains(CompilerCall.opAdd.name), "hashCode with single property should not call kk_op_add")
     }
-
-    // MARK: - DATA-004: Data class toString/equals for multi-property classes
 
     @Test
     func testDataClassToStringAndEqualsAreSynthesized() throws {
@@ -798,7 +766,6 @@ extension LoweringPassRegressionTests {
         symbols.setPropertyType(intType, for: ySymbol)
         symbols.setParentSymbol(pointSymbol, for: ySymbol)
 
-        // Non-constructor member properties should not participate in synthesized data methods.
         let zName = interner.intern("z")
         let zSymbol = symbols.define(
             kind: .property,
@@ -810,7 +777,6 @@ extension LoweringPassRegressionTests {
         symbols.setPropertyType(intType, for: zSymbol)
         symbols.setParentSymbol(pointSymbol, for: zSymbol)
 
-        // Register synthetic toString and equals stubs (as Sema would)
         let pointType = types.make(.classType(ClassType(
             classSymbol: pointSymbol,
             args: [],
@@ -900,11 +866,9 @@ extension LoweringPassRegressionTests {
             interner.resolve(function.name)
         }
 
-        // Verify toString and equals are synthesized
         #expect(functionNames.contains("toString"), "Missing toString, got: \(functionNames)")
         #expect(functionNames.contains("equals"), "Missing equals, got: \(functionNames)")
 
-        // Verify toString body uses StringBuilder + kk_any_to_string
         let toStringFn = try findKIRFunction(named: "toString", in: module, interner: interner)
         let toStringCallees = extractCallees(from: toStringFn.body, interner: interner)
         #expect(toStringCallees.contains(RuntimeCall.stringBuilderNewFromStringFlat.name), "toString should create a StringBuilder from the class prefix")
@@ -936,8 +900,6 @@ extension LoweringPassRegressionTests {
 
     }
 
-    // MARK: - DATA-001: copy() edge cases
-
     @Test
     func testDataCopyNoPrimaryCtorEmitsWarningAndReturnsSelf() throws {
         let interner = StringInterner()
@@ -950,7 +912,6 @@ extension LoweringPassRegressionTests {
         let packageName = interner.intern("test")
         let packagePath = [packageName]
 
-        // Define a data class with NO constructor
         let pointName = interner.intern("Point")
         let pointSymbol = symbols.define(
             kind: .class,
@@ -975,18 +936,15 @@ extension LoweringPassRegressionTests {
 
         try runLowering(module: module, interner: interner, moduleName: "DataCopyNoCtor", sema: sema, diagnostics: diagnostics)
 
-        // Verify copy() is synthesized with only self parameter (fallback)
         let copyFunction = try findKIRFunction(named: "copy", in: module, interner: interner)
         #expect(copyFunction.params.count == 1, "copy() without ctor should have only self param")
 
-        // Verify the body returns self (constValue + returnValue)
         let returnInstructions = copyFunction.body.filter {
             if case .returnValue = $0 { return true }
             return false
         }
         #expect(returnInstructions.count == 1, "copy() fallback should have exactly one return")
 
-        // Verify KSWIFTK-DATA-0001 warning was emitted
         let dataWarnings = diagnostics.diagnostics.filter { $0.code == "KSWIFTK-DATA-0001" }
         #expect(dataWarnings.count == 1, "Expected one KSWIFTK-DATA-0001 warning, got \(dataWarnings.count)")
         #expect(dataWarnings.first?.severity == .warning)
@@ -1066,15 +1024,12 @@ extension LoweringPassRegressionTests {
 
         try runLowering(module: module, interner: interner, moduleName: "DataCopyWithCtor", sema: sema, diagnostics: diagnostics)
 
-        // copy() should have self + x + y = 3 params
         let copyFunction = try findKIRFunction(named: "copy", in: module, interner: interner)
         #expect(copyFunction.params.count == 3, "copy() should have self + 2 ctor params")
 
-        // Verify the body calls the constructor
         let callees = extractCallees(from: copyFunction.body, interner: interner)
         #expect(callees.contains("<init>"), "copy() should call <init>")
 
-        // No warnings should be emitted for normal case
         let dataWarnings = diagnostics.diagnostics.filter { $0.code.hasPrefix("KSWIFTK-DATA-") }
         #expect(dataWarnings.count == 0, "No DATA warnings expected for normal data class copy")
     }
@@ -1129,7 +1084,6 @@ extension LoweringPassRegressionTests {
             visibility: .private
         )
 
-        // Mismatch: 1 symbol but 2 types (extra type with no matching symbol)
         let ctorSignature = FunctionSignature(
             parameterTypes: [stringType, intType],
             returnType: types.make(.classType(ClassType(classSymbol: personSymbol, args: [], nullability: .nonNull))),
@@ -1146,11 +1100,9 @@ extension LoweringPassRegressionTests {
 
         try runLowering(module: module, interner: interner, moduleName: "DataCopyMismatch", sema: sema, diagnostics: diagnostics)
 
-        // copy() should use min(1, 2) = 1 ctor param, so self + 1 = 2 params
         let copyFunction = try findKIRFunction(named: "copy", in: module, interner: interner)
         #expect(copyFunction.params.count == 2, "copy() with mismatch should have self + min(symbols, types) params")
 
-        // Verify KSWIFTK-DATA-0002 warning was emitted
         let mismatchWarnings = diagnostics.diagnostics.filter { $0.code == "KSWIFTK-DATA-0002" }
         #expect(mismatchWarnings.count == 1, "Expected one KSWIFTK-DATA-0002 warning, got \(mismatchWarnings.count)")
         #expect(mismatchWarnings.first?.severity == .warning)
@@ -1188,7 +1140,6 @@ extension LoweringPassRegressionTests {
             visibility: .public
         )
 
-        // Constructor with zero value params
         let ctorSignature = FunctionSignature(
             parameterTypes: [],
             returnType: types.make(.classType(ClassType(classSymbol: emptySymbol, args: [], nullability: .nonNull))),
@@ -1213,15 +1164,12 @@ extension LoweringPassRegressionTests {
 
         try runLowering(module: module, interner: interner, moduleName: "DataCopyZeroParams", sema: sema, diagnostics: diagnostics)
 
-        // copy() with zero ctor params should have only self param
         let copyFunction = try findKIRFunction(named: "copy", in: module, interner: interner)
         #expect(copyFunction.params.count == 1, "copy() with zero ctor params should have only self param")
 
-        // Should still call the constructor
         let callees = extractCallees(from: copyFunction.body, interner: interner)
         #expect(callees.contains("<init>"), "copy() should call <init> even with zero params")
 
-        // No warnings
         let dataWarnings = diagnostics.diagnostics.filter { $0.code.hasPrefix("KSWIFTK-DATA-") }
         #expect(dataWarnings.count == 0, "No DATA warnings expected for zero-param data class copy")
     }
@@ -1256,7 +1204,6 @@ extension LoweringPassRegressionTests {
             flags: [.synthetic]
         )
 
-        // Define <init> with kind .function instead of .constructor
         let initName = interner.intern("<init>")
         let wrongKindSymbol = symbols.define(
             kind: .function,
@@ -1283,11 +1230,9 @@ extension LoweringPassRegressionTests {
 
         try runLowering(module: module, interner: interner, moduleName: "DataCopyWrongKind", sema: sema, diagnostics: diagnostics)
 
-        // Should fall back to self-returning copy (only self param)
         let copyFunction = try findKIRFunction(named: "copy", in: module, interner: interner)
         #expect(copyFunction.params.count == 1, "copy() with wrong ctor kind should fall back to self-only")
 
-        // Should emit the no-ctor warning
         let dataWarnings = diagnostics.diagnostics.filter { $0.code == "KSWIFTK-DATA-0001" }
         #expect(dataWarnings.count == 1, "Expected KSWIFTK-DATA-0001 for non-constructor init")
     }

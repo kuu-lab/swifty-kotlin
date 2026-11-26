@@ -3,14 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// KUU-4318: `containsAll`/`addAll`/`removeAll`/`retainAll` used to bind
-/// through the synthetic collection fallback without checking the argument
-/// against the real `Collection`-parameter signatures, and `add`/`remove`/
-/// `contains` bound the same way without an element-type check. Range
-/// expressions keep scalar or nominal range types that are not `Collection`
-/// (`IntRange` is only `Iterable`; `ClosedFloatingPointRange` is neither), so
-/// the calls compiled and crashed with `ClassCastException` at runtime.
-/// kotlinc rejects them at compile time, and these tests pin that parity.
 @Suite
 struct CollectionBulkRangeArgumentConformanceTests {
     @Test

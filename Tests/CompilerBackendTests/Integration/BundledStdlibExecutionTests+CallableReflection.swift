@@ -49,9 +49,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-3863: a generic callable reference stored as KFunctionN still
-    /// carries KCallable metadata, so `.name` resolves through the runtime
-    /// fast path instead of crashing on vtable/itable dispatch.
     @Test func genericCallableReferenceKeepsKFunctionName() throws {
         try compileAndRunKotlin(
             try diffCaseSource("callable_ref_generic_kfunction_name.kt", file: #filePath),
@@ -100,11 +97,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-3886: a callable reference to a generic declaration conformed to
-    /// KFunctionN uses an ABI-only adapter but keeps the callee's public
-    /// signature, so KCallable members must be served from registered
-    /// reflection metadata — previously `.parameters` fell back to an itable
-    /// dispatch and crashed with KSWIFTK-RUNTIME-0001.
     @Test(arguments: [true, false])
     func genericCallableReferenceConformedToKFunctionNExposesKCallableMembers(
         allowDefaultStdlibLibrary: Bool
@@ -130,11 +122,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-3812: `KFunctionN.returnType` on a callable reference to a generic
-    /// function must resolve through registered KCallable metadata (the
-    /// ABI-only adapter keeps KCallable identity) and render the literal type
-    /// variable, matching JVM kotlin-reflect. Previously `.returnType` fell
-    /// back to an itable dispatch and crashed with KSWIFTK-RUNTIME-0001.
     @Test(arguments: [true, false])
     func genericCallableReferenceReturnTypeRendersTypeVariable(
         allowDefaultStdlibLibrary: Bool

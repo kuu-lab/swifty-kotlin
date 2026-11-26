@@ -6,10 +6,6 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
-    /// KUU-3214 / KT-83308: virtual `toString()` dispatch through the Any
-    /// vtable slot uses a single raw-handle ABI — the slot always stores
-    /// `kk_any_member_to_string`, which forwards to the most-derived
-    /// Kotlin override through the Any-toString registry (KUU-4487).
     @Test
     func testInheritedToStringVirtualCallUsesRegisteredAnySlotABI() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -57,9 +53,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-3214 / KT-83308: `by` delegation through a private-constructor
-    /// abstract class plus a deep generic interface hierarchy returned
-    /// null from `group<String, String>().toString()`.
     @Test
     func testDelegatedToStringThroughDeepInterfaceHierarchy() throws {
         let artifactPath = try Self.buildStdlibArtifact()

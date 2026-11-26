@@ -3,8 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// BUG-164: callable references must be eligible for SAM conversion when the
-/// expected type is a functional interface parameter of a function call.
 @Suite
 struct CallableRefSamConversionTests {
 
@@ -55,9 +53,6 @@ struct CallableRefSamConversionTests {
         )
     }
 
-    /// KUU-3203: the SAM constructor argument may be any expression producing
-    /// a function value, including calls on callable references like
-    /// `::prop.get()` — not only lambda literals or bare references.
     @Test func testSamConstructorPropertyReferenceGetCall() throws {
         let source = """
         fun interface SamInterface {
@@ -81,10 +76,6 @@ struct CallableRefSamConversionTests {
         )
     }
 
-    /// KUU-3203: `SamInterface((::A)())` — an invoked constructor reference
-    /// whose result is a nominal FunctionN subtype is SAM-convertible
-    /// (upstream callableReference/function/
-    /// extensionFunctionAsASuperTypePassToSAMInterface).
     @Test func testSamConstructorInvokedConstructorReference() throws {
         let source = """
         fun interface SamInterface {
@@ -115,9 +106,6 @@ struct CallableRefSamConversionTests {
         )
     }
 
-    /// KUU-3203: a stored function value converts for a SAM member that has an
-    /// extension receiver — the argument binds the SAM function type, not the
-    /// interface type.
     @Test func testSamConstructorFunctionValueReceiverSam() throws {
         let source = """
         fun interface SamInterface {
@@ -142,8 +130,6 @@ struct CallableRefSamConversionTests {
         )
     }
 
-    /// KUU-3203: a function value incompatible with the SAM member signature
-    /// must not be silently converted.
     @Test func testSamConstructorFunctionValueMismatchRejected() throws {
         let source = """
         fun interface SamInterface {
@@ -165,10 +151,6 @@ struct CallableRefSamConversionTests {
         )
     }
 
-    /// KUU-2427: an argument that already implements a `fun interface` with a
-    /// function supertype passes through unchanged — marking it as a SAM
-    /// conversion makes KIR wrap it in a fresh thunk and breaks `===`. A plain
-    /// function value of the same shape still converts.
     @Test func testFunctionSupertypeSamSubtypeArgumentIsNotConverted() throws {
         let source = """
         fun interface Foo : () -> Int

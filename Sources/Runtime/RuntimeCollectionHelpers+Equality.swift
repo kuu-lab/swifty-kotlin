@@ -81,10 +81,6 @@ func runtimeMapNotNullResultValue(_ raw: Int) -> Int? {
     return raw
 }
 
-/// Unlike `maybeUnbox`, which leaves floating-point boxes as pointers, this
-/// exposes the payload so a box can be compared against a raw (never-boxed)
-/// floating-point word — the representation a `Double` argument still has when
-/// it reaches a generic `T` parameter.
 func runtimeFloatingBoxBitPattern(_ raw: Int) -> Int? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return nil
@@ -104,8 +100,6 @@ func runtimeFloatingBoxBitPattern(_ raw: Int) -> Int? {
     return nil
 }
 
-/// Compares a boxed floating-point value with a raw value of the same static
-/// primitive type, using Kotlin boxed `equals` semantics.
 func runtimeFloatingBoxEqualsRaw(_ boxed: Int, rawBits: Int) -> Bool? {
     guard let boxedBits = runtimeFloatingBoxBitPattern(boxed),
           let pointer = UnsafeMutableRawPointer(bitPattern: boxed)
@@ -300,9 +294,13 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     guard let lhsPtr, let rhsPtr else {
         return lhs == rhs
     }
-    // Result uses a dedicated runtime box rather than RuntimeObjectBox. Keep
-    // its value-class equality semantics on erased Any paths, matching the
-    // wrapped-value hashCode handling in RuntimeNumericCompat.
+    if let lhsBig = tryCast(lhsPtr, to: RuntimeBigNumberBox.self) {
+        guard let rhsBig = tryCast(rhsPtr, to: RuntimeBigNumberBox.self) else { return false }
+        return lhsBig.kind == rhsBig.kind && lhsBig.value == rhsBig.value
+    }
+    if tryCast(rhsPtr, to: RuntimeBigNumberBox.self) != nil {
+        return false
+    }
     if let lhsResult = tryCast(lhsPtr, to: RuntimeResultBox.self),
        let rhsResult = tryCast(rhsPtr, to: RuntimeResultBox.self)
     {
@@ -333,9 +331,6 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
        let rhsProjection = tryCast(rhsPtr, to: RuntimeKTypeProjectionBox.self) {
         return runtimeKTypeProjectionEquals(lhsProjection, rhsProjection)
     }
-    // kotlin.reflect KParameter boxes compare by owning callable + index
-    // (ReflectKParameter.equals), not by handle identity; a parameter box
-    // never equals a non-parameter value.
     if let lhsParameter = tryCast(lhsPtr, to: RuntimeKParameterBox.self) {
         guard let rhsParameter = tryCast(rhsPtr, to: RuntimeKParameterBox.self) else {
             return false
@@ -411,8 +406,6 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     {
         return runtimeListElementsEqual(lhsList.elements, rhsList.elements)
     }
-    // Runtime ListBoxes have no source equals override, so compare them with
-    // source-backed List implementations through their ordinary iterator.
     if let lhsList = runtimeListBox(from: lhs),
        let rhsTypeID = runtimeObjectTypeID(rawValue: rhs),
        runtimeIsAssignable(sourceTypeID: rhsTypeID, targetTypeID: listRuntimeTypeID),
@@ -427,8 +420,6 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     {
         return runtimeListElementsEqual(lhsElements, rhsList.elements)
     }
-    // Identity map views compare against any Set implementation, including
-    // source objects whose elements are exposed through an Iterable itable.
     if let lhsSet = runtimeSetBox(from: lhs), lhsSet.usesReferenceEquality {
         if let rhsSet = runtimeSetBox(from: rhs) {
             return lhsSet.count == rhsSet.count && rhsSet.elements.allSatisfy { lhsSet.contains(rawValue: $0) }
@@ -536,8 +527,6 @@ public func __kk_objects_equals(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutab
         if let overridden = runtimeObjectEqualsOverride(lhs, rhs, outThrown: outThrown) {
             return kk_box_bool(overridden ? 1 : 0)
         }
-        // Erased floating operands arrive as boxes. Read their owned payloads,
-        // preserving boxed equals' canonical NaNs and distinct signed zeros.
         if runtimeFloatingBoxBitPattern(lhs) != nil, runtimeFloatingBoxBitPattern(rhs) != nil,
            let lhsPointer = UnsafeMutableRawPointer(bitPattern: lhs),
            let rhsPointer = UnsafeMutableRawPointer(bitPattern: rhs)

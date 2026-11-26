@@ -4,9 +4,6 @@ import Testing
 
 @Suite(.serialized)
 struct KUU4460KklibLinkLibrariesTests {
-    /// KUU-4460: `-l<name>` resolving to `<name>.kklib`/`lib<name>.kklib` under
-    /// `-I` must consume the bundle's objects instead of reaching `ld` as a
-    /// native `-l` flag. Native archives in the same `-l` list keep working.
     @Test func kklibDashLLinksBundleObjectsAndKeepsNativeLibs() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -36,7 +33,6 @@ struct KUU4460KklibLinkLibrariesTests {
             source: "package tiny\nfun answer(): Int = 42\n",
             module: "Libtiny", emit: .library
         )
-        // `-l tiny` must resolve `libtiny.kklib` inside the `-I` directory.
         let libDir = directory.appendingPathComponent("libs")
         try FileManager.default.createDirectory(at: libDir, withIntermediateDirectories: true)
         try FileManager.default.moveItem(

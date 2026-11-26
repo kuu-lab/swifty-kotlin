@@ -57,17 +57,10 @@ extension BuildKIRRegressionTests {
                 return callee == ctx.interner.intern("runBlocking$default")
             })
             guard case let .call(_, _, arguments, _, _, _, _, _) = launcherCall else { return }
-            // `runBlocking(block = block)` skips `context`, so the source-backed
-            // builder is reached through `runBlocking$default`: a zero
-            // placeholder for the omitted context, the block value itself,
-            // then the default-args mask word.
             #expect(arguments.count == 3)
             #expect(module.arena.expr(arguments[0]) == .intLiteral(0))
             #expect(module.arena.expr(arguments[1]) == .symbolRef(helper.params[0].symbol))
             #expect(module.arena.expr(arguments[2]) == .intLiteral(1))
-            // The stored suspend value crosses the launcher boundary as-is —
-            // no `kk_coroutine_block_adapter` re-packaging — so its capture
-            // environment rides inside the boxed function value.
             #expect(try findKIRCoroutineBlockAdapters(in: ctx).isEmpty)
 
             let main = try #require(functions.first { $0.name == KnownCompilerNames(interner: ctx.interner).main })
@@ -162,10 +155,6 @@ extension BuildKIRRegressionTests {
             try runToKIR(ctx)
             #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
             let module = try #require(ctx.kir)
-            // The bundled `CoroutineScope.async` is an external member call:
-            // the runBlocking literal forwards its own `this` receiver and the
-            // stored `block` boxed as an ordinary suspend function value — no
-            // `kk_coroutine_block_adapter`/`kk_coroutine_current_scope` read.
             let scopeAsyncCallee = ctx.interner.intern("kk_coroutine_scope_async")
             let launcherLambda = try #require(findKIRLambdaFunctions(in: ctx).first { function in
                 function.body.contains { instruction in
@@ -190,9 +179,6 @@ extension BuildKIRRegressionTests {
             let adapter = try referencedKIRFunction(try #require(createArguments.first), in: module)
             #expect(adapter.isSuspend)
             #expect(adapter.params.count == 2)
-            // The adapter's closure env carries the capture, while the
-            // launcher-supplied scope receiver reaches the lambda through a
-            // checked cast of the adapter's receiver parameter (KUU-3535).
             let captureLoad = try #require(adapter.body.compactMap { instruction -> KIRExprID? in
                 guard case let .call(_, callee, args, result, _, _, _, _) = instruction,
                       callee == ctx.interner.intern(runtimeCallee(.arrayGetInbounds)),

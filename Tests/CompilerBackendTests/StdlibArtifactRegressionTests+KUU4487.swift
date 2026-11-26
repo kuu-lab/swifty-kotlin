@@ -6,12 +6,6 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
-    /// KUU-4487: calling `toString()` through an abstract/sealed receiver
-    /// whose static type does not itself override `toString` returned null.
-    /// The static layout has no source override in the slot, so the call
-    /// used the raw ABI while the dynamic class registered its flat-ABI
-    /// override. The slot now always stores `kk_any_member_to_string` and
-    /// dispatches through the Any-toString registry.
     @Test
     func testAbstractReceiverToStringVirtualCallUsesUniformRawSlotABI() throws {
         let artifactPath = try Self.buildStdlibArtifact()

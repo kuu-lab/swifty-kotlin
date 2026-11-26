@@ -4,21 +4,7 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-// STDLIB-021-BUG-01: Pair destructuring after partition() failed to lower because
-// the componentN return type was the raw generic type parameter (A / B) rather than
-// the concrete List<T>.  The sema phase now substitutes the receiver's class type
-// arguments into the componentN signature return type so the lowered variable has
-// type List<T>, making subsequent member accesses such as .size resolve correctly.
-
 extension LoweringPassRegressionTests {
-    /// Regression test for STDLIB-021-BUG-01.
-    ///
-    /// `val (evens, odds) = listOf(1,2,3,4).partition { it % 2 == 0 }` should
-    /// lower to the source-backed `kotlin.Pair` `component1` / `component2`
-    /// members (KSP-608), and the subsequent `.size` accesses on the resulting
-    /// lists must lower to `__kk_list_size` calls.  Before the fix the component
-    /// variables were typed as raw type parameters, which caused `.size` lookup
-    /// to fail.
     @Test
     func testPairDestructuringAfterPartitionEmitsComponentNCalls() throws {
         let source = """
@@ -43,14 +29,11 @@ extension LoweringPassRegressionTests {
 
             let module = try #require(ctx.kir, "KIR module must be present after lowering")
 
-            // Collect all callees emitted across all functions.
             var allCallees: [String] = []
             for function in findAllKIRFunctions(in: module) {
                 allCallees.append(contentsOf: extractCallees(from: function.body, interner: ctx.interner))
             }
 
-            // The Pair destructuring must lower to the bundled Kotlin Pair's
-            // componentN members rather than a same-named runtime export.
             #expect(
                 allCallees.contains("component1"),
                 "Expected component1() call for the first component; callees: \(allCallees)"
@@ -60,9 +43,6 @@ extension LoweringPassRegressionTests {
                 "Expected component2() call for the second component; callees: \(allCallees)"
             )
 
-            // The .size access on the resulting List<Int> variables must lower to
-            // __kk_list_size — only possible when the component type was correctly
-            // inferred as List<Int> rather than the raw type parameter.
             #expect(
                 allCallees.contains(RuntimeCall.listSize.name),
                 "Expected __kk_list_size for evens.size / odds.size; callees: \(allCallees)"
@@ -70,9 +50,6 @@ extension LoweringPassRegressionTests {
         }
     }
 
-    /// Verify that sema infers concrete List<Int> types for the destructured
-    /// variables — not raw type parameters — so member access on `.size` does
-    /// not produce any type-mismatch diagnostic.
     @Test
     func testPairDestructuringAfterPartitionHasNoSemaDiagnostics() throws {
         let source = """

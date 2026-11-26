@@ -19,8 +19,6 @@ struct GenericErasedLambdaArgExecutionTests {
         }
     }
 
-    /// KUU-3538: the expected type of `f()!!` must flow through the null
-    /// assertion so the generic cast result can infer `T` as `Int?`.
     @Test
     func inferredGenericUncheckedCastResultThroughNullAssertion() throws {
         TestStdlibCache.shared.prepare()
@@ -38,8 +36,6 @@ struct GenericErasedLambdaArgExecutionTests {
         )
     }
 
-    /// KUU-3438: a nullable-underlying value class returned through a generic
-    /// function-value call must be unboxed before reaching a concrete use site.
     @Test(arguments: [true, false])
     func nullableAnyValueClassReturnedFromGenericLambda(allowDefaultStdlibLibrary: Bool) throws {
         TestStdlibCache.shared.prepare()
@@ -57,12 +53,6 @@ struct GenericErasedLambdaArgExecutionTests {
         )
     }
 
-    /// KUU-3195 (JetBrains `finally/kt4134.kt`): a String argument substituted
-    /// into an erased parameter slot of an inlined generic body kept its flat
-    /// aggregate representation, so erased consumers (`kk_function_invoke`
-    /// adapters, `kk_any_to_string`) read the aggregate fields as argument
-    /// registers and crashed. The expanded binding must box the argument into
-    /// its raw `kk_string_from_flat` handle first.
     @Test(arguments: [true, false])
     func finallyNestedTryGenericLambdaArg(allowDefaultStdlibLibrary: Bool) throws {
         TestStdlibCache.shared.prepare()
@@ -80,8 +70,6 @@ struct GenericErasedLambdaArgExecutionTests {
         )
     }
 
-    /// The same erased-slot substitution without any try/finally: `a(s)` on a
-    /// `String` argument dispatched through the function-value adapter.
     @Test(arguments: [true, false])
     func genericIdentityLambdaOnStringArg(allowDefaultStdlibLibrary: Bool) throws {
         TestStdlibCache.shared.prepare()
@@ -107,8 +95,6 @@ struct GenericErasedLambdaArgExecutionTests {
         )
     }
 
-    /// KUU-3345: an unchecked `Any as T` cast must retain the String handle
-    /// representation when the value is passed to a generic function value.
     @Test(arguments: [true, false])
     func genericUncheckedCastThroughLambda(allowDefaultStdlibLibrary: Bool) throws {
         TestStdlibCache.shared.prepare()
@@ -121,8 +107,6 @@ struct GenericErasedLambdaArgExecutionTests {
         )
     }
 
-    /// KUU-3177: a receiver lambda invoked on an unchecked-cast generic value
-    /// needs its erased invoke bridge to reject an incompatible receiver.
     @Test(arguments: [true, false])
     func genericExtensionLambdaAfterUncheckedCast(allowDefaultStdlibLibrary: Bool) throws {
         TestStdlibCache.shared.prepare()
@@ -135,8 +119,6 @@ struct GenericErasedLambdaArgExecutionTests {
         )
     }
 
-    /// KUU-3506: non-explicitly-inline generic higher-order calls must preserve
-    /// the erased String handle across identity, transforming, and referenced lambdas.
     @Test
     func genericHigherOrderFunctionValueCall() throws {
         TestStdlibCache.shared.prepare()
@@ -158,8 +140,6 @@ struct GenericErasedLambdaArgExecutionTests {
         )
     }
 
-    /// KUU-3675: a generic extension on `String.Companion` must contextualize
-    /// and invoke its lambda argument with the companion receiver as `T`.
     @Test
     func genericExtensionOnStringCompanionWithLambdaArgument() throws {
         TestStdlibCache.shared.prepare()
@@ -170,12 +150,6 @@ struct GenericErasedLambdaArgExecutionTests {
         )
     }
 
-    /// KUU-3689: a function-value adapter param typed as a concrete non-null
-    /// primitive goes through the erased-boundary checkcast, whose operand is
-    /// boxed by argument normalization. The adapter must unbox the cast result
-    /// again before forwarding it into the lambda's raw arithmetic; previously
-    /// the tagged box was added as a raw word and the result box then failed
-    /// the declared-type cast, panicking with KSWIFTK-LINK-0003.
     @Test(arguments: [true, false])
     func genericFoldLambdaPrimitiveCheckcastUnbox(allowDefaultStdlibLibrary: Bool) throws {
         TestStdlibCache.shared.prepare()

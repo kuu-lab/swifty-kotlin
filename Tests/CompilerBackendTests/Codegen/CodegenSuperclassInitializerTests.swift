@@ -5,9 +5,6 @@
 import Foundation
 import Testing
 
-/// BUG-155: a primary constructor must run the superclass constructor before
-/// its own initializers, so inherited property initializers, `init` blocks and
-/// superclass constructor arguments are visible on subclass instances.
 @Suite
 struct CodegenSuperclassInitializerTests {
 
@@ -78,9 +75,6 @@ struct CodegenSuperclassInitializerTests {
         )
     }
 
-    /// The reported BUG-155 reproducer: a user-defined `AbstractIterator`
-    /// subclass returned `0` instead of the value passed to `setNext`, because
-    /// `AbstractIterator`'s `state` field kept its zeroed default.
     @Test
     func testUserDefinedAbstractIteratorSubclassYieldsStoredValue() throws {
         let source = """
@@ -110,8 +104,6 @@ struct CodegenSuperclassInitializerTests {
         )
     }
 
-    /// A generic nullable backing field must preserve boxed primitive values,
-    /// nullable values, and reference values across repeated stores and loads.
     @Test
     func testGenericNullableFieldPreservesStoredValuesAcrossTypesAndCalls() throws {
         let source = """

@@ -7,14 +7,6 @@
 
 package kotlin
 
-/**
- * Public inline functions cannot use non-public API, since if they are inlined, those non-public API references
- * would violate access restrictions at a call site (see restrictions for public API inline functions).
- *
- * To overcome this restriction an `internal` declaration can be annotated with the `@PublishedApi` annotation:
- * - this allows calling that declaration from public inline functions;
- * - the declaration becomes effectively public, and this should be considered with respect to binary compatibility maintaining.
- */
 @kotlin.annotation.Target(
     AnnotationTarget.CLASS,
     AnnotationTarget.CONSTRUCTOR,

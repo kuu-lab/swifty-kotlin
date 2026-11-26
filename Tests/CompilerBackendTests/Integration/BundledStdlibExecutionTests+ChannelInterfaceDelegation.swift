@@ -2,10 +2,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    // Regression: interface-delegation forwarding stubs for suspend Channel.send
-    // emit kk_channel_send without a trailing placeholder continuation slot, so
-    // CoroutineLoweringPass must append the caller continuation instead of
-    // overwriting the element argument (which failed LLVM verification at -O2).
     @Test(arguments: [false, true])
     func testChannelInterfaceDelegationO0AndO2(optimized: Bool) throws {
         try compileAndRunKotlin(

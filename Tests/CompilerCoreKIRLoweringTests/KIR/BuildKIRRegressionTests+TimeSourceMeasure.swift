@@ -4,7 +4,6 @@ import Testing
 @testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
-    /// KSP-1475: TimeSource measurement APIs remain bundled Kotlin calls in user KIR.
     @Test func testTimeSourceMeasureCallsLowerToBundledKotlinCallees() throws {
         let source = """
         import kotlin.time.ExperimentalTime
@@ -34,7 +33,6 @@ extension BuildKIRRegressionTests {
         #expect(!callees.contains(runtimeCallee(.timeSourceMarkNow, tier: .privateBridge)))
     }
 
-    /// KSP-1475: compiler-only contract DSL lambdas must not leave runtime KIR.
     @Test func testCompilerOnlyContractLambdaIsNotLowered() throws {
         let source = """
         import kotlin.contracts.ExperimentalContracts

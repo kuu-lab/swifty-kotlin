@@ -3,9 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// Regression coverage for inline property accessors that are split by a
-/// semicolon in the CST: the first accessor can stay on the property node while
-/// the next accessor is wrapped in a `.propertyAccessor` child.
 @Suite
 struct PropertyAccessorParsingTests {
     @Test(arguments: ["=", "by lazy"])
@@ -131,10 +128,6 @@ struct PropertyAccessorParsingTests {
         }
     }
 
-    /// KUU-4053: modifiers between the property type and `get`/`set` are
-    /// accessor modifiers, not part of the type reference — `val x: Int @Anno
-    /// get() = 1` must not produce "Expected type after ':'" (PARSE-0020) or
-    /// "Unexpected token after type reference" (PARSE-0024).
     @Test(arguments: [
         "val a: Int @Ann get() = 1",
         "var a: Int @Ann get() = 1\n    set(v) {}",
@@ -320,7 +313,6 @@ struct PropertyAccessorParsingTests {
         }
         """, includeStdlib: false)
         let property = try #require(memberProperty(named: "p", ofClass: "C", in: ast, interner: ctx.interner))
-        // The getter header must not leak into the type annotation (`Int get()`).
         let typeRef = try #require(property.type.flatMap { ast.arena.typeRef($0) })
         guard case let .named(path, args, nullable) = typeRef else {
             Issue.record("Expected a plain named type, got \(typeRef)")
@@ -393,9 +385,6 @@ struct PropertyAccessorParsingTests {
 
     @Test
     func expressionGetterKeepsMemberGetCall() throws {
-        // KUU-1363: `this.get()` inside an expression-bodied getter is a member
-        // call, not a second accessor header. The body-extent scan must not
-        // truncate the body at `get(` when the soft keyword follows `.`/`?.`/`::`.
         let (ast, ctx) = try buildASTModule(from: """
         class Box(val v: String) {
             fun get(): String = v
@@ -421,7 +410,6 @@ struct PropertyAccessorParsingTests {
             #expect(args.isEmpty)
         }
 
-        // A `get` call nested inside the body is not an accessor boundary either.
         let nested = try #require(topLevelProperty(named: "nested", in: ast, interner: ctx.interner))
         guard case let .expr(nestedID, _) = nested.getter?.body,
               case let .memberCall(_, nestedCallee, _, _, _) = ast.arena.expr(nestedID)

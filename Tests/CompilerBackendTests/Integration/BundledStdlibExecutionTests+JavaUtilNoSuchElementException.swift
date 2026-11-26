@@ -2,7 +2,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// KUU-2296: the Java package spelling shares Kotlin's exception identity.
     @Test(arguments: [false, true], [0, 2])
     func testJavaUtilNoSuchElementExceptionImportConstructsAndCatches(
         allowDefaultStdlibLibrary: Bool,

@@ -145,10 +145,6 @@ public fun <T> Flow<T>.chunked(size: Int): Flow<List<T>> {
     }
 }
 
-// KSwiftK compatibility surface: `windowed` is not a kotlinx-coroutines Flow
-// operator (1.10.2) — upstream only defines it on Iterable/Sequence. It is
-// provided here because tracked user code calls it; semantics match
-// kotlin.collections.Iterable.windowed, applied eagerly at collection start.
 public fun <T> Flow<T>.windowed(
     size: Int,
     step: Int = 1,

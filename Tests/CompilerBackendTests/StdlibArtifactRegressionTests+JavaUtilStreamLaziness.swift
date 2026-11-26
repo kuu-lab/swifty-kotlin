@@ -5,7 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-3648: stream callbacks stay lazy across generic and primitive pipelines.
     @Test
     func testNativeStreamLazinessAcrossSourceAndFreshArtifactAtO0O2() throws {
         let source = try diffCaseSource("java_util_stream_lazy_pipelines.kt", file: #filePath)

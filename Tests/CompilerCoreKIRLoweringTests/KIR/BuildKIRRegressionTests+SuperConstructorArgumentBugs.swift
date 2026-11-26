@@ -3,10 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// Regression coverage for superclass constructor calls that dropped named
-/// arguments / defaults or the state handed to a runtime-backed Exception
-/// constructor. The executable counterpart is
-/// `Scripts/diff_cases/super_ctor_named_defaults_and_throwable_factories.kt`.
 extension BuildKIRRegressionTests {
     @Test(arguments: [
         "object Derived : Base(transform = { it + \"!\" })",
@@ -67,8 +63,6 @@ extension BuildKIRRegressionTests {
         #expect(delegatesWithFunctionValue)
     }
 
-    /// `object O : Base()` used to call `Base.<init>` with no arguments,
-    /// reading garbage for both defaulted parameters.
     @Test
     func namedObjectSuperCallWithOmittedDefaultsRoutesThroughDefaultStub() throws {
         let source = """
@@ -85,9 +79,6 @@ extension BuildKIRRegressionTests {
         #expect(delegatesThroughStub, "Expected O's super call to use Base$default")
     }
 
-    /// `constructor(msg: String) : super(msg)` on an Exception subclass used to
-    /// call the runtime factory and drop the box it returned, so `message`
-    /// stayed null.
     @Test
     func secondaryConstructorSuperCallToExceptionFactoryCopiesMessage() throws {
         let source = """
@@ -107,9 +98,6 @@ extension BuildKIRRegressionTests {
         #expect(!ctorCallees.contains("<init>"), "Got: \(ctorCallees)")
     }
 
-    /// A cause-only `Exception(c)` header fell through every positional
-    /// special case (which required a `String?` first parameter), losing the
-    /// cause.
     @Test
     func causeOnlyExceptionSuperCallCopiesCause() throws {
         let source = """

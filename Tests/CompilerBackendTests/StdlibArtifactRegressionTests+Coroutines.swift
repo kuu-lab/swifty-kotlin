@@ -54,7 +54,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// A bound suspend reference to a fun-interface method must keep virtual dispatch.
     @Test
     func testFunInterfaceSuspendInvokeBoundReferenceStartsCoroutine() throws {
         let artifactPath = try testStdlibArtifactPath()
@@ -103,7 +102,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// Nominal FunctionN implementations adapt to suspend extension and regular function types.
     @Test
     func testNominalFunctionClassesAdaptToSuspendFunctionTypes() throws {
         let artifactPath = try testStdlibArtifactPath()
@@ -169,8 +167,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-3330: a resumed suspend call returning Unit must preserve the boxed
-    /// Unit value when its result crosses an Any? assignment.
     @Test(arguments: [0, 2])
     func testSuspendUnitResultIsBoxedAfterResume(optimization: Int) throws {
         TestStdlibCache.shared.prepare()
@@ -183,8 +179,6 @@ extension StdlibArtifactRegressionTests {
         )
     }
 
-    /// KUU-3405: a custom setter assignment must still run when it is the
-    /// final statement of a suspend lambda after resuming from suspension.
     @Test
     func testFinalSuspendLambdaAssignmentInvokesCustomSetter() throws {
         let artifactPath = try testStdlibArtifactPath()
@@ -255,8 +249,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// Suspend function references passed to startCoroutine must reuse the
-    /// started continuation instead of intercepting an adapter frame as well.
     @Test
     func testSuspendFunctionReferenceStartCoroutineInterceptsOnce() throws {
         let artifactPath = try testStdlibArtifactPath()
@@ -310,7 +302,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-2923: versioned parameters must not corrupt suspend member references.
     @Test
     func testIntroducedAtSuspendMemberReferencesRunThroughCoroutine() throws {
         let artifactPath = try testStdlibArtifactPath()
@@ -381,8 +372,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-2118: an inline resume delivered before COROUTINE_SUSPENDED must
-    /// continue through if and loop conditions before startCoroutine returns.
     @Test
     func testSuspendCallsInControlFlowConditionsResumeInline() throws {
         let artifactPath = try testStdlibArtifactPath()
@@ -418,7 +407,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-2119: suspend calls in a for-loop body resume before startCoroutine returns.
     @Test
     func testSuspendCallsInForBodiesResumeInline() throws {
         let artifactPath = try testStdlibArtifactPath()
@@ -454,7 +442,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-2120: inline resumes must preserve loop exits, finally blocks, and continues.
     @Test
     func testSuspendCallsAcrossLoopBreakContinueResumeInline() throws {
         let artifactPath = try testStdlibArtifactPath()
@@ -490,7 +477,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-1022: interface bridges must preserve source overrides and captures.
     @Test(arguments: [false, true])
     func testCoroutineContextOverrideDispatch(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try testStdlibArtifactPath() : nil
@@ -621,11 +607,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-3910: `kotlinx.coroutines.internal` APIs real libraries import
-    /// (ktor-utils StackTraceRecover.kt) plus the upstream
-    /// `CoroutineDispatcher.isDispatchNeeded` member (SuspendFunctionGun.kt)
-    /// must resolve and run against bundled coroutines — including on native
-    /// dispatcher objects, which carry no Kotlin vtable.
     @Test
     func testCoroutineInternalApisAndIsDispatchNeeded() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -734,10 +715,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KSP-1151: source-backed coroutine intrinsic fallbacks must not leave a
-    /// direct reference to the Kotlin parameter `function` in the stdlib
-    /// artifact. A trivial artifact consumer is enough to exercise the native
-    /// linker against every object emitted by the stdlib-only build.
     @Test
     func testCoroutineIntrinsicFallbackThroughPrecompiledStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -768,10 +745,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-3973: `kotlinx.coroutines.CompletionHandler` must resolve and run
-    /// through the precompiled stdlib artifact — dropbox/Store 5.0.0 multicast
-    /// Actor.kt imports it and forwards a stored `CompletionHandler?` to
-    /// `Job.invokeOnCompletion(handler = ...)`.
     @Test(arguments: [0, 2])
     func testCompletionHandlerTypealiasThroughPrecompiledStdlibArtifact(optimization: Int) throws {
         TestStdlibCache.shared.prepare()

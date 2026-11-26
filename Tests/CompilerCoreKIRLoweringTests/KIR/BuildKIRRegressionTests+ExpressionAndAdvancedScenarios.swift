@@ -5,7 +5,6 @@ import Testing
 @testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
-    // MARK: - Expression Variants Scenarios
 
     func makeExpressionVariantsFixture() -> (
         ctx: CompilationContext,
@@ -160,7 +159,6 @@ extension BuildKIRRegressionTests {
         try LoweringPhase().run(ctx)
 
         let kir = try #require(ctx.kir)
-        // helper + calc functions
         #expect(kir.functionCount >= 2)
         #expect(!(kir.executedLowerings.isEmpty))
         #expect(!(kir.arena.exprTypes.isEmpty))
@@ -199,8 +197,6 @@ extension BuildKIRRegressionTests {
             if case .label = instruction { return true }
             return false
         }.count
-        // while/do-while/for each need loop-start + loop-end labels;
-        // 3 loops need at least 4 labels (some may share via break/continue)
         #expect(labelCount >= 4)
 
         let jumpCount = body.filter { instruction in
@@ -208,8 +204,6 @@ extension BuildKIRRegressionTests {
             if case .jumpIfEqual = instruction { return true }
             return false
         }.count
-        // Each loop has conditional jump + unconditional jump-back;
-        // 3 loops need at least 4 jumps
         #expect(jumpCount >= 4)
 
         let callees = extractCallees(from: body, interner: ctx.interner)
@@ -219,8 +213,6 @@ extension BuildKIRRegressionTests {
         #expect(callees.contains(runtime[.arraySize]), "Array for-loop should call __kk_array_size, got: \(callees)")
         #expect(callees.contains(runtime[.arrayGetInbounds]), "Array for-loop should call kk_array_get_inbounds, got: \(callees)")
     }
-
-    // MARK: - Reified Type Token Scenarios
 
     func makeReifiedCallFixture() -> (
         ctx: CompilationContext,

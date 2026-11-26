@@ -23,16 +23,6 @@ package kotlinx.io
 import java.nio.ByteBuffer
 import java.nio.channels.ReadableByteChannel
 
-/**
- * Reads at most [ByteBuffer.remaining] bytes from this source into [sink] and returns the number of bytes read.
- *
- * @param sink the sink to write the data to.
- *
- * @throws IllegalStateException when the source is closed.
- * @throws IOException when some I/O error occurs.
- *
- * @sample kotlinx.io.samples.KotlinxIoSamplesJvm.readWriteByteBuffer
- */
 @OptIn(InternalIoApi::class)
 public fun Source.readAtMostTo(sink: ByteBuffer): Int {
     if (buffer.size == 0L) {
@@ -43,9 +33,6 @@ public fun Source.readAtMostTo(sink: ByteBuffer): Int {
     return buffer.readAtMostTo(sink)
 }
 
-/**
- * Returns [ReadableByteChannel] backed by this source. Closing the source will close the source.
- */
 public fun Source.asByteChannel(): ReadableByteChannel {
     val isClosed: () -> Boolean = when (this) {
         is RealSource -> this::closed

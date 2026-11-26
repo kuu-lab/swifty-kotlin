@@ -6,7 +6,6 @@ import kotlin.internal.KsSymbolName
 public val Base64.PaddingOption.entries: kotlin.enums.EnumEntries<Base64.PaddingOption>
     get() = enumEntries<Base64.PaddingOption>()
 
-// The runtime bridge wraps a stateful native OutputStream sink.
 @KsSymbolName("__kk_output_stream_encodingWith")
 private external fun __outputStreamEncodingWith(
     stream: java.io.OutputStream,

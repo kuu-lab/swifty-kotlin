@@ -8,10 +8,6 @@
 
 package kotlin.collections
 
-// KSP-633: The compiler-side `MutableIterable` shell in
-// `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` remains the fallback
-// for contexts without the bundled stdlib.
-
 public interface MutableIterable<out T> : Iterable<T> {
     public override operator fun iterator(): MutableIterator<T>
 }

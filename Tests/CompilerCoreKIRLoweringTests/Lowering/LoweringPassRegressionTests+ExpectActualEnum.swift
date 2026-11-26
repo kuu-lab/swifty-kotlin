@@ -100,12 +100,6 @@ extension LoweringPassRegressionTests {
         }
     }
 
-    // KUU-2672: the paired expect enum is never lowered, so its constructor
-    // has neither an internal function nor an external link name. The
-    // `__kconstructor_callable` reflection thunk must be generated only for
-    // the actual declaration's constructors — a thunk bound to the expect
-    // side's constructor lowers its call to a bare `_<init>` external
-    // reference that cannot link.
     @Test(arguments: [false, true])
     func pairedEnumConstructorReflectionOnlyReferencesActualCtors(withCompanion: Bool) throws {
         let expectDecl = withCompanion
@@ -155,9 +149,6 @@ extension LoweringPassRegressionTests {
                 }
             }
 
-            // The reflection initializer must not register a function pointer
-            // for the expect-side constructor either — `symbolRef` on it has
-            // no emitted target and folds to a null pointer.
             let reflectInitializers = module.arena.declarations.compactMap { declaration -> KIRFunction? in
                 guard case let .function(function) = declaration,
                       ctx.interner.resolve(function.name).hasPrefix("__ctor_reflect_init_")

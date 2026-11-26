@@ -1,11 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// `MessageDigest.isEqual` must compare the full byte range without an
-    /// early exit on the first mismatch — the JDK documents a time-constant
-    /// comparison because callers use it to verify MACs and digests. Pins the
-    /// observable equality contract over the cases a `contentEquals`
-    /// short-circuit also satisfies, plus null handling.
     @Test
     func testMessageDigestIsEqualComparisonContract() throws {
         try compileAndRunKotlin(

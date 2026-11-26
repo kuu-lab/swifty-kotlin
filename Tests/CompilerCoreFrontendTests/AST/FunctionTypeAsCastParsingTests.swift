@@ -2,13 +2,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// KUU-1429: the `as`/`as?` cast operand is a full Kotlin `type`, which
-/// includes function types (`() -> Int`, `Int.() -> Int`, `suspend` types).
-/// `tryParseAsCast` used to parse the target with `allowFunctionType: false`
-/// (unlike `is`, fixed in #7630), so `x as () -> Int` left `() -> Int`
-/// unconsumed: call-argument positions rejected it with PARSE-0015
-/// (`println(foo@{ 7 } as () -> Int)`), while other positions silently dropped
-/// the cast entirely (`val x = "hi" as () -> Int` never threw).
 @Suite
 struct FunctionTypeAsCastParsingTests {
     @Test(arguments: [
@@ -50,8 +43,6 @@ struct FunctionTypeAsCastParsingTests {
         }
     }
 
-    /// The exact issue reproducer set: a lambda (labeled or not) cast to a
-    /// function type in call-argument position must parse as one argument.
     @Test(arguments: [
         "println(foo@{ 7 } as () -> Int)",
         "println((foo@{ 7 }) as () -> Int)",
@@ -88,10 +79,6 @@ struct FunctionTypeAsCastParsingTests {
         }
     }
 
-    /// `x as (T) -> U` parses the cast target greedily as a function type,
-    /// matching kotlinc: `when { a as (Boolean) -> ... }` is a cast to
-    /// `(Boolean) -> ...`, not a `Boolean` condition followed by the branch
-    /// arrow.
     @Test
     func castTargetConsumesParenthesizedFunctionArrow() throws {
         let (ast, ctx) = try buildASTModule(

@@ -1,6 +1,5 @@
 import Foundation
 
-/// Registration is separate from mutable class metadata, which literals can re-register.
 final class RuntimeKClassObjectRegistry: @unchecked Sendable {
     private let lock = NSLock()
     private var objects: [Int: (object: Int, initializer: Int)] = [:]
@@ -56,7 +55,6 @@ public func __kk_kclass_object_instance(_ kclassRaw: Int, _ outThrown: UnsafeMut
             return runtimeNullSentinelInt
         }
         if let pointer = UnsafeRawPointer(bitPattern: entry.initializer) {
-            // Kotlin initializer functions return the raw Unit value and carry an exception channel.
             let initialize = unsafeBitCast(pointer, to: (@convention(c) (UnsafeMutablePointer<Int>?) -> Int).self)
             var thrown = 0
             _ = initialize(&thrown)

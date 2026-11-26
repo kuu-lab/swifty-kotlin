@@ -5,9 +5,6 @@
 import Foundation
 import Testing
 
-/// BUG-165: several top-level properties initialized with a branching
-/// expression used to emit duplicate basic block labels into `main`, producing
-/// malformed IR that crashed LLVM during codegen.
 @Suite
 struct CodegenBackendTopLevelIfInitializersTests {
 
@@ -43,9 +40,6 @@ struct CodegenBackendTopLevelIfInitializersTests {
         )
     }
 
-    /// A `String` global holds the runtime's raw handle; reading one used to
-    /// write the bridged flat aggregate back over the slot, so every later
-    /// read of that property (or of the global stored next to it) saw garbage.
     @Test
     func testCodegenRepeatedStringTopLevelPropertyReadsStayValid() throws {
         let source = """

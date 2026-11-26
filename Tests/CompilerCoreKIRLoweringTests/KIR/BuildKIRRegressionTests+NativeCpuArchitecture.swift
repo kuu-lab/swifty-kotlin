@@ -66,9 +66,6 @@ extension BuildKIRRegressionTests {
             "CpuArchitecture must retain its source-backed nominal identity in KIR"
         )
 
-        // `ARM64.bitness` emits a `$enumConstructorProperty$` placeholder
-        // call that must resolve to the synthesized helper even though the
-        // bundled stdlib file was skipped from output lowering.
         let bitnessName = try #require(sema.symbols.symbol(bitnessSymbol)?.name)
         let helperName = interner.intern(EnumPropertyHelperNames.getterPrefix + interner.resolve(bitnessName))
         let helperDecl = module.arena.declarations.contains { declaration in

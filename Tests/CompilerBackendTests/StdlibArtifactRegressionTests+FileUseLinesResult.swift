@@ -5,7 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// BUG-238: a generic File.useLines result keeps its List type through .kklib import.
     @Test
     func testFileUseLinesListResultMemberAccessThroughArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()

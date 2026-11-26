@@ -10,8 +10,6 @@ package kotlin.concurrent.atomics
 
 import kotlin.internal.KsSymbolName
 
-// Keep the runtime entry points private and expose the public API as
-// source-backed receiver declarations.
 @KsSymbolName("__kk_atomic_long_compareAndExchange")
 private external fun AtomicLong.__kkAtomicLongCompareAndExchange(
     expectedValue: Long,

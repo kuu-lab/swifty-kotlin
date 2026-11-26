@@ -1,7 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    // KUU-2040: run the JVM-verified contract through both stdlib routes and levels.
     @Test(arguments: [true, false], [0, 2])
     func testStringBuilderAppendCodePoint(
         allowDefaultStdlibLibrary: Bool,

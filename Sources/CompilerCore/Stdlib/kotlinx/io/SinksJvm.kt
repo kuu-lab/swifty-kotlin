@@ -24,22 +24,6 @@ import java.io.IOException
 import java.io.OutputStream
 import java.nio.charset.Charset
 
-/**
- * Encodes substring of [string] starting at [startIndex] and ending at [endIndex] using [charset]
- * and writes into this sink.
- *
- * @param string the string to encode into this sink.
- * @param charset the [Charset] to use for encoding.
- * @param startIndex the index of the first character to encode, inclusive, 0 by default.
- * @param endIndex the index of the last character to encode, exclusive, `string.length` by default.
- *
- * @throws IndexOutOfBoundsException when [startIndex] or [endIndex] is out of range of [string] indices.
- * @throws IllegalArgumentException when `startIndex > endIndex`.
- * @throws IllegalStateException when the sink is closed.
- * @throws IOException when some I/O error occurs.
- *
- * @sample kotlinx.io.samples.KotlinxIoSamplesJvm.readWriteStrings
- */
 public fun Sink.writeString(string: String, charset: Charset, startIndex: Int = 0, endIndex: Int = string.length) {
     checkBounds(string.length, startIndex, endIndex)
     if (charset == Charsets.UTF_8) return writeString(string, startIndex, endIndex)
@@ -47,11 +31,6 @@ public fun Sink.writeString(string: String, charset: Charset, startIndex: Int = 
     write(data, 0, data.size)
 }
 
-/**
- * Returns an output stream that writes to this sink. Closing the stream will also close this sink.
- *
- * @sample kotlinx.io.samples.KotlinxIoSamplesJvm.asStream
- */
 @OptIn(DelicateIoApi::class)
 public fun Sink.asOutputStream(): OutputStream {
     val isClosed: () -> Boolean = when (this) {
