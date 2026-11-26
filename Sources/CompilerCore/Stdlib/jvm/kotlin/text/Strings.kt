@@ -22,6 +22,7 @@ import kotlin.jvm.internal.__jvmLowerChar
 import kotlin.jvm.internal.__jvmEqualsIgnoreCase
 import kotlin.jvm.internal.__jvmUtf8String
 import kotlin.jvm.internal.__jvmUtf8Bytes
+import kotlin.jvm.internal.__jvmMalformedInputException
 import kotlin.OverloadResolutionByLambdaReturnType
 import kotlin.experimental.ExperimentalTypeInference
 import kotlin.jvm.JvmName
@@ -494,3 +495,22 @@ public fun String.trimEnd(): String = (this as CharSequence).trimEnd().toString(
 
 public fun ByteArray.decodeToString(): String = __jvmUtf8String(this, "UTF-8")
 public fun String.encodeToByteArray(): ByteArray = __jvmUtf8Bytes(this, "UTF-8")
+public fun String.encodeToByteArray(startIndex: Int = 0, endIndex: Int = this.length, throwOnInvalidSequence: Boolean = false): ByteArray {
+    if (startIndex < 0 || endIndex > length) throw IndexOutOfBoundsException("startIndex: $startIndex, endIndex: $endIndex, size: $length")
+    if (startIndex > endIndex) throw IllegalArgumentException("startIndex: $startIndex > endIndex: $endIndex")
+    if (throwOnInvalidSequence) {
+        // UTF-8 maps every scalar value, so only an unpaired surrogate is
+        // malformed; Kotlin/JVM's REPORT encoder rejects it with length 1.
+        var index = startIndex
+        while (index < endIndex) {
+            val code = this[index].code
+            if (code in 0xD800..0xDBFF && index + 1 < endIndex && this[index + 1].code in 0xDC00..0xDFFF) {
+                index += 2
+                continue
+            }
+            if (code in 0xD800..0xDFFF) throw __jvmMalformedInputException(1)
+            index++
+        }
+    }
+    return __jvmUtf8Bytes(substring(startIndex, endIndex), "UTF-8")
+}

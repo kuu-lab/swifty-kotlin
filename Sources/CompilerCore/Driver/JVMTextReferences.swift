@@ -6,13 +6,14 @@ private enum JVMTextReferenceTarget {
     /// A `JVMTextOperation` row: the same lowering a direct call uses, which
     /// covers `@InlineOnly` functions that have no runtime body (`String.trim()`).
     case operation(JVMTextOperation)
-    /// A runtime-facade text declaration with a public static body.
-    case facade(JVMForeignMethod)
+    /// A runtime-facade text declaration with a public static body; omitted
+    /// defaulted parameters go through its `$default` bridge like a call does.
+    case facade(JVMForeignMethod, [ValueParamDecl])
 
     var parameters: [JVMTextParameter] {
         switch self {
         case let .operation(op): op.parameters
-        case let .facade(method): method.parameters.dropFirst().enumerated().map { JVMTextParameter(name: "p\($0.offset)", type: $0.element) }
+        case let .facade(method, _): method.parameters.dropFirst().enumerated().map { JVMTextParameter(name: "p\($0.offset)", type: $0.element) }
         }
     }
 }
@@ -31,7 +32,7 @@ extension JVMFunctionBuilder {
             guard entry.adaptation == nil, entry.extensionReceiver != nil, method.isStatic, !method.isConstructor,
                   !method.isSuspend, method.owner.hasPrefix("kotlin/text/"), !method.name.contains("$"),
                   !entry.declarations.contains(where: \.isVararg) else { return nil }
-            return .facade(method)
+            return .facade(method, entry.declarations)
         }
         guard let site = declared.declSite, context.sourceManager.path(of: site.start.file).hasPrefix("<kswiftk-jvm>/text") else { return nil }
         let receiver = try program.type(semanticReceiver)
@@ -88,6 +89,7 @@ extension JVMFunctionBuilder {
         guard supplied.keys.allSatisfy(parameters.indices.contains) else { throw fail("Invalid JVM text callable reference argument mapping.", id) }
         var values: [JVMValue] = []
         var varargConversion = false
+        var masks = Array(repeating: UInt32(0), count: (parameters.count + 31) / 32)
         for (index, parameter) in parameters.enumerated() {
             let provided = supplied[index] ?? []
             if parameter.variadic {
@@ -100,27 +102,44 @@ extension JVMFunctionBuilder {
             } else if provided.count == 1 {
                 values.append(try helper.convert(provided[0], to: parameter.type))
             } else if provided.isEmpty {
-                values.append(try helper.textFallback(parameter, source: source, id: id))
+                if case let .facade(_, declarations) = target, declarations.indices.contains(index), declarations[index].hasDefaultValue {
+                    masks[index / 32] |= UInt32(1) << UInt32(index % 32)
+                    values.append(try helper.zero(parameter.type))
+                } else { values.append(try helper.textFallback(parameter, source: source, id: id)) }
             } else { throw fail("Invalid JVM text callable reference argument mapping.", id) }
         }
         let returned: JVMValue?
         let physicalResult: JVMValueType
-        let sourceOwner: String, sourceDescriptor: String
+        let sourceOwner: String, signatureName: String?, sourceDescriptor: String
+        let parameterTypes = parameters.map { $0.variadic ? JVMValueType.reference("[" + $0.type.descriptor, nullable: false) : $0.type }
         switch target {
         case let .operation(op):
             returned = try helper.emitTextOperation(op, source: source, values: values)
             physicalResult = try program.type(signature.returnType)
             // Reflection describes the Kotlin facade declaration, as kotlinc does,
-            // even when the call itself lowers to a JDK method.
-            let declared = [receiverType] + parameters.map { $0.variadic ? JVMValueType.reference("[" + $0.type.descriptor, nullable: false) : $0.type }
+            // even when the call itself lowers to a JDK method. A JVM stub may
+            // narrow a `CharSequence` extension to `String` (`String.isBlank`);
+            // when the facade call keeps the declared result, that call is the
+            // real declaration and `KFunction.call` must find its descriptor.
+            let realReceiver = !op.instance && op.method == nil && op.owner == "kotlin/text/StringsKt"
+                && op.receiverType.descriptor != receiverType.descriptor && op.result.descriptor == physicalResult.descriptor
             sourceOwner = "kotlin/text/StringsKt"
-            sourceDescriptor = "(" + declared.map(\.descriptor).joined() + ")" + physicalResult.descriptor
-        case let .facade(method):
+            signatureName = nil
+            sourceDescriptor = "(" + ([realReceiver ? op.receiverType : receiverType] + parameterTypes).map(\.descriptor).joined() + ")" + physicalResult.descriptor
+        case let .facade(method, _):
             physicalResult = method.result
             sourceOwner = method.owner
+            signatureName = method.name
             sourceDescriptor = method.descriptor
             let output = method.result == .unit ? nil : try helper.value(method.result)
-            helper.instructions.append(.foreignCall(method, receiver: nil, arguments: [try helper.convert(source, to: method.parameters[0])] + values, result: output))
+            var arguments = [try helper.convert(source, to: method.parameters[0])] + values
+            var target = method
+            if masks.contains(where: { $0 != 0 }) {
+                arguments += try helper.maskArguments(masks, constructor: false)
+                let types = method.parameters + Array(repeating: JVMValueType.int, count: masks.count) + [.reference("java/lang/Object", nullable: true)]
+                target = JVMForeignMethod(owner: method.owner, name: method.name + "$default", descriptor: "(" + types.map(\.descriptor).joined() + ")" + method.result.descriptor, parameters: types, result: method.result, isStatic: true, isInterface: false, isAbstract: false)
+            }
+            helper.instructions.append(.foreignCall(target, receiver: nil, arguments: arguments, result: output))
             returned = output
         }
         helper.instructions.append(.returnValue(resultType == .unit ? nil : try returned.map { try helper.convert($0, to: resultType) }))
@@ -135,7 +154,7 @@ extension JVMFunctionBuilder {
         if adapted, varargConversion { flags |= 2 }
         if unitConversion { flags |= 8 }
         let sourceName = context.interner.resolve(program.sema.symbols.symbol(symbol)!.name)
-        try initializeReferenceSuperclass(&generated, arity: arity, bound: bound, sourceOwner: sourceOwner, sourceName: sourceName, sourceDescriptor: sourceDescriptor, flags: flags)
+        try initializeReferenceSuperclass(&generated, arity: arity, bound: bound, sourceOwner: sourceOwner, sourceName: sourceName, signatureName: signatureName, sourceDescriptor: sourceDescriptor, flags: flags)
         program.closureClasses.append(generated)
         return try constructJDK(name, parameters: captures.map(\.type), arguments: captures)
     }
