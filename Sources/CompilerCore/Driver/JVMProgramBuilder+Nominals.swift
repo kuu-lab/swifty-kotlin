@@ -400,7 +400,7 @@ extension JVMProgramBuilder {
                 let exposedStaticField = field.access & 8 != 0 && field.owner != plan.name
                 guard field.constantValue != nil || exposedStaticField else { return property }
                 var property = property
-                if classes[companionOwner]?.isInterface == true && !exposedStaticField {
+                if classes[companionOwner]?.isInterface == true {
                     var duplicate = JVMField(owner: plan.name, name: field.name, type: field.type, access: field.access)
                     duplicate.annotations = field.annotations
                     duplicate.constantValue = field.constantValue
