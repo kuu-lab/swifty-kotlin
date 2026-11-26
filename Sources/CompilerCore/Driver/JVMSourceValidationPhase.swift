@@ -519,6 +519,18 @@ private struct JVMSourceGrammar {
         if take(.symbol(.assign)) { try expression() }
         else { try block() }
     }
+    func startsContextualAnonymousFunction() -> Bool {
+        var lookahead = self
+        do {
+            try lookahead.contextParameters()
+            guard lookahead.take(.keyword(.fun)) else { return false }
+            if lookahead.kind == .symbol(.lParen) { return true }
+            try lookahead.type(receiverSuffix: false)
+            return lookahead.kind == .symbol(.dot) || lookahead.kind == .symbol(.questionDot)
+        } catch {
+            return false
+        }
+    }
     func startsTrailingLambda() -> Bool {
         guard !newlineBeforeCurrent(), !inDelegationHeader else { return false }
         if kind == .symbol(.lBrace) { return true }
@@ -589,6 +601,9 @@ private struct JVMSourceGrammar {
         } else if [.plus, .minus, .bang, .plusPlus, .minusMinus].contains(where: { kind == .symbol($0) }) {
             index += 1; try primary(allowNewlines: allowNewlines); return
         } else if take(.symbol(.doubleColon)) { try name()
+        } else if kind == .softKeyword(.context), startsContextualAnonymousFunction() {
+            try contextParameters()
+            try anonymousFunction()
         } else if kind == .keyword(.fun) {
             try anonymousFunction()
         } else if kind == .keyword(.object) {
