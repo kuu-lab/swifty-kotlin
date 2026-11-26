@@ -331,7 +331,14 @@ extension JVMFunctionBuilder {
         let candidates = owner.interfaces.filter { interface in
             (qualifier == nil || interface.split(separator: "/").last.map(String.init) == qualifier || interface.replacingOccurrences(of: "/", with: ".") == qualifier) && inherits(interface, method.owner, visited: [])
         }
-        guard let target = candidates.first else { throw fail("JVM interface super call requires a direct superinterface.", receiver) }
+        guard let target = candidates.first else {
+            if method.owner == "java/util/Map", method.name == "putIfAbsent", owner.superclass != "java/lang/Object" {
+                selected = JVMForeignMethod(owner: owner.superclass, name: method.name, descriptor: method.descriptor, parameters: method.parameters, result: method.result, isStatic: false, isInterface: false, isAbstract: method.isAbstract, isSpecial: true)
+                selected.isSuspend = method.isSuspend
+                return selected
+            }
+            throw fail("JVM interface super call requires a direct superinterface.", receiver)
+        }
         selected = JVMForeignMethod(owner: target, name: method.name, descriptor: method.descriptor, parameters: method.parameters, result: method.result, isStatic: false, isInterface: true, isAbstract: method.isAbstract, isSpecial: true)
         selected.isSuspend = method.isSuspend
         return selected
