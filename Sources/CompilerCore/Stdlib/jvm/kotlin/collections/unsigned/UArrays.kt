@@ -12,8 +12,6 @@ public fun UIntArray.withIndex(): Iterable<IndexedValue<UInt>> = ArrayIndexingIt
 @ExperimentalUnsignedTypes
 public fun ULongArray.withIndex(): Iterable<IndexedValue<ULong>> = ArrayIndexingIterable(size) { this[it] }
 
-// The signed and unsigned primitive arrays share one physical JVM array.
-// Reinterpretation is a type-level no-op and intentionally preserves storage identity.
 @ExperimentalUnsignedTypes
 public fun ByteArray.asUByteArray(): UByteArray = __jvmReinterpret(this)
 @ExperimentalUnsignedTypes
