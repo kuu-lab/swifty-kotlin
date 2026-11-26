@@ -722,6 +722,9 @@ final class JVMClasspathIndex {
         if method.isStatic, method.annotations.contains(where: { $0.descriptor == JVMMetro.invoke }) { return false }
         guard method.isConstructor || JVMProgramBuilder.isIdentifier(exposedName) else { return false }
         if isReplacedByComposeContract(method) { return false }
+        if method.isConstructor, method.kotlinConstructorParameterSourceTypes != nil {
+            return method.parameters.allSatisfy(exposeSuspendType)
+        }
         if method.isSynthetic, method.isHiddenByDeprecation { return false }
         if method.isSynthetic, method.kotlinFunction == nil, method.kotlinSuspendFunction == nil,
            kotlinFunction(method) == nil { return false }
@@ -1589,6 +1592,8 @@ final class JVMClasspathIndex {
             }
             return typeName + "::class"
         case let .annotation(annotation):
+            let internalName = String(annotation.descriptor.dropFirst().dropLast())
+            if classes[internalName]?.classTypeParameterNames.isEmpty == false { return "null!!" }
             return annotationInstanceSource(annotation, depth: depth + 1)
         case let .array(elements):
             guard let elementType = annotationArrayElementType(type) else { return nil }
@@ -1631,8 +1636,9 @@ final class JVMClasspathIndex {
     private func kotlinClassLiteralType(_ descriptor: String) -> String? {
         if descriptor.hasPrefix("L"), descriptor.hasSuffix(";") {
             let name = String(descriptor.dropFirst().dropLast())
-            if name == "java/lang/Class" { return "kotlin.reflect.KClass<*>" }
-            return kotlinType(.reference(name, nullable: false))
+            if name == "java/lang/Class" { return "kotlin.reflect.KClass" }
+            let rendered = kotlinType(.reference(name, nullable: false))
+            return rendered.split(separator: "<", maxSplits: 1).first.map(String.init) ?? rendered
         }
         if descriptor.hasPrefix("[") { return kotlinType(.reference(descriptor, nullable: false)) }
         switch descriptor {
@@ -2292,6 +2298,7 @@ final class JVMClasspathIndex {
             let needsIteratorOperator = method.kotlinFunction?.isOperator != true
                 && method.sourceName == "iterator" && method.sourceParameters.isEmpty
                 && method.result.referenceName == "java/util/Iterator" && inheritsJavaType(info, "java/lang/Iterable")
+                && !(usesKotlinMetadata && kotlinFunction(method)?.isOperator == true)
             if (needsGetOperator && !kotlinDeclaresOperator) || needsIteratorOperator {
                 source += "operator "
             }
@@ -2965,10 +2972,28 @@ final class JVMClasspathIndex {
             }
             markSourceTypes(info.kotlinMemberProperties.values.map(\.sourceType))
             markSourceTypes(info.kotlinParameterizedSupertypes.values.flatMap { $0 })
+            markSourceTypes(info.methods.compactMap(\.kotlinConstructorParameterSourceTypes).flatMap { $0 })
             // Covered Kotlin supertypes render from kotlinSupertypes; their
             // type arguments can name lazy classpath classes that no other
             // signature references.
             markSourceTypes(Array(info.kotlinSupertypes.values))
+            if info.isAnnotation {
+                func markDefault(_ value: JVMAnnotationValue) {
+                    switch value {
+                    case let .classType(descriptor):
+                        for name in signatureNames(.reference(descriptor, nullable: false)) where lazyClassNames.contains(name) && isInjected(name) {
+                            markNeeded(name)
+                        }
+                    case let .annotation(annotation):
+                        for (_, nested) in annotation.values { markDefault(nested) }
+                    case let .array(elements):
+                        for element in elements { markDefault(element) }
+                    default:
+                        break
+                    }
+                }
+                for method in info.methods { if let value = method.annotationDefault { markDefault(value) } }
+            }
             if let signature = info.genericSignature {
                 for supertype in javaSignatureSupertypes(signature) {
                     for reference in supertype.referencedClasses
@@ -3187,7 +3212,8 @@ final class JVMClasspathIndex {
         _ method: JVMForeignMethod, asExtension: Bool = false, asFacadeMember: Bool = false,
         acceptsDefaults: Bool = false, usesKotlinMetadata: Bool = true, forcedResult: String? = nil
     ) -> String {
-        if usesKotlinMetadata, method.kotlinFunction?.composableParameters.isEmpty != false,
+        if usesKotlinMetadata, method.kotlinFunction?.hasInlineContextCallback != true,
+           method.kotlinFunction?.composableParameters.isEmpty != false,
            let owner = declaringClass(for: method), let function = kotlinFunction(method) {
             return kotlinFunctionDeclaration(function, owner: owner)
         }
@@ -3356,8 +3382,11 @@ final class JVMClasspathIndex {
             } else {
                 parameterType = javaTypes?[index + (droppingReceiver ? 1 : 0)] ?? kotlinType(parameter)
             }
+            let metadataType = suspend == nil && !droppingReceiver
+                ? method.kotlinConstructorParameterSourceTypes.flatMap { $0.indices.contains(index) ? $0[index] : nil }
+                : nil
             return (isVararg ? "vararg " : "") + name + ": "
-                + (suspendSourceType ?? (parameterType + (nullable ? "?" : "")))
+                + (suspendSourceType ?? metadataType ?? (parameterType + (nullable ? "?" : "")))
         }.joined(separator: ", ")
     }
 
@@ -3587,9 +3616,8 @@ final class JVMClasspathIndex {
                 }
             }
             let mangledMembers = info.methods.filter { method in
-                guard method.sourceName == name,
-                      method.kotlinFunction?.mangledMemberParameterDescriptors == logicalParameters
-                else { return false }
+                let descriptors = method.kotlinFunction?.mangledMemberParameterDescriptors ?? method.kotlinFunction?.valueMemberParameterDescriptors
+                guard method.sourceName == name, descriptors == logicalParameters else { return false }
                 // A value class and its underlying type share an erased
                 // descriptor (`Dp` erases to `F`), so descriptor equality
                 // alone would also match `foo(Float)` calls against a

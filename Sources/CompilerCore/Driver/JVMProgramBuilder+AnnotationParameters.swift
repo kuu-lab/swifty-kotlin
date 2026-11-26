@@ -1,6 +1,59 @@
 import Foundation
 
 extension JVMProgramBuilder {
+    /// Name given to a property accessor by `@get:JvmName` / `@set:JvmName`, if any.
+    /// The argument is evaluated as a Kotlin string constant (plain or raw literal,
+    /// or a `const val` reference), not parsed as JSON.
+    func explicitAccessorJvmName(for symbol: SymbolID, target: String) throws -> String? {
+        guard let record = try annotationRecords(for: symbol).first(where: {
+            $0.annotationFQName == KnownCompilerAnnotation.jvmName.qualifiedName && $0.useSiteTarget == target
+        }), var raw = record.arguments.first else { return nil }
+        raw = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let eq = raw.firstIndex(of: "="), raw[..<eq].trimmingCharacters(in: .whitespaces) == "name" {
+            raw = raw[raw.index(after: eq)...].trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        var explicit = extractKotlinStringLiteralContent(raw).map { $0.isRaw ? $0.content : decodeKotlinStringEscapes($0.content) }
+        if explicit == nil {
+            // Not a literal (e.g. a `const val`): evaluate the first annotation argument.
+            if let declaration = sourceDeclarations[symbol],
+               let node = declaration.annotations.first(where: { $0.usageID != nil && $0.usageID == record.usageID }),
+               var tokens = node.constructionTokens, let last = tokens.last {
+                try rememberRawAnnotationConstruction(node, tokens: &tokens, lastToken: last, message: "Unsupported JVM @JvmName annotation arguments.")
+            }
+            if let construction = annotationConstruction(record) {
+                switch ast.arena.expr(construction) {
+                case let .call(_, _, args, _), let .memberCall(_, _, _, args, _):
+                    if let argument = args.first {
+                        // A bare name resolves through the enclosing declarations first
+                        // (an object's or companion's `const val` shadows a top-level one).
+                        var value: JVMAnnotationValue?
+                        if case let .nameRef(name, _) = ast.arena.expr(argument.expr) {
+                            var owner = sema.symbols.parentSymbol(for: symbol)
+                            while let current = owner, value == nil {
+                                // The enclosing declaration's own members come first, then
+                                // its companion object's (reachable unqualified from the body).
+                                for scope in [current, sema.symbols.companionObjectSymbol(for: current)].compactMap({ $0 }) where value == nil {
+                                    if let fqName = sema.symbols.symbol(scope)?.fqName,
+                                       let found = sema.symbols.lookup(fqName: fqName + [name]),
+                                       let declaration = declarationIDsBySymbol[found]?.first,
+                                       case let .propertyDecl(property) = ast.arena.decl(declaration),
+                                       property.modifiers.contains(.const), let initial = property.initializer {
+                                        value = try annotationConstant(initial)
+                                    }
+                                }
+                                owner = sema.symbols.parentSymbol(for: current)
+                            }
+                        }
+                        let evaluated = try value ?? annotationConstant(argument.expr)
+                        if case let .constant(.string(text)) = evaluated { explicit = text }
+                    }
+                default: break
+                }
+            }
+        }
+        guard let name = explicit, Self.isIdentifier(name) else { throw JVMFrontendError(message: "Invalid JVM method name.") }
+        return name
+    }
     func annotationRecords(for symbol: SymbolID) throws -> [MetadataAnnotationRecord] {
         var records = sema.symbols.annotations(for: symbol)
         var nodes: [(AnnotationNode, String?)] = []

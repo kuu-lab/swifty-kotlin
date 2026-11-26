@@ -328,10 +328,22 @@ extension JVMFunctionBuilder {
         }
         var qualifier: String?
         if let receiver, case let .superRef(name, _, _) = arena.expr(receiver) { qualifier = name.map(context.interner.resolve) }
-        let candidates = owner.interfaces.filter { interface in
-            (qualifier == nil || interface.split(separator: "/").last.map(String.init) == qualifier || interface.replacingOccurrences(of: "/", with: ".") == qualifier) && inherits(interface, method.owner, visited: [])
+        func matchesQualifier(_ interface: String, _ qualifier: String) -> Bool {
+            if interface.split(separator: "/").last.map(String.init) == qualifier || interface.replacingOccurrences(of: "/", with: ".") == qualifier { return true }
+            let simple = qualifier.split(separator: ".").last.map(String.init) ?? qualifier
+            return JVMClasspathIndex.collectionNames[simple] == interface && (qualifier == simple || qualifier == "kotlin.collections." + simple)
         }
-        guard let target = candidates.first else { throw fail("JVM interface super call requires a direct superinterface.", receiver) }
+        let candidates = owner.interfaces.filter { interface in
+            (qualifier == nil || matchesQualifier(interface, qualifier!)) && inherits(interface, method.owner, visited: [])
+        }
+        guard let target = candidates.first else {
+            if method.owner == "java/util/Map", method.name == "putIfAbsent", owner.superclass != "java/lang/Object" {
+                selected = JVMForeignMethod(owner: owner.superclass, name: method.name, descriptor: method.descriptor, parameters: method.parameters, result: method.result, isStatic: false, isInterface: false, isAbstract: method.isAbstract, isSpecial: true)
+                selected.isSuspend = method.isSuspend
+                return selected
+            }
+            throw fail("JVM interface super call requires a direct superinterface.", receiver)
+        }
         selected = JVMForeignMethod(owner: target, name: method.name, descriptor: method.descriptor, parameters: method.parameters, result: method.result, isStatic: false, isInterface: true, isAbstract: method.isAbstract, isSpecial: true)
         selected.isSuspend = method.isSuspend
         return selected
@@ -588,6 +600,8 @@ extension JVMProgramBuilder {
             f.typeParameters = accessorTypeParameters
             let setter = f.reference.result == .unit
             if let symbol = propertySymbol {
+                // Keep an explicit accessor name through value-class lowering (which would hash it).
+                f.jvmName = try explicitAccessorJvmName(for: symbol, target: setter ? "set" : "get")
                 f.isSynchronized = try annotationRecords(for: symbol).contains {
                     $0.annotationFQName == KnownCompilerAnnotation.jvmSynchronized.qualifiedName
                         && $0.useSiteTarget == (setter ? "set" : "get")

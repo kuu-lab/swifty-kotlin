@@ -23,6 +23,8 @@ public fun <K, V> Map<K, V>.withDefault(defaultValue: (K) -> V): Map<K, V> = nul
 public fun <K, V> MutableMap<K, V>.withDefault(defaultValue: (K) -> V): MutableMap<K, V> = null!!
 
 public fun <K, V> Map<out K, V>.toList(): List<Pair<K, V>> = null!!
+@kotlin.internal.InlineOnly
+public inline fun <K, V> Map.Entry<K, V>.toPair(): Pair<K, V> = Pair(key, value)
 public fun <K, V> Map<out K, V>.toMutableMap(): MutableMap<K, V> = null!!
 public fun <K, V> Map<out K, V>.toMap(): Map<K, V> = null!!
 public fun <K, V> Array<out Pair<K, V>>.toMap(): Map<K, V> = null!!

@@ -170,7 +170,7 @@ struct ParallelCodegenEmissionTests {
                 records.flatMap { [$0.name] + namesIn($0.subRecords) }
             }
             let phase = try #require(timer.phaseRecords.first)
-            #expect(namesIn(phase.subRecords).contains("IR/partition merge"))
+            #expect(namesIn(phase.subRecords).contains("IR+obj/partition parallel"))
             let result = try CommandRunner.run(executable: outputPath, arguments: [])
             #expect(result.exitCode == 0)
         }

@@ -29,9 +29,6 @@ struct LLVMOptimizationPipelineTests {
         let hasOptimizedStackSlots = !remainingStackSlots.isEmpty
         #expect(hasUnoptimizedStackSlots, "The probe must exercise stack-slot promotion.")
         #expect(!hasOptimizedStackSlots, "The new pass manager must eliminate temporary stack slots: \(remainingStackSlots)")
-        // ABI lowering may retain an unbox call at the return boundary. LLVM
-        // must still fold the arithmetic feeding that boundary to 42.
-        // The guard's throw edge merges the return into a phi.
         let foldsArithmetic = optimized.contains("ret i64 42")
             || optimized.contains("@kk_unbox_int(i64 42)")
             || optimized.contains("phi i64 [ 42,")
@@ -75,8 +72,6 @@ struct LLVMOptimizationPipelineTests {
                 .constValue(result: thrown, value: .intLiteral(7)),
                 .jumpIfEqual(lhs: condition, rhs: condition, target: 1),
                 .rethrow(value: thrown),
-                // Finally/catch lowering can leave expression work after a
-                // rethrow. This arithmetic must not be emitted after the ret.
                 .binary(op: .add, lhs: condition, rhs: thrown, result: deadTail),
                 .label(1),
                 .returnUnit,
@@ -123,7 +118,6 @@ struct LLVMOptimizationPipelineTests {
             let message = try #require(bindings.optimizeModule(module, targetMachine: machine, optLevel: .O2))
             #expect(message.contains("Invalid LLVM IR before optimization"))
             #expect(message.contains("terminator"))
-            // Debug emission retains the existing O0 path.
             #expect(bindings.optimizeModule(module, targetMachine: machine, optLevel: .O0) == nil)
         }
     }

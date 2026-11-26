@@ -1,4 +1,4 @@
 package kotlin
 
 @PublishedApi
-internal inline fun UShort(value: Short): UShort = value.toInt().toUShort()
+internal inline fun UShort(data: Short): UShort = data.toInt().toUShort()

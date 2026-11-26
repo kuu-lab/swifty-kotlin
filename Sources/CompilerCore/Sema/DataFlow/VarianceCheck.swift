@@ -10,11 +10,12 @@ extension DataFlowSemaPhase {
         bindings: BindingTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        sourceManager: SourceManager? = nil
     ) {
         validateDeclarationSiteVariance(
             ast: ast, symbols: symbols, bindings: bindings, types: types,
-            diagnostics: diagnostics, interner: interner, phase: .explicit
+            diagnostics: diagnostics, interner: interner, sourceManager: sourceManager, phase: .explicit
         )
     }
 
@@ -27,11 +28,12 @@ extension DataFlowSemaPhase {
         bindings: BindingTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        sourceManager: SourceManager? = nil
     ) {
         validateDeclarationSiteVariance(
             ast: ast, symbols: symbols, bindings: bindings, types: types,
-            diagnostics: diagnostics, interner: interner, phase: .inferred
+            diagnostics: diagnostics, interner: interner, sourceManager: sourceManager, phase: .inferred
         )
     }
 
@@ -42,11 +44,13 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
+        sourceManager: SourceManager?,
         phase: VarianceCheckPhase
     ) {
         let env = VarianceCheckEnv(ast: ast, symbols: symbols, bindings: bindings,
                                    types: types, diagnostics: diagnostics, interner: interner)
         for file in ast.sortedFiles {
+            if let sourceManager, sourceManager.path(of: file.fileID).hasPrefix("<kswiftk-jvm-import>/") { continue }
             for declID in file.topLevelDecls {
                 validateVarianceForDecl(declID: declID, env: env, phase: phase)
             }

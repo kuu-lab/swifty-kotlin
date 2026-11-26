@@ -549,8 +549,8 @@ extension JVMFunctionBuilder {
                collectionCallIsExtension(id) {
                 return nil
             }
-            if ["set", "add", "addAll", "remove", "removeAll", "removeAt", "put", "putAll", "clear"].contains(member), owner != "java/util/ListIterator", !isIteratorRemove { try requireMutableCollection(receiverID, at: id) }
-            if ["set", "add", "addAll", "put", "putAll"].contains(member), owner != "java/util/ListIterator" { try requireWritableArguments(receiverID, at: id) }
+            if ["set", "add", "addAll", "remove", "removeAll", "removeAt", "put", "putIfAbsent", "putAll", "clear"].contains(member), owner != "java/util/ListIterator", !isIteratorRemove { try requireMutableCollection(receiverID, at: id) }
+            if ["set", "add", "addAll", "put", "putIfAbsent", "putAll"].contains(member), owner != "java/util/ListIterator" { try requireWritableArguments(receiverID, at: id) }
             if ["getOrElse", "getOrPut"].contains(member), ["java/util/List", "java/util/Map"].contains(owner) {
                 return try collectionDefaultValueMember(receiverID, owner: owner, member: member, args: args, id: id)
             }
@@ -721,7 +721,7 @@ extension JVMFunctionBuilder {
             case "removeAll", "retainAll": actual = member; parameters = [.reference("java/util/Collection", nullable: false)]; returns = .boolean
             case "removeAt": actual = "remove"; parameters = [.int]; returns = object
             case "putAll": actual = member; parameters = [.reference("java/util/Map", nullable: false)]; returns = .unit
-            case "put", "getOrDefault": actual = member; parameters = [object, object]; returns = object
+            case "put", "putIfAbsent", "getOrDefault": actual = member; parameters = [object, object]; returns = object
             case "clear": actual = member; parameters = []; returns = .unit
             default: throw fail("Unsupported JVM collection member: \(member).", id)
             }
@@ -1116,7 +1116,24 @@ extension JVMFunctionBuilder {
                 interner: context.interner
             )
         }()
-        if withIndexReceiver == nil, source.type.referenceName == "java/util/Map" {
+        // Concrete JDK maps (LinkedHashMap, HashMap, TreeMap, ...) are not
+        // java/lang/Iterable either, so they need the same entrySet loop,
+        // unless Sema picked a user-declared iterator() operator for the loop.
+        let usesUserIterator: Bool = {
+            guard let iteratorCallee = loopBinding?.iteratorCall?.chosenCallee else { return false }
+            return program.sema.symbols.symbol(iteratorCallee)?.fqName.first != context.interner.intern("kotlin")
+        }()
+        let iterableIsMap: Bool = {
+            guard let mapSymbol = program.sema.symbols.lookup(fqName: ["kotlin", "collections", "Map"].map(context.interner.intern)),
+                  let iterableType = program.sema.bindings.exprType(for: iterable)
+            else { return false }
+            return program.sema.types.isSubtype(iterableType, program.sema.types.make(.classType(ClassType(classSymbol: mapSymbol, args: [.star, .star]))))
+        }()
+        let isJDKMap: Bool = {
+            guard !usesUserIterator, let referenceName = source.type.referenceName else { return false }
+            return referenceName == "java/util/Map" || referenceName.hasPrefix("java/util/") && iterableIsMap
+        }()
+        if withIndexReceiver == nil, isJDKMap {
             try mapEntryLoop(name, source, body, id, destructuringNames: destructuringNames, label: loopLabel)
             return
         }
@@ -1145,6 +1162,9 @@ extension JVMFunctionBuilder {
         else if source.type.referenceName == "kotlin/ranges/IntRange" || source.type.referenceName == "kotlin/ranges/IntProgression" { elementType = .int }
         else if source.type.referenceName == "kotlin/ranges/LongRange" || source.type.referenceName == "kotlin/ranges/LongProgression" { elementType = .long }
         else if source.type.referenceName?.hasPrefix("[") == true { elementType = try arrayComponent(source.type) }
+        // A map's first type argument is its key type, not the element type
+        // produced by a user-declared iterator(); use Sema's next() type.
+        else if usesUserIterator, iterableIsMap, let loopBinding { elementType = try program.type(loopBinding.elementType) }
         else if let semantic = program.sema.bindings.exprType(for: iterable), case let .classType(t) = program.sema.types.kind(of: semantic), let arg = t.args.first {
             switch arg {
             case let .invariant(t), let .out(t), let .in(t): elementType = try program.type(t)
