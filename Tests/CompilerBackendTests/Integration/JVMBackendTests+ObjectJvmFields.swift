@@ -25,7 +25,7 @@ extension JVMBackendTests {
         class CollisionHolder {
             var x: Int = 1
             companion object {
-                @JvmField var x: Int = 2
+                @JvmField var x: Set<Int> = setOf(2)
             }
         }
         class GenericCompanionHolder {
@@ -116,7 +116,7 @@ extension JVMBackendTests {
                 }
                 System.out.println("publicStaticType=" + publicStatic.getType().getName());
                 System.out.println("publicStaticGeneric=" + publicStatic.getGenericType().getTypeName());
-                System.out.println("publicStatic=" + publicStatic.getInt(null));
+                System.out.println("publicStatic=" + publicStatic.get(null));
                 System.out.println("publicInstanceType=" + publicInstance.getType().getName());
                 System.out.println("publicInstanceGeneric=" + publicInstance.getGenericType().getTypeName());
                 System.out.println("publicInstance=" + publicInstance.get(publicCollision));
@@ -164,9 +164,9 @@ extension JVMBackendTests {
             collisionExposedStatic=true
             collisionExposed=2
             valuesGeneric=java.util.List<java.lang.String>
-            publicStaticType=int
-            publicStaticGeneric=int
-            publicStatic=2
+            publicStaticType=java.util.Set
+            publicStaticGeneric=java.util.Set<java.lang.Integer>
+            publicStatic=[2]
             publicInstanceType=java.util.List
             publicInstanceGeneric=java.util.List<java.lang.String>
             publicInstance=[a]
