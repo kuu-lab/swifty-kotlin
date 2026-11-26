@@ -164,8 +164,10 @@ extension JVMProgramBuilder {
                     // The stdlib's Instant difference uses a return-only suffix.
                     let legacyInstantDifference = context.options.stdlibOnly && owner == "kotlin/time/Instant"
                         && ref.name == "minus" && ref.parameters.map(\.referenceName) == [owner]
+                    let parameterElements = ref.parameters.map(element)
+                    let mangleParameters = parameterElements.contains { $0 != "_" }
                     let hashArguments = legacyInstantDifference ? ""
-                        : ref.parameters.map(element).joined() + (original.isSuspend ? "_" : "")
+                        : (mangleParameters ? parameterElements.joined() : "") + (original.isSuspend ? "_" : "")
                     // The bundled time ABI predates return-type mangling for these operators.
                     let legacyTimeOperator = context.options.stdlibOnly && (
                         owner == "kotlin/time/Duration" && ["plus", "minus"].contains(ref.name) && ref.parameters.map(\.referenceName) == [owner]

@@ -89,9 +89,16 @@ internal fun durationToString(value: Long): String {
             parts.append(seconds)
             if (nanos != 0L) {
                 parts.append('.')
-                val width = if (nanos % NANOS_PER_MILLISECOND == 0L) 3
-                    else if (nanos % NANOS_PER_MICROSECOND == 0L) 6 else 9
-                parts.append(durationFraction(nanos, width))
+                var width = 9
+                var divisor = 1L
+                if (nanos % NANOS_PER_MILLISECOND == 0L) {
+                    width = 3
+                    divisor = NANOS_PER_MILLISECOND
+                } else if (nanos % NANOS_PER_MICROSECOND == 0L) {
+                    width = 6
+                    divisor = NANOS_PER_MICROSECOND
+                }
+                parts.append(durationFraction(nanos / divisor, width))
             }
             parts.append('s')
         } else if (nanos >= NANOS_PER_MILLISECOND) {

@@ -92,7 +92,7 @@ extension JVMFunctionBuilder {
                 return try adaptedReference(id, symbol: symbol, receiver: receiver, unbound: unbound)
             }
         }
-        let sourceBacked = program.inlineDeclarations[symbol] != nil ? program.textLibraryMethods[symbol] : nil
+        let sourceBacked = program.textLibraryMethods[symbol].flatMap { $0.adaptation == nil ? $0 : nil }
         let collectionMethod = program.collectionInterfaceMethods[symbol]
         let supportedCollectionReference = collectionMethod?.owner == "java/util/Map" && collectionMethod?.name == "putIfAbsent"
         let method = program.methods[symbol] ?? (supportedCollectionReference ? collectionMethod : nil) ?? context.jvmImports?.method(for: symbol) ?? sourceBacked?.method
