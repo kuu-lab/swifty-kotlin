@@ -57,12 +57,12 @@ extension CallLowerer {
     func lowerLegacyCollectionIsNullOrEmptyCall(
         _ exprID: ExprID,
         receiverExpr: ExprID,
-        calleeName: InternedString,
         calleeNameStr: String,
         args: [CallArgument],
         sema: SemaModule,
         interner: StringInterner,
         chosenCalleeForArgumentAdaptation: SymbolID?,
+        hasResolvedCallBinding: Bool,
         loweredReceiverID: KIRExprID,
         result: KIRExprID,
         instructions: inout [KIRInstruction]
@@ -77,7 +77,7 @@ extension CallLowerer {
                       symbol.fqName == [
                           interner.intern("kotlin"),
                           interner.intern("collections"),
-                          calleeName,
+                          interner.intern(calleeNameStr),
                       ]
                 else {
                     return false
@@ -99,7 +99,7 @@ extension CallLowerer {
                 ]
             }()
             if calleeStr == "isNullOrEmpty",
-               (sema.bindings.callBindings[exprID] == nil || isSourceBackedCollectionIsNullOrEmpty)
+               (sema.bindings.callBindings[exprID] == nil && !hasResolvedCallBinding) || isSourceBackedCollectionIsNullOrEmpty
             {
                 let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
                 if let runtimeCallee = collectionIsNullOrEmptyRuntimeCallee(

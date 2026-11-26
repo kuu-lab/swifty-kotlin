@@ -94,7 +94,8 @@ extension CallLowerer {
             receiverExpr: receiverExpr,
             calleeName: interner.intern("get"),
             argumentExprs: indices,
-            sema: sema
+            sema: sema,
+            interner: interner
         ) ?? sema.bindings.callBindings[exprID]
         let chosenGetIsIntrinsic: Bool = if receiverIsIntrinsicArray,
             indices.count == 1,
