@@ -44,4 +44,7 @@ fun main() {
 
     val markerReference = ::COROUTINE_SUSPENDED
     println(markerReference is KProperty0<*>)
+
+    val marker: Any = COROUTINE_SUSPENDED
+    println(marker === COROUTINE_SUSPENDED)
 }
