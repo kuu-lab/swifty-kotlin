@@ -1,4 +1,3 @@
-// DIFF_WASM
 import kotlin.time.Duration
 
 fun main() {
