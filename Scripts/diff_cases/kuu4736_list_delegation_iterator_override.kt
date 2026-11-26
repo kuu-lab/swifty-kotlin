@@ -8,5 +8,6 @@ class ArrayView(delegate: List<Int>) : List<Int> by delegate {
 }
 
 fun main() {
-    println(ArrayView(listOf(1, 2)).iterator().next())
+    val view: List<Int> = ArrayView(listOf(1, 2))
+    println(view.iterator().next())
 }
