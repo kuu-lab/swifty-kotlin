@@ -29,6 +29,8 @@ fun Char.titlecase(): String = null!!
 fun Char.isWhitespace(): Boolean = false
 val Char.directionality: CharDirectionality get() = null!!
 fun Char.digitToInt(radix: Int): Int = 0
+fun Char.digitToIntOrNull(): Int? = null
+fun Char.digitToIntOrNull(radix: Int): Int? = null
 @kotlin.internal.InlineOnly
 public inline fun Char.toFloat(): Float = this.code.toFloat()
 fun Char.equals(other: Char, ignoreCase: Boolean = null!!): Boolean = null!!

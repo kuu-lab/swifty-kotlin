@@ -38,8 +38,10 @@ value class Result<out T>(val value: Any?) {
     }
     override fun toString(): String = if (value is Failure) value.toString() else "Success($value)"
     companion object {
-        fun <T> success(value: T): Result<T> = Result<T>(value)
-        fun <T> failure(exception: Throwable): Result<T> = Result<T>(Failure(exception))
+        @kotlin.internal.InlineOnly
+        inline fun <T> success(value: T): Result<T> = Result<T>(value)
+        @kotlin.internal.InlineOnly
+        inline fun <T> failure(exception: Throwable): Result<T> = Result<T>(Failure(exception))
     }
     class Failure(value: Throwable) {
         @kotlin.jvm.JvmField val exception: Throwable = value
