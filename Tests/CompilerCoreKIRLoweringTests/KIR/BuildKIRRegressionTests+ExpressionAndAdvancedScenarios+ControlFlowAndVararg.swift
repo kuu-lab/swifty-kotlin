@@ -24,7 +24,6 @@ extension BuildKIRRegressionTests {
             guard case let .returnValue(id) = instruction else { return nil }
             return id
         }
-        // Should have exactly 2 returns: one from each branch, no spurious epilogue return
         #expect(returnValues.count == 2, "Expected exactly 2 returnValue instructions (then + else), got \(returnValues.count)")
     }
 
@@ -50,7 +49,6 @@ extension BuildKIRRegressionTests {
         }
         #expect(returnValues.count >= 3, "Expected at least 3 returnValue instructions for when-branch returns, got \(returnValues.count)")
 
-        // Verify no dead copy follows a returnValue in the when branches
         var deadCopyAfterReturn = false
         for (index, instruction) in body.enumerated() {
             if case .returnValue = instruction {
@@ -86,7 +84,6 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "earlyReturn", in: module, interner: ctx.interner)
 
-        // The val x = 99 after return should not produce any const 99 in the body
         let has99 = body.contains { instruction in
             guard case let .constValue(_, value) = instruction else { return false }
             if case .intLiteral(99) = value { return true }
@@ -197,8 +194,6 @@ extension BuildKIRRegressionTests {
         #expect(callNames.contains(runtime[.arraySet]), "Expected kk_array_set for non-trailing vararg, got: \(callNames)")
     }
 
-    // MARK: - if/when Control Flow (P5-51)
-
     @Test func testIfExprUsesControlFlowInsteadOfSelect() throws {
         let source = """
         fun pick(flag: Boolean): Int = if (flag) 1 else 2
@@ -209,7 +204,6 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "pick", in: module, interner: ctx.interner)
 
-        // .select was removed from KIRInstruction; verify control-flow is used
         let labelCount = body.filter { if case .label = $0 { return true }; return false }.count
         #expect(labelCount >= 2, "ifExpr needs at least elseLabel + endLabel")
 
@@ -231,15 +225,10 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "pick", in: module, interner: ctx.interner)
 
-        // .select was removed from KIRInstruction; verify control-flow is used
         let labelCount = body.filter { if case .label = $0 { return true }; return false }.count
         #expect(labelCount >= 3, "whenExpr with 2 branches + else needs at least 3 labels")
     }
 
-    // KUU: `in`/`!in` when-branch conditions used to re-lower the whole
-    // `.inExpr`/`.notInExpr` node, which re-lowers its embedded `lhs` (the
-    // when subject) from scratch — re-evaluating a side-effecting subject
-    // once per `in`/`!in` branch tested instead of once for the whole `when`.
     @Test func testWhenExprInNotInBranchesEvaluateSubjectExactlyOnce() throws {
         let source = """
         fun subject(): Int = 5

@@ -59,8 +59,6 @@ struct AtomicfuBundledSourceRegistrationTests {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let path = directory.appendingPathComponent("Input.kt")
         try source.write(to: path, atomically: true, encoding: .utf8)
-        // Keep tiny Core inputs and configuration on every path, including
-        // throwing #require and nonthrowing #expect failures in the inventory.
         let stdlib: String?
         if library {
             TestStdlibCache.shared.prepare()
@@ -169,12 +167,8 @@ struct AtomicfuBundledSourceRegistrationTests {
         }
         if row.kind == "constructor" {
             let owner = String(fq.dropLast(".<init>".count))
-            // Library shells register on demand (#10688); drain this owner's
-            // constructors so allSymbols() can see unreferenced ones.
             _ = sema.symbols.lookupAll(fqName: (owner.split(separator: ".").map(String.init) + ["<init>"])
                 .map { ctx.interner.intern($0) })
-            // Constructors have compiler-specific FQ names. Match the actual
-            // owner and exact parameter signature instead of guessing spelling.
             return sema.symbols.allSymbols().filter { symbol in
                 symbol.kind == .constructor && sema.symbols.parentSymbol(for: symbol.id).map {
                     qualifiedName($0, sema, ctx) == owner
@@ -211,7 +205,6 @@ struct AtomicfuBundledSourceRegistrationTests {
         if row.kind == "constructor" { return true }
         let result = canonicalType(signature.returnType, parameters: signature.typeParameterSymbols, sema: sema, ctx: ctx)
         guard result == row.return_type else { return false }
-        // Member dispatch receivers do not appear as KLIB extension receivers.
         if let receiver = row.receiver_type {
             return signature.receiverType.map { canonicalType($0, parameters: signature.typeParameterSymbols, sema: sema, ctx: ctx) } == receiver
         }
@@ -276,8 +269,6 @@ struct AtomicfuBundledSourceRegistrationTests {
                         "default parameters: \(row.api_identity)")
             }
             for required in row.annotations {
-                // SOURCE annotations are not exported. The source lane checks
-                // them; the imported lane checks retained semantic annotations.
                 if library && ["Suppress", "OptIn"].contains(required.name) { continue }
                 #expect(annotations.contains { annotation in
                     annotation.annotationFQName.split(separator: ".").last == Substring(required.name)
@@ -352,12 +343,9 @@ struct AtomicfuBundledSourceRegistrationTests {
                   sema.symbols.propertySymbol(forAccessor: symbol.id) == nil,
                   sema.symbols.accessorOwnerProperty(for: symbol.id) == nil
             else { return false }
-            // Generated imported object initializers are verified by their
-            // owner registration and exact zero-argument Unit shape.
             if initializerIDs.contains(symbol.id), symbol.flags.contains(.synthetic),
                let signature = sema.symbols.functionSignature(for: symbol.id),
                signature.parameterTypes.isEmpty, signature.returnType == sema.types.unitType { return false }
-            // Annotation Any members are inherited compiler-generated surface, not upstream declarations.
             if let parent = sema.symbols.parentSymbol(for: symbol.id),
                sema.symbols.symbol(parent)?.kind == .annotationClass,
                ["equals", "hashCode", "toString"].contains(ctx.interner.resolve(symbol.name)) {
@@ -400,9 +388,6 @@ struct AtomicfuBundledSourceRegistrationTests {
             #expect(ctx.diagnostics.hasError, "private/internal API leaked: \(source)")
         }
 
-        // The producer's existing file suppression must cover MutableData's
-        // self-type member, while source and compiled consumers still require
-        // their own suppression of its unchanged error-level deprecation.
         for suppressed in [false, true] {
             let source = (suppressed ? "@file:Suppress(\"DEPRECATION_ERROR\")\n" : "")
                 + "fun legacy(data: kotlin.native.concurrent.MutableData): Int = data.size"
@@ -495,8 +480,6 @@ struct AtomicfuBundledSourceRegistrationTests {
             try #require(!symbol.flags.contains(.synthetic))
         }
         if library {
-            // Ordinary compiled Kotlin functions have an imported link name.
-            // Reject only these eight private mechanism bridges, not kk_ names.
             let link = try #require(sema.symbols.externalLinkName(for: callee))
             try #require(!link.isEmpty)
             let privateBridges: Set<String> = [
@@ -527,7 +510,7 @@ struct AtomicfuBundledSourceRegistrationTests {
         var confirmed = false
         defer { try? optInReceipt(ctx, confirmed: confirmed) }
         try runSema(ctx)
-        try optInReceipt(ctx, confirmed: false) // Capture real diagnostics before assertions.
+        try optInReceipt(ctx, confirmed: false)
         _ = try realBlockingCall(ctx, library: library)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         try #require(!errors.isEmpty, "RequiresOptIn.ERROR must reject this real API call")

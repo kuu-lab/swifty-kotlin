@@ -53,6 +53,9 @@ public inline operator fun <K, V> Map<K, V>.contains(key: K): Boolean = this.con
 
 public inline fun <K, V> Map<out K, V>.isNotEmpty(): Boolean = !isEmpty()
 
+@kotlin.internal.InlineOnly
+public inline fun <K, V> Map<K, V>?.orEmpty(): Map<K, V> = this ?: emptyMap<K, V>()
+
 public fun <K, V> Array<out Pair<K, V>>.toMap(): Map<K, V> {
     if (this.size == 0) return emptyMap<K, V>()
     if (this.size == 1) return mapOf(this[0])
@@ -183,9 +186,30 @@ public operator fun <K, V> Map<out K, V>.minus(keys: kotlin.sequences.Sequence<K
     return optimizeOperatorMap(result)
 }
 
-public fun <K, V> Map<K, V>.getOrImplicitDefaultNullable(key: K): V? = this[key] ?: throw NoSuchElementException("Key " + key + " is missing in the map.")
+public fun <K, V> Map<K, V>.getOrImplicitDefaultNullable(key: K): V? = getValue(key)
+
+public fun <K, V> Map<K, V>.withDefault(defaultValue: (K) -> V): Map<K, V> =
+    if (this is MapWithDefault<*, *>) {
+        @Suppress("UNCHECKED_CAST")
+        MapWithDefaultImpl<K, V>((this as MapWithDefault<K, V>).map, defaultValue)
+    } else {
+        MapWithDefaultImpl<K, V>(this, defaultValue)
+    }
+
+@kotlin.jvm.JvmName("withDefaultMutable")
+public fun <K, V> MutableMap<K, V>.withDefault(defaultValue: (K) -> V): MutableMap<K, V> =
+    if (this is MutableMapWithDefault<*, *>) {
+        @Suppress("UNCHECKED_CAST")
+        MutableMapWithDefaultImpl<K, V>((this as MutableMapWithDefault<K, V>).mutableMap, defaultValue)
+    } else {
+        MutableMapWithDefaultImpl<K, V>(this, defaultValue)
+    }
 
 public fun <K, V> Map<K, V>.getValue(key: K): V {
+    if (this is MapWithDefault<*, *>) {
+        @Suppress("UNCHECKED_CAST")
+        return (this as MapWithDefault<K, V>).getOrImplicitDefault(key)
+    }
     val value = this[key]
     if (value != null || containsKey(key)) {
         @Suppress("UNCHECKED_CAST")

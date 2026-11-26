@@ -3,16 +3,13 @@
 import Foundation
 import Testing
 
-/// Executes bodies deserialized from a real Kotlin/Native `.klib`: source
-/// code calls `demo.add` (primitive intrinsic inside a serialized body) and
-/// `Greeter.greet()` (ctor field init + property getter + string concat).
 @Suite
 struct KlibBodyExecutionTests {
     private static var fixtureDirectory: String {
         URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Integration/
-            .deletingLastPathComponent() // CompilerBackendTests/
-            .deletingLastPathComponent() // Tests/
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
             .appendingPathComponent("CompilerCoreTests/Klib/Fixtures")
             .path
     }
@@ -58,8 +55,6 @@ struct KlibBodyExecutionTests {
         #expect(normalized == "7\nHello, Bob\n")
     }
 
-    /// KUU-2294: imported default-valued fields must retain writes from a
-    /// superclass constructor's virtual dispatch.
     @Test(arguments: [0, 2])
     func importedKlibDefaultFieldInitializersPreserveVirtualWrites(optimization: Int) throws {
         let librarySource = """
@@ -149,10 +144,6 @@ struct KlibBodyExecutionTests {
         }
     }
 
-    /// KUU-4427: a kklib suspend function's `$default` stub is a synthetic
-    /// symbol outside the importedLibrary suspend set, so an omitted-default
-    /// call inside a suspend body used to skip the suspend-call protocol and
-    /// leak COROUTINE_SUSPENDED as the result.
     @Test
     func importedKlibSuspendDefaultArgumentsPreserveSuspendProtocol() throws {
         let librarySource = """

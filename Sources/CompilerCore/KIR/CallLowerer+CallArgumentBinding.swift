@@ -160,7 +160,8 @@ extension CallLowerer {
         receiverExpr: ExprID,
         calleeName: InternedString,
         argumentExprs: [ExprID],
-        sema: SemaModule
+        sema: SemaModule,
+        interner: StringInterner
     ) -> CallBinding? {
         let existingBinding = sema.bindings.callBindings[exprID]
         if let existing = existingBinding,
@@ -223,7 +224,8 @@ extension CallLowerer {
                 named: calleeName,
                 nonNullReceiverType: nonNullReceiverType,
                 argumentCount: argumentExprs.count,
-                sema: sema
+                sema: sema,
+                interner: interner
             ))
         }
         // Duplicate registrations (bundled source decl beside an artifact
@@ -287,7 +289,8 @@ extension CallLowerer {
         named calleeName: InternedString,
         nonNullReceiverType: TypeID,
         argumentCount: Int,
-        sema: SemaModule
+        sema: SemaModule,
+        interner: StringInterner
     ) -> [SymbolID] {
         func receiverMatches(_ candidate: SymbolID) -> Bool {
             guard let signature = sema.symbols.functionSignature(for: candidate),
@@ -296,10 +299,25 @@ extension CallLowerer {
             else {
                 return false
             }
-            return sema.types.isSubtype(
-                nonNullReceiverType,
-                sema.types.makeNonNullable(declaredReceiver)
-            )
+            let declaredNonNullReceiver = sema.types.makeNonNullable(declaredReceiver)
+            if sema.types.isSubtype(nonNullReceiverType, declaredNonNullReceiver) {
+                return true
+            }
+            // Generic nullable-receiver predicates such as Map<K, V>?.isNullOrEmpty()
+            // do not reduce to a plain subtype check once their type parameters are
+            // left as symbols. For these zero-argument collection predicates, match
+            // the nominal receiver instead so KIR can still recover the stdlib call.
+            guard argumentCount == 0,
+                  interner.resolve(calleeName) == "isNullOrEmpty",
+                  let actualClassType = resolveClassType(nonNullReceiverType, sema: sema),
+                  let declaredClassType = resolveClassType(declaredNonNullReceiver, sema: sema)
+            else {
+                return false
+            }
+            let actualReceiverSymbol = actualClassType.classSymbol
+            let declaredReceiverSymbol = declaredClassType.classSymbol
+            return actualReceiverSymbol == declaredReceiverSymbol
+                || sema.types.isNominalSubtypeSymbol(actualReceiverSymbol, of: declaredReceiverSymbol)
         }
 
         return sema.symbols.lookupByShortName(calleeName).compactMap { candidate in

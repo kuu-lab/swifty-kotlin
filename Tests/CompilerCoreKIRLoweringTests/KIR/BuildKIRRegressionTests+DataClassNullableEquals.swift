@@ -4,10 +4,6 @@ import Testing
 @testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
-    /// KUU-3108: a nullable `Double?` data class property must compare with
-    /// the null-aware canonical `kk_nullable_double_equals` — the property
-    /// reaches the comparison as a registered box or the null sentinel, so
-    /// `kk_op_eq` would only compare box identity.
     @Test
     func dataClassEqualsUsesNullAwareCanonicalDoubleEquality() throws {
         let context = makeContextFromSource("""
@@ -25,7 +21,6 @@ extension BuildKIRRegressionTests {
         #expect(!callees.contains("kk_op_eq"))
     }
 
-    // Same contract for `Float?` properties.
     @Test
     func dataClassEqualsUsesNullAwareCanonicalFloatEquality() throws {
         let context = makeContextFromSource("""
@@ -43,8 +38,6 @@ extension BuildKIRRegressionTests {
         #expect(!callees.contains("kk_op_eq"))
     }
 
-    // Other nullable primitives compare through the null- and box-aware
-    // structural path rather than a raw box-pointer `kk_op_eq`.
     @Test
     func dataClassEqualsUsesStructuralEqualityForOtherNullablePrimitives() throws {
         let context = makeContextFromSource("""
@@ -62,8 +55,6 @@ extension BuildKIRRegressionTests {
         #expect(!callees.contains("kk_op_eq"))
     }
 
-    // Nullable/non-null properties in one class pick their callees
-    // independently.
     @Test
     func dataClassEqualsMixesNullAndNonNullFloatingCallees() throws {
         let context = makeContextFromSource("""

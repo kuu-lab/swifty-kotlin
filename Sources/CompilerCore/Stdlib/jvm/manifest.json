@@ -504,6 +504,12 @@
       "runtimeFacade": "kotlin/collections/ArraysKt"
     },
     {
+      "path": "declarations/ArrayFlatten.kt",
+      "virtualPath": "<kswiftk-jvm>/array-flatten.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/ArraysKt"
+    },
+    {
       "path": "declarations/ArrayWithIndex.kt",
       "virtualPath": "<kswiftk-jvm>/array-with-index.kt",
       "excludeFromStdlibBuild": true,
@@ -717,6 +723,12 @@
       "runtimeFacade": "kotlin/collections/CollectionsKt"
     },
     {
+      "path": "declarations/SequenceNullability.kt",
+      "virtualPath": "<kswiftk-jvm>/sequence-nullability.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/sequences/SequencesKt"
+    },
+    {
       "path": "declarations/MapsOperators.kt",
       "virtualPath": "<kswiftk-jvm>/map-operators.kt",
       "excludeFromStdlibBuild": true,
@@ -756,6 +768,12 @@
       "path": "declarations/GroupingAggregate.kt",
       "virtualPath": "<kswiftk-jvm>/m20-grouping-aggregate-inline.kt",
       "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/GroupingFoldTo.kt",
+      "virtualPath": "<kswiftk-jvm>/grouping-fold-to.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/GroupingKt"
     },
     {
       "path": "declarations/JavaLang.kt",

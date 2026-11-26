@@ -422,7 +422,8 @@ extension CallLowerer {
             receiverExpr: receiverExpr,
             calleeName: calleeName,
             argumentExprs: args.map(\.expr),
-            sema: sema
+            sema: sema,
+            interner: interner
         ) ?? sema.bindings.callBindings[exprID]
         let preservesErasedGenericResult = kirShouldCheckErasedGenericCallResult(
             exprID: exprID,
@@ -676,12 +677,12 @@ extension CallLowerer {
             if let lowered = lowerLegacyCollectionIsNullOrEmptyCall(
                 exprID,
                 receiverExpr: receiverExpr,
-                calleeName: calleeName,
                 calleeNameStr: calleeNameStr,
                 args: args,
                 sema: sema,
                 interner: interner,
-                chosenCalleeForArgumentAdaptation: chosenCalleeForArgumentAdaptation,
+                chosenCalleeForArgumentAdaptation: callBinding?.chosenCallee ?? chosenCalleeForArgumentAdaptation,
+                hasResolvedCallBinding: callBinding != nil,
                 loweredReceiverID: loweredReceiverID,
                 result: result,
                 instructions: &instructions
