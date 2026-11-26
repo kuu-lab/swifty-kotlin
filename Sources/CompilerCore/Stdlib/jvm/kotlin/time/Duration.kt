@@ -168,7 +168,10 @@ private fun durationJvmScaledFractionDigits(digits: String): Long {
     return result
 }
 
-private fun durationJvmRoundPositive(value: Double): Long = (value + 0.5).toLong()
+private fun durationJvmRoundPositive(value: Double): Long {
+    val whole = value.toLong()
+    return if (value - whole.toDouble() >= 0.5) whole + 1L else whole
+}
 
 private fun durationJvmRoundedFractionNanos(digits: String, unit: DurationUnit): Long {
     if (digits.isEmpty()) return 0L
