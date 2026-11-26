@@ -542,6 +542,14 @@ extension JVMFunctionBuilder {
            let emitted = try emitBitReinterpret(callee: binding.chosenCallee, receiver: receiver, isRaw: isRaw, id: id) {
             return JVMIntrinsicResult(value: emitted)
         }
+        if isStdlibUnsignedArrayViewConversion(binding.chosenCallee, args: args),
+           let receiver = try receiverValue ?? receiver.map(requireValue) ?? implicitExtensionReceiver(id) {
+            let resultType = try program.expressionType(id)
+            guard receiver.type.descriptor == resultType.descriptor else {
+                throw fail("JVM unsigned array view conversion requires matching physical types.", id)
+            }
+            return JVMIntrinsicResult(value: try convert(receiver, to: resultType))
+        }
         let method = entry.method
         if method.owner == "java/lang/Comparable", method.name == "compareTo", let receiver,
            case .memberCall = arena.expr(id), case let .nameRef(name, _) = arena.expr(receiver),

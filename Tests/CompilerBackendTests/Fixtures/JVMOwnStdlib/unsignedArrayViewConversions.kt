@@ -38,4 +38,10 @@ fun main() {
     println(signedLongs[0].toString())
     signedLongs[1] = 3
     println(longs[1].toString())
+
+    with(shortArrayOf(1, -1)) {
+        val implicitUnsigned = asUShortArray()
+        this[0] = -2
+        println(implicitUnsigned.asShortArray()[0].toInt())
+    }
 }
