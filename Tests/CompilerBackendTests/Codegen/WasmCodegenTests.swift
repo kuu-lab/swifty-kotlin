@@ -167,7 +167,7 @@ struct WasmCodegenTests {
         #expect(result.stubbedCallees.contains("kk_some_missing_runtime_fn"))
     }
 
-    private func nodePath() -> String? {
+    func nodePath() -> String? {
         let env = ProcessInfo.processInfo.environment["PATH"] ?? ""
         for dir in env.split(separator: ":") {
             let candidate = "\(dir)/node"
