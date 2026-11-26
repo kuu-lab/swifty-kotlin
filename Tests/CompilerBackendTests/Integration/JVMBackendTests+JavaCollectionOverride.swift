@@ -22,6 +22,22 @@ extension JVMBackendTests {
     }
 
     @Test
+    func arrayListSubclassCallsInheritedMembersOnJVM() throws {
+        try assertJVM("""
+        class A : ArrayList<String>()
+
+        fun main() {
+            val a = A()
+            println(a.add("x"))
+            println(a.size)
+            println(a[0])
+            a[0] = "y"
+            println(a[0])
+        }
+        """, "true\n1\nx\ny\n")
+    }
+
+    @Test
     func arrayListSubclassSuperIndexedAccessUsesBaseImplementationOnJVM() throws {
         try assertJVM("""
         class A : ArrayList<String>() {
