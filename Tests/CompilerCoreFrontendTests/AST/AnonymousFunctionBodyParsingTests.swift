@@ -55,6 +55,110 @@ struct AnonymousFunctionBodyParsingTests {
         #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
     }
 
+    @Test
+    func newlineBetweenContextPrefixAndAnonymousFunctionParses() throws {
+        let (_, context) = try buildASTModule(from: """
+        @file:OptIn(kotlin.ExperimentalContextParameters::class)
+        fun main() {
+            with("O") {
+                val f = context(a: String)
+                fun(y: String): String = a + y
+            }
+        }
+        """, includeStdlib: false)
+
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func newlineBetweenContextPrefixAndAnonymousFunctionParsesInUnbracedIfBranch() throws {
+        let (ast, context) = try buildASTModule(from: """
+        @file:OptIn(kotlin.ExperimentalContextParameters::class)
+        fun main() {
+            with("O") {
+                if (true) context(a: String)
+                fun(y: String): String = a + y
+            }
+        }
+        """, includeStdlib: false)
+
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+        let snapshot = ast.arena.snapshot()
+        #expect(snapshot.expressions.contains { expression in
+            guard case let .ifExpr(_, thenID, _, _) = expression else {
+                return false
+            }
+            return snapshot.anonymousFunctionExpressions.contains(thenID)
+        })
+    }
+
+    @Test
+    func malformedContextPrefixInUnbracedIfBranchIsRejected() throws {
+        let (_, context) = try buildASTModule(from: """
+        fun context(x: Int) {}
+        fun main() {
+            if (true) context(42)
+            fun(y: String): String = y
+        }
+        """, includeStdlib: false)
+
+        assertExpectedDiagnostics([
+            .error("KSWIFTK-PARSE-0030", containing: "context parameters must be named"),
+        ], in: context)
+    }
+
+    @Test(arguments: [
+        ("context() fun(): String = \"ok\"", "Empty context parameter list."),
+        ("context(a: String,, b: String) fun(): String = \"ok\"", "Expecting a parameter declaration."),
+    ])
+    func malformedContextParameterListsAreRejected(_ expression: String, _ message: String) throws {
+        let (_, context) = try buildASTModule(from: """
+        @file:OptIn(kotlin.ExperimentalContextParameters::class)
+        val f = \(expression)
+        """, includeStdlib: false)
+
+        assertExpectedDiagnostics([
+            .error("KSWIFTK-PARSE-0001", containing: message),
+        ], in: context)
+    }
+
+    @Test
+    func trailingCommaInContextPrefixStillParsesAnonymousFunction() throws {
+        let (ast, context) = try buildASTModule(from: """
+        @file:OptIn(kotlin.ExperimentalContextParameters::class)
+        val f = context(a: String,)
+        fun(): String = a
+        """, includeStdlib: false)
+
+        assertExpectedDiagnostics([], in: context)
+        let snapshot = ast.arena.snapshot()
+        #expect(snapshot.localFunContextReceivers.values.contains { $0.count == 1 })
+    }
+
+    @Test
+    func newlineBetweenContextPrefixAndAnonymousFunctionParsesInTopLevelInitializer() throws {
+        let (_, context) = try buildASTModule(from: """
+        @file:OptIn(kotlin.ExperimentalContextParameters::class)
+        val f = context(a: String)
+        fun(y: String): String = a + y
+        """, includeStdlib: false)
+
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func semicolonBetweenContextPrefixAndAnonymousFunctionDoesNotParseAsContextualFunction() throws {
+        let (_, context) = try buildASTModule(from: """
+        @file:OptIn(kotlin.ExperimentalContextParameters::class)
+        fun main() {
+            val f = context(a: String);
+            fun(y: String): String = a + y
+        }
+        """, includeStdlib: false)
+
+        #expect(context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+    }
+
     @Test(arguments: [
         "fun main() { val g = fun(x: Int) { return x * 2 } }",
         "val f = fun() { return 1 }",
