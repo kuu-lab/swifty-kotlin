@@ -285,5 +285,34 @@ struct TypeParameterUpperBoundArgumentTests {
             #expect(inferredValueType == sema.types.makeNullable(sema.types.intType))
         }
     }
+
+    /// Dependent-bound expansion may use a concrete owner inferred from lower
+    /// evidence, but an upper-only owner is not an assignment. In particular,
+    /// `Sink<Source<Any>>` only proves `M <: Source<Any>` here; it must not
+    /// widen `R` to `Any` and select the broader lambda overload.
+    @Test func upperOnlyOwnerDoesNotWidenDependentLambdaInput() throws {
+        let source = """
+        interface Source<out T>
+        interface Sink<in T>
+        class SString : Source<String>
+        class SAny : Source<Any>
+        fun choose(value: String): Source<String> = SString()
+        fun choose(value: Any): Source<Any> = SAny()
+        fun <R, M : Source<R>> build(sink: Sink<M>, seed: R, make: (R) -> M): M = make(seed)
+        fun main(sink: Sink<Source<Any>>) {
+            val result: Source<String> = build(sink, "seed") { choose(it) }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let build = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("build")]))
+            let binding = try #require(sema.bindings.callBindings.values.first { $0.chosenCallee == build })
+            let inferredValueType = try #require(binding.substitutedTypeArguments.first)
+            #expect(inferredValueType == sema.types.stringType)
+        }
+    }
 }
 #endif
