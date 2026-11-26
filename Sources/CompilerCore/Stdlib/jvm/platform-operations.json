@@ -1281,6 +1281,13 @@
     "kind": "virtual"
   },
   {
+    "symbol": "__jvmMalformedInputException",
+    "owner": "java/nio/charset/MalformedInputException",
+    "name": "<init>",
+    "descriptor": "(I)V",
+    "kind": "constructor"
+  },
+  {
     "symbol": "__jvmUnmodifiableSet",
     "owner": "java/util/Collections",
     "name": "unmodifiableSet",
