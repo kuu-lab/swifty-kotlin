@@ -1,6 +1,11 @@
-package kotlin.time
+/*
+ * Copyright 2010-2024 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Licensed under the Apache License, Version 2.0.
+ *
+ * Derived from kotlin-stdlib <libraries/stdlib/src/kotlin/time/Duration.kt>.
+ */
 
-import kotlin.math.roundToLong
+package kotlin.time
 
 // Faithful port of the kotlin-stdlib 2.4.20 Duration parsing pipeline
 // (parseDuration / parseIsoStringFormat / parseDefaultStringFormat with
@@ -11,6 +16,7 @@ import kotlin.math.roundToLong
 
 private const val DURATION_PARSE_FRACTION_LIMIT: Int = 15
 private const val DURATION_PARSE_INVALID_MILLIS: Long = Long.MIN_VALUE
+private const val DURATION_PARSE_INFINITY_STRING: String = "infinity"
 
 private class DurationLongParse(
     val endIndex: Int,
@@ -88,8 +94,14 @@ private fun durationParseFraction(value: String, startIndex: Int): DurationFract
     return DurationFractionParse(index, high.second.toLong() * 1_000_000_000L + low.second)
 }
 
+// All parser inputs to this rounding helper are non-negative and far below the
+// Long range. For those values, truncating `value + 0.5` is Kotlin `roundToLong`:
+// nearest integer, with halfway cases rounded toward positive infinity. Keeping
+// the operation in source avoids a target-runtime math bridge on Wasm.
+private fun durationRoundPositiveToLong(value: Double): Long = (value + 0.5).toLong()
+
 private fun durationFractionDigitsToNanos(fractionDigits: Long, multiplier: Double): Long =
-    (fractionDigits * multiplier).roundToLong()
+    durationRoundPositiveToLong(fractionDigits * multiplier)
 
 private fun durationUnitFractionMultiplier(unit: DurationUnit): Double = when (unit) {
     DurationUnit.NANOSECONDS -> 0.000000000000001
@@ -111,6 +123,16 @@ private fun durationUnitFallbackFractionMultiplier(unit: DurationUnit): Long = w
 private fun durationUnitShortNameLength(unit: DurationUnit): Int = when (unit) {
     DurationUnit.MILLISECONDS, DurationUnit.MICROSECONDS, DurationUnit.NANOSECONDS -> 2
     else -> 1
+}
+
+private fun durationUnitOrder(unit: DurationUnit): Int = when (unit) {
+    DurationUnit.NANOSECONDS -> 0
+    DurationUnit.MICROSECONDS -> 1
+    DurationUnit.MILLISECONDS -> 2
+    DurationUnit.SECONDS -> 3
+    DurationUnit.MINUTES -> 4
+    DurationUnit.HOURS -> 5
+    DurationUnit.DAYS -> 6
 }
 
 private fun durationUnitMillisMultiplier(unit: DurationUnit): Long = when (unit) {
@@ -209,7 +231,7 @@ private fun durationParseIsoFormat(value: String, startIndex: Int): Long? {
         }
 
         val unit = durationIsoUnitByShortName(value, index) ?: return null
-        if (prevUnit != null && prevUnit <= unit) return null
+        if (prevUnit != null && durationUnitOrder(prevUnit) <= durationUnitOrder(unit)) return null
         prevUnit = unit
 
         if (unit == DurationUnit.DAYS) {
@@ -272,7 +294,7 @@ private fun durationParseDefaultFormat(value: String, startIndex: Int, hasSign: 
         }
 
         val unit = durationDefaultUnitByShortName(value, index) ?: return null
-        if (prevUnit != null && prevUnit <= unit) return null
+        if (prevUnit != null && durationUnitOrder(prevUnit) <= durationUnitOrder(unit)) return null
         prevUnit = unit
 
         if (unit == DurationUnit.MICROSECONDS) {
@@ -291,9 +313,9 @@ private fun durationParseDefaultFormat(value: String, startIndex: Int, hasSign: 
 
         if (hasFractionalPart) {
             if (index < length) return null
-            totalNanos += if (unit >= DurationUnit.MINUTES && index - fractionStartIndex > DURATION_PARSE_FRACTION_LIMIT) {
+            totalNanos += if (durationUnitOrder(unit) >= durationUnitOrder(DurationUnit.MINUTES) && index - fractionStartIndex > DURATION_PARSE_FRACTION_LIMIT) {
                 val fractionText = value.substring(fractionStartIndex, index - durationUnitShortNameLength(unit))
-                (fractionText.toDouble() * durationUnitFallbackFractionMultiplier(unit).toDouble()).roundToLong()
+                durationRoundPositiveToLong(fractionText.toDouble() * durationUnitFallbackFractionMultiplier(unit).toDouble())
             } else {
                 durationFractionDigitsToNanos(fractionDigits, durationUnitFractionMultiplier(unit))
             }
@@ -327,7 +349,14 @@ internal fun durationParseRawOrNull(value: String, strictIso: Boolean): Long? {
         parsed = durationParseIsoFormat(value, index + 1)
     } else if (strictIso) {
         return null
-    } else if (value.substring(index).lowercase() == "infinity") {
+    } else if (value.regionMatches(
+            index,
+            DURATION_PARSE_INFINITY_STRING,
+            0,
+            length = maxOf(value.length - index, DURATION_PARSE_INFINITY_STRING.length),
+            ignoreCase = true,
+        )
+    ) {
         parsed = Long.MAX_VALUE
     } else {
         parsed = durationParseDefaultFormat(value, index, hasSign)

@@ -18,4 +18,6 @@ fun main() {
     println(Duration.parseIsoStringOrNull("PT0.0000000075S")?.inWholeNanoseconds)
     println(Duration.parseIsoStringOrNull("PT99999999999999999999H-99999999999999999999M") == null)
     println(Duration.parseIsoStringOrNull("PT99999999999999999999H99999999999999999999M"))
+    println(Duration.parseOrNull("ınfinity"))
+    println(Duration.parseOrNull("İnfinity"))
 }
