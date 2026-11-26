@@ -65,16 +65,7 @@ private struct JVMSourceGrammar {
         }
         try name()
         while kind == .symbol(.dot), tokens[min(index + 1, tokens.count - 1)].kind != .symbol(.lParen) { index += 1; try name() }
-        if take(.symbol(.lessThan)) {
-            repeat {
-                if !take(.symbol(.star)) {
-                    while kind == .symbol(.at) { try annotation(typeContext: true) }
-                    _ = take(.keyword(.in)) || take(.softKeyword(.out))
-                    try type()
-                }
-            } while take(.symbol(.comma))
-            try require(.symbol(.greaterThan))
-        }
+        try typeArgumentsIfPresent()
         if take(.symbol(.amp)) {
             guard case let .identifier(marker) = kind,
                   context.interner.resolve(marker) == "Any" else { throw Unsupported() }
@@ -100,6 +91,25 @@ private struct JVMSourceGrammar {
         try functionTypeParameterList()
         try require(.symbol(.arrow))
         try type()
+    }
+    mutating func typeArgumentsIfPresent() throws {
+        guard take(.symbol(.lessThan)) else { return }
+        repeat {
+            if !take(.symbol(.star)) {
+                while kind == .symbol(.at) { try annotation(typeContext: true) }
+                _ = take(.keyword(.in)) || take(.softKeyword(.out))
+                try type()
+            }
+        } while take(.symbol(.comma))
+        try require(.symbol(.greaterThan))
+    }
+    mutating func qualifiedContextReceiverSuffix() throws {
+        while kind == .symbol(.dot), tokens[min(index + 1, tokens.count - 1)].kind != .symbol(.lParen) {
+            index += 1
+            try name()
+            try typeArgumentsIfPresent()
+        }
+        _ = take(.symbol(.question))
     }
     func currentParenthesizedTypeIsReceiver() -> Bool {
         guard kind == .symbol(.lParen) else { return false }
@@ -134,6 +144,7 @@ private struct JVMSourceGrammar {
             return
         }
         try type(receiverSuffix: false)
+        try qualifiedContextReceiverSuffix()
         guard take(.symbol(.dot)) || take(.symbol(.questionDot)) else { throw Unsupported() }
         try functionTypeTail()
     }
