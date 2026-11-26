@@ -67,8 +67,6 @@ extension BuildKIRRegressionTests {
         #expect(sema.symbols.symbol(valueOfSymbol)?.kind == .function)
         #expect(sema.symbols.functionSignature(for: valueOfSymbol)?.parameterTypes.count == 1)
 
-        // Synthetic `entries` is owned by the enum class itself, not the
-        // companion (KUU-3544).
         let entriesSymbol = try #require(
             sema.symbols.lookup(fqName: osFamilyFQName + [interner.intern("entries")])
         )

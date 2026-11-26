@@ -5,7 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-3056: core java.util.Objects helpers must be available from bundled source and artifacts.
     @Test(arguments: [false, true])
     func testJavaObjectsCoreHelpersAcrossSourceAndFreshArtifact(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
@@ -34,13 +33,10 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-2068: the nullable JVM facade and existing array control must survive
-    /// serialization and execute with ordinary equals dispatch at both levels.
     @Test(arguments: [false, true])
     func testJavaObjectsDeepEqualsAcrossSourceAndFreshArtifact(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
         let source = try diffCaseSource("java_util_objects_deep_equals.kt", file: #filePath)
-        // Kotlin/JVM 2.3.10, JRE 27, -Xjdk-release=17 reference output.
         let expected = "true\nfalse\nfalse\ntrue\ntrue\nfalse\ntrue\nfalse\ntrue\ntrue\ntrue\nfalse\ntrue\ntrue\nfalse\ntrue\ntrue\ntrue\nfalse\nfalse\nfalse\nfalse\nfalse\nfalse\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse\nfalse\ntrue\ntrue\ntrue\ntrue\nfalse\nfalse\nfalse\ntrue\nfalse\nfalse\nequals\nnested: equals\n"
         try withTemporaryFile(contents: source) { path in
             for level in [OptimizationLevel.O0, .O2] {
@@ -83,8 +79,6 @@ extension StdlibArtifactRegressionTests {
         fun wrongResult(): String = Objects.deepEquals(null, null)
         """
         let missingImport = "fun missingImport(): Boolean = Objects.deepEquals(null, null)"
-        // Separate files retain independent import scopes while sharing one
-        // source-stdlib analysis; each invalid declaration must have an error.
         try withTemporaryFile(contents: invalidCalls) { importedPath in
             try withTemporaryFile(contents: missingImport) { unimportedPath in
                 let context = makeCompilationContext(
@@ -96,7 +90,6 @@ extension StdlibArtifactRegressionTests {
                 do {
                     try runSema(context)
                 } catch {
-                    // Require diagnostics from each call, not only a pipeline error.
                 }
                 for (path, lines) in [(importedPath, [2, 3, 4, 5]), (unimportedPath, [1])] {
                     let file = try #require(context.sourceManager.fileID(forPath: path))

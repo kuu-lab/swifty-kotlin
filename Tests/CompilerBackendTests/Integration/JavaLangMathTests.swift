@@ -60,9 +60,6 @@ struct JavaLangMathTests {
         #expect(result.stderr.isEmpty, "stderr: \(result.stderr)")
     }
 
-    /// KUU-4008: `import java.lang.Math.*` contributes the static facade's
-    /// members at wildcard priority — including members kotlin.math lacks —
-    /// and binds the facade object as their dispatch receiver.
     @Test(arguments: [0, 2])
     func starImportResolvesStaticMembersUnqualified(optimization: Int) throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

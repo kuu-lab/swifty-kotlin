@@ -2,10 +2,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    // KUU-1397: String.toCharArray(destination, destinationOffset, startIndex,
-    // endIndex) — the kotlin.text destination-copying overload (since Kotlin
-    // 2.0). startIndex > endIndex follows Kotlin/Native checkBoundsIndexes
-    // semantics (IllegalArgumentException).
     @Test(arguments: [true, false])
     func testStringToCharArrayDestination(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(

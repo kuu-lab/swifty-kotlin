@@ -4,11 +4,6 @@
 import Foundation
 import Testing
 
-/// KUU-3885: `===`/`!==` with exactly one primitive operand must box it
-/// through its `valueOf` factory and emit `if_acmp`, matching kotlinc.
-/// Two non-null primitives keep the value-compare path (`if_icmp*` /
-/// `dcmpg`/`fcmpg` IEEE). Previously the emitter rejected any primitive
-/// operand with KSWIFTK-JVM-0001.
 extension JVMBackendTests {
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func identityEqualityBoxesPrimitiveAgainstReferenceOperand(mode: EmitMode) throws {

@@ -1,19 +1,7 @@
-// KSP-612 / KUU-642: kotlin.DeepRecursiveFunction / DeepRecursiveScope are
-// Kotlin source (Sources/CompilerCore/Stdlib/kotlin/DeepRecursive.kt).
-//
-// The block is a suspend lambda. `callRecursive` is a suspend point that
-// records the caller continuation and returns COROUTINE_SUSPENDED; invoke
-// runs a heap trampoline loop that starts a fresh coroutine for each
-// recursive step and resumes the parked continuation with the result.
-// That keeps native stack usage O(1) in the recursion depth, matching
-// kotlin-stdlib's DeepRecursiveScopeImpl.runCallLoop.
-
 import Foundation
 
 final class RuntimeDeepRecursiveFunctionBox {
-    /// CPS launcher thunk: `(continuation, outThrown) -> Int`.
     let fnPtr: Int
-    /// Lowered state-machine symbol id, used as `kk_coroutine_continuation_new` functionID.
     let functionID: Int
     let closureRaw: Int
     /// Number of launcher-arg slots the thunk reads. The last two are always
@@ -28,15 +16,11 @@ final class RuntimeDeepRecursiveFunctionBox {
     }
 }
 
-/// Sentinel `cont` meaning "resume the cross-function restore trampoline".
 private let deepRecursiveCrossFunctionSentinel = -1
 
 final class RuntimeDeepRecursiveScopeBox {
     var currentFunction: RuntimeDeepRecursiveFunctionBox
     var value: Int = 0
-    /// Completion for the invocation about to start. `0` is the root `invoke`
-    /// caller; `deepRecursiveCrossFunctionSentinel` restores the previous
-    /// function before resuming the parked continuation.
     var cont: Int = 0
 
     var crossFunctionStack: [(restore: RuntimeDeepRecursiveFunctionBox, originalCont: Int)] = []
@@ -109,11 +93,6 @@ private func runtimeDeepRecursiveScopeBox(from rawValue: Int) -> RuntimeDeepRecu
     resolveRuntimeHandle(rawValue, as: RuntimeDeepRecursiveScopeBox.self)
 }
 
-/// KUU-3701: the trampoline's scope/function boxes are runtime objects with
-/// no object type metadata, yet they stand in for the public
-/// kotlin.DeepRecursive* classes — recover that nominal identity so
-/// `is`/`as` checks (including the receiver cast a suspend function value
-/// adapter emits for `DeepRecursiveScope<T, R>.() -> R`) match kotlinc.
 func runtimeDeepRecursiveNominalTypeID(rawValue: Int) -> Int64? {
     if runtimeDeepRecursiveScopeBox(from: rawValue) != nil {
         return runtimeStableNominalTypeID(fqName: "kotlin.DeepRecursiveScope")
@@ -349,8 +328,6 @@ private func runtimeRunDeepRecursiveTrampoline(
     }
 }
 
-/// Fallback used when the constructor was not rewritten to a CPS entry point.
-/// Still propagates block exceptions through `outThrown` instead of fatalError.
 private func runtimeInvokeDeepRecursiveLegacy(
     _ function: RuntimeDeepRecursiveFunctionBox,
     _ value: Int,

@@ -3,14 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// KUU-961: A bare `::name` callable reference must not resolve to an
-/// extension function or extension property — kotlinc reports
-/// `unresolved reference` for `::ext` where `ext` is `fun Int.ext()`.
-/// Extensions are only reachable through `Type::ext`, `obj::ext`, or the
-/// implicitly-bound `::ext` form inside a receiver scope. Member
-/// functions that are also extensions (`fun Int.ext()` inside a class)
-/// are unreferenceable in every `::` form ("member and an extension at
-/// the same time" is prohibited).
 @Suite
 struct CallableReferenceExtensionReceiverTests {
 
@@ -29,8 +21,6 @@ struct CallableReferenceExtensionReceiverTests {
             )
         }
     }
-
-    // MARK: - Bare `::` must reject extension declarations
 
     @Test func testBareCallableRefRejectsExtensionFunction() throws {
         let source = """
@@ -103,8 +93,6 @@ struct CallableReferenceExtensionReceiverTests {
             "Bare `::local` to a local extension must be rejected"
         )
     }
-
-    // MARK: - Member-extensions are unreferenceable in every `::` form
 
     @Test func testMemberExtensionRejectedViaThis() throws {
         let source = """
@@ -199,8 +187,6 @@ struct CallableReferenceExtensionReceiverTests {
             "`::tag` inside `with(4)` must reject a String extension (receiver mismatch)"
         )
     }
-
-    // MARK: - Legal forms must keep working
 
     @Test func testTypeQualifiedExtensionFunctionReference() throws {
         let source = """
@@ -370,10 +356,6 @@ struct CallableReferenceExtensionReceiverTests {
         let signature = try #require(sema.symbols.functionSignature(for: binding.chosenCallee))
         #expect(signature.reifiedTypeParameterIndices == Set([0]))
         #expect(binding.substitutedTypeArguments.count == 1)
-        // `String` in `String::id` resolves to the canonical `.stringStruct`
-        // builtin TypeID (`sema.types.stringType`); the `kotlin.String` class
-        // symbol is only the nominal member-surface disguise that `isSubtype`
-        // normalizes back to it. Accept either representation.
         let reifiedArgument = binding.substitutedTypeArguments[0]
         let isKotlinString: Bool
         if reifiedArgument == sema.types.stringType {
@@ -767,8 +749,6 @@ struct CallableReferenceExtensionReceiverTests {
     }
 
     @Test func testTypeParameterReceiverExtensionHonorsUpperBoundForReference() throws {
-        // `Foo` cannot bind `R : CharSequence`, so only `Foo.zap` is a
-        // candidate; since #11436 a second candidate made this ambiguous.
         let ctx = makeContextFromSource("""
         class Foo
         fun Foo.zap(x: Int) = 1

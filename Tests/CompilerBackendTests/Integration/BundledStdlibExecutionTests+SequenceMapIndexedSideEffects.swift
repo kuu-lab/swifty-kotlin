@@ -1,10 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// KUU-3809: Sequence.mapIndexed()/withIndex() iterators must not probe the
-    /// source iterator's hasNext() from inside next(). The extra call (one per
-    /// element) made a for loop invoke source hasNext() 2n+1 times instead of
-    /// n+1, observable through a counting iterator (JVM parity).
     @Test
     func testSequenceMapIndexedAndWithIndexSourceHasNextCount() throws {
         try compileAndRunKotlin(

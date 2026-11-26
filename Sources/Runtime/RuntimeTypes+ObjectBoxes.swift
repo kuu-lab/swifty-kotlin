@@ -4,9 +4,6 @@ class RuntimeArrayBox {
     private final class Storage {
         var values: [RuntimeValue]
         var componentType: Int?
-        // Allocated only by the typed Pinned<ByteArray>.addressOf bridge. Same
-        // storage is shared by primitive views. All Kotlin reads/writes below
-        // reconcile with this stable byte buffer while it exists.
         var nativeBytes: UnsafeMutableBufferPointer<UInt8>?
         deinit { nativeBytes?.deallocate() }
         func pullBytes() {
@@ -18,7 +15,6 @@ class RuntimeArrayBox {
             precondition(bytes.count == values.count)
             for i in values.indices { bytes[i] = UInt8(truncatingIfNeeded: values[i].legacyRawValue) }
         }
-        // Canonical handles preserve identity when views are repeated or reversed.
         var viewHandles: [Int64: Int] = [:]
         let viewLock = NSLock()
 
@@ -31,8 +27,6 @@ class RuntimeArrayBox {
 
     var gcStorageID: ObjectIdentifier { ObjectIdentifier(storage) }
 
-    /// Mutate shared array/object fields and their managed-heap roots under
-    /// one lock. Primitive byte storage cannot contain managed references.
     private func mutateObjectFields(index: Int? = nil, _ mutation: () -> Void) {
         storage.viewLock.lock()
         defer { storage.viewLock.unlock() }
@@ -135,9 +129,6 @@ class RuntimeArrayBox {
         }
     }
 
-    /// O(1) single-element access. Prefer this over `elements[i]` inside loops:
-    /// `elements` materializes the whole array on every get/set, making per-index
-    /// loop access O(n) per iteration.
     subscript(index: Int) -> Int {
         get {
             storage.viewLock.lock()
@@ -166,8 +157,6 @@ class RuntimeArrayBox {
         return storage.values[index]
     }
 
-    /// Stores a raw field value together with the static tag needed by
-    /// Any-erased operations such as `hashCode()`.
     func setValue(_ value: Int, at index: Int, anyFallbackTag: Int32) {
         mutateObjectFields(index: index) {
             if let bytes = storage.nativeBytes { bytes[index] = UInt8(truncatingIfNeeded: value) }
@@ -268,12 +257,8 @@ final class RuntimeObjectBox: RuntimeArrayBox {
     var backingMapBox: RuntimeMapBox?
     var backingMapRaw: Int = 0
     var throwableMessage: String?
-    /// Same role as `RuntimeThrowableBox.messageRaw` for source-defined
-    /// Throwable subclasses: preserves the constructor `message` handle so
-    /// `e.message === arg` holds like on the JVM.
     var throwableMessageRaw: Int = 0
     var throwableCause: Int
-    /// JVM parity for `Throwable.initCause` (see `RuntimeThrowableBox.causeInitialized`).
     var throwableCauseInitialized: Bool
     var throwableStackTraceAddresses: [Int]?
     var throwableStackTraceFrames: [RuntimeLogicalStackTraceFrame]?
@@ -281,10 +266,6 @@ final class RuntimeObjectBox: RuntimeArrayBox {
     var throwableSuppressed: [Int]
     var throwableSuppressionEnabled: Bool
     var throwableWritableStackTrace: Bool
-    /// Set when an annotation instance is materialized through reflection
-    /// (`KClass.annotations` / `findAnnotation`); JVM renders such instances
-    /// with proxy-style quoted String/Char members while directly constructed
-    /// instances keep the bare kotlinc-style rendering.
     var annotationReflectionMaterialized = false
 
     init(length: Int, classID: Int64) {
@@ -308,8 +289,6 @@ final class RuntimeObjectBox: RuntimeArrayBox {
 final class RuntimePairBox {
     let firstValue: RuntimeValue
     private(set) var secondValue: RuntimeValue
-    // MutableMap.MutableEntry pairs retain the destination map so entry.value
-    // and setValue() observe subsequent mutations through the live view.
     var mutableMapRaw: Int = 0
     var mutableMapKey: Int = 0
 
@@ -359,35 +338,21 @@ final class RuntimeTripleBox {
 
 final class RuntimeIntBox {
     let value: Int
-    /// Kotlin type identity, independent of the shared payload/hash representation.
     let primitiveTypeBase: Int64
 
     var renderedString: String {
         if let enumEntryName {
             return enumEntryName
         }
-        // A UIntArray view may box a sign-extended signed backing word.
         if primitiveTypeBase == RuntimeTypeTokenEncoding.uintBase {
             return String(UInt32(truncatingIfNeeded: value))
         }
         return String(value)
     }
 
-    /// Static Any-fallback tag captured at the boxing boundary. UInt, UByte,
-    /// and UShort share this physical box with Int, but their hashCode() must
-    /// reinterpret the zero-extended payload as the signed backing type.
     let anyFallbackTag: Int32
 
-    /// Set when this box represents a Kotlin enum ordinal (an element of
-    /// `values()`/`entries`) round-tripped through an Any-erased array slot.
-    /// Generic Any-printing paths (__kk_print_raw, runtimeRenderAnyForPrint,
-    /// runtimeElementToString) check this to show the entry name instead of
-    /// the raw ordinal once the static enum type has been erased. See
-    /// kk_enum_box_ordinal.
     let enumEntryName: String?
-    /// Stable nominal ID for the enum class represented by this box. Unlike a
-    /// plain boxed Int, enum equality must keep two entries from different
-    /// enum classes unequal even when their ordinals match.
     let enumClassID: Int64?
 
     init(
@@ -419,9 +384,6 @@ final class RuntimeBoolBox {
     }
 }
 
-/// Boxed Kotlin Unit for Any-erased storage. Direct Unit values remain the
-/// compiler's raw zero representation; this box is used only at reference
-/// boundaries where Any must retain the value's runtime identity.
 final class RuntimeUnitBox {}
 
 final class RuntimeLongBox {
@@ -432,11 +394,7 @@ final class RuntimeLongBox {
     }
 }
 
-/// Boxed `ULong`. Distinct from `RuntimeLongBox` so that boxed-`Any` dispatch
-/// (toString/equals/hashCode/compareTo/`is`) can tell a ULong apart from a
-/// Long with the same 64-bit pattern — see docs on `kk_box_ulong`.
 final class RuntimeULongBox {
-    /// Raw 64-bit pattern; interpret via `UInt(bitPattern:)` for the true unsigned value.
     let value: Int
 
     init(_ value: Int) {
@@ -493,32 +451,19 @@ struct RuntimeCallableRefMetadata {
     var property: Int = 0
     var returnTypeKTypeRaw: Int = 0
     var annotations: [RuntimeAnnotationRecord] = []
-    /// Canonical callable target and captures used by callable-reference equality.
     var identityTargetRaw: Int = 0
     var identityCaptures: [Int] = []
-    /// Memoized `KProperty.getter`/`KMutableProperty.setter` accessor handles
-    /// (KUU-4091). The JVM caches each accessor on the property-reference
-    /// instance, so repeated `ref.getter`/`ref.setter` evaluations on the same
-    /// reference must return the same accessor object — and with it the same
-    /// parameter boxes.
     var getterAccessor: Int = 0
     var setterAccessor: Int = 0
 }
 
-/// Equality identity for a callable-reference adapter. SAM adapters carry a
-/// nonzero interface type ID; ordinary function-type adapters use zero.
 struct RuntimeCallableAdapterIdentity {
-    /// Stable nominal type ID of the implemented `fun interface`, or zero for
-    /// an ordinary function-type adapter.
     let samInterfaceTypeID: Int64
-    /// Referenced callable's function address (the delegate's target).
     let targetRaw: Int
-    /// Function type's return type name, used to distinguish Unit coercions.
     let returnTypeRaw: Int
     let arity: Int
     let isSuspend: Bool
     let modifierFlags: Int
-    /// Bound captures (e.g. the receiver of a bound member reference).
     let captures: [Int]
 }
 
@@ -535,10 +480,6 @@ final class RuntimeFunctionValueBox {
         self.suspendEntryPoint = suspendEntryPoint
     }
 }
-
-// These conformances enable the recursive BFS freeze in kk_freeze_object to
-// traverse all reachable object references when freezing an object graph.
-// Only types that store `Int` child handles need to conform.
 
 extension RuntimeArrayBox: RuntimeChildReferenceProviding {
     var childRefs: [Int] {

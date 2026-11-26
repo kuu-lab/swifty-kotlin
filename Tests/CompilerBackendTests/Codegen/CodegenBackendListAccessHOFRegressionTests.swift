@@ -3,8 +3,6 @@ import Foundation
 #if canImport(Testing)
 import Testing
 
-// KSP-424 regression tests: List access helpers must lower to bundled Kotlin
-// source rather than stale kk_* runtime entries.
 @Suite
 struct CodegenBackendListAccessHOFRegressionTests {
 

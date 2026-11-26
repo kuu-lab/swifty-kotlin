@@ -526,7 +526,8 @@ extension ExprTypeChecker {
             if let lambdaLocal = lambdaLocals.binding(named: name, matching: outerLocal.symbol),
                lambdaLocal.isInitialized,
                returnLocalStates.allSatisfy({ state in
-                   state.containsInitializedBinding(for: outerLocal.symbol)
+                   state.finallyInitializedSymbols.contains(outerLocal.symbol)
+                       || state.locals.containsInitializedBinding(for: outerLocal.symbol)
                })
             {
                 callsInPlaceInitializedSymbols.append(outerLocal.symbol)

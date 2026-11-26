@@ -136,8 +136,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// The inline callee's own labels (`run2` below defines low-numbered ones)
-    /// must not capture the lambda's break/continue targets in the caller.
     @Test(arguments: [true, false])
     func testKUU2732InlineLambdaBreakContinueWithCalleeLabels(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(

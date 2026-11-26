@@ -170,9 +170,6 @@ public func kk_sequence_toSortedSet(_ seqRaw: Int) -> Int {
         }
         return lhs.offset < rhs.offset
     }.map(\.element)
-    // KUU-1361: the result is a real sorted box so SortedSet members
-    // (first/last/comparator) work on it; `SortedSet` remains the declared
-    // Kotlin return type.
     let box = RuntimeSetBox(values: runtimeDeduplicatePreservingOrder(sorted))
     box.enableSorted(comparatorRaw: 0)
     return registerRuntimeObject(box, typeID: treeSetRuntimeTypeID)
@@ -190,8 +187,6 @@ public func kk_sequence_toMap(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<I
         }
         var keys: [Int] = []
         var values: [Int] = []
-        // Dictionary mapping key index in `keys` for O(1) duplicate-key lookup.
-        // Uses RuntimeElementKey to respect runtimeValuesEqual semantics (e.g. String content equality).
         var keyIndexByRuntimeKey: [RuntimeElementKey: Int] = [:]
         for element in collected {
             guard let pointer = UnsafeMutableRawPointer(bitPattern: element) else {
@@ -352,9 +347,6 @@ public func kk_sequence_flatten(_ seqRaw: Int) -> Int {
 public func kk_sequence_plus(_ seqRaw: Int, _ otherRaw: Int) -> Int {
     let lhsElements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
     let rhsElements = runtimeSequenceSourceElementsOrPanic(from: otherRaw, caller: #function)
-    // Single-allocation concatenation: create an array with the exact
-    // final capacity up front so there are no intermediate reallocations
-    // or copy-on-write copies.
     let totalCount = lhsElements.count + rhsElements.count
     let combined = [Int](unsafeUninitializedCapacity: totalCount) { buffer, initializedCount in
         var idx = 0
@@ -376,13 +368,6 @@ public func kk_sequence_plus_element(_ seqRaw: Int, _ element: Int) -> Int {
 public func kk_sequence_minus(_ seqRaw: Int, _ element: Int) -> Int {
     let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
     var result = elements
-    // NOTE: runtimeValuesEqual compares primitives (Int, String, Bool, etc.)
-    // by value but falls back to pointer identity for collection types
-    // (List, Set, Map).  This means `minus` cannot remove collection
-    // elements by structural equality (e.g., two distinct `listOf(1)`
-    // instances).  This is a known limitation; fixing it requires adding
-    // recursive structural comparison to runtimeValuesEqual, which is
-    // tracked separately.
     if let index = result.firstIndex(where: { runtimeLookupValuesEqual($0, element) }) {
         result.remove(at: index)
     }

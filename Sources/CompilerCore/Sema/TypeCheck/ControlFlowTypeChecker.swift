@@ -205,11 +205,16 @@ final class ControlFlowTypeChecker {
             chosenCallee: nextChosen
         )
 
-        let elementType = TypeCheckHelpers().mapEntryElementType(
+        // A Map's stdlib iterator() yields its entries, but a user-declared
+        // iterator() operator on a map type decides its own element type.
+        let usesStdlibMapIterator = iteratorCall.map {
+            isKotlinPackageSymbol($0.chosenCallee, sema: sema, interner: interner)
+        } ?? true
+        let elementType = (usesStdlibMapIterator ? TypeCheckHelpers().mapEntryElementType(
             for: nonNullIterableType,
             sema: sema,
             interner: interner
-        ) ?? substituteResolvedType(
+        ) : nil) ?? substituteResolvedType(
             nextSignature.returnType,
             signature: nextSignature,
             substitutedTypeArguments: nextResolution.call.substitutedTypeArguments,
@@ -464,6 +469,14 @@ final class ControlFlowTypeChecker {
             nullability: .nonNull
         )))
         return sema.types.isSubtype(sema.types.makeNonNullable(type), iteratorType)
+    }
+
+    private func isKotlinPackageSymbol(
+        _ symbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        sema.symbols.symbol(symbol)?.fqName.first == interner.intern("kotlin")
     }
 
     private func isStdlibIteratorIdentityExtension(
@@ -1432,8 +1445,10 @@ final class ControlFlowTypeChecker {
             branchCtx.isUnitCoercionContext = false
         }
         branchCtx.isConditionallyEvaluated = false
-        if finallyExpr != nil {
-            branchCtx.enclosingTryFinallyDepth += 1
+        let finallyReturnScopes = finallyExpr == nil ? [] : ctx.lambdaReturnScopes
+        let pendingReturnStartIndices = finallyReturnScopes.map(\.pendingFinallyReturnStates.count)
+        for scope in finallyReturnScopes {
+            scope.openFinallyRegionCount += 1
         }
 
         var tryBodyLocals = preTryLocals
@@ -1493,11 +1508,38 @@ final class ControlFlowTypeChecker {
             }
         }
 
+        for scope in finallyReturnScopes {
+            scope.openFinallyRegionCount -= 1
+        }
+
         mergeNullableBranchAssignments(normalCompletionLocals, sema: sema, locals: &locals)
 
         if let finallyExpr {
             var finallyLocals = locals
+            let pendingReturnEndIndices = finallyReturnScopes.map(\.pendingFinallyReturnStates.count)
             _ = driver.inferExpr(finallyExpr, ctx: ctx, locals: &finallyLocals, expectedType: nil, isStatementContext: true)
+            let finallyCompletesNormally = !finallyAlwaysJumps(finallyExpr, ctx: ctx)
+            var finallyInitializedSymbols: Set<SymbolID> = []
+            for (name, local) in preTryLocals where !local.isInitialized {
+                if let finalLocal = finallyLocals[name], finalLocal.symbol == local.symbol, finalLocal.isInitialized {
+                    finallyInitializedSymbols.insert(local.symbol)
+                }
+            }
+            for (scopeIndex, scope) in finallyReturnScopes.enumerated() {
+                let startIndex = pendingReturnStartIndices[scopeIndex]
+                let endIndex = pendingReturnEndIndices[scopeIndex]
+                if finallyCompletesNormally {
+                    for index in startIndex ..< endIndex {
+                        scope.pendingFinallyReturnStates[index].finallyInitializedSymbols.formUnion(finallyInitializedSymbols)
+                    }
+                } else {
+                    scope.pendingFinallyReturnStates.removeSubrange(startIndex ..< endIndex)
+                }
+                if scope.openFinallyRegionCount == 0 {
+                    scope.returnLocalStates.append(contentsOf: scope.pendingFinallyReturnStates[startIndex...])
+                    scope.pendingFinallyReturnStates.removeSubrange(startIndex...)
+                }
+            }
             locals = finallyLocals
         }
 
@@ -1530,6 +1572,19 @@ final class ControlFlowTypeChecker {
         let resolvedType = sema.types.lub(branchTypes)
         sema.bindings.bindExprType(id, type: resolvedType)
         return resolvedType
+    }
+
+    private func finallyAlwaysJumps(_ expr: ExprID, ctx: TypeInferenceContext) -> Bool {
+        switch ctx.ast.arena.expr(expr) {
+        case .throwExpr, .returnExpr, .breakExpr, .continueExpr:
+            return true
+        case .call, .memberCall:
+            return ctx.sema.bindings.exprType(for: expr) == ctx.sema.types.nothingType
+        case let .blockExpr(statements, trailingExpr, _):
+            return (statements + [trailingExpr].compactMap { $0 }).contains { finallyAlwaysJumps($0, ctx: ctx) }
+        default:
+            return false
+        }
     }
 
     private func resolveCatchClauseParameterType(

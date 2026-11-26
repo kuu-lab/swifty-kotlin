@@ -6,8 +6,6 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
-    /// KUU-3020: a user class with an implicit no-arg constructor must not emit
-    /// a call to Any.<init> when the stdlib is imported from a library artifact.
     @Test
     func testImplicitNoArgConstructorLinksWithSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()

@@ -14,7 +14,6 @@ struct SerializationJsonPrimitiveTests {
         try String(contentsOf: repository.appendingPathComponent("Scripts/reference_cases/serialization_json_primitive.\(suffix)"), encoding: .utf8)
     }
 
-    // Source-mode O2 also compiles the entire bundled stdlib at O2; that lane is blocked by KUU-2241.
     @Test(arguments: [(false, 0), (false, 2), (true, 0)])
     func primitiveValuesMatchPublishedJVM(fromSource: Bool, optimization: Int) throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

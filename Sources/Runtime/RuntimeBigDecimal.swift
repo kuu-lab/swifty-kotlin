@@ -1,6 +1,6 @@
 import Foundation
 
-private struct RuntimeBigDecimalParts {
+struct RuntimeBigDecimalParts {
     var digits: String
     var negative: Bool
     var scale: Int
@@ -11,7 +11,7 @@ private enum RuntimeBigDecimalError: Error {
     case nonTerminating
 }
 
-private func runtimeBigDecimalParts(_ source: String) throws -> RuntimeBigDecimalParts {
+func runtimeBigDecimalParts(_ source: String) throws -> RuntimeBigDecimalParts {
     var index = source.startIndex
     var negative = false
     if index < source.endIndex, source[index] == "+" || source[index] == "-" {
@@ -135,7 +135,6 @@ private func runtimeMultiplyMagnitudes(_ lhs: String, _ rhs: String) -> String {
     return String(result.reversed().map { Character(String($0)) })
 }
 
-/// Returns quotient and remainder for nonnegative decimal magnitudes.
 private func runtimeDivideMagnitudes(_ dividend: String, _ divisor: String) -> (String, String) {
     precondition(divisor != "0")
     var quotient = ""

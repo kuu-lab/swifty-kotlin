@@ -49,37 +49,31 @@ struct BareGenericCastTests {
         }
 
         let expectedCasts: [ExpectedCast] = [
-            // direct: x as Child
             ExpectedCast(
                 args: { [.invariant($0.stringType), .invariant($0.intType)] },
                 targetNullability: .nonNull,
                 resultNullability: .nonNull
             ),
-            // inherited: x as Child
             ExpectedCast(
                 args: { [.invariant($0.stringType), .invariant($0.intType)] },
                 targetNullability: .nonNull,
                 resultNullability: .nonNull
             ),
-            // safe: x as? Child
             ExpectedCast(
                 args: { [.invariant($0.stringType), .invariant($0.intType)] },
                 targetNullability: .nonNull,
                 resultNullability: .nullable
             ),
-            // nullable: x as Child?
             ExpectedCast(
                 args: { [.invariant($0.stringType), .invariant($0.intType)] },
                 targetNullability: .nullable,
                 resultNullability: .nullable
             ),
-            // explicit: x as Child<Int, String>
             ExpectedCast(
                 args: { [.invariant($0.intType), .invariant($0.stringType)] },
                 targetNullability: .nonNull,
                 resultNullability: .nonNull
             ),
-            // projected: x as Child<*, *>
             ExpectedCast(
                 args: { _ in [.star, .star] },
                 targetNullability: .nonNull,

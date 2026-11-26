@@ -29,9 +29,6 @@ public class ProducerScope<in E> : CoroutineScope, SendChannel<E> {
     public override val coroutineContext: CoroutineContext
         get() = __kkProducerScopeContext(this)
 
-    // KUU-4072: `SendChannel.isClosedForSend` is an interface member now;
-    // the scope instance is the raw channel handle, so the override bridges
-    // to the same kk_channel_is_closed_for_send entry point.
     @KsSymbolName("kk_channel_is_closed_for_send")
     public override val isClosedForSend: Boolean
         get() = __kkProducerScopeIsClosedForSend(this) != 0

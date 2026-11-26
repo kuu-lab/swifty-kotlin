@@ -83,8 +83,6 @@ struct CharArraySumOfSelectorTypeTests {
         let calls = memberCallExprIDs(named: "sumOf", in: ast, interner: ctx.interner)
             .filter { isUserSourceExpr($0, in: ctx) }
         #expect(calls.count == 4)
-        // Error recovery may retain a binding to the sole Int overload. The
-        // per-call errors above must still reject every unsupported selector.
         for call in calls {
             if let binding = sema.bindings.callBinding(for: call) {
                 let signature = try #require(sema.symbols.functionSignature(for: binding.chosenCallee))

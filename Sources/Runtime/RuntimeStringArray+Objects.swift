@@ -105,8 +105,6 @@ public func kk_object_register_vtable_method(
     return 0
 }
 
-/// Registers the most-specific user implementation of `Any.equals` for an
-/// object whose equality may later be evaluated through an erased type.
 @_cdecl("kk_object_register_equals_override")
 public func kk_object_register_equals_override(_ objectRaw: Int, _ functionRaw: Int) -> Int {
     guard functionRaw != 0,
@@ -121,8 +119,6 @@ public func kk_object_register_equals_override(_ objectRaw: Int, _ functionRaw: 
     return 0
 }
 
-/// Registers the most-specific user implementation of `Any.hashCode` so that
-/// hashed collections, which only see an erased handle, honor it.
 @_cdecl("kk_object_register_hashcode_override")
 public func kk_object_register_hashcode_override(_ objectRaw: Int, _ functionRaw: Int) -> Int {
     guard functionRaw != 0,
@@ -154,12 +150,6 @@ public func kk_object_register_any_to_string(
     return 0
 }
 
-/// Registers the Any-erased toString bridge for a value class or ordinal enum.
-/// The producer owns enum entry dispatch, including private implementations;
-/// consumers and reified token boxes reuse it through the stable nominal ID.
-/// Value classes use boxed underlying primitives at reference boundaries, so
-/// the nominal class ID is the stable dispatch key rather than an object
-/// pointer.
 @_cdecl("kk_value_class_register_any_to_string")
 public func kk_value_class_register_any_to_string(
     _ classID: Int,

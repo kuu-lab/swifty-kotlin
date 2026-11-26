@@ -5,8 +5,6 @@ import Foundation
 import Testing
 
 extension JVMBackendTests {
-    /// KUU-4529: the JVM source validator must accept a line break before
-    /// Elvis and annotations on catch parameters, matching kotlinc.
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func kuu4529ElvisNewlineTakeIfAndAnnotatedCatch(mode: EmitMode) throws {
         let source = #"""
@@ -33,7 +31,6 @@ extension JVMBackendTests {
         }
     }
 
-    /// KUU-4529: `List.slice(IntRange)` lowers through the JDK List view.
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func kuu4529ListSliceIntRange(mode: EmitMode) throws {
         let source = #"""
@@ -50,8 +47,6 @@ extension JVMBackendTests {
         }
     }
 
-    /// KUU-4529: `kotlin.io.path.Path` factories and extension queries route to
-    /// `java.nio.file` on the JVM lane.
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func kuu4529PathFactoriesAndQueries(mode: EmitMode) throws {
         let source = #"""

@@ -12,7 +12,6 @@ import kotlinx.atomicfu.AtomicBoolean
 import kotlinx.atomicfu.AtomicRef
 import kotlinx.atomicfu.atomic
 
-/** Explicit factory; delegate always uses ordinary Native None tracing. */
 public fun recordingAtomic(initial: Int, trace: TraceBase = RecordingTrace()): RecordingAtomicInt =
     RecordingAtomicInt(atomic(initial), trace)
 
@@ -79,7 +78,6 @@ public class RecordingAtomicInt internal constructor(
     override fun toString(): String = value.toString()
 }
 
-/** Explicit factory; delegate always uses ordinary Native None tracing. */
 public fun recordingAtomic(initial: Long, trace: TraceBase = RecordingTrace()): RecordingAtomicLong =
     RecordingAtomicLong(atomic(initial), trace)
 
@@ -146,7 +144,6 @@ public class RecordingAtomicLong internal constructor(
     override fun toString(): String = value.toString()
 }
 
-/** Explicit factory; delegate always uses ordinary Native None tracing. */
 public fun recordingAtomic(initial: Boolean, trace: TraceBase = RecordingTrace()): RecordingAtomicBoolean =
     RecordingAtomicBoolean(atomic(initial), trace)
 
@@ -181,7 +178,6 @@ public class RecordingAtomicBoolean internal constructor(
     override fun toString(): String = value.toString()
 }
 
-/** Explicit factory; delegate always uses ordinary Native None tracing. */
 public fun <T> recordingAtomic(initial: T, trace: TraceBase = RecordingTrace()): RecordingAtomicRef<T> =
     RecordingAtomicRef(atomic<T>(initial), trace)
 

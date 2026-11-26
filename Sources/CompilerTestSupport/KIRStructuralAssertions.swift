@@ -2,8 +2,6 @@
 @testable import CompilerCore
 import Testing
 
-/// Test vocabulary for compiler/runtime boundaries. Keep ABI spelling here;
-/// assertions inspect interned targets and the call's operands and effects.
 enum KIRRuntimeFunction {
     case arrayNewChecked, arrayGet, arrayGetInbounds, arraySet
     case objectNew, objectTypeID, registerITableInterface, registerITableMethod, abortUnreachable
@@ -98,8 +96,6 @@ struct KIRCallSite {
     let qualifiedSuperType: SymbolID?
 }
 
-/// Preserve instruction indices so ordering checks share the same call view
-/// as argument, result, and exception-routing checks.
 func kirCalls(in body: [KIRInstruction]) -> [KIRCallSite] {
     body.enumerated().compactMap { index, instruction in
         guard case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType) = instruction

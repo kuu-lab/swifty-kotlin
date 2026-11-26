@@ -5,12 +5,6 @@
 import Foundation
 import Testing
 
-// BUG-167: `for (x in xs)` over a value statically typed as an iterable
-// *interface* (`Iterable<T>`, `Collection<T>`, ...) or as a source class
-// implementing `Iterable` bound no `iterator()` in Sema, so lowering fell
-// through to the range-iterator intrinsics and reinterpreted the collection
-// object as a range, yielding garbage elements.
-
 @Suite
 struct CodegenBackendInterfaceIterableForLoopTests {
 
@@ -196,8 +190,6 @@ struct CodegenBackendInterfaceIterableForLoopTests {
         }
     }
 
-    // KUU-3383: name-based destructuring must follow property names when their
-    // order differs from componentN.
     @Test
     func testNameBasedForLoopDestructuringBindsByPropertyName() throws {
         let source = """
@@ -400,17 +392,6 @@ struct CodegenBackendInterfaceIterableForLoopTests {
         #expect(callees.contains(try compilerInternalCallee("int_range_induction_le")), "IntRange induction loop should compare bounds, got: \(callees)")
     }
 
-    // BUG-231: `for (x in xs)` where `xs` is statically `List<T>`/`Set<T>`
-    // (or a Mutable variant) and the concrete object is a hand-written class
-    // implementing that interface directly (not a native runtime-backed
-    // collection) silently ran zero iterations. Sema resolves these through
-    // `kotlin.collections.Collection.iterator()`, whose runtime bridge
-    // (`kk_list_iterator`) only recognized native list/set/array boxes and
-    // fell back to an iterator over zero elements for anything else, instead
-    // of dispatching to the object's own `iterator()` override like the
-    // sibling bridges (`kk_iterable_iterator`, `__kk_range_iterator`) already
-    // do for bare `Iterable<T>`.
-
     @Test
     func testConcreteListInterfaceSourceClassForLoopIteration() throws {
         let source = """
@@ -477,10 +458,6 @@ struct CodegenBackendInterfaceIterableForLoopTests {
 
     @Test
     func testConcreteListInterfaceSourceClassWithFullyCustomIteratorForLoopIteration() throws {
-        // Unlike the two tests above, this iterator does not delegate to a
-        // native list/set at all, exercising the kk_list_iterator_hasNext /
-        // kk_list_iterator_next fallback to the generic kk_iterator_* path
-        // (RuntimeCollections.swift), not just the kk_list_iterator fallback.
         let source = """
         class CustomIntIterator : Iterator<Int> {
             var i = 0

@@ -79,10 +79,6 @@ extension JVMBackendTests {
         }
     }
 
-    // KUU-4302: range expressions keep a scalar element-type handle during
-    // Sema, so `removeAll(2..4)` used to bind the `Collection` member and the
-    // JVM bridge crashed with a ClassCastException. The bulk extensions must
-    // materialize the range through the `Iterable` overload instead.
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func mutableCollectionBulkCallsAcceptRangeArguments(mode: EmitMode) throws {
         let library = try ownStdlibRuntime()

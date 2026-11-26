@@ -80,8 +80,6 @@ struct IOAppleInteropExecutionTests {
         defer { stdlib?.expectUnchanged() }
         let sourceManifest = BundledStdlib.manifestHash()
         let files = FileManager.default
-        // Stage under the uploaded receipt root before any compile/assertion.
-        // An error retains its sources, producer, objects and executable here.
         let receiptRoot = ProcessInfo.processInfo.environment["KSWIFTK_IO1763_RECEIPT_DIRECTORY"]
             .map { URL(fileURLWithPath: $0, isDirectory: true) }
             ?? files.temporaryDirectory.appendingPathComponent("KUU1763-runtime-receipts", isDirectory: true)
@@ -122,8 +120,6 @@ struct IOAppleInteropExecutionTests {
         }
         var successfulChecksFinished = false
         defer {
-            // The producer is removed by owned successful cleanup below.
-            // Failed compile/run/check paths retain it and still check its hashes.
             if !successfulChecksFinished { producer?.expectUnchanged() }
         }
         let inputPaths = producerLibrary ? [staged.consumer.path] : staged.producer.map(\.path) + [staged.consumer.path]
@@ -162,8 +158,6 @@ struct IOAppleInteropExecutionTests {
         try producer?.requireUnchanged()
         try #require(BundledStdlib.manifestHash() == sourceManifest)
         successfulChecksFinished = true
-        // Failures preserve the entire UUID directory. Successes retain raw
-        // output and all generated hashes before removing only owned artifacts.
         try io1763CleanupSuccessful(
             directory: directory, ownerRoot: receiptRoot, executable: executable, executableHash: executableHash,
             receiptBase: receiptBase, stdout: Data(result.stdout.utf8), expected: staged.expected,
@@ -199,8 +193,6 @@ func io1763ArtifactHashes(_ directory: URL) throws -> [String: String] {
     return hashes
 }
 
-// In-process compiler diagnostics have no raw compiler argv/stdout API.
-// Persist observed exit/diagnostics and actual file bytes/hashes before assertion.
 private func io1763CompileReceipt(
     options: CompilerOptions, result: (exitCode: Int, diagnostics: [Diagnostic]),
     directory: URL, receipt: URL
@@ -225,8 +217,6 @@ private func io1763CompileReceipt(
         .write(to: receipt, options: .atomic)
 }
 
-// Same ownership/proof-before-cleanup policy as the staged KUU1767 helper;
-// actual timeout is 30s here and raw stdout/stderr remain outside the UUID tree.
 private func io1763CleanupSuccessful(
     directory: URL, ownerRoot: URL, executable: URL, executableHash: String, receiptBase: URL,
     stdout: Data, expected: Data, lane: String, stdlib: IOAppleArtifactSnapshot?,
@@ -318,7 +308,6 @@ private func io1763RunKeepingFailureEvidence(
             try JSONSerialization.data(withJSONObject: proof, options: [.prettyPrinted, .sortedKeys])
                 .write(to: receiptBase.appendingPathExtension("failure.json"), options: .atomic)
         } catch {
-            // Receipt IO failure must not replace the native/runner failure.
             Issue.record("Unable to persist KUU1763 failure evidence: \(error)")
         }
         throw runError

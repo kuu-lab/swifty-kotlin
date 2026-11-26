@@ -3,13 +3,6 @@
 @testable import CompilerTestSupport
 import Testing
 
-/// KUU-4140: call-site explicit type arguments may end in a trailing comma —
-/// `id<Int,>(x)` is accepted by kotlinc (Kotlin 1.4+ allows a trailing comma
-/// in every comma-separated list). The declaration-side counterpart
-/// (`fun <T,> f`) was KUU-3968; call sites parse through a different code
-/// path (`tryParseExplicitTypeArgs` in BuildAST's expression parser), which
-/// now mirrors the trailing-comma handling `TypeRefParserCore` already has
-/// for nested type-argument lists.
 @Suite
 struct CallSiteTypeArgumentListTests {
     private func parseExpression(_ source: String) throws
@@ -29,14 +22,11 @@ struct CallSiteTypeArgumentListTests {
     }
 
     @Test(arguments: [
-        // Trailing comma, one or several arguments, before `(` or a lambda.
         ("id<Int,>(1)", 1),
         ("pair<Int, String,>(1, \"a\")", 2),
         ("Box<Int,>(2)", 1),
-        // A `>` on its own line still closes the list.
         ("id<Int,\n>(1)", 1),
         ("id<\n    Int\n    ,\n>(1)", 1),
-        // Nested lists keep their own trailing comma (`List<Int,>`).
         ("id<List<Int,>>(x)", 1),
         ("id<Map<String, List<Int,>,>,>(x)", 1),
     ])
@@ -107,8 +97,6 @@ struct CallSiteTypeArgumentListTests {
     }
 
     @Test(arguments: [
-        // Empty list, opening comma, and doubled commas stay rejected —
-        // kotlinc reports "syntax error: Type expected." for all of them.
         "id<>(1)",
         "id<,>(1)",
         "id<,Int>(1)",
@@ -126,9 +114,6 @@ struct CallSiteTypeArgumentListTests {
         )
         _ = parser.parse()
 
-        // The malformed `<…>` tokens must not be taken as type arguments:
-        // the parse either reports a diagnostic or leaves the remainder
-        // unconsumed for the enclosing context to reject.
         #expect(lexed.diagnostics.hasError || parser.current() != nil,
                 "`\(source)` parsed cleanly — expected rejection")
         #expect(!arena.exprs.contains {

@@ -7,9 +7,6 @@ import Testing
 @Suite
 struct CodegenBackendListSliceTakeDropTests {
 
-    // Regression for KSP-427: List take/drop/slice family must resolve to
-    // bundled Kotlin source functions, not to stale runtime bridges or
-    // unresolved external symbols.
     @Test
     func testCodegenListSliceTakeDropFamily() throws {
         let source = """
@@ -49,10 +46,6 @@ struct CodegenBackendListSliceTakeDropTests {
         )
     }
 
-    // Regression for KUU-633: List.subList must throw
-    // IllegalArgumentException when fromIndex > toIndex and
-    // IndexOutOfBoundsException when the range is out of bounds, matching
-    // checkRangeIndexes (and AbstractMutableList.subList).
     @Test
     func testCodegenListSubListExceptionTypes() throws {
         let source = """

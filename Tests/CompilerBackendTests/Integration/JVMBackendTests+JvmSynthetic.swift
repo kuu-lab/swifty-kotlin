@@ -4,10 +4,6 @@ import Foundation
 import Testing
 
 extension JVMBackendTests {
-    /// kotlinc parity: `@JvmSynthetic` functions carry ACC_SYNTHETIC in the
-    /// classfile, so javac cannot resolve them, while kotlin.Metadata keeps
-    /// them callable from Kotlin sources (members, `@JvmStatic` companions,
-    /// and top-level facade functions).
     @Test
     func jvmSyntheticFunctionsHideFromJavaSourcesAndStayCallableFromKotlin() throws {
         let library = ("SynthLib.kt", """
@@ -32,7 +28,6 @@ extension JVMBackendTests {
             fun topVisible(x: Int): Int = x + 6
             """)
 
-        /// Returns whether the method declared at `signature` has ACC_SYNTHETIC.
         func isSynthetic(_ javapOutput: String, signature: String) -> Bool? {
             guard let signatureRange = javapOutput.range(of: signature) else { return nil }
             let tail = javapOutput[signatureRange.upperBound...]
@@ -54,10 +49,8 @@ extension JVMBackendTests {
             #expect(libraryDump.exitCode == 0, "\(libraryDump.stderr)")
             #expect(isSynthetic(libraryDump.stdout, signature: "int hidden(int);") == true)
             #expect(isSynthetic(libraryDump.stdout, signature: "int visible(int);") == false)
-            // The @JvmStatic forwarder follows the companion function's annotation.
             #expect(isSynthetic(libraryDump.stdout, signature: "int compHidden(int);") == true)
             #expect(isSynthetic(libraryDump.stdout, signature: "int compVisible(int);") == false)
-            // @JvmName + @JvmSynthetic: both the impl and the renamed adapter are synthetic.
             #expect(isSynthetic(libraryDump.stdout, signature: "int namedSynthetic$jvmName$renamedSynthetic(int);") == true)
             #expect(isSynthetic(libraryDump.stdout, signature: "int renamedSynthetic(int);") == true)
 
@@ -125,7 +118,6 @@ extension JVMBackendTests {
             #expect(visibleExecution.exitCode == 0, "\(visibleExecution.stderr)")
             #expect(visibleExecution.stdout == "2\n4\n7\n")
 
-            // Kotlin consumers keep resolving @JvmSynthetic functions through metadata.
             let callerRoot = root.appendingPathComponent("caller")
             try FileManager.default.createDirectory(at: callerRoot, withIntermediateDirectories: true)
             let caller = """
@@ -150,8 +142,6 @@ extension JVMBackendTests {
             #expect(execution.exitCode == 0, "\(execution.stderr)")
             #expect(execution.stdout == "3\n8\n2\n5\n4\n6\n7\n")
 
-            // kotlinc must resolve each Kotlin signature exactly once: duplicated
-            // metadata entries make its overload resolution ambiguous.
             let consumer = root.appendingPathComponent("Consumer.kt")
             try """
             import synth.*

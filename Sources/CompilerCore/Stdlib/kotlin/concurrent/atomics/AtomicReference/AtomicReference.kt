@@ -42,8 +42,6 @@ public fun <T> AtomicReference<T>.compareAndExchange(expectedValue: T, newValue:
 public fun <T> AtomicReference<T>.compareAndSet(expectedValue: T, newValue: T): Boolean =
     compareAndExchange(expectedValue, newValue) === expectedValue
 
-// CAS success is tested with `===` against the returned witness (identity
-// CAS), mirroring kotlin.concurrent.compareAndSet.
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
 public fun <T> AtomicReference<T>.fetchAndUpdate(transform: (T) -> T): T {

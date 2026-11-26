@@ -3,8 +3,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2451: a smart-cast dispatch `this` can provide the receiver for a
-    /// top-level extension property, both in source and fresh-artifact builds.
     @Test(arguments: [true, false], [0, 2])
     func testSmartCastThisResolvesTopLevelExtensionProperty(fromSource: Bool, optimization: Int) throws {
         let directory = FileManager.default.temporaryDirectory

@@ -253,8 +253,6 @@ struct UnbracedIfAssignmentTests {
             Issue.record("Expected a for loop with a block body")
             return
         }
-        // The annotated else-branch statement must not detach into a second
-        // statement that runs unconditionally after the if.
         #expect(bodyStatements.isEmpty)
         guard let ifID = bodyTrailing,
               case let .ifExpr(_, _, elseID, _) = ast.arena.expr(ifID),

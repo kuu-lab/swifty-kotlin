@@ -22,7 +22,6 @@ public final class StandardInputStream: ByteInputStream {
     }
 }
 
-/// Serializes concurrent writes.
 public final class StandardOutputStream: ByteOutputStream {
     private let handle: FileHandle
     private let lock = NSLock()
@@ -38,16 +37,9 @@ public final class StandardOutputStream: ByteOutputStream {
     }
 }
 
-/// Minimal JSON-RPC 2.0 transport over a byte stream using the LSP base
-/// protocol framing (`Content-Length: N\r\n\r\n` followed by `N` body bytes).
 public final class JSONRPCConnection {
-    /// Default upper bound on a single message body (32 MiB). Frames declaring a
-    /// larger `Content-Length` are rejected to prevent memory-exhaustion DoS.
     public static let defaultMaxBodyBytes = 32 * 1024 * 1024
 
-    /// Default upper bound on the header block scanned for the `\r\n\r\n`
-    /// terminator (64 KiB). Prevents unbounded buffering when a peer never
-    /// sends the terminator.
     public static let defaultMaxHeaderBytes = 64 * 1024
 
     private let input: ByteInputStream
@@ -73,8 +65,6 @@ public final class JSONRPCConnection {
     public func receive() -> [String: Any]? {
         while true {
             guard let headerOffset = indexOfHeaderTerminator() else {
-                // No terminator yet. Guard against a peer that never sends
-                // `\r\n\r\n` by refusing to buffer an unbounded header block.
                 if buffer.count > maxHeaderBytes {
                     buffer.removeAll(keepingCapacity: false)
                     return nil
@@ -85,22 +75,16 @@ public final class JSONRPCConnection {
 
             let headerData = Data(buffer.prefix(headerOffset))
             guard let contentLength = parseContentLength(headerData) else {
-                // Missing or malformed Content-Length: drop the header block
-                // and resynchronize.
                 buffer = Data(buffer.dropFirst(headerOffset + 4))
                 continue
             }
 
             if contentLength < 0 {
-                // Negative Content-Length is untrustworthy. Drop the header
-                // block and resynchronize.
                 buffer = Data(buffer.dropFirst(headerOffset + 4))
                 continue
             }
 
             if contentLength > maxBodyBytes {
-                // Oversized but numeric Content-Length: drain the declared
-                // body so we can safely resynchronize at the next frame.
                 if !discard(headerOffset + 4) { return nil }
                 if !discard(contentLength) { return nil }
                 continue

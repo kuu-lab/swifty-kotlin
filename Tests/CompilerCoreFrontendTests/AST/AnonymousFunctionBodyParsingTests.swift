@@ -65,9 +65,6 @@ struct AnonymousFunctionBodyParsingTests {
         #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
     }
 
-    // kotlinc reports 'function 'anonymous' must have a body.' for a bodiless
-    // `fun(...)` in expression position and still binds the anonymous
-    // function value.
     @Test(arguments: [
         "val f = fun(): Int",
         "val f = fun()",
@@ -94,8 +91,6 @@ struct AnonymousFunctionBodyParsingTests {
         }, "\(context.diagnostics.diagnostics)")
     }
 
-    // kotlinc reports 'type parameters are prohibited here.' at the `<`
-    // directly after `fun` — for bodied and bodiless literals alike.
     @Test(arguments: [
         "val f = fun <T>(x: T) = x",
         "val f = fun <T>(): Int",
@@ -110,10 +105,6 @@ struct AnonymousFunctionBodyParsingTests {
         }, "\(context.diagnostics.diagnostics)")
     }
 
-    // KUU-4006: an expression-bodied anonymous function inside a lambda body
-    // was rejected with SEMA-0426 because the speculative assignment probe
-    // split the statement at `=` and parsed `fun(): Int` as a bodiless
-    // anonymous function LHS without rolling its diagnostics back.
     @Test(arguments: [
         "fun main() { val f = Array(3) { fun(): Int = it * it } }",
         "fun main() { val f = run { fun(): Int = 7 } }",
@@ -127,8 +118,6 @@ struct AnonymousFunctionBodyParsingTests {
         #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
     }
 
-    // The genuine bodiless literal inside a lambda still reports
-    // 'must have a body' through the winning expression parse.
     @Test(arguments: [
         "fun main() { val f = run { fun(): Int } }",
         "fun main() { listOf(1).forEach { fun(): Int } }",
@@ -142,10 +131,6 @@ struct AnonymousFunctionBodyParsingTests {
         }, "\(context.diagnostics.diagnostics)")
     }
 
-    // Nameless `fun` forms with a receiver or type parameters in statement
-    // position are anonymous function expressions, not named declarations —
-    // `fun T.(` used to be claimed by the local-function probe and mistyped
-    // as a local function literally named `T`.
     @Test(arguments: [
         "fun main() { fun Int.(): Int = this * 2 }",
         "fun main() { val f = { fun Int.(): Int = this * 2 } }",
@@ -156,8 +141,6 @@ struct AnonymousFunctionBodyParsingTests {
         let (_, context) = try buildASTModule(from: source, includeStdlib: false)
 
         if source.contains("<T>") {
-            // kotlinc reports 'type parameters are prohibited here.' on
-            // generic anonymous function literals.
             #expect(context.diagnostics.diagnostics.contains {
                 $0.code == "KSWIFTK-PARSE-0001"
                     && $0.message == "type parameters are prohibited here."

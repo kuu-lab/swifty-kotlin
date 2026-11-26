@@ -5,10 +5,6 @@ import Foundation
 import Testing
 
 extension JVMBackendTests {
-    /// KUU-3186: the bundled `kotlin.Comparator` declaration erases to
-    /// java/util/Comparator and is never lowered into a classfile. Its
-    /// abstract member is bound through the JDK import profile, so a SAM
-    /// conversion emits a wrapper implementing the real JDK interface.
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func bundledKotlinComparatorSAMImplementsJDKInterface(mode: EmitMode) throws {
         try withWorkspace { root in
@@ -25,8 +21,6 @@ extension JVMBackendTests {
             }
             """, expected: "1\n-1\n0\n-1\n2\n", mode: mode, root: root)
 
-            // The generated wrapper implements the erased JDK interface, not
-            // the unemitted `kotlin/Comparator` binary name.
             let classes = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes")
             let listing = mode == .jvmJar
                 ? try jvmTool("jar", ["tf", classes.path], root: root).stdout

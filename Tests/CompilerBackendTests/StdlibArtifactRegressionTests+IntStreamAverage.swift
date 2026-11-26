@@ -4,7 +4,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-3643: IntStream.average accumulates in a wide integer without changing sum wrapping.
     @Test
     func testIntStreamAverageOverflowThroughSourceAndFreshArtifact() throws {
         let repositoryRoot = URL(fileURLWithPath: #filePath)

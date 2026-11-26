@@ -12,7 +12,6 @@ let runtimeBuiltinSupertypes: [String: [String]] = {
         "kotlin.Any": [],
         "kotlin.Unit": ["kotlin.Any"],
         "kotlin.Nothing": ["kotlin.Any"],
-        // Kotlin/JVM 2.4.20 reflection lists Serializable directly on boxed primitives.
         "kotlin.Byte": ["kotlin.Number", "kotlin.Comparable<kotlin.Byte>", "java.io.Serializable"],
         "kotlin.Short": ["kotlin.Number", "kotlin.Comparable<kotlin.Short>", "java.io.Serializable"],
         "kotlin.Int": ["kotlin.Number", "kotlin.Comparable<kotlin.Int>", "java.io.Serializable"],
@@ -167,10 +166,6 @@ func runtimeKClassTypeParameterHandles(
         }
 }
 
-/// Resolves a qualified type name to its runtime type token, mirroring the
-/// builtin-base table in `__kk_type_token_qualified_name` and falling back to
-/// a nominal token whose payload is the FNV name hash used by
-/// `RuntimeTypeCheckToken.stableNominalTypeID`.
 func runtimeTypeToken(forQualifiedName name: String) -> Int64 {
     switch name {
     case "kotlin.Any": return RuntimeTypeTokenEncoding.anyBase
@@ -190,12 +185,6 @@ func runtimeTypeToken(forQualifiedName name: String) -> Int64 {
     case "kotlin.Nothing": return RuntimeTypeTokenEncoding.nullBase
     case "kotlin.Unit": return RuntimeTypeTokenEncoding.unitBase
     default:
-        // KUU-3811: a `kotlin.FunctionN` classifier in a supertype display
-        // name is the same runtime classifier as the `FunctionN::class`
-        // literal — resolve it to the function-base token so
-        // `KType.classifier == FunctionN::class` holds and the KType renders
-        // in function-type notation like kotlinc. `kotlin.Function` itself
-        // and non-canonical spellings (e.g. `Function03`) stay nominal.
         if name.hasPrefix("kotlin.Function") {
             let arityText = String(name.dropFirst("kotlin.Function".count))
             if let arity = Int(arityText), String(arity) == arityText, (0 ... 255).contains(arity) {
@@ -272,8 +261,6 @@ private func runtimeSplitTypeDisplayName(_ display: String) -> (base: String, ar
     return (base, args)
 }
 
-/// Type-parameter display names like `E` produce a
-/// nominal classifier placeholder — there is no KTypeParameter box yet.
 private func runtimeKTypeForSupertypeDisplayName(
     _ display: String,
     typeParameterClassifiers: [String: Int]
@@ -297,14 +284,8 @@ private func runtimeKTypeForSupertypeDisplayName(
             argDisplay,
             typeParameterClassifiers: typeParameterClassifiers
         )
-        // Register the KTypeProjection nominal type so erased-generic claim
-        // checkcasts (`arguments.single()`) accept the projection.
         argumentRaws.append(runtimeKTypeProjectionCreate(typeRaw: argRaw, variance: .invariant))
     }
-    // KUU-3811: a function classifier keeps no stored display name so the
-    // KType renders in function-type notation `(P…) -> R` and compares equal
-    // to `typeOf<(P…) -> R>` like kotlinc instead of printing the flat
-    // `kotlin.FunctionN<…>` nominal spelling.
     let typeNameRaw = (token & RuntimeTypeTokenEncoding.baseMask)
         == RuntimeTypeTokenEncoding.functionBase ? 0 : baseRaw
     let box = RuntimeKTypeBox(

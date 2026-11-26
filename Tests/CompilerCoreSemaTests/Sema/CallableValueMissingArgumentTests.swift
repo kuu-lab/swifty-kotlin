@@ -2,10 +2,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// kotlinc reports NO_VALUE_FOR_PARAMETER ("no value passed for parameter
-/// 'x'") when a call supplies fewer arguments than the callee requires,
-/// including calls through function-typed values whose parameters have no
-/// declared names (synthesized `pN` names) (KUU-4168).
 @Suite
 struct CallableValueMissingArgumentTests {
 
@@ -64,11 +60,6 @@ struct CallableValueMissingArgumentTests {
 
     @Test
     func missingArgumentOnCallableReferenceKeepsSynthesizedName() throws {
-        // A callable reference stored in a local loses the referenced
-        // declaration's parameter names, so the synthesized `pN` name is
-        // reported — matching the function-type shape kotlinc falls back to
-        // for nameless parameters would require name propagation through
-        // local value types (tracked separately if needed).
         let diagnostics = try compileAndCollectDiagnostics("""
         fun two(a: Int, b: String) = "$a $b"
 

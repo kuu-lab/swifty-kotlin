@@ -4,13 +4,7 @@ import Testing
 @testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
-    // Regression coverage for `a[i] op= v` / `a[i]++` whose element type
-    // defines its own operator. Lowering used to always emit the builtin
-    // `kk_op_*` arithmetic on the element (panicking or failing Sema for
-    // class elements), and evaluated the right-hand side before `get()`.
 
-    /// Callees of `main` starting at the compound assignment's element read;
-    /// `arrayOf(...)` itself fills the array with `kk_array_set` beforehand.
     private func mainCallees(_ source: String) throws -> [String] {
         let ctx = makeContextFromSource(source)
         try runToKIR(ctx)

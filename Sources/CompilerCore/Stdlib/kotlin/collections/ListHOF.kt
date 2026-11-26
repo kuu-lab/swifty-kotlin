@@ -1,9 +1,5 @@
 package kotlin.collections
 
-// MIGRATION-COL-002
-// Migration source:
-//   Sources/CompilerCore/Driver/BundledStdlib.swift (map, mapIndexed, mapNotNull, flatMap, flatten)
-
 public inline fun <T, R> List<T>.map(transform: (T) -> R): List<R> {
     val result = mutableListOf<R>()
     var i = 0

@@ -1,12 +1,6 @@
-// Primitive-array collection ops: one body stamped once per element type (the
-// format is documented on BundledStdlibTemplate). The output is byte-identical
-// to the hand-written PrimitiveArrayCollectionOps.kt it replaced, so declaration
-// order and SymbolIDs did not move.
 //@ file PrimitiveArrayCollectionOps Int Long Byte Short Char Boolean Float Double
 //@ header
 package kotlin.collections
-
-// KUU-1105: primitive-array overloads keep their exact element types.
 
 //@ body
 public fun {{T}}Array.toHashSet(): HashSet<{{T}}> = asList().toHashSet()

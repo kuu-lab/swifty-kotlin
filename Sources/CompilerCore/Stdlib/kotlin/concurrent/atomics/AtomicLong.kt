@@ -8,10 +8,6 @@
 
 package kotlin.concurrent.atomics
 
-// The distinct source-backed receiver uses the same runtime atomic box, so the
-// bodies delegate to its retained addAndFetch/load/compareAndSet core
-// operations; no new runtime bridge is required.
-
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
 public fun AtomicLong.incrementAndFetch(): Long = addAndFetch(1L)

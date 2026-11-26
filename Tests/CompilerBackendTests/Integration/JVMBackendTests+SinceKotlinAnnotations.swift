@@ -4,10 +4,6 @@ import Foundation
 import Testing
 
 extension JVMBackendTests {
-    // KUU-3187: kotlin.SinceKotlin / kotlin.DeprecatedSinceKotlin are real
-    // stdlib annotation classes. They must emit like kotlinc (BINARY retention
-    // lands in RuntimeInvisibleAnnotations) instead of aborting with
-    // KSWIFTK-JVM-0001 "Unsupported JVM annotation".
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func sinceKotlinAnnotationsEmitLikeKotlinStdlib(mode: EmitMode) throws {
         let source = """
@@ -25,15 +21,12 @@ extension JVMBackendTests {
             #expect(invisible.count > 1, "\(inspection.stdout)")
             #expect(invisible[1].contains("kotlin.SinceKotlin("), "\(inspection.stdout)")
             #expect(invisible[1].contains("version=\"1.5\""), "\(inspection.stdout)")
-            // DeprecatedSinceKotlin keeps RUNTIME retention, like kotlin-stdlib.
             let visible = inspection.stdout.components(separatedBy: "RuntimeVisibleAnnotations:")
             #expect(visible.count > 1, "\(inspection.stdout)")
             #expect(visible.contains { $0.contains("kotlin.DeprecatedSinceKotlin(") && $0.contains("warningSince=\"1.6\"") && $0.contains("errorSince=\"1.8\"") }, "\(inspection.stdout)")
         }
     }
 
-    // WasExperimental is internal in kotlin-stdlib, so user code must reject it
-    // (kotlinc reports "it is internal in file"), not silently drop it.
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func wasExperimentalRejectsUserUsageLikeKotlinc(mode: EmitMode) throws {
         let source = """
@@ -49,8 +42,6 @@ extension JVMBackendTests {
         }
     }
 
-    // The bundled kotlin-stdlib annotation classes are declared for consumers
-    // through the JVM catalog, so @SinceKotlin works without a --classpath jar.
     @Test
     func sinceKotlinDeclarationsAreInjectedForConsumers() throws {
         let manifest = try JVMStdlibCatalog.manifest()

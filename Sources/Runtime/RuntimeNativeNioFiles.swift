@@ -24,8 +24,6 @@ private func nativeNioError(path: String, code: Int32) -> Int {
     return runtimeAllocateIOException(message: "\(path): \(String(cString: strerror(code)))")
 }
 
-/// The option bitset is a private Kotlin/Native declaration-token contract;
-/// POSIX flags and descriptor creation never escape into public Kotlin logic.
 @_cdecl("__kk_native_filechannel_open")
 public func __kk_native_filechannel_open(_ pathRaw: Int, _ options: Int, _ thrown: UnsafeMutablePointer<Int>?) -> Int {
     thrown?.pointee = 0
@@ -43,7 +41,7 @@ public func __kk_native_filechannel_open(_ pathRaw: Int, _ options: Int, _ throw
             #if canImport(Glibc)
             flags |= O_DSYNC
             #else
-            flags |= O_SYNC // Darwin preserves at least the requested data durability.
+            flags |= O_SYNC
             #endif
         }
     }
@@ -67,8 +65,6 @@ public func __kk_native_filechannel_open(_ pathRaw: Int, _ options: Int, _ throw
     return Int(fd)
 }
 
-/// A channel write returns the actual single-write count. The common file sink
-/// full-write loop is kept untouched; Kotlin advances ByteBuffer by this count.
 @_cdecl("__kk_native_filechannel_write")
 public func __kk_native_filechannel_write(_ descriptor: Int, _ bytesRaw: Int, _ offset: Int, _ count: Int, _ thrown: UnsafeMutablePointer<Int>?) -> Int {
     thrown?.pointee = 0
