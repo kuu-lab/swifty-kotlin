@@ -529,7 +529,7 @@ extension JVMFunctionBuilder {
         }
         guard let valueType = setter.parameters.last else { throw fail("JVM property setter has no value parameter.") }
         arguments.append(try convert(converted, to: valueType))
-        let dispatch = try propertyDispatch(property, receiver: receiver, at: id)
+        let dispatch = setter.takesReceiverAsArgument ? nil : try propertyDispatch(property, receiver: receiver, at: id)
         instructions.append(.foreignCall(setter, receiver: dispatch, arguments: arguments, result: nil))
     }
     func propertyCompound(_ property: JVMProperty, receiver: JVMValue, op: CompoundAssignOp, rhs: ExprID, id: ExprID, special: Bool = false, superReceiver: ExprID? = nil) throws -> JVMValue? {

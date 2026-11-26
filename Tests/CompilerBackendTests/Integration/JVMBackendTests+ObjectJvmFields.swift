@@ -379,10 +379,18 @@ extension JVMBackendTests {
     @Test
     func interfaceCompanionJvmFieldInitializerSupportsInterfaceSuperCalls() throws {
         let source = """
-        interface Base { fun seed(): Int = 4 }
+        interface Base {
+            fun seed(): Int = 4
+            var slot: Int
+                get() = 0
+                set(value) {}
+        }
         interface ITest {
             companion object : Base {
-                @JvmField val x: Int = super<Base>.seed()
+                @JvmField val x: Int = run {
+                    super<Base>.slot = 4
+                    super<Base>.seed()
+                }
             }
         }
         fun main() { println(ITest.x) }
