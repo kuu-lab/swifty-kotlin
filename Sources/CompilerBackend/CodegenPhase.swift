@@ -454,21 +454,27 @@ public final class CodegenPhase: CompilerPhase {
                 functionsBySymbol[function.symbol] = function
             }
             var worklist = initBodyFunctions
-            var seen = serializedSymbols
+            var visited: Set<SymbolID> = []
             while let function = worklist.popLast() {
+                guard visited.insert(function.symbol).inserted else {
+                    continue
+                }
                 let body = module.inlineBodiesBeforeFinallyLowering[function.symbol]
                     ?? module.inlineBodiesBeforeCoroutineLowering[function.symbol]
                     ?? function.body
                 for instruction in body {
                     guard let target = Self.calledFunctionSymbol(instruction),
-                          let targetFunction = functionsBySymbol[target],
-                          seen.insert(target).inserted,
-                          let linkName = functionLinkNamesBySymbol[target]
-                              ?? sema.symbols.externalLinkName(for: target),
-                          !linkName.isEmpty else {
+                          let targetFunction = functionsBySymbol[target] else {
                         continue
                     }
-                    try writeKirbin(function: targetFunction, mangled: linkName)
+                    if !serializedSymbols.contains(target),
+                       let linkName = functionLinkNamesBySymbol[target]
+                           ?? sema.symbols.externalLinkName(for: target),
+                       !linkName.isEmpty
+                    {
+                        try writeKirbin(function: targetFunction, mangled: linkName)
+                        serializedSymbols.insert(target)
+                    }
                     worklist.append(targetFunction)
                 }
             }
@@ -493,10 +499,9 @@ public final class CodegenPhase: CompilerPhase {
         return !parentInfo.fqName.elementsEqual(info.fqName.dropLast())
     }
 
-    /// Wasm can materialize statically dispatched member bodies, but open or
-    /// overriding members still belong to the vtable/itable helper surface.
-    /// Member extensions are excluded as well: their two-receiver ABI does not
-    /// match the single receiver shape serialized for ordinary members.
+    // Open or overriding members still belong to the vtable/itable helper
+    // surface. Member extensions are excluded as well: their two-receiver ABI
+    // does not match the single receiver shape serialized for ordinary members.
     private static func isMaterializableWasmFunction(_ symbol: SymbolID, symbols: SymbolTable) -> Bool {
         guard let info = symbols.symbol(symbol), info.kind == .function else {
             return false

@@ -8,33 +8,19 @@ import Testing
 struct WasmLibraryBodyImportTests {
     @Test
     func nonVirtualMemberBodyShipsInWasmLibraryAndMaterializesInConsumer() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-
-        let librarySource = """
-        package test
-
-        class Box {
-            companion object {
-                fun parse(value: String): String = value + "!"
-            }
-        }
-        """
-        let librarySourcePath = directory.appendingPathComponent("Library.kt")
-        try librarySource.write(to: librarySourcePath, atomically: true, encoding: .utf8)
-
-        let libraryBase = directory.appendingPathComponent("BoxLib")
-        let libraryPath = libraryBase.appendingPathExtension("kklib").path
-        try assertCompilationSucceeded(makeTestDriver().runForTesting(options: CompilerOptions(
+        let libraryPath = try compileWasmLibrary(
             moduleName: "BoxLib",
-            inputs: [librarySourcePath.path],
-            outputPath: libraryBase.path,
-            emit: .library,
-            target: .wasmWASI,
-            includeStdlib: false,
-            allowDefaultStdlibLibrary: false
-        )))
+            source: """
+            package test
+
+            class Box {
+                companion object {
+                    fun parse(value: String): String = value + "!"
+                }
+            }
+            """
+        )
+        defer { try? FileManager.default.removeItem(atPath: libraryPath) }
 
         let metadata = try Data(contentsOf: URL(fileURLWithPath: libraryPath + "/metadata.bin"))
         let parseRecord = try #require(MetadataDecoder().decode(metadata).first {
@@ -44,19 +30,120 @@ struct WasmLibraryBodyImportTests {
         let kirPath = libraryPath + "/inline-kir/" + MetadataEncoder.inlineKIRFileName(for: linkName)
         #expect(FileManager.default.fileExists(atPath: kirPath))
 
-        let consumerSource = """
-        import test.Box
+        let wasm = try compileWasmConsumer(
+            moduleName: "BoxConsumer",
+            source: """
+            import test.Box
 
-        fun main() {
-            val x = Box.parse("x")
-        }
-        """
-        let consumerSourcePath = directory.appendingPathComponent("Main.kt")
-        try consumerSource.write(to: consumerSourcePath, atomically: true, encoding: .utf8)
+            fun main() {
+                val x = Box.parse("x")
+            }
+            """,
+            libraryPath: libraryPath
+        )
+        #expect(wasm.range(of: Data("$stub_\(linkName)".utf8)) == nil)
+    }
+
+    @Test
+    func initTransitiveDependencyIncludesDefaultArgumentStub() throws {
+        let libraryPath = try compileWasmLibrary(
+            moduleName: "ClosureLib",
+            source: """
+            package test
+
+            class Box {
+                companion object {
+                    private fun helper(value: String = "x"): String = value
+                    fun parse(): String = helper()
+                }
+            }
+
+            object Registry {
+                val value: String = Box.parse()
+            }
+            """
+        )
+        defer { try? FileManager.default.removeItem(atPath: libraryPath) }
+
+        let wasm = try compileWasmConsumer(
+            moduleName: "ClosureConsumer",
+            source: """
+            import test.Registry
+
+            fun main() {
+                val x = Registry.value
+            }
+            """,
+            libraryPath: libraryPath
+        )
+        #expect(wasm.range(of: Data("$stub_kk_fn_helper".utf8)) == nil)
+        #expect(wasm.range(of: Data("kk_fn_helper_default".utf8)) != nil)
+    }
+
+    @Test
+    func sameNamedPrivateMemberBodiesRemainDistinct() throws {
+        let libraryPath = try compileWasmLibrary(
+            moduleName: "CollisionLib",
+            source: """
+            package test
+
+            class Left {
+                private fun value(): String = "L"
+                fun read(): String = value()
+            }
+
+            class Right {
+                private fun value(): String = "R"
+                fun read(): String = value()
+            }
+            """
+        )
+        defer { try? FileManager.default.removeItem(atPath: libraryPath) }
+
+        let wasm = try compileWasmConsumer(
+            moduleName: "CollisionConsumer",
+            source: """
+            import test.Left
+            import test.Right
+
+            fun main() {
+                val l = Left().read()
+                val r = Right().read()
+            }
+            """,
+            libraryPath: libraryPath
+        )
+        #expect(wasm.range(of: Data("$stub_kk_fn_value".utf8)) == nil)
+    }
+
+    private func compileWasmLibrary(moduleName: String, source: String) throws -> String {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let sourcePath = directory.appendingPathComponent("Library.kt")
+        try source.write(to: sourcePath, atomically: true, encoding: .utf8)
+        let libraryBase = directory.appendingPathComponent(moduleName)
+        try assertCompilationSucceeded(makeTestDriver().runForTesting(options: CompilerOptions(
+            moduleName: moduleName,
+            inputs: [sourcePath.path],
+            outputPath: libraryBase.path,
+            emit: .library,
+            target: .wasmWASI,
+            includeStdlib: false,
+            allowDefaultStdlibLibrary: false
+        )))
+        return libraryBase.appendingPathExtension("kklib").path
+    }
+
+    private func compileWasmConsumer(moduleName: String, source: String, libraryPath: String) throws -> Data {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let sourcePath = directory.appendingPathComponent("Main.kt")
+        try source.write(to: sourcePath, atomically: true, encoding: .utf8)
         let wasmPath = directory.appendingPathComponent("main.wasm")
         try assertCompilationSucceeded(makeTestDriver().runForTesting(options: CompilerOptions(
-            moduleName: "BoxConsumer",
-            inputs: [consumerSourcePath.path],
+            moduleName: moduleName,
+            inputs: [sourcePath.path],
             outputPath: wasmPath.path,
             emit: .executable,
             searchPaths: [libraryPath],
@@ -64,9 +151,7 @@ struct WasmLibraryBodyImportTests {
             includeStdlib: false,
             allowDefaultStdlibLibrary: false
         )))
-
-        let wasm = try Data(contentsOf: wasmPath)
-        #expect(wasm.range(of: Data("$stub_\(linkName)".utf8)) == nil)
+        return try Data(contentsOf: wasmPath)
     }
 }
 #endif
