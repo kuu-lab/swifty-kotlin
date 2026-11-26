@@ -526,10 +526,6 @@ extension JVMFunctionBuilder {
            let emitted = try emitBitReinterpret(callee: binding.chosenCallee, receiver: receiver, isRaw: isRaw, id: id) {
             return JVMIntrinsicResult(value: emitted)
         }
-        if let isFloat = stdlibFromBitsIsFloat(binding.chosenCallee, args: args),
-           let emitted = try emitFromBits(args: args, isFloat: isFloat, receiver: receiver, id: id) {
-            return JVMIntrinsicResult(value: emitted)
-        }
         let method = entry.method
         if method.owner == "java/lang/Comparable", method.name == "compareTo", let receiver,
            case .memberCall = arena.expr(id), case let .nameRef(name, _) = arena.expr(receiver),
