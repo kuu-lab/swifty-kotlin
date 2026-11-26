@@ -824,8 +824,15 @@ extension JVMFunctionBuilder {
     func directConcreteSuperOwner(_ receiver: ExprID) -> String? {
         guard isSuper(receiver),
               let type = try? program.expressionType(receiver),
-              let name = type.referenceName,
-              context.jvmImports?.classes[name]?.isInterface == false
+              let name = type.referenceName
+        else { return nil }
+        if let imported = context.jvmImports?.classes[name] {
+            return imported.isInterface ? nil : name
+        }
+        guard let semantic = program.sema.bindings.exprType(for: receiver),
+              case let .classType(classType) = program.sema.types.kind(of: semantic),
+              let symbol = program.sema.symbols.symbol(classType.classSymbol),
+              symbol.kind == .class || symbol.kind == .enumClass
         else { return nil }
         return name
     }
@@ -834,9 +841,10 @@ extension JVMFunctionBuilder {
         guard let owner = directConcreteSuperOwner(receiver),
               let memberOwner = try? mappedBuiltinMemberOwner(id)
         else { return nil }
-        if javaImportedTypeInherits(owner, "java/util/List"),
+        let sourceClass = context.jvmImports?.classes[owner] == nil
+        if (sourceClass || javaImportedTypeInherits(owner, "java/util/List")),
            javaImportedTypeInherits(memberOwner, "java/util/List") { return (owner, false) }
-        if javaImportedTypeInherits(owner, "java/util/Map"),
+        if (sourceClass || javaImportedTypeInherits(owner, "java/util/Map")),
            javaImportedTypeInherits(memberOwner, "java/util/Map") { return (owner, true) }
         return nil
     }

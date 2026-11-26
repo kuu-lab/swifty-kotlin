@@ -38,6 +38,31 @@ extension JVMBackendTests {
     }
 
     @Test
+    func intermediateArrayListSubclassSuperCallsUseBaseImplementationsOnJVM() throws {
+        try assertJVM("""
+        open class B : ArrayList<Int>()
+        class A : B() {
+            override fun add(element: Int): Boolean {
+                return super.add(element)
+            }
+            override fun get(index: Int): Int = super[index]
+            override fun set(index: Int, element: Int): Int {
+                super[index] = element
+                return element
+            }
+        }
+
+        fun main() {
+            val xs: ArrayList<Int> = A()
+            println(xs.add(1))
+            println(xs[0])
+            xs[0] = 2
+            println(xs[0])
+        }
+        """, "true\n1\n2\n")
+    }
+
+    @Test
     func arrayListSubclassSuperIndexedAccessUsesBaseImplementationOnJVM() throws {
         try assertJVM("""
         class A : ArrayList<String>() {
