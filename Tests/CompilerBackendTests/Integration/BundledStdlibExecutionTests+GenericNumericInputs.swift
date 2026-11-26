@@ -4,9 +4,6 @@ import TestStdlibCache
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// Keep every original literal, declaration and assertion byte intact.
-    /// O0 exercises both actual stdlib routes; the separate pinned CLI gate
-    /// adds O2 without multiplying this focused Backend regression.
     @Test(arguments: [false, true])
     func testGenericNumericInputLiteralRuntime(useStdlibLibrary: Bool) throws {
         var root = URL(fileURLWithPath: #filePath)
@@ -63,8 +60,6 @@ extension BundledStdlibExecutionTests {
         try #require(FileManager.default.isExecutableFile(atPath: executable.path))
         let execution = try CommandRunner.run(executable: executable.path, arguments: [], timeout: 10)
         #expect(execution.exitCode == 0)
-        // The pinned expected output is ASCII, so comparing the returned UTF8
-        // bytes also rejects CRLF, replacement characters and trailing output.
         #expect(Data(execution.stdout.utf8) == expected)
         let executedSource = try Data(contentsOf: input)
         #expect(executedSource == source)

@@ -12,7 +12,6 @@ struct DelegatedMemberExtensionArtifactTests {
         try compileAndRun(fromSource: false, optimization: optimization)
     }
 
-    // Source O2 is blocked by KUU-2241's existing high-arity FunctionN.invoke LLVM ABI failure.
     @Test
     func delegatedMemberExtensionsPreserveBothReceiversFromSourceO0() throws {
         try compileAndRun(fromSource: true, optimization: 0)

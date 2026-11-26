@@ -1,14 +1,5 @@
 package kotlin.collections
 
-// MIGRATION-COL-008
-// Migration source:
-//   Sources/Runtime/RuntimeCollectionHOFMaxMin.swift (kk_list_take, kk_list_takeLast,
-//   kk_list_drop, kk_list_dropLast)
-//   Sources/Runtime/RuntimeCollectionHOF.swift (kk_list_takeWhile, kk_list_dropWhile,
-//   kk_list_takeLastWhile, kk_list_dropLastWhile)
-//   Sources/Runtime/RuntimeCollections.swift (kk_list_slice, kk_list_slice_iterable,
-//   kk_list_subList)
-//
 // NOTE: This List<T> extension returns a snapshot copy. MutableList.subList is
 // declared as an external member and is routed to kk_list_subList, which
 // provides a live view for runtime-backed mutable lists.

@@ -26,8 +26,6 @@ struct ArrayListSubclassTests {
         return ctx
     }
 
-    /// KUU-2666: `ArrayList` in bundled stdlib must be `open` (matching Kotlin/JVM)
-    /// so user classes can inherit from it.
     @Test(arguments: [false, true])
     func arrayListCanBeSubclassed(useArtifact: Bool) throws {
         let source = """

@@ -3,11 +3,6 @@ import Foundation
 @testable import CompilerCore
 import Testing
 
-/// コンパイル結果に期待する診断 1 件分の条件。
-///
-/// `severity` が nil のときは severity 不問。`code` / `messageContains` は
-/// 指定したときだけ絞り込みに使う（message は部分一致）。`count` は条件に
-/// 合致すべき診断の件数。
 struct ExpectedDiagnostic: Sendable {
     var severity: DiagnosticSeverity?
     var code: String?
@@ -26,7 +21,6 @@ struct ExpectedDiagnostic: Sendable {
         self.count = count
     }
 
-    /// error 診断を期待する。`code` 省略時はコード不問。
     static func error(
         _ code: String? = nil,
         containing message: String? = nil,
@@ -35,7 +29,6 @@ struct ExpectedDiagnostic: Sendable {
         ExpectedDiagnostic(severity: .error, code: code, messageContains: message, count: count)
     }
 
-    /// warning 診断を期待する。`code` 省略時はコード不問。
     static func warning(
         _ code: String? = nil,
         containing message: String? = nil,
@@ -75,16 +68,6 @@ private func describeAll(_ diagnostics: [Diagnostic]) -> String {
         .joined(separator: " | ")
 }
 
-/// `diagnostics` が `expected` の各要件を満たし、かつどの要件にも
-/// 対応しない error 診断を含まないことを検証する。
-///
-/// - 各要件について、条件に合う診断が `count` 件あることを確認する。
-/// - いずれの要件にも合致しない error 診断が 0 件であることを確認する。
-///   warning / note / info は expected に列挙された分だけ検査し、
-///   余分に出ていても失敗にしない。
-///
-/// 要件どうしは独立したフィルタとして扱う（1 件の診断が複数要件に
-/// 合致してもよい）。同一診断を 2 要件で数えたい場合は使わないこと。
 func assertExpectedDiagnostics(
     _ expected: [ExpectedDiagnostic],
     in diagnostics: [Diagnostic],
@@ -108,7 +91,6 @@ func assertExpectedDiagnostics(
     )
 }
 
-/// `CompilationContext` 版の `assertExpectedDiagnostics`。
 func assertExpectedDiagnostics(
     _ expected: [ExpectedDiagnostic],
     in ctx: CompilationContext,
@@ -118,18 +100,14 @@ func assertExpectedDiagnostics(
 }
 
 extension CompilationContext {
-    /// error 深刻度の診断のみを返す。`diagnostics.diagnostics.filter { $0.severity == .error }`
-    /// の置き換え用。
     var errorDiagnostics: [Diagnostic] {
         diagnostics.diagnostics.filter { $0.severity == .error }
     }
 
-    /// warning 深刻度の診断のみを返す。
     var warningDiagnostics: [Diagnostic] {
         diagnostics.diagnostics.filter { $0.severity == .warning }
     }
 
-    /// 指定コードの診断を返す。`severity` を渡すと深刻度でも絞る。
     func diagnosticsWithCode(
         _ code: String,
         severity: DiagnosticSeverity? = nil
@@ -146,11 +124,6 @@ private enum CompileThrough {
     case lowering
 }
 
-/// `sources` を 1 モジュールとして in-memory ソース登録し、
-/// 指定フェーズまでパイプラインを実行して診断を検証し、ctx を返す。
-///
-/// 実ファイルを作らない（`makeContextFromSources` と同じ fake path +
-/// `SourceManager.addFile` 方式）のでディスク IO が発生しない。
 private func compileContext(
     from sources: [String],
     through phase: CompileThrough,
@@ -191,20 +164,6 @@ private func compileContext(
     return ctx
 }
 
-/// `source` を 1 モジュールとして frontend→Sema まで実行し、
-/// 診断が `expected` と過不足なく一致することを確認して ctx を返す。
-///
-/// `expected` が空（既定）なら error 診断ゼロを要求する
-/// （warning / note / info は不問）。返り値の ctx で symbol table /
-/// AST / bindings を追加検査できる。`runSema` がパイプラインエラーで
-/// throw した場合はそのまま伝播し、診断検証には到達しない。
-///
-/// 使い分け:
-/// - クリーンコンパイル前提で sema / ast を検査する → `semaContext(from:)`
-/// - KIR まで進めて `ctx.kir` を検査する → `kirContext(from:)`
-/// - Lowering まで進める → `loweringContext(from:)`
-/// - 実ファイルパスや特殊な emit/searchPaths が必要 → 従来どおり
-///   `withTemporaryFile` + `makeCompilationContext` を使う
 func semaContext(
     from source: String,
     expecting expected: [ExpectedDiagnostic] = [],
@@ -228,7 +187,6 @@ func semaContext(
     )
 }
 
-/// `sources` を 1 モジュールとして frontend→Sema まで実行する複数ファイル版。
 func semaContext(
     from sources: [String],
     expecting expected: [ExpectedDiagnostic] = [],
@@ -252,7 +210,6 @@ func semaContext(
     )
 }
 
-/// `source` を frontend→KIR まで実行する版。`ctx.kir` が使える。
 func kirContext(
     from source: String,
     expecting expected: [ExpectedDiagnostic] = [],
@@ -276,7 +233,6 @@ func kirContext(
     )
 }
 
-/// `sources` を 1 モジュールとして frontend→KIR まで実行する複数ファイル版。
 func kirContext(
     from sources: [String],
     expecting expected: [ExpectedDiagnostic] = [],
@@ -300,7 +256,6 @@ func kirContext(
     )
 }
 
-/// `source` を frontend→Lowering まで実行する版。
 func loweringContext(
     from source: String,
     expecting expected: [ExpectedDiagnostic] = [],

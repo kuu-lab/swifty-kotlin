@@ -6,8 +6,6 @@ import Testing
 
 extension LoweringPassRegressionTests {
 
-    // MARK: - CLSR-001: LambdaClosureConversionPass tests
-
     @Test(arguments: [false, true])
     func testClosureConversionDoesNotEmitWrapperForInlineOnlyCapture(hasMarker: Bool) throws {
         let interner = StringInterner()
@@ -29,8 +27,6 @@ extension LoweringPassRegressionTests {
             isInline: false,
             isInlineOnly: true
         )
-        // The inline call has already been expanded. A marker in another body
-        // can still cause the pass to run for this module.
         var body: [KIRInstruction] = []
         if hasMarker {
             body.append(.call(callee: interner.intern("<lambda>"), arguments: [], result: nil, canThrow: false))
@@ -133,13 +129,12 @@ extension LoweringPassRegressionTests {
         let valueExpr = arena.appendExpr(.symbolRef(valueParamSym), type: intType)
         let bodyResult = arena.appendExpr(.temporary(10), type: intType)
 
-        // Lambda function: captures one value, takes one value param.
         let lambdaFn = KIRFunction(
             symbol: lambdaSym,
             name: lambdaName,
             params: [
-                KIRParameter(symbol: captureParamSym, type: intType), // capture
-                KIRParameter(symbol: valueParamSym, type: intType),   // value param
+                KIRParameter(symbol: captureParamSym, type: intType),
+                KIRParameter(symbol: valueParamSym, type: intType),
             ],
             returnType: intType,
             body: [
@@ -154,7 +149,6 @@ extension LoweringPassRegressionTests {
             isInline: false
         )
 
-        // Main function: calls the lambda with capture arg + value arg.
         let capturedValue = arena.appendExpr(.intLiteral(100), type: intType)
         let callArg = arena.appendExpr(.intLiteral(7), type: intType)
         let callResult = arena.appendExpr(.temporary(20), type: intType)
@@ -170,7 +164,7 @@ extension LoweringPassRegressionTests {
                 .call(
                     symbol: lambdaSym,
                     callee: lambdaName,
-                    arguments: [capturedValue, callArg], // capture + value
+                    arguments: [capturedValue, callArg],
                     result: callResult,
                     canThrow: false
                 ),
@@ -202,24 +196,19 @@ extension LoweringPassRegressionTests {
 
         let callees = extractCallees(from: loweredMain.body, interner: interner)
 
-        // Verify closure object allocation.
         #expect(callees.contains(RuntimeCall.objectNew.name),
             "Expected closure object allocation via kk_object_new")
 
-        // Verify capture storage.
         #expect(callees.contains(RuntimeCall.arraySet.name),
             "Expected capture storage via kk_array_set")
 
-        // Verify the invoke wrapper is called instead of the raw lambda.
         let invokeWrapperName = interner.resolve(try closureWrapper(for: lambdaSym, in: module).name)
         #expect(callees.contains(invokeWrapperName),
             "Expected invoke wrapper \(invokeWrapperName) to be called")
 
-        // The original lambda name should no longer appear as a direct call in main.
         #expect(!callees.contains(interner.resolve(lambdaName)),
             "Expected direct lambda call to be replaced by closure invoke")
 
-        // Verify synthesized declarations were added.
         let allFunctionNames = findAllKIRFunctions(in: module).map { function in
             interner.resolve(function.name)
         }
@@ -245,7 +234,6 @@ extension LoweringPassRegressionTests {
         let lambdaSym = SymbolID(rawValue: 2)
         let lambdaName = interner.intern("kk_lambda_50")
 
-        // Value param only -- no captures.
         let valueParamSym = SymbolID(rawValue: -1_000_050)
         let valueExpr = arena.appendExpr(.symbolRef(valueParamSym), type: intType)
 
@@ -309,11 +297,9 @@ extension LoweringPassRegressionTests {
 
         let callees = extractCallees(from: loweredMain.body, interner: interner)
 
-        // No closure object should be allocated.
         #expect(!callees.contains(RuntimeCall.objectNew.name),
             "Expected no closure object for zero-capture lambda")
 
-        // Direct call to the lambda should remain.
         #expect(callees.contains(interner.resolve(lambdaName)),
             "Expected direct lambda call to remain for zero-capture lambda")
     }
@@ -399,11 +385,9 @@ extension LoweringPassRegressionTests {
 
         let wrapper = try closureWrapper(for: lambdaSym, in: module)
 
-        // Wrapper should have params: (closureObj, valueParam).
         #expect(wrapper.params.count == 2,
             "Expected invoke wrapper to have 2 params (closureObj + 1 value param)")
 
-        // Wrapper body should contain kk_array_get_inbounds to load capture.
         let wrapperCallees = extractCallees(from: wrapper.body, interner: interner)
         #expect(wrapperCallees.contains(RuntimeCall.arrayGetInbounds.name),
             "Expected invoke wrapper to load captures via kk_array_get_inbounds")
@@ -416,7 +400,6 @@ extension LoweringPassRegressionTests {
         }
         #expect(wrapperCalls.first(where: { $0.callee == interner.resolve(lambdaName) })?.canThrow == true)
 
-        // Wrapper body should call the original lambda.
         #expect(wrapperCallees.contains(interner.resolve(lambdaName)),
             "Expected invoke wrapper to forward to original lambda")
     }
@@ -653,8 +636,6 @@ extension LoweringPassRegressionTests {
         #expect(!callees.contains(interner.resolve(lambdaName)),
             "Expected direct lambda call to be replaced by closure invoke")
 
-        // The rewritten call keeps the caller's thrown channel: the wrapper
-        // propagates the lambda's exception to this thrownResult slot.
         let rewrittenCall = try #require(loweredMain.body.first {
             if case let .call(_, callee, _, _, _, _, _, _) = $0 { return callee == invokeWrapper.name }
             return false
@@ -664,8 +645,6 @@ extension LoweringPassRegressionTests {
             #expect(rewrittenThrown == thrownSlot)
         }
     }
-
-    // MARK: - CLSR-001: Multiple capture tests
 
     @Test
     func testClosureConversionHandlesMultipleCaptures() throws {
@@ -678,10 +657,8 @@ extension LoweringPassRegressionTests {
         let lambdaSym = SymbolID(rawValue: 5)
         let lambdaName = interner.intern("kk_lambda_70")
 
-        // Two capture params.
         let captureParamSym1 = SymbolID(rawValue: -2_000_070)
         let captureParamSym2 = SymbolID(rawValue: -2_000_071)
-        // One value param.
         let valueParamSym = SymbolID(rawValue: -1_000_070)
 
         let captureExpr1 = arena.appendExpr(.symbolRef(captureParamSym1), type: intType)
@@ -762,28 +739,23 @@ extension LoweringPassRegressionTests {
 
         let callees = extractCallees(from: loweredMain.body, interner: interner)
 
-        // Verify closure object allocation.
         #expect(callees.contains(RuntimeCall.objectNew.name),
             "Expected closure object allocation")
 
-        // Two captures -> two kk_array_set calls.
         let arraySetCount = callees.filter { $0 == RuntimeCall.arraySet.name }.count
         #expect(arraySetCount == 2,
             "Expected two kk_array_set calls for two captures")
 
-        // Verify the invoke wrapper is called.
         let wrapper = try closureWrapper(for: lambdaSym, in: module)
         let invokeWrapperName = interner.resolve(wrapper.name)
         #expect(callees.contains(invokeWrapperName),
             "Expected invoke wrapper to be called")
 
-        // Verify the invoke wrapper loads two captures.
         let wrapperCallees = extractCallees(from: wrapper.body, interner: interner)
         let arrayGetCount = wrapperCallees.filter { $0 == RuntimeCall.arrayGetInbounds.name }.count
         #expect(arrayGetCount == 2,
             "Expected invoke wrapper to load two captures via kk_array_get_inbounds")
 
-        // Wrapper params: closureObj + 1 value param = 2.
         #expect(wrapper.params.count == 2,
             "Expected invoke wrapper to have 2 params (closureObj + 1 value)")
     }
@@ -812,9 +784,6 @@ extension LoweringPassRegressionTests {
         ]
         let sourceCallee = interner.intern("sourceMethodWithDefaultArguments")
         if hasSourceCall {
-            // Source calls can look non-throwing before ABI lowering classifies
-            // their default bridges and callees. Closure conversion must not use
-            // this pre-ABI bit as proof that the lambda cannot throw.
             lambdaBody.append(.call(callee: sourceCallee, arguments: [captureExpr], result: nil, canThrow: false))
         }
         lambdaBody.append(.returnValue(captureExpr))
@@ -921,7 +890,6 @@ extension LoweringPassRegressionTests {
         let lambdaSym = SymbolID(rawValue: 11)
         let lambdaName = interner.intern("kk_lambda_110")
 
-        // Only capture param, no value params.
         let captureParamSym = SymbolID(rawValue: -2_000_110)
         let captureExpr = arena.appendExpr(.symbolRef(captureParamSym), type: intType)
 
@@ -978,7 +946,6 @@ extension LoweringPassRegressionTests {
             interner: interner
         )
 
-        // Should NOT run because zero-value-param captures are scope functions.
         #expect(!pass.shouldRun(module: module, ctx: ctx),
             "Expected pass to skip zero-value-param lambda with capture (scope function)")
     }
@@ -1146,9 +1113,6 @@ extension LoweringPassRegressionTests {
 
         let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "Expected lowered main function.")
 
-        // The lowered body should contain a class ID constant that is a large
-        // positive number (FNV-1a hash). Slot count is small (3-4) and offsets
-        // are small (2-3), so any literal > 100 is the class ID.
         let classIDConstants = loweredMain.body.compactMap { instruction -> Int64? in
             guard case let .constValue(_, value) = instruction,
                   case let .intLiteral(literal) = value,

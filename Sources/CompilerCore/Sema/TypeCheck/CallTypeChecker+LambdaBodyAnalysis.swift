@@ -23,8 +23,6 @@ extension CallTypeChecker {
         return true
     }
 
-    // A no-arrow lambda only has an unresolvable implicit parameter when its
-    // body actually references `it`; `{ null }` is a zero-parameter producer.
     private func expressionUsesImplicitIt(
         _ exprID: ExprID,
         ctx: TypeInferenceContext,
@@ -126,10 +124,6 @@ extension CallTypeChecker {
                 return visit(initializer)
             }
         case let .localNominalDecl(declID, _):
-            // KUU-555: an implicit `it` can only reach a local nominal through
-            // expressions evaluated in the enclosing scope — supertype ctor
-            // args for a local `object`, plus member property initializers
-            // for both kinds.
             guard let decl = ctx.ast.arena.decl(declID) else {
                 return false
             }

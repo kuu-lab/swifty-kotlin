@@ -5,7 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2066: omitted type arguments must survive producer library emission.
     @Test
     func testInferredEnumValuesProducerAcrossStdlibSurfaces() throws {
         let artifact = try Self.buildStdlibArtifact()

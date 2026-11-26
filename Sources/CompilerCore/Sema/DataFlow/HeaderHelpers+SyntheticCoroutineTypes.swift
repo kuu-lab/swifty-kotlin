@@ -1,8 +1,3 @@
-/// Extracted from `registerSyntheticCoroutineStubs`
-/// (HeaderHelpers+SyntheticCoroutineRegistry.swift). The extracted
-/// methods thread the shared registry state through `context` so the
-/// call order and side effects are unchanged.
-
 extension DataFlowSemaPhase {
     func registerCoreCoroutineTypes(context: inout SyntheticCoroutineRegistryContext) {
         let symbols = context.symbols
@@ -242,18 +237,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // KSP-675: SharedFlow / MutableSharedFlow are declared by bundled Kotlin
-        // source (Sources/CompilerCore/Stdlib/kotlinx/coroutines/flow/SharedFlow.kt),
-        // so no synthetic symbols are registered for them here.
-        // KSP-676: StateFlow / MutableStateFlow are also bundled Kotlin source
-        // (StateFlow.kt), so no synthetic symbols are registered for them either.
-        // KSP-499 Stage 2: give the Flow interface a real generic type parameter
-        // (previously `args: []` on every ClassType use, with the element type
-        // tracked only in the Sema side-tables `flowElementTypesByExpr`/`BySymbol`
-        // — see SemanticsModels.swift). Flow is read-only and covariant
-        // (`Flow<out T>` in kotlinx.coroutines).
-        // Pattern mirrors `registerSyntheticIterableStub` in
-        // HeaderHelpers+SyntheticCollectionTypeFallbacks.swift.
         func declareFlowFamilyTypeParameter(
             owner: SymbolID,
             ownerFQName: [InternedString],
@@ -328,11 +311,6 @@ extension DataFlowSemaPhase {
             symbol: channelElementTypeParameterSymbol,
             nullability: .nonNull
         )))
-        // KSP-1573: `Channel.Factory` companion anchor. The bundled
-        // RENDEZVOUS / UNLIMITED / CONFLATED / BUFFERED / OPTIONAL_CHANNEL
-        // constants in Stdlib/kotlinx/coroutines/channels/Channel.kt are
-        // extension properties on this companion, so `Channel.X` and
-        // `Channel.Factory.X` both resolve.
         if symbols.companionObjectSymbol(for: channelSymbol) == nil {
             let factoryName = interner.intern("Factory")
             let factoryFQName = channelsPkg
@@ -356,11 +334,6 @@ extension DataFlowSemaPhase {
                 symbols.setCompanionObjectSymbol(factorySymbol, for: channelSymbol)
             }
         }
-        // KSP-678: `ChannelIterator<T>` is the runtime handle returned by
-        // `Channel<T>.iterator()`. Registered as a synthetic handle type (like
-        // Channel itself) so the bundled Kotlin iterator/hasNext/next extension
-        // operators in Channels.kt can bridge to the residual
-        // kk_channel_iterator{,_hasNext,_next} runtime entry points.
         let channelIteratorSymbol = ensureClassSymbol(
             named: "ChannelIterator",
             in: channelsPkg,
@@ -428,12 +401,6 @@ extension DataFlowSemaPhase {
             args: deferredTypeArgs,
             nullability: .nonNull
         )))
-        // KSP-499 Stage 2: use each class's own type parameter as the receiver
-        // "self type" (matching `iterableReceiverType` in
-        // HeaderHelpers+SyntheticCollectionTypeFallbacks.swift) instead of a raw,
-        // argument-less ClassType. This is the generic *declaration* shape used
-        // as an owner/receiver/return type placeholder throughout this file —
-        // callers substitute concrete element types at actual call sites.
         let flowRawType = types.make(.classType(ClassType(
             classSymbol: flowInterfaceSymbol,
             args: [.out(types.make(.typeParam(TypeParamType(symbol: flowTypeParamSymbol, nullability: .nonNull))))],

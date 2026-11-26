@@ -13,8 +13,6 @@ import kotlin.comparisons.minOf as comparisonMinOf
 import kotlin.internal.__valuesEqual
 import kotlin.random.Random
 
-// Float/Double maxOf uses these existing shared numeric helpers so NaN and
-// signed-zero behavior stays identical to kotlin.comparisons.maxOf.
 @PublishedApi
 internal external fun kk_max_float(a: Float, b: Float): Float
 @PublishedApi
@@ -24,14 +22,8 @@ internal external fun kk_unbox_float(value: Float): Float
 @PublishedApi
 internal external fun kk_unbox_double(value: Double): Double
 
-// KSP-435
-// Every implementation only relies on `iterator()` virtual dispatch,
-// so it works for List, Set and any user-defined Iterable alike.
-
 public inline fun <T> Iterable<T>.asIterable(): Iterable<T> = this
 
-// KSP-967: Preserve Kotlin's Collection fast path while keeping arbitrary
-// Iterable implementations on the source-backed indexOf path.
 public operator fun <@kotlin.internal.OnlyInputTypes T> Iterable<T>.contains(element: T): Boolean {
     if (this is Collection<*>) return this.contains(element)
     return indexOf(element) >= 0
@@ -133,9 +125,6 @@ public fun <T> Iterable<T>.toHashSet(): HashSet<T> {
     return result
 }
 
-// KUU-1361: JVM `toSortedSet` returns `java.util.SortedSet` — the concrete
-// instance is a TreeSet, which keeps ordering and deduplication inside the
-// runtime box.
 public fun <T : Comparable<T>> Iterable<T>.toSortedSet(): java.util.SortedSet<T> {
     val result = java.util.TreeSet<T>()
     for (element in this) result.add(element)
@@ -154,9 +143,6 @@ public fun <T, C : MutableCollection<in T>> Iterable<T>.toCollection(destination
     return destination
 }
 
-// KSP-964: Generic Iterable association APIs use virtual iterator dispatch so
-// custom and one-shot Iterable implementations follow Kotlin's encounter-order
-// and last-write-wins map semantics without a runtime bridge.
 @Suppress("UNCHECKED_CAST")
 public inline fun <T, K, V> Iterable<T>.associate(transform: (T) -> Pair<K, V>): Map<K, V> {
     val result = mutableMapOf<K, V>()
@@ -241,8 +227,6 @@ public fun <T> Iterable<Iterable<T>>.flatten(): List<T> {
     return result
 }
 
-// KSP-978: Keep Iterable group-family operations on the iterator-backed
-// source path so custom and one-shot Iterables preserve encounter order.
 @Suppress("UNCHECKED_CAST")
 public inline fun <T, K> Iterable<T>.groupBy(keySelector: (T) -> K): Map<K, List<T>> {
     val result = mutableMapOf<K, MutableList<T>>()
@@ -679,9 +663,6 @@ public inline fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> {
     return result
 }
 
-// KSP-982: Keep these overloads independent from concrete
-// List/Array/Set/Sequence receivers so virtual iterator dispatch also covers
-// custom and one-shot Iterables.
 public inline fun <T, R> Iterable<T>.map(transform: (T) -> R): List<R> {
     val result = mutableListOf<R>()
     for (element in this) result.add(transform(element))
@@ -785,9 +766,6 @@ public inline fun <T> Iterable<T>.findLast(predicate: (T) -> Boolean): T? {
     return last
 }
 
-// KSP-971: remaining Iterable filter-family APIs use bundled Kotlin source
-// bodies so custom and one-shot Iterable receivers follow the same iteration
-// and destination semantics as the Kotlin standard library.
 public inline fun <T> Iterable<T>.filterIndexed(predicate: (Int, T) -> Boolean): List<T> {
     val result = mutableListOf<T>()
     var index = 0
@@ -952,8 +930,6 @@ public inline fun <S, T : S> Iterable<T>.reduceIndexedOrNull(operation: (index: 
     return accumulator
 }
 
-// KSP-992: generic Iterable single-family APIs use one iterator and stop as soon
-// as their result is determined. List receivers continue to use ListSearchHOF.kt.
 public fun <T> Iterable<T>.single(): T {
     when (this) {
         is List -> return this.single()
@@ -1028,8 +1004,6 @@ public inline fun <T> Iterable<T>.all(predicate: (T) -> Boolean): Boolean {
     return true
 }
 
-// KSP-986: Preserve the Collection fast path while keeping arbitrary
-// Iterable implementations on the iterator-backed source path.
 public fun <T> Iterable<T>.none(): Boolean {
     if (this is Collection<*>) return (this as Collection<*>).isEmpty()
     return !iterator().hasNext()
@@ -1129,8 +1103,6 @@ public fun <T : Any> Iterable<T?>.requireNoNulls(): Iterable<T> {
     return this as Iterable<T>
 }
 
-// Kotlin 2.3.10 exposes a List-specific overload so the narrowed return type
-// is preserved for statically typed List receivers.
 @Suppress("UNCHECKED_CAST")
 public fun <T : Any> List<T?>.requireNoNulls(): List<T> {
     for (element in this) {
@@ -1247,9 +1219,6 @@ public fun <T> Iterable<T>.joinToString(
     transform: (T) -> CharSequence
 ): String = appendJoinToAppendableTransform(this.iterator(), StringBuilder(), separator, prefix, postfix, limit, truncated, transform).toString()
 
-// KSP-632: These implementations rely only on `iterator()` / `toMutableList()`,
-// so they work for List, Set and any other Iterable.
-
 public fun <T> Iterable<T>.reduceRight(operation: (T, T) -> T): T {
     val list = this.toMutableList()
     if (list.size == 0) throw UnsupportedOperationException("Empty collection can't be reduced.")
@@ -1342,9 +1311,6 @@ public fun List<Char>.joinToString(
     buffer.append(postfix)
     return buffer.toString()
 }
-
-// KSP-984: Iterable min-family APIs are source-backed and intentionally keep
-// the iterator-based Kotlin semantics instead of routing through List bridges.
 
 @SinceKotlin("1.7")
 @kotlin.jvm.JvmName("minOrThrow")

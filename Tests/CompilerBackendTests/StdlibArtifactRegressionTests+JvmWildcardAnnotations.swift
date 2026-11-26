@@ -43,7 +43,6 @@ extension StdlibArtifactRegressionTests {
             do {
                 try runSema(context)
             } catch {
-                // The annotation is restricted to types, including after import.
             }
             let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
             #expect(errors.count == 1, "\(errors)")

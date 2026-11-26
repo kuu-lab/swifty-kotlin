@@ -217,9 +217,6 @@ func hex1767FieldOffsets(_ record: MetadataRecord) throws -> [String: Int] {
     return offsets
 }
 
-// Called only after successful compilation, CommandRunner's completed process,
-// exact stdout/stderr checks, and unchanged source/library checks. Failures retain
-// the printed UUID directory; neither caches nor compiler binaries live here.
 func hex1767CleanupSuccessfulRuntime(
     directory: URL, executable: URL, executableHash: String, expected: Data, lane: String
 ) throws {

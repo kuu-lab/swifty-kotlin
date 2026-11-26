@@ -4,22 +4,6 @@ package kotlin
 
 import kotlin.internal.KsSymbolName
 
-// KSP-1517: `Array<T>` and the primitive array types use intrinsic construction
-// (`IntArray(size)`), indexing (`array[i]`), `.size`, and the
-// HOF surface are all resolved by compiler name matching (see
-// `CompilerKnownNames.isArrayLikeName`/`isPrimitiveArrayConstructorTypeName`
-// and `PrimitiveArrayFactoryPredicates.swift`). Source-backed get/set declarations
-// expose explicit calls as well as indexing, while their bodies still use the
-// compiler's intrinsic indexed-access lowering. Runtime storage is the single untyped `RuntimeArrayBox`
-// (`RuntimeArrayBasics.swift`) for every primitive kind, so these shells stay
-// with a private constructor, matching the `Nothing`/
-// `DeepRecursiveScope` pattern for compiler-intrinsic-backed types that are
-// never constructed through their own declared constructor. Predeclared early
-// via `predeclareBundledArrayHeaders` (`HeaderCollection.swift`) because
-// array-typed synthetic signatures (e.g. `MutableCollection<T>.addAll`) are
-// registered before the normal bundled header collection pass; the fallback
-// fires when the sole synthetic anchor is needed instead (`--no-stdlib` /
-// precompiled `.kklib`, no bundled source parsed).
 // KUU-3537: `Array` and the signed primitive arrays implement `Cloneable`,
 // matching the JVM where every array type is `java.lang.Cloneable`. The
 // unsigned arrays stay off the list: on the JVM they are value classes over
@@ -82,11 +66,6 @@ public class ULongArray private constructor() {
     public operator fun set(index: Int, value: ULong) { this[index] = value }
 }
 
-//   * `arrayOf` packs its varargs into a runtime array via `kk_array_of`
-//     (the packed-array + count normalization happens in CallSupportLowerer,
-//     keyed on the `kk_array_of` link name);
-//   * `emptyArray` allocates a fresh array and tags its component at the typed
-//     call site; `kk_empty_array` remains the untyped runtime fallback.
 @KsSymbolName("kk_array_of")
 public external fun <T> arrayOf(vararg elements: T): Array<T>
 
@@ -96,10 +75,6 @@ public external fun <T> emptyArray(): Array<T>
 @KsSymbolName("kk_array_of_nulls")
 public external fun <T> arrayOfNulls(size: Int): Array<T?>
 
-// KUU-4431: source-backed surface for the component-type check. CallLowerer
-// replaces calls to this declaration with `kk_array_is_array_of`, which
-// compares the array's allocation component against the reified T — the same
-// assignability rule `as? Array<T>` applies. The throw body is never reached.
 public inline fun <reified T : Any> Array<*>.isArrayOf(): Boolean =
     throw IllegalStateException("isArrayOf is expanded by the compiler")
 
@@ -108,8 +83,6 @@ public inline fun <reified T : Any> Array<*>.isArrayOf(): Boolean =
 @KsSymbolName("kk_array_of")
 public external fun intArrayOf(vararg elements: Int): IntArray
 
-// KSP-1512: signed primitive-array `size` remains a runtime-backed intrinsic
-// behind the public Kotlin extension properties in ArrayConversions.kt.
 @KsSymbolName("__kk_intArray_size")
 internal external fun __kkIntArraySize(array: IntArray): Int
 
@@ -134,9 +107,6 @@ internal external fun __kkDoubleArraySize(array: DoubleArray): Int
 @KsSymbolName("__kk_floatArray_size")
 internal external fun __kkFloatArraySize(array: FloatArray): Int
 
-// KSP-1513: generic and unsigned array `size` bridges. The public members are
-// declared in bundled Kotlin source; these declarations retain only the
-// runtime storage access.
 @KsSymbolName("__kk_array_size")
 internal external fun __kkArraySize(array: Array<*>): Int
 

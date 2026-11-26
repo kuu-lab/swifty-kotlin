@@ -28,6 +28,8 @@ inline fun CharSequence.any(predicate: (Char) -> Boolean): Boolean { for (c in t
 inline fun CharSequence.all(predicate: (Char) -> Boolean): Boolean { for (c in this) if (!predicate(c)) return false; return true }
 inline fun CharSequence.none(predicate: (Char) -> Boolean): Boolean { for (c in this) if (predicate(c)) return false; return true }
 inline fun CharSequence.count(predicate: (Char) -> Boolean): Int { var count = 0; for (c in this) if (predicate(c)) count++; return count }
+inline fun CharSequence.sumBy(selector: (Char) -> Int): Int { var sum = 0; for (c in this) sum += selector(c); return sum }
+inline fun CharSequence.sumByDouble(selector: (Char) -> Double): Double { var sum = 0.0; for (c in this) sum += selector(c); return sum }
 inline fun <R> CharSequence.fold(initial: R, operation: (R, Char) -> R): R { var accumulator = initial; var i = 0; for (c in this) { accumulator = operation(accumulator, c); i++ }; return accumulator }
 inline fun <R> CharSequence.foldIndexed(initial: R, operation: (Int, R, Char) -> R): R { var accumulator = initial; var i = 0; for (c in this) { accumulator = operation(i, accumulator, c); i++ }; return accumulator }
 inline fun <R> CharSequence.foldRight(initial: R, operation: (Char, R) -> R): R { var accumulator = initial; var i = this.length - 1; while (i >= 0) { accumulator = operation(this[i], accumulator); i-- }; return accumulator }

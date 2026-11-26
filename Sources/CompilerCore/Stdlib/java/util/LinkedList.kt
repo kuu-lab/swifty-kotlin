@@ -6,9 +6,6 @@ import kotlin.collections.MutableIterator
 import kotlin.collections.MutableList
 import kotlin.internal.__valuesEqual
 
-// KUU-3996: java.util.LinkedList implements java.util.Deque on the JVM,
-// which extends Queue; the bundled shim satisfies the Queue contract
-// directly (Deque itself remains unmodelled).
 public class LinkedList<E> private constructor(
     private val storage: ArrayDeque<E>
 ) : Queue<E>, MutableList<E> by storage {
@@ -160,8 +157,6 @@ public class LinkedList<E> private constructor(
             return storage.last()
         }
 
-    // Index-based walk over the ring buffer; the remove() cursor mirrors
-    // ListIteratorImpl's convention of rewinding past the removed slot.
     private class DescendingIterator<T>(private val owner: LinkedList<T>) : MutableIterator<T> {
         private var cursor = owner.storage.size
         private var lastReturned = -1

@@ -6,7 +6,6 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
-    /// KUU-3259: artifact-backed List equality must accept java.util.LinkedList.
     @Test
     func testJavaUtilLinkedListListEqualityInsideFreshStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -41,7 +40,6 @@ extension StdlibArtifactRegressionTests {
         #expect(output == expected, "fresh stdlib artifact at O0")
     }
 
-    /// KUU-2035: preserve JVM Unit local, return, argument, and property boundaries.
     @Test
     func testJavaLinkedListPlatformUnitThroughSourceAndFreshArtifactAtO0AndO2() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -112,7 +110,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-2022: retain the unchanged upstream generic return through both routes.
     @Test
     func testJavaLinkedListPlatformReturnsThroughSourceAndFreshArtifactAtO0AndO2() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -192,7 +189,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-2013: peekLast preserves element types, nullability, and contents.
     @Test
     func testJavaUtilLinkedListPeekLastThroughSourceAndFreshArtifactAtO0AndO2() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -241,24 +237,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-1858: run the reported LinkedList reproducer and pinned Queue
-    /// consumer against source stdlib and one freshly emitted artifact at O0/O2.
-    /// Queue.kt and Graph.kt provenance is pinned in the diff-case fixture; the
-    /// full Graph consumer additionally depends on KUU-1860's putIfAbsent API.
-    /// Pinned Graph Main input:
-    /// ```kotlin
-    /// import structures.*
-    /// fun main() {
-    ///     val graph = Graph<Int>()
-    ///     for (v in 1..4) graph.addVertex(v)
-    ///     graph.addEdge(1, 2)
-    ///     graph.addEdge(1, 3)
-    ///     graph.addEdge(2, 4)
-    ///     println(graph.connectedVertexes(1).joinToString(","))
-    ///     println(graph.breadthFirstTraversal().joinToString(","))
-    /// }
-    /// ```
-    /// Expected stdout after KUU-1860 lands: `2,3` then `1,2,3,4`.
     @Test
     func testJavaUtilLinkedListConsumersThroughSourceAndFreshArtifactAtO0AndO2() throws {
         let artifactPath = try Self.buildStdlibArtifact()

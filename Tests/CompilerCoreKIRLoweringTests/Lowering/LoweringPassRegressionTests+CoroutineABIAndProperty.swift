@@ -57,12 +57,6 @@ extension LoweringPassRegressionTests {
         }
     }
 
-    // MARK: - Interception-transparent tail suspend calls (KUU-3719)
-
-    /// A suspend function whose suspending calls are all in tail position owns
-    /// no `ContinuationImpl` on JVM, so a direct suspend call to it must bind
-    /// the child continuation to the caller's interception instead of running
-    /// `interceptContinuation` a second time.
     @Test
     func testTailSuspendCalleeEmitsSharedInterceptionBinding() throws {
         let source = """
@@ -89,9 +83,6 @@ extension LoweringPassRegressionTests {
         }
     }
 
-    /// A callee that resumes its own frame after suspending (post-suspend
-    /// computation, extra suspension points) keeps its own continuation on
-    /// JVM and must still intercept independently — no shared binding.
     @Test
     func testNonTailSuspendCalleeKeepsIndependentInterception() throws {
         let source = """
@@ -147,8 +138,6 @@ extension LoweringPassRegressionTests {
             #expect(!callees.contains(RuntimeCall.withTimeoutOrNull.name))
         }
     }
-
-    // MARK: - Coroutine Launcher Arg Tests
 
     @Test(arguments: [true, false])
     func testCoroutineLauncherWithArgBearingSuspendFunctionGeneratesThunk(routesThrows: Bool) throws {
@@ -288,11 +277,6 @@ extension LoweringPassRegressionTests {
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
-    /// Lowered suspend state machines re-emit `channelFlow`/`callbackFlow`
-    /// with the producer block as a bare `symbolRef` (no callable-value info).
-    /// The producer-create rewrite must still fire and hand the runtime the
-    /// launcher thunk — the suspend invoke entry's `(receiver, thrown)` ABI
-    /// would otherwise overwrite launcherArgs[0] (the channel handle).
     @Test
     func testProducerFlowCreateWithBareSymbolRefEmitterUsesLauncherThunk() throws {
         let interner = StringInterner()
@@ -834,10 +818,6 @@ extension LoweringPassRegressionTests {
 
     @Test
     func testCoroutineLauncherWithSuspendLambdaCapturesGeneratesThunk() throws {
-        // Simulates: val x = 42; runBlocking { x }
-        // The lambda captures `x`, so it has 1 capture param and 0 value params.
-        // The launcher call should include the capture value as an extra arg,
-        // and the CoroutineLoweringPass should generate a thunk that forwards it.
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
@@ -870,7 +850,6 @@ extension LoweringPassRegressionTests {
             isInline: false
         )
 
-        // Lambda function with 1 capture param, isSuspend: true
         let lambdaFn = KIRFunction(
             symbol: lambdaSymbol,
             name: interner.intern("kk_lambda_99"),
@@ -912,8 +891,6 @@ extension LoweringPassRegressionTests {
 
     @Test
     func testCoroutineLauncherWithZeroCapturesSuspendLambdaUsesOriginalPath() throws {
-        // Simulates: runBlocking { 42 }
-        // The lambda has no captures and no value params → uses zero-arg path.
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
@@ -943,7 +920,6 @@ extension LoweringPassRegressionTests {
             isInline: false
         )
 
-        // Lambda with no params (no captures, no value params)
         let lambdaFn = KIRFunction(
             symbol: lambdaSymbol,
             name: interner.intern("kk_lambda_100"),
@@ -1036,13 +1012,9 @@ extension LoweringPassRegressionTests {
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
-    // MARK: - produce/actor Function-Value Block Tests
-
     @Test(arguments: [(false, false), (true, false), (true, true)], [0, 42])
     func testProduceLaunchFunctionValuePreservesCallableLayout(layout: (Bool, Bool), captureValue: Int64) throws {
         let (hasClosureParam, hasPackedEnvironment) = layout
-        // Raw capture-first values use (fnPtr, env); known closure-first
-        // suspend adapters use a continuation with [env, receiver] slots.
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
@@ -1078,8 +1050,6 @@ extension LoweringPassRegressionTests {
             isSuspend: false,
             isInline: false
         )
-        // A *named* suspend function — not a `kk_lambda_<exprID>` literal —
-        // so it is never coroutine-launcher marked.
         let suspendFn = KIRFunction(
             symbol: suspendSymbol,
             name: interner.intern("named_suspend_block"),
@@ -1217,6 +1187,5 @@ extension LoweringPassRegressionTests {
         #expect(!ctx.diagnostics.diagnostics.contains { $0.severity == .error })
     }
 
-    // MARK: - ABI Boxing/Unboxing Tests
 }
 #endif

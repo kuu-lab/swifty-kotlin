@@ -6,6 +6,7 @@ import kotlin.jvm.internal.__jvmTitleChar
 import kotlin.jvm.internal.__jvmWhitespace
 import kotlin.jvm.internal.__jvmSpaceChar
 import kotlin.jvm.internal.__jvmIsDigit
+import kotlin.jvm.internal.__jvmDirectionality
 import kotlin.jvm.internal.__jvmIsLowerCase
 import kotlin.jvm.internal.__jvmIsUpperCase
 
@@ -14,6 +15,10 @@ public inline operator fun Char.inc(): Char = (this.code + 1).toChar()
 
 @kotlin.internal.InlineOnly
 public inline operator fun Char.dec(): Char = (this.code - 1).toChar()
+
+public fun Char.isHighSurrogate(): Boolean = this >= '\uD800' && this <= '\uDBFF'
+
+public fun Char.isLowSurrogate(): Boolean = this >= '\uDC00' && this <= '\uDFFF'
 
 public fun Char.isDigit(): Boolean = __jvmIsDigit(this)
 
@@ -42,6 +47,34 @@ public fun Char.titlecase(): String {
 }
 
 public fun Char.isWhitespace(): Boolean = __jvmWhitespace(this) || __jvmSpaceChar(this)
+
+public val Char.directionality: CharDirectionality
+    get() {
+        val directionality = __jvmDirectionality(this)
+        return when (directionality) {
+            -1 -> CharDirectionality.UNDEFINED
+            0 -> CharDirectionality.LEFT_TO_RIGHT
+            1 -> CharDirectionality.RIGHT_TO_LEFT
+            2 -> CharDirectionality.RIGHT_TO_LEFT_ARABIC
+            3 -> CharDirectionality.EUROPEAN_NUMBER
+            4 -> CharDirectionality.EUROPEAN_NUMBER_SEPARATOR
+            5 -> CharDirectionality.EUROPEAN_NUMBER_TERMINATOR
+            6 -> CharDirectionality.ARABIC_NUMBER
+            7 -> CharDirectionality.COMMON_NUMBER_SEPARATOR
+            8 -> CharDirectionality.NONSPACING_MARK
+            9 -> CharDirectionality.BOUNDARY_NEUTRAL
+            10 -> CharDirectionality.PARAGRAPH_SEPARATOR
+            11 -> CharDirectionality.SEGMENT_SEPARATOR
+            12 -> CharDirectionality.WHITESPACE
+            13 -> CharDirectionality.OTHER_NEUTRALS
+            14 -> CharDirectionality.LEFT_TO_RIGHT_EMBEDDING
+            15 -> CharDirectionality.LEFT_TO_RIGHT_OVERRIDE
+            16 -> CharDirectionality.RIGHT_TO_LEFT_EMBEDDING
+            17 -> CharDirectionality.RIGHT_TO_LEFT_OVERRIDE
+            18 -> CharDirectionality.POP_DIRECTIONAL_FORMAT
+            else -> throw IllegalArgumentException("Directionality #$directionality is not defined.")
+        }
+    }
 
 public fun Char.toFloat(): Float = this.code.toFloat()
 

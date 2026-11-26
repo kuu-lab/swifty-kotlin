@@ -1,13 +1,6 @@
 package platform.Foundation
 
-/**
- * Typed facade over NSUserDefaults. Scalar getters mirror the real Foundation
- * defaults (missing keys read as false/0/0.0); `objectForKey` returns Kotlin
- * natives for plist scalars and collections, and wraps opaque Foundation
- * objects (NSDate/NSData/NSURL/…) back into their Kotlin facades.
- */
 public open class NSUserDefaults internal constructor(handle: Long) : NSObject(handle) {
-    /** initWithSuiteName:; a null suite name selects the standard defaults. */
     public constructor(suiteName: String?) : this(
         if (suiteName == null) __foundation_defaults_standard()
         else __foundation_defaults_create_suite(suiteName))

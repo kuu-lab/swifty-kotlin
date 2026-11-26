@@ -5,16 +5,6 @@ import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
 import kotlin.internal.KsSymbolName
 
-// KSP-431: Map's four runtime-backed property links and MutableMap's mutation
-// links are registered as direct residual ABI members because built-in map
-// boxes bypass itable registration (isEmpty/get use direct @KsSymbolName
-// bridges in Map/Map.kt). The residual Map.Entry shell keeps the runtime
-// key/value accessors available until nested source declarations can be
-// collected in the same pass. The entry bridge tags each entry with the
-// runtime map-entry type so `toString` prints `k=v`; the `withDefault` state
-// remains stored on the runtime map box (`__kk_map_withDefault` /
-// `__kk_map_has_default` / `__kk_map_implicit_default`).
-
 @KsSymbolName("__kk_map_withDefault")
 private external fun <K, V> __kk_map_withDefault(map: Map<K, V>, defaultValue: (K) -> V): Map<K, V>
 
@@ -44,7 +34,6 @@ private external fun <K, V> __kk_mutable_map_withDefault(
 @PublishedApi
 internal external fun <K, V> __kk_mutable_map_remove(map: MutableMap<K, V>, key: K): V?
 
-// Kotlin 2.3.10 defines Map.contains as the key-membership operator.
 public inline operator fun <@kotlin.internal.OnlyInputTypes K, V> Map<out K, V>.contains(key: K): Boolean = containsKey(key)
 
 public fun <@kotlin.internal.OnlyInputTypes K, V> Map<K, V>.containsKey(key: K): Boolean = keys.contains(key)
@@ -323,7 +312,6 @@ public fun <K, V> Map<K, V>?.orEmpty(): Map<K, V> {
     return this!!
 }
 
-// KUU-1361: JVM `Map.toSortedMap` returns `java.util.SortedMap`.
 public fun <K : Comparable<K>, V> Map<out K, V>.toSortedMap(): java.util.SortedMap<K, V> {
     val result = java.util.TreeMap<K, V>()
     result.putAll(this)

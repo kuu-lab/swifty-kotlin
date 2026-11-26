@@ -25,7 +25,6 @@ public final class ImmutableBlob private constructor() {
     public val size: Int
         get() = getArrayLength()
 
-    // Data layout is the same as for ByteArray, so we can share native functions.
     @KsSymbolName("kk_native_byteArray_getByteAt")
     public external operator fun get(index: Int): Byte
 
@@ -89,9 +88,6 @@ public fun ImmutableBlob.asUCPointer(offset: Int = 0): CPointer<UByteVar> =
 @KsSymbolName("__kk_immutable_blob_as_cpointer")
 private external fun ImmutableBlob.asCPointerImpl(offset: Int): NativePtr
 
-// KSwiftK represents C pointers as runtime handles. Reuse the existing
-// cinterop handle constructor for the NativePtr-to-CPointer identity cast,
-// the same role as upstream's interpretCPointer.
 @KsSymbolName("kk_cpointer_new")
 private external fun <T : CPointed> __interpretCPointer(rawValue: NativePtr): CPointer<T>?
 

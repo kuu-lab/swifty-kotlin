@@ -236,13 +236,9 @@ package enum CommandRunner {
             didExit = wait(for: terminatedSemaphore, timeout: terminationGracePeriodSeconds)
             if !didExit {
                 if process.isRunning {
-                    let killResult = kill(process.processIdentifier, SIGKILL)
-                    if killResult != 0 && errno != ESRCH {
-                    }
+                    _ = kill(process.processIdentifier, SIGKILL)
                 }
                 didExit = wait(for: terminatedSemaphore, timeout: terminationGracePeriodSeconds)
-                if !didExit && process.isRunning {
-                }
             }
         }
 

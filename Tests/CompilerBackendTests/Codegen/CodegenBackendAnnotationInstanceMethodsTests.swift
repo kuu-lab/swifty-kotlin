@@ -11,7 +11,6 @@ struct CodegenBackendAnnotationInstanceMethodsTests {
         let source = try String(contentsOf: root.appendingPathComponent(
             "Scripts/diff_cases/annotation_instance_methods.kt"
         ), encoding: .utf8)
-        // Captured from the Kotlin/JVM reference implementation.
         let expected = """
         true
         false

@@ -23,7 +23,6 @@ struct SuperRuntimeBridgeArtifactTests {
             #expect(result.exitCode == 0, "\(result.stderr)")
             #expect(result.stdout == "7\n7\n9\nfalse\nempty\n")
 
-            // A sole bridge retains its binding and non-abstract runtime contract.
             let bridgeOnly = "class Only : Iterator<Int> { fun fallback(): Int = super.next() }"
             let ctx = CompilerDriver().runFrontend(options: options, inMemorySources: [path: Data(bridgeOnly.utf8)]).context
             #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")

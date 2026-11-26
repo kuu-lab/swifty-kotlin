@@ -4,14 +4,6 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-// Regression coverage for extension operators declared on a primitive
-// receiver (e.g. `operator fun Int.times(v: Vec)`) whose parameter type the
-// built-in primitive fast paths do not accept. Both Sema (the primitive
-// special-case in CallTypeChecker+MemberCallInferenceRegularPrimitiveSpecials
-// and the primitive guard in ExprTypeChecker.collectOperatorCandidates) and
-// KIR lowering (CallLowerer+LegacyMemberLikeCalls's name-based `kk_op_*`
-// dispatch and CallLowerer+Operators's string-add shortcut) used to ignore
-// argument applicability and silently miscompile these calls.
 extension BuildKIRRegressionTests {
     @Test func testBuildKIRUsesPrimitiveContainsExtensionInWhenCondition() throws {
         let source = """
@@ -139,8 +131,6 @@ extension BuildKIRRegressionTests {
         let chosenSemanticSymbol = try #require(sema.symbols.symbol(chosenSymbol))
         #expect(chosenSemanticSymbol.name == ctx.interner.intern(BinaryOp.multiply.kotlinFunctionName))
         let signature = try #require(sema.symbols.functionSignature(for: chosenSymbol))
-        // The chosen callee must be the top-level `Int.times(Vec)` extension
-        // (it has a receiver clause), not a hijacked primitive fast path.
         #expect(signature.receiverType != nil)
 
         try BuildKIRPhase().run(ctx)

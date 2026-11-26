@@ -7,15 +7,6 @@
  */
 package kotlinx.io
 
-/**
- * A [RawSource] which peeks into an upstream [Source] and allows reading and expanding of the
- * buffered data without consuming it. Does this by requesting additional data from the upstream
- * source if needed and copying out of the internal buffer of the upstream source if possible.
- *
- * This source also maintains a snapshot of the starting location of the upstream buffer which it
- * validates against on every read. If the upstream buffer is read from, this source will become
- * invalid and throw [IllegalStateException] on any future reads.
- */
 internal class PeekSource(
     private val upstream: Source
 ) : RawSource {
@@ -30,8 +21,6 @@ internal class PeekSource(
     override fun readAtMostTo(sink: Buffer, byteCount: Long): Long {
         check(!closed) { "Source is closed." }
         checkByteCount(byteCount)
-        // Source becomes invalid if there is an expected Segment and it and the expected position
-        // do not match the current head and head position of the upstream buffer
         check(
             expectedSegment == null ||
                     expectedSegment === buffer.head && expectedPos == buffer.head!!.pos

@@ -148,8 +148,6 @@ extension LoweringPassRegressionTests {
 
             let rangeYieldFunctions = functions.filter { function in
                 let callees = extractCallees(from: function.body, interner: ctx.interner)
-                // ARCH-012: the induction loop must retain CPS suspension
-                // handling without falling back to the range iterator ABI.
                 return callees.contains(RuntimeCall.sequenceBuilderYield.name)
                     && callees.contains(CompilerCall.intRangeInductionLe.name)
                     && callees.contains(CompilerCall.intRangeInductionAdd.name)
@@ -367,7 +365,6 @@ extension LoweringPassRegressionTests {
 
         let sema = try #require(ctx.sema)
         let loweredSuspend = try loweredSuspendFunction(originalNamed: interner.resolve(suspendName), in: module, interner: interner)
-        // Sema and KIR allocate separate symbols for the same lowered declaration.
         let loweredSemaSymbol = try #require(sema.symbols.allSymbols().first {
             $0.kind == .function && $0.name == loweredSuspend.name
         })
@@ -539,7 +536,6 @@ extension LoweringPassRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            // Include the bundled inline builder body; kirDump omits stdlib bodies.
             let ctx = makeCompilationContext(inputs: [path], moduleName: "SuspendCoroutineLowering", emit: .executable)
             try runToLowering(ctx)
             #expect(!ctx.diagnostics.hasError, "Diagnostics: \(ctx.diagnostics.diagnostics)")
@@ -548,7 +544,6 @@ extension LoweringPassRegressionTests {
             let loweredSuspend = try loweredSuspendFunction(originalNamed: "probe", in: module, interner: ctx.interner)
 
             let loweredCallees = extractCallees(from: loweredSuspend.body, interner: ctx.interner)
-            // The source-backed builder inlines the intrinsic invocation protocol.
             #expect(!loweredCallees.contains(RuntimeCall.suspendCoroutine.name))
             #expect(!loweredCallees.contains("suspendCoroutineUninterceptedOrReturn"))
             #expect(!loweredCallees.contains("<suspendCoroutineUninterceptedOrReturn>"))

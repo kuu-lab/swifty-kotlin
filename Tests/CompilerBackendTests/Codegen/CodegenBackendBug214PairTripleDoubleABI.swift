@@ -5,8 +5,6 @@
 import Foundation
 import Testing
 
-/// BUG-214: source-backed Pair/Triple accessors must unbox Double elements
-/// before the primitive value is passed to the caller.
 @Suite
 struct CodegenBackendBug214PairTripleDoubleABITests {
     @Test

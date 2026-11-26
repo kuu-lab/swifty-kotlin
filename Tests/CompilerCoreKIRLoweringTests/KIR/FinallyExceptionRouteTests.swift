@@ -234,19 +234,6 @@ struct FinallyExceptionRouteTests {
         )
     }
 
-    // MARK: - usePinned nested inside an outer try (CODE-001 guard placement)
-
-    /// Verifies that `usePinned`'s block-call is wrapped in its own nested
-    /// beginFinallyGuard/endFinallyGuard region when `usePinned` is itself
-    /// nested inside an outer try. Without this guard, the outer try's own
-    /// appendThrowAwareInstructions pass would re-wrap the already-routed
-    /// block call, inserting a premature jump to the outer catch dispatch
-    /// that races ahead of usePinned's own unpin() cleanup — the same class
-    /// of bug fixed for the try/catch/finally and `use{}` cases, but not
-    /// observable via printed output since unpin() has no visible side
-    /// effect. This checks the KIR shape directly instead: two levels of
-    /// beginFinallyGuard nesting must be reachable (the outer try's own body
-    /// guard, plus usePinned's own guard around its block call).
     @Test func testUsePinnedNestedInOuterTryGuardsBlockCallFromOuterRewrap() throws {
         let source = """
         import kotlinx.cinterop.ExperimentalForeignApi
@@ -301,7 +288,6 @@ struct FinallyExceptionRouteTests {
         )
     }
 
-    // break/continue paths share the same assertion structure
     private func assertInlinedFinallyIsThrowAware(source: String, functionName: String) throws {
         let ctx = makeContextFromSource(source)
         try runToKIR(ctx)

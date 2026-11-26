@@ -71,9 +71,6 @@ struct CallableIntersectionInvocationTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
-    // KUU-4457: a `where`-bounded type variable passes through its function
-    // bound. `F : (T) -> R, F : KCallable<R>` must satisfy a `(T) -> R`
-    // parameter, binding T and R through the bound's components.
     @Test
     func multiBoundTypeParameterSatisfiesFunctionBound() throws {
         let ctx = makeContextFromSource("""
@@ -91,8 +88,6 @@ struct CallableIntersectionInvocationTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
-    // The bound's components keep full contravariance/covariance: a bound
-    // `(T) -> R` cannot satisfy a differently shaped `(T, T) -> R` parameter.
     @Test
     func multiBoundTypeParameterRejectsMismatchedFunctionShape() throws {
         let ctx = makeContextFromSource("""

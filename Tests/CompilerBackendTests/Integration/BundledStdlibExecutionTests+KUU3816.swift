@@ -3,9 +3,6 @@ import Foundation
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// KUU-3816 / KT-77299: a definitely-non-null `T & Any` inside `typeOf`
-    /// collapses to the plain type parameter `T` — it must not leak the
-    /// internal `java.lang.Void` classifier.
     @Test func kuu3816DefinitelyNonNullTypeOfRendersTypeParameter() throws {
         try compileAndRunKotlin(
             """

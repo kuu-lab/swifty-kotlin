@@ -73,9 +73,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-4283: bundled java.lang.Thread implements java.lang.Runnable, so a
-    /// Thread instance is assignable to Runnable and runs through the
-    /// Executor/FutureTask surfaces like on the JVM.
     @Test
     func testThreadIsRunnableThroughStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()

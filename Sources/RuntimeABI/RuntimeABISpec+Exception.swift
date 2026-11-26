@@ -103,8 +103,6 @@ public extension RuntimeABISpec {
         abi.nt("__kk_cancellation_exception_new_message", "messageRaw"),
         abi.nt("__kk_cancellation_exception_new_message_cause", "messageRaw causeRaw"),
         abi.nt("__kk_cancellation_exception_new_cause", "causeRaw"),
-        // KUU-1404: kotlinx.coroutines.channels closed-channel exception ctor
-        // (JVM kotlinx exposes only the `message: String?` constructor).
         abi.nt("__kk_closed_receive_channel_exception_new_message", "messageRaw"),
         abi.nt("__kk_closed_send_channel_exception_new_message", "messageRaw"),
         abi.nt("__kk_illegal_argument_exception_new"),
@@ -135,9 +133,6 @@ public extension RuntimeABISpec {
         abi.th("kk_negative_array_size_exception_new_message", "messageRaw"),
         throwableIsCancellationSpec,
         abi.nt("kk_abort_unreachable", "outThrown"),
-        // KSP-618: synchronized(lock) { } is Kotlin source delegating to this
-        // demoted bridge; the block arrives as a function pointer + closure
-        // environment pair with the usual outThrown channel.
         bridgeSynchronizedSpec,
         abi.th("__kk_assertions_enabled"),
         abi.th("kk_assertions_set_enabled", "enabled"),
@@ -155,12 +150,7 @@ public extension RuntimeABISpec {
         runtimeStackTraceSetLocationSpec,
         runtimeStackTraceExitSpec,
         abi.nt("__kk_throwable_setCause", "throwableRaw causeRaw"),
-        // `Throwable.initCause` with the JVM guards (self-cause →
-        // IllegalArgumentException, overwrite → IllegalStateException) through
-        // the outThrown channel; returns the receiver like the JDK.
         abi.th("__kk_throwable_initCause", "throwableRaw causeRaw outThrown"),
-        // Constructor-lowering helper: copies a runtime-factory throwable's
-        // cause slot (value + initialized flag) onto a source-defined subclass.
         abi.nt("__kk_throwable_adoptCause", "throwableRaw sourceRaw"),
         abi.nt("__kk_throwable_appendSuppressed", "throwableRaw suppressedRaw"),
         bridgeThrowableSuppressedRawSpec,

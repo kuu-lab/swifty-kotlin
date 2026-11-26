@@ -222,8 +222,6 @@ extension BundledStdlibExecutionTests {
                 try? Data(failed.stderr.utf8).write(to: directory.appendingPathComponent("run.stderr"))
                 try? Data(String(failed.exitCode).utf8).write(to: directory.appendingPathComponent("run.exit-code"))
             }
-            // Timeout errors expose the existing CommandRunner description,
-            // with trimmed captured output; do not label it complete raw data.
             try? Data(String(describing: error).utf8).write(to: directory.appendingPathComponent("run.error-description"))
             throw error
         }

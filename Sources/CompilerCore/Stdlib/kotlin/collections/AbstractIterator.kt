@@ -13,10 +13,6 @@ public interface Iterator<out T> {
     @KsSymbolName("kk_iterator_hasNext")
     public operator fun hasNext(): Boolean
 
-    /**
-     * Returns the next element in the iteration, or throws [NoSuchElementException]
-     * if the iteration has no more elements.
-     */
     @KsSymbolName("kk_iterator_next")
     public operator fun next(): T
 }
@@ -49,14 +45,6 @@ public abstract class AbstractIterator<T> : Iterator<T> {
         return state == State.Ready
     }
 
-    /**
-     * This callback method should call one of these two methods:
-     *
-     * * [setNext] with the next value of the iteration
-     * * [done] to indicate there are no more elements
-     *
-     * Failure to call either method will result in the iteration terminating with a failed state
-     */
     protected abstract fun computeNext(): Unit
 
     protected fun setNext(value: T): Unit {

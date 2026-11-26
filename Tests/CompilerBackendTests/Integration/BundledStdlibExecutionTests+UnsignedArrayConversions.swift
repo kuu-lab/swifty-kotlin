@@ -33,10 +33,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    // KUU-1421: signed<->unsigned primitive array copy conversions on both
-    // primitive and boxed Array<out U*> receivers. Bit patterns are preserved
-    // and the result owns fresh storage, so post-conversion mutation of either
-    // side is invisible to the other.
     @Test(arguments: [true, false])
     func testUnsignedArrayCopyConversions(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(

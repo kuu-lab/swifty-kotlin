@@ -62,3 +62,11 @@ inline fun <R> runCatching(block: () -> R): Result<R> {
         Result.failure(exception)
     }
 }
+
+inline fun <T, R> T.runCatching(block: T.() -> R): Result<R> {
+    return try {
+        Result.success(block())
+    } catch (exception: Throwable) {
+        Result.failure(exception)
+    }
+}

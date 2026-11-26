@@ -1,5 +1,4 @@
 extension ControlFlowTypeChecker {
-    /// A try expression keeps its try/catch LUB even when finally prevents completion.
     func canCompleteNormally(_ id: ExprID, ctx: TypeInferenceContext) -> Bool {
         canCompleteNormally(id, inlinedLambda: nil, ctx: ctx)
     }
@@ -18,9 +17,6 @@ extension ControlFlowTypeChecker {
                 return true
             }
         }
-        // A Nothing-typed structured expression in an inline argument may still
-        // reach its caller through a local return. Inspect its branches so the
-        // bound return target, rather than the aggregate type, decides completion.
         let isStructuredInlineLambdaBody: Bool = {
             guard inlinedLambda != nil else { return false }
             switch expr {
@@ -49,9 +45,11 @@ extension ControlFlowTypeChecker {
                    case .returnExpr = statementExpr,
                    ctx.sema.bindings.lambdaReturnTargets[statement] == inlinedLambda
                 {
-                    // A local return exits this lambda body and completes its
-                    // invocation. Later statements are already unreachable and
-                    // must not make the surrounding inline call look terminal.
+                    return true
+                }
+                if let inlinedLambda,
+                   statementMayReturnToLambda(statement, lambda: inlinedLambda, ctx: ctx)
+                {
                     return true
                 }
                 if !completes(statement) { return false }
@@ -72,9 +70,6 @@ extension ControlFlowTypeChecker {
              let .memberCompoundAssign(_, receiver, _, value, _):
             return completes(receiver) && completes(value)
         case let .safeMemberAssign(receiver, _, _, _):
-            // `a?.b = v` skips `v` entirely when `a` is null — the `?.`
-            // short-circuits the rest of the postfix chain — so only the
-            // receiver has to complete, matching `safeMemberCall` arguments.
             return completes(receiver)
         case let .indexedAssign(receiver, indices, value, _),
              let .indexedCompoundAssign(_, receiver, indices, value, _):
@@ -114,11 +109,6 @@ extension ControlFlowTypeChecker {
         }
     }
 
-    /// Whether `id`'s postfix chain reaches a `?.` that can skip evaluating the
-    /// suffixes applied after it. `a?.b[i] = v` never evaluates `i` or `v` when
-    /// `a` is null. A `!!`, `as` cast, or plain `.member`/`()` on the nullable
-    /// result is not part of the safe navigation and breaks the guard, so the
-    /// walk only follows indexed suffixes.
     private func receiverChainIsGuardedBySafeCall(_ id: ExprID, ctx: TypeInferenceContext) -> Bool {
         var current = id
         while let expr = ctx.ast.arena.expr(current) {
@@ -134,6 +124,22 @@ extension ControlFlowTypeChecker {
             }
         }
         return false
+    }
+
+    private func statementMayReturnToLambda(
+        _ statement: ExprID,
+        lambda: ExprID,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        guard let statementRange = ctx.ast.arena.exprRange(statement) else { return false }
+        return ctx.sema.bindings.lambdaReturnTargets.contains { returnID, target in
+            guard target == lambda,
+                  let range = ctx.ast.arena.exprRange(returnID),
+                  range.start.file == statementRange.start.file
+            else { return false }
+            return range.start.offset >= statementRange.start.offset
+                && range.end.offset <= statementRange.end.offset
+        }
     }
 
     private func hasGuaranteedNonCompletingInlineLambda(

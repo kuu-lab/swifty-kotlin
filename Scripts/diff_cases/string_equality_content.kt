@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val nullableNull: String? = null
     val nullableA: String? = "abc"

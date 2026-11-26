@@ -3,13 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-// KUU-3807: an interface property default getter inherited by an enum entry
-// is read through an itable-dispatched `.virtualCall`. The dispatch resolves
-// the callee from the receiver object's registered itable, so the receiver
-// must arrive boxed — a statically enum-typed receiver is a raw ordinal at
-// KIR level and `kk_itable_lookup(_dynamic)` cannot dispatch on it
-// (`KSWIFTK-RUNTIME-0001` before the fix). Boxing also carries the entry's
-// `kk_object_register_itable_*` registrations the lookup needs.
 extension LoweringPassRegressionTests {
     @Test
     func testInterfaceDefaultGetterVirtualCallBoxesEnumReceiver() throws {
@@ -36,14 +29,10 @@ extension LoweringPassRegressionTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "test", in: module, interner: ctx.interner)
 
-            // The canonical enum box registers the interface + its member
-            // slots on the tagged entry value at this boundary.
             let callees = extractCallees(from: body, interner: ctx.interner)
             #expect(callees.contains(RuntimeCall.enumBoxOrdinal.name))
             #expect(callees.contains(RuntimeCall.objectRegisterItableInterface.name))
 
-            // Every itable-dispatched virtual call must see the boxed
-            // receiver, never the raw ordinal `this`.
             var boxedResults: Set<KIRExprID> = []
             for instruction in body {
                 guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
@@ -114,11 +103,6 @@ extension LoweringPassRegressionTests {
         }
     }
 
-    /// The compiler-provided `E.entries` EnumEntries stub is a `.static`
-    /// member — it can never implement an interface's instance `entries`
-    /// property. `kirFindOverridePropertyGetter` must skip it and resolve the
-    /// interface's own accessor; registering the stub's bodiless accessor
-    /// left a dangling `__itable_impl_<id>` reference (KSWIFTK-LINK-0001).
     @Test
     func testStaticEnumEntriesStubNotReturnedAsInterfaceGetterImpl() throws {
         let source = """
@@ -152,7 +136,6 @@ extension LoweringPassRegressionTests {
                 "the `.static` E.entries stub must not be picked as the interface getter implementation"
             )
 
-            // The setter counterpart shares the lookup rule.
             let implSetter = kirFindOverridePropertySetter(for: iEntries, in: eSym, sema: sema)
             if let implSetter,
                let setterDecoded = SyntheticSymbolScheme.decodedPropertyAccessor(implSetter)

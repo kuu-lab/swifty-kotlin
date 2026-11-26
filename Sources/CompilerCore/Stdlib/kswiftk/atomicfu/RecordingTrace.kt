@@ -11,7 +11,6 @@ import kotlinx.atomicfu.traceFormatDefault
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
 
-/** A copied entry. Int indices wrap with Kotlin arithmetic; list order remains oldest first. */
 public class RecordingTraceEntry(public val index: Int, public val event: Any)
 
 /**
@@ -29,7 +28,6 @@ public class RecordingTrace private constructor(
 
     public val capacity: Int get() = storage.capacity
 
-    /** Named views share storage/indices/format; further names compose outer-to-inner. */
     public fun named(name: String): RecordingTrace =
         RecordingTrace(storage, if (prefix == null) name else "$prefix.$name")
 

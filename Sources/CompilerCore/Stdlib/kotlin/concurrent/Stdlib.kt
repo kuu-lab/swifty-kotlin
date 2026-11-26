@@ -1,11 +1,5 @@
 @file:OptIn(kotlin.ExperimentalStdlibApi::class)
 
-/*
- * KSP-1083: Constructors and member implementations for surfaces that remain
- * TODO-owned are supplied by the residual runtime-backed registration until
- * those migrations land.
- */
-
 package kotlin.concurrent
 
 import kotlin.internal.KsSymbolName

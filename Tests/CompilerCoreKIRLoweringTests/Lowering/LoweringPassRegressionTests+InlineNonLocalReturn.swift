@@ -72,8 +72,6 @@ extension LoweringPassRegressionTests {
         #expect(failures.isEmpty)
     }
 
-    // MARK: - BUG-209: source lambda returns
-
     @Test(arguments: ["return 42", "return@value 42"])
     func nestedInlineLambdaReturnKeepsLexicalFunctionTarget(returnStatement: String) throws {
         let context = makeContextFromSource("""
@@ -182,8 +180,6 @@ extension LoweringPassRegressionTests {
         } == false, "return@myRepeat must stay lambda-local")
     }
 
-    // MARK: - Non-local return: basic conversion
-
     @Test
     func testInlineLoweringConvertsNonLocalReturnValueToCallerReturn() throws {
         let interner = StringInterner()
@@ -258,8 +254,6 @@ extension LoweringPassRegressionTests {
         #expect(!hasNonLocalReturn, "nonLocalReturn should have been converted to returnValue")
     }
 
-    // MARK: - Non-local return Unit
-
     @Test
     func testInlineLoweringConvertsNonLocalReturnUnitToCallerReturnUnit() throws {
         let interner = StringInterner()
@@ -329,8 +323,6 @@ extension LoweringPassRegressionTests {
         #expect(!hasNonLocalReturn, "nonLocalReturn should have been lowered away")
     }
 
-    // MARK: - Non-local return with mixed body (normal path + non-local path)
-
     @Test
     func testInlineLoweringPreservesMixedNormalAndNonLocalReturnPaths() throws {
         let interner = StringInterner()
@@ -347,7 +339,6 @@ extension LoweringPassRegressionTests {
         let callerResult = arena.appendExpr(.temporary(3))
         let oneExpr = arena.appendExpr(.temporary(4))
 
-        // Inline function: if param == 0, non-local return param; else normal return 1
         let inlineFn = KIRFunction(
             symbol: inlineSym,
             name: interner.intern("conditionalReturn"),
@@ -357,10 +348,8 @@ extension LoweringPassRegressionTests {
                 .constValue(result: inlineArgExpr, value: .symbolRef(inlineParamSym)),
                 .constValue(result: zeroExpr, value: .intLiteral(0)),
                 .jumpIfEqual(lhs: inlineArgExpr, rhs: zeroExpr, target: 10),
-                // Non-local return path
                 .nonLocalReturn(inlineArgExpr),
                 .label(10),
-                // Normal return path
                 .constValue(result: oneExpr, value: .intLiteral(1)),
                 .returnValue(oneExpr),
             ],
@@ -424,8 +413,6 @@ extension LoweringPassRegressionTests {
         let calleeNames = extractCallees(from: loweredCaller.body, interner: interner)
         #expect(!calleeNames.contains("conditionalReturn"))
     }
-
-    // MARK: - Existing inline tests still pass (no regression)
 
     @Test
     func testInlineLoweringWithoutNonLocalReturnIsUnchanged() throws {
@@ -499,8 +486,6 @@ extension LoweringPassRegressionTests {
         #expect(labels.isEmpty, "No non-local return labels expected for normal inline expansion")
     }
 
-    // MARK: - Unit inline body with mixed control flow (NLR + returnUnit in branches)
-
     @Test
     func testInlineLoweringUnitBodyWithMixedNonLocalAndNormalReturn() throws {
         let interner = StringInterner()
@@ -516,9 +501,6 @@ extension LoweringPassRegressionTests {
         let callerArg = arena.appendExpr(.temporary(2))
         let callerResult = arena.appendExpr(.temporary(3))
 
-        // Inline function returning Unit:
-        //   if param == 0: nonLocalReturn (exits caller)
-        //   else at label 10: returnUnit (normal return from inline body)
         let inlineFn = KIRFunction(
             symbol: inlineSym,
             name: interner.intern("maybeExit"),
@@ -528,10 +510,8 @@ extension LoweringPassRegressionTests {
                 .constValue(result: inlineArgExpr, value: .symbolRef(inlineParamSym)),
                 .constValue(result: zeroExpr, value: .intLiteral(0)),
                 .jumpIfEqual(lhs: inlineArgExpr, rhs: zeroExpr, target: 10),
-                // Non-local return path (exits the caller)
                 .nonLocalReturn(nil),
                 .label(10),
-                // Normal return path (should NOT exit the caller)
                 .returnUnit,
             ],
             isSuspend: false,
@@ -552,8 +532,6 @@ extension LoweringPassRegressionTests {
                     result: callerResult,
                     canThrow: false
                 ),
-                // Code after the inline call -- should be reachable when
-                // the normal (non-NLR) branch is taken.
                 .returnUnit,
             ],
             isSuspend: false,

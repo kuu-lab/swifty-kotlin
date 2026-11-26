@@ -3,11 +3,6 @@ package kotlin
 import kotlin.internal.KsSymbolName
 import kotlin.reflect.KProperty
 
-/*
- * The `getValue` operator is declared below as the source-compatible
- * extension used by kotlin-stdlib. Property-delegate resolution admits
- * visible extension operators as well as members (KSP-CAP-020).
- */
 public interface Lazy<out T> {
     public val value: T
     public fun isInitialized(): Boolean
@@ -85,9 +80,6 @@ internal class LazyImpl<T>(
 
     @Suppress("UNCHECKED_CAST")
     private fun computePublicationValue(): T {
-        // PUBLICATION may run the initializer more than once, but only the
-        // first completed value is published. Synchronize the state checks
-        // and commit so a published value is never overwritten.
         var published: Any? = null
         var wasInitialized = false
         synchronized(this) {

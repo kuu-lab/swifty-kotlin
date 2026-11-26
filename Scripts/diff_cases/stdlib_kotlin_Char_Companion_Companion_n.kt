@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-815: The five Native-only code-point/radix constants are covered by the
 // Sema golden because the JVM kotlinc reference does not declare them.
 fun main() {

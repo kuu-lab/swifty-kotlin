@@ -43,8 +43,6 @@ extension BundledStdlibExecutionTests {
             if completedProof {
                 try? FileManager.default.removeItem(at: directory)
             } else {
-                // Input/library defers were registered later and run first.
-                // Keep the entire failed UUID under the caller's collection root.
                 let destination = durableRoot.appendingPathComponent("failed-" + directory.lastPathComponent, isDirectory: true)
                 let before = try? jvmInteropNioArtifactHashes(directory)
                 var actualPath = directory.path
@@ -121,8 +119,6 @@ extension BundledStdlibExecutionTests {
                 try? Data(failed.stderr.utf8).write(to: directory.appendingPathComponent("run.stderr"))
                 try? Data(String(failed.exitCode).utf8).write(to: directory.appendingPathComponent("run.exit-code"))
             }
-            // Timeout errors expose the existing CommandRunner description,
-            // with trimmed captured output; do not label it complete raw data.
             try? Data(String(describing: error).utf8).write(to: directory.appendingPathComponent("run.error-description"))
             throw error
         }
@@ -139,9 +135,6 @@ extension BundledStdlibExecutionTests {
         if let stdlib {
             try #require(try jvmInteropNioArtifactHashes(stdlib.directory) == stdlib.hashes)
         }
-        // Preserve successful evidence outside the UUID compilation directory
-        // before allowing cleanup. CommandRunner output is UTF-8 decoded;
-        // the retained outer runner owns raw bytes and descendant reap proof.
         let evidenceDirectory = durableRoot.appendingPathComponent(directory.lastPathComponent, isDirectory: true)
         try FileManager.default.createDirectory(at: evidenceDirectory, withIntermediateDirectories: true)
         for (name, bytes) in [("producer.kt", producer), ("consumer.kt", consumer), ("expected.stdout", expected),

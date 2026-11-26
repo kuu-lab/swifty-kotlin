@@ -32,10 +32,6 @@ public class AtomicInt {
     public override fun toString(): String = __kkAtomicIntLoad().toString()
 }
 
-// KSP-1221: The legacy native AtomicInt receiver surface is source-backed
-// while its storage remains owned by the shared runtime atomic box. Keep the
-// ABI-only operations private and expose the Kotlin/Native API as extensions
-// on the source-backed nominal class.
 @KsSymbolName("__kk_atomic_int_load")
 private external fun AtomicInt.__kkAtomicIntLoad(): Int
 
@@ -105,7 +101,6 @@ public class AtomicLong {
     @KsSymbolName("kk_atomic_long_create")
     public constructor(value: Long = 0L)
 
-    // The runtime atomic box owns storage; these accessors have no Kotlin backing field.
     public var value: Long
         get() = __kkLoad()
         set(value) {
@@ -148,7 +143,6 @@ public class AtomicNativePtr(value: NativePtr) {
         return oldValue
     }
 
-    /** Atomically replaces the value when it matches [expected]; comparison is by value. */
     public fun compareAndSet(expected: NativePtr, newValue: NativePtr): Boolean {
         val oldValue = value
         if (oldValue == expected) {
@@ -189,7 +183,6 @@ public class AtomicReference<T>(value: T) {
         }
     }
 
-    /** Atomically replaces the value when it matches [expected] by reference identity. */
     public fun compareAndSwap(expected: T, newValue: T): T {
         __atomicSyncLock(this)
         try {
@@ -203,7 +196,6 @@ public class AtomicReference<T>(value: T) {
         }
     }
 
-    /** Returns the debug representation used by Kotlin/Native's legacy API. */
     public override fun toString(): String =
         "AtomicReference: ${idString(this)} -> ${debugString(value)}"
 }
@@ -226,7 +218,6 @@ public class FreezableAtomicReference<T>(value: T) {
     @Volatile
     public var value: T = value
 
-    /** Atomically replaces the value when it matches [expected] by reference identity. */
     public fun compareAndSet(expected: T, newValue: T): Boolean {
         __atomicSyncLock(this)
         try {
@@ -241,7 +232,6 @@ public class FreezableAtomicReference<T>(value: T) {
         }
     }
 
-    /** Atomically replaces the value when it matches [expected] by reference identity. */
     public fun compareAndSwap(expected: T, newValue: T): T {
         __atomicSyncLock(this)
         try {
@@ -255,7 +245,6 @@ public class FreezableAtomicReference<T>(value: T) {
         }
     }
 
-    /** Returns the debug representation used by Kotlin/Native's legacy API. */
     public override fun toString(): String =
         "FreezableAtomicReference: ${idString(this)} -> ${debugString(value)}"
 }

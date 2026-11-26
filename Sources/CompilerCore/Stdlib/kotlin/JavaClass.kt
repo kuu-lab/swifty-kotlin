@@ -4,9 +4,6 @@ import java.lang.Class
 import kotlin.internal.KsSymbolName
 import kotlin.jvm.javaPrimitiveType
 
-// The bundled parser represents generic extension properties as zero-argument
-// functions while preserving property-style member lookup. This is the
-// source-backed form of Kotlin's generic Any.javaClass property.
 @KsSymbolName("__kk_any_javaClass")
 private external fun <T : Any> __javaClass(value: T): Class<T>
 

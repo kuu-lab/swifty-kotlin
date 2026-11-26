@@ -2,8 +2,6 @@
 @testable import CompilerCore
 import Testing
 
-/// Pins `KIRModule.dump` byte-for-byte across every instruction and constant
-/// shape, so renderer optimizations cannot drift the format.
 @Suite
 struct KIRDumpFormatTests {
     static func makeModule() -> (KIRModule, StringInterner, SymbolTable) {
@@ -120,8 +118,6 @@ struct KIRDumpFormatTests {
         }
     }
 
-    /// Crosses both the parallel threshold and several render batches, and
-    /// checks declaration order against a hand-built expectation.
     @Test
     func testParallelRenderingKeepsDeclarationOrder() {
         let interner = StringInterner()

@@ -286,7 +286,6 @@ struct CodegenBackendKotlinTextAggregationEdgeCasesTests {
         )
     }
 
-    // STDLIB-TEXT-FN-094: CharSequence.toCollection(destination)
     @Test func testKotlinTextToCollectionEdgeCases() throws {
         let source = """
         fun main() {
@@ -323,10 +322,6 @@ struct CodegenBackendKotlinTextAggregationEdgeCasesTests {
         )
     }
 
-    // STDLIB-TEXT-FN-108: CharSequence.toSortedSet(): SortedSet<Char>
-    // End-to-end execution coverage — the runtime/Sema layers are tested in
-    // isolation elsewhere; this asserts the full compile-and-run pipeline
-    // produces a sorted, deduplicated set that honours the `Set` surface.
     @Test func testKotlinTextToSortedSetEdgeCases() throws {
         let source = """
         fun main() {

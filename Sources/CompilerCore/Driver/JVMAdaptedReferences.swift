@@ -7,7 +7,9 @@ extension JVMFunctionBuilder {
               function.contextReceivers.isEmpty, binding.boundContextParameterTypes.isEmpty else {
             throw fail("Missing JVM callable reference adaptation.", id)
         }
-        let method = program.methods[symbol] ?? context.jvmImports?.method(for: symbol), ref = program.references[symbol]
+        let collectionMethod = program.collectionInterfaceMethods[symbol]
+        let supportedCollectionReference = collectionMethod?.owner == "java/util/Map" && collectionMethod?.name == "putIfAbsent"
+        let method = program.methods[symbol] ?? (supportedCollectionReference ? collectionMethod : nil) ?? context.jvmImports?.method(for: symbol), ref = program.references[symbol]
         guard method != nil || ref != nil else { throw fail("Missing JVM adapted reference target.", id) }
         let constructor = method?.isConstructor == true, extensionMember = program.extensionSymbols.contains(symbol) || context.jvmImports?.extensionSymbols.contains(symbol) == true
         let member = method?.isStatic == false && !constructor
@@ -103,12 +105,12 @@ extension JVMFunctionBuilder {
         return try constructJDK(name, parameters: captures.map(\.type), arguments: captures)
     }
 
-    func initializeReferenceSuperclass(_ generated: inout JVMClass, arity: Int, bound: JVMValue?, sourceOwner: String, sourceName: String, sourceDescriptor: String, flags: Int32) throws {
+    func initializeReferenceSuperclass(_ generated: inout JVMClass, arity: Int, bound: JVMValue?, sourceOwner: String, sourceName: String, signatureName: String? = nil, sourceDescriptor: String, flags: Int32) throws {
         var ctor = generated.functions[0]
         var slot = ctor.locals.map { $0.slot + $0.type.width }.max() ?? 1
         func temporary(_ type: JVMValueType) -> JVMValue { let v = JVMValue(slot: slot, type: type); slot += type.width; ctor.locals.append(v); return v }
         let count = temporary(.int), klass = temporary(.reference("java/lang/Class", nullable: false)), methodName = temporary(.string), descriptor = temporary(.string), flag = temporary(.int)
-        var code: [JVMInstruction] = [.constant(.int(Int32(arity)), count), .classLiteral(sourceOwner, klass), .constant(.string(sourceName.components(separatedBy: "$unsigned$")[0]), methodName), .callableSignature(sourceOwner, sourceName, sourceDescriptor, descriptor), .constant(.int(flags), flag)]
+        var code: [JVMInstruction] = [.constant(.int(Int32(arity)), count), .classLiteral(sourceOwner, klass), .constant(.string(sourceName.components(separatedBy: "$unsigned$")[0]), methodName), .callableSignature(sourceOwner, signatureName ?? sourceName, sourceDescriptor, descriptor), .constant(.int(flags), flag)]
         var args = [count]
         if bound != nil { let object = temporary(.reference("java/lang/Object", nullable: true)); code.append(.copy(ctor.locals[1], object)); args.append(object) }
         args += [klass, methodName, descriptor, flag]

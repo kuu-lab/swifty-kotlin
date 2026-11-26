@@ -3,8 +3,6 @@
 @testable import CompilerTestSupport
 import Testing
 
-/// KSP-1481: calls through `Clock` must remain interface dispatch after the
-/// source-backed declaration replaces the synthetic member.
 @Suite
 struct ClockNowKIRRegressionTests {
     @Test

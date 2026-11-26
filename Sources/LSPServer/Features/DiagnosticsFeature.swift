@@ -1,8 +1,6 @@
 import CompilerCore
 
 public enum DiagnosticsFeature {
-    /// Range-less diagnostics are anchored at the start of the document so they
-    /// are still surfaced to the user.
     public static func lspDiagnostics(for analysis: Analyzer.Analysis) -> [LSPDiagnostic] {
         let sourceManager = analysis.context.sourceManager
         var result: [LSPDiagnostic] = []

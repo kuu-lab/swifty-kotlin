@@ -5,8 +5,6 @@ import TestStdlibCache
 import Testing
 
 extension BundledStdlibExecutionTests {
-    // KUU-2268: preserve the pinned Kotlin case and exercise the exact ByteArray
-    // reproducer through both stdlib routes and optimization levels.
     @Test(arguments: [false, true], [0, 2])
     func numericArrayIncrementMatchesPinnedKotlin(
         allowDefaultStdlibLibrary: Bool,

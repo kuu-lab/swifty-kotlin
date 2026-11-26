@@ -1,15 +1,6 @@
 import Testing
 
-// KUU-1439: `callbackFlow`/`channelFlow`/`produce` hand the producer block the
-// raw channel handle as its `ProducerScope` receiver, so `CoroutineScope`
-// member calls on `this` (launch/async/cancel) reach the
-// `kk_coroutine_scope_*` bridges carrying a channel handle and used to panic
-// with `KSWIFTK-RUNTIME-0001 launch received an invalid scope`. These tests
-// pin the fixed behaviour end-to-end: the scope bridges resolve the channel
-// back to the CoroutineScope facet the producer launcher bound to it.
 extension BundledStdlibExecutionTests {
-    /// The raw channel handle used for a ProducerScope receiver must retain
-    /// the scope's nominal interfaces for Kotlin `is` checks.
     @Test(arguments: [true, false])
     func testProducerScopeIsChecksMatchNominalInterfaces(
         allowDefaultStdlibLibrary: Bool
@@ -47,10 +38,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-4366: a `produce` result is the channel itself (upstream a
-    /// `ProducerCoroutine`, which is a `Channel`), so `consumeEach` and
-    /// channel-family `is`/`as` checks must not trap with
-    /// "ProducerScope cannot be cast to Channel".
     @Test(arguments: [true, false])
     func testProduceConsumeEachAndChannelCasts(
         allowDefaultStdlibLibrary: Bool
@@ -78,9 +65,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// Minimal reproduction from the issue: `launch` inside `callbackFlow`'s
-    /// producer block plus `awaitClose` used to crash before the block ran.
-    /// `channelFlow` shares the same launcher, so it is pinned alongside.
     @Test(arguments: [true, false])
     func testCallbackFlowAwaitCloseLaunchDoesNotCrash(
         allowDefaultStdlibLibrary: Bool
@@ -120,9 +104,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// `produce`/`actor` reach the runtime through `__kk_produce_launch`, a
-    /// separate launcher from the flow builders; its channel-backed
-    /// ProducerScope must resolve for CoroutineScope member calls too.
     @Test(arguments: [true, false])
     func testProduceLaunchInsideBlockDoesNotCrash(
         allowDefaultStdlibLibrary: Bool
@@ -149,13 +130,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// A `channelFlow`/`callbackFlow` call emitted inside a lowered suspend
-    /// state machine references the producer block by a bare `symbolRef`, which
-    /// carries no callable-value info. The producer-create rewrite used to bail
-    /// out there, leaving the suspend invoke entry (`_s` adapter) as the
-    /// runtime emitter; invoked as `(continuation, thrown*)` it treats the
-    /// continuation as the receiver and overwrites launcherArgs[0] — the
-    /// channel handle — so `send`/`close` crashed inside `kk_channel_*`.
     @Test(arguments: [true, false])
     func testProducerFlowFromSuspendStateMachineRunsBlock(
         allowDefaultStdlibLibrary: Bool

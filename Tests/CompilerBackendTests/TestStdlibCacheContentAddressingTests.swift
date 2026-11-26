@@ -35,20 +35,6 @@ private final class LockedBox<Value>: @unchecked Sendable {
     }
 }
 
-/// Regression coverage for `TestStdlibCache`'s content-addressed artifact
-/// resolution. This replaced an earlier design that kept one fixed artifact
-/// path plus an mtime/size "staleness" check, deleting and rebuilding that
-/// path in place whenever the check said stale — including whenever it
-/// couldn't resolve the running test binary's fingerprint at all, which it
-/// treated as unconditionally stale. A worker that had already been handed
-/// that fixed path by an earlier, already-returned `prepare()` call (in this
-/// process or another one sharing the same `.build` directory) could then
-/// observe a partially deleted or partially rebuilt directory while reading
-/// it, with no lock protecting readers.
-///
-/// Content addressing (`TestStdlibCache.resolveOrBuildArtifact`) removes the
-/// delete entirely: a given content key's path, once populated by the atomic
-/// rename at the end of a build, is never touched again by this type.
 @Suite
 struct TestStdlibCacheContentAddressingTests {
     private func withTempBuildDirectory(_ body: (URL) throws -> Void) throws {
@@ -58,10 +44,6 @@ struct TestStdlibCacheContentAddressingTests {
         try body(dir)
     }
 
-    /// Stands in for `StdlibArtifactBuilder.build`: creates a directory at
-    /// `outputBase + ".kklib"` containing a marker file, and returns that
-    /// path, matching the real builder's contract without the multi-second
-    /// real stdlib compile.
     private func fakeBuild(outputBase: String, marker: String) throws -> String {
         let artifactPath = outputBase + ".kklib"
         try FileManager.default.createDirectory(atPath: artifactPath, withIntermediateDirectories: true)
@@ -80,12 +62,10 @@ struct TestStdlibCacheContentAddressingTests {
             try fm.setAttributes([.modificationDate: originalTime], ofItemAtPath: image.path)
             let first = try #require(TestStdlibCache.currentCompilerFingerprint(compilerImageURL: image))
 
-            // A timestamp-only relink does not change the generated artifact.
             try fm.setAttributes([.modificationDate: originalTime.addingTimeInterval(10)], ofItemAtPath: image.path)
             let touched = try #require(TestStdlibCache.currentCompilerFingerprint(compilerImageURL: image))
             #expect(touched == first)
 
-            // Different bytes must invalidate even if size and timestamp match.
             try Data("compiler-b".utf8).write(to: image)
             try fm.setAttributes([.modificationDate: originalTime], ofItemAtPath: image.path)
             let changed = try #require(TestStdlibCache.currentCompilerFingerprint(compilerImageURL: image))
@@ -155,8 +135,6 @@ struct TestStdlibCacheContentAddressingTests {
             let reader = try FileHandle(forReadingFrom: URL(fileURLWithPath: beforeArtifact + "/marker.txt"))
             defer { try? reader.close() }
 
-            // Model a Swift-only rebuild with unchanged bundled Kotlin sources
-            // and the same binary size, but a later link time.
             try Data("compiler-after!".utf8).write(to: image)
             try fm.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1_700_000_001)], ofItemAtPath: image.path)
             let after = try #require(TestStdlibCache.currentCompilerFingerprint(compilerImageURL: image))
@@ -183,8 +161,6 @@ struct TestStdlibCacheContentAddressingTests {
     @Test
     func missingLoadedImageCannotReuseAnUnknownKey() throws {
         try withTempBuildDirectory { buildDir in
-            // An old aggregate product must not substitute for an unidentified
-            // loaded per-target image, even when that old binary still exists.
             let staleImage = buildDir.appendingPathComponent("debug/KSwiftKPackageTests.xctest")
             try FileManager.default.createDirectory(at: staleImage.deletingLastPathComponent(), withIntermediateDirectories: true)
             try Data("stale-aggregate".utf8).write(to: staleImage)
@@ -192,9 +168,6 @@ struct TestStdlibCacheContentAddressingTests {
             let missingImage = buildDir.appendingPathComponent("out/Products/Debug/missing")
             let fingerprint = TestStdlibCache.currentCompilerFingerprint(compilerImageURL: missingImage)
             #expect(fingerprint == nil)
-            // Preserve the exact legacy key from KUU-1957's unknown-fingerprint
-            // reproducer. An existing artifact at that key is never reusable
-            // when the loaded compiler identity is unavailable.
             let legacyPath = try TestStdlibCache.resolveOrBuildArtifact(
                 buildDirectory: buildDir, contentKey: "aa49fee9d5845dca"
             ) { try fakeBuild(outputBase: $0, marker: "legacy-unknown") }
@@ -266,9 +239,6 @@ struct TestStdlibCacheContentAddressingTests {
                 contentKey: "key-a"
             ) { outputBase in try fakeBuild(outputBase: outputBase, marker: "key-a-marker") }
 
-            // A process that resolves a different content key — e.g. because
-            // it computed a different (or unresolvable) compiler fingerprint —
-            // must never delete or replace key-a's already-resolved artifact.
             let keyBPath = try TestStdlibCache.resolveOrBuildArtifact(
                 buildDirectory: buildDir,
                 contentKey: "key-b"
@@ -283,11 +253,6 @@ struct TestStdlibCacheContentAddressingTests {
         }
     }
 
-    /// The direct regression test: an open reader on an already-resolved
-    /// artifact must keep working across a later `resolveOrBuildArtifact`
-    /// call for the same key, exactly as a `GoldenHarnessWorker` subprocess
-    /// mid-read of the shared `.kklib` must keep working across another
-    /// process's `prepare()` call.
     @Test
     func existingArtifactStaysReadableAcrossALaterResolveForTheSameKey() throws {
         try withTempBuildDirectory { buildDir in
@@ -330,8 +295,6 @@ struct TestStdlibCacheContentAddressingTests {
                 #expect(fm.fileExists(atPath: previousPath))
                 return try fakeBuild(outputBase: output, marker: "new-worker")
             }
-            // An orphan from the first attempt can still write only its own
-            // staging tree, never the newly published artifact.
             try "orphan-write".write(toFile: previousPath + "/marker.txt", atomically: true, encoding: .utf8)
             #expect(try String(contentsOfFile: published + "/marker.txt", encoding: .utf8) == "new-worker")
         }
@@ -379,10 +342,6 @@ struct TestStdlibCacheContentAddressingTests {
                         contentKey: "key-concurrent"
                     ) { outputBase in
                         buildCount.withLock { $0 += 1 }
-                        // Give other concurrent callers a chance to reach the
-                        // lock while this one is still "building", so the
-                        // test actually exercises the serialization instead
-                        // of finishing before anyone else starts.
                         Thread.sleep(forTimeInterval: 0.05)
                         return try fakeBuild(outputBase: outputBase, marker: "concurrent-build")
                     }

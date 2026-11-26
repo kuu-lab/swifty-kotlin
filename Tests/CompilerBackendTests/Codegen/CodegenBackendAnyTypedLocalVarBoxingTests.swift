@@ -5,18 +5,11 @@
 import Foundation
 import Testing
 
-/// Keep this regression in its own suite so SwiftPM does not have to
-/// type-check the already-large CodegenBackendIntegrationTests discovery list.
 @Suite
 struct CodegenBackendAnyTypedLocalVarBoxingTests {
 
     @Test
     func testAnyAndNumberTypedLocalsAreBoxedCorrectly() throws {
-        // Reported bug: `.localDecl` aliased a local's storage directly to its
-        // initializer expression's own KIRExprID, so an `Any`-declared local kept
-        // the initializer's narrower arena type (e.g. Int) forever. Neither the
-        // initial binding nor later `.localAssign` copies ever boxed the value,
-        // so `is` checks against the raw unboxed payload were unreliable.
         try assertKotlinOutput(
             """
             fun main() {
@@ -31,8 +24,6 @@ struct CodegenBackendAnyTypedLocalVarBoxingTests {
             expected: "true\nfalse\n99\n"
         )
 
-        // Generalization: the bug did not require a reassignment at all. Even a
-        // single `val` binding must report the correct dynamic type.
         try assertKotlinOutput(
             """
             fun main() {
@@ -45,8 +36,6 @@ struct CodegenBackendAnyTypedLocalVarBoxingTests {
             expected: "true\nfalse\n"
         )
 
-        // An Any-typed local re-declared through multiple concrete types in
-        // sequence must have each reassignment tracked independently.
         try assertKotlinOutput(
             """
             fun main() {
@@ -64,8 +53,6 @@ struct CodegenBackendAnyTypedLocalVarBoxingTests {
             expected: "true\ntrue\nfalse\ntrue\nfalse\n"
         )
 
-        // A local declared without an initializer hits `.localAssign`'s
-        // "no existing storage yet" branch on its first assignment.
         try assertKotlinOutput(
             """
             fun main() {
@@ -79,8 +66,6 @@ struct CodegenBackendAnyTypedLocalVarBoxingTests {
             expected: "true\nfalse\n"
         )
 
-        // Generalization beyond `Any`: a wider reference type such as Number
-        // must go through the same widening/boxing path.
         try assertKotlinOutput(
             """
             fun main() {

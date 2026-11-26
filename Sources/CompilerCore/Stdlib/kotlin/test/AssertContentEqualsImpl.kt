@@ -25,7 +25,7 @@ internal fun <T> assertIterableContentEquals(
     actual: T?,
     iterator: T.() -> Iterator<*>
 ) {
-    if (checkReferenceAndNullEquality(typeName, lazyMessage, expected, actual) { this.toString() }) return
+    if (checkReferenceAndNullEquality(typeName, lazyMessage, expected, actual) { it.toString() }) return
 
     var index = 0
     val expectedIt = expected.iterator()
@@ -59,7 +59,7 @@ internal fun <T> assertArrayContentEquals(
     actual: T?,
     size: (T) -> Int,
     get: T.(Int) -> Any?,
-    contentToString: T?.() -> String,
+    contentToString: (T?) -> String,
     contentEquals: T?.(T?) -> Boolean
 ) = assertArrayContentEquals({ message }, expected, actual, size, get, contentToString, contentEquals)
 
@@ -69,7 +69,7 @@ internal fun <T> assertArrayContentEquals(
     actual: T?,
     size: (T) -> Int,
     get: T.(Int) -> Any?,
-    contentToString: T?.() -> String,
+    contentToString: (T?) -> String,
     contentEquals: T?.(T?) -> Boolean
 ) {
     if (expected.contentEquals(actual)) return
@@ -83,7 +83,7 @@ internal fun <T> assertArrayContentEquals(
 
     if (expectedSize != actualSize) {
         val sizesDifferMessage = "$typeName sizes differ. Expected size is $expectedSize, actual size is $actualSize."
-        val toString = "Expected <${expected.contentToString()}>, actual <${actual.contentToString()}>."
+        val toString = "Expected <${contentToString(expected)}>, actual <${contentToString(actual)}>."
 
         fail(messagePrefix(lazyMessage()) + sizesDifferMessage + "\n" + toString)
     }
@@ -94,7 +94,7 @@ internal fun <T> assertArrayContentEquals(
 
         if (expectedElement != actualElement) {
             val elementsDifferMessage = elementsDifferMessage(typeName, index, expectedElement, actualElement)
-            val toString = "Expected <${expected.contentToString()}>, actual <${actual.contentToString()}>."
+            val toString = "Expected <${contentToString(expected)}>, actual <${contentToString(actual)}>."
 
             fail(messagePrefix(lazyMessage()) + elementsDifferMessage + "\n" + toString)
         }
@@ -106,7 +106,7 @@ private fun <T> checkReferenceAndNullEquality(
     message: String?,
     expected: T?,
     actual: T?,
-    contentToString: T?.() -> String
+    contentToString: (T?) -> String
 ): Boolean = checkReferenceAndNullEquality(typeName, { message }, expected, actual, contentToString)
 
 private fun <T> checkReferenceAndNullEquality(
@@ -114,7 +114,7 @@ private fun <T> checkReferenceAndNullEquality(
     lazyMessage: () -> String?,
     expected: T?,
     actual: T?,
-    contentToString: T?.() -> String
+    contentToString: (T?) -> String
 ): Boolean {
     contract {
         returns(false) implies (expected != null && actual != null)
@@ -124,10 +124,10 @@ private fun <T> checkReferenceAndNullEquality(
         return true
     }
     if (expected == null) {
-        fail(messagePrefix(lazyMessage()) + "Expected <null> $typeName, actual <${actual.contentToString()}>.")
+        fail(messagePrefix(lazyMessage()) + "Expected <null> $typeName, actual <${contentToString(actual)}>.")
     }
     if (actual == null) {
-        fail(messagePrefix(lazyMessage()) + "Expected non-null $typeName <${expected.contentToString()}>, actual <null>.")
+        fail(messagePrefix(lazyMessage()) + "Expected non-null $typeName <${contentToString(expected)}>, actual <null>.")
     }
 
     return false

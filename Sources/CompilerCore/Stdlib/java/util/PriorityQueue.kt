@@ -2,8 +2,6 @@ package java.util
 
 import kotlin.collections.Collection
 
-// KUU-3996: java.util.PriorityQueue extends AbstractQueue on the JVM, which
-// implements Queue; the bundled shim satisfies the Queue contract directly.
 public open class PriorityQueue<E>(
     initialCapacity: Int,
     private val ordering: Comparator<in E>?
@@ -165,10 +163,8 @@ public open class PriorityQueue<E>(
         }
     }
 
-    // Keep entry identity across collection ABI boxing and heap reordering.
     private class Entry<T>(val value: T)
 
-    // Snapshot the heap order so reheapification cannot skip or repeat elements.
     private class HeapIterator<T>(private val owner: PriorityQueue<T>) : MutableIterator<T> {
         private val snapshot: List<Entry<T>> = owner.heap.toList()
         private var cursor: Int = 0
@@ -201,10 +197,6 @@ public open class PriorityQueue<E>(
 
 private fun initialCapacityFor(size: Int): Int = if (size < 1) 1 else size
 
-// JDK PriorityQueue(Collection) inspects the runtime collection: a SortedSet
-// or PriorityQueue argument keeps its ordering even through a
-// Collection-typed reference. TreeSet boxes answer `is SortedSet<*>`, so the
-// same instanceof dispatch applies here.
 @Suppress("UNCHECKED_CAST")
 private fun <E> orderingOf(elements: Collection<E>): Comparator<in E>? = when {
     elements is SortedSet<*> -> elements.comparator() as Comparator<in E>?

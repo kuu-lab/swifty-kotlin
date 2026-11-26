@@ -11,11 +11,6 @@ import kotlinx.io.bytestring.unsafe.UnsafeByteStringOperations
 import platform.Foundation.NSData
 import platform.Foundation.create
 
-/**
- * Returns a new [NSData] instance initialized with bytes copied from [this] ByteString.
- *
- * @sample kotlinx.io.bytestring.samples.ByteStringSamplesApple.nsDataConversion
- */
 @OptIn(UnsafeNumber::class, BetaInteropApi::class, ExperimentalForeignApi::class)
 public fun ByteString.toNSData(): NSData {
     if (isEmpty()) {
@@ -27,11 +22,6 @@ public fun ByteString.toNSData(): NSData {
     }
 }
 
-/**
- * Returns a new [ByteString] holding data copied from [this] NSData.
- *
- * @sample kotlinx.io.bytestring.samples.ByteStringSamplesApple.nsDataConversion
- */
 @OptIn(ExperimentalForeignApi::class, UnsafeNumber::class, UnsafeByteStringApi::class)
 public fun NSData.toByteString(): ByteString {
     val l = length.toLong()

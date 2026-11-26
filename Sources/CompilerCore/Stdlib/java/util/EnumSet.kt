@@ -4,19 +4,15 @@ import java.lang.Class
 import kotlin.internal.KsSymbolName
 import kotlin.reflect.KClass
 
-// Class handles use either a reflected classifier or the Any.javaClass box.
-// Only this metadata conversion is native; collection policy stays in Kotlin.
 @KsSymbolName("__kk_enum_set_class")
 private external fun __kkEnumSetClass(elementType: Class<*>): KClass<*>?
 
 @KsSymbolName("__kk_enum_set_values")
 private external fun <E : Enum<E>> __kkEnumSetValues(elementType: Class<E>): Array<E>?
 
-// Enum values are boxed ordinals at erased collection boundaries.
 @KsSymbolName("kk_unbox_int")
 private external fun __kkEnumSetOrdinal(element: Enum<*>): Int
 
-/** A mutable set of one enum type, iterated in declaration order. */
 public class EnumSet<E : Enum<E>> private constructor(
     private val elementType: Class<E>,
     private val elementClass: KClass<*>
@@ -120,7 +116,6 @@ private class EnumSetIterator<E>(
     private val elements: MutableList<E>,
     private val snapshot: List<E>
 ) : MutableIterator<E> {
-    // A snapshot avoids fail-fast iteration while remove still updates this set.
     private var index = 0
     private var lastIndex = -1
 

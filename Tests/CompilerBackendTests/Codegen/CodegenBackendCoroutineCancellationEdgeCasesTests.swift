@@ -8,7 +8,6 @@ import Testing
 struct CodegenBackendCoroutineCancellationEdgeCasesTests {
 
 
-    // Duration construction in source-injection mode is tracked separately as KUU-1341.
     @Test func testTimeoutOrNullUnitResultPreservesNullFromStdlibSource() throws {
         let source = """
         import kotlinx.coroutines.*
@@ -40,12 +39,5 @@ struct CodegenBackendCoroutineCancellationEdgeCasesTests {
     }
 
 
-    // DEBT-CORO-005 / BUG-041: `job.cancel()` runs synchronously right after
-    // `launch { }` returns, with no intervening suspension point. Under
-    // CoroutineStart.DEFAULT the child body never starts, so its `finally`
-    // block must not run -- only "done" is printed. A launch/cancel scheduling
-    // race that let the child start would additionally print "finally".
-    // Confirmed against the real kotlinc/JVM reference via
-    // `Scripts/diff_cases/coroutine_launch_cancel_before_start_finally.kt`.
 }
 #endif

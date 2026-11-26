@@ -7,10 +7,6 @@ import Testing
 @Suite
 struct CodegenBackendCollectionGenericSurfaceTests {
 
-    // KSP-435: `any`/`all`/`last` on a bare `Collection<T>` / `Iterable<T>`
-    // receiver must bind the bundled `kotlin.collections` source. Before the
-    // fix the calls stayed unresolved and the linker failed with
-    // "undefined reference to 'any'".
     @Test
     func codegenCollectionGenericMembersUseBundledSource() throws {
         let source = """

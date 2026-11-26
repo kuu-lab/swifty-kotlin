@@ -1,8 +1,3 @@
-/// The nominal Kotlin range type represented by a RuntimeRangeBox.
-///
-/// Range expressions are intentionally represented as their scalar element type
-/// in the compiler's type checker, so the runtime must retain this distinction
-/// for Any.equals/hashCode and collection keys.
 enum RuntimeRangeKind: Int32, CaseIterable {
     case intRange = 1
     case intProgression = 2
@@ -177,12 +172,6 @@ func runtimeRangesEqual(_ lhs: RuntimeRangeBox, _ rhs: RuntimeRangeBox) -> Bool 
     return !lhs.kind.isProgression || lhs.step == rhs.step
 }
 
-/// Nominal type ID a `RuntimeRangeBox` kind stands in for during `is`/`as`
-/// checks and bound class literals. Range handles are allocated by the
-/// `__kk_*_rangeTo`/`downTo`/`until` factories and never carry
-/// `objectTypeByPointer` metadata, so `kk_op_is`
-/// recovers the nominal identity from the kind tag — mirroring
-/// `runtimePrimitiveBoxNominalTypeID` for primitive boxes.
 func runtimeRangeBoxNominalTypeID(_ kind: RuntimeRangeKind) -> Int64 {
     runtimeStableNominalTypeID(fqName: kind.qualifiedName)
 }
@@ -191,8 +180,6 @@ private let runtimeRangeQualifiedNamesByTypeID = Dictionary(uniqueKeysWithValues
     RuntimeRangeKind.allCases.map { (runtimeRangeBoxNominalTypeID($0), $0.qualifiedName) }
 )
 
-/// Built-in range classifier names do not depend on a cached short hint or
-/// the order in which source reflection metadata and class literals register.
 func runtimeRangeClassQualifiedName(typeToken: Int) -> String? {
     let token = Int64(truncatingIfNeeded: typeToken)
     guard token & RuntimeTypeTokenEncoding.baseMask == RuntimeTypeTokenEncoding.nominalBase else {
@@ -202,13 +189,6 @@ func runtimeRangeClassQualifiedName(typeToken: Int) -> String? {
     return runtimeRangeQualifiedNamesByTypeID[typeID]
 }
 
-/// Installs the nominal supertype edges range classes have in Kotlin:
-/// `XRange : XProgression, ClosedRange<X>, OpenEndRange<X>`,
-/// `XProgression : Iterable<X>`, and `ClosedFloatingPointRange : ClosedRange`.
-/// Mirrors `RuntimePrimitiveNominalTypeIDs.registerEdgesOnce`, including its
-/// resettability: `kk_runtime_reset_metadata` clears `typeParents` and
-/// `rangeTypeEdgesRegistered` together so the edges re-register on the next
-/// `is` check after a metadata reset.
 func registerRangeTypeEdgesOnce() {
     runtimeStorage.withMetadataLock { state in
         if state.rangeTypeEdgesRegistered {

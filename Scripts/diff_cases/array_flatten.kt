@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-541: Array<out Array<out T>>.flatten() bundled-source overload.
 // Array elements whose own type is Iterable (e.g. Array<List<T>>) are a
 // KSwiftK-only superset — kotlinc rejects them — so they are exercised by

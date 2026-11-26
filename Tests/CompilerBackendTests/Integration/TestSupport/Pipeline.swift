@@ -4,17 +4,11 @@
 import Foundation
 import TestStdlibCache
 
-/// Backend tests need the precompiled shared stdlib artifact on disk for most
-/// compilations (codegen/linking exercise the actual object-level stdlib, not
-/// just bundled Kotlin sources), so preparing it is an eager side effect of
-/// resolving the target triple, matching every call path below.
 func defaultTargetTriple() -> TargetTriple {
     TestStdlibCache.shared.prepare()
     return CompilerTestSupport.defaultTargetTriple()
 }
 
-/// Return the prepared stdlib artifact used by tests that inspect imported
-/// stdlib symbols rather than injected Kotlin source declarations.
 func testStdlibArtifactPath() throws -> String {
     _ = defaultTargetTriple()
     guard let path = CompilerOptions.defaultStdlibLibraryPath,
@@ -56,12 +50,6 @@ func makeArtifactCompilationContext(
     )
 }
 
-/// CompilerBackendTests default to allowing the precompiled stdlib artifact
-/// (`allowDefaultStdlibLibrary: true`) since most Backend/codegen tests link
-/// the actual object-level stdlib rather than compiling bundled Kotlin
-/// sources. Because of that, KIR callee names seen by these tests are the
-/// precompiled artifact's mangled symbols (e.g. `kk_fn_map_123`, not `map`)
-/// — see `isKotlinCallee`/`containsKotlinCallee` in KIRAndLLVM.swift.
 func makeCompilationContext(
     inputs: [String],
     moduleName: String = "TestModule",
@@ -95,8 +83,6 @@ func makeCompilationContext(
     )
 }
 
-/// Compiles `source` into a real ".kklib" library on disk and passes its
-/// directory path to `body`, cleaning up afterward.
 func withCompiledLibrary(
     source: String,
     moduleName: String,

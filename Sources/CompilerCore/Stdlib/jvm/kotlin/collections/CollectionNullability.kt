@@ -7,6 +7,9 @@ import kotlin.contracts.contract
 inline fun <T> List<T>?.orEmpty(): List<T> = this ?: emptyList<T>()
 
 @kotlin.internal.InlineOnly
+inline fun <T> Collection<T>?.orEmpty(): Collection<T> = this ?: emptyList<T>()
+
+@kotlin.internal.InlineOnly
 public inline fun <T> Collection<T>?.isNullOrEmpty(): Boolean {
     contract {
         returns(false) implies (this != null)

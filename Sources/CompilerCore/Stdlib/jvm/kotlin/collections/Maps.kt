@@ -5,6 +5,7 @@ import kotlin.sequences.asIterable
 import kotlin.jvm.internal.__jvmArrayList
 import kotlin.jvm.internal.__jvmRemoveAllCollection
 import kotlin.jvm.internal.__jvmNewMap
+import kotlin.jvm.internal.__jvmNewHashMapCapacity
 import kotlin.jvm.internal.__jvmCopyMap
 import kotlin.jvm.internal.__jvmPutAllMap
 import kotlin.jvm.internal.__jvmSingletonMap
@@ -33,7 +34,9 @@ public fun <K, V> mutableMapOf(vararg pairs: Pair<K, V>): MutableMap<K, V> {
     return result
 }
 public fun <K, V> hashMapOf(vararg pairs: Pair<K, V>): java.util.HashMap<K, V> {
-    val result = java.util.HashMap<K, V>()
+    // HashMap iteration order depends on the table size; match the official
+    // initial capacity so printed maps agree with kotlin-stdlib.
+    val result = __jvmNewHashMapCapacity<K, V>(mapCapacity(pairs.size))
     for (pair in pairs) result.put(pair.first, pair.second)
     return result
 }
@@ -49,6 +52,9 @@ public inline operator fun <K, V> MutableMap<K, V>.set(key: K, value: V) { this.
 public inline operator fun <K, V> Map<K, V>.contains(key: K): Boolean = this.containsKey(key)
 
 public inline fun <K, V> Map<out K, V>.isNotEmpty(): Boolean = !isEmpty()
+
+@kotlin.internal.InlineOnly
+public inline fun <K, V> Map<K, V>?.orEmpty(): Map<K, V> = this ?: emptyMap<K, V>()
 
 public fun <K, V> Array<out Pair<K, V>>.toMap(): Map<K, V> {
     if (this.size == 0) return emptyMap<K, V>()
@@ -180,9 +186,30 @@ public operator fun <K, V> Map<out K, V>.minus(keys: kotlin.sequences.Sequence<K
     return optimizeOperatorMap(result)
 }
 
-public fun <K, V> Map<K, V>.getOrImplicitDefaultNullable(key: K): V? = this[key] ?: throw NoSuchElementException("Key " + key + " is missing in the map.")
+public fun <K, V> Map<K, V>.getOrImplicitDefaultNullable(key: K): V? = getValue(key)
+
+public fun <K, V> Map<K, V>.withDefault(defaultValue: (K) -> V): Map<K, V> =
+    if (this is MapWithDefault<*, *>) {
+        @Suppress("UNCHECKED_CAST")
+        MapWithDefaultImpl<K, V>((this as MapWithDefault<K, V>).map, defaultValue)
+    } else {
+        MapWithDefaultImpl<K, V>(this, defaultValue)
+    }
+
+@kotlin.jvm.JvmName("withDefaultMutable")
+public fun <K, V> MutableMap<K, V>.withDefault(defaultValue: (K) -> V): MutableMap<K, V> =
+    if (this is MutableMapWithDefault<*, *>) {
+        @Suppress("UNCHECKED_CAST")
+        MutableMapWithDefaultImpl<K, V>((this as MutableMapWithDefault<K, V>).mutableMap, defaultValue)
+    } else {
+        MutableMapWithDefaultImpl<K, V>(this, defaultValue)
+    }
 
 public fun <K, V> Map<K, V>.getValue(key: K): V {
+    if (this is MapWithDefault<*, *>) {
+        @Suppress("UNCHECKED_CAST")
+        return (this as MapWithDefault<K, V>).getOrImplicitDefault(key)
+    }
     val value = this[key]
     if (value != null || containsKey(key)) {
         @Suppress("UNCHECKED_CAST")

@@ -55,18 +55,9 @@ extension CallTypeChecker {
         }
 
         let (ctorVis, ctorInvis) = ctx.filterByVisibility(ctorSymbols)
-        // Constructors with the same parameter types on different classifiers
-        // remain separate candidates. The inherited classifier is preferred
-        // when applicable, while its outer-scope fallback is still available
-        // when the inherited constructor cannot accept the call.
         let constructorParameterTypes = ctorVis.compactMap {
             sema.symbols.functionSignature(for: $0)?.parameterTypes
         }
-        // Synthetic stdlib types can register a constructor with the same
-        // signature as a top-level factory function. Hidden compatibility
-        // factories remain visible long enough to produce their deprecation
-        // diagnostic when called directly, so discard a hidden duplicate only
-        // after merging the constructor into this call's candidate set.
         candidates.removeAll { existingID in
             if sema.symbols.symbol(existingID)?.kind == .constructor,
                sema.symbols.parentSymbol(for: existingID) != classID {
@@ -83,9 +74,6 @@ extension CallTypeChecker {
             guard let ctorSignature = sema.symbols.functionSignature(for: ctorID) else {
                 return true
             }
-            // Avoid an indistinguishable top-level factory/constructor pair.
-            // Constructors belonging to a different classifier are kept so
-            // the inherited tier can suppress them only when it is applicable.
             return !candidates.contains { existingID in
                 if sema.symbols.symbol(existingID)?.kind == .constructor,
                    sema.symbols.parentSymbol(for: existingID) != classID {
@@ -98,9 +86,6 @@ extension CallTypeChecker {
                 if isLowPriorityInOverloadResolution(existingID, symbols: sema.symbols) {
                     return false
                 }
-                // A same-signature companion `invoke` is a distinct call
-                // target: Kotlin prefers the constructor when applicable,
-                // then falls back to `invoke` when it is not.
                 return !typeNameCompanionInvokeCandidates.contains(existingID)
                     && sema.symbols.functionSignature(for: existingID)?.parameterTypes
                     == ctorSignature.parameterTypes
@@ -125,11 +110,6 @@ extension CallTypeChecker {
         return lexicalOwners.contains(declaringOwner)
     }
 
-    /// Nested classifiers are inherited through the superclass chain only:
-    /// an interface's nested classifiers never enter the simple-name scope
-    /// of a subtype, even when the interface is reached through a superclass
-    /// (KUU-3637, KUU-3636). Only `.class` supertypes are expanded, so
-    /// interfaces are never visited at any depth.
     func inheritedNestedClassifiers(
         named name: InternedString,
         in ctx: TypeInferenceContext
@@ -162,10 +142,6 @@ extension CallTypeChecker {
                 }
                 let accessibleMatches = nestedSymbols.filter { candidate in
                     guard let symbol = ctx.cachedSymbol(candidate) else { return false }
-                    // This lookup walks only enclosing-class supertypes, so a
-                    // protected classifier found here is accessible through
-                    // inheritance. The constructor's own visibility is still
-                    // checked by the regular candidate path below.
                     if symbol.visibility == .protected { return true }
                     return ctx.visibilityChecker.isAccessible(
                         symbol,
@@ -186,12 +162,6 @@ extension CallTypeChecker {
         return []
     }
 
-    /// An inner class declared on an implicit receiver is callable by its
-    /// simple name: the receiver supplies the enclosing instance, so `I()`
-    /// inside `fun Outer.extSub()` resolves the way `this.I()` does
-    /// (KUU-3858). Non-inner nested classifiers are not members of a
-    /// receiver value and must stay unresolved here — kotlinc rejects
-    /// `Nested()` written the same way.
     func implicitReceiverInnerClassifier(
         named name: InternedString,
         in ctx: TypeInferenceContext
@@ -203,8 +173,6 @@ extension CallTypeChecker {
             ) else {
                 continue
             }
-            // Inner classes are inherited members: walk the supertype chain
-            // the same way `collectInnerClassConstructorCandidates` does.
             var ownerQueue: [SymbolID] = [receiverNominal]
             var visited: Set<SymbolID> = []
             while !ownerQueue.isEmpty {
@@ -241,8 +209,6 @@ extension CallTypeChecker {
               let enclosingClass = ctx.enclosingClassSymbol
         else { return false }
 
-        // This only classifies where the interface is declared; visibility is
-        // checked separately for the callable selected from an outer scope.
         var pendingOwners = symbols.directSupertypes(for: enclosingClass)
         var visited: Set<SymbolID> = [enclosingClass]
         while let current = pendingOwners.popLast() {

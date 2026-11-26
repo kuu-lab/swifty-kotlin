@@ -5,10 +5,6 @@ import Testing
 
 extension BuildKIRRegressionTests {
 
-    /// Built once per process: `static let` initializes under `swift_once`, so
-    /// parallel tests share a single compile. The previous check-then-set over
-    /// a mutable static allowed concurrent tests to each miss the cache and
-    /// re-pay the bundled-stdlib compile.
     private static let _sharedDefaultArgsCtx = Result<CompilationContext, any Error> {
         let sources: [String] = [
             """
@@ -129,21 +125,17 @@ extension BuildKIRRegressionTests {
     }
 
 
-    // MARK: - Default Argument Callee-Context Semantics (P5-56)
-
 
     @Test
     func testDefaultArgStubBindsPrecedingParameterForDefaultExpression() throws {
         let ctx = try sharedDefaultArgsCtx()
 
         let module = try #require(ctx.kir)
-        // Call site must route through $default stub
         let mainBody = try findKIRFunctionBody(named: "main2", in: module, interner: ctx.interner)
         let mainCallees = extractCallees(from: mainBody, interner: ctx.interner)
         #expect(mainCallees.contains("withDep2$default"),
                       "Expected call to withDep2$default stub, got: \(mainCallees)")
 
-        // Stub must exist and call the original function
         let stubSymbol = try defaultStubSymbol(named: "withDep2", in: ctx)
         let stubFunction = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
             return function.symbol == stubSymbol ? function : nil
@@ -153,7 +145,6 @@ extension BuildKIRRegressionTests {
             let stubCallees = extractCallees(from: stub.body, interner: ctx.interner)
             #expect(stubCallees.contains("withDep2"),
                           "Stub should call original withDep2, got: \(stubCallees)")
-            // Stub body must contain a binary add for the default expression `a + 1`
             let hasBinaryAdd = stub.body.contains { instruction in
                 guard case let .binary(op, _, _, _) = instruction else { return false }
                 return op == .add
@@ -176,12 +167,9 @@ extension BuildKIRRegressionTests {
         }.first
         #expect(stubFunction != nil, "Expected chain3$default stub function")
         if let stub = stubFunction {
-            // The stub should have 3 original params + 1 mask param = 4 params
             #expect(stub.params.count == 4,
                            "Stub should have 3 original params + mask, got \(stub.params.count)")
 
-            // Verify label pairs: each default param generates skip/after labels.
-            // 3 defaults → 6 labels (2 per default), processed left-to-right.
             var labelOrder: [Int32] = []
             for instruction in stub.body {
                 if case let .label(id) = instruction {
@@ -190,7 +178,6 @@ extension BuildKIRRegressionTests {
             }
             #expect(labelOrder.count == 6,
                            "Expected 6 labels (2 per default param), got \(labelOrder.count)")
-            // Labels must be strictly ascending (left-to-right order).
             for i in 1 ..< labelOrder.count {
                 #expect(labelOrder[i] > labelOrder[i - 1],
                                      "Labels must be ascending for left-to-right evaluation")
@@ -205,20 +192,17 @@ extension BuildKIRRegressionTests {
         let ctx = try sharedDefaultArgsCtx()
 
         let module = try #require(ctx.kir)
-        // Call site must use the $default stub
         let mainBody = try findKIRFunctionBody(named: "main4", in: module, interner: ctx.interner)
         let mainCallees = extractCallees(from: mainBody, interner: ctx.interner)
         #expect(mainCallees.contains("addDefault4$default"),
                       "Expected call to addDefault4$default stub, got: \(mainCallees)")
 
-        // Stub must exist and include a receiver parameter
         let stubSymbol = try defaultStubSymbol(named: "addDefault4", in: ctx)
         let stubFunction = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
             return function.symbol == stubSymbol ? function : nil
         }.first
         #expect(stubFunction != nil, "Expected addDefault4$default stub function")
         if let stub = stubFunction {
-            // receiver + original param + mask = 3 params
             #expect(stub.params.count >= 3,
                                         "Stub should have receiver + param + mask, got \(stub.params.count)")
             let stubCallees = extractCallees(from: stub.body, interner: ctx.interner)
@@ -239,8 +223,6 @@ extension BuildKIRRegressionTests {
         #expect(mainCallees.contains("compute5$default"),
                       "Caller should route to compute5$default, got: \(mainCallees)")
 
-        // The caller (main5) body should NOT have a binary add — that belongs
-        // in the stub's callee-context evaluation.
         let callerHasBinaryAdd = mainBody.contains { instruction in
             guard case let .binary(op, _, _, _) = instruction else { return false }
             return op == .add
@@ -249,8 +231,6 @@ extension BuildKIRRegressionTests {
                        "Caller must not directly evaluate the default expression (binary add)")
     }
 
-
-    // MARK: - Nested Return Propagation (P5-48)
 
 
     @Test
@@ -305,14 +285,11 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "choose9", in: module, interner: ctx.interner)
 
-        // After a returnValue instruction, there should be no copy to the if-result
-        // that uses a Nothing-typed dead expression as source.
         var foundReturnInBranch = false
         var deadCopyAfterReturn = false
         for (index, instruction) in body.enumerated() {
             if case .returnValue = instruction {
                 foundReturnInBranch = true
-                // Check if the next non-label instruction is a copy
                 var nextIndex = index + 1
                 while nextIndex < body.count {
                     if case .label = body[nextIndex] {
@@ -340,9 +317,6 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "use10", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        // KUU-482/BUG-250: `h.transform(5)` on a function-typed member property
-        // reads the property and invokes the value through the runtime ABI,
-        // rather than emitting an unresolvable `call transform`.
         #expect(
             callees.contains(runtime[.functionInvoke]),
             "Expected runtime invoke callee 'kk_function_invoke', got: \(callees)"
