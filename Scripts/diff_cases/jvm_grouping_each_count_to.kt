@@ -7,5 +7,9 @@ class FirstLetterGrouping(val values: List<String>) : Grouping<String, String> {
 
 fun main() {
     val grouping = FirstLetterGrouping(listOf("apple", "banana", "avocado"))
-    println(grouping.eachCountTo(mutableMapOf("a" to 10)))
+    val destination = mutableMapOf("a" to 10)
+    val result = grouping.eachCountTo(destination)
+    println(result)
+    println(destination)
+    println(result === destination)
 }

@@ -15,12 +15,16 @@ extension JVMBackendTests {
 
         fun main() {
             val grouping = FirstLetterGrouping(listOf("apple", "banana", "avocado"))
-            println(grouping.eachCountTo(mutableMapOf("a" to 10)))
+            val destination = mutableMapOf("a" to 10)
+            val result = grouping.eachCountTo(destination)
+            println(result)
+            println(destination)
+            println(result === destination)
         }
         """#
 
         try withWorkspace { root in
-            try runRuntimeParity(source, expected: "{a=12, b=1}\n", mode: .jvmJar, root: root)
+            try runRuntimeParity(source, expected: "{a=12, b=1}\n{a=12, b=1}\ntrue\n", mode: .jvmJar, root: root)
         }
     }
 }
