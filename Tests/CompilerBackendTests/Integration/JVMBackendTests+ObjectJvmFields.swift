@@ -25,7 +25,7 @@ extension JVMBackendTests {
         class CollisionHolder {
             var x: Int = 1
             companion object {
-                @JvmField var x: Set<Int> = setOf(2)
+                @JvmField var x: Int = 2
             }
         }
         class GenericCompanionHolder {
@@ -36,7 +36,7 @@ extension JVMBackendTests {
         class PublicCollisionHolder {
             @JvmField var x: List<String> = listOf("a")
             companion object {
-                @JvmField var x: Int = 2
+                @JvmField var x: Set<Int> = setOf(2)
             }
         }
         class PrivateConstantCollisionHolder {
