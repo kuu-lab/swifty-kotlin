@@ -396,9 +396,11 @@ extension JVMProgramBuilder {
         result.extraFields += plan.delegateFields.map { $0.2 } + Array(plan.propertyTokens.values).sorted { $0.name < $1.name } + plan.properties.compactMap { $0.2.delegateField }
         if let companionOwner = plan.companionOwner {
             result.properties = result.properties.map { property in
-                guard let field = property.field, field.constantValue != nil else { return property }
+                guard let field = property.field else { return property }
+                let exposedStaticField = field.access & 8 != 0 && field.owner != plan.name
+                guard field.constantValue != nil || exposedStaticField else { return property }
                 var property = property
-                if classes[companionOwner]?.isInterface == true {
+                if classes[companionOwner]?.isInterface == true && !exposedStaticField {
                     var duplicate = JVMField(owner: plan.name, name: field.name, type: field.type, access: field.access)
                     duplicate.annotations = field.annotations
                     duplicate.constantValue = field.constantValue
@@ -453,7 +455,8 @@ extension JVMProgramBuilder {
         if let companion = classes.values.first(where: { $0.companionOwner == plan.symbol }) {
             result.extraFields.append(singletonField(companion))
             result.extraFields += companion.properties.compactMap {
-                guard let field = $0.2.field, field.constantValue != nil,
+                guard let field = $0.2.field,
+                      field.constantValue != nil || (field.access & 8 != 0 && field.owner == plan.name),
                       !plan.isInterface || field.access & 2 == 0 else { return nil }
                 return field
             }

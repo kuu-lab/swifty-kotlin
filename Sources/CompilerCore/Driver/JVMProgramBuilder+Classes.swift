@@ -319,6 +319,8 @@ extension JVMProgramBuilder {
                     reference.chosenCallee == symbol || sema.symbols.propertySymbol(forAccessor: reference.chosenCallee) == symbol
                 }
             let staticObjectField = exposedField && plan.isObject
+            let ownerInitializedCompanion = plan.companionOwner != nil && interfaceCompanionStorage(plan) == nil
+            let staticObjectFieldOwner = staticObjectField && ownerInitializedCompanion ? (plan.companionOwner.flatMap { classes[$0]?.name } ?? plan.name) : plan.name
             let immutableField = !p.isVar && (!plan.isObject || staticObjectField)
             let propertyAnnotationRecords = try annotationRecords(for: symbol)
             let fieldAnnotations = propertyAnnotationRecords.filter { $0.useSiteTarget == nil || $0.useSiteTarget == "field" }
@@ -328,7 +330,7 @@ extension JVMProgramBuilder {
             }
             let fieldFlagAccess: UInt16 = (hasVolatileField ? 0x40 : 0)
                 | (fieldAnnotations.contains { $0.annotationFQName == "kotlin.jvm.Transient" } ? 0x80 : 0)
-            let field = hasField && p.delegateExpression == nil ? JVMField(owner: plan.name, name: name, type: backingFieldType, access: (p.modifiers.contains(.lateinit) || exposedField ? self.access(fieldModifiers) : 2) | (plan.isFacade || staticObjectField ? 8 : 0) | (immutableField ? 16 : 0) | fieldFlagAccess) : nil
+            let field = hasField && p.delegateExpression == nil ? JVMField(owner: staticObjectFieldOwner, name: name, type: backingFieldType, access: (p.modifiers.contains(.lateinit) || exposedField ? self.access(fieldModifiers) : 2) | (plan.isFacade || staticObjectField ? 8 : 0) | (immutableField ? 16 : 0) | fieldFlagAccess) : nil
             var property = JVMProperty(name: name, type: type, getter: getter, setter: setter, field: field, modifiers: p.modifiers)
             property.isGetterInline = p.modifiers.contains(.inline) || p.getter?.isInline == true
             property.isSetterInline = p.modifiers.contains(.inline) || p.setter?.isInline == true

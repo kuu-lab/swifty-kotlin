@@ -16,6 +16,12 @@ extension JVMBackendTests {
             @JvmField val exposed: Int = 11
             val ordinary: Int = 5
         }
+        class CompanionHolder {
+            companion object {
+                @JvmField val exposed: Int = 13
+                @JvmField var mutable: Int = 15
+            }
+        }
         fun main() {}
         """
         let javaSource = #"""
@@ -49,6 +55,19 @@ extension JVMBackendTests {
                 ordinary.setAccessible(true);
                 System.out.println("ordinaryModifiers=" + Modifier.isStatic(ordinaryModifiers) + ":" + Modifier.isFinal(ordinaryModifiers));
                 System.out.println("ordinary=" + ordinary.getInt(holder));
+
+                Class<?> companionHolderType = Class.forName("CompanionHolder");
+                Field companionExposed = companionHolderType.getDeclaredField("exposed");
+                int companionExposedModifiers = companionExposed.getModifiers();
+                System.out.println("companionExposedModifiers=" + Modifier.isPublic(companionExposedModifiers) + ":" + Modifier.isStatic(companionExposedModifiers) + ":" + Modifier.isFinal(companionExposedModifiers));
+                System.out.println("companionExposed=" + companionExposed.getInt(null));
+
+                Field companionMutable = companionHolderType.getDeclaredField("mutable");
+                int companionMutableModifiers = companionMutable.getModifiers();
+                System.out.println("companionMutableModifiers=" + Modifier.isPublic(companionMutableModifiers) + ":" + Modifier.isStatic(companionMutableModifiers) + ":" + Modifier.isFinal(companionMutableModifiers));
+                System.out.println("companionMutableBefore=" + companionMutable.getInt(null));
+                companionMutable.setInt(null, 17);
+                System.out.println("companionMutableAfter=" + companionMutable.getInt(null));
             }
         }
         """#
@@ -77,6 +96,11 @@ extension JVMBackendTests {
             exposed=11
             ordinaryModifiers=false:true
             ordinary=5
+            companionExposedModifiers=true:true:true
+            companionExposed=13
+            companionMutableModifiers=true:true:false
+            companionMutableBefore=15
+            companionMutableAfter=17
             """ + "\n")
             #expect(reference.stderr.isEmpty)
             #expect(candidate.stderr.isEmpty)
