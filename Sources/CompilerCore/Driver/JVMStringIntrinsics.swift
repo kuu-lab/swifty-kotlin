@@ -149,6 +149,9 @@ extension JVMFunctionBuilder {
 
     func emitTextOperation(_ op: JVMTextOperation, source: JVMValue, values: [JVMValue]) throws -> JVMValue {
         let name = op.name
+        if name == "toBigDecimal" {
+            return try constructJDK(op.owner, parameters: [op.receiverType], arguments: [source])
+        }
         if ["isEmpty", "isNotEmpty"].contains(name) {
             let result = try value(.boolean); instructions.append(.binary(name == "isEmpty" ? .equal : .notEqual, try textLength(source), try constant(.int(0), .int), result)); return result
         }

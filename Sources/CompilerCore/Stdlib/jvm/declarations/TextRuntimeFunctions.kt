@@ -1,6 +1,7 @@
 package kotlin.text
 
 import kotlin.contracts.contract
+import java.math.BigDecimal
 
 fun String.isEmpty(): Boolean = null!!
 fun String.isNotEmpty(): Boolean = null!!
@@ -42,6 +43,7 @@ fun String.toFloat(): Float = null!!
 fun String.toFloatOrNull(): Float? = null!!
 fun String.toDouble(): Double = null!!
 fun String.toDoubleOrNull(): Double? = null!!
+fun String.toBigDecimal(): BigDecimal = null!!
 fun Byte.toString(radix: Int): String = null!!
 fun Short.toString(radix: Int): String = null!!
 fun Int.toString(radix: Int): String = null!!

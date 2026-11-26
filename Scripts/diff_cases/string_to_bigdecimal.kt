@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println("1.5".toBigDecimal().toString())
     println("42".toBigDecimal().toString())
