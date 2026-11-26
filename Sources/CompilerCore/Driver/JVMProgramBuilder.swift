@@ -39,6 +39,8 @@ final class JVMProgramBuilder {
     var textLibraryMethods: [SymbolID: JVMTextLibraryMethod] = [:] { didSet { methodTablesVersion &+= 1 } }
     var textLibraryProperties: [SymbolID: JVMForeignMethod] = [:]
     var textLibraryFields: [SymbolID: JVMField] = [:]
+    /// `kotlin.text.Charsets` members that have no `StandardCharsets` field (UTF_32*); value is the JDK charset name.
+    var textLibraryCharsetNames: [SymbolID: String] = [:]
     let platformOperations: [String: JVMPlatformOperation]
     var rawAnnotationConstructions: [String: ExprID] = [:]
 
