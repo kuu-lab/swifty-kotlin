@@ -364,6 +364,7 @@ public struct JVMClass {
     public var functions: [JVMFunction]
     public var properties: [JVMProperty]
     public var extraFields: [JVMField] = []
+    public var extraFieldSignatures: [String: String] = [:]
     public var isFileFacade = false
     public var sourceFileName: String? = nil
     public var emitMetadata = true

@@ -252,7 +252,51 @@ extension JVMProgramBuilder {
                 }
             }
         }
+        renameOwnerBackingFieldsForCompanionCollisions()
     }
+
+    private func renamedField(_ field: JVMField, name: String) -> JVMField {
+        var renamed = JVMField(owner: field.owner, name: name, type: field.type, access: field.access)
+        renamed.annotations = field.annotations
+        renamed.isDeprecated = field.isDeprecated
+        renamed.constantValue = field.constantValue
+        return renamed
+    }
+
+    private func renameOwnerBackingFieldsForCompanionCollisions() {
+        for companion in classes.values where companion.companionOwner != nil {
+            guard interfaceCompanionStorage(companion) == nil,
+                  let ownerSymbol = companion.companionOwner,
+                  let owner = classes[ownerSymbol]
+            else { continue }
+            let relocated = companion.properties.compactMap { $0.2.field }.filter { field in
+                field.access & 8 != 0 && field.owner == owner.name
+            }
+            guard !relocated.isEmpty else { continue }
+            var reservedNames = Set(owner.properties.compactMap { $0.2.field?.name })
+            reservedNames.formUnion(owner.delegateFields.map { $0.2.name })
+            reservedNames.formUnion(owner.propertyTokens.values.map(\.name))
+            reservedNames.insert(singletonField(companion).name)
+            for index in owner.properties.indices {
+                let entry = owner.properties[index]
+                var property = entry.2
+                guard let field = property.field,
+                      relocated.contains(where: { $0.name == field.name })
+                else { continue }
+                var suffix = 1
+                var candidate = field.name + "$" + String(suffix)
+                while reservedNames.contains(candidate) {
+                    suffix += 1
+                    candidate = field.name + "$" + String(suffix)
+                }
+                reservedNames.insert(candidate)
+                property.field = renamedField(field, name: candidate)
+                owner.properties[index] = (entry.0, entry.1, property)
+                if let symbol = sema.bindings.declSymbol(for: entry.0) { properties[symbol] = property }
+            }
+        }
+    }
+
     func prepareProperties(_ plan: JVMClassPlan, ids propertyIDs: [DeclID]) throws {
         for id in propertyIDs {
             guard case let .propertyDecl(p) = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id), let propertyType = sema.symbols.propertyType(for: symbol),

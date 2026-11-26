@@ -454,11 +454,15 @@ extension JVMProgramBuilder {
         if let storage = interfaceCompanionStorage(plan) { result.extraFields.append(storage) }
         if let companion = classes.values.first(where: { $0.companionOwner == plan.symbol }) {
             result.extraFields.append(singletonField(companion))
-            result.extraFields += companion.properties.compactMap {
-                guard let field = $0.2.field,
+            for (_, _, property) in companion.properties {
+                guard let field = property.field,
                       field.constantValue != nil || (field.access & 8 != 0 && field.owner == plan.name),
-                      !plan.isInterface || field.access & 2 == 0 else { return nil }
-                return field
+                      !plan.isInterface || field.access & 2 == 0 else { continue }
+                result.extraFields.append(field)
+                if let signature = property.fieldGenericSignature ?? property.genericSignature,
+                   signature != field.type.descriptor {
+                    result.extraFieldSignatures[field.name] = signature
+                }
             }
         }
         if plan.isEnum { try decorateEnum(plan, result: &result) }

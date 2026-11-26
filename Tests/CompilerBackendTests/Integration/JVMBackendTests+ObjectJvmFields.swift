@@ -22,6 +22,17 @@ extension JVMBackendTests {
                 @JvmField var mutable: Int = 15
             }
         }
+        class CollisionHolder {
+            var x: Int = 1
+            companion object {
+                @JvmField var x: Int = 2
+            }
+        }
+        class GenericCompanionHolder {
+            companion object {
+                @JvmField val values: List<String> = listOf("x")
+            }
+        }
         fun main() {}
         """
         let javaSource = #"""
@@ -68,6 +79,18 @@ extension JVMBackendTests {
                 System.out.println("companionMutableBefore=" + companionMutable.getInt(null));
                 companionMutable.setInt(null, 17);
                 System.out.println("companionMutableAfter=" + companionMutable.getInt(null));
+
+                Class<?> collisionType = Class.forName("CollisionHolder");
+                Object collision = collisionType.getDeclaredConstructor().newInstance();
+                Field collisionBacking = collisionType.getDeclaredField("x$1");
+                collisionBacking.setAccessible(true);
+                Field collisionExposed = collisionType.getDeclaredField("x");
+                System.out.println("collisionBacking=" + collisionBacking.getInt(collision));
+                System.out.println("collisionExposedStatic=" + Modifier.isStatic(collisionExposed.getModifiers()));
+                System.out.println("collisionExposed=" + collisionExposed.getInt(null));
+
+                Field values = Class.forName("GenericCompanionHolder").getDeclaredField("values");
+                System.out.println("valuesGeneric=" + values.getGenericType().getTypeName());
             }
         }
         """#
@@ -101,6 +124,10 @@ extension JVMBackendTests {
             companionMutableModifiers=true:true:false
             companionMutableBefore=15
             companionMutableAfter=17
+            collisionBacking=1
+            collisionExposedStatic=true
+            collisionExposed=2
+            valuesGeneric=java.util.List<java.lang.String>
             """ + "\n")
             #expect(reference.stderr.isEmpty)
             #expect(candidate.stderr.isEmpty)
