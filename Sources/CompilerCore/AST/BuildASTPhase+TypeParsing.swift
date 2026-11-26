@@ -217,6 +217,19 @@ extension BuildASTPhase {
         var depth = 1
         var current: [Token] = []
         var items: [ContextReceiverDecl] = []
+        var sawComma = false
+        func appendCurrentItem() {
+            guard let item = parseContextReceiverItem(from: current, interner: interner, astArena: astArena) else {
+                return
+            }
+            items.append(ContextReceiverDecl(
+                name: item.name,
+                type: item.ref,
+                isContextParameter: item.isContextParameter,
+                isCrossinline: item.isCrossinline,
+                isNoinline: item.isNoinline
+            ))
+        }
         while index < tokens.count, depth > 0 {
             let token = tokens[index]
             if token.kind == .symbol(.lParen) {
@@ -225,29 +238,28 @@ extension BuildASTPhase {
             } else if token.kind == .symbol(.rParen) {
                 depth -= 1
                 if depth == 0 {
-                    if !current.isEmpty,
-                       let item = parseContextReceiverItem(from: current, interner: interner, astArena: astArena)
-                    {
-                        items.append(ContextReceiverDecl(
-                            name: item.name,
-                            type: item.ref,
-                            isContextParameter: item.isContextParameter,
-                            isCrossinline: item.isCrossinline,
-                            isNoinline: item.isNoinline
-                        ))
+                    if !current.isEmpty {
+                        appendCurrentItem()
+                    } else if !sawComma {
+                        diagnostics?.error(
+                            "KSWIFTK-PARSE-0001",
+                            "Empty context parameter list.",
+                            range: token.range
+                        )
                     }
                     break
                 }
                 current.append(token)
             } else if token.kind == .symbol(.comma), depth == 1 {
-                if let item = parseContextReceiverItem(from: current, interner: interner, astArena: astArena) {
-                    items.append(ContextReceiverDecl(
-                        name: item.name,
-                        type: item.ref,
-                        isContextParameter: item.isContextParameter,
-                        isCrossinline: item.isCrossinline,
-                        isNoinline: item.isNoinline
-                    ))
+                sawComma = true
+                if current.isEmpty {
+                    diagnostics?.error(
+                        "KSWIFTK-PARSE-0001",
+                        "Expecting a parameter declaration.",
+                        range: token.range
+                    )
+                } else {
+                    appendCurrentItem()
                 }
                 current.removeAll(keepingCapacity: true)
             } else {

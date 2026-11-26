@@ -107,6 +107,21 @@ struct AnonymousFunctionBodyParsingTests {
         ], in: context)
     }
 
+    @Test(arguments: [
+        ("context() fun(): String = \"ok\"", "Empty context parameter list."),
+        ("context(a: String,, b: String) fun(): String = \"ok\"", "Expecting a parameter declaration."),
+    ])
+    func malformedContextParameterListsAreRejected(_ expression: String, _ message: String) throws {
+        let (_, context) = try buildASTModule(from: """
+        @file:OptIn(kotlin.ExperimentalContextParameters::class)
+        val f = \(expression)
+        """, includeStdlib: false)
+
+        assertExpectedDiagnostics([
+            .error("KSWIFTK-PARSE-0001", containing: message),
+        ], in: context)
+    }
+
     @Test
     func trailingCommaInContextPrefixStillParsesAnonymousFunction() throws {
         let (ast, context) = try buildASTModule(from: """
