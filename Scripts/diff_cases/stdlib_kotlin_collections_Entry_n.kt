@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val values = linkedMapOf("a" to 1, "b" to 2)
     for (entry in values.entries) {
