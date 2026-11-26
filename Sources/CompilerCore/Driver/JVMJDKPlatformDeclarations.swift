@@ -522,9 +522,17 @@ extension JVMClasspathIndex {
             ("java/util/Collections", """
             package java.util
             class Collections private constructor() {
-                companion object { external fun <T> sort(list: kotlin.collections.List<T>, c: java.util.Comparator<in T>): Unit }
+                companion object {
+                    external fun <T> sort(list: kotlin.collections.List<T>, c: java.util.Comparator<in T>): Unit
+                    external fun <T> reverse(list: kotlin.collections.List<T>): Unit
+                    external fun <T> shuffle(list: kotlin.collections.List<T>): Unit
+                }
             }
-            """, 0x0031, "java/lang/Object", [method("java/util/Collections", "sort", [.reference("java/util/List", nullable: false), comparator], .unit, staticMember: true)]),
+            """, 0x0031, "java/lang/Object", [
+                method("java/util/Collections", "sort", [.reference("java/util/List", nullable: false), comparator], .unit, staticMember: true),
+                method("java/util/Collections", "reverse", [.reference("java/util/List", nullable: false)], .unit, staticMember: true),
+                method("java/util/Collections", "shuffle", [.reference("java/util/List", nullable: false)], .unit, staticMember: true),
+            ]),
             ("java/security/InvalidParameterException", """
             package java.security
             open class InvalidParameterException: kotlin.IllegalArgumentException {
