@@ -102,9 +102,9 @@ struct AnonymousFunctionBodyParsingTests {
         }
         """, includeStdlib: false)
 
-        #expect(context.diagnostics.diagnostics.contains {
-            $0.code == "KSWIFTK-PARSE-0030"
-        }, "\(context.diagnostics.diagnostics)")
+        assertExpectedDiagnostics([
+            .error("KSWIFTK-PARSE-0030", containing: "context parameters must be named"),
+        ], in: context)
     }
 
     @Test
