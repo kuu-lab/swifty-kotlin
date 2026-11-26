@@ -219,6 +219,7 @@ fun __jvmPowDouble(base: Double, exponent: Double): Double = 0.0
 fun <T> __jvmNewListCapacity(capacity: Int): MutableList<T> = null!!
 fun <T> __jvmNewSetCapacity(capacity: Int): MutableSet<T> = null!!
 fun <K, V> __jvmNewMapCapacity(capacity: Int): MutableMap<K, V> = null!!
+fun <K, V> __jvmNewHashMapCapacity(capacity: Int): java.util.HashMap<K, V> = null!!
 fun <T> __jvmListAdd(list: MutableList<T>, index: Int, element: T) {}
 fun <T> __jvmListAddAll(list: MutableList<T>, index: Int, elements: Collection<T>): Boolean = false
 fun <T> __jvmListIterator(list: MutableList<T>, index: Int): java.util.ListIterator<T> = null!!

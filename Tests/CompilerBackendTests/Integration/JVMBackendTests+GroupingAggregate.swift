@@ -6,9 +6,9 @@ import Testing
 
 extension JVMBackendTests {
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
-    func groupingAggregateAndAggregateToMatchOfficialRuntime(mode: EmitMode) throws {
+    func groupingAggregateAndAggregateToMatchBothRuntimes(mode: EmitMode) throws {
         try withWorkspace { root in
-            try runM11("""
+            try runRuntimeParity("""
             fun main() {
                 val grouping = listOf("apple", "banana", "avocado", "blueberry", "cherry")
                     .groupingBy { it.substring(0, 1) }
@@ -43,7 +43,7 @@ extension JVMBackendTests {
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func groupingAggregateToAcceptsConcreteMapDestinations(mode: EmitMode) throws {
         try withWorkspace { root in
-            try runM11("""
+            try runRuntimeParity("""
             fun main() {
                 val grouping = listOf("apple", "banana", "avocado", "blueberry", "cherry")
                     .groupingBy { it.substring(0, 1) }
