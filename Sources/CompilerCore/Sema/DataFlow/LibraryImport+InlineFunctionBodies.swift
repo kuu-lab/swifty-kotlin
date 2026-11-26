@@ -19,8 +19,6 @@ extension DataFlowSemaPhase {
             let name: String
             if case let .primitive(primitive, .nonNull) = types.kind(of: element) { name = primitive.kotlinName + "Array" }
             else {
-                // Legacy source reference-varargs are rejected at import;
-                // primitive arrays keep their physical ABI in either version.
                 guard current else { return element }
                 name = "Array"
             }
@@ -141,10 +139,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Symbol-unresolved calls fall back to the pending name index (resolving
-    /// every candidate is safe — extra bodies simply join the expansion
-    /// table). Freshly parsed bodies are scanned in turn so transitive
-    /// inline-to-inline calls resolve as well.
     func resolveDemandedImportedInlineBodies(
         module: KIRModule,
         state: ImportedLibraryLazyLoaderState,
@@ -169,13 +163,6 @@ extension DataFlowSemaPhase {
             initBodySymbols.contains(symbol)
         }
 
-        // Bodies reach inline-kir/ two ways without an index binding: init
-        // shells (symbols created by `applyImportedInitializerShells`) and
-        // synthetic or non-inline functions whose bodies the producer
-        // serialized because init code reaches them transitively. When a
-        // `kk_fn_` link name has a shipped body, register a descriptor for
-        // the resolving symbol — synthesizing a shell when no symbol exists
-        // (`__ctor_reflect_init_*`, per-object lazy-init trampolines).
         let linkNameDrivenDirs = materializeInitBodiesForWasm
             ? Array(Set(state.allImportedBindings.compactMap(\.inlineKIRDir)))
             : []
@@ -274,9 +261,6 @@ extension DataFlowSemaPhase {
             return function
         }
 
-        /// Name-fallback callees may sit in still-pending index entries. The
-        /// short-name drain registers them, filling `pendingInlineSymbolsByName`
-        /// through `appendImportedBinding` before the map is read.
         func drainThenRead(_ calleeName: InternedString) -> [SymbolID] {
             _ = symbols.lookupByShortName(calleeName)
             return state.pendingInlineSymbolsByName[calleeName] ?? []
@@ -307,10 +291,6 @@ extension DataFlowSemaPhase {
                 var targets: [SymbolID] = callSymbol.map { [$0] }
                     ?? calleeName.map { drainThenRead($0) }
                     ?? []
-                // Init shells aren't index bindings, so their link names
-                // never enter pendingInlineSymbolsByName — resolve them
-                // through the registered descriptor map, synthesizing a
-                // shell when the link name has a shipped body but no symbol.
                 if targets.isEmpty, materializeInitBodiesForWasm,
                    let calleeName,
                    let initSymbol = initSymbolsByLinkName[interner.resolve(calleeName)]
@@ -320,13 +300,6 @@ extension DataFlowSemaPhase {
                 }
                 for target in targets where scannedSymbols.insert(target).inserted {
                     var function = resolveOne(target)
-                    // A resolved callee whose record is not inline still has
-                    // a shipped body when init reaches it transitively —
-                    // retry once after registering its descriptor. The callee
-                    // *name* may itself be the `kk_fn_` link name even when
-                    // the symbol carries no external link name; the resolved
-                    // shell (existing or synthesized) then owns the body, so
-                    // scan *it*, not the dead-end target.
                     if function == nil, materializeInitBodiesForWasm {
                         if let linkName = symbols.externalLinkNameIfKnown(for: target),
                            linkNameDrivenShellSymbol(linkName) != nil
@@ -383,7 +356,6 @@ extension DataFlowSemaPhase {
                 guard let function = state.importedInlineFunctions.functions[symbol]
                 else { continue }
                 if seenFunctions.contains(symbol) {
-                    // Already an ordinary decl in this module.
                 } else if isInitBodySymbol(symbol), canEmitStandaloneBody(function, symbol: symbol) {
                     // Materialized init/link-name bodies become ordinary
                     // module functions: wasm has no object linker, so calls
@@ -407,9 +379,6 @@ extension DataFlowSemaPhase {
                     )))
                     state.importedInlineFunctions.removeMaterializedFunction(for: symbol)
                 }
-                // Globals reach this module two ways: appended init decls
-                // read/write them directly, and inlined callee bodies embed
-                // loadGlobal/storeGlobal into their callers. Cover both.
                 for instruction in function.body {
                     let globalSymbol: SymbolID?
                     switch instruction {
@@ -428,11 +397,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Registers lazy descriptors for the imported object/companion/enum
-    /// init shells (`applyImportedInitializerShells`) so a call site bearing
-    /// one of their symbols — or only its `kk_fn_` link name — materializes
-    /// the shipped kirbin on demand. Returns the covered symbols plus the
-    /// link-name index for symbol-less call sites.
     private func registerWasmInitBodyDescriptors(
         state: ImportedLibraryLazyLoaderState,
         symbols: SymbolTable,
@@ -458,10 +422,6 @@ extension DataFlowSemaPhase {
                 initSymbols.insert(initSymbol)
             }
         }
-        // Shells reachable only by link name (the library's own
-        // `__kk_library_top_level_init_`, lazy-init trampolines) never appear
-        // in the per-record initializer slots — sweep imported function
-        // symbols by external link name instead.
         for info in symbols.allSymbols() {
             guard info.kind == .function,
                   info.flags.contains(.importedLibrary),
@@ -494,10 +454,6 @@ extension DataFlowSemaPhase {
         return (initSymbols, byLinkName)
     }
 
-    /// Snapshot archives bypass the compact-index provider on consumer loads,
-    /// so persist descriptors for every imported inline body while building
-    /// the archive. The bodies remain lazy and are parsed only if a consumer
-    /// actually expands the corresponding call.
     func registerAllImportedInlineFunctionDescriptors(
         state: ImportedLibraryLazyLoaderState,
         symbols: SymbolTable,

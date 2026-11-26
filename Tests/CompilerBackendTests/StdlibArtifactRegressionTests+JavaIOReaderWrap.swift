@@ -5,11 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-4031: `BufferedReader` accepts any `java.io.Reader` — Kotlin-source
-    /// subclasses (StringReader, user subclasses) reach the runtime through
-    /// the Reader `read(CharArray, Int, Int)` vtable slot, so wrapping,
-    /// `readText`/`copyTo`, `is`/`as`, and close propagation all behave like
-    /// the JVM instead of panicking on an "invalid Reader handle".
     @Test func testJavaIOBufferedReaderWrapsKotlinReaders() throws {
         let source = """
         import java.io.BufferedReader

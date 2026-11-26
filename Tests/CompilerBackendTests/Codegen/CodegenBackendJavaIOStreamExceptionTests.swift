@@ -8,9 +8,6 @@ import Testing
 struct CodegenBackendJavaIOStreamExceptionTests {
 
     @Test func testStreamIOFailureIsCaughtAsExceptionAndIOException() throws {
-        // `SequenceInputStream` does not support mark/reset, so `reset()`
-        // throws `IOException` exactly like the JVM — the exception must be
-        // catchable through both the `Exception` and `IOException` supertypes.
         let source = """
         import java.io.SequenceInputStream
         import java.io.IOException

@@ -45,8 +45,6 @@ func runtimeForeignResourceForOwner<T: AnyObject>(_ owner: Int, as type: T.Type)
     }
 }
 
-/// Used by an SDK block while queued/executing. The native block owns this
-/// lease and therefore bounds the pin. No permanent StableRef or Cleaner root.
 final class RuntimeForeignCallbackPin: @unchecked Sendable {
     private let root: Int
     private let lock = NSLock()

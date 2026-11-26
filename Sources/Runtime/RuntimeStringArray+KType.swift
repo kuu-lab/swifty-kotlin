@@ -228,12 +228,6 @@ private func runtimeKTypeCreate(
     return registerRuntimeObject(box)
 }
 
-/// Copies a KType box, optionally overriding `isMarkedNullable`
-/// (`isNullable < 0` keeps the source flag). The compiler emits this where a
-/// reified `typeOf<T>`/`typeOf<T?>` reuses the type parameter's captured
-/// KType: every `typeOf` evaluation must hand out a fresh box because
-/// reference identity (`===`) is observable, and a `T?` use site adds
-/// nullability the captured substitution may not carry.
 @_cdecl("__kk_ktype_with_nullability")
 public func __kk_ktype_with_nullability(_ ktypeRaw: Int, _ isNullable: Int) -> Int {
     guard let box = runtimeKTypeBox(from: ktypeRaw) else {
@@ -247,12 +241,6 @@ public func __kk_ktype_with_nullability(_ ktypeRaw: Int, _ isNullable: Int) -> I
     )
 }
 
-/// Derives the `__kk_array_component_type` descriptor equivalent to a KType
-/// box: the classifier's nominal token plus, for `kotlin.Array`, the element
-/// type's descriptor (mirroring `referenceArrayElementType` — `in`/`star`
-/// projections collapse to `Any`). A `KTypeParameter` classifier resolves to
-/// its first upper bound, matching the bound-erasure the descriptor path
-/// used before this slot carried KTypes.
 @_cdecl("__kk_ktype_component_descriptor")
 public func __kk_ktype_component_descriptor(_ ktypeRaw: Int) -> Int {
     var visited = 0
@@ -322,19 +310,11 @@ func __kk_ktype_isMarkedNullable(_ ktypeRaw: Int) -> Int {
     return box.isMarkedNullable ? 1 : 0
 }
 
-/// Distinguishes native KType boxes from source implementations of
-/// KType so `KAnnotatedElement.annotations` reads can bypass the
-/// interface getter (KUU-4068).
 @_cdecl("__kk_ktype_is_runtime")
 public func __kk_ktype_is_runtime(_ raw: Int) -> Int {
     runtimeKTypeBox(from: raw) == nil ? 0 : 1
 }
 
-/// Returns the annotations list for a KType as a RuntimeListBox.
-/// Use-site type-annotation metadata is not yet emitted for runtime
-/// KType boxes, so this returns an empty list; source-backed KType
-/// implementations keep their own `annotations` through interface
-/// dispatch.
 @_cdecl("__kk_ktype_get_annotations_typed")
 public func __kk_ktype_get_annotations_typed(_ raw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let records = runtimeKTypeBox(from: raw)?.annotations ?? []
@@ -389,9 +369,6 @@ public func __kk_ktypeprojection_star() -> Int {
     runtimeKTypeProjectionStar()
 }
 
-/// Creates a KTypeProjection through its public constructor.
-/// The Kotlin constructor accepts either two nulls (a star projection) or
-/// two non-null values; every other pair throws IllegalArgumentException.
 @_cdecl("__kk_ktypeprojection_create_checked")
 public func __kk_ktypeprojection_create_checked(
     _ varianceOrdinal: Int,
@@ -408,9 +385,9 @@ public func __kk_ktypeprojection_create_checked(
         // KVariance declares INVARIANT, IN, OUT, while RuntimeKVariance keeps the
         // existing typeOf bridge's internal order IN, OUT, INVARIANT.
         let decodedVarianceOrdinal: Int = switch kotlinVarianceOrdinal {
-        case 0: 2 // INVARIANT
-        case 1: 0 // IN
-        case 2: 1 // OUT
+        case 0: 2
+        case 1: 0
+        case 2: 1
         default: kotlinVarianceOrdinal
         }
         guard varianceIsNull == typeIsNull else {
@@ -440,12 +417,6 @@ public func __kk_ktypeprojection_create_checked(
     }
 }
 
-/// Returns the projection's variance as a `kotlin.reflect.KVariance` enum box
-/// (the canonical `kk_enum_box_ordinal` handle, like the KTypeParameter and
-/// KClass visibility getters), or the null sentinel for a star projection.
-/// A `KVariance?` slot must carry the box-or-sentinel form: a raw ordinal
-/// would reach erased `==`/`===` slots unboxed and compare unequal to the
-/// same entry's tagged singleton box (KUU-3814).
 @_cdecl("__kk_ktypeprojection_get_variance")
 public func __kk_ktypeprojection_get_variance(_ projectionRaw: Int) -> Int {
     guard let box = runtimeKTypeProjectionBox(from: projectionRaw), let variance = box.variance else {
@@ -475,14 +446,6 @@ public func __kk_ktypeprojection_get_type(_ projectionRaw: Int) -> Int {
     return box.typeRaw
 }
 
-/// KUU-3895: unknown-base tokens all encode to 0, so a token-0 KClass box
-/// cannot trust the token-keyed metadata registry (Kotlin `Nothing` eagerly
-/// registers its `java.lang.Void` entry under token 0) — the KType must
-/// carry its own Kotlin type name. `Nothing` is also the only type whose
-/// *type* name (`kotlin.Nothing`) differs from its *classifier* hint
-/// (`java.lang.Void` — `Nothing::class` really is `Void::class`), so the
-/// hint is remapped for it alone; a Java `Void` type arrives through a
-/// nominal token and keeps its own name.
 private func runtimeAmbiguousKTypeName(typeToken: Int, nameHint: Int) -> Int {
     guard Int64(truncatingIfNeeded: typeToken) & RuntimeTypeTokenEncoding.baseMask == 0,
           nameHint != 0,
@@ -495,7 +458,6 @@ private func runtimeAmbiguousKTypeName(typeToken: Int, nameHint: Int) -> Int {
     return runtimeMakeStringRaw(hint == "java.lang.Void" ? "kotlin.Nothing" : hint)
 }
 
-/// The compiler emits the type token and nullability at the call site.
 @_cdecl("kk_typeof")
 public func kk_typeof(_ typeToken: Int, _ nameHint: Int, _ argsRaw: Int, _ isNullable: Int) -> Int {
     let classifierRaw = __kk_kclass_create(typeToken, nameHint)

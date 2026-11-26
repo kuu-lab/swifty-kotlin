@@ -2,10 +2,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    // The fixture is pinned to JetBrains Kotlin commit 679366a83f99851b42f64795f10ed803ff011c73.
-    // Its body SHA-256 is 99fd3754c612291e71b863932a4e85c464bb0b221f5fe55c4e05abffe3cd902b;
-    // the checked-in main wrapper produces the issue's measured-copy SHA-256 13a1a9087d4fb513279f3507acd170a2951c0d05c7d173da489461515d3ac78c.
-    // Source-injected O2 currently hits the baseline invalid-IR issue tracked by KUU-2399.
     @Test(arguments: [0])
     func topLevelCustomSetterMatchesKt4152WithStdlibSource(optimization: Int) throws {
         try runTopLevelCustomSetterRegression(

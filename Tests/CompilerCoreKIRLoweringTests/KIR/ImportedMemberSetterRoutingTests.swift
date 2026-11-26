@@ -1,4 +1,3 @@
-// Scratch proposal only. Not type-checked or executed.
 #if canImport(Testing)
 @testable import CompilerCore
 import Foundation

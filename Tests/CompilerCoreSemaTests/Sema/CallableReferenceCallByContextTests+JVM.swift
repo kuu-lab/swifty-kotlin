@@ -5,7 +5,6 @@ import Testing
 
 extension CallableReferenceCallByContextTests {
     private func check(_ ctx: CompilationContext) throws {
-        // Match the production JVM frontend's declaration preparation.
         if ctx.options.emit.isJVM { try JVMPreparationPhase().run(ctx) }
         try runSema(ctx)
     }

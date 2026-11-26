@@ -1,7 +1,4 @@
 extension CallTypeChecker {
-    /// Reject only call shapes that cannot become applicable during contextual
-    /// inference. Do not inspect lambda bodies here: scope priority and receiver
-    /// specificity must be decided before checking those bodies.
     func extensionCandidateMatchesCallShape(
         _ candidate: SymbolID,
         request: MemberCallInferenceRequest,
@@ -53,7 +50,6 @@ extension CallTypeChecker {
                     return false
                 }
             case .callableRef:
-                // Callable-reference adaptation needs its contextual signature.
                 continue
             default:
                 guard argumentTypes.indices.contains(index) else { continue }

@@ -7,3 +7,5 @@ operator fun <T> Set<T>.plus(elements: Array<out T>): Set<T> = null!!
 operator fun <T> Set<T>.minus(elements: Array<out T>): Set<T> = null!!
 operator fun <T> Set<T>.plus(elements: kotlin.sequences.Sequence<T>): Set<T> = null!!
 operator fun <T> Set<T>.minus(elements: kotlin.sequences.Sequence<T>): Set<T> = null!!
+@kotlin.internal.InlineOnly
+inline fun <T> Set<T>?.orEmpty(): Set<T> = this ?: emptySet<T>()

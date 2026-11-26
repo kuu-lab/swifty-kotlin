@@ -2,9 +2,6 @@ package kotlin.native
 
 import kotlin.internal.KsSymbolName
 
-// KSP-1210: Keep the Kotlin/Native enum declaration source-backed so the
-// compiler-generated entries, valueOf, and values APIs use the real nominal
-// enum identity and declaration order.
 @kotlin.experimental.ExperimentalNativeApi
 public enum class OsFamily {
     UNKNOWN,
@@ -18,8 +15,6 @@ public enum class OsFamily {
     WATCHOS
 }
 
-// KSP-1198: Keep the Kotlin/Native enum declaration source-backed so bitness
-// and the compiler-generated enum APIs follow the Kotlin 2.3.10 contract.
 @kotlin.experimental.ExperimentalNativeApi
 public enum class CpuArchitecture(public val bitness: Int) {
     UNKNOWN(-1),
@@ -32,7 +27,6 @@ public enum class CpuArchitecture(public val bitness: Int) {
     WASM32(32)
 }
 
-// NOTE: Must match the Kotlin/Native runtime memory model names.
 @kotlin.experimental.ExperimentalNativeApi
 @kotlin.Deprecated(
     "The only possible value returned in runtime is MemoryModel.EXPERIMENTAL now. The usages of this enum can be safely removed."
@@ -45,7 +39,6 @@ public enum class MemoryModel {
 
 @kotlin.experimental.ExperimentalNativeApi
 public object Platform {
-    /** Check if the current architecture allows unaligned access wider than a byte. */
     public val canAccessUnaligned: Boolean
         get() = __canAccessUnaligned() != 0
 
@@ -77,7 +70,6 @@ public object Platform {
     public val isFreezingEnabled: Boolean
         get() = false
 
-    /** Name used to invoke the program executable, or null for a native library. */
     public val programName: String?
         get() = __programName()
 

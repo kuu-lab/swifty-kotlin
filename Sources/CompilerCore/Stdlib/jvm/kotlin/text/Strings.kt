@@ -1,6 +1,7 @@
 package kotlin.text
 
 import kotlin.contracts.contract
+import kotlin.jvm.internal.__jvmEqualsIgnoreCase
 import kotlin.jvm.internal.__jvmParseByte
 import kotlin.jvm.internal.__jvmParseShort
 import kotlin.jvm.internal.__jvmParseInt
@@ -21,6 +22,7 @@ import kotlin.jvm.internal.__jvmUpperChar
 import kotlin.jvm.internal.__jvmLowerChar
 import kotlin.jvm.internal.__jvmEqualsIgnoreCase
 import kotlin.jvm.internal.__jvmUtf8String
+import kotlin.jvm.internal.__jvmUtf8Bytes
 import kotlin.OverloadResolutionByLambdaReturnType
 import kotlin.experimental.ExperimentalTypeInference
 import kotlin.jvm.JvmName
@@ -289,6 +291,18 @@ public fun CharSequence.startsWith(char: Char, ignoreCase: Boolean = false): Boo
 public fun CharSequence.endsWith(suffix: CharSequence, ignoreCase: Boolean = false): Boolean = regionMatches(this, length - suffix.length, suffix, ignoreCase)
 public fun CharSequence.endsWith(char: Char, ignoreCase: Boolean = false): Boolean = this.length > 0 && charsEqual(this[this.length - 1], char, ignoreCase)
 
+public infix fun CharSequence?.contentEquals(other: CharSequence?): Boolean = this.contentEquals(other, false)
+public fun CharSequence?.contentEquals(other: CharSequence?, ignoreCase: Boolean): Boolean {
+    val value = this
+    if (value == null) return other == null
+    if (other == null) return false
+    val left: CharSequence = value
+    val right: CharSequence = other
+    if (left.length != right.length) return false
+    if (ignoreCase && left is String && right is String) return __jvmEqualsIgnoreCase(left, right)
+    return regionMatches(left, 0, right, ignoreCase)
+}
+
 public fun CharSequence.indexOf(string: String, startIndex: Int = 0, ignoreCase: Boolean = false): Int {
     if (!ignoreCase && this is String) return __jvmIndexOf(this, string, startIndex)
     var i = if (startIndex < 0) 0 else startIndex
@@ -492,3 +506,4 @@ public fun String.trimStart(): String = (this as CharSequence).trimStart().toStr
 public fun String.trimEnd(): String = (this as CharSequence).trimEnd().toString()
 
 public fun ByteArray.decodeToString(): String = __jvmUtf8String(this, "UTF-8")
+public fun String.encodeToByteArray(): ByteArray = __jvmUtf8Bytes(this, "UTF-8")

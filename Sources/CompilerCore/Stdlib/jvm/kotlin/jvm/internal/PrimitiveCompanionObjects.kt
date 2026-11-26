@@ -31,7 +31,6 @@ public object CharCompanionObject {
     public const val SIZE_BITS: Int = 16
 }
 
-// JVM bytecode may load this singleton even when the Float constant is inlined.
 public object FloatCompanionObject {
     public const val MIN_VALUE: Float = 1.4e-45f
     public const val MAX_VALUE: Float = 3.4028235e38f

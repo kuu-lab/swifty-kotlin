@@ -1,8 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// KUU-647: `Iterator.next()` after exhaustion must throw `NoSuchElementException`
-    /// instead of returning a silent `0`.
     @Test
     func testIteratorNextPastEndThrowsNoSuchElementException() throws {
         try compileAndRunKotlin(
@@ -45,14 +43,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-4585: a function that instantiates a class declared *after* it and
-    /// returns it through an interface type used to register the itable entry
-    /// with the raw implementation symbol while the member bodies were not
-    /// lowered yet. Methods needing ABI adaptation (`next(): String` via the
-    /// flat String aggregate) were then dispatched with the wrong ABI and
-    /// returned null/garbage or crashed on field access. This is the shape
-    /// `CharSequence.lines()`/`lineSequence()` uses (`LinesSequence.iterator()`
-    /// returning a later-declared `LinesIterator`).
     @Test
     func testForwardDeclaredClassReturnedThroughInterfaceDispatchesCorrectly() throws {
         try compileAndRunKotlin(

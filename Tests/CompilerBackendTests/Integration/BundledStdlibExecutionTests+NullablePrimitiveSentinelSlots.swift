@@ -1,10 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// KUU-854: a `Long?`/`ULong?`/`Double?`/`Float?` slot holds
-    /// box-or-sentinel. A raw scalar bit-equal to the null sentinel
-    /// (`Long.MIN_VALUE`, `ULong` 2^63, `-0.0`) must not read as `null` —
-    /// every write into a nullable primitive slot boxes a non-null value.
     @Test
     func testNullablePrimitiveSentinelSlotsStayDistinguishableFromNull() throws {
         try compileAndRunKotlin(
@@ -74,10 +70,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-854: writes that bypass the local `.copy` path — field offsets,
-    /// property initializers, capture cells, custom setter backing fields,
-    /// secondary-constructor bodies, and runtime `*OrNull` bridges — must
-    /// also leave `P?` slots box-or-sentinel.
     @Test
     func testNullablePrimitiveSentinelSlotsAcrossFieldAndRuntimePaths() throws {
         try compileAndRunKotlin(
@@ -176,11 +168,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-854 follow-up: with `P?` slots boxed, `==`/`!=` against a
-    /// floating-point peer must stay IEEE-754 (`-0.0 == 0.0`, `NaN != NaN`)
-    /// once nullness is resolved — for non-null raw peers and nullable
-    /// `Double?`/`Float?` peers alike — instead of collapsing to the boxed
-    /// `equals` bit-pattern compare.
     @Test
     func testNullablePrimitiveEqualityStaysIEEE() throws {
         try compileAndRunKotlin(

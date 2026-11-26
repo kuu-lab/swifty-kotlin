@@ -7,7 +7,6 @@ import Testing
 
 @Suite(.serialized)
 struct GenericValueClassTypeParameterCastTests {
-    /// KUU-3620: the cast inside a generic value-class method must return without recursion.
     @Test(arguments: [0, 2])
     func genericValueClassTypeParameterCastReturnsNormally(optimization: Int) throws {
         let source = """

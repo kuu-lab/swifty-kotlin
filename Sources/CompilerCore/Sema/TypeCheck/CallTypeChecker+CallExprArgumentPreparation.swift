@@ -7,9 +7,6 @@ func resolvedExplicitTypeArgument(at index: Int, in explicitTypeArgs: [TypeID]) 
 }
 
 extension CallTypeChecker {
-    /// Member calls need this context: their arguments are first inferred to
-    /// collect candidates, then prepared again after the selected receiver and
-    /// candidate set are known.
     func prepareUnambiguousNestedCallExpectedTypes(
         args: [CallArgument],
         callRange: SourceRange,
@@ -22,10 +19,6 @@ extension CallTypeChecker {
         expectedTypeOverrides: inout [Int: TypeID],
         expectedTypeHintIndices: inout Set<Int>
     ) {
-        // A generic call's other arguments can determine the input side of a
-        // nested generic SAM constructor before its lambda body is checked.
-        // Keep output-only variables open so the nested lambda's inferred
-        // function type can constrain them during final overload resolution.
         if candidates.count == 1,
            let candidate = candidates.first,
            let signature = ctx.sema.symbols.functionSignature(for: candidate),
@@ -92,8 +85,6 @@ extension CallTypeChecker {
             }
         }
 
-        // Argument labels and arity can leave a single contextual candidate
-        // even before the nested call's result type is known.
         let mappedCandidates = candidates.compactMap { candidate -> (SymbolID, FunctionSignature, [Int: Int])? in
             guard let signature = ctx.sema.symbols.functionSignature(for: candidate),
                   let mapping = parameterMappingForCallArguments(args, in: signature, callRange: callRange, ctx: ctx)
@@ -113,13 +104,6 @@ extension CallTypeChecker {
                 else {
                     return nil
                 }
-                // A class type parameter in the parameter type (e.g.
-                // `Result<T>` on `Continuation<in T>.resumeWith`) is resolved by
-                // the call-site receiver's type arguments before it can serve
-                // as an expected type. A `Gun<Int>` receiver yields the
-                // concrete `Result<Int>`; a `Gun<TSubject>` receiver keeps the
-                // rigid `Result<TSubject>`, which still binds a nested call's
-                // return-only type variable such as `Result.failure`'s `T`.
                 let parameterType = applyReceiverBoundFunctionTypeArgs(
                     to: applyReceiverClassTypeArgs(
                         to: declaredParameterType,
@@ -226,8 +210,6 @@ extension CallTypeChecker {
                    let nestedSignature = ctx.sema.symbols.functionSignature(for: nestedCallee),
                    nestedSignature.classTypeParameterCount == 0
                 {
-                    // Keep a concrete FunctionN implementation as its nominal value so the
-                    // outer argument check can apply suspend conversion to the constructor result.
                     continue
                 }
             }
@@ -251,8 +233,6 @@ extension CallTypeChecker {
             if let existing = expectedTypeOverrides[index], existing != parameterType {
                 continue
             }
-            // A function-producing call is checked against the SAM's function
-            // signature; its returned value is adapted by the outer call.
             expectedTypeOverrides[index] = functionValueSamArgumentExpectedType(
                 args[index].expr, parameterType: parameterType, ctx: ctx
             )
@@ -292,9 +272,6 @@ extension CallTypeChecker {
             guard let symbol = ctx.cachedSymbol(candidate) else { return false }
             return symbol.fqName.starts(with: [interner.intern("kotlinx"), interner.intern("coroutines")])
         }
-        // Canonical source/imported runBlocking is a normal generic function:
-        // materialize its block as a suspend value rather than flattening the
-        // legacy launcher captures or guessing the block's argument position.
         let isCanonicalRunBlocking = calleeName == knownNames.runBlocking
             && candidates.contains { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate),
@@ -311,8 +288,6 @@ extension CallTypeChecker {
                 || calleeName == knownNames.supervisorScope
         )
         let coroutineLauncherExpectedLambdaType: TypeID?
-        // Support launch(dispatcher) { } by checking both first and second
-        // argument for a trailing lambda.
         let coroutineLauncherLambdaArgIndex: Int? = {
             guard isCoroutineLauncher
             else { return nil }
@@ -399,12 +374,6 @@ extension CallTypeChecker {
             }
         }
 
-        // A generic call's expected result can constrain a direct argument
-        // typed as its return variable, such as `f(mutableListOf(), 1)` for
-        // `fun <T, C : MutableCollection<T>> f(destination: C, value: T): C`.
-        // It can also constrain a callback that returns that variable. Add a
-        // targeted contextual type so result-only calls inside the callback
-        // can infer before the generic call is solved.
         if let expectedType,
            expectedType != sema.types.errorType,
            candidates.count == 1,
@@ -428,7 +397,6 @@ extension CallTypeChecker {
                 let hasNonNullBound = bounds.contains { bound in
                     sema.types.isDefinitelyNonNull(bound) && !sema.types.canHoldNull(bound)
                 }
-                // Seed T with a non-null expectation when its upper bound requires it.
                 let seed = hasNonNullBound ? sema.types.makeNonNullable(expectedType) : expectedType
                 for (argumentIndex, parameterIndex) in parameterMapping {
                     guard signature.parameterTypes.indices.contains(parameterIndex),
@@ -476,14 +444,6 @@ extension CallTypeChecker {
                                       })
                               })
                     {
-                        // The callback contributes the generic call's result just like a direct `R`
-                        // argument. Keep callbacks with unresolved function type parameters in their
-                        // inputs on the ordinary inference path; their inputs need substitutions
-                        // before rebuilding the contextual function type. For result-only callbacks,
-                        // this lets nested factories such as `ChannelResult.closed(cause)` infer from
-                        // the call's expected return type.
-                        // A broader expected type can violate T's bounds; leave the callback
-                        // on the ordinary inference path in that case.
                         let substitution = [returnTypeVariable: seed]
                         guard bounds.allSatisfy({ bound in
                             let substitutedBound = sema.types.substituteTypeParameters(
@@ -545,9 +505,6 @@ extension CallTypeChecker {
             for candidate in candidates {
                 guard let signature = sema.symbols.functionSignature(for: candidate)
                 else { continue }
-                // A direct generic result can give a nested collection
-                // factory its arguments even beside an unrelated overload,
-                // e.g. Java's <T> T spy(T) beside <T> T spy(Class<T>).
                 if sema.symbols.isJVMJavaMethod(candidate),
                    let mapping = parameterMappingForCallArguments(args, in: signature, callRange: callRange, ctx: ctx) {
                     for index in args.indices where isBareCollectionFactoryCallExpr(args[index].expr, ctx: ctx) {
@@ -695,9 +652,6 @@ extension CallTypeChecker {
                             let substitutedBound = sema.types.substituteTypeParameters(
                                 in: bound, substitution: substitution, typeVarBySymbol: typeVarBySymbol
                             )
-                            // A covariant result can have a broader expected
-                            // argument than the candidate's declared bound.
-                            // Let the solver infer a valid narrower argument.
                             if ctx.resolver.containsTypeVariable(
                                 substitutedBound, typeVarBySymbol: typeVarBySymbol, typeSystem: sema.types
                             ) || !sema.types.isSubtype(seed, substitutedBound) {
@@ -718,10 +672,6 @@ extension CallTypeChecker {
                     } else {
                         false
                     }
-                    // Contextualize a bare numeric literal when the expected
-                    // return type seeds its generic parameter. Otherwise the
-                    // nested call resolves the literal as Int/UInt before the
-                    // enclosing Pair, List, or other covariant result can steer it.
                     let isContextualizableLiteral = isContextualizableIntegerLiteral(args[index].expr, ast: ast)
                         || isContextualizableUnsignedIntegerLiteral(args[index].expr, ast: ast)
                     guard isLambda || isInferableNestedCallExpr(args[index].expr, ast: ast)
@@ -738,10 +688,6 @@ extension CallTypeChecker {
                         substitution: substitution,
                         typeVarBySymbol: typeVarBySymbol
                     )
-                    // Enclosing type parameters are valid contextual evidence,
-                    // e.g. G<T, T> in `fun <T> make(t: T): W<T> = W(G(t))`.
-                    // Only unresolved variables owned by this candidate prevent
-                    // contextualizing its nested arguments.
                     guard substitutedType != parameterType,
                           !ctx.resolver.containsTypeVariable(
                               substitutedType,
@@ -822,9 +768,6 @@ extension CallTypeChecker {
                         substitution: substitution,
                         typeVarBySymbol: typeVarBySymbol
                     )
-                    // A known SAM constructor cannot get its interface type
-                    // arguments from an unrelated overload parameter, such as
-                    // the Int capacity overload beside Comparator<in T>?.
                     if let samSymbol = inferableSamConstructorSymbol(args[index].expr, ctx: ctx) {
                         guard let contextualClass = resolveClassType(substitutedType, sema: sema),
                               contextualClass.classSymbol == samSymbol
@@ -832,9 +775,6 @@ extension CallTypeChecker {
                             continue
                         }
                     }
-                    // A substituted parameter still carrying candidate-owned
-                    // type variables is not usable as contextual evidence;
-                    // that candidate abstains rather than vetoing.
                     guard !ctx.resolver.containsTypeVariable(
                         substitutedType,
                         typeVarBySymbol: typeVarBySymbol,
@@ -868,8 +808,6 @@ extension CallTypeChecker {
             ctx: ctx,
             expectedTypeOverrides: &expectedTypeOverrides
         )
-        // With multiple candidates, their parameter types may differ and must
-        // not steer a shared argument toward one overload.
         prepareUnambiguousNestedCallExpectedTypes(
             args: args,
             callRange: callRange,

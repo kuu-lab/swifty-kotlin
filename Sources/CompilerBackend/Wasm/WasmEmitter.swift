@@ -235,6 +235,15 @@ final class WasmModuleContext {
            let symbol,
            let index = functionIndexBySymbol[symbol]
         {
+            // A non-inline kklib body materialized from serialized KIR must
+            // not displace a hand-written wasm helper for the same stdlib
+            // function (`downTo`, `step`, range iterators, ...): those bodies
+            // are only the fallback for callees that would otherwise stub.
+            if let helper = preferredShimOverMaterializedBody(
+                name: name, symbol: symbol, argumentCount: argumentCount, argumentTypes: argumentTypes
+            ) {
+                return helper
+            }
             return .direct(index)
         }
         if !isRuntimeName,
@@ -271,6 +280,34 @@ final class WasmModuleContext {
             }
         }
         return .stub(name)
+    }
+
+    private func preferredShimOverMaterializedBody(
+        name: String,
+        symbol: SymbolID,
+        argumentCount: Int,
+        argumentTypes: [TypeID?]
+    ) -> CalleeResolution? {
+        guard name.hasPrefix("kk_fn_"),
+              symbols?.symbol(symbol)?.flags.contains(.importedLibrary) == true,
+              let inner = Self.demangleKkFnName(name),
+              !inner.hasPrefix("__")
+        else { return nil }
+        if let index = helperIndexByName["\(name)/\(argumentCount)"] {
+            return .emittedHelper(index)
+        }
+        if let helper = stdlibIntrinsicName(symbol: symbol, argumentCount: argumentCount) {
+            return .emittedHelper(emittedHelperIndex(for: helper, argumentCount: argumentCount))
+        }
+        if let helper = stdlibShimName(for: name, argumentTypes: argumentTypes)
+            ?? stdlibShimName(for: inner, argumentTypes: argumentTypes)
+        {
+            return .emittedHelper(emittedHelperIndex(for: helper, argumentCount: argumentCount))
+        }
+        if let thunk = memberThunkInfo(for: symbol) {
+            return .emittedHelper(emittedHelperIndex(for: thunk.helper, argumentCount: thunk.arity))
+        }
+        return nil
     }
 
     /// `kk_fn_<name>[_s<id>|_<id>][__<ns>]` → `<name>`, else nil. Synthetic

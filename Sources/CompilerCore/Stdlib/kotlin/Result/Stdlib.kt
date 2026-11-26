@@ -22,8 +22,6 @@ private external fun <T> __kkRuntimeResultGetOrThrow(result: Result<T>): T
 private fun <T> resultIsSuccess(result: Result<T>): Boolean =
     __kkRuntimeResultIsSuccess(result)
 
-// The runtime stores Result values in RuntimeResultBox instances. Keep the
-// constructor internal, matching Kotlin's @PublishedApi internal constructor.
 public class Result<out T> {
     @KsSymbolName("kk_runtime_result_success")
     @PublishedApi

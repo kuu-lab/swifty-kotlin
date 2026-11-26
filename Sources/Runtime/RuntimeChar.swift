@@ -47,8 +47,6 @@ func runtimeCharsEqualIgnoringCase(_ lhs: UInt16, _ rhs: UInt16) -> Bool {
     return lowerLhs == lowerRhs
 }
 
-/// A lone surrogate half maps to itself; `UnicodeScalar` cannot represent it,
-/// so the result goes through the runtime's isolated-surrogate representation.
 private func charRuntimeIdentityStringForSurrogate(_ code: Int) -> Int? {
     guard code >= 0xD800, code <= 0xDFFF else { return nil }
     return runtimeMakeStringRaw(runtimeKotlinStringFromUTF16CodeUnits([UInt16(code)]))
@@ -126,7 +124,6 @@ public func __kk_char_titlecase_string(_ code: Int) -> Int {
     return runtimeMakeUTF8StringRaw(scalar.properties.titlecaseMapping)
 }
 
-/// One-to-one (simple) uppercase mapping; returns -1 when there is none (surrogates, ß).
 @_cdecl("__kk_char_uppercase_code")
 public func __kk_char_uppercase_code(_ code: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(code) else {
@@ -135,7 +132,6 @@ public func __kk_char_uppercase_code(_ code: Int) -> Int {
     return runtimeSimpleUppercaseValue(scalar.value).map(Int.init) ?? -1
 }
 
-/// One-to-one (simple) lowercase mapping; returns -1 when there is none (surrogates).
 @_cdecl("__kk_char_lowercase_code")
 public func __kk_char_lowercase_code(_ code: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(code) else {
@@ -144,7 +140,6 @@ public func __kk_char_lowercase_code(_ code: Int) -> Int {
     return runtimeSimpleLowercaseValue(scalar.value).map(Int.init) ?? -1
 }
 
-/// One-to-one titlecase mapping; returns -1 for multi-scalar or undefined mappings.
 @_cdecl("__kk_char_titlecase_code")
 public func __kk_char_titlecase_code(_ code: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(code) else {
@@ -175,7 +170,6 @@ public func __kk_char_lowercase_locale(_ code: Int, _ localeRaw: Int) -> Int {
     return runtimeMakeUTF8StringRaw(String(scalar).lowercased(with: box.locale))
 }
 
-/// Equivalent to `kotlin.text.digitOf` before applying the radix bound; returns -1 for non-digits.
 @_cdecl("__kk_char_digit_value")
 public func __kk_char_digit_value(_ code: Int) -> Int {
     charDigitValueForRadix(code)
@@ -217,13 +211,11 @@ public func kk_char_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
 
 @_cdecl("kk_char_toInt")
 public func kk_char_toInt(_ value: Int) -> Int {
-    // Deprecated but kept for compatibility.
     return value
 }
 
 @_cdecl("kk_char_toDouble")
 public func kk_char_toDouble(_ value: Int) -> Int {
-    // Encode the Double payload using the runtime's bit-level ABI.
     kk_double_to_bits(Double(value))
 }
 
@@ -244,7 +236,6 @@ public func kk_char_toDoubleOrNull(_ value: Int) -> Int {
     else {
         return runtimeNullSentinelInt
     }
-    // Double? slots hold box-or-sentinel (KUU-854).
     return kk_box_double_nonnull(kk_double_to_bits(Double(digitValue)))
 }
 
@@ -256,7 +247,7 @@ public func kk_char_code(_ value: Int) -> Int {
 @_cdecl("kk_char_category")
 public func kk_char_category(_ value: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(value) else {
-        return -1 // Invalid character
+        return -1
     }
     let category = scalar.properties.generalCategory
     return charCategoryToInt(category)
@@ -282,10 +273,8 @@ public func kk_char_isTitleCase(_ value: Int) -> Int {
 }
 
 
-/// Matches java.lang.Character.isJavaIdentifierPart.
 @_cdecl("kk_char_isJavaIdentifierPart")
 public func kk_char_isJavaIdentifierPart(_ value: Int) -> Int {
-    // Surrogate code units are not identifier parts in Java.
     guard let scalar = runtimeUnicodeScalar(value) else {
         return kk_box_bool(0)
     }
@@ -322,7 +311,6 @@ public func kk_char_isIdentifierIgnorable(_ value: Int) -> Int {
     return kk_box_bool(charScalarIsIdentifierIgnorable(scalar) ? 1 : 0)
 }
 
-// Mirrors Java's Character.isUnicodeIdentifierPart semantics.
 public func kk_char_isUnicodeIdentifierPart(_ value: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(value) else { return kk_box_bool(0) }
     let props = scalar.properties
@@ -341,13 +329,11 @@ public func kk_char_isUnicodeIdentifierPart(_ value: Int) -> Int {
          .format:
         return kk_box_bool(1)
     default:
-        // UAX31 adds Other_ID_Start / Other_ID_Continue and ignorable code points.
         return kk_box_bool((props.isIDContinue || charScalarIsIdentifierIgnorable(scalar)) ? 1 : 0)
     }
 }
 
 
-/// Mirrors Java's `Character.isJavaIdentifierStart(char)`.
 @_cdecl("kk_char_isJavaIdentifierStart")
 public func kk_char_isJavaIdentifierStart(_ value: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(value) else {
@@ -375,12 +361,12 @@ public func kk_char_isJavaIdentifierStart(_ value: Int) -> Int {
 ///  - `isDigit` is true (Unicode category Nd) and the Unicode decimal value is used.
 /// All other characters below U+0080 are rejected outright (matching `digitOf`).
 private func charDigitValueForRadix(_ code: Int) -> Int {
-    if code >= 0x30, code <= 0x39 { return code - 0x30 }            // '0'..'9'
-    if code >= 0x41, code <= 0x5A { return code - 0x41 + 10 }       // 'A'..'Z'
-    if code >= 0x61, code <= 0x7A { return code - 0x61 + 10 }       // 'a'..'z'
-    if code < 0x80 { return -1 }                                    // other ASCII is never a digit
-    if code >= 0xFF21, code <= 0xFF3A { return code - 0xFF21 + 10 } // fullwidth 'A'..'Z'
-    if code >= 0xFF41, code <= 0xFF5A { return code - 0xFF41 + 10 } // fullwidth 'a'..'z'
+    if code >= 0x30, code <= 0x39 { return code - 0x30 }
+    if code >= 0x41, code <= 0x5A { return code - 0x41 + 10 }
+    if code >= 0x61, code <= 0x7A { return code - 0x61 + 10 }
+    if code < 0x80 { return -1 }
+    if code >= 0xFF21, code <= 0xFF3A { return code - 0xFF21 + 10 }
+    if code >= 0xFF41, code <= 0xFF5A { return code - 0xFF41 + 10 }
     if let scalar = runtimeUnicodeScalar(code), let value = charBase10DigitValue(scalar) {
         return value
     }

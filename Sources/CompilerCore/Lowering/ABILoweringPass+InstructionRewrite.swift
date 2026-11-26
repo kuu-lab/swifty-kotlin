@@ -70,9 +70,6 @@ extension ABILoweringPass {
                 arena: module.arena, into: &newBody
             )
         }
-        // A `V?`/reference slot holds a nominal box while the `V` formal
-        // expects the payload: `v?.member()` receivers and value parameters
-        // unwrap it here (KUU-3115).
         func unboxNullableUnderlyingValueClass(
             _ argument: KIRExprID,
             to targetType: TypeID,
@@ -143,7 +140,6 @@ extension ABILoweringPass {
         {
             boxedArguments[receiverIndex] = unboxed
         }
-        // Constructor receivers are fresh allocations, not nullable value-class boxes.
         if !isConstructorCall, receiverOffset > 0, arguments.indices.contains(receiverIndex),
            let receiverType = signature.receiverType,
            let unboxed = unboxNullableUnderlyingValueClass(
@@ -168,13 +164,8 @@ extension ABILoweringPass {
             case let .classType(classType):
                 guard let info = symbols?.symbol(classType.classSymbol) else { return false }
                 if info.kind == .enumClass {
-                    // A nullable enum receiver holds the box-or-sentinel
-                    // form, so a raw non-null ordinal must still be boxed.
                     return classType.nullability != .nonNull
                 }
-                // `kotlin.Any`'s members (equals/hashCode/toString) bridge to
-                // the tagged `kk_any_member_*` runtime entry points, so their
-                // receiver is the same erased boundary as an interface's.
                 return info.kind == .interface
                     || info.fqName == ["kotlin", "Enum"].map(interner.intern)
                     || info.fqName == ["kotlin", "Any"].map(interner.intern)
@@ -465,9 +456,6 @@ extension ABILoweringPass {
             case .nullable, .platformType: types.makeNullable(inferredReturnType)
             }
             if types.nullability(of: concreteReturnType) == .nullable {
-                // Generic return types are erased in the callee signature. Recover
-                // nullable specializations from their actual generic arguments so
-                // the result keeps its nullable representation across the call.
                 module.arena.setExprType(concreteReturnType, for: result)
                 nullableGenericResults.insert(result)
                 return nil
@@ -490,10 +478,6 @@ extension ABILoweringPass {
         return (unboxCallee, returnType)
     }
 
-    /// A call crossing a nominal value-class box boundary needs
-    /// `kk_value_class_box`/`kk_value_class_unbox`: the primitive tables cannot
-    /// represent nullable payloads or separately wrapped reference payloads.
-    /// Return the class symbol, conversion direction, and declared return type.
     func resolveValueClassResultConversion(
         callSymbol: SymbolID?,
         callee: InternedString,
@@ -543,9 +527,6 @@ extension ABILoweringPass {
         return nil
     }
 
-    /// Emits the `kk_value_class_*` conversion
-    /// `resolveValueClassResultConversion` selected, rewriting `from`'s value
-    /// into `to` (KUU-3115).
     func appendValueClassResultConversion(
         conversion: (classSymbol: SymbolID, boxing: Bool, returnType: TypeID),
         from: KIRExprID,
@@ -692,9 +673,6 @@ extension ABILoweringPass {
         if let returnType = symbols.functionSignature(for: callSymbol)?.returnType {
             return returnType
         }
-        // External property bridges are emitted as calls to the property symbol
-        // itself, rather than to a getter accessor. Preserve their declared
-        // generic result type so ABI lowering can unbox a concrete use site.
         if symbols.symbol(callSymbol)?.kind == .property,
            let linkName = symbols.externalLinkNameIfKnown(for: callSymbol),
            !linkName.isEmpty,
@@ -702,10 +680,6 @@ extension ABILoweringPass {
         {
             return returnType
         }
-        // An interface property's dynamic getter has a synthetic ID even
-        // when its declaration was imported from a library. The declaration
-        // still carries the erased T return type needed to unbox Double and
-        // other concrete values after dispatch.
         if let accessor = SyntheticSymbolScheme.decodedPropertyAccessor(callSymbol),
            accessor.kind == .getter {
             return symbols.propertyType(for: accessor.property)

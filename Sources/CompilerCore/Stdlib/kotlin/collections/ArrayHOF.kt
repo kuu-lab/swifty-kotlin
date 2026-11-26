@@ -67,10 +67,6 @@ public inline fun <T> Array<T>.forEach(action: (T) -> Unit) {
     }
 }
 
-// `joinTo` / `joinToString` delegate to the source-backed Iterable
-// implementations through the array's view. Primitive arrays retain their
-// type-aware synthetic bridges until KSP-687.
-
 public fun <T> Array<T>.joinTo(
     buffer: StringBuilder,
     separator: String = ", ",

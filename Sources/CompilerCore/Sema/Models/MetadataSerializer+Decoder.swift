@@ -3,7 +3,6 @@ import Foundation
 final class MetadataDecoder {
     init() {}
 
-    /// Binary v3 and legacy text share the same full-record body decoder.
     func decode(_ data: Data) -> [MetadataRecord] {
         if data.starts(with: CompactMetadataIndex.magic) {
             guard let indexed = IndexedMetadataFile(data: data) else { return [] }
@@ -59,9 +58,6 @@ final class MetadataDecoder {
         return records
     }
 
-    /// Parse one compact index record directly from its UTF-8 storage. This
-    /// avoids a temporary header, Unicode line splitting, and a token array
-    /// for every declaration while sharing the legacy field/default semantics.
     func decodeIndexRecordLine(_ bytes: UnsafeBufferPointer<UInt8>) -> MetadataRecord? {
         guard String(bytes: bytes, encoding: .utf8) != nil else { return nil }
         var cursor = 0
@@ -72,7 +68,6 @@ final class MetadataDecoder {
         while cursor < end, isWhitespace(bytes[cursor]) { cursor += 1 }
         while end > cursor, isWhitespace(bytes[end - 1]) { end -= 1 }
         if cursor < end, bytes[cursor] >= 0x80 || bytes[end - 1] >= 0x80 {
-            // Preserve Unicode edge trimming for hand-written records.
             return decode(String(decoding: UnsafeBufferPointer(rebasing: bytes[cursor ..< end]), as: UTF8.self)).first
         }
         func nextToken() -> Range<Int>? {
@@ -458,8 +453,6 @@ final class MetadataDecoder {
         )
     }
 
-    /// Marker-free artifacts used the historical token reconstruction. Convert
-    /// their literals once at the boundary, before semantic consumers see them.
     private func canonicalizeLegacyAnnotationArgument(_ argument: String) -> String {
         var value = argument.trimmingCharacters(in: .whitespacesAndNewlines)
         var namedPrefix = ""

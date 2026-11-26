@@ -8,7 +8,6 @@ import kotlin.js.collections.createJsMapViewFrom
 
 public interface MutableMap<K, V> : Map<K, V> {
     public interface MutableEntry<K, V> : Map.Entry<K, V> {
-        /** Replaces the value associated with this entry and returns the previous value. */
         @IgnorableReturnValue
         public fun setValue(newValue: V): V
     }

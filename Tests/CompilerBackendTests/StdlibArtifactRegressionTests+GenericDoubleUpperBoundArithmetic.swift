@@ -6,8 +6,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2656: arithmetic on a type parameter bounded by Double keeps the
-    /// floating-point representation through operator lowering and ABI unboxing.
     @Test
     func testGenericDoubleUpperBoundArithmetic() throws {
         let source = try diffCaseSource("generic_double_upper_bound_arithmetic.kt", file: #filePath)

@@ -2,8 +2,6 @@ struct InlineExpansion {
     let instructions: [KIRInstruction]
     let returnedExpr: KIRExprID?
     let hasNonLocalReturn: Bool
-    /// True when the expansion contains normal return terminators (returnValue/returnUnit)
-    /// that need to be converted to exit-label jumps in the NLR path.
     let hasNormalReturn: Bool
     var callAncestries: [Int: [SymbolID]] = [:]
     var callExternalLoopAliases: [Int: [InlineLoopLabelAliases]] = [:]
@@ -62,9 +60,7 @@ struct InlineExpansion {
 }
 
 struct InlineLoopLabelAliases {
-    /// Maps a label in an enclosing lambda to its current caller label.
     var labels: [Int32: Int32]
-    /// True while the values are scratch labels allocated by the active expansion.
     var needsRelocation: Bool
 }
 
@@ -76,9 +72,6 @@ struct InlinePendingCall {
 final class InlineLoweringPass: LoweringPass {
     var lambdaCaptureArgsByExpr: [KIRExprID: [KIRExprID]] = [:]
     var nonLocalReturnTargets: Set<KIRReturnTarget> = []
-    /// Runtime entry points that invoke a function value (`kk_function_invoke*`
-    /// / `kk_suspend_function_invoke*`), interned once per run so call-site
-    /// checks skip the per-call string resolve + 12-element array scan.
     var functionInvokeCallees: Set<InternedString> = []
     let stats = InlinePerfStats()
 
@@ -146,10 +139,6 @@ final class InlineLoweringPass: LoweringPass {
             )
         }
         stats.transformNanos += stats.takeSplit()
-        // Calls to bodyless callees must never reach codegen: their bodies
-        // are not emitted, so an unexpanded call dangles at link time.
-        // Diagnose the residue deterministically instead of letting it
-        // surface as a missing symbol in the linker.
         diagnoseMandatoryInlineResidue(module: module, index: index, ctx: ctx)
         stats.residueNanos += stats.takeSplit()
         stats.printIfEnabled()
@@ -169,8 +158,6 @@ final class InlineLoweringPass: LoweringPass {
         budget: InlineExpansionBudget) -> (body: [KIRInstruction], locations: [SourceRange?], didExpand: Bool, pending: [Int: InlinePendingCall]) {
         stats.expandRounds += 1
         stats.expandRoundInstructions += callerBody.count
-        // Every label this round introduces into the caller comes from here,
-        // starting above the labels the caller body already uses.
         var labels = InlineLabelAllocator(callerBody: callerBody)
         if labels.hasOverflowed {
             ctx.diagnostics.error(
@@ -186,8 +173,6 @@ final class InlineLoweringPass: LoweringPass {
         var aliases: [KIRExprID: KIRExprID] = [:]
         var didExpand = false
         var nextPending: [Int: InlinePendingCall] = [:]
-        // One O(body) scan answers every lambda-resolution and
-        // defined-expression query below for the whole round (KUU-3777).
         let callerBodyIndex = InlineCallerBodyIndex(body: callerBody, stats: stats)
         var emittedDefinedExprs = InlineDefinedExprIndex(stats: stats)
 
@@ -269,9 +254,6 @@ final class InlineLoweringPass: LoweringPass {
                     retryInvoke = false
                     continue
                 }
-                // A lambda spliced into an already-inlined generic body reads
-                // its arguments from erased (type-parameter) slots, so unbox
-                // them for the lambda's own concrete parameter types.
                 let fullArgs = InlineErasedLambdaABI.unboxErasedLambdaArguments(
                     arguments: captureArgs + Array(resolvedArguments.dropFirst()),
                     lambdaFunction: lambdaFunction,
@@ -362,10 +344,6 @@ final class InlineLoweringPass: LoweringPass {
                 continue
             }
 
-            // The index owns the binding rule: a symbol-known call binds
-            // only to its own symbol's snapshot, while a symbol-unknown
-            // call may use the unique by-name candidate (see
-            // `InlineExpansionIndex.inlineTarget`, KSP-1011).
             let inlineTarget = index.inlineTarget(
                 callSymbol: symbol,
                 callee: callee,
@@ -419,8 +397,6 @@ final class InlineLoweringPass: LoweringPass {
             didExpand = true
             expandedSymbol = inlineTarget.symbol
 
-            // Move the expansion's labels into the caller's label namespace so
-            // the caller's own labels and the inlined callee's cannot collide.
             var relocation: [Int32: Int32] = [:]
             let remappedInstructions = labels.relocate(expansion.instructions, labelMapping: &relocation)
             let relocatedExpansion = expansion.remappingCallExternalLoopAliases(using: relocation)
@@ -443,9 +419,6 @@ final class InlineLoweringPass: LoweringPass {
             var callIndex = 0
 
             if expansion.hasNonLocalReturn {
-                // If there is a potential fallthrough path (i.e., the expansion has
-                // any normal return terminator), emit an exit label and jump to it
-                // so normal control flow continues past the expansion site.
 
                 let hasFallthroughPath = expansion.hasNormalReturn
                 let exitLabel: Int32? = hasFallthroughPath ? labels.allocateCallerLabel() : nil
@@ -490,20 +463,14 @@ final class InlineLoweringPass: LoweringPass {
                     case .label:
                         loweredBody.append(expandedInstruction)
                     case .returnValue, .returnUnit:
-                        // The inline body's own return: jump to exit label instead,
-                        // so normal control flow continues in the caller.
                         if let exitLabel {
                             loweredBody.append(.jump(exitLabel))
                         }
                         afterTerminator = true
                     case .returnIfEqual:
-                        // returnIfEqual is a conditional normal return from the inline body.
-                        // In the NLR path, convert it to a conditional jump to the exit label
-                        // to avoid prematurely returning from the caller.
                         if let exitLabel, case let .returnIfEqual(lhs, rhs) = expandedInstruction {
                             loweredBody.append(.jumpIfEqual(lhs: lhs, rhs: rhs, target: exitLabel))
                         }
-                        // returnIfEqual is conditional, so it does NOT set afterTerminator.
                     default:
                         if let callPath {
                             emittedCallAncestries[loweredBody.instructions.count] = callPath
@@ -513,17 +480,10 @@ final class InlineLoweringPass: LoweringPass {
                     }
                 }
 
-                // Only emit the exit label when there is a fallthrough path
-                // (avoids unreachable labeled blocks when the expansion always
-                // executes nonLocalReturn).
                 if let exitLabel {
                     loweredBody.append(.label(exitLabel))
                 }
             } else {
-                // No non-local returns -- strip returnValue/returnUnit from the
-                // expansion (they are only needed for the NLR path exit-label
-                // mechanism) and use the original simple expansion path.
-                // Labels have already been relocated above.
                 let filtered = reroutedInstructions.filter { inst in
                     switch inst {
                     case .returnValue, .returnUnit:
@@ -542,10 +502,6 @@ final class InlineLoweringPass: LoweringPass {
                 }
             }
 
-            // If any throw inside the expansion was redirected to the caller's
-            // exception slot, land here so the pre-existing caller instructions
-            // that follow (from the original call site's throw-aware wrapping)
-            // can pick it up and dispatch to the enclosing try's catch/finally.
             if let throwDispatchLabel {
                 loweredBody.append(.label(throwDispatchLabel))
             }

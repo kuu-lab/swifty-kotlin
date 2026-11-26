@@ -1,4 +1,3 @@
-/// Shared iterator type construction for synthetic collection registrations.
 extension DataFlowSemaPhase {
     func syntheticIteratorType(
         elementType: TypeID,

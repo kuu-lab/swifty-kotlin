@@ -42,8 +42,6 @@ struct KotlinxIOUtf8ContractsExecutionTests {
         return result
     }
 
-    // Receipts survive successful owned-input cleanup in a separate sibling.
-    // No failure path deletes source, executable, .o, or producer library.
     private func receipt(_ directory: URL, _ name: String, _ fields: [String: Any]) throws {
         let base = URL(fileURLWithPath: directory.path + ".receipts", isDirectory: true)
         try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
@@ -78,7 +76,6 @@ struct KotlinxIOUtf8ContractsExecutionTests {
             "search_paths": searchPaths, "allow_default_stdlib": false])
         let started = Date()
         let result = makeTestDriver().runForTesting(options: options)
-        // Capture actual result before any assertion or cleanup.
         try receipt(directory, module + "-compile-result", [
             "exit": result.exitCode, "seconds": Date().timeIntervalSince(started),
             "diagnostics": result.diagnostics.map {
@@ -174,8 +171,6 @@ struct KotlinxIOUtf8ContractsExecutionTests {
             let stdlibBefore = try artifactHashes(consumerStdlib)
             try receipt(directory, "stdlib-before", ["path": consumerStdlib, "file_sha256": stdlibBefore])
             let pinned = try fixtureBytes()
-            // Insert package after the original file annotation. Both original
-            // byte slices and every original helper/main body remain exact.
             let newline = try #require(pinned.source.firstIndex(of: 10))
             let split = pinned.source.index(after: newline)
             let prefix = pinned.source[..<split]
@@ -196,9 +191,6 @@ struct KotlinxIOUtf8ContractsExecutionTests {
             let records = MetadataDecoder().decode(metadata)
             try #require(records.contains { $0.fqName == "io1733producer.main" })
             try #require(records.contains { $0.fqName == "io1733producer.ObservedChars" })
-            // A source-compiled user producer excludes bundled metadata. Each
-            // consumer therefore loads the fresh actual Stdlib plus the ordinary
-            // user producer; no relabeling a user library as Stdlib or fallback.
             let executable = try compile("fun main() { io1733producer.main() }\n", module: "KUU1733Utf8Consumer",
                 emit: .executable, directory: directory, level: level, stdlib: consumerStdlib, searchPaths: [producer])
             try execute(executable, expectedFile: "kotlinx_io_utf8_contract_boundaries.expected", directory: directory)

@@ -1,8 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    // KUU-585 regression: @KsSymbolName on a bundled class property must bind
-    // the property symbol to its runtime getter bridge.
     @Test
     func testKsSymbolNameOnBundledClassPropertyExecutesThroughGetterBridge() throws {
         try assertKotlinOutput(

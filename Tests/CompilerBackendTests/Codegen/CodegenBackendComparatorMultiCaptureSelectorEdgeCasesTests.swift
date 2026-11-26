@@ -4,16 +4,6 @@
 import Foundation
 import Testing
 
-/// Follow-up to the closure-capture ABI fix in
-/// CallLowerer+ClosureAdapters.swift: selector lambdas passed to
-/// compareBy/compareValuesBy go through makeCollectionHOFSelectorArgument,
-/// whose captureArguments were previously forwarded via the raw-only
-/// makeClosureRawArgument instead of makeClosureRawOrBoxedArgument. A
-/// selector capturing 2+ distinct locals would silently drop everything
-/// but the first capture. These tests lock in the fix for all three
-/// affected call sites (vararg compareBy/compareValuesBy selectors via
-/// appendCollectionHOFSelectorPair, and the compareValuesBy(a, b, comparator)
-/// { selector } path).
 @Suite
 struct CodegenBackendComparatorMultiCaptureSelectorEdgeCasesTests {
 

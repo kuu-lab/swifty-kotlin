@@ -6,7 +6,6 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
-    /// KUU-2362: java.lang.Runtime CPU and memory APIs work through both bundled stdlib surfaces.
     @Test
     func testAvailableProcessorsAcrossStdlibSurfaces() throws {
         let artifactPath = try Self.buildStdlibArtifact()

@@ -10,8 +10,6 @@ extension DataFlowSemaPhase {
         let contextParameterTypes: [TypeID]
         let parameterTypes: [TypeID]
         let isSuspend: Bool
-        /// Properties and functions share a name but never collide in JVM
-        /// dispatch; keep them in separate key spaces.
         let isProperty: Bool
 
         var description: String {
@@ -127,11 +125,6 @@ extension DataFlowSemaPhase {
             visited: &visited, diagnostics: diagnostics, interner: interner
         )
 
-        // Kotlinc requires an override from every nominal kind that inherits a
-        // conflicting pair: concrete and abstract classes, objects and even
-        // interfaces. Abstract decls still escape the check when every provider
-        // is abstract — such a collision produces no conflict below and stays
-        // on the abstract-member path for concrete classes.
         guard symbolInfo.kind == .class || symbolInfo.kind == .object
                 || symbolInfo.kind == .interface
         else {
@@ -197,10 +190,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Considers transitive interface inheritance and follows Kotlin's rules:
-    /// 1. Only the most specific implementation (deepest override) for each method name
-    /// 2. Conflicts occur only when multiple most specific implementations exist
-    /// 3. Methods inherited from a common ancestor don't conflict if not overridden
     private func collectDiamondConflicts(
         for symbol: SymbolID,
         symbols: SymbolTable,
@@ -217,8 +206,6 @@ extension DataFlowSemaPhase {
             symbols: symbols
         )
 
-        // A single direct interface still conflicts when a concrete superclass
-        // member supplies a competing implementation for the same signature.
         guard !interfaceSupertypes.isEmpty,
               interfaceSupertypes.count >= 2 || !concreteSuperclassMembers.isEmpty
         else { return [] }
@@ -237,9 +224,6 @@ extension DataFlowSemaPhase {
                 for childID in symbols.declaredChildren(of: currentInterfaceID) {
                     guard let childSym = symbols.symbol(childID),
                           childSym.kind == .function || childSym.kind == .property,
-                          // Private interface members are not inherited, so
-                          // they never compete in the diamond rule — same
-                          // exclusion the superclass side already applies.
                           childSym.visibility != .private
                     else { continue }
 
@@ -279,10 +263,6 @@ extension DataFlowSemaPhase {
 
         var conflicts: [DiamondConflict] = []
         for (key, implementations) in mostSpecificImpls {
-            // A declaration in a subinterface replaces the matching default
-            // inherited from its parent, even when the class also lists that
-            // parent interface directly. Such candidates are one override
-            // chain, not an ambiguous pair of implementations.
             let effectiveImplementations = implementations.filter { candidate in
                 !implementations.contains { other in
                     guard candidate.implementationID != other.implementationID,
@@ -298,9 +278,6 @@ extension DataFlowSemaPhase {
             guard !effectiveImplementations.isEmpty else { continue }
 
             let superclassMembers = concreteSuperclassMembers[key] ?? []
-            // A superclass member that itself overrides the interface
-            // declaration already resolves that implementation; only
-            // uncovered interface defaults still compete with the class side.
             let uncoveredImplementations = effectiveImplementations.filter { implementation in
                 !isCoveredBySuperclassImplementation(
                     implementation,
@@ -309,8 +286,6 @@ extension DataFlowSemaPhase {
                 )
             }
 
-            // Depth 0 means the direct interface provides the implementation,
-            // which is more specific than defaults inherited from ancestors.
             let minDepth = uncoveredImplementations.map(\.inheritanceDepth).min() ?? 0
             let mostSpecific = uncoveredImplementations.filter { $0.inheritanceDepth == minDepth }
 
@@ -339,9 +314,6 @@ extension DataFlowSemaPhase {
                 let conflictingInterfaces = implGroups.values.reduce(into: Set<SymbolID>()) { acc, interfaces in
                     acc.formUnion(interfaces)
                 }
-                // An abstract-only collision is reported by the
-                // abstract-member check instead; the diamond rule fires once
-                // at least one side supplies a concrete implementation.
                 if conflictingInterfaces.count >= 2,
                    mostSpecific.contains(where: \.isConcrete) {
                     conflicts.append(DiamondConflict(
@@ -419,14 +391,11 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// Renders the nominal name the way kotlinc prints it: the package prefix
-    /// is dropped while enclosing-declaration segments stay (`Outer.Inner`).
     private func diamondDisplayName(
         for symbol: SymbolID,
         symbols: SymbolTable,
         interner: StringInterner
     ) -> String {
-        // Anonymous object literals print as '<anonymous>' in kotlinc.
         if symbols.symbol(symbol)?.flags.contains(.objectLiteralType) == true {
             return "<anonymous>"
         }
@@ -509,10 +478,6 @@ extension DataFlowSemaPhase {
             overriddenKeys.insert(makeDiamondDispatchKey(for: memberSymbol, symbols: symbols))
         }
 
-        // `ULongRange.isEmpty`/`UIntRange.isEmpty` are source-backed on the
-        // bundled declarations. Both built-in declarations also implement
-        // ClosedRange and OpenEndRange, so those concrete members resolve the
-        // shared interface override while the nominal owners move to source.
         let unsignedRangeFQNames: Set<[InternedString]> = [
             [
                 interner.intern("kotlin"),
@@ -588,10 +553,6 @@ extension DataFlowSemaPhase {
         return members
     }
 
-    /// A superclass member resolves an interface implementation when it is
-    /// itself an `override` whose owner inherits that interface — the same
-    /// situation kotlinc accepts without a further override on the class
-    /// (e.g. `open class S : ID { override fun f() }` then `class C : S(), ID`).
     private func isCoveredBySuperclassImplementation(
         _ implementation: DiamondImplementation,
         superclassMembers: [SymbolID],
@@ -613,10 +574,6 @@ extension DataFlowSemaPhase {
         return false
     }
 
-    /// All interfaces reachable through the full supertype graph. Unlike
-    /// `inheritedInterfaceIDs` this keeps traversing through class supertypes,
-    /// which matters when the override's owner inherits the interface via a
-    /// superclass rather than declaring it directly.
     private func transitiveInterfaceSupertypes(
         of symbol: SymbolID,
         symbols: SymbolTable

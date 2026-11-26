@@ -1,10 +1,6 @@
 
 final class RuntimeStringBuilderBox {
-    /// Contents as Kotlin UTF-16 code units. Positional runtime operations
-    /// (length/get/indexOf/insert/substring/...) work on this buffer directly;
-    /// a Swift `String` is materialized only when a result needs one.
     var units: [UInt16]
-    // Swift's allocator may round up; expose the guaranteed UTF-16 capacity.
     private(set) var capacity: Int
 
     convenience init(_ initial: String = "") {
@@ -202,8 +198,6 @@ public func __kk_string_builder_append_obj(_ sbRaw: Int, _ valueRaw: Int) -> Int
     runtimeStringBuilderAppend(sbRaw, value: runtimeElementToString(valueRaw))
 }
 
-// Retain the direct append bridge for existing runtime ABI callers. Kotlin
-// Appendable calls dispatch through source-backed implementations and itables.
 @_cdecl("__kk_string_builder_append_char")
 public func __kk_string_builder_append_char(_ sbRaw: Int, _ charRaw: Int) -> Int {
     runtimeStringBuilderAppend(sbRaw, value: runtimeCharacterFromRaw(charRaw))
@@ -470,8 +464,6 @@ public func __kk_string_builder_get(
 
 @_cdecl("__kk_string_builder_length_prop")
 public func __kk_string_builder_length_prop(_ sbRaw: Int) -> Int {
-    // KSP-817: StringBuilder.length must agree with String.length and with
-    // CharSequence.length dispatch, all of which count UTF-16 code units.
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return 0 }
     return sb.units.count
 }

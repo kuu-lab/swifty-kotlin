@@ -3,17 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-// An enum value that stays statically typed as its enum class is represented by
-// its bare ordinal. BUG-179 taught the Any-erasure boundary to box that ordinal
-// together with its entry name, but a value that never crosses that boundary
-// reached string conversion as a plain integer and rendered as the number:
-// `"$d"` printed `2` and `d.toString()` printed `2` rather than `SOUTH`.
-//
-// Both now route through the enum class's `$enumOrdinalToName$<id>` helper --
-// interpolation/concatenation at KIR lowering time (emitAnyToStringWithNullGuard,
-// the single funnel every stringification of an Any-erased value goes through)
-// and `toString()` in EnumNameAccessLoweringPass, which is where the
-// `kotlin.Any.toString` binding an enum receiver falls back to is rewritten.
 extension LoweringPassRegressionTests {
     @Test
     func testEnumInterpolationLowersToOrdinalToNameHelper() throws {
@@ -70,8 +59,6 @@ extension LoweringPassRegressionTests {
         }
     }
 
-    // A non-enum receiver must keep using the generic conversion: the rewrite is
-    // keyed on the receiver's static type, not on the callee alone.
     @Test
     func testNonEnumToStringKeepsGenericAnyConversion() throws {
         let source = """
@@ -97,10 +84,6 @@ extension LoweringPassRegressionTests {
         }
     }
 
-    // BUG-A: an entry-body `override fun toString()` (e.g. `Op.MUL`) used to
-    // be silently ignored by `println(Op.MUL)`/`toString()` -- the rewrite
-    // always defaulted to `$enumOrdinalToName$` (the bare entry name), never
-    // checking whether some entry's dispatch helper should run first.
     @Test
     func testEnumEntryBodyToStringOverrideLowersToDispatchHelper() throws {
         let source = """
@@ -130,9 +113,6 @@ extension LoweringPassRegressionTests {
         }
     }
 
-    // BUG-A: a class-level `override fun toString()` must still win when no
-    // entry body overrides it (the dispatch-helper path above only applies
-    // once at least one entry does).
     @Test
     func testEnumClassLevelToStringOverrideLowersToDirectCall() throws {
         let source = """
@@ -160,10 +140,6 @@ extension LoweringPassRegressionTests {
         }
     }
 
-    // KUU-4525: `Char.category` / `Char.directionality` return bundled source
-    // enums whose declarations are omitted from `.kirDump` KIR. Printing them
-    // still needs the synthesized ordinal-to-name helpers, so the enum nominal
-    // must be retained whenever an expression has one of those enum types.
     @Test
     func testCharEnumPropertiesLowersToBundledEnumNameHelpers() throws {
         let source = """

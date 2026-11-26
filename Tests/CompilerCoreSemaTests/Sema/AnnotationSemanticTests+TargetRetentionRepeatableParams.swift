@@ -4,23 +4,12 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-// STDLIB-ANNO-002: annotation sema / diagnostics coverage
-// Covers: @Target enforcement on additional sites, @Retention(RUNTIME) metadata,
-// @Repeatable allows multiple occurrences, @MustBeDocumented on annotation class,
-// annotation class without @Target is unrestricted, getter/setter use-site targets,
-// file-level @Target(FILE) acceptance, object/enum class targets,
-// annotation with default params (no-arg call is valid),
-// annotation class with named vs positional arg acceptance.
-
 extension AnnotationSemanticTests {
-
-    // MARK: - Consolidated runSema clean tests
 
     @Test
     func testRunSemaCleanTargetRetentionRepeatableParams() throws {
 
         let sources: [String] = [
-            // testTargetFunctionOnlyRejectsProperty
             """
             package sample0
 
@@ -31,7 +20,6 @@ extension AnnotationSemanticTests {
                     val bad: Int = 1
 
             """,
-            // testTargetPropertyOnlyAcceptsProperty
             """
             package sample1
 
@@ -42,7 +30,6 @@ extension AnnotationSemanticTests {
                     val fine: Int = 1
 
             """,
-            // testTargetPropertyOnlyRejectsClass
             """
             package sample2
 
@@ -53,7 +40,6 @@ extension AnnotationSemanticTests {
                     class Bad
 
             """,
-            // testAnnotationClassWithoutTargetIsUnrestricted
             """
             package sample3
 
@@ -69,7 +55,6 @@ extension AnnotationSemanticTests {
                     val onProperty: Int = 1
 
             """,
-            // testTargetClassAndFunctionRejectsBothWhenWrong
             """
             package sample4
 
@@ -86,7 +71,6 @@ extension AnnotationSemanticTests {
                     val bad: Int = 0
 
             """,
-            // testTargetTypeAliasAcceptsTypeAliasDeclaration
             """
             package sample5
 
@@ -97,7 +81,6 @@ extension AnnotationSemanticTests {
                     typealias UserName = String
 
             """,
-            // testTargetClassRejectsTypeAliasDeclaration
             """
             package sample6
 
@@ -108,7 +91,6 @@ extension AnnotationSemanticTests {
                     typealias UserName = String
 
             """,
-            // testRetentionRuntimeIsRecordedOnAnnotationSymbol
             """
             package sample7
 
@@ -116,7 +98,6 @@ extension AnnotationSemanticTests {
                     annotation class RuntimeAnnotation
 
             """,
-            // testRetentionSourceAnnotationIsRecorded
             """
             package sample8
 
@@ -124,7 +105,6 @@ extension AnnotationSemanticTests {
                     annotation class SourceOnly
 
             """,
-            // testRepeatableAnnotationAllowsMultipleApplications
             """
             package sample9
 
@@ -136,7 +116,6 @@ extension AnnotationSemanticTests {
                     class MultiTagged
 
             """,
-            // testMustBeDocumentedAppliedToAnnotationClassIsAccepted
             """
             package sample10
 
@@ -144,7 +123,6 @@ extension AnnotationSemanticTests {
                     annotation class PublicApi
 
             """,
-            // testMustBeDocumentedOnAnnotationClassIsRecordedInSymbol
             """
             package sample11
 
@@ -152,7 +130,6 @@ extension AnnotationSemanticTests {
                     annotation class DocRequiredMark
 
             """,
-            // testGetterUseSiteTargetAcceptedForPropertyGetterAnnotation
             """
             package sample12
 
@@ -165,7 +142,6 @@ extension AnnotationSemanticTests {
                     }
 
             """,
-            // testSetterUseSiteTargetAcceptedForPropertySetterAnnotation
             """
             package sample13
 
@@ -178,7 +154,6 @@ extension AnnotationSemanticTests {
                     }
 
             """,
-            // testTargetClassAcceptsObjectDeclaration
             """
             package sample14
 
@@ -189,7 +164,6 @@ extension AnnotationSemanticTests {
                     object Singleton
 
             """,
-            // testTargetClassAcceptsEnumClass
             """
             package sample15
 
@@ -200,7 +174,6 @@ extension AnnotationSemanticTests {
                     enum class Color { RED, GREEN, BLUE }
 
             """,
-            // testAnnotationWithDefaultParamCanBeAppliedWithNoArgs
             """
             package sample16
 
@@ -213,7 +186,6 @@ extension AnnotationSemanticTests {
                     class Bar
 
             """,
-            // testAnnotationNamedArgIsAccepted
             """
             package sample17
 
@@ -223,14 +195,12 @@ extension AnnotationSemanticTests {
                     fun api() {}
 
             """,
-            // testAnnotationClassIsRegisteredAsAnnotationKind
             """
             package sample18
 
                     annotation class MultiParam(val a: Int, val b: String)
 
             """,
-            // testTargetAnnotationClassOnlyRejectsRegularClass
             """
             package sample19
 
@@ -241,7 +211,6 @@ extension AnnotationSemanticTests {
                     class NotAnAnnotation
 
             """,
-            // testTargetAnnotationClassOnlyAcceptsAnnotationClass
             """
             package sample20
 
@@ -266,8 +235,6 @@ extension AnnotationSemanticTests {
 
             let interner = ctx.interner
 
-            // === testTargetFunctionOnlyRejectsProperty ===
-
             do {
 
                 let sample0Path = paths[0]
@@ -282,8 +249,6 @@ extension AnnotationSemanticTests {
 
             }
 
-            // === testTargetPropertyOnlyAcceptsProperty ===
-
             do {
 
                 let sample1Path = paths[1]
@@ -295,8 +260,6 @@ extension AnnotationSemanticTests {
                 #expect(diags.isEmpty, "Expected no annotation-target diagnostics for property, got: \(sample1Diagnostics)")
 
             }
-
-            // === testTargetPropertyOnlyRejectsClass ===
 
             do {
 
@@ -312,22 +275,17 @@ extension AnnotationSemanticTests {
 
             }
 
-            // === testAnnotationClassWithoutTargetIsUnrestricted ===
-
             do {
 
                 let sample3Path = paths[3]
 
                 let sample3Diagnostics = diagnosticsForPath(sample3Path, in: ctx)
 
-                // An annotation class with no @Target at all can be applied to any site.
                 let diags = diagnosticsForPath(sample3Path, withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
 
                 #expect(diags.isEmpty, "Expected no annotation-target errors for annotation without @Target, got: \(sample3Diagnostics)")
 
             }
-
-            // === testTargetClassAndFunctionRejectsBothWhenWrong ===
 
             do {
 
@@ -343,8 +301,6 @@ extension AnnotationSemanticTests {
 
             }
 
-            // === testTargetTypeAliasAcceptsTypeAliasDeclaration ===
-
             do {
 
                 let sample5Path = paths[5]
@@ -356,8 +312,6 @@ extension AnnotationSemanticTests {
                 #expect(diags.isEmpty, "Expected no annotation-target diagnostics for typealias, got: \(sample5Diagnostics)")
 
             }
-
-            // === testTargetClassRejectsTypeAliasDeclaration ===
 
             do {
 
@@ -377,8 +331,6 @@ extension AnnotationSemanticTests {
 
             }
 
-            // === testRetentionRuntimeIsRecordedOnAnnotationSymbol ===
-
             do {
 
 
@@ -396,8 +348,6 @@ extension AnnotationSemanticTests {
                 )
 
             }
-
-            // === testRetentionSourceAnnotationIsRecorded ===
 
             do {
 
@@ -417,16 +367,12 @@ extension AnnotationSemanticTests {
 
             }
 
-            // === testRepeatableAnnotationAllowsMultipleApplications ===
-
             do {
 
                 let sample9Path = paths[9]
 
                 let sample9Diagnostics = diagnosticsForPath(sample9Path, in: ctx)
 
-                // The test verifies no error-level diagnostics for using an annotation twice
-                // when the annotation class is @Repeatable (stricter than substring heuristics).
                 let errors = sample9Diagnostics.filter { $0.severity == .error }
                 #expect(
                     errors.isEmpty,
@@ -434,8 +380,6 @@ extension AnnotationSemanticTests {
                 )
 
             }
-
-            // === testMustBeDocumentedAppliedToAnnotationClassIsAccepted ===
 
             do {
 
@@ -448,8 +392,6 @@ extension AnnotationSemanticTests {
                 #expect(targetDiags.isEmpty, "Expected @MustBeDocumented to be accepted on annotation class, got: \(sample10Diagnostics)")
 
             }
-
-            // === testMustBeDocumentedOnAnnotationClassIsRecordedInSymbol ===
 
             do {
 
@@ -466,8 +408,6 @@ extension AnnotationSemanticTests {
 
             }
 
-            // === testGetterUseSiteTargetAcceptedForPropertyGetterAnnotation ===
-
             do {
 
                 let sample12Path = paths[12]
@@ -479,8 +419,6 @@ extension AnnotationSemanticTests {
                 #expect(diags.isEmpty, "Expected no diagnostics for @get: use-site target on PROPERTY_GETTER annotation, got: \(sample12Diagnostics)")
 
             }
-
-            // === testSetterUseSiteTargetAcceptedForPropertySetterAnnotation ===
 
             do {
 
@@ -494,8 +432,6 @@ extension AnnotationSemanticTests {
 
             }
 
-            // === testTargetClassAcceptsObjectDeclaration ===
-
             do {
 
                 let sample14Path = paths[14]
@@ -507,8 +443,6 @@ extension AnnotationSemanticTests {
                 #expect(diags.isEmpty, "Expected no diagnostics for @ClassMark on object, got: \(sample14Diagnostics)")
 
             }
-
-            // === testTargetClassAcceptsEnumClass ===
 
             do {
 
@@ -522,8 +456,6 @@ extension AnnotationSemanticTests {
 
             }
 
-            // === testAnnotationWithDefaultParamCanBeAppliedWithNoArgs ===
-
             do {
 
                 let sample16Path = paths[16]
@@ -533,8 +465,6 @@ extension AnnotationSemanticTests {
                 #expect(sample16Diagnostics.isEmpty, "Expected no diagnostics for annotation with default parameter, got: \(sample16Diagnostics)")
 
             }
-
-            // === testAnnotationNamedArgIsAccepted ===
 
             do {
 
@@ -546,8 +476,6 @@ extension AnnotationSemanticTests {
 
             }
 
-            // === testAnnotationClassIsRegisteredAsAnnotationKind ===
-
             do {
 
 
@@ -558,8 +486,6 @@ extension AnnotationSemanticTests {
                 #expect(symbol.kind == .annotationClass, "Expected MultiParam to be registered as annotationClass kind")
 
             }
-
-            // === testTargetAnnotationClassOnlyRejectsRegularClass ===
 
             do {
 
@@ -574,8 +500,6 @@ extension AnnotationSemanticTests {
                 #expect(v7, "Annotation-target diagnostics should be errors")
 
             }
-
-            // === testTargetAnnotationClassOnlyAcceptsAnnotationClass ===
 
             do {
 

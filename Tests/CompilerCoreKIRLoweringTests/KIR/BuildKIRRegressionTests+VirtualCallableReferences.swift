@@ -131,8 +131,6 @@ extension BuildKIRRegressionTests {
         }
     }
 
-    /// `Named::label` used as a function value must read the property through
-    /// the interface's itable, not call the declaring (abstract) accessor.
     @Test
     func testInterfacePropertyReferenceFunctionValueDispatchesThroughItable() throws {
         let source = """
@@ -154,8 +152,6 @@ extension BuildKIRRegressionTests {
         )
     }
 
-    /// The KProperty1 wrapper (`val ref = Named::label`) shares the same
-    /// dispatch requirement as the plain function-value form.
     @Test
     func testInterfacePropertyReferenceKPropertyWrapperDispatchesThroughItable() throws {
         let source = """
@@ -180,8 +176,6 @@ extension BuildKIRRegressionTests {
         )
     }
 
-    /// `t::apply` with `t` typed as an interface must call `apply` through the
-    /// itable; a final receiver type (`d::apply`) keeps the direct call.
     @Test
     func testBoundInterfaceMethodReferenceDispatchesThroughItable() throws {
         let source = """
@@ -203,8 +197,6 @@ extension BuildKIRRegressionTests {
         )
     }
 
-    /// An open class property referenced unbound (`Base::tag`) dispatches
-    /// through the vtable so an override is honoured.
     @Test
     func testOpenClassPropertyReferenceDispatchesThroughVtable() throws {
         let source = """

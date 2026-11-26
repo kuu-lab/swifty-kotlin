@@ -240,10 +240,6 @@ struct CodegenBackendNumericBoundariesTests {
 
     @Test
     func testNumericBoundarySignedUnsignedReinterpretation() throws {
-        // Regression for kk_int_to_uint / kk_long_to_uint / kk_uint_to_int /
-        // kk_ulong_to_int: these used to be identity functions, so a negative
-        // signed source (or an unsigned source >= 2^31) kept its original
-        // Int64 payload instead of reinterpreting bits for the target type.
         let source = """
         fun main() {
             val n: Long = -1L
@@ -275,12 +271,6 @@ struct CodegenBackendNumericBoundariesTests {
 
     @Test
     func testNumericBoundaryULongToUIntTruncates() throws {
-        // KSP-1533 regression: ULong.toUInt() was wired as a
-        // representation-preserving 64->64 copy (correct for Long<->ULong)
-        // instead of an actual 64->32 truncating mask, so any ULong value
-        // with a nonzero high 32 bits kept its full 64-bit payload instead of
-        // being narrowed. Fixed by reusing kk_long_to_uint (same raw-register
-        // representation as ULong, already masks via UInt32(truncatingIfNeeded:)).
         let source = """
         fun main() {
             println(ULong.MAX_VALUE.toUInt())
@@ -352,11 +342,6 @@ struct CodegenBackendNumericBoundariesTests {
         )
     }
 
-    /// KUU-3763: Byte/Short.toChar() carry the same error-level deprecation as
-    /// Long.toChar() (warning since 1.5, error since 2.3). With the diagnostics
-    /// suppressed the calls must still lower — they now bind the bundled
-    /// deprecated decl instead of a same-named inline candidate that used to
-    /// die in the inliner (KSWIFTK-INL-0001).
     @Test
     func testNumericBoundaryByteShortSuppressedToChar() throws {
         let source = """

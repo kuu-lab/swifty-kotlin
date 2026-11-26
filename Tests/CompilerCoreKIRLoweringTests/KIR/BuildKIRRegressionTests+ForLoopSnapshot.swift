@@ -4,9 +4,6 @@ import Testing
 @testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
-    /// Reading a local yields its storage register, so a for-loop bound or
-    /// iterable used directly would follow reassignment inside the body.
-    /// Both must be copied into fresh temporaries before the loop.
     @Test func testBuildKIRSnapshotsForLoopRangeBoundAndArrayIterable() throws {
         let source = """
         fun rangeLoop(): Int {

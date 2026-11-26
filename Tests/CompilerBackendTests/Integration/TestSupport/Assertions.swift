@@ -4,8 +4,6 @@
 import Foundation
 import Testing
 
-/// Assert `data` starts with the native object-file magic number for the current OS
-/// (ELF on Linux, Mach-O elsewhere).
 func assertIsNativeObjectFile(
     _ data: Data,
     sourceLocation: Testing.SourceLocation = #_sourceLocation

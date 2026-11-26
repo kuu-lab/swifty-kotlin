@@ -1,7 +1,4 @@
 extension CallTypeChecker {
-    /// A constructor's self-constrained owner parameter is not inference
-    /// evidence. Preserve it only with evidence for a lexical parameter or
-    /// a variable whose enclosing builder inference session is still open.
     func validateConstructorTypeInference(
         _ resolved: ResolvedCall,
         args: [CallArgument],
@@ -28,9 +25,6 @@ extension CallTypeChecker {
                   parameter.capture == nil,
                   parameter.symbol == symbol
             else { continue }
-            // Enclosing type parameters of an inner class are captured from the
-            // enclosing instance during overload resolution; that binding is
-            // their evidence rather than a call argument or expected type.
             if capturedEnclosingParameters.contains(symbol) { continue }
             if let session = ctx.builderInference,
                !session.isFinalized,
@@ -73,8 +67,6 @@ extension CallTypeChecker {
                     }
                     return sema.types.typeContainsTypeParam(type, symbol: symbol)
                 }
-                // The owner and its fresh constructor variable share a symbol.
-                // Lexical visibility alone cannot infer an unannotated callback.
                 if hasExpectedEvidence || hasExplicitEvidence || hasArgumentEvidence { continue }
             }
             return ResolvedCall(

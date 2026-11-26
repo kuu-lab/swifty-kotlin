@@ -6,7 +6,6 @@ import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 
-/** `java.awt.Font` — immutable font description. */
 public class Font {
     public val name: String
     public val style: Int
@@ -54,9 +53,6 @@ public class Font {
     }
 }
 
-/** `java.awt.Graphics` — the drawing context. The bundled implementation
- * rasterizes into a [BufferedImage]; geometry primitives follow the JDK's
- * `drawLine`/`fillRect` pixel coverage rules. */
 public abstract class Graphics {
     public abstract var color: Color
     public abstract fun setColor(color: Color?)
@@ -83,7 +79,6 @@ public abstract class Graphics {
     }
 }
 
-/** Raster-backed [Graphics] writing into a [BufferedImage]. */
 internal class RasterGraphics(
     private val target: BufferedImage,
     private val tx0: Int = 0,
@@ -148,7 +143,6 @@ internal class RasterGraphics(
     }
 
     override fun drawOval(x: Int, y: Int, width: Int, height: Int) {
-        // Midpoint ellipse approximation over the bounding box border.
         val cx = x + tx + width / 2.0; val cy = y + ty + height / 2.0
         val rx = width / 2.0; val ry = height / 2.0
         if (rx <= 0 || ry <= 0) return

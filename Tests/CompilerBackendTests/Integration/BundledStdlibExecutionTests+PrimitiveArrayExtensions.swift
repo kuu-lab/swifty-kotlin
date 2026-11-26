@@ -2,7 +2,6 @@ import Foundation
 import Testing
 
 extension BundledStdlibExecutionTests {
-    // KUU-1105: exercise exact primitive types through source and imported metadata.
     @Test(arguments: [true, false])
     func testPrimitiveArrayExtensions(allowDefaultStdlibLibrary: Bool) throws {
         let repoRoot = URL(fileURLWithPath: #filePath)
@@ -460,8 +459,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    // KUU-1383: getOrNull/elementAtOrElse/elementAt/single/singleOrNull/
-    // indexOfFirst/indexOfLast/toSet for every primitive array type.
     @Test(arguments: [true, false])
     func testPrimitiveArrayMissingExtensions(allowDefaultStdlibLibrary: Bool) throws {
         let repoRoot = URL(fileURLWithPath: #filePath)

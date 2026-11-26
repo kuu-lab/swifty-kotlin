@@ -201,8 +201,6 @@ extension TypeCheckDriver {
                   !checkedInferredReturnFunctions.contains(symbol),
                   !checkingInferredReturnFunctions.contains(symbol)
             else { continue }
-            // Use the declaration's file scope and receiver/parameter bindings,
-            // never the caller's lambda locals or expected return type.
             let checkpoint = diagnostics.checkpoint()
             let nominalDeclsCheckedBefore = localNominalDeclChecks.count
             let signature = sema.symbols.functionSignature(for: symbol)
@@ -218,9 +216,6 @@ extension TypeCheckDriver {
             if !errors.isEmpty,
                !errors.contains(where: { $0.message.hasPrefix("Recursive ") })
             {
-                // An untyped member dependency may become concrete during its
-                // owner's normal pass. Retry this declaration authoritatively;
-                // do not turn a speculative placeholder failure into a new error.
                 diagnostics.rollback(to: checkpoint)
                 if let signature { sema.symbols.setFunctionSignature(signature, for: symbol) }
                 checkedInferredReturnFunctions.remove(symbol)
@@ -238,9 +233,6 @@ extension TypeCheckDriver {
         guard checkingInferredReturnFunctions.contains(symbol),
               let declaration = inferredReturnFunctions[symbol]
         else { return }
-        // Every active dependent must remain retryable even when the same
-        // recursive diagnostic was already emitted and will be deduplicated.
-        // A speculative caller can still roll that diagnostic back later.
         deferredInferredReturnFunctions.formUnion(checkingInferredReturnFunctions)
         deferredInferredProperties.formUnion(checkingInferredProperties)
         guard !diagnostics.diagnostics.contains(where: {

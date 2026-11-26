@@ -5,9 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2305: enum type-name references bind the singleton companion for
-    /// valueOf while instance members and explicit companion receivers keep
-    /// their established function shapes.
     @Test
     func testEnumValueOfCallableReferenceAcrossStdlibModes() throws {
         let artifactPath = try testStdlibArtifactPath()
@@ -69,8 +66,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-2850: Enum.name/ordinal property references must use the enum's
-    /// ordinal-backed representation when a consumer imports the stdlib artifact.
     @Test
     func testEnumNameOrdinalCallableReferenceGetFromStdlibArtifact() throws {
         let artifactPath = try testStdlibArtifactPath()

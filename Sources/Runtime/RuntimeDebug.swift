@@ -73,10 +73,6 @@ public func kk_assertions_reset() -> Int {
     return 0
 }
 
-// KSP-1260: the public `kotlin.native.runtime.Debugging` surface lives in
-// bundled Kotlin source (Stdlib/kotlin/native/runtime/Debugging.kt). Only the
-// runtime entry points stay here, demoted to `__kk_` so they are reachable
-// from the stdlib layer alone.
 @_cdecl("__kk_debugging_is_thread_state_runnable")
 public func __kk_debugging_is_thread_state_runnable() -> Int {
     1

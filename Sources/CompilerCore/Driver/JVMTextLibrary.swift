@@ -271,6 +271,14 @@ extension JVMProgramBuilder {
             ].contains(path) {
                 try visit(file.topLevelDecls, path: path)
             }
+            if path == "<kswiftk-jvm>/grouping.kt" {
+                // Inline Grouping helpers (e.g. foldTo) call sourceIterator/keyOf
+                // on kotlin.collections.Grouping, so bind its interface members.
+                try visit(file.topLevelDecls.filter { id in
+                    if case .interfaceDecl = ast.arena.decl(id) { return true }
+                    return false
+                }, path: path)
+            }
             if path == "<kswiftk-jvm>/string-constructors.kt" {
                 for id in file.topLevelDecls {
                     guard case let .funDecl(declaration) = ast.arena.decl(id),
@@ -288,7 +296,13 @@ extension JVMProgramBuilder {
                         guard case let .propertyDecl(property) = ast.arena.decl(member),
                               let symbol = sema.bindings.declSymbol(for: member),
                               let valueType = sema.symbols.propertyType(for: symbol) else { continue }
-                        textLibraryFields[symbol] = JVMField(owner: "java/nio/charset/StandardCharsets", name: context.interner.resolve(property.name), type: try type(valueType), access: 0x19)
+                        let propertyName = context.interner.resolve(property.name)
+                        if propertyName.hasPrefix("UTF_32") {
+                            // JDK StandardCharsets has no UTF_32 fields; resolve via Charset.forName.
+                            textLibraryCharsetNames[symbol] = propertyName.replacingOccurrences(of: "_", with: "-")
+                            continue
+                        }
+                        textLibraryFields[symbol] = JVMField(owner: "java/nio/charset/StandardCharsets", name: propertyName, type: try type(valueType), access: 0x19)
                     }
                 }
             }
@@ -412,6 +426,18 @@ extension JVMFunctionBuilder {
             let unit = try value(unitType)
             instructions.append(.getStatic(JVMField(owner: "kotlin/time/DurationUnit", name: context.interner.resolve(fqName[4]).uppercased(), type: unitType, access: 0x4019), unit))
             return try jdkCall("kotlin/time/DurationKt", "toDuration", [source.type, unitType], .long, arguments: [source, unit], resolved: program.expressionType(id))
+        }
+        if let charsetName = program.textLibraryCharsetNames[symbol] {
+            // A receiver that is a value expression (e.g. `loadCharsets().UTF_32`)
+            // still has to run for its side effects; a plain `Charsets` type
+            // reference has nothing to evaluate.
+            if let receiver {
+                let target = program.sema.bindings.identifierSymbol(for: receiver).flatMap { program.sema.symbols.symbol($0) }
+                let isTypeReference = target.map { $0.kind == .object && $0.fqName.map(context.interner.resolve) == ["kotlin", "text", "Charsets"] } ?? false
+                if !isTypeReference { _ = try requireValue(receiver) }
+            }
+            let name = try constant(.string(charsetName), .string)
+            return try jdkCall("java/nio/charset/Charset", "forName", [.string], .reference("java/nio/charset/Charset", nullable: false), arguments: [name], resolved: program.expressionType(id))
         }
         // kotlin.math.absoluteValue is @InlineOnly in kotlin-stdlib, so its facade
         // getter is private. Lower it to java.lang.Math.abs like the abs() function.

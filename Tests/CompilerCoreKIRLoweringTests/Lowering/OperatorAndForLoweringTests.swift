@@ -8,13 +8,9 @@ import Testing
 
 @Suite
 struct OperatorAndForLoweringTests {
-    // MARK: - Helper
-
-    // MARK: - OperatorLoweringPass: println
 
     @Test
     func testOperatorLoweringKeepsPrintlnWhenNoTypeInfo() throws {
-        // Without sema type info, println is not rewritten (no typed variant can be selected).
         let interner = StringInterner()
         let arena = KIRArena()
         let v0 = arena.appendExpr(.temporary(0))
@@ -28,12 +24,11 @@ struct OperatorAndForLoweringTests {
             interner: interner,
             arena: arena
         )
-        let ctx = makeKIRContext(interner: interner) // no sema
+        let ctx = makeKIRContext(interner: interner)
 
         try OperatorLoweringPass().run(module: module, ctx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        // Without type info println stays as-is (no specific typed variant selected)
         #expect(callees.contains("println"), "println should remain when no type info is available")
     }
 
@@ -69,8 +64,6 @@ struct OperatorAndForLoweringTests {
         #expect(loweredCallee == interner.intern("println"))
         #expect(loweredResult == result)
     }
-
-    // MARK: - OperatorLoweringPass: binary ops
 
     @Test
     func testOperatorLoweringRewritesIntBinaryAddToRuntimeCall() throws {
@@ -134,12 +127,6 @@ struct OperatorAndForLoweringTests {
         #expect(hasNullCheckCall, "nullAssert should produce kk_op_notnull, got callees: \(callees)")
     }
 
-    /// Regression coverage for a bug where `x == 3.0` (and a `when` constant
-    /// branch against a Double/Float literal) silently corrupted an
-    /// Any-typed `x`: the numeric widening path below reinterpreted its
-    /// boxed pointer as a raw Int, then converted that garbage to Double.
-    /// Equality with a reference-typed operand must always go through
-    /// `kk_structural_eq`, regardless of the other operand's numeric rank.
     @Test
     func testOperatorLoweringUsesStructuralEqualityForAnyVsDoubleLiteral() throws {
         let interner = StringInterner()
@@ -193,12 +180,6 @@ struct OperatorAndForLoweringTests {
         #expect(callResult == result)
     }
 
-    /// Sibling to the above: a genuinely mixed-primitive comparison (no
-    /// reference-typed operand) must still take the numeric widening path,
-    /// and the intermediate conversion register must carry the *widened
-    /// numeric* type (Double), not the comparison's own Boolean result type
-    /// -- otherwise later ABI lowering misreads it as a boxed Boolean
-    /// needing its own unboxing.
     @Test
     func testOperatorLoweringWidensIntToDoubleWithCorrectIntermediateType() throws {
         let interner = StringInterner()
@@ -240,8 +221,6 @@ struct OperatorAndForLoweringTests {
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(callees.contains(LoweringTestRuntime.name("op_dle")), "got callees: \(callees)")
     }
-
-    // MARK: - OperatorLoweringPass: shouldRun
 
     @Test
     func testOperatorLoweringShouldRunReturnsFalseForEmptyModule() {
@@ -285,8 +264,6 @@ struct OperatorAndForLoweringTests {
 
         #expect(OperatorLoweringPass().shouldRun(module: module, ctx: ctx))
     }
-
-    // MARK: - ForLoweringPass
 
     @Test
     func testForLoweringRewritesKkForLoweredToHasNextNextLoop() throws {
@@ -366,8 +343,6 @@ struct OperatorAndForLoweringTests {
 
         #expect(ForLoweringPass().shouldRun(module: module, ctx: ctx))
     }
-
-    // MARK: - NormalizeBlocksPass
 
     @Test
     func testNormalizeBlocksShouldRunReturnsFalseForNoBlocks() {

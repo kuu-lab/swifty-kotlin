@@ -1,12 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// BUG-256 sibling: `List<T>.sumOf` (`ListAggregateHOF.kt`) only declares
-    /// Int/Long/Double overloads. A UInt/ULong selector on a concrete List
-    /// receiver used to silently arity-match onto the wrong (Int) overload --
-    /// it linked, but reinterpreted the UInt/ULong bits as Int, so
-    /// `listOf("a").sumOf { UInt.MAX_VALUE }` printed `-1` instead of
-    /// `4294967295`.
     @Test
     func testListSumOfWithUnsignedSelectorExecutesThroughBundledKotlin() throws {
         try compileAndRunKotlin(

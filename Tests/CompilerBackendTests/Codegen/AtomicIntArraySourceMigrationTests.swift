@@ -2,8 +2,6 @@
 @testable import CompilerCore
 import Testing
 
-/// KSP-1089: verify both source-backed overloads preserve zero initialization
-/// and copy the IntArray storage before residual atomic operations use it.
 @Suite
 struct AtomicIntArraySourceMigrationCodegenTests {
     @Test

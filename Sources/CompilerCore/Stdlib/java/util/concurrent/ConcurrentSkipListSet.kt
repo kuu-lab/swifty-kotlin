@@ -86,7 +86,6 @@ public open class ConcurrentSkipListSet<E> : TreeSet<E> {
         return __kkCslsRemove(this, element)
     }
 
-    /** JVM `clone()`: a fresh set carrying the same comparator and elements. */
     public fun clone(): ConcurrentSkipListSet<E> {
         val copy = ConcurrentSkipListSet<E>(comparator())
         copy.addAll(this)

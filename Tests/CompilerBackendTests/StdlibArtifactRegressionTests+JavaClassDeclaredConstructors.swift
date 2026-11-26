@@ -5,7 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2372: Java Class exposes the declared constructors registered for its KClass token.
     @Test func testJavaClassDeclaredConstructorsAcrossStdlibSurfaces() throws {
         let source = """
         class A { inner class B }
@@ -27,7 +26,6 @@ extension StdlibArtifactRegressionTests {
         }
         """
         let artifact = try Self.buildStdlibArtifact()
-        // Source/O2 currently fails LLVM verification on the baseline control before linking.
         let lanes: [(library: String?, level: OptimizationLevel)] = [
             (nil, .O0),
             (artifact, .O0),

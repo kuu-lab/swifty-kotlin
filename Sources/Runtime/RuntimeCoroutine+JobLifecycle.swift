@@ -1,13 +1,10 @@
 import Dispatch
 import Foundation
 
-/// Backing for the bare `kotlinx.coroutines.Job(): Job` factory (no parent argument --
-/// the only shape currently registered in Sema).
 @_cdecl("kk_job_new")
 public func kk_job_new() -> Int {
     let job = RuntimeJobHandle()
     job.markStarted()
-    // KUU-1386: factory jobs answer `is JobImpl` like kotlinx's Job() result.
     job.nominalJobTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.JobImpl")
     return runtimeRegisterObject(job)
 }
@@ -18,8 +15,6 @@ public func __kk_job_bind_wrapper(_ wrapperRaw: Int, _ jobRaw: Int, _ parentRaw:
           let wrapper = tryCast(ptr, to: RuntimeObjectBox.self),
           let job = runtimeJobHandle(from: jobRaw)
     else { return jobRaw }
-    // KUU-1386: bare handle `is` checks recover the wrapper's nominal (e.g.
-    // `coroutineContext.job is CompletableJob`/`is JobImpl`).
     let sourceID = runtimeObjectTypeID(rawValue: wrapperRaw) ?? 0
     let (boundRaw, boundJob) = wrapper.withCoroutineJobHandle { current -> (Int, RuntimeJobHandle) in
         if current != 0, let existing = resolveLiveRuntimeHandle(current, as: RuntimeJobHandle.self) {
@@ -81,15 +76,11 @@ public func __kk_deferred_completion_exception(_ handle: Int, _ outThrown: Unsaf
     }
 }
 
-/// Backing for `kotlinx.coroutines.SupervisorJob(): Job`. Identical to `kk_job_new` except
-/// for the `isSupervisorMarker` flag that `kk_coroutine_scope_new_with_context` reads.
 @_cdecl("kk_supervisor_job_new")
 public func kk_supervisor_job_new() -> Int {
     let job = RuntimeJobHandle()
     job.isSupervisorMarker = true
     job.markStarted()
-    // KUU-1386: SupervisorJob() results also answer `is JobImpl` (kotlinx
-    // uses the same JobImpl shape; the supervisor flag drives behavior).
     job.nominalJobTypeID = runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.JobImpl")
     return runtimeRegisterObject(job)
 }
@@ -133,8 +124,6 @@ private func runtimeJoinJob(_ jobHandle: Int, _ continuation: Int) -> Int {
     guard jobHandle != 0, let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else {
         return 0
     }
-    // Mark on the handle object itself that user code is consuming the passRetained.
-    // This is checked by scope's waitForChildren to avoid double-release.
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
     let handle = RuntimeJobOrTask(obj)
     switch handle {
@@ -172,7 +161,6 @@ private func runtimeJoinJob(_ jobHandle: Int, _ continuation: Int) -> Int {
             case .suspended:
                 return Int(bitPattern: kk_coroutine_suspended())
             case .completed(let result, _):
-                // Already complete: return synchronously (do not resume callerState).
                 releaseHandle()
                 return result
             }
@@ -194,8 +182,6 @@ private func runtimeJoinJob(_ jobHandle: Int, _ continuation: Int) -> Int {
     case .other:
         0
     }
-    // See the NOTE above: do not release the original passRetained from launch here --
-    // the Kotlin-level Job/Deferred variable may still be read after this synchronous join.
     return result
 }
 
@@ -296,7 +282,6 @@ public func kk_context_cancel_no_cause(_ contextRaw: Int) -> Int {
     kk_context_cancel(contextRaw, 0)
 }
 
-/// Returns 1 if the transition succeeded.
 @_cdecl("kk_job_complete")
 public func kk_job_complete(_ jobHandle: Int, _ value: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else {
@@ -319,7 +304,6 @@ public func kk_job_complete_unit(_ jobHandle: Int) -> Int {
     kk_job_complete(jobHandle, 0)
 }
 
-/// Returns 1 if the transition succeeded.
 @_cdecl("kk_job_complete_exceptionally")
 public func kk_job_complete_exceptionally(_ jobHandle: Int, _ exception: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else {
@@ -354,11 +338,6 @@ public func kk_job_is_active(_ jobHandle: Int) -> Int {
     }
 }
 
-/// Zero-arg ABI backing for the bare `isActive` reference inside a coroutine
-/// builder body (kotlinx.coroutines.isActive), which reads the currently
-/// running job rather than an explicit receiver. No enclosing job (e.g. at
-/// the outermost runBlocking root) is treated as active, matching the
-/// not-yet-cancelled default.
 @_cdecl("kk_coroutine_current_is_active")
 public func kk_coroutine_current_is_active() -> Int {
     // Prefer the job attached to the active continuation. The separate
@@ -370,10 +349,6 @@ public func kk_coroutine_current_is_active() -> Int {
     return job.isActiveSnapshot() ? 1 : 0
 }
 
-/// Returns the raw handle for the CoroutineScope carried by the current
-/// continuation. Coroutine builder lambdas keep a no-receiver ABI, so the
-/// lowering of an implicit CoroutineScope extension call obtains its receiver
-/// through this bridge instead.
 @_cdecl("kk_coroutine_current_scope")
 public func kk_coroutine_current_scope() -> Int {
     if let state = RuntimeContinuationState.current {
@@ -382,11 +357,6 @@ public func kk_coroutine_current_scope() -> Int {
             return Int(bitPattern: UnsafeMutableRawPointer(Unmanaged.passUnretained(scope).toOpaque()))
         }
 
-        // A top-level runBlocking body has a continuation but no inherited scope.
-        // Materialize its CoroutineScope lazily when a builder lambda needs the
-        // implicit receiver, then attach it to the continuation for suspensions
-        // and child launchers that follow. The scope's job is the running job —
-        // the same element `coroutineContext.job` resolves to here.
         let scope = RuntimeCoroutineScope(context: state.makeContinuationContext())
         if let job = state.jobHandle {
             scope.adoptJob(job)
@@ -404,7 +374,7 @@ public func kk_coroutine_current_scope() -> Int {
 @_cdecl("kk_job_is_completed")
 public func kk_job_is_completed(_ jobHandle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else {
-        return 1 // invalid handle → treat as completed
+        return 1
     }
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
     switch RuntimeJobOrTask(obj) {
@@ -420,7 +390,7 @@ public func kk_job_is_completed(_ jobHandle: Int) -> Int {
 @_cdecl("kk_job_is_cancelled")
 public func kk_job_is_cancelled(_ jobHandle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else {
-        return 1 // invalid handle → treat as cancelled
+        return 1
     }
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
     switch RuntimeJobOrTask(obj) {
@@ -435,7 +405,7 @@ public func kk_job_is_cancelled(_ jobHandle: Int) -> Int {
 
 public func kk_job_is_failed(_ jobHandle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else {
-        return 0 // invalid handle → treat as not failed
+        return 0
     }
     let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
     switch RuntimeJobOrTask(obj) {
@@ -448,9 +418,6 @@ public func kk_job_is_failed(_ jobHandle: Int) -> Int {
     }
 }
 
-/// Returns the `CancellationException` this job was (or would be) cancelled with.
-/// `RuntimeJobHandle` and task-backed launch/Deferred handles share the
-/// same cancellation state through the task's completion Job.
 @_cdecl("kk_job_get_cancellation_exception")
 public func kk_job_get_cancellation_exception(_ jobHandle: Int) -> Int {
     guard let job = runtimeJobHandle(from: jobHandle)
@@ -481,13 +448,6 @@ func runtimeJobCancellationException(_ job: RuntimeJobHandle) -> Int {
         message: snapshot.message, cause: snapshot.cause, cancellationJob: job)
 }
 
-/// KUU-CORO-101: ABI backing for `Job.invokeOnCompletion` (via
-/// `__kk_job_invoke_on_completion` in `Job.kt`). `handler`'s Kotlin type
-/// `(Throwable?) -> Unit` crosses this bundled `external fun` boundary as a
-/// (fnPtr, closureRaw) pair (it may capture locals) -- see
-/// [[function-type-param-abi-split-convention]]. Registers it and returns a
-/// disposal id for `__kk_job_dispose_handle` (0 if the handler
-/// already ran inline because the job was already terminal).
 @_cdecl("__kk_job_invoke_on_completion")
 public func __kk_job_invoke_on_completion(
     _ jobHandle: Int,
@@ -561,16 +521,6 @@ private func runtimeChildHandleBox(from rawValue: Int) -> RuntimeChildHandleBox?
     return box
 }
 
-/// KUU-1386: coroutine job-family handles (async tasks, job handles, child
-/// handles) are raw runtime objects with no `kk_object_new` nominal tag, so
-/// `kk_op_is`/`kk_op_cast` map them to the kotlinx class they answer
-/// `is`/`as`/`as?` checks as: `async` results claim DeferredCoroutine
-/// (AbstractCoroutine + Deferred), launch/produce results claim
-/// AbstractCoroutine (StandaloneCoroutine's shape), bound factory jobs claim
-/// their wrapper's nominal (CompletableJobImpl/CompletableDeferredImpl resolve
-/// through real declared ancestry), unbound `Job()`/`SupervisorJob()` handles
-/// claim JobImpl, and any other job handle claims AbstractCoroutine — the same
-/// answer kotlinx gives for its internal coroutine jobs.
 func runtimeJobFamilyNominalTypeID(rawValue: Int) -> Int64? {
     guard UnsafeMutableRawPointer(bitPattern: rawValue) != nil else { return nil }
     if let task = resolveLiveRuntimeHandle(rawValue, as: RuntimeAsyncTask.self) {
@@ -613,7 +563,6 @@ func runtimeJobHandleDebugString(_ rawValue: Int) -> String? {
     } else {
         return nil
     }
-    // kotlinx's `object NonCancellable : Job` overrides toString to a bare name.
     if job === runtimeNonCancellableJob {
         return "NonCancellable"
     }
@@ -641,19 +590,10 @@ func runtimeJobWrapperDebugString(_ rawValue: Int) -> String? {
     return runtimeJobDebugString(job)
 }
 
-/// Renders a job the way kotlinx's `toDebugString()` does —
-/// `ClassName{State}@hexIdentity` — for runTest timeout diagnostics and
-/// `job.toString()`.
 func runtimeJobDebugString(_ job: RuntimeJobHandle) -> String {
     "\(runtimeJobToStringName(job)){\(job.toStringStateName())}@\(String(job.sourceIdentityHandle, radix: 16))"
 }
 
-/// KUU-1352: the `nameString()` half of kotlinx's `toDebugString()`. Bound
-/// wrapper jobs take their wrapper class's simple name (kotlinx's
-/// `classSimpleName`) — except `CompletableJobImpl`, the bundled `Job()`/
-/// `SupervisorJob()` wrapper, which upstream renders as `JobImpl`/
-/// `SupervisorJobImpl`. Raw handles minted by the launch/async/runBlocking/
-/// produce launchers carry their kotlinx class name in `debugName`.
 private func runtimeJobToStringName(_ job: RuntimeJobHandle) -> String {
     let nominalID = job.nominalJobTypeID
     if nominalID == runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.CompletableJobImpl")
@@ -670,9 +610,6 @@ private func runtimeJobToStringName(_ job: RuntimeJobHandle) -> String {
     return job.debugName ?? "JobImpl"
 }
 
-/// The metadata simple name for a stable nominal class ID, when the class's
-/// `__kk_kclass_register_metadata` entry exists (user-defined JobSupport
-/// subclasses render under their own name).
 private func runtimeNominalSimpleName(_ nominalID: Int64) -> String? {
     let typeToken = Int(
         (nominalID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift
@@ -681,10 +618,6 @@ private func runtimeNominalSimpleName(_ nominalID: Int64) -> String? {
     return runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)?.simpleName
 }
 
-/// Registers the job-family nominal hierarchy edges once (mirrors
-/// `registerRangeTypeEdgesOnce`/`kk_non_cancellable_instance`): covers every
-/// class the job-family recovery above can claim, plus the interfaces between
-/// them and CoroutineContext.Element so `is` checks keep matching kotlinx.
 func registerJobFamilyTypeEdgesOnce() {
     runtimeStorage.withMetadataLock { state in
         if state.jobFamilyTypeEdgesRegistered { return }
@@ -726,10 +659,6 @@ func registerJobFamilyTypeEdgesOnce() {
     }
 }
 
-/// KUU-1386: `JobSupport.initParentJob` backing — attach a job to its parent
-/// through the runtime so `job.parent`, children tracking and failure
-/// propagation behave like kotlinx's JobImpl(parent). Idempotent: a job
-/// already attached to that parent is left alone.
 @_cdecl("__kk_job_attach_to_parent")
 public func __kk_job_attach_to_parent(_ jobHandle: Int, _ parentHandle: Int) -> Int {
     guard let child = runtimeJobHandle(from: jobHandle)
@@ -738,31 +667,20 @@ public func __kk_job_attach_to_parent(_ jobHandle: Int, _ parentHandle: Int) -> 
             ?? runtimeAsyncTask(from: parentHandle)?.completionJob
     else { return jobHandle }
     guard child.parentSnapshot() !== parent else { return jobHandle }
-    // registerChild sets parentJob on the child, and RuntimeJobHandle already
-    // propagates non-supervisor child failures upward through childFailed —
-    // matching kotlinx's JobImpl(parent) propagation without a second path.
     parent.registerChild(Int(bitPattern: Unmanaged.passUnretained(child).toOpaque()))
     return jobHandle
 }
 
-/// KUU-1386: `Job.key` backing — returns the Job.Key singleton (`kk_job_key`)
-/// so `job.key == Job` is true like kotlinx, while `ctx[job.key]` resolves the
-/// stored job through the singleton-key rule in kk_context_get.
 @_cdecl("kk_job_key_get")
 public func kk_job_key_get(_ receiver: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: receiver) else {
         return runtimeNullSentinelInt
     }
     let object = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    // Bound JobImpl/CompletableDeferred wrapper boxes unwrap through
-    // RuntimeJobOrTask just like raw job/task handles.
     switch RuntimeJobOrTask(object) {
     case .job, .task:
         return kk_job_key()
     case .other:
-        // Source Job implementers that never bound a runtime job — e.g.
-        // `Job by Job()` delegation, where `super<Job>.key` lands here — still
-        // answer the interface's `key` contract: `Job.key` is `Job.Key`.
         if let sourceID = runtimeObjectTypeID(rawValue: receiver),
            runtimeIsAssignable(
                sourceTypeID: sourceID,
@@ -775,11 +693,6 @@ public func kk_job_key_get(_ receiver: Int) -> Int {
     }
 }
 
-/// KUU-1386: kotlinx `ParentJob.getChildJobCancellationCause` — a Finishing
-/// job's rootCause or a CompletedExceptionally cause (wrapped in a
-/// CancellationException when the stored cause is not one), and a reported
-/// error for a still-active (Incomplete) job or one that completed normally
-/// without a cause.
 private func runtimeChildJobCancellationCause(of job: RuntimeJobHandle) -> (cause: Int, error: Int) {
     let cause = job.cancellationCauseSnapshot()
     if cause != 0, cause != runtimeNullSentinelInt {
@@ -796,9 +709,6 @@ private func runtimeChildJobCancellationCause(of job: RuntimeJobHandle) -> (caus
     return (runtimeAllocateCancellationException(message: "Parent job is completed"), 0)
 }
 
-/// KUU-1386: `ParentJob.getChildJobCancellationCause()` backing — throwing
-/// bridge (outThrown channel) matching kotlinx's IllegalStateException on an
-/// active job.
 @_cdecl("kk_job_get_child_cancellation_cause")
 public func kk_job_get_child_cancellation_cause(
     _ jobHandle: Int,
@@ -822,11 +732,6 @@ public func kk_job_get_child_cancellation_cause(
     }
 }
 
-/// KUU-1386: `ChildJob.parentCancelled(parentJob)` backing — kotlinx's
-/// JobSupport implementation is `cancelImpl(parentJob)`, which resolves the
-/// cancellation cause lazily through `ParentJob.getChildJobCancellationCause`
-/// — an active parent therefore throws IllegalStateException before the child
-/// is cancelled.
 @_cdecl("kk_job_parent_cancelled")
 public func kk_job_parent_cancelled(
     _ jobHandle: Int,
@@ -863,13 +768,6 @@ public func kk_job_parent_cancelled(
     }
 }
 
-/// KUU-1386: kotlinx `JobImpl.handlesException` — a JobImpl never handles its
-/// own failures; it reports true only when its `parentHandle` chain reaches a
-/// job that does (a JobSupport whose own handlesException is true). Runtime
-/// equivalent: walk `parentJob` — a real coroutine job (nominal 0, the
-/// StandaloneCoroutine/AbstractCoroutine claim) is a handler, while
-/// JobImpl-family factory jobs and bound wrappers (Job()/SupervisorJob()/
-/// CompletableDeferred()) delegate upward.
 private func runtimeJobHandlesException(_ job: RuntimeJobHandle) -> Bool {
     var cur = job.parentSnapshot()
     while let parent = cur {
@@ -879,12 +777,6 @@ private func runtimeJobHandlesException(_ job: RuntimeJobHandle) -> Bool {
     return false
 }
 
-/// KUU-1386: `JobSupport.childCancelled(cause)` backing — kotlinx semantics:
-/// a CancellationException reports as already-handled without touching the
-/// job; otherwise cancelImpl transitions the job to cancelling and synchronously
-/// notifies its parent. The result is `handlesException`, so a root `Job()`
-/// reports false even though it did cancel, while a job parented to a coroutine
-/// reports true.
 @_cdecl("kk_job_child_cancelled")
 public func kk_job_child_cancelled(_ jobHandle: Int, _ cause: Int) -> Int {
     if cause != 0, cause != runtimeNullSentinelInt,
@@ -915,10 +807,6 @@ public func kk_job_child_cancelled(_ jobHandle: Int, _ cause: Int) -> Int {
     }
 }
 
-/// KUU-1386: `Job.attachChild(child)` backing — register the child and hand
-/// back a ChildHandle box whose `dispose()` removes that registration. On an
-/// already-completed job kotlinx's invokeOnCompletion yields
-/// NonDisposableHandle instead: a dead handle with `parent == null`.
 @_cdecl("kk_job_attach_child")
 public func kk_job_attach_child(_ jobHandle: Int, _ childHandle: Int) -> Int {
     guard let parent = runtimeJobHandle(from: jobHandle)
@@ -950,16 +838,12 @@ public func kk_child_handle_child_cancelled(_ handleRaw: Int, _ cause: Int) -> I
     guard let box = runtimeChildHandleBox(from: handleRaw), let parent = box.parent else {
         return 0
     }
-    // kotlinx's ChildHandle delegates to the parent's JobSupport.childCancelled.
     return kk_job_child_cancelled(
         Int(bitPattern: Unmanaged.passUnretained(parent).toOpaque()),
         cause
     )
 }
 
-/// Check if the coroutine associated with `continuation` has been cancelled.
-/// If cancelled, allocates a CancellationException, writes it to `outThrown`,
-/// and returns 1. Otherwise returns 0 with outThrown untouched.
 @_cdecl("kk_coroutine_check_cancellation")
 public func kk_coroutine_check_cancellation(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let state = runtimeContinuationState(from: continuation) else {
@@ -970,9 +854,6 @@ public func kk_coroutine_check_cancellation(_ continuation: Int, _ outThrown: Un
         outThrown?.pointee = cancellation
         return 1
     }
-    // Fallback: if there is no job handle but the scope has been cancelled
-    // (e.g. via scope.cancel()), still observe the cancellation.  This
-    // provides a safety net for execution contexts that lack a job handle.
     if state.jobHandle == nil, let scope = state.scope, scope.isCancelled {
         let cancellation = runtimeCancellationExceptionPreservingCause(
             message: scope.cancellationMessage, cause: scope.cancellationCause)
@@ -1018,8 +899,6 @@ public func kk_is_cancellation_exception(_ throwableRaw: Int) -> Int {
         return 0
     }
     if tryCast(ptr, to: RuntimeCancellationBox.self) != nil { return 1 }
-    // Bundled/user subclasses (including Flow's AbortFlowException) use
-    // ordinary source objects rather than the runtime cancellation box.
     guard let object = tryCast(ptr, to: RuntimeObjectBox.self) else { return 0 }
     return runtimeIsAssignable(
         sourceTypeID: object.classID,
@@ -1027,10 +906,6 @@ public func kk_is_cancellation_exception(_ throwableRaw: Int) -> Int {
     ) ? 1 : 0
 }
 
-/// Lowering target for the bare (no-receiver) `kotlinx.coroutines.ensureActive()`.
-/// Mirrors `kk_coroutine_check_cancellation`'s two checks (job, then scope fallback),
-/// but reads the ambient current job/scope directly since this call carries no
-/// continuation handle of its own.
 @_cdecl("kk_ensure_active")
 public func kk_ensure_active(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     if let job = RuntimeJobHandle.current, job.cancellationSnapshot() || job.isFailedSnapshot() {
@@ -1046,9 +921,6 @@ public func kk_ensure_active(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     return 0
 }
 
-/// Singleton backing `kotlinx.coroutines.NonCancellable`. A `RuntimeJobHandle` that
-/// is never cancelled. `withContext(NonCancellable)` instead creates its own
-/// block Job, detached from the enclosing Job's cancellation.
 let runtimeNonCancellableJob: RuntimeJobHandle = {
     let job = RuntimeJobHandle()
     job.markStarted()
@@ -1090,8 +962,6 @@ public func kk_await_cancellation(_ continuation: Int) -> Int {
     var thrown = 0
     let result = parked.getResult(&thrown)
     if thrown != 0, let state = runtimeContinuationState(from: continuation) {
-        // This ABI has no outThrown slot; deliver already-pending cancellation
-        // through the same resume path as cancellation after suspension.
         _ = state.resume(withException: thrown)
         return Int(bitPattern: kk_coroutine_suspended())
     }

@@ -7,8 +7,8 @@ struct LocalBindings: ExpressibleByDictionaryLiteral, Sequence {
     var delegatedLocalSymbols: Set<SymbolID> = []
     var variableFacts: [SymbolID: DataFlowValueFacts] = [:]
     var invalidatedVariableFacts: Set<SymbolID> = []
-    /// Lambda-body scopes retain displaced outer bindings so callsInPlace
-    /// collection can still see initialization that a same-name local later shadows.
+    var possiblyAssignedVals: Set<SymbolID> = []
+    var safeCallArgumentInitializations: [ExprID: Set<SymbolID>] = [:]
     var preservesShadowedBindings = false
 
     init(dictionaryLiteral elements: (InternedString, Value)...) {
@@ -82,31 +82,14 @@ struct LocalBindings: ExpressibleByDictionaryLiteral, Sequence {
     }
 }
 
-/// Replaces the monolithic extension-based splitting of `TypeCheckSemaPhase` with
-/// independent delegate classes.
-///
-/// Each delegate holds an `unowned` back-reference to this driver so that mutually
-/// recursive calls (e.g. `inferExpr` → `inferCallExpr` → `inferExpr`) can be
-/// dispatched through the driver rather than sharing a single fat class instance.
 final class TypeCheckDriver {
     var isCheckingAnnotationConstruction = false
-    /// Lexical boundaries retained until overload and lambda inference finish.
     var callSuspensionContexts: [ExprID: SuspensionContext] = [:]
-    /// Lexical boundaries for `@Composable` invocations validated post-inference.
     var callComposableContexts: [ExprID: SuspensionContext] = [:]
-    /// Compiler-special calls that suspend without an ordinary call binding.
     var specialSuspendingCallNames: [ExprID: String] = [:]
-    /// Reads of the restricted `kotlin.coroutines.coroutineContext` property
-    /// need the same post-inference suspension-context validation as calls.
     var coroutineContextPropertySuspensionContexts: [ExprID: SuspensionContext] = [:]
-    /// Properties whose types were inferred in a safe module pre-pass so earlier
-    /// files can use them without running the property checker a second time.
     var precheckedPropertyDecls: Set<DeclID> = []
-    /// Inferred properties whose initializer type alone was published in the
-    /// pre-pass. Their accessors may depend on declarations checked later, so
-    /// the authoritative pass still rechecks the whole declaration.
     var publishedInferredPropertyDecls: Set<DeclID> = []
-    /// Object headers published for forward references, with bodies still unchecked.
     var predeclaredObjectLiteralDecls: Set<DeclID> = []
     /// Ordered log of local nominal decls (object literals, local
     /// classes/objects, typealiases) whose member check committed. A
@@ -115,15 +98,8 @@ final class TypeCheckDriver {
     /// so without `pendingLocalNominalRechecks` the `ensure*` early returns
     /// would skip their member checks and lose any errors inside them.
     var localNominalDeclChecks: [DeclID] = []
-    /// Nominal decls whose speculative member check was rolled back; the
-    /// local `ensure*` paths consume a declID here to re-run the full check
-    /// even though a symbol binding already exists.
     var pendingLocalNominalRechecks: Set<DeclID> = []
 
-    /// Marks local nominal decls checked since `mark` for re-checking after a
-    /// speculative window rolls their diagnostics back. Symbol bindings survive
-    /// the rollback, so the `ensure*` paths need this mark to avoid early-returning
-    /// past the member check that owned the discarded diagnostics.
     func markLocalNominalRechecks(since mark: Int) {
         guard mark < localNominalDeclChecks.count else { return }
         pendingLocalNominalRechecks.formUnion(localNominalDeclChecks[mark...])
@@ -137,11 +113,6 @@ final class TypeCheckDriver {
     var pendingPropertyTypes: Set<SymbolID> = []
     var deferredInferredReturnFunctions: Set<SymbolID> = []
     var deferredInferredProperties: Set<SymbolID> = []
-    /// Set while the authoritative source-order body pass runs. During that
-    /// pass a property read may resolve a still-pending inferred property on
-    /// demand, covering initializers the module pre-pass cannot publish early
-    /// (for example calls that take a lambda argument). Pre-pass and worker
-    /// checking leave this unset so speculative inference keeps its contract.
     var isCheckingSourceOrderBodies = false
 
     let ast: ASTModule
@@ -160,7 +131,6 @@ final class TypeCheckDriver {
     let globalOptInMarkerNames: [String]
     private let superReceiverExprIDs: Set<ExprID>
 
-    // Delegates (lazy to break initialization ordering; each holds unowned back-reference)
     private(set) lazy var exprChecker = ExprTypeChecker(driver: self)
     private(set) lazy var callChecker = CallTypeChecker(driver: self)
     private(set) lazy var controlFlowChecker = ControlFlowTypeChecker(driver: self)
@@ -169,15 +139,6 @@ final class TypeCheckDriver {
 
     private(set) lazy var builtinTypeNamesCache = BuiltinTypeNames(interner: interner)
 
-    /// Top-level `companion` extension *functions*, indexed by short name once
-    /// per module. `companionExtensionFunctionCandidates` and
-    /// `companionExtensionCallableReferenceCandidates` previously rescanned
-    /// every file's `topLevelDecls` for each call site and callable
-    /// reference — O(#topLevelDecls) per lookup, which adds up on
-    /// source-profile stdlib compilations (KUU-3956). File order and
-    /// declaration order are preserved, so the appended candidate order is
-    /// unchanged; `declSymbols` is populated during header collection, which
-    /// runs before any type checking reaches these call sites.
     private(set) lazy var companionExtensionFunctionDeclsByName: [InternedString: [SymbolID]] = {
         var index: [InternedString: [SymbolID]] = [:]
         for file in ast.files {
@@ -195,7 +156,6 @@ final class TypeCheckDriver {
         return index
     }()
 
-    // Stateless utilities (no back-reference needed)
     let helpers = TypeCheckHelpers()
     let scopeBuilder = TypeCheckScopeBuilder()
     let captureAnalyzer = CaptureAnalyzer()
@@ -237,8 +197,6 @@ final class TypeCheckDriver {
         superReceiverExprIDs.contains(id)
     }
 
-    /// Finds `super` references used as explicit dispatch receivers in the AST.
-    /// Operator expressions are included when Kotlin desugars them to receiver calls.
     private static func collectSuperReceiverExprIDs(in ast: ASTModule) -> Set<ExprID> {
         var result: Set<ExprID> = []
 
@@ -300,8 +258,6 @@ final class TypeCheckDriver {
             expressionContext.elvisRhsCallResultTypeHint = nil
             expressionContext.elvisRhsCallResultTypeHintExpr = nil
         }
-        // `@OptIn` on an expression scopes to that expression's inference
-        // subtree only; the copied context keeps siblings unaffected.
         expressionContext = helpers.expressionOptInContext(id, ctx: expressionContext)
         let ctx = expressionContext.syncingImplicitReceiver(from: locals)
         let type = exprChecker.inferExpr(
@@ -311,8 +267,6 @@ final class TypeCheckDriver {
         if let expectedType, sema.bindings.hasSourceDeclaredExpectedType(id) {
             recordGenericCallConsumer(id, type: expectedType)
         }
-        // JVM Unit locals keep the Java value, while Unit returns discard it.
-        // Argument checks are recorded separately after callable resolution.
         if let expectedType, type != sema.types.unitType,
            !(sema.types.kind(of: type) == .platformUnit && expectedType == sema.types.unitType)
         {
@@ -337,9 +291,6 @@ final class TypeCheckDriver {
         return type
     }
 
-    /// Record an actual value destination separately from inference hints.
-    /// Transparent blocks forward their tail value to that destination, but
-    /// branches and other value-producing expressions have their own boundary.
     func recordGenericCallConsumer(_ id: ExprID, type: TypeID?) {
         var value = id
         while case let .blockExpr(_, trailing, _) = ast.arena.expr(value), let trailing {
@@ -392,14 +343,9 @@ final class TypeCheckDriver {
         )
     }
 
-    /// Unbounded T can contain null even though its type-parameter node is
-    /// spelled non-null. Only concrete non-null targets or non-null bounds
-    /// need an assertion when accepting a flexible Java return.
     func recordPlatformNullAssertion(
         _ id: ExprID, sourceType: TypeID, targetType: TypeID, declaredParameterType: TypeID? = nil
     ) {
-        // A Unit local may hold null after assignment from Unit!. Keep the
-        // non-null argument check even after its declared type becomes Unit.
         guard sema.types.nullability(of: sourceType) == .platformType
             || sourceType == sema.types.unitType else { return }
         var visited: Set<SymbolID> = []
@@ -412,8 +358,6 @@ final class TypeCheckDriver {
             }
             return sema.types.isDefinitelyNonNull(type)
         }
-        // Erased generic parameters use their declaration bounds, even when
-        // inference substitutes a concrete Unit that may still contain null.
         if requiresNonNull(declaredParameterType ?? targetType), sema.types.isSubtype(sourceType, targetType) {
             sema.bindings.bindPlatformNullAssertion(id, targetType: targetType)
         }
@@ -517,16 +461,11 @@ final class TypeCheckDriver {
             else {
                 return false
             }
-            // Arguments may read inferred member properties still holding the
-            // nullable-Any placeholder (`Node.EMPTY` ahead of the companion
-            // body). Defer unless every argument's type is already safe.
             return args.allSatisfy {
                 declChecker.safePrecheckExpressionType($0.expr, in: ctx, locals: [:]) != nil
             }
         }
 
-        // Active declarations are file roots, so include their member trees.
-        // Otherwise an early function can cache a member property's placeholder.
         var pendingDeclarations = Array(ast.activeDeclarationIDs)
         var visitedDeclarations: Set<DeclID> = []
         while let declaration = pendingDeclarations.popLast() {
@@ -570,11 +509,6 @@ final class TypeCheckDriver {
             }
         }
 
-        // A direct object initializer has a fixed nominal type even when its
-        // member bodies depend on declarations checked later. Publish only its
-        // header so forward callers see its parameterized supertypes. This
-        // pre-pass does not check initializers or bodies; existing demand
-        // inference and the authoritative declaration pass still own them.
         for file in files {
             guard let inferCtx = inferenceContext(for: file) else { continue }
             for declaration in file.topLevelDecls {
@@ -598,8 +532,6 @@ final class TypeCheckDriver {
             }
         }
 
-        // Explicit contracts are declaration metadata. Earlier callers must
-        // see them before a later function body happens to be type checked.
         var registeredInferredReturnDeclarations: Set<DeclID> = []
         for file in files {
             guard let inferCtx = inferenceContext(for: file) else { continue }
@@ -616,10 +548,6 @@ final class TypeCheckDriver {
             }
         }
 
-        // A direct constructor call has a type fixed by its collected header.
-        // Infer those properties before earlier files can observe the
-        // nullable-Any placeholder; pure inferred expressions are resolved in
-        // dependency order below.
         for file in files {
             guard let inferCtx = inferenceContext(for: file) else { continue }
             for declID in file.topLevelDecls {
@@ -642,9 +570,6 @@ final class TypeCheckDriver {
             }
         }
 
-        // Explicit backing-field initializers can narrow stable `val` reads.
-        // Resolve simple, zero-argument factory initializers before function
-        // bodies are checked so their property accesses see the backing type.
         for file in files {
             guard let inferCtx = inferenceContext(for: file) else { continue }
             for declID in file.topLevelDecls {
@@ -667,12 +592,6 @@ final class TypeCheckDriver {
             }
         }
 
-        // Revisit property initializers until their inferred property
-        // dependencies have types. Calls are eligible only when every
-        // candidate has a concrete declared return type. Include companion and
-        // nested object properties before any caller can observe their header
-        // placeholders. Unresolved references, inferred-return calls and cycles
-        // stay on the source-order pass.
         var previousPrecheckedCount: Int
         var previousPendingCount: Int
         var previousPublishedCount: Int
@@ -711,12 +630,6 @@ final class TypeCheckDriver {
                                       in: inferCtx
                                   )
                         {
-                            // A custom accessor body cannot run ahead of
-                            // source order, but a safe initializer still fixes
-                            // the property's type. Publish that type while the
-                            // header placeholder is in place; the source-order
-                            // pass re-checks the whole declaration, accessors
-                            // included, and re-emits any diagnostics.
                             let diagnosticSnapshot = diagnostics.count
                             let nominalDeclsCheckedBefore = localNominalDeclChecks.count
                             declChecker.typeCheckBoundPropertyDecl(
@@ -748,11 +661,6 @@ final class TypeCheckDriver {
                                       in: inferCtx
                                   )
                         {
-                            // A getter-only `val x get() = ...` derives its
-                            // type from the accessor body; publish the probed
-                            // type while the header placeholder is in place.
-                            // The source-order pass re-checks the whole
-                            // declaration, accessor included (KUU-4193).
                             declChecker.publishInferredGetterPropertyType(
                                 property,
                                 symbol: symbol,
@@ -793,8 +701,6 @@ final class TypeCheckDriver {
             || pendingPropertyTypes.count < previousPendingCount
             || publishedInferredPropertyDecls.count > previousPublishedCount
 
-        // Dependency inference and contract collection above remain module-owned.
-        // Workers cannot demand an inferred declaration or modify a signature.
         let independentBodies = try checkIndependentBodies(files: files, fileScopes: fileScopes, frontendJobs: frontendJobs)
 
         var deferredJVMInlineBodies: [SymbolID: (declaration: DeclID, function: FunDecl, context: TypeInferenceContext)] = [:]
@@ -840,10 +746,6 @@ final class TypeCheckDriver {
                         deferredJVMInlineBodies[declSymbol] = (declID, function, inferCtx.with(currentDeclSymbol: declSymbol))
                         continue
                     }
-                    // Consumer JVM compiles inject residual-stdlib declarations for
-                    // signatures only; their non-inline bodies are stubs and are not
-                    // emitted. Skip the fixed body-check cost; inline bodies still use
-                    // the deferred path above.
                     if skipResidualStdlibBodies && !function.isInline {
                         continue
                     }
@@ -909,11 +811,6 @@ final class TypeCheckDriver {
         checkDemandedJVMInlineBodies(&deferredJVMInlineBodies)
     }
 
-    /// `diagnosticCode`/`failureMessage` replace the generic
-    /// `KSWIFTK-TYPE-0001` failure identity with the position-specific code
-    /// upstream (kotlinc) reports at this site, so `@Suppress` names like
-    /// `INITIALIZER_TYPE_MISMATCH` can target it without touching the shared
-    /// constraint diagnostic.
     func emitSubtypeConstraint(
         left: TypeID,
         right: TypeID,
@@ -972,11 +869,6 @@ final class TypeCheckDriver {
         }
     }
 
-    /// The platform-type lint targets user code. Bundled and residual stdlib
-    /// sources are compiler-owned, so platform flows inside them (e.g. the
-    /// flexible `java.util.concurrent.atomic.AtomicReference<T>` type
-    /// parameter flowing through Kotlin extension loops) are unactionable
-    /// noise and must not leak into user-facing diagnostics.
     private func isCompilerOwnedSourceRange(_ range: SourceRange) -> Bool {
         sourceManager?.origin(of: range.start.file)?.isBundledStdlib == true
     }

@@ -37,8 +37,6 @@ struct AtomicfuBundledExecutionTests {
         return result
     }
 
-    // Receipts survive successful owned-input cleanup in a separate sibling.
-    // No failure path deletes source, executable, .o, or producer library.
     private func receipt(_ directory: URL, _ name: String, _ fields: [String: Any]) throws {
         let base = URL(fileURLWithPath: directory.path + ".receipts", isDirectory: true)
         try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
@@ -73,7 +71,6 @@ struct AtomicfuBundledExecutionTests {
             "search_paths": searchPaths, "allow_default_stdlib": false])
         let started = Date()
         let result = makeTestDriver().runForTesting(options: options)
-        // Capture actual result before any assertion or cleanup.
         try receipt(directory, module + "-compile-result", [
             "exit": result.exitCode, "seconds": Date().timeIntervalSince(started),
             "diagnostics": result.diagnostics.map {
@@ -156,7 +153,7 @@ struct AtomicfuBundledExecutionTests {
                 try #require(after == before)
             }
             try receipt(directory, "success", ["status": "PASS", "owned_file_sha256": try fileHashes(directory)])
-            try FileManager.default.removeItem(at: directory) // success-only owned cleanup
+            try FileManager.default.removeItem(at: directory)
         } catch {
             retainFailure(directory, error, dependencies: dependencies)
             throw error
@@ -185,9 +182,6 @@ struct AtomicfuBundledExecutionTests {
             try #require(records.contains { $0.fqName == "atomicfuproducer.newCounter" })
             try #require(records.contains { $0.fqName == "atomicfuproducer.nullableCounter" })
             try #require(records.contains { $0.fqName == "atomicfuproducer.bump" && $0.isInline })
-            // A normal user producer excludes bundled declarations from metadata.
-            // Both consumers use the actual fresh Stdlib dependency and separate
-            // ordinary producer, never relabeling a user library as Stdlib.
             let executable = try compile(fixture("consumer.kt"), module: "AtomicfuSeparateConsumer",
                 emit: .executable, directory: directory, level: level, stdlib: consumerStdlib,
                 searchPaths: [producer])
@@ -198,7 +192,7 @@ struct AtomicfuBundledExecutionTests {
             try #require(producerAfter == producerBefore)
             try #require(stdlibAfter == stdlibBefore)
             try receipt(directory, "success", ["status": "PASS", "owned_file_sha256": try fileHashes(directory)])
-            try FileManager.default.removeItem(at: directory) // only after both stages completed and matched
+            try FileManager.default.removeItem(at: directory)
         } catch {
             retainFailure(directory, error, dependencies: dependencies)
             throw error
@@ -227,7 +221,6 @@ struct AtomicfuBundledExecutionTests {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         var dependencies: [String] = []
         do {
-            // The independent consumer always imports actual bundled library and producer.
             let consumerStdlib = try testStdlibArtifactPath()
             dependencies.append(consumerStdlib)
             let stdlibBefore = try artifactHashes(consumerStdlib)
@@ -259,9 +252,6 @@ struct AtomicfuBundledExecutionTests {
             throw error
         }
     }
-    // Survival of these ordinary registered objects is a compatibility control,
-    // not automatic box-reclamation evidence. Runtime heap-count tests below
-    // the public ABI establish the managed-payload tracing/release contract.
     @Test(arguments: [false, true], [0, 2])
     func managedPayloadCompatibilityControls(library: Bool, optimization: Int) throws {
         try runFixture("gc-boundary", library: library, optimization: optimization)

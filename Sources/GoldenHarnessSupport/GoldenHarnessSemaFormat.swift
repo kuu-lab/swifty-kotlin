@@ -36,10 +36,6 @@ enum GoldenHarnessSemaFormat {
         return argument
     }
 
-    /// The default overload above preserves the historical formatter API;
-    /// GoldenHarnessStableRenderContext uses this overload so source-backed
-    /// aliases and imported declarations can share the same public type
-    /// spelling without changing CompilerCore's type renderer.
     static func renderFunctionSignature(
         _ signature: FunctionSignature,
         renderType: (TypeID) -> String

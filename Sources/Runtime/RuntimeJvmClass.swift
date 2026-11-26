@@ -37,11 +37,6 @@ private let runtimeJavaKnownKotlinNominalNames = [
     "java.lang.Class",
 ]
 
-// KUU-4561: token -> qualified-name lookup for the table above, built once
-// (Swift globals are lazily initialized exactly once, thread-safely) so the
-// fallback in `runtimeJavaQualifiedName` stays O(1) instead of re-hashing
-// every entry per call. The first entry wins on a token collision, matching
-// the previous linear scan.
 private let runtimeJavaKnownKotlinNominalNameByToken: [Int: String] = {
     var namesByToken: [Int: String] = [:]
     namesByToken.reserveCapacity(runtimeJavaKnownKotlinNominalNames.count)
@@ -70,9 +65,6 @@ func runtimeJavaClassDisplayText(receiverRaw: Int, typeToken: Int, nameHint: Int
     }
 
     let binaryName = runtimeJavaBinaryName(qualifiedName, metadataDisplayName: metadata?.displayName)
-    // KUU-4067: bundled builtin interfaces usually have no registered
-    // metadata, so the displayText kind also consults the curated interface
-    // name table used by Class.interfaces/superclass.
     let kind = metadata?.isInterface == true
         || runtimeJavaInterfaceNominalNames.contains(qualifiedName)
         ? "interface" : "class"
@@ -132,14 +124,6 @@ func runtimeJavaClassToStringText(_ classRaw: Int) -> String? {
     resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self)?.displayText
 }
 
-/// `x.javaClass` / `x::class.java` impl-name lookup for the collection
-/// static types (and `Any`/`Unknown`). The JVM impl class follows the
-/// factory's nominal tag and canonical singleton identity rather than the
-/// element count: only the shared `emptyList()`/`emptySet()`/`emptyMap()`
-/// handles report `Empty*`, one-element read-only boxes report the
-/// `Collections$Singleton*` impls, mutable tags name their `java.util` impl,
-/// and view/iterator boxes reuse `runtimeReflectedCollectionClass`'s names
-/// (KUU-4144).
 private func runtimeJavaCollectionImplementationName(receiverRaw: Int, qualifiedName: String) -> String? {
     switch qualifiedName {
     case "kotlin.collections.List", "kotlin.collections.MutableList",
@@ -152,8 +136,6 @@ private func runtimeJavaCollectionImplementationName(receiverRaw: Int, qualified
         return nil
     }
     guard let typeID = runtimeObjectTypeID(rawValue: receiverRaw) else { return nil }
-    // Concrete `java.util`/builder impl tags name their own class directly;
-    // `runtimeReflectedCollectionClass` intentionally returns nil for them.
     switch typeID {
     case arrayListRuntimeTypeID, mutableListRuntimeTypeID:
         return "java.util.ArrayList"
@@ -184,9 +166,6 @@ private func runtimeJavaCollectionImplementationName(receiverRaw: Int, qualified
     default:
         break
     }
-    // Interface tags and view boxes resolve through the reflected impl
-    // identity, which already gates `Empty*`/`Singleton*` names on canonical
-    // identity rather than element count (KUU-4144).
     guard let identity = runtimeReflectedCollectionClass(rawValue: receiverRaw, typeID: typeID),
           case let .named(_, reflectedQualifiedName) = identity
     else { return nil }
@@ -222,8 +201,6 @@ func runtimeJavaBinaryName(_ qualifiedName: String, metadataDisplayName: String?
     if runtimeJavaNestedImplClassNames.contains(qualifiedName),
        let lastDot = qualifiedName.range(of: ".", options: .backwards)
     {
-        // Java binary names use '$' for nested classes even though
-        // `KClass.qualifiedName` spells them with dots (KUU-3963).
         var binaryName = qualifiedName
         binaryName.replaceSubrange(lastDot, with: "$")
         return binaryName
@@ -272,9 +249,6 @@ func runtimeJavaBinaryName(_ qualifiedName: String, metadataDisplayName: String?
     }
 }
 
-/// `java.util`/`kotlin.collections.builders` implementation classes that are
-/// nested on the JVM (KUU-3963). `KClass.qualifiedName` uses dots; `Class`
-/// names need the enclosing class separated by '$' instead.
 private let runtimeJavaNestedImplClassNames: Set<String> = [
     "java.util.Collections.SingletonList",
     "java.util.Collections.SingletonSet",
@@ -324,39 +298,15 @@ private let runtimeJavaNestedImplClassNames: Set<String> = [
     "kotlin.collections.AbstractList.ListIteratorImpl",
 ]
 
-/// Implementation classes nested two levels deep on the JVM — both enclosing
-/// separators become '$' in binary names (e.g.
-/// `java.util.TreeMap$NavigableSubMap$DescendingSubMapKeyIterator`).
 private let runtimeJavaDeeplyNestedImplClassNames: Set<String> = [
     "java.util.TreeMap.NavigableSubMap.DescendingSubMapKeyIterator",
 ]
 
-// MARK: - Reflected collection implementation classes (KUU-3963)
-
-/// `x::class` on a runtime collection box reports the JVM implementation
-/// class (`java.util.Collections.SingletonList`, `java.util.Arrays.ArrayList`,
-/// `LinkedHashSet`, anonymous iterators, ...) while `is`/`as` keep using the
-/// object's conformance tag. Bound `::class` therefore resolves a separate
-/// reflected identity here instead of reusing the tag directly.
-///
-/// Kotlin-named implementation classes reuse the existing nominal IDs so
-/// `setOf(1, 2)::class == linkedSetOf(1)::class` stays true like the JVM.
-/// JVM-only implementation classes get dedicated nominal IDs plus an explicit
-/// qualified-name hint, and JVM-anonymous implementations get dedicated IDs
-/// with anonymous KClass metadata so both names report null.
 enum RuntimeReflectedClassIdentity {
-    /// Reflected class with an explicit qualified name. For Kotlin typealias
-    /// targets (`java.util.ArrayList` for `kotlin.collections.ArrayList`,
-    /// ...) the nominal ID is reused while the Java qualified name is
-    /// supplied as a hint so `::class` equality and `is` keep working.
     case named(typeID: Int64, qualifiedName: String)
-    /// JVM-anonymous implementation class: `simpleName` and `qualifiedName`
-    /// are both null on the JVM.
     case anonymous(typeID: Int64)
 }
 
-/// Nominal identities for JVM-anonymous implementations. Distinct IDs keep
-/// `::class` inequality between unrelated anonymous classes.
 private let runtimeAnonymousSingletonIteratorClassID = runtimeStableNominalTypeID(
     fqName: "java.util.Collections.SingletonIterator"
 )
@@ -377,9 +327,6 @@ private func runtimeReflectedImplTypeID(_ qualifiedName: String) -> Int64 {
     runtimeStableNominalTypeID(fqName: qualifiedName)
 }
 
-/// Registers anonymous/local KClass metadata for a reflected implementation
-/// ID so `simpleName`/`qualifiedName` report null like the JVM. Idempotent;
-/// invoked only when a JVM-anonymous implementation is actually reflected.
 private func runtimeRegisterAnonymousReflectedClass(_ typeID: Int64) {
     let token = Int(truncatingIfNeeded:
         (typeID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift
@@ -409,16 +356,12 @@ private func runtimeRegisterAnonymousReflectedClass(_ typeID: Int64) {
     )
 }
 
-/// Ensures an anonymous reflected class carries its null-name metadata
-/// before its KClass handle is created.
 func runtimeEnsureReflectedClassMetadata(_ identity: RuntimeReflectedClassIdentity) {
     if case .anonymous(let typeID) = identity {
         runtimeRegisterAnonymousReflectedClass(typeID)
     }
 }
 
-/// Map view kinds whose iterators/views borrow their names from the backing
-/// map's implementation class.
 private enum RuntimeMapViewKind {
     case keys
     case values
@@ -429,9 +372,6 @@ private func runtimeObjectRawValue(_ box: AnyObject) -> Int {
     Int(bitPattern: Unmanaged.passUnretained(box).toOpaque())
 }
 
-/// Resolves the JVM implementation class `x::class` should reflect for a
-/// runtime collection box tagged `typeID`. Returns nil when the tag already
-/// names the class correctly (ArrayList, HashSet, TreeSet, user classes, ...).
 func runtimeReflectedCollectionClass(rawValue: Int, typeID: Int64) -> RuntimeReflectedClassIdentity? {
     if let identity = runtimeReflectedIteratorClass(rawValue: rawValue) {
         return identity
@@ -467,9 +407,6 @@ func runtimeReflectedCollectionClass(rawValue: Int, typeID: Int64) -> RuntimeRef
         ) {
             return identity
         }
-        // Only the shared `emptyList()` handle reflects `EmptyList` — an
-        // emptied ArrayList/mutable list keeps `java.util.ArrayList` identity
-        // on the JVM (KUU-4144).
         if list.count == 0, rawValue == emptyListSingletonRaw {
             return .named(
                 typeID: runtimeReflectedImplTypeID("kotlin.collections.EmptyList"),
@@ -481,8 +418,6 @@ func runtimeReflectedCollectionClass(rawValue: Int, typeID: Int64) -> RuntimeRef
             qualifiedName: "kotlin.collections.ArrayList"
         )
     case mutableMapViewCollectionRuntimeTypeID:
-        // `.values` views share the `RuntimeListBox` storage but reflect the
-        // backing map's `*Values` impl class (KUU-4144).
         guard let list = runtimeListBox(from: rawValue),
               let mapRaw = list.mapValuesViewBackingRaw
         else { return nil }
@@ -509,8 +444,6 @@ func runtimeReflectedCollectionClass(rawValue: Int, typeID: Int64) -> RuntimeRef
                 qualifiedName: "java.util.IdentityHashMap"
             )
         }
-        // Only the shared `emptyMap()` handle reflects `EmptyMap`; an emptied
-        // LinkedHashMap keeps its impl identity on the JVM (KUU-4144).
         switch map.count {
         case 0 where rawValue == emptyMapSingletonRaw:
             return .named(
@@ -541,10 +474,6 @@ func runtimeReflectedCollectionClass(rawValue: Int, typeID: Int64) -> RuntimeRef
     }
 }
 
-/// `subList` / `asReversed` / `asList` / map `.values` views. The view tag's
-/// flags describe the conformance the view was created with; the JVM class
-/// name additionally depends on the view kind and, for `subList`, the base
-/// list's implementation.
 private func runtimeReflectedListViewClass(
     list: RuntimeListBox,
     mutable: Bool,
@@ -585,12 +514,6 @@ private func runtimeReflectedListViewClass(
     return nil
 }
 
-/// Plain `RuntimeSetBox` handles (read-only `setOf`, empty sets, views that
-/// reach the Set tag). Map-backed views take their names from the map's
-/// implementation; everything else follows the JVM `setOf` family. The
-/// `EmptySet`/`SingletonSet` impls are gated on canonical identity and
-/// read-only state rather than count — an emptied `LinkedHashSet` keeps its
-/// impl identity on the JVM (KUU-4144).
 private func runtimeReflectedSetClass(rawValue: Int, set: RuntimeSetBox) -> RuntimeReflectedClassIdentity {
     if let (mapRaw, kind) = set.mapViewBacking {
         return runtimeReflectedMapSetViewClass(mapRaw: mapRaw, kind: kind)
@@ -620,19 +543,12 @@ private func runtimeReflectedSetClass(rawValue: Int, set: RuntimeSetBox) -> Runt
     }
 }
 
-/// `Map.keys` / `Map.entries` views (`java.util.LinkedHashMap$LinkedKeySet`,
-/// `java.util.HashMap$EntrySet`, `java.util.TreeMap$KeySet`, ...). On the JVM
-/// a singleton map's views are `java.util.Collections$SingletonSet` and an
-/// empty map's are `EmptySet`.
 private func runtimeReflectedMapSetViewClass(
     mapRaw: Int,
     kind: RuntimeSetBox.MapViewKind
 ) -> RuntimeReflectedClassIdentity {
     let mapTag = runtimeObjectTypeID(rawValue: mapRaw)
     let map = runtimeMapBox(from: mapRaw)
-    // `emptyMap()`'s views share `EmptySet` identity; an emptied mutable map's
-    // views keep the map's impl name (`LinkedKeySet`/`EntrySet`) on the JVM
-    // (KUU-4144).
     switch map?.count ?? 0 {
     case 0 where mapRaw == emptyMapSingletonRaw:
         return .named(
@@ -665,15 +581,9 @@ private func runtimeReflectedMapSetViewClass(
     return .named(typeID: runtimeReflectedImplTypeID(name), qualifiedName: name)
 }
 
-/// `Map.values` views. On the JVM a singleton map's values view reuses
-/// `java.util.Collections$SingletonSet` (an odd but verified alias) and an
-/// empty map's is `EmptyList`.
 private func runtimeReflectedMapValuesViewClass(mapRaw: Int) -> RuntimeReflectedClassIdentity {
     let mapTag = runtimeObjectTypeID(rawValue: mapRaw)
     let map = runtimeMapBox(from: mapRaw)
-    // Same canonical-empty split as the key/entry views: `emptyMap().values`
-    // is `EmptyList`, an emptied mutable map's values keeps the map's impl
-    // name (`LinkedValues`/`Values`) on the JVM (KUU-4144).
     switch map?.count ?? 0 {
     case 0 where mapRaw == emptyMapSingletonRaw:
         return .named(
@@ -701,10 +611,6 @@ private func runtimeReflectedMapValuesViewClass(mapRaw: Int) -> RuntimeReflected
     return .named(typeID: runtimeReflectedImplTypeID(name), qualifiedName: name)
 }
 
-/// `Map.Entry` handles are `RuntimePairBox`es; the mutable variant records
-/// its source map so `entries.first()::class` reports the map's node class
-/// (`java.util.LinkedHashMap$Entry`, `java.util.HashMap$Node`, ...).
-/// Source-less immutable entries match `java.util.AbstractMap$SimpleImmutableEntry`.
 private func runtimeReflectedMapEntryClass(rawValue: Int) -> RuntimeReflectedClassIdentity {
     guard let pair = resolveRuntimeHandle(rawValue, as: RuntimePairBox.self),
           pair.mutableMapRaw != 0
@@ -733,10 +639,6 @@ private func runtimeReflectedMapEntryClass(rawValue: Int) -> RuntimeReflectedCla
     return .named(typeID: runtimeReflectedImplTypeID(name), qualifiedName: name)
 }
 
-/// Iterator boxes. `RuntimeListIteratorBox` carries the reflected identity
-/// its creator resolved (the source collection is not retained); map
-/// iterators resolve theirs lazily through `mapRaw`. Sequence and misc
-/// iterators are anonymous classes on the JVM.
 private func runtimeReflectedIteratorClass(rawValue: Int) -> RuntimeReflectedClassIdentity? {
     if let iterator = runtimeListIteratorBox(from: rawValue) {
         guard iterator.reflectedClassID != 0 else { return nil }
@@ -763,9 +665,6 @@ private func runtimeReflectedIteratorClass(rawValue: Int) -> RuntimeReflectedCla
     return nil
 }
 
-/// `Map` view iterators (`keys`/`values`/`entries`): singleton maps produce
-/// JVM-anonymous `Collections$*` iterators, empty maps `EmptyIterator`, and
-/// the rest take the backing map's node-iterator name.
 private func runtimeReflectedMapViewIteratorClass(
     mapRaw: Int,
     kind: RuntimeMapViewKind
@@ -777,16 +676,12 @@ private func runtimeReflectedMapViewIteratorClass(
     return .anonymous(typeID: typeID)
 }
 
-/// Shared name table backing both the `RuntimeListIteratorBox` fields set at
-/// creation and the lazy `RuntimeMapIteratorBox` resolution.
 private func runtimeReflectedMapViewIteratorName(
     mapRaw: Int,
     kind: RuntimeMapViewKind
 ) -> (typeID: Int64, qualifiedName: String?) {
     let mapTag = runtimeObjectTypeID(rawValue: mapRaw)
     let map = runtimeMapBox(from: mapRaw)
-    // Only `emptyMap()`'s views produce `EmptyIterator`; an emptied mutable
-    // map's view iterator keeps the map's node-iterator class (KUU-4144).
     switch map?.count ?? 0 {
     case 0 where mapRaw == emptyMapSingletonRaw:
         let name = "kotlin.collections.EmptyIterator"
@@ -831,10 +726,6 @@ private func runtimeReflectedMapViewIteratorName(
     return (runtimeReflectedImplTypeID(name), name)
 }
 
-/// `List`/`Set` iterator identity resolved where the source collection is
-/// still reachable (`kk_list_iterator`, `kk_list_iterator_at`,
-/// `kk_mutable_list_listIterator`, sorted-view iterators). The tuple feeds
-/// `RuntimeListIteratorBox.reflectedClassID`/`reflectedClassName`.
 func runtimeReflectedListIteratorClass(
     sourceRaw: Int,
     list: RuntimeListBox,
@@ -848,16 +739,11 @@ func runtimeReflectedListIteratorClass(
     }
     if list.isArrayStorageView {
         if list.isPrimitiveArrayView {
-            // `IntArray.asList()` (and friends) is an anonymous
-            // `AbstractList` subclass on the JVM whose iterator comes from
-            // `kotlin.collections.AbstractList`'s implementation classes.
             let name = listIterator
                 ? "kotlin.collections.AbstractList.ListIteratorImpl"
                 : "kotlin.collections.AbstractList.IteratorImpl"
             return (runtimeReflectedImplTypeID(name), name)
         }
-        // `array.asList()` iterates with `Arrays$ArrayItr`; `listIterator`
-        // inherits `java.util.AbstractList`'s `ListItr`.
         let name = listIterator
             ? "java.util.AbstractList.ListItr"
             : "java.util.Arrays.ArrayItr"
@@ -876,15 +762,11 @@ func runtimeReflectedListIteratorClass(
         let name = listIterator ? "java.util.AbstractList.ListItr" : "java.util.AbstractList.Itr"
         return (runtimeReflectedImplTypeID(name), name)
     case runtimeListBuilderTypeID:
-        // `ListBuilder.Itr` already implements `ListIterator` on the JVM, so
-        // both `iterator()` and `listIterator()` return the same class.
         return (
             runtimeReflectedImplTypeID("kotlin.collections.builders.ListBuilder.Itr"),
             "kotlin.collections.builders.ListBuilder.Itr"
         )
     case arrayListRuntimeTypeID, listRuntimeTypeID, mutableListRuntimeTypeID:
-        // Only the shared `emptyList()` handle yields `EmptyIterator`; an
-        // emptied ArrayList keeps `java.util.ArrayList$Itr` (KUU-4144).
         if list.count == 0, sourceRaw == emptyListSingletonRaw {
             let name = "kotlin.collections.EmptyIterator"
             return (runtimeReflectedImplTypeID(name), name)
@@ -896,9 +778,6 @@ func runtimeReflectedListIteratorClass(
     }
 }
 
-/// Set iterator identity resolved at `kk_list_iterator`'s set branch.
-/// `MutableMap.keys`/`.entries` view iterators take the map's node-iterator
-/// name (`LinkedKeyIterator`/`EntryIterator` family).
 func runtimeReflectedSetIteratorClass(
     setRaw: Int,
     set: RuntimeSetBox
@@ -930,8 +809,6 @@ func runtimeReflectedSetIteratorClass(
         return (runtimeReflectedImplTypeID(name), name)
     default:
         switch set.count {
-        // Only the shared `emptySet()` handle yields `EmptyIterator`; an
-        // emptied LinkedHashSet keeps its `LinkedKeyIterator` (KUU-4144).
         case 0 where setRaw == emptySetSingletonRaw:
             let name = "kotlin.collections.EmptyIterator"
             return (runtimeReflectedImplTypeID(name), name)

@@ -11,7 +11,9 @@ fun String.substring(startIndex: Int, endIndex: Int = null!!): String = null!!
 fun String.substring(range: kotlin.ranges.IntRange): String = null!!
 fun String.trimIndent(): String = null!!
 fun String.replaceIndent(newIndent: String = null!!): String = null!!
+fun String.prependIndent(indent: String = null!!): String = null!!
 fun String.trimMargin(marginPrefix: String = null!!): String = null!!
+fun String.replaceIndentByMargin(newIndent: String = null!!, marginPrefix: String = null!!): String = null!!
 fun CharSequence.lines(): List<String> = null!!
 fun String.split(vararg delimiters: String, ignoreCase: Boolean = null!!, limit: Int = null!!): List<String> = null!!
 fun String.split(vararg delimiters: Char, ignoreCase: Boolean = null!!, limit: Int = null!!): List<String> = null!!

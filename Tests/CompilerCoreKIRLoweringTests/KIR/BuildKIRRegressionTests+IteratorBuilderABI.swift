@@ -4,10 +4,6 @@ import Testing
 @testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
-    /// KSP-651 / KUU-1359: `iterator {}` is produced through the coroutine/CPS
-    /// builder path whose runtime ABI takes (fnPtr, closureRaw) — the env slot
-    /// carries the builder lambda's captures and must always be present, even
-    /// when the block captures nothing.
     @Test func testIteratorBuilderPassesFnAndEnvToBuilder() throws {
         let source = """
         fun main() {

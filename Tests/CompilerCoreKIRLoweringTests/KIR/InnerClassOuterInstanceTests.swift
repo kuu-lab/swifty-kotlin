@@ -3,11 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// BUG-inner-outer: `inner class` members reading/writing an enclosing
-/// class's fields must go through the synthetic `$outer` link rather than
-/// aliasing whatever the inner class's own field happens to occupy at the
-/// same layout slot. See `Scripts/diff_cases/inner_class_outer_instance.kt`
-/// for the end-to-end repro.
 @Suite
 struct InnerClassOuterInstanceTests {
     private static let source = """
@@ -57,10 +52,6 @@ struct InnerClassOuterInstanceTests {
                        "Expected inner-class program to lower to KIR without errors, got: \(ctx.diagnostics.diagnostics.map(\.message))")
 
         let module = try #require(ctx.kir)
-        // `outer.Inner(2)` must allocate a genuine second object (its own
-        // `kk_object_new`) and store `outer` into its `$outer` slot before
-        // `<init>` runs -- not reuse `outer`'s own instance as `Inner`'s
-        // `this` (the root cause this fix addresses).
         let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         let mainCallees = extractCallees(from: mainBody, interner: ctx.interner)
         #expect(
@@ -83,12 +74,6 @@ struct InnerClassOuterInstanceTests {
                        "Expected inner-class program to lower to KIR without errors, got: \(ctx.diagnostics.diagnostics.map(\.message))")
 
         let module = try #require(ctx.kir)
-        // `x + y` inside `Inner.sum()` must read `y` directly off Inner's
-        // own `this` (1 read), but `x` only after first loading `$outer`
-        // (1 hop) and then reading `x` off that (1 read) -- 3 total.
-        // Aliasing (the bug) would collapse this to 2 reads, both against
-        // Inner's own `this`, silently reusing whatever field occupies the
-        // slot Outer's layout assigned `x`.
         let body = try findKIRFunctionBody(named: "sum", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
         let readCount = kirCalls(to: .arrayGetInbounds, in: body, interner: ctx.interner).count
@@ -132,24 +117,12 @@ struct InnerClassOuterInstanceTests {
         let body = try findKIRFunctionBody(named: "make", in: module, interner: ctx.interner)
         let wrappedValues = kirCalls(to: .functionCreate(arity: 1), in: body, interner: ctx.interner).compactMap(\.result)
         try #require(!wrappedValues.isEmpty, "Expected a function value retaining the captured suffix")
-        // Receiver-adapted materialization can wrap the same lambda more than
-        // once (e.g. __kk_function_copy_description chains); the constructor
-        // must receive one of those wrapped values, not the bare symbol.
         let constructor = try findKIRFunction(named: "Inner", in: module, interner: ctx.interner)
         #expect(kirCalls(to: constructor.symbol, in: body).contains {
             $0.arguments.dropFirst().contains { wrappedValues.contains($0) }
         }, "The constructor must receive the wrapped function value")
     }
 
-    /// BUG-inner-outer: `this@Outer` referenced from inside an object
-    /// literal's own member function, where `Outer` is reachable only
-    /// through *two* `inner class` `$outer` hops (the object literal sits
-    /// inside `Middle`, itself `inner` to `Outer`). This previously
-    /// regressed by misclassifying the qualified-`this` receiver as a
-    /// class-name (static/companion) receiver, which made `.tag` lower to
-    /// an unresolved bare call instead of a property read. See
-    /// `Scripts/diff_cases/inner_class_qualified_this_outer_chain.kt`
-    /// (verified against kotlinc: `hello/world`).
     @Test func testQualifiedThisResolvesAncestorTwoOuterHopsFromObjectLiteral() throws {
         let ctx = makeContextFromSource("""
         class Outer(val tag: String) {
@@ -179,13 +152,6 @@ struct InnerClassOuterInstanceTests {
         #expect(!callees.contains("mtag"), "this@Middle.mtag must not lower to an unresolved bare call, got: \(callees)")
     }
 
-    /// BUG-inner-outer: an object literal's member function reads an
-    /// immutable property declared on a class reachable only through *two*
-    /// `inner class` `$outer` hops. Capture analysis previously only
-    /// considered the immediate enclosing class, so `value` was never
-    /// captured and the read crashed or returned garbage. See
-    /// `Scripts/diff_cases/inner_class_object_literal_outer_property_capture.kt`
-    /// (verified against kotlinc: `42`).
     @Test func testObjectLiteralCapturesPropertyTwoOuterHopsOut() throws {
         let ctx = makeContextFromSource("""
         class Outer(val value: Int) {
@@ -307,12 +273,6 @@ struct InnerClassOuterInstanceTests {
         #expect(stores.count == 2, "Expected plain assignment and compound assignment to store the outer property.")
     }
 
-    /// KUU-4454: an inner class reading an *enclosing* class's property with
-    /// a custom getter must dispatch the accessor on the `$outer` instance,
-    /// not on the inner `this` — otherwise the getter applies the owner's
-    /// field offsets to the wrong object (garbage reads, or a
-    /// `kk_array_get_inbounds` panic when the offset exceeds the inner
-    /// instance's slot count, as in `ReentrantLock.ConditionObject`).
     @Test func testInnerClassOuterCustomGetterReceivesOuterInstance() throws {
         let ctx = makeContextFromSource("""
         class Outer {
@@ -344,9 +304,6 @@ struct InnerClassOuterInstanceTests {
         )
     }
 
-    /// KUU-4454: the write side of the same bug — a bare assignment to an
-    /// enclosing class's setter-backed property inside an inner class must
-    /// invoke the setter on the `$outer` instance.
     @Test func testInnerClassOuterCustomSetterReceivesOuterInstance() throws {
         let ctx = makeContextFromSource("""
         class Outer {

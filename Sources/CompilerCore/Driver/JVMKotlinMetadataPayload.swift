@@ -45,6 +45,7 @@ struct JVMKotlinFunction {
     var isOperator = false
     var isInfix = false
     var valueOperatorParameterDescriptors: [String]?
+    var valueMemberParameterDescriptors: [String]?
     var mangledMemberParameterDescriptors: [String]?
     var mangledExtensionReceiverDescriptor: String?
     var isGenericFinalGetter = false
@@ -755,8 +756,11 @@ struct JVMKotlinMetadataPayload {
                     hasDefaultValue: hasDefaultValue, isCrossinline: flags & 4 != 0, isNoinline: flags & 8 != 0))
                 hasFunctionTypes = hasFunctionTypes || type.contains("->")
             }
+            let isSuspend = flags & (1 << 13) != 0
             let isValueOperator = isValueClass && isOperator && receiver == nil && contextParameters.isEmpty
                 && JVMKotlinFunction.valueOperators.contains(name) && descriptor != nil
+            let isValueMember = isValueClass && !isSuspend && !isOperator && receiver == nil && contextParameters.isEmpty
+                && jvmName?.hasPrefix(name + "-") == true && descriptor != nil
             let isMangledMember = isFileFacade != true && receiver == nil && contextParameters.isEmpty
                 && jvmName?.hasPrefix(name + "-") == true && descriptor != nil && !isValueClass
             let mangledExtensionReceiverDescriptor: String? = if isFileFacade != true, contextParameters.isEmpty,
@@ -773,11 +777,10 @@ struct JVMKotlinMetadataPayload {
                 })
             guard valid, composableMemberNames.contains(jvmName ?? name)
                 || functionTypeMemberNames.contains(jvmName ?? name) && resultType.hasPrefix("kotlinx.coroutines.flow.Flow<")
-                || hasFunctionTypes || (isFileFacade == true) || receiver != nil || isInfix || isOperator || isValueOperator || isSubList
+                || hasFunctionTypes || (isFileFacade == true) || receiver != nil || isInfix || isOperator || isValueOperator || isValueMember || isSubList
                 || isGenericFinalGetter || isMangledMember || hasStableParameters || hasMemberDefaults else { continue }
-            let isSuspend = flags & (1 << 13) != 0
             var logicalParameterDescriptors: [String]?
-            if isValueOperator || isMangledMember {
+            if isValueOperator || isValueMember || isMangledMember {
                 let descriptors = try parameterMessages.compactMap { parameter in
                     try types.resolve(parameter, inline: 3, indexed: 5).flatMap {
                         try Self.resultType($0, types: types, names: names)?.descriptor
@@ -815,6 +818,7 @@ struct JVMKotlinMetadataPayload {
                 isOperator: isOperator,
                 isInfix: isInfix,
                 valueOperatorParameterDescriptors: isValueOperator ? logicalParameterDescriptors : nil,
+                valueMemberParameterDescriptors: isValueMember ? logicalParameterDescriptors : nil,
                 mangledMemberParameterDescriptors: isMangledMember ? logicalParameterDescriptors : nil,
                 mangledExtensionReceiverDescriptor: mangledExtensionReceiverDescriptor,
                 isGenericFinalGetter: isGenericFinalGetter,

@@ -52,7 +52,6 @@ struct SyntaxArenaTests {
         _ = arena.children(of: NodeID(rawValue: -50))
         _ = arena.children(of: NodeID(rawValue: Int32.max))
 
-        // Reading through invalid IDs must not disturb the real data.
         let node = arena.node(nodeID)
         #expect(node.kind == .callExpr)
         #expect(Array(arena.children(of: nodeID)) == [.token(tokenID)])
@@ -88,8 +87,6 @@ struct SyntaxArenaTests {
             currentChild = .node(nodeID)
         }
 
-        // Outermost inward: every level wraps exactly the node below it, and
-        // the innermost one wraps the leaf token.
         for level in stride(from: depth - 1, through: 0, by: -1) {
             let nodeID = allNodeIDs[level]
             let node = arena.node(nodeID)
@@ -123,7 +120,6 @@ struct SyntaxArenaTests {
         #expect(arena.tokens[1].range.start.offset == 2)
         #expect(arena.tokens[2].range.start.offset == 4)
 
-        // `token(_:)` is the bounds-checked accessor the parser itself uses.
         #expect(arena.token(idB) == tokenB)
         #expect(arena.token(TokenID(rawValue: 3)) == nil)
         #expect(arena.token(TokenID(rawValue: -1)) == nil)
@@ -175,7 +171,6 @@ struct SyntaxArenaTests {
 
         #expect(Array(arena.children(of: nodeID)) == [.token(tokenID)])
 
-        // end = firstChildIndex + childCount == children.count — boundary case for clamping
         let node = arena.node(nodeID)
         #expect(node.firstChildIndex == 0)
         #expect(node.childCount == 1)

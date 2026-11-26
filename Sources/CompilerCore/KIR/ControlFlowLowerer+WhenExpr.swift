@@ -203,22 +203,28 @@ extension ControlFlowLowerer {
            case let .isCheck(checkedExprID, _, negated, _) = conditionExpr,
            isSameWhenSubjectExpression(checkedExprID, subjectExprID: subjectExprID, sema: sema)
         {
-            let intType = sema.types.make(.primitive(.int, .nonNull))
-            let typeTokenLiteral: Int64 = if let targetType = sema.bindings.isCheckTargetType(for: conditionExprID) {
-                RuntimeTypeCheckToken.encode(
-                    type: driver.exprLowerer.runtimeIsCheckTargetType(
+            // Same token path as the plain `x is T` lowering so a reified `T`
+            // resolves to its runtime type token instead of a static literal.
+            let typeToken: KIRExprID
+            if let targetType = sema.bindings.isCheckTargetType(for: conditionExprID) {
+                typeToken = driver.exprLowerer.lowerTypeCheckTokenExpr(
+                    targetType: driver.exprLowerer.runtimeIsCheckTargetType(
                         subjectType: sema.bindings.exprType(for: checkedExprID),
                         targetType: targetType,
                         sema: sema
                     ),
                     sema: sema,
-                    interner: interner
+                    interner: interner,
+                    arena: arena,
+                    instructions: &instructions
                 )
             } else {
-                RuntimeTypeCheckToken.unknownBase
+                typeToken = arena.appendExpr(
+                    .intLiteral(RuntimeTypeCheckToken.unknownBase),
+                    type: sema.types.make(.primitive(.int, .nonNull))
+                )
+                instructions.append(.constValue(result: typeToken, value: .intLiteral(RuntimeTypeCheckToken.unknownBase)))
             }
-            let typeToken = arena.appendExpr(.intLiteral(typeTokenLiteral), type: intType)
-            instructions.append(.constValue(result: typeToken, value: .intLiteral(typeTokenLiteral)))
 
             let isResult = arena.appendTemporary(type: boolType)
             instructions.append(.call(

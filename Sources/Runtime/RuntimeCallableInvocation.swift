@@ -49,9 +49,6 @@ public func __kk_kcallable_register_return_type(_ raw: Int, _ returnTypeKTypeRaw
         state.callableRefMetadataByValue[raw] = metadata
         updatedMetadata = true
     }
-    // KUU-4423: member handles (`KClass.members` KFunction boxes and
-    // member-property stubs) have no callable metadata — pin the KType on
-    // the box itself so `returnType` keeps its classifier.
     if !updatedMetadata {
         if let box = runtimeReflectionObject(from: raw, as: RuntimeKFunctionBox.self) {
             box.returnTypeKTypeRaw = returnTypeKTypeRaw
@@ -109,9 +106,6 @@ public func __kk_kcallable_get_metadata(_ raw: Int, _ member: Int) -> Int {
     case 2:
         var visibilityOrdinal = metadata?.visibility
         if visibilityOrdinal == nil || !(0..<4).contains(visibilityOrdinal!) {
-            // KUU-4423: runtime member handles (KClass.members KFunction /
-            // member-property stubs) carry no callable metadata — read the
-            // ordinal the compiler pinned on the box itself.
             visibilityOrdinal = runtimeReflectionObject(from: raw, as: RuntimeKFunctionBox.self)?.visibilityOrdinal
                 ?? runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self)?.visibilityOrdinal
         }
@@ -232,11 +226,6 @@ private func runtimePropertyAccessor(_ raw: Int, isSetter: Bool) -> Int {
     return accessor
 }
 
-/// Parameter list served by `KProperty.getter`/`KMutableProperty.setter`
-/// (KUU-4091). On the JVM each accessor is its own KCallable; member
-/// (descriptor-backed) property accessors own every parameter box, while
-/// top-level/extension accessors share the property's receiver parameters
-/// and only the setter's value parameter is accessor-owned.
 private func runtimePropertyAccessorParameters(
     metadata: RuntimeCallableRefMetadata,
     isSetter: Bool,
@@ -248,16 +237,11 @@ private func runtimePropertyAccessorParameters(
             return metadata.setterParameters
         }
         if isMemberProperty {
-            // The compiler already tagged these boxes with the setter's own
-            // owner token (`targetSymbol * 2 + 2`); re-point their callable
-            // handle at the accessor so `of <callable>` renders it.
             for element in setterElements {
                 runtimeKParameterBox(from: element)?.callableRaw = accessorRaw
             }
             return metadata.setterParameters
         }
-        // Top-level/extension setter: `property.parameters` plus the
-        // setter's own value parameter — the receiver boxes stay shared.
         if let valueElement = setterElements.last {
             runtimeKParameterBox(from: valueElement)?.callableRaw = accessorRaw
         }
@@ -265,7 +249,6 @@ private func runtimePropertyAccessorParameters(
         return registerRuntimeObject(RuntimeListBox(elements: elements))
     }
     guard isMemberProperty else {
-        // `KotlinKProperty.Getter.parameters` is literally `property.parameters`.
         return metadata.parameters
     }
     guard let elements = callableArguments(metadata.parameters) else {
@@ -298,13 +281,6 @@ private func runtimeAccessorParameterClone(of element: Int, accessorRaw: Int) ->
     return cloneRaw
 }
 
-/// Builds the accessor's JVM-shaped callable description
-/// (`fun Owner.`<get-x>`(): T` / `fun Owner.`<set-x>`(T): kotlin.Unit`) from
-/// the property's own `val|var owner.name: T` description pinned at
-/// reference creation. Bound references carry the same text, so the owner
-/// prefix survives even though bound parameters are stripped. Returns nil
-/// when the property carries no description — the accessor then keeps the
-/// generic `kotlin.FunctionN` rendering.
 private func runtimePropertyAccessorFunctionDescription(
     propertyRaw: Int,
     name: String,
@@ -378,8 +354,6 @@ public func __kk_callable_ref_set_identity(_ callable: Int, _ targetRaw: Int, _ 
     }
 }
 
-/// Record equality identity for an adapted callable-reference function value
-/// without registering KFunction reflection metadata on the function object.
 @_cdecl("__kk_function_value_set_callable_ref_identity")
 public func __kk_function_value_set_callable_ref_identity(
     _ callable: Int,
@@ -546,9 +520,6 @@ public func __kk_kcallable_call(_ raw: Int, _ arguments: Int, _ outThrown: Unsaf
             return runtimeNullSentinelInt
         }
         guard let metadata = callableMetadata(raw) else {
-            // KUU-2947: a local delegated property stub has no real accessor —
-            // the JVM raises UnsupportedOperationException from call/callBy
-            // rather than an invalid-handle error.
             if let stub = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self),
                stub.isLocalDelegated
             {
@@ -606,12 +577,6 @@ public func __kk_kproperty0_get(
     }
 }
 
-/// `KPropertyN.getDelegate` (KUU-3694): delegated-property stubs answer the
-/// delegate handle the compiler stored beside the current getValue/setValue
-/// call (`__kk_kproperty_stub_set_delegate`); `::prop` wrappers and any other
-/// receiver dispatch through the registered itable method, whose impl reads
-/// the delegate storage directly. Stubs never given a delegate answer `null`
-/// — the JVM's answer for non-delegated and local delegated properties.
 @_cdecl("__kk_kproperty_get_delegate")
 public func __kk_kproperty_get_delegate(
     _ raw: Int,
@@ -701,7 +666,6 @@ public func __kk_kcallable_call_by(_ raw: Int, _ arguments: Int, _ outThrown: Un
             outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Invalid callable or parameter map.")
             return runtimeNullSentinelInt
         }
-        // Kotlin ignores map entries that do not correspond to this callable.
         var values: [Int] = []
         var mask = 0
         let receiverCount = parameters.prefix { runtimeKParameterInternalKind($0) != 2 }.count

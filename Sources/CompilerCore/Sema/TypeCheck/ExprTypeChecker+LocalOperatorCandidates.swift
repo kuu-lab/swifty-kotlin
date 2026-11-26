@@ -1,7 +1,4 @@
 extension ExprTypeChecker {
-    /// Local functions live in `LocalBindings` rather than the lexical scope
-    /// chain. Keep their operator extensions at the local extension tier and
-    /// leave inapplicable candidates to the next scope tier.
     func collectLocalOperatorExtensionCandidates(
         names: [InternedString],
         receiverType: TypeID,

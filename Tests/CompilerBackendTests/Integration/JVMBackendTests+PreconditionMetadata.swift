@@ -41,8 +41,6 @@ extension JVMBackendTests {
         let compiler = URL(fileURLWithPath: official[0]).deletingLastPathComponent().appendingPathComponent("kotlin-compiler.jar")
         try #require(FileManager.default.fileExists(atPath: compiler.path))
         try withWorkspace { root in
-            // Decode with Kotlin's protobuf implementation rather than checking
-            // the writer's own intermediate contract field.
             try #"""
             import java.net.URL;
             import java.net.URLClassLoader;

@@ -5,22 +5,14 @@ import java.io.InputStream
 import java.io.OutputStream
 import kotlin.internal.KsSymbolName
 
-/** Native source-backed `java.net.Socket`: a real TCP client socket backed by
- * POSIX sockets in the runtime. All traffic goes through
- * `socket`/`connect`/`send`/`recv` on the kernel descriptor, so the observable
- * behavior (bytes, timeouts, errors) matches the JDK. */
 public open class Socket : Closeable {
     private var handle: Long
     private var closed = false
 
-    /** Creates an unconnected socket. */
     public constructor() {
         handle = netSocketCreate()
     }
 
-    /** Creates a socket and connects it to `host`:`port`.
-     * @throws UnknownHostException if `host` cannot be resolved
-     * @throws ConnectException if the connection is refused or times out */
     public constructor(host: String, port: Int) : this() {
         connect(InetSocketAddress(host, port), 0)
     }
@@ -29,13 +21,10 @@ public open class Socket : Closeable {
         connect(InetSocketAddress(address, port), 0)
     }
 
-    /** Wraps a runtime-owned connected handle (accepted sockets). */
     internal constructor(rawHandle: Long) {
         handle = rawHandle
     }
 
-    /** Connects this socket to `endpoint`, optionally with a timeout in
-     * milliseconds (`0` = block forever). */
     public open fun connect(endpoint: SocketAddress) {
         connect(endpoint, 0)
     }
@@ -51,7 +40,6 @@ public open class Socket : Closeable {
         netSocketConnect(handle, resolved.hostAddress, endpoint.port, timeout)
     }
 
-    /** Binds the socket to a local address before connecting. */
     public open fun bind(bindpoint: SocketAddress) {
         if (closed) throw SocketException("Socket is closed")
         if (bindpoint !is InetSocketAddress) {
@@ -205,7 +193,6 @@ private external fun netSocketIsConnected(handle: Long): Boolean
 @KsSymbolName("__kk_net_socket_is_bound")
 private external fun netSocketIsBound(handle: Long): Boolean
 
-/** The peer's numeric address, or `null` when unconnected. */
 @KsSymbolName("__kk_net_socket_remote_address")
 private external fun netSocketRemoteAddress(handle: Long): String?
 

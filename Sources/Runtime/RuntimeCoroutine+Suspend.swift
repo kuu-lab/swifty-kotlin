@@ -19,10 +19,6 @@ public func kk_coroutine_yield(_ continuation: Int) -> Int {
         // loop's queue, giving every already-queued coroutine a turn first.
         _ = state.resume(with: 0)
     } else {
-        // Unbound (dispatcher-bound body, or a direct runtime call from a
-        // test): there is no queue to append to, so fall back to the original
-        // short-delay re-dispatch onto the global pool, which at least lets
-        // other dispatched coroutines get a turn.
         DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(1)) { [weak state] in
             _ = state?.resume(with: 0)
         }
@@ -53,7 +49,6 @@ private func runTimeoutBlock(
     if timeoutMillis <= 0 {
         return (true, 0, 0)
     }
-    // Protect setup as well as the queued callback from a concurrent test reset.
     let callerResetLease = RuntimeGCResetWorkLease()
     defer { callerResetLease.finish() }
     let scopeHandle = kk_coroutine_scope_new_detached()
@@ -77,9 +72,6 @@ private func runTimeoutBlock(
     let resultBox = RuntimeCoroutineResultStorage()
     let deadline = DispatchTime.now() + .milliseconds(timeoutMillis)
 
-    // A reset must also see a queued callback before its worker starts and
-    // pushes a shadow frame. The completion notification covers cancellation
-    // before execution as well as the normal and timed-out paths.
     let workerResetLease = RuntimeGCResetWorkLease()
     let workItem = DispatchWorkItem {
         defer { workerResetLease.finish() }
@@ -122,8 +114,6 @@ private func runTimeoutBlock(
     }
     if timedOut {
         workItem.cancel()
-        // Cancel the block's own job so an abandoned, still-suspended body observes
-        // cancellation cooperatively and unwinds instead of running to completion.
         blockJob.cancel(message: "TimeoutCancellationException")
         scope.cancel()
         _ = kk_coroutine_scope_wait(scopeHandle)
@@ -136,16 +126,6 @@ private func runTimeoutBlock(
     return (false, thrown == 0 ? result.result : 0, thrown)
 }
 
-/// If the block does not complete within `timeoutMillis`, a
-/// `TimeoutCancellationException` is reported through the `outThrown` ABI
-/// channel so enclosing Kotlin `try`/`catch` can observe it.
-///
-/// This used to `runtimeStructuredPanic` on expiry, which made the timeout an
-/// uncatchable trap: `catch (e: TimeoutCancellationException)` (and even
-/// `catch (e: CancellationException)`) could not be expressed. Only the *caller's*
-/// job is left untouched here -- the expired block's own job is already cancelled
-/// by `runTimeoutBlock` -- so `runBlocking` keeps running statements after the
-/// catch, matching kotlinx.coroutines.
 @_cdecl("kk_with_timeout")
 public func kk_with_timeout(
     _ timeoutMillis: Int,
@@ -170,13 +150,11 @@ public func kk_with_timeout(
     }
 }
 
-/// Legacy non-throwing ABI; new Kotlin calls use the throwing bridge below.
 @_cdecl("kk_with_timeout_or_null")
 public func kk_with_timeout_or_null(_ timeoutMillis: Int, _ entryPointRaw: Int, _ continuation: Int) -> Int {
     kk_with_timeout_or_null_throwing(timeoutMillis, entryPointRaw, continuation, nil)
 }
 
-/// Returns null only for this deadline's expiry; block failures propagate unchanged.
 @_cdecl("kk_with_timeout_or_null_throwing")
 public func kk_with_timeout_or_null_throwing(
     _ timeoutMillis: Int,
@@ -264,9 +242,6 @@ func runtimeRunBlockingOnEventLoop(
         ? RuntimeCoroutineScope(context: state?.makeContinuationContext() ?? RuntimeCoroutineContext()) : nil
     if let ownedScope {
         state?.scope = ownedScope
-        // The owned scope's job is this blocking coroutine's job, so suspend
-        // values invoked inside it keep observing `coroutineContext.job`
-        // (KUU-964) and a scope cancel reaches the job itself.
         if let job = state?.jobHandle {
             ownedScope.adoptJob(job)
         }
@@ -300,8 +275,6 @@ func runtimeRunBlockingOnEventLoop(
     }
     let outcome = Outcome()
 
-    // Async path: the entry loop returns as soon as the body suspends, so the
-    // drain below -- not a parked thread -- is what carries it to completion.
     _ = runSuspendEntryLoopWithContinuation(
         entryPointRaw: entryPointRaw,
         continuation: continuation,
@@ -328,8 +301,6 @@ func runtimeRunBlockingOnEventLoop(
     let thrown = priorChildFailure != 0 ? priorChildFailure
         : (childThrown != 0 && (bodyThrown == 0 || kk_is_cancellation_exception(bodyThrown) != 0)
             ? childThrown : bodyThrown)
-    // Same contract as the previous synchronous path: report the failure
-    // through `outThrown` and hand back 0 as the value.
     outThrown?.pointee = thrown
     return thrown != 0 ? 0 : result
 }
@@ -358,17 +329,6 @@ func runSuspendEntryLoopWithContinuation(
         return 0
     }
 
-    // CORO-004: Continuation-based suspend/resume.
-    //
-    // Instead of blocking a GCD thread on DispatchSemaphore.wait() when the
-    // coroutine suspends, we use a DispatchSemaphore only at the *outermost*
-    // level (the completion gate) and install a non-blocking continuation
-    // closure for each internal suspend point.
-    //
-    // The completion gate semaphore is only used by the synchronous path
-    // (runBlocking, join, await).  The async path (onCompletion != nil) never
-    // blocks any GCD thread — the completion callback is invoked instead.
-
     let completionGate: DispatchSemaphore? = onCompletion == nil ? DispatchSemaphore(value: 0) : nil
     // Companion to `completionGate` for the case where the *caller* is draining
     // a runBlocking event loop: parking on the semaphore there would stall the
@@ -377,17 +337,11 @@ func runSuspendEntryLoopWithContinuation(
     let syncCompleted = RuntimeCompletionFlag()
     let resultBox = RuntimeCoroutineResultStorage()
 
-    // CORO-003: Install the scope carried by this continuation into the
-    // task-scope map so that child launches dispatched on this thread can
-    // discover their parent scope without TLS.
     let contState = runtimeContinuationState(from: continuation)
     contState?.suspendDriveEntryPointRaw = entryPointRaw
     let cancellationJob = contState?.jobHandle
     let cancellationHandler = cancellationJob?.addCompletionHandler(onCancelling: true) { [weak contState, weak cancellationJob] _ in
         guard let contState, let cancellationJob, cancellationJob.cancellationSnapshot() else { return }
-        // The launcher's primary state is already signalled by Job.cancel.
-        // A borrowed suspend-value loop has its own suspended continuation,
-        // including event-loop drivers that use an asynchronous callback.
         if cancellationJob.continuationState?.containsSuspendedContinuation(contState) != true {
             contState.signalResume(isCancellation: true)
         }
@@ -425,9 +379,6 @@ func runSuspendEntryLoopWithContinuation(
         }
     }
     let boundEventLoop = contState?.eventLoop
-    // Capture this thread's ambient bindings before minting a fresh key so a
-    // nested loop (e.g. a `coroutineScope { }` block's entry loop) hands them
-    // back on exit (KUU-964).
     let outerTaskKey = RuntimeCoroutineScopeTaskKey.installedKey
     let outerJob = RuntimeJobHandle.current
     let currentTaskKey = RuntimeCoroutineScopeTaskKey.installFreshKey()
@@ -437,23 +388,11 @@ func runSuspendEntryLoopWithContinuation(
 
     let suspendedToken = Int(bitPattern: kk_coroutine_suspended())
 
-    // The loop body is factored into a closure so it can be re-entered from
-    // the resume continuation without recursion or blocking.
-    //
-    // Using a box to hold the closure so it can reference itself.
-    // The parameter is the resumer's thrown slot — non-nil only when a
-    // `resume` call invoked this burst synchronously (see signalResume).
     final class LoopBodyBox: @unchecked Sendable {
         var body: ((UnsafeMutablePointer<Int>?) -> Void)?
     }
     let loopBodyBox = LoopBodyBox()
 
-    // Shared mutable state for the task key, protected by the single-shot
-    // continuation model (only one invocation of the loop body runs at a time).
-    // `outerKey`/`outerJob` hold the ambient bindings this loop displaced —
-    // captured per burst so that, whichever thread a burst ends on, exiting
-    // the loop hands back that thread's previous ambient state instead of
-    // leaving the thread keyless (KUU-964).
     final class TaskKeyBox: @unchecked Sendable {
         var key: RuntimeTaskKey
         var outerKey: RuntimeTaskKey?
@@ -474,10 +413,6 @@ func runSuspendEntryLoopWithContinuation(
         RuntimeCoroutineDebugProbes.shared.markRunning(continuation: continuation)
         RuntimeBurstJobStack.current.push(contState?.jobHandle)
         defer { RuntimeBurstJobStack.current.pop() }
-        // Run every burst -- the initial one kicked off below and each resumed
-        // one -- with the bound event loop installed, so a `launch{}` inside
-        // the body and the pending-launch flush at the bottom queue onto it
-        // rather than onto the global pool.
         let outerEventLoop = RuntimeEventLoop.current
         RuntimeEventLoop.current = contState?.blockingScheduler != nil ? boundEventLoop : (boundEventLoop ?? outerEventLoop)
         defer { RuntimeEventLoop.current = outerEventLoop }
@@ -486,9 +421,6 @@ func runSuspendEntryLoopWithContinuation(
             RuntimeDispatcher.current = scheduler.dispatcher
         }
         defer { RuntimeDispatcher.current = outerDispatcher }
-        // BUG-041: mark this thread as synchronously running a coroutine body
-        // for the duration of `entryPoint`'s call below, so RuntimePendingLaunchQueue
-        // knows any `launch{}` it makes has a real burst to be flushed at.
         RuntimeCoroutineBurstDepth.enter()
         var thrownValue = 0
         var result: Int
@@ -510,9 +442,6 @@ func runSuspendEntryLoopWithContinuation(
         } while thrownValue == 0 && result == suspendedToken
             && (contState?.consumeInlineExceptionalDelivery() ?? false)
         if thrownValue != 0 {
-            // BUG-041: this burst is ending (with a thrown exception); dispatch
-            // anything it `launch`-ed for real now that no more synchronous
-            // code on this thread can race a cancel() against them.
             RuntimeCoroutineBurstDepth.exit()
             RuntimePendingLaunchQueue.flush()
             cancellationJob?.removeCompletionHandler(id: cancellationHandler)
@@ -538,8 +467,6 @@ func runSuspendEntryLoopWithContinuation(
             return
         }
         if result != suspendedToken {
-            // BUG-041: burst completed with a concrete result; flush before
-            // signalling completion for the same reason as the thrown path.
             RuntimeCoroutineBurstDepth.exit()
             RuntimePendingLaunchQueue.flush()
             cancellationJob?.removeCompletionHandler(id: cancellationHandler)
@@ -559,8 +486,6 @@ func runSuspendEntryLoopWithContinuation(
             return
         }
         guard let state = runtimeContinuationState(from: continuation) else {
-            // BUG-041: defensive terminal fallback; flush for consistency with
-            // the other exit paths above.
             RuntimeCoroutineBurstDepth.exit()
             RuntimePendingLaunchQueue.flush()
             cancellationJob?.removeCompletionHandler(id: cancellationHandler)
@@ -599,21 +524,12 @@ func runSuspendEntryLoopWithContinuation(
         let burstOuterKey = taskKeyBox.outerKey
         let burstOuterJob = taskKeyBox.outerJob
         state.installResumeContinuation { resumeThrown in
-            // CORO-003: After suspend/resume we are on a (possibly different)
-            // GCD thread.  Re-install the task key so the scope map lookup
-            // still works.
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
             RuntimeContinuationState.removeState(forTask: taskKeyBox.key)
-            // Resumed on a (possibly different) thread — capture that thread's
-            // displaced ambient bindings so a burst ending here restores them.
             let displacedKey = RuntimeCoroutineScopeTaskKey.installedKey
             let displacedJob = RuntimeJobHandle.current
             taskKeyBox.outerKey = displacedKey
             taskKeyBox.outerJob = displacedJob
-            // A resumed burst can suspend again without entering a terminal
-            // branch. Restore this worker's ambient bindings on that path too,
-            // using burst-local snapshots so nested inline resumes cannot
-            // replace the values this invocation must restore.
             defer {
                 RuntimeCoroutineScopeTaskKey.restoreKey(displacedKey)
                 RuntimeJobHandle.current = displacedJob
@@ -660,9 +576,6 @@ func runSuspendEntryLoopWithContinuation(
         return completed.result
     }
 
-    // Async path: return immediately.  The resume continuation chain handles
-    // global-map cleanup (currentTaskKey entries) when the loop eventually
-    // completes.  Clean up only the initial thread's locals here.
     RuntimeCoroutineScopeTaskKey.restoreKey(outerTaskKey)
     RuntimeJobHandle.current = outerJob
     return 0

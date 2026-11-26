@@ -282,7 +282,19 @@ public struct JVMForeignMethod: Sendable {
     var kotlinConstructorParameterSourceTypes: [String]?
     var kotlinCollisionSourceName: String?
     var kotlinFunction: JVMKotlinFunction?
+    /// Set when the classfile body calls `reifiedOperationMarker`: it cannot run
+    /// directly and needs a per-call-site clone with the markers resolved.
+    public var reifiedBody: JVMReifiedBody?
     public var isConstructor: Bool { name == "<init>" }
+    var isHiddenByDeprecation: Bool {
+        annotations.contains { annotation in
+            guard annotation.descriptor == "Lkotlin/Deprecated;" else { return false }
+            return annotation.values.contains { name, value in
+                if name == "level", case .enumEntry("Lkotlin/DeprecationLevel;", "HIDDEN") = value { return true }
+                return false
+            }
+        }
+    }
 }
 
 public struct JVMField {
@@ -382,7 +394,51 @@ public struct JVMClass {
     public var typeParameters: [JVMTypeParameter] = []
     public var kotlinSupertypes: [JVMKotlinType] = []
     public var modifiers: Modifiers = []
+    /// Clones of classpath bodies. All clones of a class share the constant
+    /// pool of the classfile they were copied from.
+    public var reifiedClones: [JVMReifiedClone] = []
     public var isInterface: Bool { access & 0x0200 != 0 }
+}
+
+/// A copy of a classpath method body with its `reifiedOperationMarker`
+/// sequences replaced by operations on concrete types. The copy keeps the
+/// source class's constant pool indices, so only the patched sequences differ.
+public struct JVMReifiedClone: Sendable {
+    public enum Operation: Sendable {
+        case anewarray(String)
+        case checkcast(String)
+        /// Fails on null with `message` before casting, like a Kotlin `as` to a non-null type.
+        case checkcastNotNull(String, message: String)
+        case instanceOf(String)
+        case ldcClass(String)
+        /// Calls a static helper in the clone's class, then optionally casts the result.
+        case helperCall(name: String, descriptor: String, checkcast: String?)
+    }
+
+    public struct Patch: Sendable {
+        /// The marker's first instruction and the end of its placeholder instruction.
+        public let start: Int
+        public let end: Int
+        public let operation: Operation
+
+        public init(start: Int, end: Int, operation: Operation) {
+            self.start = start
+            self.end = end
+            self.operation = operation
+        }
+    }
+
+    public let name: String
+    public let descriptor: String
+    public let body: JVMReifiedBody
+    public let patches: [Patch]
+
+    public init(name: String, descriptor: String, body: JVMReifiedBody, patches: [Patch]) {
+        self.name = name
+        self.descriptor = descriptor
+        self.body = body
+        self.patches = patches
+    }
 }
 
 public struct JVMExceptionHandler {

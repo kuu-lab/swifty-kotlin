@@ -4,10 +4,6 @@ import Foundation
 import Testing
 
 extension JVMBackendTests {
-    /// Kotlin classpath classes must expose their declared supertype type
-    /// arguments from metadata (`abstract class JsonArrayLike : List<String>`
-    /// built by kotlinc). Without them the stub degrades to `List<Any>` and
-    /// `forEach` lambda parameters lose their element type.
     @Test
     func classpathKotlinSupertypeKeepsMetadataArguments() throws {
         try withWorkspace { root in
@@ -41,9 +37,6 @@ extension JVMBackendTests {
         }
     }
 
-    /// Supertype argument nullability must survive metadata decoding:
-    /// unguarded access on a `List<String?>` element is rejected like stock
-    /// kotlinc, while the safe-call form is accepted.
     @Test
     func classpathKotlinSupertypePreservesArgumentNullability() throws {
         try withWorkspace { root in

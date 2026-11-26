@@ -25,8 +25,6 @@ private func javaNetTimeval(timeoutMillis: Int) -> timeval {
     )
 }
 
-// MARK: - Throwable boxes for java.net / java.awt exceptions
-
 private final class RuntimeJavaNetExceptionBox: RuntimeThrowableBox {
     private let fqName: String
     private let simpleName: String
@@ -105,17 +103,11 @@ private func javaNetErrorMessage(_ code: Int32) -> String {
     String(cString: strerror(code))
 }
 
-/// Decodes a NUL-terminated `[CChar]` buffer as UTF-8; the array-taking
-/// `String(cString:)` overload is deprecated.
 func javaNetUTF8String(fromCString buffer: [CChar]) -> String {
     let end = buffer.firstIndex(of: 0) ?? buffer.count
     return String(decoding: buffer[..<end].map { UInt8(bitPattern: $0) }, as: UTF8.self)
 }
 
-/// Formats a numeric host the way the JDK `InetAddress.getHostAddress` does:
-/// IPv6 is uncompressed eight-group lowercase hex without leading zeros, and
-/// IPv4-mapped `::ffff:a.b.c.d` collapses to the IPv4 form (the JDK models it
-/// as an `Inet4Address`). A `%zone` scope suffix is preserved.
 private func javaNetNumericHost(_ text: String) -> String {
     guard text.contains(":") else { return text }
     var scope = ""
@@ -136,8 +128,6 @@ private func javaNetNumericHost(_ text: String) -> String {
     }
     return groups.joined(separator: ":") + scope
 }
-
-// MARK: - DNS / InetAddress
 
 private func javaNetResolveAll(_ host: String) -> [String] {
     var hints = addrinfo()
@@ -226,8 +216,6 @@ public func __kk_net_local_host_name() -> Int {
     return runtimeMakeUTF8StringRaw("localhost")
 }
 
-// MARK: - Socket box
-
 private enum JavaNetSocketOption {
     static let soTimeout = 0
     static let soReuseAddr = 1
@@ -289,9 +277,6 @@ private func javaNetSocket(_ raw: Int) -> RuntimeJavaNetSocketBox? {
     return tryCast(ptr, to: RuntimeJavaNetSocketBox.self)
 }
 
-/// An input stream reading from a socket. Honors SO_RCVTIMEO (`setSoTimeout`):
-/// a timed-out `recv` reports a pending `SocketTimeoutException` rather than
-/// a plain `IOException`, matching `SocketInputStream` on the JVM.
 private final class RuntimeSocketInputStreamBox: RuntimeInputStreamBox, RuntimeInputStreamThrowableCarrier, RuntimeChunkedInputStream {
     private let socket: RuntimeJavaNetSocketBox
     private var streamClosed = false
@@ -334,7 +319,6 @@ private final class RuntimeSocketInputStreamBox: RuntimeInputStreamBox, RuntimeI
     }
 
     override func available() -> Int {
-        // FIONREAD is not exposed to Swift on Darwin; report unknown.
         return 0
     }
 
@@ -780,8 +764,6 @@ public func __kk_net_socket_is_input_shutdown(_ boxRaw: Int) -> Int {
 public func __kk_net_socket_is_output_shutdown(_ boxRaw: Int) -> Int {
     (javaNetSocket(boxRaw)?.outputShutdown ?? false) ? 1 : 0
 }
-
-// MARK: - ServerSocket box
 
 private final class RuntimeJavaNetServerSocketBox {
     var fd: Int32 = -1

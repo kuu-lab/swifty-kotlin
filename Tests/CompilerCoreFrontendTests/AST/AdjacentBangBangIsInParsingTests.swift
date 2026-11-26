@@ -5,8 +5,6 @@ import Testing
 
 @Suite
 struct AdjacentBangBangIsInParsingTests {
-    // Kotlin treats the second `!` as the start of `!is`/`!in` when there is
-    // no trivia, so the parser must not accept the sequence as `!!` + operator.
     @Test(arguments: [
         "5 !!is Int",
         "5 !!in listOf(5)",
