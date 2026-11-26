@@ -37,7 +37,7 @@ extension JVMProgramBuilder {
             let params = (extensionReceiver.map { [$0] } ?? []) + explicitParameters
             let jvmName: String
             if case .unsignedArray? = extensionReceiver,
-               ["kotlin/collections/ArraysKt", "kotlin/collections/unsigned/UArraysKt"].contains(owner) {
+               ["kotlin/collections/ArraysKt", "kotlin/collections/UArraysKt", "kotlin/collections/unsigned/UArraysKt"].contains(owner) {
                 let hashArguments = params.map(valueClassMangleElement).joined()
                 jvmName = explicitName ?? name + "-" + JVMNameHash.suffix(hashArguments)
             } else if params.contains(where: { $0.unsignedName != nil }) {

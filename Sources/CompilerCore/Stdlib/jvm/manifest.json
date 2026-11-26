@@ -568,7 +568,7 @@
       "path": "declarations/UnsignedArrayConversions.kt",
       "virtualPath": "<kswiftk-jvm>/unsigned-array-conversions.kt",
       "excludeFromStdlibBuild": true,
-      "runtimeFacade": "kotlin/collections/unsigned/UArraysKt"
+      "runtimeFacade": "kotlin/collections/UArraysKt"
     },
     {
       "path": "declarations/UnsignedArrayOperations.kt",
