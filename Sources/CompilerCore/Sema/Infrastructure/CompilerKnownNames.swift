@@ -600,6 +600,7 @@ package struct KnownCompilerNames {
     let kotlinCoroutinesContinuationInterceptorKeyFQName: [InternedString]
     let kotlinCoroutinesCoroutineContextElementFQName: [InternedString]
     let kotlinCoroutinesEmptyCoroutineContextFQName: [InternedString]
+    let kotlinCoroutinesIntrinsicsCoroutineSuspendedFQName: [InternedString]
     package let kotlinxCoroutinesCoroutineDispatcherFQName: [InternedString]
     let kotlinxCoroutinesBroadcastChannelFQName: [InternedString]
     let kotlinxCoroutinesFlowPackageFQName: [InternedString]
@@ -1261,6 +1262,7 @@ package struct KnownCompilerNames {
         kotlinCoroutinesContinuationInterceptorKeyFQName = ["kotlin", "coroutines", "ContinuationInterceptor", "Key"].map(interner.intern)
         kotlinCoroutinesCoroutineContextElementFQName = ["kotlin", "coroutines", "CoroutineContext", "Element"].map(interner.intern)
         kotlinCoroutinesEmptyCoroutineContextFQName = ["kotlin", "coroutines", "EmptyCoroutineContext"].map(interner.intern)
+        kotlinCoroutinesIntrinsicsCoroutineSuspendedFQName = ["kotlin", "coroutines", "intrinsics", "COROUTINE_SUSPENDED"].map(interner.intern)
         kotlinxCoroutinesCoroutineDispatcherFQName = ["kotlinx", "coroutines", "CoroutineDispatcher"].map(interner.intern)
         kotlinxCoroutinesBroadcastChannelFQName = ["kotlinx", "coroutines", "channels", "BroadcastChannel"].map(interner.intern)
         kotlinxCoroutinesFlowPackageFQName = ["kotlinx", "coroutines", "flow"].map(interner.intern)
