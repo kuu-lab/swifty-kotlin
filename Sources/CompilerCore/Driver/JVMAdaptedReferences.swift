@@ -103,8 +103,6 @@ extension JVMFunctionBuilder {
         return try constructJDK(name, parameters: captures.map(\.type), arguments: captures)
     }
 
-    /// `signatureName` is the JVM method name when it differs from the Kotlin
-    /// name (`@JvmName`); the reference still reports the Kotlin name.
     func initializeReferenceSuperclass(_ generated: inout JVMClass, arity: Int, bound: JVMValue?, sourceOwner: String, sourceName: String, signatureName: String? = nil, sourceDescriptor: String, flags: Int32) throws {
         var ctor = generated.functions[0]
         var slot = ctor.locals.map { $0.slot + $0.type.width }.max() ?? 1

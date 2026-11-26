@@ -4,9 +4,6 @@ import Foundation
 import Testing
 
 extension JVMBackendTests {
-    /// Text functions lowered from `JVMTextOperation` rows (including the
-    /// `@InlineOnly` ones with no stdlib body) and runtime-facade text
-    /// declarations must be usable as callable references, not only as calls.
     private static func kuu4734TextReferenceSource(printReference: Bool) -> String {
         """
     fun apply(f: (String) -> Unit) { f("x") }
@@ -78,7 +75,7 @@ extension JVMBackendTests {
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func kuu4734TextCallableReferencesRunOnOwnAndOfficialRuntimes(mode: EmitMode) throws {
         try withWorkspace { root in
-            // The official lane carries kotlin-reflect, so only invocation is compared here.
+            // The official lane carries kotlin-reflect, which changes the reference's toString().
             try runRuntimeParity(Self.kuu4734TextReferenceSource(printReference: false), expected: Self.kuu4734TextReferenceExpected(printReference: false), mode: mode, root: root)
         }
     }
@@ -90,7 +87,6 @@ extension JVMBackendTests {
             let compiled = try compile(Self.kuu4734TextReferenceSource(printReference: true), root: root, mode: mode)
             try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
             let artifact = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path
-            // Without kotlin-reflect the references must still invoke directly.
             let generated = try java(["-cp", artifact + ":" + runtime, "HelloKt"])
             #expect(generated.stdout == Self.kuu4734TextReferenceExpected(printReference: true))
             #expect(generated.stderr.isEmpty)
@@ -100,8 +96,6 @@ extension JVMBackendTests {
         }
     }
 
-    /// The bundled stdlib lacked the ranged `encodeToByteArray` overload, so
-    /// both calls and references to it failed with `NoSuchMethodError` there.
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func kuu4734RangedEncodeToByteArrayMatchesOnBothRuntimes(mode: EmitMode) throws {
         try withWorkspace { root in
@@ -128,13 +122,10 @@ extension JVMBackendTests {
         }
     }
 
-    /// `KFunction.call` looks the target up by the recorded JVM signature, so
-    /// it must name the real declaration (`CharSequence.repeat`, not the JVM
-    /// stub's `String.repeat`). The official runtime refuses reflective calls
-    /// into stdlib multifile facades even for kotlinc output, so only the
-    /// bundled runtime is exercised.
     @Test
     func kuu4734TextReferenceReflectiveCallUsesRealSignature() throws {
+        // The official runtime rejects reflective calls into stdlib multifile facades,
+        // even for kotlinc output (IllegalCallableAccessException).
         let library = try ownStdlibLibrary()
         try withWorkspace { root in
             let source = """
@@ -152,6 +143,55 @@ extension JVMBackendTests {
             let execution = try java(["-cp", app.0.path + ":" + library.path, "HelloKt"])
             #expect(execution.stdout == "a\nabab\n[a, b]\n")
             #expect(execution.stderr.isEmpty)
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func kuu4734NullableReceiverAndInlineOnlyTextReferences(mode: EmitMode) throws {
+        try withWorkspace { root in
+            try runRuntimeParity("""
+            fun main() {
+                val missing: String? = null
+                val fromNull: (CharSequence?) -> Boolean = missing::contentEquals
+                println(fromNull(null))
+                println(fromNull("a"))
+                val fromText: (CharSequence?) -> Boolean = "ab"::contentEquals
+                println(fromText(null))
+                println(fromText("ab"))
+                println("abc".replaceFirstChar { 'X' })
+                println("abc".replaceFirstChar { "<" + it + ">" })
+                println("".replaceFirstChar { 'X' })
+                val withChar: (String, (Char) -> Char) -> String = String::replaceFirstChar
+                println(withChar("abc") { it + 1 })
+                val withText: (String, (Char) -> CharSequence) -> String = String::replaceFirstChar
+                println(withText("abc") { "[$it]" })
+            }
+            """, expected: """
+            true
+            false
+            false
+            true
+            Xbc
+            <a>bc
+
+            bbc
+            [a]bc
+
+            """, mode: mode, root: root)
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func kuu4734SuspendConvertedTextReference(mode: EmitMode) throws {
+        try withWorkspace { root in
+            try runRuntimeParity("""
+            suspend fun main() {
+                val trim: suspend (String) -> String = String::trimIndent
+                println(trim("  a"))
+                val take: suspend (String, Int) -> String = String::take
+                println(take("hello", 2))
+            }
+            """, expected: "a\nhe\n", mode: mode, root: root)
         }
     }
 

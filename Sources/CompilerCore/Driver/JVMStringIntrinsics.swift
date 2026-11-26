@@ -147,9 +147,6 @@ extension JVMFunctionBuilder {
         return JVMIntrinsicResult(value: try emitTextOperation(op, source: source, values: values))
     }
 
-    /// Lower one selected text operation once its receiver and every parameter
-    /// value (including fallbacks) are available. Calls and callable
-    /// references share this so both observe the same JVM/JDK target.
     func emitTextOperation(_ op: JVMTextOperation, source: JVMValue, values: [JVMValue]) throws -> JVMValue {
         let name = op.name
         if ["isEmpty", "isNotEmpty"].contains(name) {

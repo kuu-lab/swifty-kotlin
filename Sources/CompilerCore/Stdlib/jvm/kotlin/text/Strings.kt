@@ -512,8 +512,6 @@ public fun String.encodeToByteArray(startIndex: Int = 0, endIndex: Int = this.le
     if (startIndex < 0 || endIndex > length) throw IndexOutOfBoundsException("startIndex: $startIndex, endIndex: $endIndex, size: $length")
     if (startIndex > endIndex) throw IllegalArgumentException("startIndex: $startIndex > endIndex: $endIndex")
     if (throwOnInvalidSequence) {
-        // UTF-8 maps every scalar value, so only an unpaired surrogate is
-        // malformed; Kotlin/JVM's REPORT encoder rejects it with length 1.
         var index = startIndex
         while (index < endIndex) {
             val code = this[index].code

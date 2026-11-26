@@ -1,13 +1,7 @@
 import Foundation
 
-/// How a text callable reference invokes its target once the receiver and
-/// every parameter value are known.
 private enum JVMTextReferenceTarget {
-    /// A `JVMTextOperation` row: the same lowering a direct call uses, which
-    /// covers `@InlineOnly` functions that have no runtime body (`String.trim()`).
     case operation(JVMTextOperation)
-    /// A runtime-facade text declaration with a public static body; omitted
-    /// defaulted parameters go through its `$default` bridge like a call does.
     case facade(JVMForeignMethod, [ValueParamDecl])
 
     var parameters: [JVMTextParameter] {
@@ -19,9 +13,6 @@ private enum JVMTextReferenceTarget {
 }
 
 extension JVMFunctionBuilder {
-    /// Resolve a text extension that has no ordinary JVM method or reference
-    /// entry. Only declarations from the JVM text surface qualify, so user and
-    /// classpath functions with the same name are never redirected here.
     private func textReferenceTarget(_ symbol: SymbolID, signature: FunctionSignature) throws -> JVMTextReferenceTarget? {
         guard program.methods[symbol] == nil, context.jvmImports?.method(for: symbol) == nil, program.references[symbol] == nil,
               program.inlineDeclarations[symbol] == nil, !signature.isSuspend,
@@ -54,18 +45,12 @@ extension JVMFunctionBuilder {
         return operation.map(JVMTextReferenceTarget.operation)
     }
 
-    /// `String::trimIndent`, `"abc"::take`, ... compile to a reference class
-    /// whose `invoke` calls a static helper performing the call-site lowering,
-    /// so the reference works on runtimes without kotlin-reflect and for
-    /// functions the Kotlin stdlib only provides as inline bodies.
     func textReference(_ id: ExprID, symbol: SymbolID, receiver: ExprID?, unbound: Bool) throws -> JVMValue? {
         guard let signature = program.sema.symbols.functionSignature(for: symbol),
               let target = try textReferenceTarget(symbol, signature: signature) else { return nil }
-        // Plain references resolve through the identifier binding alone; only
-        // adapted shapes (defaults, varargs, Unit results) carry a reference binding.
         let binding = program.sema.bindings.callableReferenceBinding(for: id)
         guard let function = functionType(id), function.contextReceivers.isEmpty,
-              binding?.boundContextParameterTypes.isEmpty != false, !function.isSuspend else {
+              binding?.boundContextParameterTypes.isEmpty != false else {
             throw fail("Unsupported JVM text callable reference shape.", id)
         }
         let bound = unbound ? nil : try receiver.map(requireValue) ?? implicitExtensionReceiver(id)
@@ -78,7 +63,7 @@ extension JVMFunctionBuilder {
         let container = owner?.name ?? program.facadeName, name = container + "$Reference" + String(number)
         let helperRef = JVMFunctionReference(name: "$textReference" + String(number), parameters: captures.map(\.type) + inputTypes, result: resultType, owner: container, ownerIsInterface: owner?.isInterface == true)
         let helper = JVMFunctionBuilder(program: program, declaration: FunDecl(range: arena.exprRange(id)!, name: context.interner.intern(helperRef.name), modifiers: [], body: .unit), reference: helperRef, owner: owner)
-        helper.isStaticBody = true
+        helper.isStaticBody = true; helper.isSuspendBody = function.isSuspend
         let inputs = try helperRef.parameters.map { try helper.value($0) }
         var arguments = Array(inputs.dropFirst(captures.count))
         guard bound != nil || !arguments.isEmpty else { throw fail("Missing JVM text callable reference receiver.", id) }
@@ -116,11 +101,9 @@ extension JVMFunctionBuilder {
         case let .operation(op):
             returned = try helper.emitTextOperation(op, source: source, values: values)
             physicalResult = try program.type(signature.returnType)
-            // Reflection describes the Kotlin facade declaration, as kotlinc does,
-            // even when the call itself lowers to a JDK method. A JVM stub may
-            // narrow a `CharSequence` extension to `String` (`String.isBlank`);
-            // when the facade call keeps the declared result, that call is the
-            // real declaration and `KFunction.call` must find its descriptor.
+            // JVM stubs narrow some CharSequence extensions to String (`String.isBlank`).
+            // Recording the stub's receiver breaks `KFunction.call`, which looks the
+            // method up by this descriptor; kotlinc records the real declaration.
             let realReceiver = !op.instance && op.method == nil && op.owner == "kotlin/text/StringsKt"
                 && op.receiverType.descriptor != receiverType.descriptor && op.result.descriptor == physicalResult.descriptor
             sourceOwner = "kotlin/text/StringsKt"
@@ -145,13 +128,14 @@ extension JVMFunctionBuilder {
         helper.instructions.append(.returnValue(resultType == .unit ? nil : try returned.map { try helper.convert($0, to: resultType) }))
         program.syntheticFunctions[container, default: []].append(helper.finish())
         let unitConversion = resultType == .unit && physicalResult != .unit
-        let adapted = binding?.isCallableReferenceAdapter == true || unitConversion
-        var generated = try program.closureClass(name, captures: captures.enumerated().map { ("capture\($0.offset)", $0.element.type) }, inputs: inputTypes, result: resultType, helper: helperRef, superclass: "kotlin/jvm/internal/" + (adapted ? "AdaptedFunctionReference" : "FunctionReferenceImpl"))
-        let arity = inputTypes.count
+        let adapted = binding?.isCallableReferenceAdapter == true || unitConversion || function.isSuspend
+        var generated = try program.closureClass(name, captures: captures.enumerated().map { ("capture\($0.offset)", $0.element.type) }, inputs: inputTypes, result: resultType, helper: helperRef, suspend: function.isSuspend, superclass: "kotlin/jvm/internal/" + (adapted ? "AdaptedFunctionReference" : "FunctionReferenceImpl"))
+        let arity = inputTypes.count + (function.isSuspend ? 1 : 0)
         guard arity <= 22 else { throw fail("JVM callable reference arity exceeds 22.", id) }
         program.functionArities.insert(arity)
         var flags: Int32 = 1
         if adapted, varargConversion { flags |= 2 }
+        if function.isSuspend { flags |= 4 }
         if unitConversion { flags |= 8 }
         let sourceName = context.interner.resolve(program.sema.symbols.symbol(symbol)!.name)
         try initializeReferenceSuperclass(&generated, arity: arity, bound: bound, sourceOwner: sourceOwner, sourceName: sourceName, signatureName: signatureName, sourceDescriptor: sourceDescriptor, flags: flags)
