@@ -22,10 +22,10 @@ extension JVMProgramBuilder {
 }
 
 extension JVMFunctionBuilder {
-    func jdkCall(_ owner: String, _ name: String, _ parameters: [JVMValueType], _ resultType: JVMValueType, receiver: JVMValue? = nil, arguments: [JVMValue] = [], interface: Bool = false, resolved: JVMValueType? = nil) throws -> JVMValue? {
+    func jdkCall(_ owner: String, _ name: String, _ parameters: [JVMValueType], _ resultType: JVMValueType, receiver: JVMValue? = nil, arguments: [JVMValue] = [], interface: Bool = false, special: Bool = false, resolved: JVMValueType? = nil) throws -> JVMValue? {
         var args: [JVMValue] = []
         for (arg, type) in zip(arguments, parameters) { args.append(try convert(arg, to: type)) }
-        let method = JVMForeignMethod(owner: owner, name: name, descriptor: "(" + parameters.map(\.descriptor).joined() + ")" + resultType.descriptor, parameters: parameters, result: resultType, isStatic: receiver == nil, isInterface: interface, isAbstract: false)
+        let method = JVMForeignMethod(owner: owner, name: name, descriptor: "(" + parameters.map(\.descriptor).joined() + ")" + resultType.descriptor, parameters: parameters, result: resultType, isStatic: receiver == nil, isInterface: interface, isAbstract: false, isSpecial: special)
         let resolvedType = resolved ?? resultType
         let logical = resultType.referenceName != nil ? resolvedType.withBoxedUnit : resolvedType
         let result = resultType == .unit ? nil : try value(foreignResultType(resultType, resolved: logical))
@@ -497,6 +497,11 @@ extension JVMFunctionBuilder {
         }
         let collections: Set<String> = ["java/util/ArrayList", "java/util/HashMap", "java/util/LinkedHashMap", "java/util/LinkedHashSet", "java/lang/Iterable", "java/util/Iterator", "java/util/ListIterator", "java/util/Collection", "java/util/List", "kotlin/enums/EnumEntries", "java/util/Set", "java/util/Map", "kotlin/text/MatchGroupCollection"]
         if collections.contains(owner) {
+            let directSuperOwner: String? = {
+                guard isSuper(receiverID), let name = sourceType.referenceName,
+                      context.jvmImports?.classes[name]?.isInterface == false else { return nil }
+                return name
+            }()
             if member == "withIndex", args.isEmpty {
                 let iterableType = JVMValueType.reference("java/lang/Iterable", nullable: false)
                 let source = try convert(requireValue(receiverID), to: iterableType)
@@ -523,10 +528,10 @@ extension JVMFunctionBuilder {
                     resolved: program.expressionType(id)
                 ))
             }
-            if ["hashCode", "toString"].contains(member), args.isEmpty {
+            if directSuperOwner == nil, ["hashCode", "toString"].contains(member), args.isEmpty {
                 return JVMIntrinsicResult(value: try jdkCall("java/lang/Object", member, [], member == "hashCode" ? .int : .string, receiver: requireValue(receiverID)))
             }
-            if member == "equals", args.count == 1 {
+            if directSuperOwner == nil, member == "equals", args.count == 1 {
                 let receiver = try requireValue(receiverID), argument = try requireValue(args[0].expr)
                 return JVMIntrinsicResult(value: try jdkCall("java/lang/Object", member, [object], .boolean, receiver: receiver, arguments: [argument]))
             }
@@ -554,7 +559,11 @@ extension JVMFunctionBuilder {
             if ["getOrElse", "getOrPut"].contains(member), ["java/util/List", "java/util/Map"].contains(owner) {
                 return try collectionDefaultValueMember(receiverID, owner: owner, member: member, args: args, id: id)
             }
-            let source = try convert(requireValue(receiverID), to: .reference(owner, nullable: false))
+            let invocationOwner = directSuperOwner ?? owner
+            let receiverValue = try requireValue(receiverID)
+            let source = directSuperOwner == nil
+                ? try convert(receiverValue, to: .reference(invocationOwner, nullable: false))
+                : receiverValue
             let result = try program.expressionType(id)
             if member == "forEach", owner == "java/util/Map" {
                 guard args.count == 1, !args[0].isSpread,
@@ -597,6 +606,9 @@ extension JVMFunctionBuilder {
             let parameters: [JVMValueType], returns: JVMValueType, actual: String
             switch member {
             case "size": actual = "size"; parameters = []; returns = .int
+            case "hashCode": actual = member; parameters = []; returns = .int
+            case "toString": actual = member; parameters = []; returns = .string
+            case "equals": actual = member; parameters = [object]; returns = .boolean
             case "binarySearch":
                 guard ["java/util/List", "java/util/ArrayList"].contains(owner) else {
                     throw fail("Unsupported JVM collection member: \(member).", id)
@@ -726,7 +738,7 @@ extension JVMFunctionBuilder {
             default: throw fail("Unsupported JVM collection member: \(member).", id)
             }
             guard values.count == parameters.count else { throw fail("JVM collection argument mismatch.", id) }
-            let value = try jdkCall(owner, actual, parameters, returns, receiver: source, arguments: values, interface: true, resolved: result == .unit ? returns : result)
+            let value = try jdkCall(invocationOwner, actual, parameters, returns, receiver: source, arguments: values, interface: directSuperOwner == nil, special: directSuperOwner != nil, resolved: result == .unit ? returns : result)
             return JVMIntrinsicResult(value: result == .unit ? nil : value)
         }
         if owner == "kotlin/Pair", ["first", "second"].contains(member) {

@@ -5,6 +5,23 @@ import Testing
 
 extension JVMBackendTests {
     @Test
+    func arrayListSubclassOverridesAndDispatchesOnJVM() throws {
+        try assertJVM("""
+        class A : ArrayList<Int>() {
+            override fun add(element: Int): Boolean {
+                println("override")
+                return super.add(element)
+            }
+        }
+
+        fun main() {
+            val list: ArrayList<Int> = A()
+            println(list.add(1))
+        }
+        """, "override\ntrue\n")
+    }
+
+    @Test
     func javaCollectionParameterAcceptsMutableOverride() throws {
         try withWorkspace { root in
             try """
