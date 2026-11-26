@@ -253,6 +253,13 @@ extension CallTypeChecker {
                     if candidateHasMoreSpecificParam {
                         return false
                     }
+                    if isDispatchMemberFunction(candidate, sema: sema),
+                       isDispatchMemberFunction(other, sema: sema),
+                       !omitsDefaultArguments(candSig, argumentCount: argumentTypes.count),
+                       omitsDefaultArguments(otherSig, argumentCount: argumentTypes.count)
+                    {
+                        return false
+                    }
                 }
                 return true
             }
@@ -260,6 +267,31 @@ extension CallTypeChecker {
         })
         let filtered = remainingCandidates.filter { !lessSpecific.contains($0) }
         return filtered.isEmpty ? candidates : filtered
+    }
+
+    private func isDispatchMemberFunction(_ symbolID: SymbolID, sema: SemaModule) -> Bool {
+        guard let symbol = sema.symbols.symbol(symbolID),
+              sema.symbols.memberExtensionOwnerSymbol(for: symbolID) == nil,
+              let parentID = sema.symbols.parentSymbol(for: symbolID),
+              let parent = sema.symbols.symbol(parentID),
+              symbol.fqName == parent.fqName + [symbol.name]
+        else {
+            return false
+        }
+        switch parent.kind {
+        case .class, .interface, .object, .enumClass:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func omitsDefaultArguments(_ signature: FunctionSignature, argumentCount: Int) -> Bool {
+        let isVararg = signature.valueParameterIsVararg
+        let fixedCount = signature.parameterTypes.indices.filter { index in
+            !(index < isVararg.count && isVararg[index])
+        }.count
+        return argumentCount < fixedCount
     }
 
     func preferListUnzipCandidates(
