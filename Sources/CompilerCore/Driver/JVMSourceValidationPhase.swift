@@ -110,7 +110,9 @@ private struct JVMSourceGrammar {
             if tokens[probe].kind == .symbol(.rParen) {
                 depth -= 1
                 if depth == 0 {
-                    let next = min(probe + 1, tokens.count - 1)
+                    var next = probe + 1
+                    while next < tokens.count, tokens[next].kind == .symbol(.question) { next += 1 }
+                    guard next < tokens.count else { return false }
                     return tokens[next].kind == .symbol(.dot) || tokens[next].kind == .symbol(.questionDot)
                 }
             }

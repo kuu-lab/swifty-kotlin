@@ -17,6 +17,8 @@ import Testing
         "fun take(f: context(String) List<Int>.() -> String) { println(f) }",
         "fun take(f: context(String) String?.() -> Int) { println(f) }",
         "fun take(f: context(String) (List<Int>?).() -> String) { println(f) }",
+        "fun take(f: context(String) (String)?.() -> String) { println(f) }",
+        "fun take(f: context(String) (String)? .() -> String) { println(f) }",
         "fun take(f: suspend context(String) (List<Int>?).() -> String) { println(f) }",
         "fun take(f: (context(String) () -> String)?) { println(f) }",
         "fun take(f: List<context(Map<String, Int>) () -> String>) { println(f) }",
