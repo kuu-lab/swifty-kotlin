@@ -158,12 +158,18 @@ extension JVMBackendTests {
                 println(1.5.toBits())
                 println(1.5.toRawBits())
                 println(1.5.implicitToBits())
+                println(Float.fromBits(1069547520))
+                println(Float.Companion.fromBits(bits = 1069547520))
+                println(Double.fromBits(4609434218613702656L))
+                println(Double.Companion.fromBits(bits = 4609434218613702656L))
+                println(Float.fromBits(bits = 0x7F800123).toRawBits())
+                println(Double.fromBits(bits = 0x7FF0000000000123L).toRawBits())
             }
             """
             let app = try m22Build(root: root, sources: [("consumer.kt", consumer)], name: "app.jar", mode: .jvmJar)
             try #require(app.1 == 0, "\(app.2.map(\.message))")
             let run = try java(["-cp", app.0.path + ":" + library.path, "ConsumerKt"])
-            #expect(run.stdout == "1069547520\n1069547520\n4609434218613702656\n4609434218613702656\n4609434218613702656\n")
+            #expect(run.stdout == "1069547520\n1069547520\n4609434218613702656\n4609434218613702656\n4609434218613702656\n1.5\n1.5\n1.5\n1.5\n2139095331\n9218868437227405603\n")
             #expect(run.stderr.isEmpty)
         }
     }

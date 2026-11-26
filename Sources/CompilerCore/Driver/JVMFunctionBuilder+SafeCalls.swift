@@ -20,6 +20,39 @@ extension JVMFunctionBuilder {
         }
     }
 
+    // Float/Double.fromBits are inline companion functions in kotlin-stdlib.
+    // The primitive companions have no runtime receiver in the JVM mapping, so
+    // lower them directly to the java.lang bit-conversion intrinsics.
+    func stdlibFromBitsIsFloat(_ callee: SymbolID, args: [CallArgument]) -> Bool? {
+        guard args.count == 1, !args[0].isSpread, let symbol = program.sema.symbols.symbol(callee),
+              symbol.declSite.map({ context.sourceManager.origin(of: $0.start.file) != .user }) ?? true
+        else { return nil }
+        let fqName = symbol.fqName
+        guard fqName.count == 2, context.interner.resolve(fqName[0]) == "kotlin",
+              context.interner.resolve(fqName[1]) == "fromBits",
+              let signature = program.sema.symbols.functionSignature(for: callee),
+              let receiverType = signature.receiverType,
+              case let .classType(companionType) = program.sema.types.kind(of: receiverType),
+              let companion = program.sema.symbols.symbol(companionType.classSymbol)
+        else { return nil }
+        switch companion.fqName.map(context.interner.resolve) {
+        case ["kotlin", "Float", "Companion"]: return true
+        case ["kotlin", "Double", "Companion"]: return false
+        default: return nil
+        }
+    }
+
+    func emitFromBits(args: [CallArgument], isFloat: Bool, id: ExprID) throws -> JVMValue? {
+        guard args.count == 1 else { return nil }
+        let argument = try requireValue(args[0].expr)
+        if isFloat {
+            let bits = try convert(argument, to: .int)
+            return try jdkCall("java/lang/Float", "intBitsToFloat", [.int], .float, arguments: [bits], resolved: program.expressionType(id))
+        }
+        let bits = try convert(argument, to: .long)
+        return try jdkCall("java/lang/Double", "longBitsToDouble", [.long], .double, arguments: [bits], resolved: program.expressionType(id))
+    }
+
     func emitBitReinterpret(callee: SymbolID, receiver: JVMValue, isRaw: Bool, id: ExprID) throws -> JVMValue? {
         guard let signature = program.sema.symbols.functionSignature(for: callee),
               let receiverTypeRef = signature.receiverType else { return nil }
@@ -41,6 +74,11 @@ extension JVMFunctionBuilder {
         if let callee = program.sema.bindings.callBinding(for: id)?.chosenCallee,
            let isRaw = stdlibBitReinterpretIsRaw(callee, args: args),
            let emitted = try emitBitReinterpret(callee: callee, receiver: requireValue(receiver), isRaw: isRaw, id: id) {
+            return emitted
+        }
+        if let callee = program.sema.bindings.callBinding(for: id)?.chosenCallee,
+           let isFloat = stdlibFromBitsIsFloat(callee, args: args),
+           let emitted = try emitFromBits(args: args, isFloat: isFloat, id: id) {
             return emitted
         }
         if let symbol = program.sema.bindings.callBinding(for: id)?.chosenCallee,
