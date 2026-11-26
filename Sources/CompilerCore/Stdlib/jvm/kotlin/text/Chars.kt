@@ -6,6 +6,7 @@ import kotlin.jvm.internal.__jvmTitleChar
 import kotlin.jvm.internal.__jvmWhitespace
 import kotlin.jvm.internal.__jvmSpaceChar
 import kotlin.jvm.internal.__jvmIsDigit
+import kotlin.jvm.internal.__jvmCharDigit
 import kotlin.jvm.internal.__jvmDirectionality
 import kotlin.jvm.internal.__jvmIsLowerCase
 import kotlin.jvm.internal.__jvmIsUpperCase
@@ -47,6 +48,14 @@ public fun Char.titlecase(): String {
 }
 
 public fun Char.isWhitespace(): Boolean = __jvmWhitespace(this) || __jvmSpaceChar(this)
+
+public fun Char.digitToIntOrNull(): Int? = digitToIntOrNull(10)
+
+public fun Char.digitToIntOrNull(radix: Int): Int? {
+    checkRadix(radix)
+    val digit = __jvmCharDigit(this, radix)
+    return if (digit < 0) null else digit
+}
 
 public val Char.directionality: CharDirectionality
     get() {
