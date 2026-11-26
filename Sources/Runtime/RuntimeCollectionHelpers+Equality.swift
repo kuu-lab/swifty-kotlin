@@ -401,6 +401,16 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         return lhsInstant.epochSeconds == rhsInstant.epochSeconds
             && lhsInstant.nanoOfSecond == rhsInstant.nanoOfSecond
     }
+    // BigDecimal values are RuntimeBigNumberBox handles (a canonical decimal
+    // string), not RuntimeObjectBox, so the Kotlin `equals` override is never
+    // consulted on this path. Nullable `BigDecimal?` `==`/`!=` reaches here
+    // and must apply the same scale+value semantics as `BigDecimal.equals`.
+    if let lhsBig = tryCast(lhsPtr, to: RuntimeBigNumberBox.self),
+       let rhsBig = tryCast(rhsPtr, to: RuntimeBigNumberBox.self),
+       lhsBig.kind == .decimal, rhsBig.kind == .decimal
+    {
+        return runtimeBigDecimalCanonicalEquals(lhsBig.value, rhsBig.value)
+    }
     if let lhsList = runtimeListBox(from: lhs),
        let rhsList = runtimeListBox(from: rhs)
     {
