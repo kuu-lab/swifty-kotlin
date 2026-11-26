@@ -51,17 +51,13 @@ private struct JVMSourceGrammar {
     }
     mutating func type(nullable: Bool = true, receiverSuffix: Bool = true) throws {
         while kind == .symbol(.at) { try annotation(typeContext: true) }
-        _ = take(.keyword(.suspend))
-        if take(.symbol(.lParen)) {
-            if !take(.symbol(.rParen)) {
-                repeat {
-                    if kind.isLabelName, tokens[min(index + 1, tokens.count - 1)].kind == .symbol(.colon) {
-                        index += 2
-                    }
-                    try type()
-                } while take(.symbol(.comma)) && kind != .symbol(.rParen)
-                try require(.symbol(.rParen))
-            }
+        let isSuspend = take(.keyword(.suspend))
+        if kind == .softKeyword(.context), tokens[min(index + 1, tokens.count - 1)].kind == .symbol(.lParen) {
+            try contextualFunctionType(isSuspend: isSuspend)
+            return
+        }
+        if kind == .symbol(.lParen) {
+            try functionTypeParameterList()
             if take(.symbol(.arrow)) { try type() }
             if nullable { _ = take(.symbol(.question)) }
             if receiverSuffix, take(.symbol(.dot)) { try type() }
@@ -87,6 +83,57 @@ private struct JVMSourceGrammar {
         if nullable, receiverSuffix, take(.symbol(.questionDot)) { try type(); return }
         if nullable { _ = take(.symbol(.question)) }
         if receiverSuffix, take(.symbol(.dot)) { try type() }
+    }
+    mutating func functionTypeParameterList() throws {
+        try require(.symbol(.lParen))
+        if !take(.symbol(.rParen)) {
+            repeat {
+                if kind.isLabelName, tokens[min(index + 1, tokens.count - 1)].kind == .symbol(.colon) {
+                    index += 2
+                }
+                try type()
+            } while take(.symbol(.comma)) && kind != .symbol(.rParen)
+            try require(.symbol(.rParen))
+        }
+    }
+    mutating func functionTypeTail() throws {
+        try functionTypeParameterList()
+        try require(.symbol(.arrow))
+        try type()
+    }
+    func currentParenthesizedTypeIsReceiver() -> Bool {
+        guard kind == .symbol(.lParen) else { return false }
+        var depth = 0
+        var probe = index
+        while probe < tokens.count {
+            if tokens[probe].kind == .symbol(.lParen) { depth += 1 }
+            if tokens[probe].kind == .symbol(.rParen) {
+                depth -= 1
+                if depth == 0 {
+                    let next = min(probe + 1, tokens.count - 1)
+                    return tokens[next].kind == .symbol(.dot) || tokens[next].kind == .symbol(.questionDot)
+                }
+            }
+            if tokens[probe].kind == .eof { return false }
+            probe += 1
+        }
+        return false
+    }
+    mutating func contextualFunctionType(isSuspend: Bool) throws {
+        try require(.softKeyword(.context))
+        try require(.symbol(.lParen))
+        repeat {
+            try type()
+        } while take(.symbol(.comma))
+        try require(.symbol(.rParen))
+        if !isSuspend { _ = take(.keyword(.suspend)) }
+        if kind == .symbol(.lParen), !currentParenthesizedTypeIsReceiver() {
+            try functionTypeTail()
+            return
+        }
+        try type(receiverSuffix: false)
+        guard take(.symbol(.dot)) || take(.symbol(.questionDot)) else { throw Unsupported() }
+        try functionTypeTail()
     }
     mutating func annotation(typeContext: Bool = false) throws {
         if typeContext {
