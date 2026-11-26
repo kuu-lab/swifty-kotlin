@@ -84,6 +84,7 @@ extension JVMFunctionBuilder {
         if inlineOnly || program.sema.symbols.functionSignature(for: symbol)?.reifiedTypeParameterIndices.isEmpty == false {
             return try inlinedReference(id, symbol: symbol, receiver: receiver, unbound: unbound)
         }
+        if let text = try textReference(id, symbol: symbol, receiver: receiver, unbound: unbound) { return text }
         if let binding = program.sema.bindings.callableReferenceBinding(for: id), let function = functionType(id),
            let signature = program.sema.symbols.functionSignature(for: symbol) {
             let unitConversion = try program.type(function.returnType) == .unit && program.type(signature.returnType) != .unit
