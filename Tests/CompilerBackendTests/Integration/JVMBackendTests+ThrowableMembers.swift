@@ -42,5 +42,23 @@ extension JVMBackendTests {
             #expect(stderr.hasPrefix("java.lang.Exception: printed\n\tat "))
         }
     }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func throwableSuppressedCallableReferencesMatchRuntimeParity(mode: EmitMode) throws {
+        try withWorkspace { root in
+            try runRuntimeParity("""
+            fun main() {
+                val exception = RuntimeException("x")
+                exception.addSuppressed(IllegalArgumentException("s"))
+                val bound: () -> Array<Throwable> = exception::getSuppressed
+                println(bound().size)
+                println(bound()[0].message)
+                val unbound: (Throwable) -> Array<Throwable> = Throwable::getSuppressed
+                println(unbound(exception).size)
+                println(unbound(exception)[0].message)
+            }
+            """, expected: "1\ns\n1\ns\n", mode: mode, root: root)
+        }
+    }
 }
 #endif

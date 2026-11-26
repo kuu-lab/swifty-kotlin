@@ -50,6 +50,26 @@ extension JVMFunctionBuilder {
         return try javaClass(token == .unit ? .reference("kotlin/Unit", nullable: false) : JVMClasspathIndex.boxed(token))
     }
 
+    private func throwableJDKReferenceMethod(for symbol: SymbolID) -> JVMForeignMethod? {
+        guard let info = program.sema.symbols.symbol(symbol), info.fqName.count == 3,
+              context.interner.resolve(info.fqName[0]) == "kotlin",
+              context.interner.resolve(info.fqName[1]) == "Throwable",
+              context.interner.resolve(info.fqName[2]) == "getSuppressed"
+        else { return nil }
+        var method = JVMForeignMethod(
+            owner: "java/lang/Throwable",
+            name: "getSuppressed",
+            descriptor: "()[Ljava/lang/Throwable;",
+            parameters: [],
+            result: .reference("[Ljava/lang/Throwable;", nullable: false),
+            isStatic: false,
+            isInterface: false,
+            isAbstract: false
+        )
+        method.isFinal = true
+        return method
+    }
+
     func reflectionReference(_ id: ExprID, receiver: ExprID?, member: InternedString) throws -> JVMValue {
         if context.interner.resolve(member) == "class" {
             let klass = try javaClassForClassReference(id, receiver: receiver)
@@ -92,7 +112,7 @@ extension JVMFunctionBuilder {
             }
         }
         let sourceBacked = program.inlineDeclarations[symbol] != nil ? program.textLibraryMethods[symbol] : nil
-        let method = program.methods[symbol] ?? context.jvmImports?.method(for: symbol) ?? sourceBacked?.method
+        let method = program.methods[symbol] ?? context.jvmImports?.method(for: symbol) ?? sourceBacked?.method ?? throwableJDKReferenceMethod(for: symbol)
         let ref = program.references[symbol]
         guard method != nil || ref != nil else { throw fail("Unsupported JVM callable reference target.", id) }
         let constructor = method?.isConstructor == true
