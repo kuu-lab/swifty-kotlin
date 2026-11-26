@@ -52,7 +52,13 @@ extension JVMProgramBuilder {
                     continue
                 }
                 guard let target, let field = plan.delegateFields.first(where: { $0.0 == info.fieldSymbol })?.2, let sig = sema.symbols.functionSignature(for: symbol) else { throw JVMFrontendError(message: "Unsupported JVM delegated interface method.") }
-                if target.owner == "java/util/Map", context.interner.resolve(sema.symbols.symbol(info.interfaceMethodSymbol)!.name) == "set" {
+                let interfaceMemberName = context.interner.resolve(sema.symbols.symbol(info.interfaceMethodSymbol)!.name)
+                if target.owner == "java/util/Map", interfaceMemberName == "putIfAbsent" {
+                    // Keep Java's default method inherited so its virtual get/put calls use wrapper overrides.
+                    methods[symbol] = target
+                    continue
+                }
+                if target.owner == "java/util/Map", interfaceMemberName == "set" {
                     methods[symbol] = target
                     continue
                 }

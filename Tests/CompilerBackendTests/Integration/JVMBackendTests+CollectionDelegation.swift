@@ -51,6 +51,7 @@ extension JVMBackendTests {
                 val erased: Any = readOnly
                 println(erased is MutableList<*>); println((Values as Any) is MutableList<*>)
                 val overridden: List<Int> = Offset(listOf(4, 6)); println(overridden[1]); println(overridden.size)
+                val viewed: List<Int> = ArrayView(listOf(1, 2)); println(viewed.iterator().next())
                 val adding: MutableList<Int> = Adder(mutableListOf()); println(adding.add(9)); println(adding[0])
                 val keyed: Map<String, Int> = Keys(mapOf("one" to 1)); println(keyed.keys.contains("chosen"))
             }
@@ -59,7 +60,7 @@ extension JVMBackendTests {
             try #require(result.0 == 0, "\(result.1.map(\.message))")
             let output = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes")
             let execution = try java(["-Xverify:all", "-cp", output.path + ":" + library.path, "HelloKt"])
-            let expected = "0\n2\none\ntrue\n2\n1\n20\ntrue\n10\n11\n2\n5\ntrue\ntrue\ntrue\ntrue\n2\n2\ntrue\n2\nfalse\ntrue\n106\n102\ntrue\n109\ntrue\n"
+            let expected = "0\n2\none\ntrue\n2\n1\n20\ntrue\n10\n11\n2\n5\ntrue\ntrue\ntrue\ntrue\n2\n2\ntrue\n2\nfalse\ntrue\n106\n102\n8\ntrue\n109\ntrue\n"
             #expect(execution.exitCode == 0)
             #expect(execution.stdout == expected)
             #expect(execution.stderr.isEmpty)

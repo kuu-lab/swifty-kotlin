@@ -230,6 +230,8 @@ extension JVMClasspathIndex {
                 companion object {
                     external fun isDigit(value: Char): Boolean
                     external fun isDigit(value: Int): Boolean
+                    external fun isHighSurrogate(value: Char): Boolean
+                    external fun isLowSurrogate(value: Char): Boolean
                     external fun isLowerCase(value: Char): Boolean
                     external fun isLowerCase(value: Int): Boolean
                     external fun isUpperCase(value: Char): Boolean
@@ -243,6 +245,8 @@ extension JVMClasspathIndex {
             """, 0x0011, "java/lang/Object", [
                 method("java/lang/Character", "isDigit", [.char], .boolean, staticMember: true),
                 method("java/lang/Character", "isDigit", [.int], .boolean, staticMember: true),
+                method("java/lang/Character", "isHighSurrogate", [.char], .boolean, staticMember: true),
+                method("java/lang/Character", "isLowSurrogate", [.char], .boolean, staticMember: true),
                 method("java/lang/Character", "isLowerCase", [.char], .boolean, staticMember: true),
                 method("java/lang/Character", "isLowerCase", [.int], .boolean, staticMember: true),
                 method("java/lang/Character", "isUpperCase", [.char], .boolean, staticMember: true),

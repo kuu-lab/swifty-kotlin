@@ -14,6 +14,9 @@ extension LocalDeclTypeChecker {
         let interner = ctx.interner
 
         let inferredReceiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        if case .superRef = ctx.ast.arena.expr(receiverExpr) {
+            sema.bindings.markSuperCall(id)
+        }
         let getName = interner.intern("get")
         let receiverInfo = indexedOperatorMemberCandidates(
             named: getName, receiverExpr: receiverExpr, receiverType: inferredReceiverType, ctx: ctx

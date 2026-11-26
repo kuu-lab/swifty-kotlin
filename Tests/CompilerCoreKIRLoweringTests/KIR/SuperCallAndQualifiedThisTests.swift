@@ -607,5 +607,50 @@ struct SuperCallAndQualifiedThisTests {
         #expect(qualifiedSuperCalls == 1)
         #expect(unqualifiedSuperCalls == 1)
     }
+
+    @Test(arguments: [false, true])
+    func testSuperIndexedAccessAndAssignmentStayDirectCalls(fullyLowered: Bool) throws {
+        let source = """
+        open class Base<T> {
+            open operator fun get(index: T): Int = 1
+            open operator fun set(index: T, value: Int) {}
+        }
+        class A : Base<String>() {
+            override operator fun get(index: String): Int = 2
+            override operator fun set(index: String, value: Int) {}
+            fun read(): Int = super["x"]
+            fun write() {
+                super["x"] = 3
+            }
+            fun compound() {
+                super["x"] += 1
+            }
+        }
+        """
+        let ctx = if fullyLowered {
+            try loweringContext(from: source)
+        } else {
+            try kirContext(from: source)
+        }
+
+        let module = try #require(ctx.kir)
+        var superCalls: [String] = []
+        for body in findAllKIRFunctionBodies(named: "read", in: module, interner: ctx.interner)
+            + findAllKIRFunctionBodies(named: "write", in: module, interner: ctx.interner)
+            + findAllKIRFunctionBodies(named: "compound", in: module, interner: ctx.interner)
+        {
+            for instruction in body {
+                switch instruction {
+                case let .virtualCall(_, callee, _, _, _, _, _, _):
+                    #expect(!["get", "set"].contains(ctx.interner.resolve(callee)))
+                case let .call(_, callee, _, _, _, _, true, _):
+                    superCalls.append(ctx.interner.resolve(callee))
+                default:
+                    continue
+                }
+            }
+        }
+        #expect(superCalls == ["get", "set", "get", "set"])
+    }
 }
 #endif

@@ -4,6 +4,10 @@ public inline operator fun Char.inc(): Char = (this.code + 1).toChar()
 @kotlin.internal.InlineOnly
 public inline operator fun Char.dec(): Char = (this.code - 1).toChar()
 @kotlin.internal.InlineOnly
+public inline fun Char.isHighSurrogate(): Boolean = java.lang.Character.isHighSurrogate(this)
+@kotlin.internal.InlineOnly
+public inline fun Char.isLowSurrogate(): Boolean = java.lang.Character.isLowSurrogate(this)
+@kotlin.internal.InlineOnly
 public inline fun Char.isDigit(): Boolean = java.lang.Character.isDigit(this)
 @kotlin.internal.InlineOnly
 public inline fun Char.isLowerCase(): Boolean = java.lang.Character.isLowerCase(this)

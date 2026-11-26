@@ -25,6 +25,19 @@ extension JVMFunctionBuilder {
         let field = program.singletonField(plan), value = try value(field.type)
         instructions.append(.getStatic(field, value)); return value
     }
+    func primitiveCompanionValue(for ownerSymbol: SymbolID) throws -> JVMValue? {
+        guard let owner = program.sema.symbols.symbol(ownerSymbol) else { return nil }
+        let objectOwner: String
+        switch owner.fqName.map({ context.interner.resolve($0) }) {
+        case ["kotlin", "Float"]: objectOwner = "kotlin/jvm/internal/FloatCompanionObject"
+        case ["kotlin", "Double"]: objectOwner = "kotlin/jvm/internal/DoubleCompanionObject"
+        default: return nil
+        }
+        let type = JVMValueType.reference(objectOwner, nullable: false), result = try value(type)
+        instructions.append(.getStatic(JVMField(owner: objectOwner, name: "INSTANCE", type: type, access: 0x19), result))
+        return result
+    }
+
     func importedCompanionValue(for ownerSymbol: SymbolID) throws -> JVMValue? {
         let symbols = program.sema.symbols
         guard let companion = symbols.companionObjectSymbol(for: ownerSymbol),
@@ -69,7 +82,13 @@ extension JVMFunctionBuilder {
             let knownNames = KnownCompilerNames(interner: context.interner)
             let path = fqName.map { context.interner.resolve($0) }
             let field: JVMField?
-            if path == ["kotlin", "String"] || path == ["kotlin", "String", "Companion"] {
+            if path == ["kotlin", "Float"] || path == ["kotlin", "Float", "Companion"] {
+                let owner = "kotlin/jvm/internal/FloatCompanionObject"
+                field = JVMField(owner: owner, name: "INSTANCE", type: .reference(owner, nullable: false), access: 0x19)
+            } else if path == ["kotlin", "Double"] || path == ["kotlin", "Double", "Companion"] {
+                let owner = "kotlin/jvm/internal/DoubleCompanionObject"
+                field = JVMField(owner: owner, name: "INSTANCE", type: .reference(owner, nullable: false), access: 0x19)
+            } else if path == ["kotlin", "String"] || path == ["kotlin", "String", "Companion"] {
                 let owner = "kotlin/jvm/internal/StringCompanionObject"
                 field = JVMField(owner: owner, name: "INSTANCE", type: .reference(owner, nullable: false), access: 0x19)
             } else if fqName == knownNames.kotlinRegexFQName || fqName == knownNames.kotlinTextRegexCompanionFQName {

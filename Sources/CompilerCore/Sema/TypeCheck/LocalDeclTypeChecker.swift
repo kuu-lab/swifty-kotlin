@@ -408,6 +408,9 @@ final class LocalDeclTypeChecker {
                     "Val cannot be reassigned.",
                     range: range
                 )
+                if reassignsPossiblyAssignedVal {
+                    locals[name] = (local.type, local.symbol, local.isMutable, true)
+                }
             } else {
                 if !local.isMutable, !local.isInitialized {
                     ctx.dataFlow.valInitializingAssignmentExprs.insert(id)

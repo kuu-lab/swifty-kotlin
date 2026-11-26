@@ -11,6 +11,9 @@ extension JVMBackendTests {
             let source = """
             fun main() {
                 println('5'.isDigit())
+                println('\\uD800'.isHighSurrogate())
+                println('\\uDC00'.isLowSurrogate())
+                println('\\uD800'.isLowSurrogate())
                 println('a'.isLowerCase())
                 println('A'.isUpperCase())
                 println('a'.uppercaseChar())
@@ -27,7 +30,7 @@ extension JVMBackendTests {
                 println('a'.equals('A', ignoreCase = true))
             }
             """
-            let expected = "true\ntrue\ntrue\nA\na\nA\na\nSS\ni\u{307}\nA\ntrue\n97.0\n97.0\ntrue\n"
+            let expected = "true\ntrue\ntrue\nfalse\ntrue\ntrue\nA\na\nA\na\nSS\ni\u{307}\nA\ntrue\n97.0\n97.0\ntrue\n"
             try runRuntimeParity(source, expected: expected, mode: mode, root: root)
         }
     }

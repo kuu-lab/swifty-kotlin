@@ -1,5 +1,5 @@
 package java.util
-class ArrayList<T>: kotlin.collections.MutableList<T> {
+open class ArrayList<T>: kotlin.collections.MutableList<T> {
     constructor()
     constructor(initialCapacity: Int)
     constructor(elements: kotlin.collections.Collection<out T>)

@@ -952,6 +952,7 @@ final class ExprTypeChecker {
                         locals[name] = (blockLocal.type, outerLocal.symbol, outerLocal.isMutable, blockLocal.isInitialized)
                     }
                 }
+                locals.possiblyAssignedVals.formUnion(blockLocals.possiblyAssignedVals)
                 locals.memberFlow = blockLocals.memberFlow
                 locals.variableFacts = blockLocals.variableFacts
                 locals.invalidatedVariableFacts = blockLocals.invalidatedVariableFacts
