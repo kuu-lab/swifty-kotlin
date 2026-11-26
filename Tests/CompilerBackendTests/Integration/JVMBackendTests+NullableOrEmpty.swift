@@ -7,6 +7,12 @@ extension JVMBackendTests {
     func kuu4696NullableCollectionOrEmptyMatchesKotlinc(mode: EmitMode) throws {
         try withWorkspace { root in
             try runRuntimeParity("""
+            fun sequenceNormalizer(source: Sequence<Int>?): () -> Sequence<Int> = source::orEmpty
+            fun setNormalizer(source: Set<Int>?): () -> Set<Int> = source::orEmpty
+            fun collectionNormalizer(source: Collection<Int>?): () -> Collection<Int> = source::orEmpty
+            fun mapNormalizer(source: Map<String, Int>?): () -> Map<String, Int> = source::orEmpty
+            fun arrayNormalizer(source: Array<String>?): () -> Array<out String> = source::orEmpty
+
             fun main() {
                 println((null as Set<Int?>?).orEmpty())
                 val set: Set<String>? = setOf("a", "b")
@@ -37,8 +43,14 @@ extension JVMBackendTests {
                 println(absentArray.orEmpty().size)
                 val text: String? = null
                 println(text.orEmpty().length)
+                println(sequenceNormalizer(null)().toList())
+                println(sequenceNormalizer(sequenceOf(3, 4))().toList())
+                println(setNormalizer(null)())
+                println(collectionNormalizer(listOf(8))())
+                println(mapNormalizer(null)())
+                println(arrayNormalizer(null)().size)
             }
-            """, expected: "[]\n[a, b]\n0\n[7]\ntrue\n5\n[]\n{k=1}\n{}\n[1, 2]\n[]\n2\n0\n0\n", mode: mode, root: root)
+            """, expected: "[]\n[a, b]\n0\n[7]\ntrue\n5\n[]\n{k=1}\n{}\n[1, 2]\n[]\n2\n0\n0\n[]\n[3, 4]\n[]\n[8]\n{}\n0\n", mode: mode, root: root)
         }
     }
 }
