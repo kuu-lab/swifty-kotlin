@@ -225,7 +225,9 @@ extension BuildASTPhase {
             } else if token.kind == .symbol(.rParen) {
                 depth -= 1
                 if depth == 0 {
-                    if let item = parseContextReceiverItem(from: current, interner: interner, astArena: astArena) {
+                    if !current.isEmpty,
+                       let item = parseContextReceiverItem(from: current, interner: interner, astArena: astArena)
+                    {
                         items.append(ContextReceiverDecl(
                             name: item.name,
                             type: item.ref,

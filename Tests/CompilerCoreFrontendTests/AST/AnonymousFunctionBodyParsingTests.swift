@@ -108,6 +108,17 @@ struct AnonymousFunctionBodyParsingTests {
     }
 
     @Test
+    func trailingCommaInContextPrefixStillParsesAnonymousFunction() throws {
+        let (_, context) = try buildASTModule(from: """
+        @file:OptIn(kotlin.ExperimentalContextParameters::class)
+        val f = context(a: String,)
+        fun(): String = a
+        """, includeStdlib: false)
+
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+    }
+
+    @Test
     func newlineBetweenContextPrefixAndAnonymousFunctionParsesInTopLevelInitializer() throws {
         let (_, context) = try buildASTModule(from: """
         @file:OptIn(kotlin.ExperimentalContextParameters::class)
