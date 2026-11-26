@@ -810,6 +810,7 @@ public final class CodegenPhase: CompilerPhase {
             includeSynthetic: false,
             includeSyntheticNominalAnchors: ctx.options.stdlibOnly,
             includePrecomputedStdlibSynthesis: ctx.options.stdlibOnly,
+            serializationClasses: sema.serializationClasses,
             excludeSourceFileIDs: excludeSourceFileIDs,
             runtimeCallbackRawReturnSymbolIDs: runtimeCallbackRawReturnSymbolIDs,
             objectInitializerLinkNames: objectInitializerLinkNames,
