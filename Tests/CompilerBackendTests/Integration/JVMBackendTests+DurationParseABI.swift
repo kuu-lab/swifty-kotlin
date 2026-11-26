@@ -51,6 +51,7 @@ extension JVMBackendTests {
             import kotlin.time.Duration
 
             fun main() {
+                println(Duration.parseIsoStringOrNull("PT1H"))
                 val parse = Duration.Companion::parseOrNull
                 println(parse("1s"))
             }
@@ -58,7 +59,7 @@ extension JVMBackendTests {
             try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
             let result = try java(["-cp", root.appendingPathComponent("hello.jar").path + ":" + library.path, "HelloKt"])
             #expect(result.exitCode == 0, "\(result.stderr)")
-            #expect(result.stdout == "1s\n")
+            #expect(result.stdout == "1h\n1s\n")
         }
     }
 }
