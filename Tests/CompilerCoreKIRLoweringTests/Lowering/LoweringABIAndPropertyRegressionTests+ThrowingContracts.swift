@@ -48,9 +48,11 @@ extension LoweringABIAndPropertyRegressionTests {
                     if calleeName.contains("durationParseRawOrNull") {
                         parserCallees.insert(calleeName)
                     }
-                    if let symbol = instructionCallSymbol(instruction),
-                       let linkName = sema.symbols.externalLinkName(for: symbol),
-                       removedBridgeNames.contains(linkName)
+                    if removedBridgeNames.contains(where: { calleeName.contains($0) }) {
+                        externalDurationCalls.append(calleeName)
+                    } else if let symbol = instructionCallSymbol(instruction),
+                              let linkName = sema.symbols.externalLinkName(for: symbol),
+                              removedBridgeNames.contains(linkName)
                     {
                         externalDurationCalls.append(linkName)
                     }
