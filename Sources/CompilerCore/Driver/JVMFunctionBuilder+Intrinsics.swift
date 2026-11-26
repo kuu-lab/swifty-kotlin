@@ -555,8 +555,8 @@ extension JVMFunctionBuilder {
                collectionCallIsExtension(id) {
                 return nil
             }
-            if ["set", "add", "addAll", "remove", "removeAll", "removeAt", "put", "putIfAbsent", "putAll", "clear"].contains(member), owner != "java/util/ListIterator", !isIteratorRemove { try requireMutableCollection(receiverID, at: id) }
-            if ["set", "add", "addAll", "put", "putIfAbsent", "putAll"].contains(member), owner != "java/util/ListIterator" { try requireWritableArguments(receiverID, at: id) }
+            if ["set", "add", "addAll", "addFirst", "addLast", "remove", "removeAll", "removeAt", "removeFirst", "removeLast", "put", "putIfAbsent", "putAll", "clear"].contains(member), owner != "java/util/ListIterator", !isIteratorRemove { try requireMutableCollection(receiverID, at: id) }
+            if ["set", "add", "addAll", "addFirst", "addLast", "put", "putIfAbsent", "putAll"].contains(member), owner != "java/util/ListIterator" { try requireWritableArguments(receiverID, at: id) }
             if ["getOrElse", "getOrPut"].contains(member), ["java/util/List", "java/util/Map"].contains(owner) {
                 return try collectionDefaultValueMember(receiverID, owner: owner, member: member, args: args, id: id)
             }
@@ -725,7 +725,12 @@ extension JVMFunctionBuilder {
             case "remove":
                 actual = member
                 if ["java/util/Iterator", "java/util/ListIterator"].contains(owner), args.isEmpty { parameters = []; returns = .unit }
+                else if owner == "java/util/Map", args.count == 2 { parameters = [object, object]; returns = .boolean }
                 else { parameters = [object]; returns = owner == "java/util/Map" ? object : .boolean }
+            case "addFirst", "addLast":
+                actual = member; parameters = [object]; returns = .unit
+            case "removeFirst", "removeLast":
+                actual = member; parameters = []; returns = object
             case "contains", "containsKey", "containsValue": actual = member; parameters = [object]; returns = .boolean
             case "addAll":
                 actual = member
@@ -739,7 +744,22 @@ extension JVMFunctionBuilder {
             default: throw fail("Unsupported JVM collection member: \(member).", id)
             }
             guard values.count == parameters.count else { throw fail("JVM collection argument mismatch.", id) }
-            let value = try jdkCall(invocationOwner, actual, parameters, returns, receiver: source, arguments: values, interface: directSuperOwner == nil, special: directSuperOwner != nil, resolved: result == .unit ? returns : result)
+            var invocationArguments = values
+            if let parameterMapping = binding?.parameterMapping {
+                var ordered = Array<JVMValue?>(repeating: nil, count: parameters.count)
+                for (sourceIndex, value) in values.enumerated() {
+                    let parameterIndex = parameterMapping[sourceIndex] ?? sourceIndex
+                    guard parameters.indices.contains(parameterIndex), ordered[parameterIndex] == nil else {
+                        throw fail("Invalid JVM collection argument mapping.", id)
+                    }
+                    ordered[parameterIndex] = value
+                }
+                invocationArguments = try ordered.map { value in
+                    guard let value else { throw fail("JVM collection argument mismatch.", id) }
+                    return value
+                }
+            }
+            let value = try jdkCall(invocationOwner, actual, parameters, returns, receiver: source, arguments: invocationArguments, interface: directSuperOwner == nil, special: directSuperOwner != nil, resolved: result == .unit ? returns : result)
             return JVMIntrinsicResult(value: result == .unit ? nil : value)
         }
         if owner == "kotlin/Pair", ["first", "second"].contains(member) {

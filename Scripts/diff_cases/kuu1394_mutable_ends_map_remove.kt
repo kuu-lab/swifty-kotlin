@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1394: MutableList.addFirst/addLast and MutableMap.remove(key, value)
 // were missing from the bundled stdlib surface (on JVM they resolve as
 // java.util.SequencedCollection members of List and the java.util.Map.remove
