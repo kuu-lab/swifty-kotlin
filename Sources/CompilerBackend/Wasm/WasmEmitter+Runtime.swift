@@ -416,6 +416,8 @@ enum WasmRuntimeHelpers {
         "kk_any_to_string_nullable",
         "kk_structural_eq",
         "kk_structural_ne",
+        "kk_nullable_primitive_eq",
+        "kk_nullable_primitive_ne",
         "kk_throwable_is_cancellation",
         "kk_object_type_id",
         "kk_object_register_vtable_method",
@@ -904,6 +906,11 @@ enum WasmRuntimeHelpers {
             emitStructuralEqBody(
                 &code, ctx: ctx,
                 negate: name == "kk_structural_ne")
+        case "kk_nullable_primitive_eq", "kk_nullable_primitive_ne":
+            extraLocals = 0
+            emitNullablePrimitiveEqualityBody(
+                &code, ctx: ctx,
+                negate: name == "kk_nullable_primitive_ne")
         case "kk_throwable_is_cancellation":
             extraLocals = 0
             emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
@@ -13249,6 +13256,217 @@ enum WasmRuntimeHelpers {
             code.i64Const(1)
             code.op(WasmOpcode.i64Xor)
         }
+    }
+
+    private static func emitNullablePrimitiveEqualityBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        negate: Bool
+    ) {
+        code.localGet(2)
+        code.i64Const(2)
+        code.op(WasmOpcode.i64GeS)
+        code.openIf()
+        emitNullableFloatingPrimitiveEqualityBody(&code, ctx: ctx, negate: negate)
+        code.op(WasmOpcode.return)
+        code.end()
+
+        code.localGet(0)
+        code.i64Const(L.nullSentinel)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        code.localGet(2)
+        code.op(WasmOpcode.i64Eqz)
+        code.openIf(result: .i64)
+        code.i64Const(0)
+        code.elseBranch()
+        code.localGet(1)
+        code.i64Const(L.nullSentinel)
+        code.op(WasmOpcode.i64Eq)
+        code.i64ExtendFromComparison()
+        code.end()
+        emitNullablePrimitiveEqualityNegation(&code, negate: negate)
+        code.op(WasmOpcode.return)
+        code.end()
+
+        code.localGet(2)
+        code.op(WasmOpcode.i64Eqz)
+        code.op(WasmOpcode.i32Eqz)
+        code.openIf()
+        code.localGet(1)
+        code.i64Const(L.nullSentinel)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        code.i64Const(0)
+        emitNullablePrimitiveEqualityNegation(&code, negate: negate)
+        code.op(WasmOpcode.return)
+        code.end()
+        code.end()
+
+        code.localGet(0)
+        code.localGet(1)
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_elem_eq", argumentCount: 2))
+        emitNullablePrimitiveEqualityNegation(&code, negate: negate)
+    }
+
+    private static func emitNullableFloatingPrimitiveEqualityBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        negate: Bool
+    ) {
+        code.localGet(0)
+        code.i64Const(L.nullSentinel)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        code.localGet(2)
+        code.i64Const(4)
+        code.op(WasmOpcode.i64Eq)
+        code.localGet(2)
+        code.i64Const(5)
+        code.op(WasmOpcode.i64Eq)
+        code.op(WasmOpcode.i32Or)
+        code.openIf(result: .i64)
+        code.localGet(1)
+        code.i64Const(L.nullSentinel)
+        code.op(WasmOpcode.i64Eq)
+        code.i64ExtendFromComparison()
+        code.elseBranch()
+        code.i64Const(0)
+        code.end()
+        emitNullablePrimitiveEqualityNegation(&code, negate: negate)
+        code.op(WasmOpcode.return)
+        code.end()
+
+        code.localGet(2)
+        code.i64Const(4)
+        code.op(WasmOpcode.i64Eq)
+        code.localGet(2)
+        code.i64Const(5)
+        code.op(WasmOpcode.i64Eq)
+        code.op(WasmOpcode.i32Or)
+        code.localGet(1)
+        code.i64Const(L.nullSentinel)
+        code.op(WasmOpcode.i64Eq)
+        code.op(WasmOpcode.i32And)
+        code.openIf()
+        code.i64Const(0)
+        emitNullablePrimitiveEqualityNegation(&code, negate: negate)
+        code.op(WasmOpcode.return)
+        code.end()
+
+        for local in [0, 1] {
+            emitRejectNonFloatingBox(&code, ctx: ctx, valueLocal: local, negate: negate)
+        }
+
+        code.localGet(2)
+        code.i64Const(2)
+        code.op(WasmOpcode.i64Eq)
+        code.localGet(2)
+        code.i64Const(4)
+        code.op(WasmOpcode.i64Eq)
+        code.op(WasmOpcode.i32Or)
+        code.openIf()
+        emitFloatingBoxBitPattern(&code, ctx: ctx, valueLocal: 0)
+        code.op(WasmOpcode.f64ReinterpretI64)
+        emitFloatingBoxBitPattern(&code, ctx: ctx, valueLocal: 1)
+        code.op(WasmOpcode.f64ReinterpretI64)
+        code.op(WasmOpcode.f64Eq)
+        code.i64ExtendFromComparison()
+        emitNullablePrimitiveEqualityNegation(&code, negate: negate)
+        code.op(WasmOpcode.return)
+        code.end()
+
+        emitFloatingBoxBitPattern(&code, ctx: ctx, valueLocal: 0)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.f32ReinterpretI32)
+        emitFloatingBoxBitPattern(&code, ctx: ctx, valueLocal: 1)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.f32ReinterpretI32)
+        code.op(WasmOpcode.f32Eq)
+        code.i64ExtendFromComparison()
+        emitNullablePrimitiveEqualityNegation(&code, negate: negate)
+    }
+
+    private static func emitRejectNonFloatingBox(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        valueLocal: Int,
+        negate: Bool
+    ) {
+        code.localGet(valueLocal)
+        code.globalGet(ctx.dataEndGlobal)
+        code.op(WasmOpcode.i64GeU)
+        code.localGet(valueLocal)
+        code.globalGet(ctx.heapGlobal)
+        code.op(WasmOpcode.i64LtU)
+        code.op(WasmOpcode.i32And)
+        code.localGet(valueLocal)
+        code.i64Const(7)
+        code.op(WasmOpcode.i64And)
+        code.op(WasmOpcode.i64Eqz)
+        code.op(WasmOpcode.i32And)
+        code.openIf()
+        emitLoadAt(&code, baseLocal: valueLocal, byteOffset: L.typeIDOffset)
+        code.i64Const(stableNominalTypeID("kotlin.Double"))
+        code.op(WasmOpcode.i64Eq)
+        emitLoadAt(&code, baseLocal: valueLocal, byteOffset: L.typeIDOffset)
+        code.i64Const(stableNominalTypeID("kotlin.Float"))
+        code.op(WasmOpcode.i64Eq)
+        code.op(WasmOpcode.i32Or)
+        code.op(WasmOpcode.i32Eqz)
+        code.openIf()
+        code.i64Const(negate ? 1 : 0)
+        code.op(WasmOpcode.return)
+        code.end()
+        code.end()
+    }
+
+    private static func emitFloatingBoxBitPattern(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        valueLocal: Int
+    ) {
+        code.localGet(valueLocal)
+        code.globalGet(ctx.dataEndGlobal)
+        code.op(WasmOpcode.i64GeU)
+        code.localGet(valueLocal)
+        code.globalGet(ctx.heapGlobal)
+        code.op(WasmOpcode.i64LtU)
+        code.op(WasmOpcode.i32And)
+        code.localGet(valueLocal)
+        code.i64Const(7)
+        code.op(WasmOpcode.i64And)
+        code.op(WasmOpcode.i64Eqz)
+        code.op(WasmOpcode.i32And)
+        code.openIf(result: .i64)
+        emitLoadAt(&code, baseLocal: valueLocal, byteOffset: L.typeIDOffset)
+        code.i64Const(stableNominalTypeID("kotlin.Double"))
+        code.op(WasmOpcode.i64Eq)
+        code.openIf(result: .i64)
+        emitLoadAt(&code, baseLocal: valueLocal, byteOffset: 16)
+        code.elseBranch()
+        emitLoadAt(&code, baseLocal: valueLocal, byteOffset: L.typeIDOffset)
+        code.i64Const(stableNominalTypeID("kotlin.Float"))
+        code.op(WasmOpcode.i64Eq)
+        code.openIf(result: .i64)
+        emitLoadAt(&code, baseLocal: valueLocal, byteOffset: 16)
+        code.elseBranch()
+        code.localGet(valueLocal)
+        code.end()
+        code.end()
+        code.elseBranch()
+        code.localGet(valueLocal)
+        code.end()
+    }
+
+    private static func emitNullablePrimitiveEqualityNegation(
+        _ code: inout WasmCode,
+        negate: Bool
+    ) {
+        guard negate else { return }
+        code.i64Const(0)
+        code.op(WasmOpcode.i64Eq)
+        code.i64ExtendFromComparison()
     }
 
     private static func emitPairToStringBody(
