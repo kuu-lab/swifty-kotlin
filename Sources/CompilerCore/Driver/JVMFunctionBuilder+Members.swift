@@ -328,8 +328,13 @@ extension JVMFunctionBuilder {
         }
         var qualifier: String?
         if let receiver, case let .superRef(name, _, _) = arena.expr(receiver) { qualifier = name.map(context.interner.resolve) }
+        func matchesQualifier(_ interface: String, _ qualifier: String) -> Bool {
+            if interface.split(separator: "/").last.map(String.init) == qualifier || interface.replacingOccurrences(of: "/", with: ".") == qualifier { return true }
+            let simple = qualifier.split(separator: ".").last.map(String.init) ?? qualifier
+            return JVMClasspathIndex.collectionNames[simple] == interface && (qualifier == simple || qualifier == "kotlin.collections." + simple)
+        }
         let candidates = owner.interfaces.filter { interface in
-            (qualifier == nil || interface.split(separator: "/").last.map(String.init) == qualifier || interface.replacingOccurrences(of: "/", with: ".") == qualifier) && inherits(interface, method.owner, visited: [])
+            (qualifier == nil || matchesQualifier(interface, qualifier!)) && inherits(interface, method.owner, visited: [])
         }
         guard let target = candidates.first else {
             if method.owner == "java/util/Map", method.name == "putIfAbsent", owner.superclass != "java/lang/Object" {

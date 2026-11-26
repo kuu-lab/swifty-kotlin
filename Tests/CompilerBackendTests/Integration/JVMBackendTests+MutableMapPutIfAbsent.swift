@@ -24,6 +24,15 @@ extension JVMBackendTests {
             class ChildMap : BaseMap() {
                 fun addMissing() = super.putIfAbsent("super", "inserted")
             }
+            open class QualifiedBaseMap(private val backing: MutableMap<String, String>) : MutableMap<String, String> by backing {
+                override fun putIfAbsent(key: String, value: String): String? {
+                    println("qualified base putIfAbsent")
+                    return backing.putIfAbsent(key, value)
+                }
+            }
+            class QualifiedChildMap : QualifiedBaseMap(mutableMapOf()), MutableMap<String, String> by mutableMapOf() {
+                fun addMissing() = super<MutableMap>.putIfAbsent("qualified", "inserted")
+            }
 
             fun main() {
                 val values = linkedMapOf<String, String?>("null" to null, "present" to "old")
@@ -41,6 +50,7 @@ extension JVMBackendTests {
                 println(delegated.putIfAbsent("key", "replacement"))
 
                 println(ChildMap().addMissing())
+                println(QualifiedChildMap().addMissing())
 
                 val referenceMap: MutableMap<String, String> = linkedMapOf()
                 val reference: (String, String) -> String? = referenceMap::putIfAbsent
@@ -68,6 +78,7 @@ extension JVMBackendTests {
             null
             get override
             first
+            null
             null
             null
             first
