@@ -71,6 +71,21 @@ struct AnonymousFunctionBodyParsingTests {
     }
 
     @Test
+    func newlineBetweenContextPrefixAndAnonymousFunctionParsesInUnbracedIfBranch() throws {
+        let (_, context) = try buildASTModule(from: """
+        @file:OptIn(kotlin.ExperimentalContextParameters::class)
+        fun main() {
+            with("O") {
+                if (true) context(a: String)
+                fun(y: String): String = a + y
+            }
+        }
+        """, includeStdlib: false)
+
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+    }
+
+    @Test
     func newlineBetweenContextPrefixAndAnonymousFunctionParsesInTopLevelInitializer() throws {
         let (_, context) = try buildASTModule(from: """
         @file:OptIn(kotlin.ExperimentalContextParameters::class)

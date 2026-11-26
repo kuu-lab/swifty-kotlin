@@ -433,7 +433,8 @@ extension KotlinParser {
                children.count > startChildCount,
                atBodyBoundary,
                hasLeadingNewline(token),
-               shouldSplitStatementOnNewline(token.kind)
+               shouldSplitStatementOnNewline(token.kind),
+               !(consumedTokensEndWithContextClause(children) && isAnonymousFunctionExpressionStart())
             {
                 break
             }
@@ -465,6 +466,11 @@ extension KotlinParser {
                     continue
                 }
                 if endsWithPendingInfixOperator(children) {
+                    continue
+                }
+                if consumedTokensEndWithContextClause(children),
+                   isAnonymousFunctionExpressionStart()
+                {
                     continue
                 }
                 break
