@@ -193,6 +193,9 @@ extension LocalDeclTypeChecker {
         var receiverCtx = ctx
         receiverCtx.isConditionallyEvaluated = ctx.receiverConditionallyEvaluated
         let inferredReceiverType = driver.inferExpr(receiverExpr, ctx: receiverCtx, locals: &locals, expectedType: nil)
+        if case .superRef = ctx.ast.arena.expr(receiverExpr) {
+            sema.bindings.markSuperCall(id)
+        }
         var effectiveIsSafeChain = isSafeChain
         var operatorReceiverType = inferredReceiverType
         if isSafeChain,
@@ -455,6 +458,9 @@ extension LocalDeclTypeChecker {
         var receiverCtx = ctx
         receiverCtx.isConditionallyEvaluated = ctx.receiverConditionallyEvaluated
         let inferredReceiverType = driver.inferExpr(receiverExpr, ctx: receiverCtx, locals: &locals, expectedType: nil)
+        if case .superRef = ctx.ast.arena.expr(receiverExpr) {
+            sema.bindings.markSuperCall(id)
+        }
 
         let setName = interner.intern("set")
         let receiverInfo = indexedOperatorMemberCandidates(

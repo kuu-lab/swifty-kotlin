@@ -150,6 +150,15 @@ open class RuntimeCallable(
         if (instance && !bound) result.add(RuntimeParameter(this, 0, null, false, emptyList()))
         val declarations = node.children(if (displayName == "<init>") 2 else 6)
         val annotations = __jvmExecutableParamAnnotations(method)
+        if (node.bytes.isEmpty()) {
+            val parameterTypes = __jvmExecutableParams(method)
+            var parameterIndex = 0
+            while (parameterIndex < parameterTypes.size) {
+                result.add(RuntimeParameter(this, result.size, null, false, if (parameterIndex < annotations.size) expandAnnotations(annotations[parameterIndex]) else emptyList()))
+                parameterIndex++
+            }
+            return result
+        }
         val receiverOffset = if (node.has(5)) 1 else 0
         if (receiverOffset == 1 && !bound) result.add(RuntimeParameter(this, result.size, null, false, if (annotations.size > 0) expandAnnotations(annotations[0]) else emptyList()))
         var index = 0

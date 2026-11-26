@@ -149,9 +149,10 @@ extension DataFlowSemaPhase {
         resolver: ImportedSymbolResolver,
         materializeInitBodiesForWasm: Bool = false
     ) {
-        // Wasm has no object linker, so init-family bodies that native
-        // resolves from the artifact's .o must instead materialize from the
-        // serialized KIR shipped in inline-kir/ (see CodegenPhase).
+        // Wasm has no object linker, so init-family and statically
+        // dispatchable non-inline bodies that native resolves from the
+        // artifact's .o must instead materialize from the serialized KIR
+        // shipped in inline-kir/ (see CodegenPhase).
         var initBodySymbols: Set<SymbolID> = []
         var initSymbolsByLinkName: [String: SymbolID] = [:]
         if materializeInitBodiesForWasm {
@@ -319,7 +320,7 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // Wasm emits no separate object file for imported init functions, so
+        // Wasm emits no separate object file for imported functions, so
         // the materialized bodies join the module as ordinary decls. Globals
         // they touch (the singleton handle, `$initialized` flags) need slots
         // owned by this compilation too.
@@ -357,7 +358,7 @@ extension DataFlowSemaPhase {
                 else { continue }
                 if seenFunctions.contains(symbol) {
                 } else if isInitBodySymbol(symbol), canEmitStandaloneBody(function, symbol: symbol) {
-                    // Materialized init/link-name bodies become ordinary
+                    // Materialized link-name bodies become ordinary
                     // module functions: wasm has no object linker, so calls
                     // must reach a real emitted body instead of expanding
                     // the whole transitive closure into each caller (which

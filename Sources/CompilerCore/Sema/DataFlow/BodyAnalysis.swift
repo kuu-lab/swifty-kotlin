@@ -1428,13 +1428,13 @@ extension DataFlowSemaPhase {
             )))
         case let .functionType(ft):
             let newContextReceivers = ft.contextReceivers.map {
-                applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols, recursionDepth: recursionDepth + 1, diagnostics: diagnostics)
+                applySubstitutionAtInputPosition($0, argSubstitution: argSubstitution, types: types, symbols: symbols, recursionDepth: recursionDepth + 1, diagnostics: diagnostics)
             }
             let newReceiver = ft.receiver.map {
-                applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols, recursionDepth: recursionDepth + 1, diagnostics: diagnostics)
+                applySubstitutionAtInputPosition($0, argSubstitution: argSubstitution, types: types, symbols: symbols, recursionDepth: recursionDepth + 1, diagnostics: diagnostics)
             }
             let newParams = ft.params.map {
-                applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols, recursionDepth: recursionDepth + 1, diagnostics: diagnostics)
+                applySubstitutionAtInputPosition($0, argSubstitution: argSubstitution, types: types, symbols: symbols, recursionDepth: recursionDepth + 1, diagnostics: diagnostics)
             }
             let newReturn = applySubstitution(
                 ft.returnType,
@@ -1464,6 +1464,32 @@ extension DataFlowSemaPhase {
             }
             return types.make(.intersection(newParts))
         }
+    }
+
+    // A star argument filling a function-type input is the `in Nothing`
+    // projection of that FunctionN parameter, so only `Nothing` accepts
+    // every function the alias stands for; `Any?` would reject them all.
+    private func applySubstitutionAtInputPosition(
+        _ typeID: TypeID,
+        argSubstitution: [SymbolID: TypeArg],
+        types: TypeSystem,
+        symbols: SymbolTable,
+        recursionDepth: Int,
+        diagnostics: DiagnosticEngine?
+    ) -> TypeID {
+        if case let .typeParam(tp) = types.kind(of: typeID),
+           case .star = argSubstitution[tp.symbol]
+        {
+            return types.nothingType
+        }
+        return applySubstitution(
+            typeID,
+            argSubstitution: argSubstitution,
+            types: types,
+            symbols: symbols,
+            recursionDepth: recursionDepth,
+            diagnostics: diagnostics
+        )
     }
 
     private func substituteArg(

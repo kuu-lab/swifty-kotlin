@@ -1,4 +1,4 @@
-
+// DIFF_JVM
 fun main() {
     // === String.chunked(size) ===
     // Basic chunked

@@ -176,187 +176,233 @@ extension LLVMCAPIBindings {
                 continue
             }
 
-            guard let contextCreate = loadSymbol(handle: handle, name: "LLVMContextCreate", as: LLVMContextCreateFn.self),
-                  let contextDispose = loadSymbol(handle: handle, name: "LLVMContextDispose", as: LLVMContextDisposeFn.self),
-                  let moduleCreate = loadSymbol(handle: handle, name: "LLVMModuleCreateWithNameInContext", as: LLVMModuleCreateWithNameInContextFn.self),
-                  let disposeModule = loadSymbol(handle: handle, name: "LLVMDisposeModule", as: LLVMDisposeModuleFn.self),
-                  let printModule = loadSymbol(handle: handle, name: "LLVMPrintModuleToString", as: LLVMPrintModuleToStringFn.self),
-                  let disposeMessage = loadSymbol(handle: handle, name: "LLVMDisposeMessage", as: LLVMDisposeMessageFn.self),
-                  let setTarget = loadSymbol(handle: handle, name: "LLVMSetTarget", as: LLVMSetTargetFn.self),
-                  let setDataLayout = loadSymbol(handle: handle, name: "LLVMSetDataLayout", as: LLVMSetDataLayoutFn.self),
-                  let setLinkage = loadSymbol(handle: handle, name: "LLVMSetLinkage", as: LLVMSetLinkageFn.self),
-                  let setThreadLocal = loadSymbol(handle: handle, name: "LLVMSetThreadLocal", as: LLVMSetThreadLocalFn.self),
-                  let int8Type = loadSymbol(handle: handle, name: "LLVMInt8TypeInContext", as: LLVMInt8TypeInContextFn.self),
-                  let int64Type = loadSymbol(handle: handle, name: "LLVMInt64TypeInContext", as: LLVMInt64TypeInContextFn.self),
-                  let pointerType = loadSymbol(handle: handle, name: "LLVMPointerType", as: LLVMPointerTypeFn.self),
-                  let functionType = loadSymbol(handle: handle, name: "LLVMFunctionType", as: LLVMFunctionTypeFn.self),
-                  let addFunction = loadSymbol(handle: handle, name: "LLVMAddFunction", as: LLVMAddFunctionFn.self),
-                  let getNamedFunction = loadSymbol(handle: handle, name: "LLVMGetNamedFunction", as: LLVMGetNamedFunctionFn.self),
-                  let getParam = loadSymbol(handle: handle, name: "LLVMGetParam", as: LLVMGetParamFn.self),
-                  let getUndef = loadSymbol(handle: handle, name: "LLVMGetUndef", as: LLVMGetUndefFn.self),
-                  let appendBasicBlock = loadSymbol(handle: handle, name: "LLVMAppendBasicBlockInContext", as: LLVMAppendBasicBlockInContextFn.self),
-                  let createBuilder = loadSymbol(handle: handle, name: "LLVMCreateBuilderInContext", as: LLVMCreateBuilderInContextFn.self),
-                  let disposeBuilder = loadSymbol(handle: handle, name: "LLVMDisposeBuilder", as: LLVMDisposeBuilderFn.self),
-                  let positionBuilder = loadSymbol(handle: handle, name: "LLVMPositionBuilderAtEnd", as: LLVMPositionBuilderAtEndFn.self),
-                  let getTerminator = loadSymbol(handle: handle, name: "LLVMGetBasicBlockTerminator", as: LLVMGetBasicBlockTerminatorFn.self),
-                  let buildRet = loadSymbol(handle: handle, name: "LLVMBuildRet", as: LLVMBuildRetFn.self),
-                  let buildBr = loadSymbol(handle: handle, name: "LLVMBuildBr", as: LLVMBuildBrFn.self),
-                  let buildCondBr = loadSymbol(handle: handle, name: "LLVMBuildCondBr", as: LLVMBuildCondBrFn.self),
-                  let buildUnreachable = loadSymbol(handle: handle, name: "LLVMBuildUnreachable", as: LLVMBuildUnreachableFn.self),
-                  let buildAdd = loadSymbol(handle: handle, name: "LLVMBuildAdd", as: LLVMBuildAddFn.self),
-                  let buildSub = loadSymbol(handle: handle, name: "LLVMBuildSub", as: LLVMBuildSubFn.self),
-                  let buildMul = loadSymbol(handle: handle, name: "LLVMBuildMul", as: LLVMBuildMulFn.self),
-                  let buildSDiv = loadSymbol(handle: handle, name: "LLVMBuildSDiv", as: LLVMBuildSDivFn.self),
-                  let buildICmp = loadSymbol(handle: handle, name: "LLVMBuildICmp", as: LLVMBuildICmpFn.self),
-                  let constInt = loadSymbol(handle: handle, name: "LLVMConstInt", as: LLVMConstIntFn.self),
-                  let getDefaultTargetTriple = loadSymbol(handle: handle, name: "LLVMGetDefaultTargetTriple", as: LLVMGetDefaultTargetTripleFn.self),
-                  let getTargetFromTriple = loadSymbol(handle: handle, name: "LLVMGetTargetFromTriple", as: LLVMGetTargetFromTripleFn.self),
-                  let createTargetMachine = loadSymbol(handle: handle, name: "LLVMCreateTargetMachine", as: LLVMCreateTargetMachineFn.self),
-                  let disposeTargetMachine = loadSymbol(handle: handle, name: "LLVMDisposeTargetMachine", as: LLVMDisposeTargetMachineFn.self),
-                  let emitToFile = loadSymbol(handle: handle, name: "LLVMTargetMachineEmitToFile", as: LLVMTargetMachineEmitToFileFn.self),
-                  let createTargetDataLayout = loadSymbol(handle: handle, name: "LLVMCreateTargetDataLayout", as: LLVMCreateTargetDataLayoutFn.self),
-                  let copyStringRepOfTargetData = loadSymbol(handle: handle, name: "LLVMCopyStringRepOfTargetData", as: LLVMCopyStringRepOfTargetDataFn.self),
-                  let disposeTargetData = loadSymbol(handle: handle, name: "LLVMDisposeTargetData", as: LLVMDisposeTargetDataFn.self)
-            else {
+            switch makeBindings(handle: handle, libraryPath: libraryPath, lookup: { dlsym(handle, $0) }) {
+            case .success(let bindings):
+                return bindings
+            case .failure(let missing):
+                FileHandle.standardError.write(Data(
+                    missingRequiredSymbolsDiagnostic(libraryPath: libraryPath, missing: missing.names).utf8
+                ))
                 dlclose(handle)
                 continue
             }
-
-            let buildCall2 = loadSymbol(handle: handle, name: "LLVMBuildCall2", as: LLVMBuildCall2Fn.self)
-            let buildCall = loadSymbol(handle: handle, name: "LLVMBuildCall", as: LLVMBuildCallFn.self)
-
-            return LLVMCAPIBindings(
-                handle: handle,
-                libraryPath: libraryPath,
-                runPassesFn: loadSymbol(handle: handle, name: "LLVMRunPasses", as: LLVMRunPassesFn.self),
-                createPassBuilderOptionsFn: loadSymbol(handle: handle, name: "LLVMCreatePassBuilderOptions", as: LLVMCreatePassBuilderOptionsFn.self),
-                disposePassBuilderOptionsFn: loadSymbol(handle: handle, name: "LLVMDisposePassBuilderOptions", as: LLVMDisposePassBuilderOptionsFn.self),
-                getErrorMessageFn: loadSymbol(handle: handle, name: "LLVMGetErrorMessage", as: LLVMGetErrorMessageFn.self),
-                disposeErrorMessageFn: loadSymbol(handle: handle, name: "LLVMDisposeErrorMessage", as: LLVMDisposeErrorMessageFn.self),
-                verifyModuleFn: loadSymbol(handle: handle, name: "LLVMVerifyModule", as: LLVMVerifyModuleFn.self),
-                contextCreateFn: contextCreate,
-                contextDisposeFn: contextDispose,
-                moduleCreateFn: moduleCreate,
-                disposeModuleFn: disposeModule,
-                linkModules2Fn: loadSymbol(handle: handle, name: "LLVMLinkModules2", as: LLVMLinkModules2Fn.self),
-                writeBitcodeToFileFn: loadSymbol(handle: handle, name: "LLVMWriteBitcodeToFile", as: LLVMWriteBitcodeToFileFn.self),
-                printModuleToStringFn: printModule,
-                disposeMessageFn: disposeMessage,
-                setTargetFn: setTarget,
-                setDataLayoutFn: setDataLayout,
-                setLinkageFn: setLinkage,
-                setThreadLocalFn: setThreadLocal,
-                voidTypeFn: loadSymbol(handle: handle, name: "LLVMVoidTypeInContext", as: LLVMVoidTypeInContextFn.self),
-                int8TypeInContextFn: int8Type,
-                int64TypeFn: int64Type,
-                structTypeInContextFn: loadSymbol(handle: handle, name: "LLVMStructTypeInContext", as: LLVMStructTypeInContextFn.self),
-                pointerTypeFn: pointerType,
-                functionTypeFn: functionType,
-                addFunctionFn: addFunction,
-                getNamedFunctionFn: getNamedFunction,
-                getParamFn: getParam,
-                getUndefFn: getUndef,
-                appendBasicBlockFn: appendBasicBlock,
-                createBuilderFn: createBuilder,
-                disposeBuilderFn: disposeBuilder,
-                positionBuilderFn: positionBuilder,
-                getBasicBlockTerminatorFn: getTerminator,
-                buildRetFn: buildRet,
-                buildBrFn: buildBr,
-                buildCondBrFn: buildCondBr,
-                buildUnreachableFn: buildUnreachable,
-                buildAddFn: buildAdd,
-                buildSubFn: buildSub,
-                buildMulFn: buildMul,
-                buildSDivFn: buildSDiv,
-                buildAndFn: loadSymbol(handle: handle, name: "LLVMBuildAnd", as: LLVMBuildAndFn.self),
-                buildOrFn: loadSymbol(handle: handle, name: "LLVMBuildOr", as: LLVMBuildOrFn.self),
-                buildXorFn: loadSymbol(handle: handle, name: "LLVMBuildXor", as: LLVMBuildXorFn.self),
-                buildShlFn: loadSymbol(handle: handle, name: "LLVMBuildShl", as: LLVMBuildShlFn.self),
-                buildAShrFn: loadSymbol(handle: handle, name: "LLVMBuildAShr", as: LLVMBuildAShrFn.self),
-                buildLShrFn: loadSymbol(handle: handle, name: "LLVMBuildLShr", as: LLVMBuildLShrFn.self),
-                buildNotFn: loadSymbol(handle: handle, name: "LLVMBuildNot", as: LLVMBuildNotFn.self),
-                buildICmpFn: buildICmp,
-                buildZExtFn: loadSymbol(handle: handle, name: "LLVMBuildZExt", as: LLVMBuildZExtFn.self),
-                buildAllocaFn: loadSymbol(handle: handle, name: "LLVMBuildAlloca", as: LLVMBuildAllocaFn.self),
-                buildStoreFn: loadSymbol(handle: handle, name: "LLVMBuildStore", as: LLVMBuildStoreFn.self),
-                buildLoad2Fn: loadSymbol(handle: handle, name: "LLVMBuildLoad2", as: LLVMBuildLoad2Fn.self),
-                buildLoadFn: loadSymbol(handle: handle, name: "LLVMBuildLoad", as: LLVMBuildLoadFn.self),
-                buildSelectFn: loadSymbol(handle: handle, name: "LLVMBuildSelect", as: LLVMBuildSelectFn.self),
-                buildExtractValueFn: loadSymbol(handle: handle, name: "LLVMBuildExtractValue", as: LLVMBuildExtractValueFn.self),
-                buildInsertValueFn: loadSymbol(handle: handle, name: "LLVMBuildInsertValue", as: LLVMBuildInsertValueFn.self),
-                typeOfFn: loadSymbol(handle: handle, name: "LLVMTypeOf", as: LLVMTypeOfFn.self),
-                getTypeKindFn: loadSymbol(handle: handle, name: "LLVMGetTypeKind", as: LLVMGetTypeKindFn.self),
-                buildGlobalStringPtrFn: loadSymbol(handle: handle, name: "LLVMBuildGlobalStringPtr", as: LLVMBuildGlobalStringPtrFn.self),
-                buildPtrToIntFn: loadSymbol(handle: handle, name: "LLVMBuildPtrToInt", as: LLVMBuildPtrToIntFn.self),
-                buildIntToPtrFn: loadSymbol(handle: handle, name: "LLVMBuildIntToPtr", as: LLVMBuildIntToPtrFn.self),
-                buildPointerCastFn: loadSymbol(handle: handle, name: "LLVMBuildPointerCast", as: LLVMBuildPointerCastFn.self),
-                buildCall2Fn: buildCall2,
-                buildCallFn: buildCall,
-                constIntFn: constInt,
-                constPointerNullFn: loadSymbol(handle: handle, name: "LLVMConstPointerNull", as: LLVMConstPointerNullFn.self),
-                constStructInContextFn: loadSymbol(handle: handle, name: "LLVMConstStructInContext", as: LLVMConstStructInContextFn.self),
-                constStringInContextFn: loadSymbol(handle: handle, name: "LLVMConstStringInContext", as: LLVMConstStringInContextFn.self),
-                arrayTypeFn: loadSymbol(handle: handle, name: "LLVMArrayType", as: LLVMArrayTypeFn.self),
-                setGlobalConstantFn: loadSymbol(handle: handle, name: "LLVMSetGlobalConstant", as: LLVMSetGlobalConstantFn.self),
-                setUnnamedAddrFn: loadSymbol(handle: handle, name: "LLVMSetUnnamedAddr", as: LLVMSetUnnamedAddrFn.self),
-                buildInBoundsGEP2Fn: loadSymbol(handle: handle, name: "LLVMBuildInBoundsGEP2", as: LLVMBuildInBoundsGEP2Fn.self),
-                getDefaultTargetTripleFn: getDefaultTargetTriple,
-                getTargetFromTripleFn: getTargetFromTriple,
-                createTargetMachineFn: createTargetMachine,
-                disposeTargetMachineFn: disposeTargetMachine,
-                emitToFileFn: emitToFile,
-                createTargetDataLayoutFn: createTargetDataLayout,
-                copyStringRepOfTargetDataFn: copyStringRepOfTargetData,
-                disposeTargetDataFn: disposeTargetData,
-                initializeX86TargetInfoFn: loadSymbol(handle: handle, name: "LLVMInitializeX86TargetInfo", as: LLVMInitializeX86TargetInfoFn.self),
-                initializeX86TargetFn: loadSymbol(handle: handle, name: "LLVMInitializeX86Target", as: LLVMInitializeX86TargetFn.self),
-                initializeX86TargetMCFn: loadSymbol(handle: handle, name: "LLVMInitializeX86TargetMC", as: LLVMInitializeX86TargetMCFn.self),
-                initializeX86AsmPrinterFn: loadSymbol(handle: handle, name: "LLVMInitializeX86AsmPrinter", as: LLVMInitializeX86AsmPrinterFn.self),
-                initializeAArch64TargetInfoFn: loadSymbol(handle: handle, name: "LLVMInitializeAArch64TargetInfo", as: LLVMInitializeAArch64TargetInfoFn.self),
-                initializeAArch64TargetFn: loadSymbol(handle: handle, name: "LLVMInitializeAArch64Target", as: LLVMInitializeAArch64TargetFn.self),
-                initializeAArch64TargetMCFn: loadSymbol(handle: handle, name: "LLVMInitializeAArch64TargetMC", as: LLVMInitializeAArch64TargetMCFn.self),
-                initializeAArch64AsmPrinterFn: loadSymbol(handle: handle, name: "LLVMInitializeAArch64AsmPrinter", as: LLVMInitializeAArch64AsmPrinterFn.self),
-                initializeWebAssemblyTargetInfoFn: loadSymbol(handle: handle, name: "LLVMInitializeWebAssemblyTargetInfo", as: LLVMInitializeWebAssemblyTargetInfoFn.self),
-                initializeWebAssemblyTargetFn: loadSymbol(handle: handle, name: "LLVMInitializeWebAssemblyTarget", as: LLVMInitializeWebAssemblyTargetFn.self),
-                initializeWebAssemblyTargetMCFn: loadSymbol(handle: handle, name: "LLVMInitializeWebAssemblyTargetMC", as: LLVMInitializeWebAssemblyTargetMCFn.self),
-                initializeWebAssemblyAsmPrinterFn: loadSymbol(handle: handle, name: "LLVMInitializeWebAssemblyAsmPrinter", as: LLVMInitializeWebAssemblyAsmPrinterFn.self),
-                addGlobalFn: loadSymbol(handle: handle, name: "LLVMAddGlobal", as: LLVMAddGlobalFn.self),
-                setInitializerFn: loadSymbol(handle: handle, name: "LLVMSetInitializer", as: LLVMSetInitializerFn.self),
-                positionBuilderBeforeFn: loadSymbol(handle: handle, name: "LLVMPositionBuilderBefore", as: LLVMPositionBuilderBeforeFn.self),
-                getFirstInstructionFn: loadSymbol(handle: handle, name: "LLVMGetFirstInstruction", as: LLVMGetFirstInstructionFn.self),
-                createDIBuilderFn: loadSymbol(handle: handle, name: "LLVMCreateDIBuilder", as: LLVMCreateDIBuilderFn.self),
-                disposeDIBuilderFn: loadSymbol(handle: handle, name: "LLVMDisposeDIBuilder", as: LLVMDisposeDIBuilderFn.self),
-                diBuilderFinalizeFn: loadSymbol(handle: handle, name: "LLVMDIBuilderFinalize", as: LLVMDIBuilderFinalizeFn.self),
-                diBuilderCreateFileFn: loadSymbol(handle: handle, name: "LLVMDIBuilderCreateFile", as: LLVMDIBuilderCreateFileFn.self),
-                diBuilderCreateCompileUnitFn: loadSymbol(handle: handle, name: "LLVMDIBuilderCreateCompileUnit", as: LLVMDIBuilderCreateCompileUnitFn.self),
-                diBuilderCreateSubroutineTypeFn: loadSymbol(handle: handle, name: "LLVMDIBuilderCreateSubroutineType", as: LLVMDIBuilderCreateSubroutineTypeFn.self),
-                diBuilderCreateFunctionFn: loadSymbol(handle: handle, name: "LLVMDIBuilderCreateFunction", as: LLVMDIBuilderCreateFunctionFn.self),
-                setSubprogramFn: loadSymbol(handle: handle, name: "LLVMSetSubprogram", as: LLVMSetSubprogramFn.self),
-                addModuleFlagFn: loadSymbol(handle: handle, name: "LLVMAddModuleFlag", as: LLVMAddModuleFlagFn.self),
-                valueAsMetadataFn: loadSymbol(handle: handle, name: "LLVMValueAsMetadata", as: LLVMValueAsMetadataFn.self),
-                int32TypeFn: loadSymbol(handle: handle, name: "LLVMInt32TypeInContext", as: LLVMInt32TypeInContextFn.self),
-                setCurrentDebugLocation2Fn: loadSymbol(handle: handle, name: "LLVMSetCurrentDebugLocation2", as: LLVMSetCurrentDebugLocation2Fn.self),
-                diBuilderCreateDebugLocationFn: loadSymbol(handle: handle, name: "LLVMDIBuilderCreateDebugLocation", as: LLVMDIBuilderCreateDebugLocationFn.self),
-                diBuilderCreateBasicTypeFn: loadSymbol(handle: handle, name: "LLVMDIBuilderCreateBasicType", as: LLVMDIBuilderCreateBasicTypeFn.self),
-                diBuilderCreateParameterVariableFn: loadSymbol(handle: handle, name: "LLVMDIBuilderCreateParameterVariable", as: LLVMDIBuilderCreateParameterVariableFn.self),
-                diBuilderCreateAutoVariableFn: loadSymbol(handle: handle, name: "LLVMDIBuilderCreateAutoVariable", as: LLVMDIBuilderCreateAutoVariableFn.self),
-                diBuilderInsertDeclareAtEndFn: loadSymbol(handle: handle, name: "LLVMDIBuilderInsertDeclareAtEnd", as: LLVMDIBuilderInsertDeclareAtEndFn.self),
-                diBuilderCreateExpressionFn: loadSymbol(handle: handle, name: "LLVMDIBuilderCreateExpression", as: LLVMDIBuilderCreateExpressionFn.self)
-            )
         }
         return nil
     }
 
-    static func loadSymbol<T>(
-        handle: UnsafeMutableRawPointer,
-        name: String,
-        as type: T.Type
-    ) -> T? {
-        guard let symbol = dlsym(handle, name) else {
-            return nil
+    struct MissingRequiredSymbols: Error, Equatable {
+        let names: [String]
+    }
+
+    static func missingRequiredSymbolsDiagnostic(libraryPath: String, missing: [String]) -> String {
+        "kswiftc: skipping LLVM library candidate \(libraryPath): missing required symbols: \(missing.joined(separator: ", "))\n"
+    }
+
+    final class SymbolResolver {
+        private let lookup: (String) -> UnsafeMutableRawPointer?
+        private(set) var missingRequired: [String] = []
+
+        init(lookup: @escaping (String) -> UnsafeMutableRawPointer?) {
+            self.lookup = lookup
         }
-        return unsafeBitCast(symbol, to: type)
+
+        func required<T>(_ name: String, as type: T.Type) -> T? {
+            guard let symbol = optional(name, as: type) else {
+                missingRequired.append(name)
+                return nil
+            }
+            return symbol
+        }
+
+        func optional<T>(_ name: String, as type: T.Type) -> T? {
+            guard let symbol = lookup(name) else {
+                return nil
+            }
+            return unsafeBitCast(symbol, to: type)
+        }
+    }
+
+    static func makeBindings(
+        handle: UnsafeMutableRawPointer,
+        libraryPath: String,
+        lookup: @escaping (String) -> UnsafeMutableRawPointer?
+    ) -> Result<LLVMCAPIBindings, MissingRequiredSymbols> {
+        let symbols = SymbolResolver(lookup: lookup)
+        let contextCreate = symbols.required("LLVMContextCreate", as: LLVMContextCreateFn.self)
+        let contextDispose = symbols.required("LLVMContextDispose", as: LLVMContextDisposeFn.self)
+        let moduleCreate = symbols.required("LLVMModuleCreateWithNameInContext", as: LLVMModuleCreateWithNameInContextFn.self)
+        let disposeModule = symbols.required("LLVMDisposeModule", as: LLVMDisposeModuleFn.self)
+        let printModule = symbols.required("LLVMPrintModuleToString", as: LLVMPrintModuleToStringFn.self)
+        let disposeMessage = symbols.required("LLVMDisposeMessage", as: LLVMDisposeMessageFn.self)
+        let setTarget = symbols.required("LLVMSetTarget", as: LLVMSetTargetFn.self)
+        let setDataLayout = symbols.required("LLVMSetDataLayout", as: LLVMSetDataLayoutFn.self)
+        let setLinkage = symbols.required("LLVMSetLinkage", as: LLVMSetLinkageFn.self)
+        let setThreadLocal = symbols.required("LLVMSetThreadLocal", as: LLVMSetThreadLocalFn.self)
+        let int8Type = symbols.required("LLVMInt8TypeInContext", as: LLVMInt8TypeInContextFn.self)
+        let int64Type = symbols.required("LLVMInt64TypeInContext", as: LLVMInt64TypeInContextFn.self)
+        let pointerType = symbols.required("LLVMPointerType", as: LLVMPointerTypeFn.self)
+        let functionType = symbols.required("LLVMFunctionType", as: LLVMFunctionTypeFn.self)
+        let addFunction = symbols.required("LLVMAddFunction", as: LLVMAddFunctionFn.self)
+        let getNamedFunction = symbols.required("LLVMGetNamedFunction", as: LLVMGetNamedFunctionFn.self)
+        let getParam = symbols.required("LLVMGetParam", as: LLVMGetParamFn.self)
+        let getUndef = symbols.required("LLVMGetUndef", as: LLVMGetUndefFn.self)
+        let appendBasicBlock = symbols.required("LLVMAppendBasicBlockInContext", as: LLVMAppendBasicBlockInContextFn.self)
+        let createBuilder = symbols.required("LLVMCreateBuilderInContext", as: LLVMCreateBuilderInContextFn.self)
+        let disposeBuilder = symbols.required("LLVMDisposeBuilder", as: LLVMDisposeBuilderFn.self)
+        let positionBuilder = symbols.required("LLVMPositionBuilderAtEnd", as: LLVMPositionBuilderAtEndFn.self)
+        let getTerminator = symbols.required("LLVMGetBasicBlockTerminator", as: LLVMGetBasicBlockTerminatorFn.self)
+        let buildRet = symbols.required("LLVMBuildRet", as: LLVMBuildRetFn.self)
+        let buildBr = symbols.required("LLVMBuildBr", as: LLVMBuildBrFn.self)
+        let buildCondBr = symbols.required("LLVMBuildCondBr", as: LLVMBuildCondBrFn.self)
+        let buildUnreachable = symbols.required("LLVMBuildUnreachable", as: LLVMBuildUnreachableFn.self)
+        let buildAdd = symbols.required("LLVMBuildAdd", as: LLVMBuildAddFn.self)
+        let buildSub = symbols.required("LLVMBuildSub", as: LLVMBuildSubFn.self)
+        let buildMul = symbols.required("LLVMBuildMul", as: LLVMBuildMulFn.self)
+        let buildSDiv = symbols.required("LLVMBuildSDiv", as: LLVMBuildSDivFn.self)
+        let buildICmp = symbols.required("LLVMBuildICmp", as: LLVMBuildICmpFn.self)
+        let constInt = symbols.required("LLVMConstInt", as: LLVMConstIntFn.self)
+        let getDefaultTargetTriple = symbols.required("LLVMGetDefaultTargetTriple", as: LLVMGetDefaultTargetTripleFn.self)
+        let getTargetFromTriple = symbols.required("LLVMGetTargetFromTriple", as: LLVMGetTargetFromTripleFn.self)
+        let createTargetMachine = symbols.required("LLVMCreateTargetMachine", as: LLVMCreateTargetMachineFn.self)
+        let disposeTargetMachine = symbols.required("LLVMDisposeTargetMachine", as: LLVMDisposeTargetMachineFn.self)
+        let emitToFile = symbols.required("LLVMTargetMachineEmitToFile", as: LLVMTargetMachineEmitToFileFn.self)
+        let createTargetDataLayout = symbols.required("LLVMCreateTargetDataLayout", as: LLVMCreateTargetDataLayoutFn.self)
+        let copyStringRepOfTargetData = symbols.required("LLVMCopyStringRepOfTargetData", as: LLVMCopyStringRepOfTargetDataFn.self)
+        let disposeTargetData = symbols.required("LLVMDisposeTargetData", as: LLVMDisposeTargetDataFn.self)
+        guard let contextCreate, let contextDispose, let moduleCreate, let disposeModule, let printModule,
+              let disposeMessage, let setTarget, let setDataLayout, let setLinkage, let setThreadLocal, let int8Type,
+              let int64Type, let pointerType, let functionType, let addFunction, let getNamedFunction, let getParam,
+              let getUndef, let appendBasicBlock, let createBuilder, let disposeBuilder, let positionBuilder,
+              let getTerminator, let buildRet, let buildBr, let buildCondBr, let buildUnreachable, let buildAdd,
+              let buildSub, let buildMul, let buildSDiv, let buildICmp, let constInt, let getDefaultTargetTriple,
+              let getTargetFromTriple, let createTargetMachine, let disposeTargetMachine, let emitToFile,
+              let createTargetDataLayout, let copyStringRepOfTargetData, let disposeTargetData
+        else {
+            return .failure(MissingRequiredSymbols(names: symbols.missingRequired))
+        }
+
+        let buildCall2 = symbols.optional("LLVMBuildCall2", as: LLVMBuildCall2Fn.self)
+        let buildCall = symbols.optional("LLVMBuildCall", as: LLVMBuildCallFn.self)
+
+        return .success(LLVMCAPIBindings(
+            handle: handle,
+            libraryPath: libraryPath,
+            runPassesFn: symbols.optional("LLVMRunPasses", as: LLVMRunPassesFn.self),
+            createPassBuilderOptionsFn: symbols.optional("LLVMCreatePassBuilderOptions", as: LLVMCreatePassBuilderOptionsFn.self),
+            disposePassBuilderOptionsFn: symbols.optional("LLVMDisposePassBuilderOptions", as: LLVMDisposePassBuilderOptionsFn.self),
+            getErrorMessageFn: symbols.optional("LLVMGetErrorMessage", as: LLVMGetErrorMessageFn.self),
+            disposeErrorMessageFn: symbols.optional("LLVMDisposeErrorMessage", as: LLVMDisposeErrorMessageFn.self),
+            verifyModuleFn: symbols.optional("LLVMVerifyModule", as: LLVMVerifyModuleFn.self),
+            contextCreateFn: contextCreate,
+            contextDisposeFn: contextDispose,
+            moduleCreateFn: moduleCreate,
+            disposeModuleFn: disposeModule,
+            linkModules2Fn: symbols.optional("LLVMLinkModules2", as: LLVMLinkModules2Fn.self),
+            writeBitcodeToFileFn: symbols.optional("LLVMWriteBitcodeToFile", as: LLVMWriteBitcodeToFileFn.self),
+            printModuleToStringFn: printModule,
+            disposeMessageFn: disposeMessage,
+            setTargetFn: setTarget,
+            setDataLayoutFn: setDataLayout,
+            setLinkageFn: setLinkage,
+            setThreadLocalFn: setThreadLocal,
+            voidTypeFn: symbols.optional("LLVMVoidTypeInContext", as: LLVMVoidTypeInContextFn.self),
+            int8TypeInContextFn: int8Type,
+            int64TypeFn: int64Type,
+            structTypeInContextFn: symbols.optional("LLVMStructTypeInContext", as: LLVMStructTypeInContextFn.self),
+            pointerTypeFn: pointerType,
+            functionTypeFn: functionType,
+            addFunctionFn: addFunction,
+            getNamedFunctionFn: getNamedFunction,
+            getParamFn: getParam,
+            getUndefFn: getUndef,
+            appendBasicBlockFn: appendBasicBlock,
+            createBuilderFn: createBuilder,
+            disposeBuilderFn: disposeBuilder,
+            positionBuilderFn: positionBuilder,
+            getBasicBlockTerminatorFn: getTerminator,
+            buildRetFn: buildRet,
+            buildBrFn: buildBr,
+            buildCondBrFn: buildCondBr,
+            buildUnreachableFn: buildUnreachable,
+            buildAddFn: buildAdd,
+            buildSubFn: buildSub,
+            buildMulFn: buildMul,
+            buildSDivFn: buildSDiv,
+            buildAndFn: symbols.optional("LLVMBuildAnd", as: LLVMBuildAndFn.self),
+            buildOrFn: symbols.optional("LLVMBuildOr", as: LLVMBuildOrFn.self),
+            buildXorFn: symbols.optional("LLVMBuildXor", as: LLVMBuildXorFn.self),
+            buildShlFn: symbols.optional("LLVMBuildShl", as: LLVMBuildShlFn.self),
+            buildAShrFn: symbols.optional("LLVMBuildAShr", as: LLVMBuildAShrFn.self),
+            buildLShrFn: symbols.optional("LLVMBuildLShr", as: LLVMBuildLShrFn.self),
+            buildNotFn: symbols.optional("LLVMBuildNot", as: LLVMBuildNotFn.self),
+            buildICmpFn: buildICmp,
+            buildZExtFn: symbols.optional("LLVMBuildZExt", as: LLVMBuildZExtFn.self),
+            buildAllocaFn: symbols.optional("LLVMBuildAlloca", as: LLVMBuildAllocaFn.self),
+            buildStoreFn: symbols.optional("LLVMBuildStore", as: LLVMBuildStoreFn.self),
+            buildLoad2Fn: symbols.optional("LLVMBuildLoad2", as: LLVMBuildLoad2Fn.self),
+            buildLoadFn: symbols.optional("LLVMBuildLoad", as: LLVMBuildLoadFn.self),
+            buildSelectFn: symbols.optional("LLVMBuildSelect", as: LLVMBuildSelectFn.self),
+            buildExtractValueFn: symbols.optional("LLVMBuildExtractValue", as: LLVMBuildExtractValueFn.self),
+            buildInsertValueFn: symbols.optional("LLVMBuildInsertValue", as: LLVMBuildInsertValueFn.self),
+            typeOfFn: symbols.optional("LLVMTypeOf", as: LLVMTypeOfFn.self),
+            getTypeKindFn: symbols.optional("LLVMGetTypeKind", as: LLVMGetTypeKindFn.self),
+            buildGlobalStringPtrFn: symbols.optional("LLVMBuildGlobalStringPtr", as: LLVMBuildGlobalStringPtrFn.self),
+            buildPtrToIntFn: symbols.optional("LLVMBuildPtrToInt", as: LLVMBuildPtrToIntFn.self),
+            buildIntToPtrFn: symbols.optional("LLVMBuildIntToPtr", as: LLVMBuildIntToPtrFn.self),
+            buildPointerCastFn: symbols.optional("LLVMBuildPointerCast", as: LLVMBuildPointerCastFn.self),
+            buildCall2Fn: buildCall2,
+            buildCallFn: buildCall,
+            constIntFn: constInt,
+            constPointerNullFn: symbols.optional("LLVMConstPointerNull", as: LLVMConstPointerNullFn.self),
+            constStructInContextFn: symbols.optional("LLVMConstStructInContext", as: LLVMConstStructInContextFn.self),
+            constStringInContextFn: symbols.optional("LLVMConstStringInContext", as: LLVMConstStringInContextFn.self),
+            arrayTypeFn: symbols.optional("LLVMArrayType", as: LLVMArrayTypeFn.self),
+            setGlobalConstantFn: symbols.optional("LLVMSetGlobalConstant", as: LLVMSetGlobalConstantFn.self),
+            setUnnamedAddrFn: symbols.optional("LLVMSetUnnamedAddr", as: LLVMSetUnnamedAddrFn.self),
+            buildInBoundsGEP2Fn: symbols.optional("LLVMBuildInBoundsGEP2", as: LLVMBuildInBoundsGEP2Fn.self),
+            getDefaultTargetTripleFn: getDefaultTargetTriple,
+            getTargetFromTripleFn: getTargetFromTriple,
+            createTargetMachineFn: createTargetMachine,
+            disposeTargetMachineFn: disposeTargetMachine,
+            emitToFileFn: emitToFile,
+            createTargetDataLayoutFn: createTargetDataLayout,
+            copyStringRepOfTargetDataFn: copyStringRepOfTargetData,
+            disposeTargetDataFn: disposeTargetData,
+            initializeX86TargetInfoFn: symbols.optional("LLVMInitializeX86TargetInfo", as: LLVMInitializeX86TargetInfoFn.self),
+            initializeX86TargetFn: symbols.optional("LLVMInitializeX86Target", as: LLVMInitializeX86TargetFn.self),
+            initializeX86TargetMCFn: symbols.optional("LLVMInitializeX86TargetMC", as: LLVMInitializeX86TargetMCFn.self),
+            initializeX86AsmPrinterFn: symbols.optional("LLVMInitializeX86AsmPrinter", as: LLVMInitializeX86AsmPrinterFn.self),
+            initializeAArch64TargetInfoFn: symbols.optional("LLVMInitializeAArch64TargetInfo", as: LLVMInitializeAArch64TargetInfoFn.self),
+            initializeAArch64TargetFn: symbols.optional("LLVMInitializeAArch64Target", as: LLVMInitializeAArch64TargetFn.self),
+            initializeAArch64TargetMCFn: symbols.optional("LLVMInitializeAArch64TargetMC", as: LLVMInitializeAArch64TargetMCFn.self),
+            initializeAArch64AsmPrinterFn: symbols.optional("LLVMInitializeAArch64AsmPrinter", as: LLVMInitializeAArch64AsmPrinterFn.self),
+            initializeWebAssemblyTargetInfoFn: symbols.optional("LLVMInitializeWebAssemblyTargetInfo", as: LLVMInitializeWebAssemblyTargetInfoFn.self),
+            initializeWebAssemblyTargetFn: symbols.optional("LLVMInitializeWebAssemblyTarget", as: LLVMInitializeWebAssemblyTargetFn.self),
+            initializeWebAssemblyTargetMCFn: symbols.optional("LLVMInitializeWebAssemblyTargetMC", as: LLVMInitializeWebAssemblyTargetMCFn.self),
+            initializeWebAssemblyAsmPrinterFn: symbols.optional("LLVMInitializeWebAssemblyAsmPrinter", as: LLVMInitializeWebAssemblyAsmPrinterFn.self),
+            addGlobalFn: symbols.optional("LLVMAddGlobal", as: LLVMAddGlobalFn.self),
+            setInitializerFn: symbols.optional("LLVMSetInitializer", as: LLVMSetInitializerFn.self),
+            positionBuilderBeforeFn: symbols.optional("LLVMPositionBuilderBefore", as: LLVMPositionBuilderBeforeFn.self),
+            getFirstInstructionFn: symbols.optional("LLVMGetFirstInstruction", as: LLVMGetFirstInstructionFn.self),
+            createDIBuilderFn: symbols.optional("LLVMCreateDIBuilder", as: LLVMCreateDIBuilderFn.self),
+            disposeDIBuilderFn: symbols.optional("LLVMDisposeDIBuilder", as: LLVMDisposeDIBuilderFn.self),
+            diBuilderFinalizeFn: symbols.optional("LLVMDIBuilderFinalize", as: LLVMDIBuilderFinalizeFn.self),
+            diBuilderCreateFileFn: symbols.optional("LLVMDIBuilderCreateFile", as: LLVMDIBuilderCreateFileFn.self),
+            diBuilderCreateCompileUnitFn: symbols.optional("LLVMDIBuilderCreateCompileUnit", as: LLVMDIBuilderCreateCompileUnitFn.self),
+            diBuilderCreateSubroutineTypeFn: symbols.optional("LLVMDIBuilderCreateSubroutineType", as: LLVMDIBuilderCreateSubroutineTypeFn.self),
+            diBuilderCreateFunctionFn: symbols.optional("LLVMDIBuilderCreateFunction", as: LLVMDIBuilderCreateFunctionFn.self),
+            setSubprogramFn: symbols.optional("LLVMSetSubprogram", as: LLVMSetSubprogramFn.self),
+            addModuleFlagFn: symbols.optional("LLVMAddModuleFlag", as: LLVMAddModuleFlagFn.self),
+            valueAsMetadataFn: symbols.optional("LLVMValueAsMetadata", as: LLVMValueAsMetadataFn.self),
+            int32TypeFn: symbols.optional("LLVMInt32TypeInContext", as: LLVMInt32TypeInContextFn.self),
+            setCurrentDebugLocation2Fn: symbols.optional("LLVMSetCurrentDebugLocation2", as: LLVMSetCurrentDebugLocation2Fn.self),
+            diBuilderCreateDebugLocationFn: symbols.optional("LLVMDIBuilderCreateDebugLocation", as: LLVMDIBuilderCreateDebugLocationFn.self),
+            diBuilderCreateBasicTypeFn: symbols.optional("LLVMDIBuilderCreateBasicType", as: LLVMDIBuilderCreateBasicTypeFn.self),
+            diBuilderCreateParameterVariableFn: symbols.optional("LLVMDIBuilderCreateParameterVariable", as: LLVMDIBuilderCreateParameterVariableFn.self),
+            diBuilderCreateAutoVariableFn: symbols.optional("LLVMDIBuilderCreateAutoVariable", as: LLVMDIBuilderCreateAutoVariableFn.self),
+            diBuilderInsertDeclareAtEndFn: symbols.optional("LLVMDIBuilderInsertDeclareAtEnd", as: LLVMDIBuilderInsertDeclareAtEndFn.self),
+            diBuilderCreateExpressionFn: symbols.optional("LLVMDIBuilderCreateExpression", as: LLVMDIBuilderCreateExpressionFn.self)
+        ))
     }
 
     static func deduplicated(_ values: [String]) -> [String] {

@@ -24,6 +24,7 @@ final class JVMProgramBuilder {
     var functionArities: Set<Int> = []
     var nextClosure = 0
     var needsSuspendCoroutine = false
+    var needsSuspendCoroutineUninterceptedOrReturn = false
     var coroutineIntrinsicOwner = ""
     var extensionSymbols: Set<SymbolID> = []
     var inlineDeclarations: [SymbolID: FunDecl] = [:]
@@ -42,6 +43,7 @@ final class JVMProgramBuilder {
     /// `kotlin.text.Charsets` members that have no `StandardCharsets` field (UTF_32*); value is the JDK charset name.
     var textLibraryCharsetNames: [SymbolID: String] = [:]
     let platformOperations: [String: JVMPlatformOperation]
+    lazy var knownNames = KnownCompilerNames(interner: context.interner)
     var rawAnnotationConstructions: [String: ExprID] = [:]
 
     private var methodsByOwnerCache: [String: [SymbolID]]?
@@ -1077,6 +1079,11 @@ final class JVMFunctionBuilder {
             if let binding = program.sema.bindings.callBinding(for: id), context.interner.resolve(program.sema.symbols.symbol(binding.chosenCallee)?.name ?? context.interner.intern("")) == "invoke", program.sema.bindings.identifierSymbol(for: callee).flatMap({ program.sema.symbols.symbol($0) })?.kind != .function {
                 invokeReceiver = callee
             } else { invokeReceiver = nil }
+            if let binding = program.sema.bindings.callBinding(for: id),
+               let isFloat = stdlibFromBitsIsFloat(binding.chosenCallee, args: args),
+               let emitted = try emitFromBits(args: args, isFloat: isFloat, receiver: invokeReceiver, id: id) {
+                return emitted
+            }
             if let result = try inlineCall(args, receiver: invokeReceiver, id: id) { return result.value }
             if let result = try textLibraryCall(args, receiver: invokeReceiver, id: id) { return result.value }
             if let result = try sourceCall(args, receiver: invokeReceiver, id: id) { return result.value }
