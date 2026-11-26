@@ -10,6 +10,8 @@ fun main() {
     println(Duration.parseIsoStringOrNull(" PT1H ") == null)
     println(Duration.parseIsoString("PT-1H"))
     println(Duration.parseIsoString("PT4.005S"))
+    println(Duration.parseIsoString("PT0.0000000075S"))
+    println(Duration.parseIsoStringOrNull("P999999999999999999999999999999DT-999999999999999999999999999999H") == null)
     println(Duration.parseOrNull("INFINITY"))
     println(Duration.parse("0.5s"))
     println(Duration.parse("-(1h 30m)"))

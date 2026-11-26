@@ -91,7 +91,7 @@ public value class Duration private constructor(private val rawValue: Long) : Co
 private class DurationJvmParsedNumber {
     var index: Int = 0
     var whole: Long = 0L
-    var fraction: Double = 0.0
+    var fractionDigits: String = ""
     var hasFraction: Boolean = false
     var overflow: Boolean = false
     var sign: Int = 1
@@ -133,15 +133,11 @@ private fun durationJvmParseNumber(text: String, startIndex: Int, end: Int, allo
     if (index < end && text[index] == '.') {
         index += 1
         val fractionStart = index
-        var fraction = 0.0
-        var place = 10.0
         while (index < end && text[index] >= '0' && text[index] <= '9') {
-            fraction += (text[index] - '0').toDouble() / place
-            place *= 10.0
             index += 1
         }
         if (index == fractionStart) return null
-        result.fraction = fraction
+        result.fractionDigits = text.substring(fractionStart, index)
         result.hasFraction = true
     }
     result.index = index
@@ -151,10 +147,47 @@ private fun durationJvmParseNumber(text: String, startIndex: Int, end: Int, allo
 private fun durationJvmApplySign(raw: Long, sign: Int): Long =
     if (sign >= 0) raw else ((-(raw shr 1)) shl 1) or (raw and 1L)
 
+private fun durationJvmRoundedFractionNanos(digits: String, scale: Long): Long {
+    if (digits.isEmpty()) return 0L
+    val digitCount = digits.length
+    val product = IntArray(digitCount + 15)
+    var writeIndex = product.size - 1
+    var carry = 0L
+    var index = digitCount - 1
+    while (index >= 0) {
+        val value = (digits[index] - '0').toLong() * scale + carry
+        product[writeIndex] = (value % 10L).toInt()
+        carry = value / 10L
+        writeIndex -= 1
+        index -= 1
+    }
+    while (carry > 0L) {
+        product[writeIndex] = (carry % 10L).toInt()
+        carry /= 10L
+        writeIndex -= 1
+    }
+
+    val quotientEnd = product.size - 1 - digitCount
+    var quotient = 0L
+    var productIndex = writeIndex + 1
+    while (productIndex <= quotientEnd) {
+        quotient = quotient * 10L + product[productIndex]
+        productIndex += 1
+    }
+    if (product[quotientEnd + 1] >= 5) quotient += 1
+    return quotient
+}
+
 private fun durationJvmComponentRaw(number: DurationJvmParsedNumber, unit: DurationUnit): Long {
+    val scale = durationUnitScale(unit)
     val whole = durationRawFromLong(number.whole, unit)
-    val fraction = durationRawFromDouble(number.fraction, durationUnitScale(unit))
+    val fraction = if (number.hasFraction) durationRawOfNanos(durationJvmRoundedFractionNanos(number.fractionDigits, scale)) else 0L
     return durationJvmApplySign(addDurationRaw(whole, fraction), number.sign)
+}
+
+private fun durationJvmAddParseComponent(total: Long, component: Long): Long? {
+    if ((total == Long.MAX_VALUE && component == NEGATIVE_INFINITY) || (total == NEGATIVE_INFINITY && component == Long.MAX_VALUE)) return null
+    return addDurationRaw(total, component)
 }
 
 private fun durationJvmDefaultUnit(text: String, index: Int, end: Int): DurationJvmParsedUnit? {
@@ -205,7 +238,7 @@ private fun durationJvmParseIsoFormat(text: String, startIndex: Int): Long? {
         prevOrder = unit.order
         hasComponent = true
         index += 1
-        total = addDurationRaw(total, durationJvmComponentRaw(number, unit.unit))
+        total = durationJvmAddParseComponent(total, durationJvmComponentRaw(number, unit.unit)) ?: return null
     }
 
     return if (hasComponent) total else null
@@ -242,7 +275,7 @@ private fun durationJvmParseDefaultFormat(text: String, startIndex: Int, hasSign
         index += if (unit.unit == DurationUnit.MILLISECONDS || unit.unit == DurationUnit.MICROSECONDS || unit.unit == DurationUnit.NANOSECONDS) 2 else 1
 
         if (number.hasFraction && index < end) return null
-        total = addDurationRaw(total, durationJvmComponentRaw(number, unit.unit))
+        total = durationJvmAddParseComponent(total, durationJvmComponentRaw(number, unit.unit)) ?: return null
     }
 
     return if (hasComponent) total else null

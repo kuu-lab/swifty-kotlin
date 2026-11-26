@@ -17,13 +17,15 @@ extension JVMBackendTests {
                 println(Duration.parseIsoStringOrNull(" PT1H ") == null)
                 println(Duration.parseIsoString("PT-1H"))
                 println(Duration.parseIsoString("PT4.005S"))
+                println(Duration.parseIsoString("PT0.0000000075S"))
+                println(Duration.parseIsoStringOrNull("P999999999999999999999999999999DT-999999999999999999999999999999H") == null)
                 println(Duration.parseOrNull("INFINITY"))
                 println(Duration.parse("0.5s"))
                 println(Duration.parse("-(1h 30m)"))
                 println(Duration.parseOrNull("+1h 30m") == null)
             }
             """
-            let expected = "1h 30m\ntrue\ntrue\n-1h\n4.005s\nInfinity\n500ms\n-(1h 30m)\ntrue\n"
+            let expected = "1h 30m\ntrue\ntrue\n-1h\n4.005s\n8ns\ntrue\nInfinity\n500ms\n-(1h 30m)\ntrue\n"
 
             let own = try m22Build(root: root, sources: [("consumer.kt", source)], name: "own-consumer.jar", mode: .jvmJar, classpath: [library.path])
             try #require(own.1 == 0, "\(own.2.map(\.message))")
@@ -37,6 +39,25 @@ extension JVMBackendTests {
             let result = try java(["-Xverify:all", "-cp", root.appendingPathComponent("consumer.jar").path + ":" + library.path, "ConsumerKt"])
             #expect(result.exitCode == 0, "\(result.stderr)")
             #expect(result.stdout == expected)
+        }
+    }
+
+    @Test
+    func kuu4670DurationParseFunctionReferenceCompilesWithoutClasspath() throws {
+        let library = try ownStdlibLibrary()
+        try withWorkspace { root in
+            let compiled = try compile("""
+            import kotlin.time.Duration
+
+            fun main() {
+                val parse = Duration.Companion::parseOrNull
+                println(parse("1s"))
+            }
+            """, root: root, mode: .jvmJar)
+            try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
+            let result = try java(["-cp", root.appendingPathComponent("hello.jar").path + ":" + library.path, "HelloKt"])
+            #expect(result.exitCode == 0, "\(result.stderr)")
+            #expect(result.stdout == "1s\n")
         }
     }
 }
