@@ -390,7 +390,9 @@ final class LocalDeclTypeChecker {
             let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: expectedRHS)
             driver.recordGenericCallConsumer(value, type: declaredType)
             ctx.sema.bindings.bindIdentifier(id, symbol: local.symbol)
-            if !local.isMutable, local.isInitialized, !repeatsValInitialization {
+            let reassignsPossiblyAssignedVal = !local.isMutable && !local.isInitialized
+                && !repeatsValInitialization && locals.possiblyAssignedVals.contains(local.symbol)
+            if !local.isMutable, local.isInitialized || reassignsPossiblyAssignedVal, !repeatsValInitialization {
                 if let overloaded = driver.exprChecker.tryResolvePluginOverloadedAssignment(
                     exprID: id,
                     targetType: declaredType,

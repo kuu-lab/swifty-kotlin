@@ -1,7 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    // Based on JetBrains Kotlin's codegen/box/defaultArguments/kt6382.kt.
     @Test
     func privateMemberExtensionDefaultArgumentRunsWithScopeReceiver() throws {
         try compileAndRunKotlin(

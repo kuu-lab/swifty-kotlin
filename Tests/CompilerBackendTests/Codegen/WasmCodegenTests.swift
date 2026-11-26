@@ -3,14 +3,9 @@
 import Foundation
 import Testing
 
-/// Tests for the custom KIR → WebAssembly emitter (wasm32-wasi MVP):
-/// module encoding, function-body lowering, WASI imports, and — when a
-/// `node` binary with `node:wasi` is available — real execution.
 @Suite(.serialized)
 struct WasmCodegenTests {
     let interner = StringInterner()
-
-    // MARK: - Target classification
 
     @Test
     func targetTripleClassifiesWasm() {
@@ -24,8 +19,6 @@ struct WasmCodegenTests {
         #expect(TargetTriple(arch: "wasm32", vendor: "unknown", os: "wasip1", osVersion: nil).isWASI)
         #expect(TargetTriple(arch: "wasm32", vendor: "unknown", os: "wasi-p2", osVersion: nil).isWASI)
     }
-
-    // MARK: - Module encoding
 
     private func makeHelloModule() -> (KIRModule, SymbolID) {
         let arena = KIRArena()
@@ -81,7 +74,6 @@ struct WasmCodegenTests {
 
     @Test
     func emitsLoopAndBranchIntervals() throws {
-        // sum = 0; i = 0; loop { i += 1; if i == 3 break } ; return
         let arena = KIRArena()
         let mainSymbol = SymbolID(rawValue: 1)
         let i = arena.appendExpr(.unit)
@@ -208,10 +200,6 @@ struct WasmCodegenTests {
         #expect(run?.status == 0)
     }
 
-    // MARK: - End-to-end via node:wasi (conditional)
-
-    /// Locates a `node` binary on PATH; returns nil when unavailable so the
-    /// test vacuously passes on machines without Node.
     private func nodePath() -> String? {
         let env = ProcessInfo.processInfo.environment["PATH"] ?? ""
         for dir in env.split(separator: ":") {
@@ -238,10 +226,6 @@ struct WasmCodegenTests {
         #expect(run?.stdout.contains("wasm hello") == true)
     }
 
-    // MARK: - M2: objects, vtables, is/as, exceptions (end-to-end)
-
-    /// Emits `module` with `entrySymbol` for wasm32-wasi and asserts clean
-    /// diagnostics.
     func emit(_ module: KIRModule, entry: SymbolID) throws -> [UInt8] {
         let diagnostics = DiagnosticEngine()
         let result = try WasmEmitter().emitModule(
@@ -257,8 +241,6 @@ struct WasmCodegenTests {
         return result.bytes
     }
 
-    /// Runs a wasm module under `node:wasi`; returns stdout, stderr, and exit
-    /// status, or nil when Node isn't installed.
     func runUnderNode(_ bytes: [UInt8]) throws -> (stdout: String, stderr: String, status: Int32)? {
         guard let node = nodePath() else { return nil }
         let dir = FileManager.default.temporaryDirectory
@@ -325,8 +307,6 @@ struct WasmCodegenTests {
     @Test
     func runsObjectFieldsAndIsCheckUnderNodeWASI() throws {
         guard nodePath() != nil else { return }
-        // obj = kk_object_new(3, typeID 100); obj[2] = 42; println(obj[2])
-        // kk_type_register_super(100, 200); println(kk_op_is(obj, (200<<9)|6))
         let arena = KIRArena()
         let mainSymbol = SymbolID(rawValue: 1)
         func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
@@ -379,9 +359,6 @@ struct WasmCodegenTests {
     @Test
     func runsVirtualDispatchUnderNodeWASI() throws {
         guard nodePath() != nil else { return }
-        // target(x) = 7; obj = kk_object_new(3, 100);
-        // kk_object_register_vtable_method(obj, 0, target);
-        // println(virtualCall obj.vtable[0]())
         let arena = KIRArena()
         let mainSymbol = SymbolID(rawValue: 1)
         let targetSymbol = SymbolID(rawValue: 2)
@@ -428,8 +405,6 @@ struct WasmCodegenTests {
     @Test
     func runsThrowCatchUnderNodeWASI() throws {
         guard nodePath() != nil else { return }
-        // boom(): e = __kk_exception_new_message("x"); rethrow e
-        // main: call boom (canThrow, thrownResult=exc); jumpIfNotNull exc -> catch
         let arena = KIRArena()
         let mainSymbol = SymbolID(rawValue: 1)
         let boomSymbol = SymbolID(rawValue: 2)
@@ -478,9 +453,6 @@ struct WasmCodegenTests {
     @Test
     func runsArrayIntrinsicsUnderNodeWASI() throws {
         guard nodePath() != nil else { return }
-        // arr = kk_array_new(3); arr[1] = 8;
-        // packed = kk_array_of(arr, 3); println(kk_array_get(packed, 1));
-        // println(kk_array_size(packed))
         let arena = KIRArena()
         let mainSymbol = SymbolID(rawValue: 1)
         func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
@@ -527,8 +499,6 @@ struct WasmCodegenTests {
     @Test
     func reportsUncaughtExceptionOnStderrUnderNodeWASI() throws {
         guard nodePath() != nil else { return }
-        // main: e = __kk_exception_new_message("kaboom"); rethrow e
-        // No catch — _start must print the throwable to stderr and exit 70.
         let arena = KIRArena()
         let mainSymbol = SymbolID(rawValue: 1)
         func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
@@ -555,12 +525,6 @@ struct WasmCodegenTests {
     @Test
     func runsListIntrinsicsUnderNodeWASI() throws {
         guard nodePath() != nil else { return }
-        // packed = kk_array_new(2); packed[0]=1; packed[1]=2
-        // list = __kk_array_list_of(packed, 2)
-        // __kk_mutable_list_add(list, 3)
-        // println(__kk_list_size(list))   -> 3
-        // println(__kk_list_get(list, 1)) -> 2
-        // iterate -> 1 2 3
         let arena = KIRArena()
         let mainSymbol = SymbolID(rawValue: 1)
         func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
@@ -634,14 +598,6 @@ struct WasmCodegenTests {
     @Test
     func runsMapSetIntrinsicsUnderNodeWASI() throws {
         guard nodePath() != nil else { return }
-        // keys = kk_array_new(1); vals = kk_array_new(1); keys[0]=1; vals[0]=7
-        // map = __kk_linked_hash_map_of(keys, vals, 1)
-        // __kk_mutable_map_put(map, 2, 9)
-        // println(__kk_map_size(map)) -> 2
-        // println(__kk_map_get(map, 2)) -> 9
-        // iterate entries via generic kk_iterator_* -> key\nvalue per entry
-        // set = __kk_linked_hash_set_of([1,2,2], 3)
-        // __kk_mutable_set_add(set, 3); println(size)=3; contains(2)=1; contains(9)=0
         let arena = KIRArena()
         let mainSymbol = SymbolID(rawValue: 1)
         func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
@@ -717,8 +673,6 @@ struct WasmCodegenTests {
             println(interner.intern("__kk_println_raw"), sv),
             .jump(loop),
             .label(done),
-            // set = linkedHashSetOf(1, 2, 2) — packed array already dedups to
-            // two elements at KIR level? No: the helper dedups → size 2.
             .constValue(result: three, value: .intLiteral(3)),
             .call(symbol: nil, callee: interner.intern("kk_array_new"),
                   arguments: [three], result: setElems,
@@ -772,12 +726,6 @@ struct WasmCodegenTests {
     @Test
     func runsRangeIntrinsicsUnderNodeWASI() throws {
         guard nodePath() != nil else { return }
-        // __kk_op_rangeTo(1,5)      → for_in loop prints 1..5; first/last -> 1,5
-        // __kk_op_downTo(5,1) step 2 → for_in prints 5,3,1
-        // __kk_op_rangeUntil(0,3)   → for_in prints 0,1,2
-        // __kk_char_rangeTo(a,c)    → for_in prints a,b,c (tag 4)
-        // __kk_range_to_list(1..4)  → size 4
-        // induction_add(3,2)=5, induction_le(3,5)=1
         let arena = KIRArena()
         let mainSymbol = SymbolID(rawValue: 1)
         func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
@@ -915,11 +863,6 @@ struct WasmCodegenTests {
     @Test
     func runsCollectionHOFIntrinsicsUnderNodeWASI() throws {
         guard nodePath() != nil else { return }
-        // __kk_list_of([7,8,8])   → indexOf(8)=1, lastIndexOf(8)=2,
-        //                           List-itable indexOf dispatch = 1
-        // __kk_string_joinToString → "[7-8-8]"; joinToString$default → "7, 8, 8"
-        // setOf("a","b") join "+" → "a+b" (heap-string elements, tag 1)
-        // kk_any_to_string(strObj, 1) → "hi" (heap string, not its address)
         let arena = KIRArena()
         let mainSymbol = SymbolID(rawValue: 1)
         func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
@@ -964,9 +907,6 @@ struct WasmCodegenTests {
                   arguments: [idx], result: s,
                   canThrow: false, thrownResult: nil),
             println(interner.intern("__kk_println_raw"), s),
-            // `l.indexOf(8)` through the `kotlin.collections.List` itable —
-            // the runtime-box registrations must answer slot 6 like the
-            // source-dispatch table in LayoutSynthesis.
             .virtualCall(symbol: nil, callee: interner.intern("indexOf"),
                          receiver: list, arguments: [eight], result: idx,
                          canThrow: false, thrownResult: nil,
@@ -1031,19 +971,6 @@ struct WasmCodegenTests {
     @Test
     func runsFloatingPointIntrinsicsUnderNodeWASI() throws {
         guard nodePath() != nil else { return }
-        // Double/Float payloads travel as raw i64 bits; boxes carry the
-        // nominal typeID so any_to_string(v, 1) renders via Dragon4.
-        //   println(3.14)           -> 3.14
-        //   println(1.0 / 3.0)      -> 0.3333333333333333
-        //   println(10.0 % 3.0)     -> 1.0
-        //   println(1.5f)           -> 1.5
-        //   println(-0.0)           -> -0.0
-        //   println(0.5 * -1.0)     -> -0.5
-        //   println(1e10)           -> 1.0E10
-        //   println(1.5 == 1.5)     -> true   (tag-2 Boolean rendering)
-        //   println(2.5f + 0.25f)   -> 2.75
-        //   println((2.7).toInt())  -> 2
-        //   println(3.toDouble())   -> 3.0
         let arena = KIRArena()
         let mainSymbol = SymbolID(rawValue: 1)
         func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
@@ -1136,9 +1063,6 @@ struct WasmCodegenTests {
     @Test
     func runsStringHelpersUnderNodeWASI() throws {
         guard nodePath() != nil else { return }
-        // Flat-string helper layer: byte-level ASCII semantics, plus the
-        // StringIndexOutOfBounds catch path whose nominal typeID lives under
-        // `java.lang` (the bundled stdlib declares it there, not `kotlin`).
         let arena = KIRArena()
         let mainSymbol = SymbolID(rawValue: 1)
         func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
@@ -1210,14 +1134,6 @@ struct WasmCodegenTests {
     @Test
     func runsStructuralEqualityAndTextHelpersUnderNodeWASI() throws {
         guard nodePath() != nil else { return }
-        // kk_structural_eq/ne over list/set boxes — elementwise list compare
-        // plus order-independent set compare (the elem-eq heap flags must not
-        // be clobbered by the both-strings check). Flat-ABI `__kk_string_to*`
-        // spellings land here directly, bypassing member routing. Char
-        // delimiters slice via a one-char string so byte units agree.
-        // `TODO(reason)` throws NotImplementedError("An operation is not
-        // implemented: <reason>") like the JVM, and `error` throws
-        // IllegalStateException.
         let arena = KIRArena()
         let mainSymbol = SymbolID(rawValue: 1)
         func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
@@ -1273,30 +1189,21 @@ struct WasmCodegenTests {
         let lAB = listOf([lit("a"), lit("b")])
         let lABb = listOf([lit("a"), lit("b")])
         let lNested = listOf([l12]), lNestedB = listOf([l12b])
-        // Sibling implementations: ArrayList box and LinkedHashSet box must
-        // compare equal to their read-only counterparts (AbstractList/
-        // AbstractSet.equals on the JVM are family-based, not nominal).
         let al12 = boxOf("__kk_array_list_of", [int(1), int(2)])
         let lhs21 = boxOf("__kk_linked_hash_set_of", [int(2), int(1)])
-        printInt(call("kk_structural_eq", [l12, l12b]))      // 1
-        printInt(call("kk_structural_eq", [s12, s21]))       // 1 (order-free)
-        printInt(call("kk_structural_eq", [s12, s13]))       // 0
-        printInt(call("kk_structural_eq", [s12, l12]))       // 0
-        printInt(call("kk_structural_eq", [l12, l21]))       // 0
-        printInt(call("kk_structural_eq", [lAB, lABb]))      // 1
-        printInt(call("kk_structural_eq", [lNested, lNestedB])) // 1
-        printInt(call("kk_structural_eq", [l12, l123]))      // 0
-        printInt(call("kk_structural_eq", [nullS, nullS]))   // 1
-        printInt(call("kk_structural_eq", [l12, nullS]))     // 0
-        printInt(call("kk_structural_ne", [l12, l12b]))      // 0
-        printInt(call("kk_structural_eq", [l12, al12]))      // 1 (List family)
-        printInt(call("kk_structural_eq", [s12, lhs21]))     // 1 (Set family)
-        // A class vtable taller than the old 16-slot prefix must not
-        // clobber itable entries: LinkedHashSet registers slots 0...17, and
-        // writes at 16/17 used to land on Iterable's itable block, leaving
-        // `itable_lookup(Iterable, 0)` a garbage table index. With the
-        // itable living in its own buffer (vt + vtableItablePtrOffset) the
-        // iterator registration survives arbitrary direct-slot writes.
+        printInt(call("kk_structural_eq", [l12, l12b]))
+        printInt(call("kk_structural_eq", [s12, s21]))
+        printInt(call("kk_structural_eq", [s12, s13]))
+        printInt(call("kk_structural_eq", [s12, l12]))
+        printInt(call("kk_structural_eq", [l12, l21]))
+        printInt(call("kk_structural_eq", [lAB, lABb]))
+        printInt(call("kk_structural_eq", [lNested, lNestedB]))
+        printInt(call("kk_structural_eq", [l12, l123]))
+        printInt(call("kk_structural_eq", [nullS, nullS]))
+        printInt(call("kk_structural_eq", [l12, nullS]))
+        printInt(call("kk_structural_ne", [l12, l12b]))
+        printInt(call("kk_structural_eq", [l12, al12]))
+        printInt(call("kk_structural_eq", [s12, lhs21]))
         let clobbered = boxOf("__kk_linked_hash_set_of", [int(2), int(1)])
         for slot in [Int64(16), Int64(17)] {
             let symRef = e()
@@ -1304,30 +1211,25 @@ struct WasmCodegenTests {
                                     value: .symbolRef(SymbolID(rawValue: 999_999))))
             _ = call("kk_object_register_vtable_method", [clobbered, int(slot), symRef])
         }
-        // kk_any_member_* dispatch on the runtime typeID: a clobbered
-        // LinkedHashSet still iterates/hashes structurally, and cross-family
-        // equals stays family-based.
-        printStr(call("kk_any_member_to_string", [clobbered])) // "[2, 1]"
-        printInt(call("kk_any_member_hashCode", [clobbered]))  // 3 (set sum)
-        printInt(call("kk_any_member_equals", [l12, al12]))    // 1
-        // Flat-ABI scalar parses + Char-delimiter slicing + lines.
+        printStr(call("kk_any_member_to_string", [clobbered]))
+        printInt(call("kk_any_member_hashCode", [clobbered]))
+        printInt(call("kk_any_member_equals", [l12, al12]))
         let dbl = call("__kk_string_toDouble_flat", [lit("3.5")])
         let ds = e()
         body.append(.call(symbol: nil, callee: interner.intern("kk_any_to_string"),
                           arguments: [dbl, int(6)], result: ds,
                           canThrow: false, thrownResult: nil))
-        printStr(ds) // "3.5" — tag 6 renders raw f64 bits
+        printStr(ds)
         printInt(call("kk_structural_eq",
-                      [call("__kk_string_toDoubleOrNull_flat", [lit("x")]), nullS])) // 1
-        printInt(call("__kk_string_toInt_flat", [lit("42")])) // 42
-        printInt(call("__kk_wasm_string_to_boolean", [lit("true")])) // 1
+                      [call("__kk_string_toDoubleOrNull_flat", [lit("x")]), nullS]))
+        printInt(call("__kk_string_toInt_flat", [lit("42")]))
+        printInt(call("__kk_wasm_string_to_boolean", [lit("true")]))
         printStr(call("__kk_wasm_string_substring_after_char",
-                      [lit("a=b=c"), int(0x3D)])) // "b=c"
+                      [lit("a=b=c"), int(0x3D)]))
         printStr(call("__kk_wasm_string_substring_before_last_char",
-                      [lit("a=b=c"), int(0x3D)])) // "a=b"
+                      [lit("a=b=c"), int(0x3D)]))
         printInt(call("__kk_list_size",
-                      [call("__kk_wasm_string_lines", [lit("a\nb\nc")])])) // 3
-        // error/TODO through the thrown channel, caught via jumpIfNotNull.
+                      [call("__kk_wasm_string_lines", [lit("a\nb\nc")])]))
         let slot = e(), caught = e(), sMiss = e()
         let catchLabel: Int32 = 70, doneLabel: Int32 = 71
         body.append(.call(symbol: nil, callee: interner.intern("__kk_wasm_todo"),
@@ -1370,11 +1272,6 @@ struct WasmCodegenTests {
     @Test
     func runsListViewAndConcurrentModificationChecksUnderNodeWASI() throws {
         guard nodePath() != nil else { return }
-        // l = arrayListOf(1,2,3); it = l.iterator(); it.next();
-        // l.add(4) -> it.next() throws ConcurrentModificationException;
-        // exhausting a fresh iterator then next() -> NoSuchElementException;
-        // v = l.subList(0,2) reads through; l.add(9) -> check_modification(v)
-        // throws CME; a fresh view still reads.
         let arena = KIRArena()
         let mainSymbol = SymbolID(rawValue: 1)
         func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
@@ -1398,7 +1295,6 @@ struct WasmCodegenTests {
                               arguments: args, result: result,
                               canThrow: canThrow, thrownResult: thrown))
         }
-        // l = [1,2,3] (mutable box)
         let arr = e(), list = e(), iter = e(), iter2 = e()
         let view = e(), view2 = e(), got = e(), str = e()
         let cmeSlot = e(), nseeSlot = e(), viewSlot = e(), caught = e()
@@ -1412,7 +1308,6 @@ struct WasmCodegenTests {
         call("kk_list_iterator", [list], result: iter)
         call("kk_list_iterator_next", [iter])
         call("__kk_mutable_list_add", [list, n4])
-        // it.next() -> CME
         call("kk_list_iterator_next", [iter], result: e(),
              canThrow: true, thrown: cmeSlot)
         let cmeL: Int32 = 90, cmeDone: Int32 = 91
@@ -1423,7 +1318,6 @@ struct WasmCodegenTests {
         call("__kk_throwable_toString", [cmeSlot], result: caught)
         call("__kk_println_raw", [caught])
         body.append(.label(cmeDone))
-        // Exhaust fresh iterator over [1,2,3,4] then next -> NSEE
         call("kk_list_iterator", [list], result: iter2)
         for _ in 0..<4 { call("kk_list_iterator_next", [iter2]) }
         call("kk_list_iterator_next", [iter2], result: e(),
@@ -1436,7 +1330,6 @@ struct WasmCodegenTests {
         call("__kk_throwable_toString", [nseeSlot], result: caught)
         call("__kk_println_raw", [caught])
         body.append(.label(nseeDone))
-        // v = l.subList(0, 2) -> v[0] == 1, v.size == 2
         call("kk_list_subList", [list, n0, n2], result: view)
         call("__kk_list_get", [view, n0], result: got)
         call("kk_any_to_string", [got], result: str)
@@ -1444,7 +1337,6 @@ struct WasmCodegenTests {
         call("__kk_set_size", [view], result: got)
         call("kk_any_to_string", [got], result: str)
         call("__kk_println_raw", [str])
-        // l.add(9) -> check_modification(v) throws CME
         call("__kk_mutable_list_add", [list, n9])
         call("__kk_list_check_modification", [view],
              canThrow: true, thrown: viewSlot)
@@ -1456,7 +1348,6 @@ struct WasmCodegenTests {
         call("__kk_throwable_toString", [viewSlot], result: caught)
         call("__kk_println_raw", [caught])
         body.append(.label(vcDone))
-        // Fresh view on [1,2,3,4,9]: subList(1,3)[1] == 3
         call("kk_list_subList", [list, n1, n3], result: view2)
         call("__kk_list_get", [view2, n1], result: got)
         call("kk_any_to_string", [got], result: str)
@@ -1478,10 +1369,6 @@ struct WasmCodegenTests {
     @Test
     func growsItableIfaceMapPastInitialCapacityUnderNodeWASI() throws {
         guard nodePath() != nil else { return }
-        // obj with 10 registered interfaces exceeds the initial iface-map
-        // capacity (8): the 9th/10th pair previously overflowed the block and
-        // corrupted the adjacent allocation's vtable slot. The map must
-        // reallocate at doubled capacity and keep all lookups resolvable.
         let arena = KIRArena()
         let mainSymbol = SymbolID(rawValue: 1)
         func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
@@ -1502,11 +1389,9 @@ struct WasmCodegenTests {
             call("kk_object_register_itable_iface", [obj, const(5000 + i), const(i)])
             call("kk_object_register_itable_method", [obj, const(i), const(0), const(700 + i)])
         }
-        // First-registered iface survives the grow (entries were copied).
         call("__kk_wasm_itable_lookup", [obj, const(5000), const(0)], result: got)
         call("kk_any_to_string", [got], result: str)
         call("__kk_println_raw", [str])
-        // Late-registered iface inside the grown region resolves too.
         call("__kk_wasm_itable_lookup", [obj, const(5009), const(0)], result: got)
         call("kk_any_to_string", [got], result: str)
         call("__kk_println_raw", [str])
@@ -1519,12 +1404,6 @@ struct WasmCodegenTests {
         #expect(run?.stdout == "700\n709\n")
     }
 
-    // MARK: - Registered Any overrides (metadata-registry follow-up)
-
-    /// `kk_object_register_*_override` stores the override's funcref table
-    /// slot in the object's metadata-registry record; `kk_any_to_string`
-    /// and `__kk_wasm_elem_eq` consult the record for nominal boxes and
-    /// dispatch through `call_indirect`.
     @Test
     func dispatchesRegisteredAnyOverridesUnderNodeWASI() throws {
         guard nodePath() != nil else { return }
@@ -1533,12 +1412,10 @@ struct WasmCodegenTests {
         let toStrSymbol = SymbolID(rawValue: 2)
         let eqSymbol = SymbolID(rawValue: 3)
         func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
-        // toString bridge: (obj) -> "OVR"
         var toStrBody: [KIRInstruction] = []
         let s = e()
         toStrBody.append(.constValue(result: s, value: .stringLiteral(interner.intern("OVR"))))
         toStrBody.append(.returnValue(s))
-        // equals bridge: (a, b) -> 1
         var eqBody: [KIRInstruction] = []
         let one = e()
         eqBody.append(.constValue(result: one, value: .intLiteral(1)))
@@ -1598,13 +1475,6 @@ struct WasmCodegenTests {
         #expect(run?.stdout == "OVR\n1\n")
     }
 
-    /// KUU-4385: flat String boxes ({data, length, byteCount, hash} + header)
-    /// carry no itable map — `CharSequence` itableDynamic dispatch on a String
-    /// receiver must resolve get=0/subSequence=1/length=2 straight to the
-    /// string helpers instead of walking string bytes as a map count.
-    /// Also covers `kk_op_is` for the wide primitive bases (char/long/double/
-    /// float/ulong): raw i64 values must match like the native unboxed
-    /// fallback — `'C' as Char?` previously failed for odd code units.
     @Test
     func runsCharSequenceItableAndWidePrimitiveIsUnderNodeWASI() throws {
         guard nodePath() != nil else { return }
@@ -1651,10 +1521,8 @@ struct WasmCodegenTests {
             dispatch: .itableDynamic(interfaceTypeID: csID, methodSlot: 0)
         ))
         printViaToString(ch)
-        // kk_op_is(67, Char? token) → 1 (was 0: odd raw values fell through).
         call("kk_op_is", [const(67), const(14 | 0x100)], result: isChar)
         printViaToString(isChar)
-        // kk_op_is(5, Long token) → 1.
         call("kk_op_is", [const(5), const(11)], result: isLong)
         printViaToString(isLong)
         body.append(.returnUnit)

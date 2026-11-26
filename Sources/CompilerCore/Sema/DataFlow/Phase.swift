@@ -871,7 +871,8 @@ final class DataFlowSemaPhase: CompilerPhase {
         withSubPhaseTiming("validateDeclarationSiteVariance", timer: ctx.phaseTimer) {
             validateDeclarationSiteVariance(
                 ast: ast, symbols: symbols, bindings: bindings,
-                types: types, diagnostics: ctx.diagnostics, interner: ctx.interner
+                types: types, diagnostics: ctx.diagnostics, interner: ctx.interner,
+                sourceManager: ctx.sourceManager
             )
         }
         withSubPhaseTiming("synthesizeClassDelegationForwardingMethodSymbols", timer: ctx.phaseTimer) {

@@ -281,8 +281,8 @@ extension JVMProgramBuilder {
             let capital = String(name.prefix(1)).uppercased() + name.dropFirst()
             let booleanIs = name.hasPrefix("is") && name.count > 2 && name.dropFirst(2).first!.isUppercase
             let collectionGetter = collectionPropertyGetter(plan, name: name)
-            let getterName = plan.isJvmRecord ? name : (collectionGetter ?? (plan.isAnnotation ? name : (booleanIs ? name : "get" + capital)))
-            let setterName = booleanIs ? "set" + name.dropFirst(2) : "set" + capital
+            let getterName = try explicitAccessorJvmName(for: symbol, target: "get") ?? (plan.isJvmRecord ? name : (collectionGetter ?? (plan.isAnnotation ? name : (booleanIs ? name : "get" + capital))))
+            let setterName = try explicitAccessorJvmName(for: symbol, target: "set") ?? (booleanIs ? "set" + name.dropFirst(2) : "set" + capital)
             var getter = JVMForeignMethod(owner: plan.name, name: getterName, descriptor: "(" + getterParameters.map(\.descriptor).joined() + ")" + type.descriptor, parameters: getterParameters, result: type, isStatic: plan.isFacade, isInterface: plan.isInterface, isAbstract: isAbstract)
             getter.isSpecial = !plan.isFacade && (p.getter?.visibility == .private || p.modifiers.contains(.private))
             var setter: JVMForeignMethod?

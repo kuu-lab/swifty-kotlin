@@ -388,6 +388,25 @@ public func __kk_native_concurrent_execute_impl(
     return returnedFuture
 }
 
+private func nativeConcurrentFutureHandle(from elementRaw: Int) -> Int? {
+    if let pointer = UnsafeMutableRawPointer(bitPattern: elementRaw),
+       tryCast(pointer, to: RuntimeFutureBox.self) != nil
+    {
+        return elementRaw
+    }
+    guard let typeID = runtimeValueClassTypeID(rawValue: elementRaw) else {
+        return nil
+    }
+    let payload = kk_value_class_unbox(elementRaw, Int(typeID))
+    guard payload != elementRaw,
+          let pointer = UnsafeMutableRawPointer(bitPattern: payload),
+          tryCast(pointer, to: RuntimeFutureBox.self) != nil
+    else {
+        return nil
+    }
+    return payload
+}
+
 private func nativeConcurrentReadyFutureHandles(
     _ futuresHandle: Int,
     signal: DispatchSemaphore,
@@ -397,14 +416,18 @@ private func nativeConcurrentReadyFutureHandles(
         return []
     }
     var ready: [Int] = []
-    for futureHandle in futures {
-        guard let pointer = UnsafeMutableRawPointer(bitPattern: futureHandle),
+    var readyHandles = Set<Int>()
+    for elementRaw in futures {
+        guard let futureHandle = nativeConcurrentFutureHandle(from: elementRaw),
+              let pointer = UnsafeMutableRawPointer(bitPattern: futureHandle),
               let future = tryCast(pointer, to: RuntimeFutureBox.self)
         else {
             continue
         }
         if future.isAvailableForConsumption {
-            ready.append(futureHandle)
+            if readyHandles.insert(futureHandle).inserted {
+                ready.append(elementRaw)
+            }
         } else if registered.insert(futureHandle).inserted {
             future.addWaitSignal(signal)
         }

@@ -15,6 +15,7 @@ package final class MetadataEncoder {
         includeSynthetic: Bool = true,
         includeSyntheticNominalAnchors: Bool = false,
         includePrecomputedStdlibSynthesis: Bool = false,
+        serializationClasses: [SymbolID: SerializationClassInfo] = [:],
         excludeSourceFileIDs: Set<Int32> = [],
         runtimeCallbackRawReturnSymbolIDs: Set<SymbolID> = [],
         objectInitializerLinkNames: [SymbolID: String] = [:],
@@ -23,6 +24,7 @@ package final class MetadataEncoder {
         enumStaticInitLinkNames: [SymbolID: String] = [:],
         runtimeReflectionOnly: Bool = false
     ) -> [MetadataRecord] {
+        let serializationMemberSymbolIDs = Self.serializationMemberSymbolIDs(serializationClasses, functionLinkNames: functionLinkNames)
         let exported = symbols.allSymbols()
             .filter { symbol in
                 if runtimeReflectionOnly,
@@ -156,7 +158,8 @@ package final class MetadataEncoder {
                     && symbol.declSite.map { !excludeSourceFileIDs.contains($0.start.file.rawValue) } == true
                 let keepAsPrecomputedStdlibSynthesis = includePrecomputedStdlibSynthesis
                     && symbol.flags.contains(.precomputedStdlibSynthetic)
-                if !includeSynthetic && symbol.flags.contains(.synthetic) && !keepAsDataOrAnnotationClassMember && !keepAsEnumClassMember && !keepAsEnumCtorPropHelper && !keepAsDelegatedMember && !keepAsPrecomputedStdlibSynthesis {
+                let keepAsSerializationMember = serializationMemberSymbolIDs.contains(symbol.id)
+                if !includeSynthetic && symbol.flags.contains(.synthetic) && !keepAsDataOrAnnotationClassMember && !keepAsEnumClassMember && !keepAsEnumCtorPropHelper && !keepAsDelegatedMember && !keepAsPrecomputedStdlibSynthesis && !keepAsSerializationMember {
                     let keepAsSyntheticNominalAnchor = includeSyntheticNominalAnchors && Self.nominalKinds.contains(symbol.kind)
                     let keepAsSyntheticTypeAlias = includeSyntheticNominalAnchors && symbol.kind == .typeAlias
                     if !(keepAsSyntheticNominalAnchor || keepAsSyntheticTypeAlias) {
@@ -176,7 +179,7 @@ package final class MetadataEncoder {
                 // Source-backed declarations (e.g. bundled stdlib functions under a
                 // synthetic package stub) are still exported; only synthesized helpers
                 // without a source declSite are pruned by parent synthetics.
-                if !includeSynthetic, symbol.declSite == nil, !keepAsDataOrAnnotationClassMember, !keepAsEnumClassMember, !keepAsPrecomputedStdlibSynthesis {
+                if !includeSynthetic, symbol.declSite == nil, !keepAsDataOrAnnotationClassMember, !keepAsEnumClassMember, !keepAsPrecomputedStdlibSynthesis, !keepAsSerializationMember {
                     var parentID = symbols.parentSymbolIfKnown(for: symbol.id)
                     while let p = parentID, let parent = symbols.symbol(p) {
                         if parent.flags.contains(.synthetic) {
@@ -1215,6 +1218,28 @@ package final class MetadataEncoder {
     ]
 
     static let nominalKinds: Set<SymbolKind> = [.class, .interface, .object, .enumClass, .annotationClass]
+
+    /// The serialization plugin synthesizes `serializer()` and its companion
+    /// without declSites. Only keep them when the callable body was lowered into
+    /// this artifact: nested classes and objects can have plugin symbols without
+    /// a KIR body, and exporting those would leave consumers with a dangling
+    /// cross-module link.
+    private static func serializationMemberSymbolIDs(
+        _ serializationClasses: [SymbolID: SerializationClassInfo],
+        functionLinkNames: [SymbolID: String]
+    ) -> Set<SymbolID> {
+        var result = Set<SymbolID>()
+        for info in serializationClasses.values {
+            guard let companionSerializerMethod = info.companionSerializerMethod,
+                  functionLinkNames[companionSerializerMethod] != nil
+            else { continue }
+            result.insert(companionSerializerMethod)
+            if let companionObjectSymbol = info.companionObjectSymbol {
+                result.insert(companionObjectSymbol)
+            }
+        }
+        return result
+    }
 
     private static func isSourceBackedDataOrAnnotationClassMember(
         _ symbolID: SymbolID,

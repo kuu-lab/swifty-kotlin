@@ -48,7 +48,6 @@ extension BuildKIRRegressionTests {
             return boxedValues.contains(current)
         }
         #expect(widenArguments.count == 2)
-        // A local function value can pass through a KIR copy after its box is created.
         #expect(widenArguments.allSatisfy(resolvesToBoxedValue))
     }
 
@@ -159,9 +158,6 @@ extension BuildKIRRegressionTests {
             else { return nil }
             return arguments[2]
         }
-        // #11911 boxes `::name` once at the reference site, then the vararg
-        // selector slot re-wraps it; lambdas are boxed at creation (#12358),
-        // so the stored selectors are the last four creations in any order.
         #expect(materialized.count == 5)
         #expect(Set(stored.suffix(4)) == Set(materialized.suffix(4)))
     }
@@ -188,8 +184,6 @@ extension BuildKIRRegressionTests {
             return callee == KnownCompilerNames(interner: ctx.interner).compareValuesBy
         })
         if case let .call(_, _, arguments, _, _, _, _, _) = call {
-            // #11911 boxes `::name` at the reference site first and the call
-            // site re-wraps it, so the selector is one of several creations.
             #expect(materialized.contains(arguments[2]))
             #expect(arguments[2] != materialized.first)
         }
@@ -228,9 +222,6 @@ extension BuildKIRRegressionTests {
             else { return nil }
             return arguments.last
         }
-        // #11911 boxes both `::visit` references at their reference sites, and
-        // since #12358 an already-boxed value is passed through without a
-        // call-site re-wrap, so each reference is created exactly once.
         #expect(materializedCallbacks.count == 2)
         #expect(callbacks.count == 3)
         #expect(callbacks.prefix(2).allSatisfy { !materializedCallbacks.contains($0) })
@@ -357,7 +348,6 @@ extension BuildKIRRegressionTests {
                 && callsSymbol(stepSymbol, in: function.body)
         })
         #expect(!ctx.diagnostics.hasError)
-        // The owner-class capture and implicit `this` capture precede the value parameter.
         #expect(lambdaFunction.params.count == 3)
         #expect(lambdaFunction.params.last?.type == sema.types.intType)
         let receiverParams = Array(lambdaFunction.params.dropLast())
@@ -454,8 +444,6 @@ extension BuildKIRRegressionTests {
         })
         try #require(lambdaSymbols.count == 1, "Expected one raw lambda value in main")
         let lambdaSymbol = try #require(lambdaSymbols.first)
-        // Source-backed map uses an ordinary boxed lambda (1 param: element),
-        // not the native collection-HOF (closureObj, elem) ABI.
         let generatedFunction = try #require(module.arena.function(for: lambdaSymbol))
         #expect(generatedFunction.params.count == 1, "single element param")
         #expect(generatedFunction.params.first?.type == ctx.sema?.types.intType)
@@ -641,8 +629,6 @@ extension BuildKIRRegressionTests {
         })?.id)
 
         let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-        // #11911 boxes capture-free references at the reference site, so `f(2)`
-        // calls the generated adapter and the adapter body calls `inc`.
         let adapterCall = try #require(mainBody.first { instruction in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
                 return false
@@ -751,8 +737,6 @@ extension BuildKIRRegressionTests {
             guard case let .virtualCall(symbol, _, _, _, _, _, _, _) = instruction else { return false }
             return symbol == interfaceFlush
         }, "The generated SAM method must reach the interface member through its reference thunks")
-        // The SAM thunk reaches the interface member through a virtual call
-        // (directly or via the bound-reference helper), never a direct call.
         #expect(allFunctions.contains { function in
             function.body.contains { instruction in
                 if case let .virtualCall(symbol, _, _, _, _, _, _, _) = instruction {
@@ -887,7 +871,6 @@ extension BuildKIRRegressionTests {
 
         let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         #expect(!ctx.diagnostics.hasError)
-        // Bound references store their receiver in a closure and invoke a generated adapter.
         let adapter = try #require(findAllKIRFunctions(in: module).first { function in
             callableAdapterSymbols(in: module).contains(function.symbol)
                 && function.body.contains { instruction in
@@ -945,8 +928,6 @@ extension BuildKIRRegressionTests {
             return callee == ctx.interner.intern(runtime[.unboxInt]) && result == plusArguments[1]
         })
         guard case let .call(_, _, unboxArguments, _, _, _, _, _) = unbox else { return }
-        // #11670 checkcasts the erased value parameter at the adapter boundary,
-        // so the unboxed value is `kk_op_cast(copy(param), token)`; trace it back.
         let casts = kirCalls(to: .opCast, in: adapter.body, interner: ctx.interner)
         var traced = unboxArguments[0]
         tracing: for _ in 0 ..< adapter.body.count {
@@ -970,10 +951,6 @@ extension BuildKIRRegressionTests {
     }
 
     @Test func testBuildKIRBoxesCaptureFreeCallableReferenceForErasedInvoke() throws {
-        // KUU-3674: an unbound, capture-free callable reference used to stay a
-        // bare fnPtr. Once erased into `Any` and cast back to `FunctionN`, the
-        // runtime could only flat-call it with the wrong invoke ABI, so
-        // `(f as Function1).invoke()` returned null and crashed downstream.
         let runtime = try RuntimeNames()
         let source = """
         class B { companion object { fun foo() = "fail" } }
@@ -996,14 +973,6 @@ extension BuildKIRRegressionTests {
     }
 
     @Test func testBuildKIRBoxesAnonymousExtensionFunctionReceiver() throws {
-        // KUU-3727: an anonymous extension-function value passed as the
-        // extension receiver of an inherited generic member must be a boxed
-        // `kk_function_create_N` value. A bare `kk_lambda_*` fnPtr reaches the
-        // member's `this(1)` through `kk_function_invoke`'s raw flat-entry
-        // path, which drops the hidden `sret` slot the Kotlin callee ABI
-        // needs for aggregate returns on x86-64 SysV — the saved third
-        // argument (a tagged Int) was then written through as `outThrown`
-        // and the consumer died with SIGSEGV.
         let runtime = try RuntimeNames()
         let source = """
         open class Base {
@@ -1038,14 +1007,6 @@ extension BuildKIRRegressionTests {
     }
 
     @Test func testBuildKIRDoesNotRewrapBoxedFunctionValueForCollectionStorage() throws {
-        // KUU-4037: storing a function value in an array-backed generic
-        // container re-wrapped an already-boxed `kk_function_create_N`
-        // object in a second box, minting a new handle per crossing — so
-        // `listOf(f)[0] === f`, `contains`, `indexOf`, `remove` and map-key
-        // lookups all failed while kotlinc keeps one object. An element
-        // whose invocation ABI already serves the declared element/key
-        // type must pass through with its own identity, leaving exactly
-        // one `kk_function_create_1` per function value.
         let runtime = try RuntimeNames()
         let source = """
         fun main() {
@@ -1069,12 +1030,9 @@ extension BuildKIRRegressionTests {
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
             return callee == ctx.interner.intern(runtime[.functionCreate1])
         }
-        // One box for `f`, one for `g`: the list/array/set stores, the map
-        // put and the map get all reuse each value's own object.
         #expect(functionCreates.count == 2,
                 "Expected each function value boxed exactly once, got \(functionCreates.count)")
     }
 
-    // MARK: - P5-39: vararg call lowering / ABI regression tests
 }
 #endif
