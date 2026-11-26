@@ -355,7 +355,14 @@ extension JVMFunctionBuilder {
                 let receiverArgument = try (object ?? dispatch).map { [try convert($0, to: .reference(method.owner, nullable: false))] } ?? []
                 instructions.append(.foreignCall(clone, receiver: nil, arguments: receiverArgument + values, result: result))
             } else {
-                instructions.append(.foreignCall(method, receiver: object ?? dispatch, arguments: values, result: result))
+                var callReceiver = object ?? dispatch
+                var callArguments = values
+                if method.takesReceiverAsArgument {
+                    guard let receiverValue = callReceiver else { throw fail("Missing JVM super-call receiver.", id) }
+                    callArguments.insert(try convert(receiverValue, to: method.parameters[0]), at: 0)
+                    callReceiver = nil
+                }
+                instructions.append(.foreignCall(method, receiver: callReceiver, arguments: callArguments, result: result))
             }
         } else if let reference {
             instructions.append(.call(reference, values, result))

@@ -16,6 +16,7 @@ final class JVMProgramBuilder {
     var jvmComposableFunctions: Set<SymbolID> = []
     var localFunctions: [SymbolID: JVMLocalFunctionPlan] = [:]
     var syntheticFunctions: [String: [JVMFunction]] = [:]
+    var interfaceSuperBridges: [String: JVMForeignMethod] = [:]
     var closureClasses: [JVMClass] = []
     private var _exprRangeIndex: [FileID: [(start: Int, end: Int, expr: ExprID)]]?
     var metroFactoryFields: [SymbolID: JVMField] = [:]

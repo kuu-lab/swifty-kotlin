@@ -359,6 +359,34 @@ extension JVMBackendTests {
     }
 
     @Test
+    func interfaceCompanionJvmFieldInitializerSupportsInterfaceSuperCalls() throws {
+        let source = """
+        interface Base { fun seed(): Int = 4 }
+        interface ITest {
+            companion object : Base {
+                @JvmField val x: Int = super<Base>.seed()
+            }
+        }
+        fun main() { println(ITest.x) }
+        """
+
+        try withWorkspace { root in
+            let compiled = try compile(source, root: root, mode: .jvmJar)
+            try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
+            let artifact = root.appendingPathComponent("hello.jar").path
+            let runtime = try m11Runtime()
+            _ = try jvmTool("kotlinc", ["-nowarn", "-include-runtime", "hello.kt", "-d", "reference.jar"], root: root)
+
+            let reference = try java(["-cp", root.appendingPathComponent("reference.jar").path, "HelloKt"])
+            let candidate = try java(["-cp", artifact + ":" + runtime, "HelloKt"])
+            #expect(candidate.stdout == reference.stdout)
+            #expect(candidate.stdout == "4\n")
+            #expect(reference.stderr.isEmpty)
+            #expect(candidate.stderr.isEmpty)
+        }
+    }
+
+    @Test
     func rejectsInvalidInterfaceCompanionJvmFieldShapes() throws {
         for (name, members) in [
             ("var", "@JvmField var x: Int = 3"),
