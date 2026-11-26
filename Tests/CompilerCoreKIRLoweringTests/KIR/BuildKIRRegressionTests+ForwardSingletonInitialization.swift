@@ -74,8 +74,6 @@ extension BuildKIRRegressionTests {
             if case let .jumpIfNotNull(value, _) = $0 { return value == thrownSlot }
             return false
         })
-        // Every symbolic call in these consumers must resolve after the owning
-        // declarations are lowered, including deferred singleton guards.
         for function in [value, constant, collision, catching] {
             for instruction in function.body {
                 if case let .call(symbol?, _, _, _, _, _, _, _) = instruction {

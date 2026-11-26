@@ -3,13 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-// KUU-853 regression: a bare reference to a sibling extension property inside
-// another same-receiver extension body (`id` inside `label`'s getter, `label`
-// inside `describe`) must lower to that property's getter called on the
-// implicit receiver — not `loadGlobal` on a global slot that is never
-// initialized (Int reads as 0, String reads as null; this made
-// `Worker.toString()` print "Worker null" and the `Worker.name` fallback
-// print "worker 0").
 extension BuildKIRRegressionTests {
     @Test func testImplicitExtensionPropertySelectsCompatibleReceiver() throws {
         let ctx = makeContextFromSource("""
@@ -122,7 +115,6 @@ extension BuildKIRRegressionTests {
         let idProp = try extensionProperty(named: "id")
         let labelProp = try extensionProperty(named: "label")
 
-        // `label`'s getter references `id` bare on the implicit Box receiver.
         let labelGetterBody = try functionBody(of: labelProp.getter, named: "label$get")
         expectGetterCall(
             in: labelGetterBody,
@@ -131,7 +123,6 @@ extension BuildKIRRegressionTests {
             context: "label getter's `id` read"
         )
 
-        // `describe` references `label` bare on the implicit Box receiver.
         let describeSymbol = try #require(
             sema.symbols.lookupAll(fqName: package + [interner.intern("describe")]).first(where: {
                 sema.symbols.symbol($0)?.kind == .function
@@ -147,12 +138,6 @@ extension BuildKIRRegressionTests {
         )
     }
 
-    // KUU-3914: an unqualified extension property referenced inside a
-    // receiver-typed lambda (`buildString { ... }`) binds to the enclosing
-    // receiver-tower entry — the extension's `this` — not to the lambda's own
-    // receiver. KIR must capture that enclosing receiver and call the sibling
-    // getter on it; falling back to `loadGlobal` reads a global slot that is
-    // never initialized (the ktor-http `URLBuilder.authority` regression).
     @Test func testExtensionPropertyInsideReceiverLambdaCallsGetterOnCapturedReceiver() throws {
         let ctx = makeContextFromSource("""
         package test
@@ -227,10 +212,6 @@ extension BuildKIRRegressionTests {
         )
     }
 
-    // KUU-3914, nested form: `with(StringBuilder()) { buildString { ... } }`
-    // pushes two receiver-lambda entries in front of the enclosing `Outer`
-    // receiver; the extension property read must still reach it through
-    // transitive lambda captures.
     @Test func testNestedReceiverLambdasTransitivelyCaptureOuterExtensionReceiver() throws {
         let ctx = makeContextFromSource("""
         package test

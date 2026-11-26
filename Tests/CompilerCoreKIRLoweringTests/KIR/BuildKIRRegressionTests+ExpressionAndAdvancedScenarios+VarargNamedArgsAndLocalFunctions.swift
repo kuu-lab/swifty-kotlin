@@ -5,10 +5,6 @@ import Testing
 
 extension BuildKIRRegressionTests {
 
-    /// Built once per process: `static let` initializes under `swift_once`, so
-    /// parallel tests share a single compile. The previous check-then-set over
-    /// a mutable static allowed concurrent tests to each miss the cache and
-    /// re-pay the bundled-stdlib compile.
     private static let _sharedVarargCtx = Result<CompilationContext, any Error> {
         let sources: [String] = [
             """
@@ -91,10 +87,6 @@ extension BuildKIRRegressionTests {
         try Self._sharedVarargCtx.get()
     }
 
-    /// Built once per process: `static let` initializes under `swift_once`, so
-    /// parallel tests share a single compile. The previous check-then-set over
-    /// a mutable static allowed concurrent tests to each miss the cache and
-    /// re-pay the bundled-stdlib compile.
     private static let _sharedVarargLoweringCtx = Result<CompilationContext, any Error> {
         let sources: [String] = [
             """
@@ -122,7 +114,6 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "namedArray", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        // A single spread array is passed through rather than packed as one element.
         #expect(!callees.contains(runtime[.arrayNew]))
         #expect(!callees.contains(runtime[.arraySet]))
         #expect(callees.contains("collect$default"))
@@ -143,8 +134,6 @@ extension BuildKIRRegressionTests {
     }
 
     @Test func testVarargSpreadFlagIsParsedInCallArgument() throws {
-        // Keep an isolated parser assertion alongside the end-to-end KUU-1589
-        // call-resolution and kotlinc differential coverage.
         let source = """
         fun collect(vararg items: Int): Int = 0
         fun main() {
@@ -156,7 +145,6 @@ extension BuildKIRRegressionTests {
         try runFrontend(ctx)
 
         let ast = try #require(ctx.ast)
-        // Check that at least one CallArgument has isSpread == true
         var foundSpread = false
         for index in ast.arena.exprs.indices {
             let exprID = ExprID(rawValue: Int32(index))
@@ -206,34 +194,22 @@ extension BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "main4", in: module, interner: ctx.interner)
         let sumSymbol = try sourceSymbol(named: "sum", in: ctx)
 
-        // After ABI lowering, the vararg-packed array should NOT be boxed.
-        // If boxing were incorrectly applied, we would see kk_box_int
-        // targeting the array argument passed to `sum`.
         let loweredAggregateCalls = body.filter { instruction in
             guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else { return false }
             return symbol == sumSymbol
         }
         #expect(!(loweredAggregateCalls.isEmpty), "Expected an aggregate call after ABI lowering.")
 
-        // Verify that arguments to sum are not individually boxed—the
-        // array_new/array_set calls produce the packed array argument.
         for call in loweredAggregateCalls {
             guard case let .call(_, _, arguments, _, _, _, _, _) = call else { continue }
             for arg in arguments {
                 guard let argKind = module.arena.expr(arg) else { continue }
-                // The argument to sum should be a temporary holding the
-                // array reference produced by kk_array_new, NOT a raw
-                // kk_box_int result.  An intLiteral here would mean the
-                // vararg array was never constructed—flag it.
                 if case .intLiteral = argKind {
                     Issue.record("Unexpected intLiteral as direct argument to sum; expected a packed array reference.")
                 }
             }
         }
 
-        // The real check: kk_box_int should NOT appear before the call to sum
-        // for the purpose of boxing vararg elements into the packed argument.
-        // The array_set calls handle packing, not boxing.
         let sumIndex = try #require(body.firstIndex { instruction in
             guard case let .call(symbol, _, _, _, _, _, _, _) = instruction else { return false }
             return symbol == sumSymbol
@@ -242,8 +218,6 @@ extension BuildKIRRegressionTests {
             guard case let .call(_, callee, _, _, _, _, _, _) = body[index] else { return false }
             return callee == ctx.interner.intern(runtime[.boxInt])
         }
-        // Any kk_box_int calls that appear should be for array_set element boxing,
-        // not for the final argument to sum itself.
         let boxCallsAfterArrayPacking = boxIntIndices.filter { $0 > sumIndex }
         #expect(boxCallsAfterArrayPacking.isEmpty, "Unexpected boxing after sum call; vararg array argument should not be boxed.")
     }
@@ -259,7 +233,6 @@ extension BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "main5", in: module, interner: ctx.interner)
         let callNames = extractCallees(from: body, interner: ctx.interner)
 
-        // All three call sites should produce array packing
         let arrayNewCount = callNames.filter { $0 == runtime[.arrayNew] }.count
         #expect(arrayNewCount >= 2, "Expected at least 2 kk_array_new calls for vararg packing across call sites, got: \(arrayNewCount)")
     }
@@ -288,8 +261,6 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main7", in: module, interner: ctx.interner)
         let callNames = extractCallees(from: body, interner: ctx.interner)
-        // A primitive vararg is packed directly into its primitive array, so the
-        // elements are stored raw rather than boxed.
         let boxCharCount = callNames.filter { runtime.boxingNames.contains($0) }.count
         #expect(boxCharCount == 0, "Expected Char vararg elements to be stored unboxed, got: \(callNames)")
         #expect(callNames.filter { $0 == runtime[.arraySet] }.count == 3, "Expected each Char vararg element to be stored in the array, got: \(callNames)")
@@ -305,8 +276,6 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main8", in: module, interner: ctx.interner)
         let callNames = extractCallees(from: body, interner: ctx.interner)
-        // A primitive vararg is packed directly into its primitive array, so the
-        // elements are stored raw rather than boxed.
         let boxBoolCount = callNames.filter { runtime.boxingNames.contains($0) }.count
         #expect(boxBoolCount == 0, "Expected Boolean vararg elements to be stored unboxed, got: \(callNames)")
         #expect(callNames.filter { $0 == runtime[.arraySet] }.count == 3, "Expected each Boolean vararg element to be stored in the array, got: \(callNames)")
@@ -322,8 +291,6 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main9", in: module, interner: ctx.interner)
         let callNames = extractCallees(from: body, interner: ctx.interner)
-        // A primitive vararg is packed directly into its primitive array, so the
-        // elements are stored raw rather than boxed.
         let boxDoubleCount = callNames.filter { runtime.boxingNames.contains($0) }.count
         #expect(boxDoubleCount == 0, "Expected Double vararg elements to be stored unboxed, got: \(callNames)")
         #expect(callNames.filter { $0 == runtime[.arraySet] }.count == 3, "Expected each Double vararg element to be stored in the array, got: \(callNames)")
@@ -339,8 +306,6 @@ extension BuildKIRRegressionTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main10", in: module, interner: ctx.interner)
         let callNames = extractCallees(from: body, interner: ctx.interner)
-        // A primitive vararg is packed directly into its primitive array, so the
-        // elements are stored raw rather than boxed.
         let boxLongCount = callNames.filter { runtime.boxingNames.contains($0) }.count
         #expect(boxLongCount == 0, "Expected Long vararg elements to be stored unboxed, got: \(callNames)")
         #expect(callNames.filter { $0 == runtime[.arraySet] }.count == 3, "Expected each Long vararg element to be stored in the array, got: \(callNames)")
@@ -409,8 +374,6 @@ extension BuildKIRRegressionTests {
         }
     }
 
-    // MARK: - P5-42: Local function scope registration and KIR generation
-
     @Test
     func testLocalFunctionScopeRegistrationAllowsCallResolution() throws {
         let ctx = try sharedVarargCtx()
@@ -422,7 +385,6 @@ extension BuildKIRRegressionTests {
         let ctx = try sharedVarargCtx()
         #expect(!(ctx.diagnostics.hasError), "Expected no errors: \(ctx.diagnostics.diagnostics.map(\.message))")
         let module = try #require(ctx.kir)
-        // The module should contain at least 2 functions: main and the local function add.
         #expect(module.functionCount >= 2, "Expected KIR to contain both main and local function 'add'")
     }
 }

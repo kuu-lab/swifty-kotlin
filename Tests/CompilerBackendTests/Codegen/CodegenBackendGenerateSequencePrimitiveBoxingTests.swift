@@ -4,12 +4,6 @@
 import Foundation
 import Testing
 
-/// BUG-187 (KSP-500): `generateSequence` seed/next-function results and
-/// `sequence { yield(value) }` builder arguments were not boxed for primitive
-/// element types, so `Char`/`Double`/`Int`/`Boolean`/enum values leaked as raw
-/// ordinal/code-point integers and `Double` null terminators were mis-boxed as
-/// `-0.0`, producing infinite sequences.
-
 @Suite
 struct CodegenBackendGenerateSequencePrimitiveBoxingTests {
 

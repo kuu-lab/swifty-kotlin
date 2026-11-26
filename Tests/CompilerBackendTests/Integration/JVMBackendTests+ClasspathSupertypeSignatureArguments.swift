@@ -4,12 +4,6 @@ import Foundation
 import Testing
 
 extension JVMBackendTests {
-    /// Classpath stubs must recover supertype type arguments from the classfile
-    /// Signature when the erased fallback would fill them with `Any`
-    /// (`class StringList implements List<String>` built by javac). Without
-    /// them `forEach` lambda parameters lose their element type. Kotlin
-    /// classfiles are excluded: their argument nullability lives only in
-    /// metadata, which the Signature cannot express.
     @Test
     func classpathSupertypeKeepsSignatureArguments() throws {
         try withWorkspace { root in
@@ -47,9 +41,6 @@ extension JVMBackendTests {
         }
     }
 
-    /// Mapped JDK interfaces can collapse to the same Kotlin supertype
-    /// (SequencedSet and Set both render kotlin.collections.Set); emitting
-    /// the duplicate supertype is rejected with SEMA-0440.
     @Test
     func classpathSupertypeDeduplicatesMappedInterfaces() throws {
         try withWorkspace { root in

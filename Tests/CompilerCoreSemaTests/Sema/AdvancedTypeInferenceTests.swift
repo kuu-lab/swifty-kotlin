@@ -114,12 +114,6 @@ struct AdvancedTypeInferenceTests {
         #expect(!ctx.diagnostics.hasError, "Expected collect's receiver lambda to infer T from add(), got: \(diagnostics)")
     }
 
-    /// KUU-4079: kotlin-result's `binding { result.bind() }`. `bind` is a
-    /// member extension on `Scope<E>`, so its declared `R<V, E>` receiver
-    /// mentions the builder's unsolved `E` only through the *dispatch*
-    /// receiver's arguments. Matching `R<Int, String>` against that
-    /// owner-substituted receiver must feed `E = String` back into the
-    /// builder session instead of reporting an uninferred type variable.
     @Test func testReceiverLambdaMemberExtensionSolvesOuterTypeVariable() throws {
         let ctx = makeContextFromSource("""
         interface R<V, E>
@@ -158,9 +152,6 @@ struct AdvancedTypeInferenceTests {
         )
     }
 
-    /// Same receiver-lambda shape, but the call-site receiver is unrelated to
-    /// the member extension's declared receiver. No evidence pins `E`, so the
-    /// inference diagnostic must remain (kotlinc rejects this too).
     @Test func testReceiverLambdaMemberExtensionKeepsUninferredDiagnostic() throws {
         let ctx = makeContextFromSource("""
         interface R<V, E>
@@ -407,10 +398,6 @@ struct AdvancedTypeInferenceTests {
         )
     }
 
-    // KUU-3792: an `out`-projected argument feeding an `in`-projected
-    // parameter contributes the captured projection's `Nothing` lower bound,
-    // so the callee's type argument collapses to `Nothing` (JVM then throws
-    // `KotlinNothingValueException` when a value materializes).
     @Test func testOutProjectedArgumentIntoInParameterInfersNothing() throws {
         let path = "/virtual/out-into-in-nothing.kt"
         let source = """
@@ -437,8 +424,6 @@ struct AdvancedTypeInferenceTests {
         #expect(binding.substitutedTypeArguments == [sema.types.nothingType])
     }
 
-    // The mirror `Context<in X>` argument against `Context<out T>` contributes
-    // the `in` projection's `Any?` upper bound as the variable's lower bound.
     @Test func testInProjectedArgumentIntoOutParameterInfersNullableAny() throws {
         let path = "/virtual/in-into-out-any.kt"
         let source = """

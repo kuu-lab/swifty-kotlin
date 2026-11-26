@@ -1,7 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// KUU-3483: zipping the lazy Iterable returned by withIndex() must use its iterator.
     @Test
     func testIterableZipWithIndexReceiver() throws {
         try compileAndRunKotlin(
@@ -20,8 +19,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KSP-999: Array overloads must match Kotlin's iterator pull order while
-    /// preserving pair order and transform timing.
     @Test
     func testIterableZipArrayMatchesStdlibPullOrder() throws {
         try compileAndRunKotlin(

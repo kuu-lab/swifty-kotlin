@@ -3,11 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-// KUU-2953: enum member state lives in per-entry ordinal slots behind the
-// `$enumConstructorProperty$` / `$enumPropertySetter$` helpers. The synthetic
-// accessor emitted for a bound property reference (`this::value`) must call
-// those helpers like the ordinary member read/write paths — the nominal
-// field/global fallback reads a slot that is never written and yields null.
 extension LoweringPassRegressionTests {
     @Test
     func testEnumEntryBoundPropertyReferenceAccessorReadsEnumHelper() throws {
@@ -71,9 +66,6 @@ extension LoweringPassRegressionTests {
                 emit: .kirDump
             )
             try runToLowering(ctx)
-            // Literal-only enums used to take the storage-free fast path and
-            // never emit `$enumPropertySetter$v`; any `var` write then failed
-            // the KIR verifier with an unresolved callee.
             #expect(
                 !ctx.diagnostics.hasError,
                 "mutable enum constructor property should keep setter helper: \(ctx.diagnostics.diagnostics.map(\.message))"

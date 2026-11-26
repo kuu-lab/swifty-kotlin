@@ -45,7 +45,6 @@ extension JVMBackendTests {
         }
     }
 
-    // Exercise both runtimes independently, then compare an official consumer.
     func runRuntimeParity(_ source: String, expected: String, mode: EmitMode, root: URL) throws {
         let official = try m11Runtime()
         let library = try JVMOwnStdlibCache.shared.library()
@@ -117,8 +116,6 @@ extension JVMBackendTests {
     func classpathExtensionShadowsStdlibBitReinterpret() throws {
         let library = try ownStdlibLibrary()
         try withWorkspace { root in
-            // A real kotlinc-built library exporting same-named Float extensions with
-            // distinct return values, so classpath metadata is authoritative.
             let extSource = """
             package ext
             fun Float.myCustomBits(): Int = 777
@@ -138,8 +135,6 @@ extension JVMBackendTests {
             """
             let app = try m22Build(root: root, sources: [("consumer.kt", consumer)], name: "app.jar", mode: .jvmJar, classpath: [extlib])
             try #require(app.1 == 0, "\(app.2.map(\.message))")
-            // The explicit classpath extension must shadow kotlin.toBits, so the stdlib
-            // bit-reinterpret lowering must not fire for it.
             let run = try java(["-cp", app.0.path + ":" + extlib + ":" + library.path, "ConsumerKt"])
             #expect(run.stdout == "777\n888\n")
             #expect(run.stderr.isEmpty)
@@ -151,12 +146,6 @@ extension JVMBackendTests {
         }
     }
 
-    // Regression: Float/Double.toBits()/toRawBits() were once declared both in
-    // Stdlib/jvm/kotlin/Numbers.kt (runtimeFacade kotlin.NumbersKt) and in
-    // Stdlib/jvm/declarations/Numbers.kt. The duplicate JVM-erased callables
-    // (KSWIFTK-SEMA-0001) broke every `--emit jar` and `--stdlib-only --emit jar`
-    // build. The own-stdlib jar must build and all four functions — explicit and
-    // implicit-receiver — must resolve and match kotlinc's inlined bit intrinsics.
     @Test
     func ownStdlibBitReinterpretFunctionsBuildAndRun() throws {
         let library = try ownStdlibLibrary()
@@ -481,8 +470,6 @@ extension JVMBackendTests {
         let expected = try String(contentsOf: fixtures.appendingPathComponent(name + ".out"), encoding: .utf8)
         try withWorkspace { root in
             try source.write(to: root.appendingPathComponent("hello.kt"), atomically: true, encoding: .utf8)
-            // The compiler may use the reference libraries; execution has only
-            // the consumer classes and the repository-built runtime.
             _ = try jvmTool("kotlinc", ["hello.kt", "-cp", m11Runtime(), "-d", "consumer.jar"], root: root)
             let package = source.components(separatedBy: "\n").first(where: { $0.hasPrefix("package ") }).map { $0.dropFirst(8).trimmingCharacters(in: .whitespacesAndNewlines) + "." } ?? ""
             let result = try java(["-cp", root.appendingPathComponent("consumer.jar").path + ":" + library.path, package + "HelloKt"])

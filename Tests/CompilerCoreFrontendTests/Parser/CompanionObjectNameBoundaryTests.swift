@@ -51,7 +51,6 @@ struct CompanionObjectNameBoundaryTests {
             return
         }
 
-        // BuildAST leaves an omitted name empty; Sema supplies "Companion".
         #expect(ctx.diagnostics.diagnostics.isEmpty)
         #expect(ctx.interner.resolve(companion.name) == name)
         #expect(companion.modifiers.contains(.companion))

@@ -6,8 +6,6 @@ import Foundation
 import RuntimeABI
 import Testing
 
-// Tests for virtual dispatch (vtable/itable) lowering, codegen, and backend emission (P5-25).
-
 private enum LLVMBackendProbe {
     nonisolated(unsafe) static let shared: LLVMBackend? = try? LLVMBackend(
         target: defaultTargetTriple(),
@@ -23,7 +21,6 @@ private func isLLVMBackendAvailable() -> Bool {
 
 @Suite
 struct VirtualDispatchCodegenTests {
-    // MARK: - Helpers
 
     private func makeVtableFixture() -> (
         interner: StringInterner,
@@ -284,8 +281,6 @@ struct VirtualDispatchCodegenTests {
         return false
     }
 
-    // MARK: - Tests
-
     @Test
     func testABILoweringUnboxesReturnForVirtualCall() throws {
         let interner = StringInterner()
@@ -301,7 +296,6 @@ struct VirtualDispatchCodegenTests {
 
         let targetName = interner.intern("virtualGetValue")
 
-        // The target function returns Any? but the result expression has type Int
         symbols.setFunctionSignature(
             FunctionSignature(
                 parameterTypes: [],
@@ -354,8 +348,6 @@ struct VirtualDispatchCodegenTests {
         #expect(callees.contains(try runtimeABICallee("unbox_int_static")), "Expected kk_unbox_int_static call for Any? -> Int unboxing after virtualCall, got: \(callees)")
     }
 
-    // MARK: - 4. virtualCall preserved through lowering (not converted to .call)
-
     @Test
     func testVirtualCallSurvivesLoweringPhase() throws {
         let fixture = makeVtableFixture()
@@ -367,8 +359,6 @@ struct VirtualDispatchCodegenTests {
         let hasVirtualCall = lowered.body.contains(where: isVirtualCall)
         #expect(hasVirtualCall, "virtualCall should survive all lowering passes and not be downgraded to .call")
     }
-
-    // MARK: - 5. virtualCall dispatch kind preservation
 
     @Test
     func testVirtualCallPreservesVtableDispatchKind() throws {
@@ -402,8 +392,6 @@ struct VirtualDispatchCodegenTests {
         #expect(dispatch == .itable(interfaceSlot: 0, methodSlot: 0), "Dispatch kind should be preserved as itable(interfaceSlot: 0, methodSlot: 0)")
     }
 
-    // MARK: - 6. Receiver is NOT duplicated in virtualCall arguments after lowering
-
     @Test
     func testVirtualCallReceiverNotInArgumentsAfterLowering() throws {
         let fixture = makeVtableFixture()
@@ -417,14 +405,9 @@ struct VirtualDispatchCodegenTests {
             Issue.record("Expected virtualCall instruction after lowering")
             return
         }
-        // The speak method has no value parameters, so arguments should be empty.
-        // The receiver should be separate.
         #expect(arguments.count == 0, "virtualCall arguments should not contain the receiver (speak has 0 value params)")
-        // Verify receiver is a valid expression
         #expect(receiver.rawValue != -1, "Receiver should be a valid expression ID")
     }
-
-    // MARK: - 7. KIR dump contains vtable/itable dispatch info
 
     @Test
     func testKIRDumpContainsVtableLookupDispatchInfo() {
@@ -442,8 +425,6 @@ struct VirtualDispatchCodegenTests {
         #expect(dump.contains("virtualCall"), "KIR dump should contain virtualCall instruction")
         #expect(dump.contains("dispatch=itable[0:0]"), "KIR dump should contain dispatch=itable[0:0]")
     }
-
-    // MARK: - 8. Receiver serialization via KIR dump
 
     @Test
     func testVirtualCallReceiverAppearsInKIRDump() {
@@ -498,15 +479,11 @@ struct VirtualDispatchCodegenTests {
         let callerID = arena.appendDecl(.function(callerFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
 
-        // Verify via KIR dump that the receiver is separate from arguments
         let dump = module.dump(interner: interner, symbols: symbols)
         #expect(dump.contains("virtualCall"), "Dump should contain virtualCall")
-        // The receiver and arguments should be separate fields in the dump
         #expect(dump.contains("receiver="), "Dump should have receiver= field")
         #expect(dump.contains("dispatch=vtable[0]"), "Dump should have dispatch info")
     }
-
-    // MARK: - 9. LLVM backend via emitObject: virtualCall compiles without error
 
     @Test(.enabled(if: isLLVMBackendAvailable()))
     func testLLVMBackendCompilesVirtualCallWithoutError() throws {
@@ -522,8 +499,6 @@ struct VirtualDispatchCodegenTests {
         let vtableLookup = try runtimeABICallee("vtable_lookup")
         #expect(ir.contains(vtableLookup) || ir.contains(RuntimeABISpec.compilerGeneratedLinkNamePrefix), "IR should contain vtable dispatch or emitted functions")
     }
-
-    // MARK: - 10. Codegen serialization of virtualCall
 
     @Test
     func testCodegenSerializesVirtualCallWithVtableDispatch() {

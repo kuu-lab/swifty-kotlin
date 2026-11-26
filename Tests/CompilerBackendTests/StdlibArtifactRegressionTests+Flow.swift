@@ -216,9 +216,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-4123: enum elements emitted through the suspend-builder `emit` and
-    /// channel `send`/`trySend` erased boundaries must reach `toList` with
-    /// their enum identity — not as bare ordinals.
     @Test(arguments: [false, true])
     func testFlowEnumErasedElements(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
@@ -267,10 +264,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-4133: Boolean elements sent through channelFlow/produce must reach
-    /// `toList` with their BoolBox identity — not collapsed to `0`/`1` by
-    /// `runtimeFlowMaybeUnbox` at the channel-receive element boundary.
-    /// Operator arguments (take counts, predicate decisions) still unbox.
     @Test(arguments: [false, true])
     func testFlowBoolErasedElements(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil

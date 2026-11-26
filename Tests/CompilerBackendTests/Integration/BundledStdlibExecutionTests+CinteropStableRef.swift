@@ -1,12 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    // KSP-1217: kotlinx.cinterop.StableRef was previously a nominal-only
-    // synthetic stub with no create/get/dispose/asCPointer wiring, so
-    // kotlin.native.concurrent.callContinuation0/1/2 (which upstream
-    // implements purely in terms of StableRef) could never resolve past
-    // Sema. Both are now bundled Kotlin source backed by kk_stable_ref_create/
-    // _deref/_dispose (Sources/Runtime/RuntimeNativeAPI.swift).
 
     @Test
     func testStableRefRoundTripsThroughCOpaquePointer() throws {
@@ -55,8 +49,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    // callContinuation0/1/2 のプリミティブ型引数はここで、参照型と混在型の
-    // 引数は次の KUU-548 回帰テストで実行検証する。
     @Test
     func testCallContinuationFunctionsInvokeWrappedClosures() throws {
         try compileAndRunKotlin(
@@ -94,8 +86,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    // KUU-548 (#6866) でフィールド経由のジェネリック関数値呼び出しが修正された。
-    // 参照型（String）と混在型（Int/String）の StableRef/closure 動作を実行時に固定する。
     @Test
     func testCallContinuationFunctionsInvokeWrappedClosuresWithReferenceTypeArguments() throws {
         try compileAndRunKotlin(

@@ -6,10 +6,6 @@ import Testing
 
 @Suite
 struct StdlibArtifactNestedObjectMembersTests {
-    /// KUU-1578: nested objects under another object are values in a qualified
-    /// member chain, not zero-argument member calls. Exercise the exact
-    /// MainThreadFinalizerProcessor surface through both source-injected and
-    /// precompiled stdlib paths so custom getters and setters stay reachable.
     @Test(arguments: [false, true])
     func testMainThreadFinalizerProcessorMembers(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try testStdlibArtifactPath() : nil

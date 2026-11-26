@@ -4,10 +4,6 @@ import Foundation
 import Testing
 
 extension JVMBackendTests {
-    /// KUU-4314: the remaining `kotlin.internal` compile-time-only annotations
-    /// from the common stdlib surface must resolve on the JVM lane. They carry
-    /// no runtime-visible metadata (BINARY retention at most), so emit drops
-    /// them instead of requiring a classfile plan.
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func kuu4314KotlinInternalAnnotationsCompileAndRun(mode: EmitMode) throws {
         let source = """

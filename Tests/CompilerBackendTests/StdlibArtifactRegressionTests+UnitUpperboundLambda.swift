@@ -7,7 +7,6 @@ import Testing
 import TestStdlibCache
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2203: a Unit upper bound enables lambda return coercion on both stdlib paths.
     @Test(arguments: [false, true], [0, 2])
     func testUnitUpperboundLambdaReturnType(useArtifact: Bool, optimization: Int) throws {
         let optLevel: OptimizationLevel = optimization == 0 ? .O0 : .O2

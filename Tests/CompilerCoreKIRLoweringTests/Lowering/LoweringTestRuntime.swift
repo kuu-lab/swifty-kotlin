@@ -3,9 +3,6 @@ import RuntimeABI
 import Testing
 @testable import CompilerTestSupport
 
-/// Select ABI declarations by operation, leaving their public/internal link
-/// spelling to the canonical extern view. Retired operations are checked via
-/// `operation(of:)` so removing a declaration cannot make a negative test vacuous.
 enum LoweringTestRuntime {
     private static let externsByOperation: [String: [RuntimeABIExterns.ExternDecl]] = {
         var result: [String: [RuntimeABIExterns.ExternDecl]] = [:]
@@ -26,7 +23,6 @@ enum LoweringTestRuntime {
         interner.intern(name(operation))
     }
 
-    /// Compiler intrinsics have no external declaration or link-time target.
     static func intrinsic(_ operation: String) -> String {
         let matches = RuntimeABISpec.compilerInternalNonThrowingCalleeNames.filter {
             self.operation(of: $0) == operation
@@ -47,9 +43,6 @@ enum LoweringTestRuntime {
         Set(names.compactMap { operation(of: $0) })
     }
 
-    /// Source-backed builders pass the start mode through one ABI entry point.
-    /// Locate its argument by the contract instead of pinning a launcher family
-    /// or a positional index left over from the synthetic overloads.
     static func coroutineStartModes(
         for operation: String,
         legacyOperationPrefix: String,
@@ -86,8 +79,6 @@ enum LoweringTestRuntime {
         }
     }
 
-    /// The blocking wrapper passes the state-machine symbol to the canonical
-    /// continuation factory; follow that identity instead of its generated name.
     static func loweredSuspendFunction(
         for wrapper: KIRFunction,
         in module: KIRModule,

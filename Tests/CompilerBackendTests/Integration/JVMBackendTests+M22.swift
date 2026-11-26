@@ -19,7 +19,6 @@ extension JVMBackendTests {
         return (output, result.exitCode, result.diagnostics)
     }
 
-    /// KUU-3045: the bundled JVM stdlib must build after honoring inherited JDK collection members.
     @Test
     func m22JvmStdlibJarBuildsWithInheritedCollectionMembers() throws {
         try withWorkspace { root in
@@ -56,7 +55,6 @@ extension JVMBackendTests {
             """#), ("support/Greeting.kt", "package support\nfun greeting(): String = \"Hello World\"\n")]
             let app = try m22Build(root: root, sources: sources, name: mode == .jvmJar ? "app.jar" : "classes", mode: mode, classpath: [library.0.path])
             try #require(app.1 == 0, "\(app.2.map(\.message))")
-            // Only our two artifacts are on the runtime classpath.
             let execution = try java(["-cp", app.0.path + ":" + library.0.path, "MainKt"])
             #expect(execution.stdout == "Hello World\n(1, one)\n(1, uno)\n1\ntrue\n0\n[1, 2, 3]\n[]\n[3, 1]\n[]\n{a=3, b=2}\n{}\n[4, 2, 3]\n2\n[1, 3]\n{x=3, y=2}\n3\n[8, 9]\n[4, 5]\n{z=8}\n6\n")
             #expect(execution.stderr.isEmpty)
@@ -149,12 +147,10 @@ extension JVMBackendTests {
             try helper.write(to: root.appendingPathComponent("JavaConsumer.java"), atomically: true, encoding: .utf8)
             _ = try jvmTool("javac", ["--release", "8", "JavaConsumer.java"], root: root)
             try consumer.write(to: root.appendingPathComponent("Consumer.kt"), atomically: true, encoding: .utf8)
-            // Disable both implicit compiler distribution dependencies explicitly.
             _ = try jvmTool("kotlinc", ["-no-stdlib", "-no-reflect", "-cp", library.0.path + ":" + root.path, "Consumer.kt", "-d", "consumer.jar"], root: root)
             let kotlin = try java(["-cp", root.appendingPathComponent("consumer.jar").path + ":" + library.0.path + ":" + root.path, "ConsumerKt"])
             #expect(kotlin.stdout == "Hello World\n(1, uno)\n1\none\n3\n2\nfalse\n2\ntrue\n2\n3\ntrue\n1\n[4, 2, 3]\n[1, 2]\n{a=1, b=2}\n2\n3\n4\n[7, 8]\n[7, 8]\n[]\n[]\n{}\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\nfalse\nfalse\ntrue\n")
             #expect(kotlin.stderr.isEmpty)
-            // A fresh compiler process must require our own built-in resources.
             let archive = try ZipArchive(data: Data(contentsOf: library.0))
             let primary = try #require(archive.entries.first { $0.name == "kotlin/PairKt.class" })
             let remaining = try archive.entries.filter { $0.name != primary.name && $0.name != "META-INF/MANIFEST.MF" && !$0.name.hasSuffix(".kotlin_builtins") }.map { ($0.name, Data(try archive.contents(of: $0))) }

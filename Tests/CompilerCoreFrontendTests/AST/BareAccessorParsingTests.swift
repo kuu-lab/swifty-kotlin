@@ -3,16 +3,6 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-/// KUU-4154: a bare `get`/`set` on the line after a member or top-level
-/// property is Kotlin's default accessor spelling — the parser must attach it
-/// as its own `.propertyAccessor` node so accessor diagnostics anchor at the
-/// accessor keyword instead of collapsing onto the property's modifier range
-/// (kotlinc 2.4.20 reports `protected override var w = 1\n    get` twice: once
-/// on the modifier, once on `get`).
-///
-/// Inside a function body the same line is the next statement's ordinary
-/// expression, and a `;` ends the declaration once it is followed by a
-/// newline — or ends the accessor list outright after a bare accessor.
 @Suite
 struct BareAccessorParsingTests {
     @Test(arguments: [
@@ -83,8 +73,6 @@ struct BareAccessorParsingTests {
         let property = try #require(memberProperty(named: "w", ofClass: "C", in: ast, interner: context.interner))
         let getter = try #require(property.getter)
         #expect(getter.body == .unit)
-        // The accessor node's range must cover exactly the `get` keyword —
-        // that is the anchor Sema uses for accessor-level diagnostics.
         let keyword = try #require(source.range(of: "get"))
         let start = source.utf8.distance(from: source.utf8.startIndex, to: keyword.lowerBound)
         #expect(getter.range.start.offset == start)

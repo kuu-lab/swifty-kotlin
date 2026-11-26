@@ -56,7 +56,6 @@ struct JavaLangClassAssertionStatusTests {
             try assertCompilationSucceeded(makeTestDriver().runForTesting(options: options))
         }
 
-        // Keep the issue's exact compile-only reproducer, including its empty main.
         try compile(["minimal.kt"], output: directory.appendingPathComponent("minimal").path)
         let output = directory.appendingPathComponent("upstream").path
         try compile(["commonMain/commonFunctions.kt", "jvmMain/commonFunctions.kt", "Main.kt"], output: output)

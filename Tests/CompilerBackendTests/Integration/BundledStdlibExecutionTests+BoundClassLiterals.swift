@@ -32,11 +32,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-3227: JVM emits one SAM wrapper class per fun interface, so all
-    /// `SAM(...)` instances report the same runtime `::class`. The lowering
-    /// used to tag each call site's synthesized wrapper with its own class
-    /// ID, which interned distinct KClass boxes (`simpleName` fell back to
-    /// "Unknown" and equality failed).
     @Test(arguments: [false, true])
     func samWrapperBoundClassLiteralsShareClassIdentity(fromArtifact: Bool) throws {
         try compileAndRunKotlin(
@@ -67,13 +62,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-4018: JVM array Class objects are reified per component type, so
-    /// `Array<Int>::class != Array<String>::class` while the `kotlin.Array`
-    /// nominal name, covariance (`Array<Any>.isInstance(arrayOf(1))`), and
-    /// primitive-array identity stay unchanged. The same component
-    /// descriptor keys `x::class` on array values and reified `T::class`
-    /// captures; `Array<T>::class` on the reified left-hand side erases to
-    /// T's bound like `Object[].class` on the JVM.
     @Test(arguments: [false, true])
     func arrayClassLiteralComponentIdentity(fromArtifact: Bool) throws {
         try compileAndRunKotlin(

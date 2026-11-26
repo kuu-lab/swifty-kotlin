@@ -3,9 +3,6 @@
 @testable import CompilerTestSupport
 import Testing
 
-/// Regression tests for parser declaration boundaries: where one top-level or
-/// block-level declaration ends and the next begins, and how far a
-/// declaration's CST range reaches.
 @Suite
 struct DeclarationBoundaryTests {
     @Test(arguments: [
@@ -341,8 +338,6 @@ struct DeclarationBoundaryTests {
         nodeCount(in: parse(source).arena, kind: kind)
     }
 
-    /// Parses `source` and returns the CST range of the root (file) node,
-    /// which is the accumulation of every top-level declaration's range.
     private func rootRange(_ source: String) -> SourceRange {
         let parsed = parse(source)
         return parsed.arena.node(parsed.root).range
@@ -444,14 +439,6 @@ struct DeclarationBoundaryTests {
         #expect(blockChildCount(source, blockChildKind: .statement) == 1)
     }
 
-    // BUG-208 (found while implementing KSP-614): a body-less top-level
-    // declaration — such as the `external fun` bridges used by the bundled
-    // Kotlin stdlib — used to absorb the following declaration when that
-    // declaration started with a visibility/linkage modifier, because only
-    // `fun`/`val`/`class` and friends were treated as statement boundaries.
-    // The absorbed declaration disappeared from the symbol table entirely
-    // (calls to it failed with `KSWIFTK-SEMA-0002` / `KSWIFTK-SEMA-0023`).
-
     @Test
     func testBodylessFunctionDoesNotAbsorbFollowingModifiedDeclaration() {
         let source = """
@@ -491,17 +478,6 @@ struct DeclarationBoundaryTests {
         """
         #expect(nodeCount(source, kind: .funDecl) == 1)
     }
-
-    // BUG-227 (found while auditing BuildASTPhase+ConstructorParsing.swift):
-    // `parseBlock()` only routed a declaration-start token to `parseDeclaration()`
-    // when it had a leading newline or was the very first token in the block.
-    // A declaration placed after a `;`-terminated statement on the *same*
-    // physical line satisfies neither condition, so it fell through to the
-    // generic `parseStatement()` path instead — which has no notion of
-    // annotations or declaration keywords and swallows everything (including a
-    // nested constructor body) into one opaque `.statement` node. The fix adds
-    // "previous consumed token was `;`" as a third way to recognize a fresh
-    // statement boundary, alongside a leading newline and block-start.
 
     @Test
     func testAnnotatedSecondaryConstructorAfterSemicolonIsNotAbsorbed() {
@@ -586,14 +562,6 @@ struct DeclarationBoundaryTests {
         #expect(nodeCount(in: arena, kind: .funDecl) == 1)
     }
 
-    // `value`/`data`/... lex as declaration-modifier keywords even when used
-    // as a plain identifier (e.g. an assignment target). The widened gate
-    // above now also routes such a token to `parseDeclaration()` when it
-    // follows a `;` mid-line, same as it already did when the token had a
-    // leading newline or was first in the block. `parseDeclaration()`'s
-    // fallback for "consumed a modifier-looking token, nothing recognizable
-    // followed" still produces one `.statement` node per assignment, so this
-    // must not merge the two statements into one.
     @Test
     func testModifierKeywordIdentifierAssignmentAfterSemicolonIsNotMerged() {
         let source = """
@@ -675,22 +643,6 @@ struct DeclarationBoundaryTests {
         #expect(nodeCount(source, kind: .funDecl) == 1)
     }
 
-    // Found while investigating a `@file:Suppress` annotation that failed to
-    // suppress a diagnostic raised deep inside a trailing function's block
-    // body (PR #6562's KSP-1216 native concurrent top-level tests). The root
-    // node's range is the accumulation of every top-level declaration's
-    // range, and file-level `@Suppress` registers that whole range as the
-    // suppression window. The `lBrace` branches of `parseFunctionDeclaration`,
-    // `parseEnumDeclaration`, and `parsePropertyDeclaration` all appended
-    // their `{ ... }` body node to `children` but never fed its range into
-    // the `RangeAccumulator` (nor, for functions, the parameter list's) — so
-    // a block-bodied declaration's own range stopped at its name, silently
-    // truncating the root range whenever such a declaration was the last (or
-    // only) top-level declaration, and making any diagnostic inside its body
-    // fall outside every file-level `@Suppress`/`@OptIn` window. Pre-existing
-    // (last touched in b1e9bcc283); KSP-1216's tests were simply the first to
-    // combine a file-level `@Suppress` header with a trailing block-bodied
-    // `fun main`.
     @Test
     func testBlockBodiedFunctionRangeIncludesParametersAndBody() {
         let source = """
@@ -883,7 +835,6 @@ struct DeclarationBoundaryTests {
         let parsed = parse(source)
         let exceedsBudget = count >= 4_096
 
-        // Recovery also reports the skipped modifier tokens once.
         let expectedCodes = exceedsBudget ? ["KSWIFTK-PARSE-0007", "KSWIFTK-PARSE-0006"] : []
         let expectedRootKind: SyntaxKind = exceedsBudget ? .script : .kotlinFile
         #expect(parsed.diagnostics.diagnostics.map(\.code) == expectedCodes)
@@ -941,13 +892,6 @@ struct DeclarationBoundaryTests {
             #expect(parsed.arena.node(parsed.root).kind == .kotlinFile, "\(source.path)")
         }
     }
-
-    // KUU-3025: the type-argument lookahead once required the token after `>`
-    // to be a label name, so a bodiless generic class followed by a
-    // hard-keyword declaration (`fun`, `val`, `class`, …) lost its
-    // type-parameter list. The synthesized constructor then carried no type
-    // parameters and calls such as `Box()`/`Box<Int>()` failed overload
-    // resolution with KSWIFTK-SEMA-0002.
 
     @Test(arguments: [
         "fun after() {}",

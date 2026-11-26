@@ -4,12 +4,6 @@ import Testing
 @testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
-    /// KUU-3824 / KT-83308: a `fun interface` whose only abstract member is a
-    /// declared `Any.toString` produces a SAM wrapper whose `toString` must be
-    /// registered on the per-object erased-Any dispatch table
-    /// (`kk_object_register_any_to_string`) — not only through the interface
-    /// itable — or calls erased through `Any` render the default object
-    /// `toString` (`kk_sam_wrapper_class$SomeFun@hash`).
     @Test func samWrapperToStringRegistersAnyErasedBridge() throws {
         let ctx = makeContextFromSource("""
         fun interface SomeFun {
@@ -67,12 +61,6 @@ extension BuildKIRRegressionTests {
         )
     }
 
-    /// A member-extension `toString` is not an `Any.toString` override — it is
-    /// callable only inside its owner with an explicit extension receiver —
-    /// so it must never be registered on the erased-Any dispatch table. The
-    /// erased bridge passes only the instance receiver; registering an
-    /// extension left its extension-receiver argument unbound and segfaulted
-    /// the erased call (KUU-3824).
     @Test func memberExtensionToStringDoesNotRegisterAnyErasedBridge() throws {
         let ctx = makeContextFromSource("""
         class C { fun Int.toString() = "ext" }

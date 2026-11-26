@@ -29,7 +29,6 @@ extension JVMBackendTests {
             let archive = try JVMJarArchive.emit(className: "dep/Z", classFile: Self.minimalClass(named: "dep/Z"), classes: entries)
             let dependency = root.appendingPathComponent("classes.jar")
             try archive.write(to: dependency)
-            // A later classpath entry repeating a name must not duplicate it.
             let shadow = try JVMJarArchive.emit(
                 className: "dep/B0",
                 classFile: Self.minimalClass(named: "dep/B0"),

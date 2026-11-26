@@ -1,9 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    // Regression: partitioned .kklib codegen must pass SymbolTable into
-    // collectRuntimeCallbackRawABISymbols so Throwable.toString() uses the raw
-    // i64 return ABI consistently across stdlib .kklib and consumer modules.
     @Test(arguments: [true, false])
     func testThrowableSubclassToStringAcrossPartitionedStdlibABI(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(

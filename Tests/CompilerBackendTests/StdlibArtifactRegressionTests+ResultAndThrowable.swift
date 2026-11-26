@@ -6,10 +6,6 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
-    /// STDLIB-ARTIFACT-003: built-in exception constructors are runtime factories
-    /// (`kk_*_exception_new_message`) and must not receive an implicit `this`
-    /// allocated by `kk_object_new`; otherwise the message handle is misread and
-    /// `Throwable.message` is empty in the consumer.
     @Test
     func testExceptionMessageThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -48,8 +44,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-1040: primary constructor properties can override the open message
-    /// and cause properties through the bundled exception hierarchy in both modes.
     @Test(arguments: [false, true])
     func testThrowableConstructorPropertyOverrides(useArtifact: Bool) throws {
         let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
@@ -94,11 +88,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-594: user-defined Throwable subclasses must initialize the object
-    /// allocated by the consumer module when their superclass constructor is
-    /// imported from the precompiled stdlib artifact. Runtime factory
-    /// constructors need accessor-based initialization, while source-backed
-    /// RuntimeException constructors must retain their normal super call.
     @Test
     func testUserDefinedThrowableSubclassThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -166,10 +155,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// STDLIB-ARTIFACT-014: member properties with custom getters (e.g.
-    /// `Result.isSuccess`/`isFailure`) must round-trip through the shared stdlib
-    /// artifact with `propertyGetterExternalLinkName`. Otherwise the consumer
-    /// falls back to a field-offset read and crashes or misreads the value.
     @Test
     func testResultMemberPropertyGetterSharedPath() throws {
         let artifactPath = try Self.buildStdlibArtifact()
@@ -275,8 +260,6 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// STDLIB-ARTIFACT-022: direct construction must use RuntimeResultBox rather
-    /// than the ordinary Kotlin object allocation path.
     @Test
     func testResultConstructorUsesRuntimeSuccessFactory() throws {
         let artifactPath = try Self.buildStdlibArtifact()

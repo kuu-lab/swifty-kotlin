@@ -123,11 +123,6 @@ struct CodegenBackendPrimitiveArrayEdgeCasesTests {
         """ + "\n")
     }
 
-    /// KUU-4436: DoubleArray/FloatArray inherit Any.toString() on the JVM,
-    /// which spells the `[D@hash`/`[F@hash` identity in every Any context —
-    /// direct calls, interpolation, collection elements, and data-class
-    /// property rendering through the deep-content path is the only place
-    /// element values appear.
     @Test
     func testFloatingPointArrayToStringAcrossAnyContexts() throws {
         let source = """
@@ -198,9 +193,6 @@ struct CodegenBackendPrimitiveArrayEdgeCasesTests {
         """ + "\n")
     }
 
-    /// KUU-4436: identity rendering covers every allocation path — factory
-    /// copies, `copyOf`, sized constructors, and init lambdas — while
-    /// contentToString keeps rendering the element values.
     @Test
     func testFloatingPointArrayToStringSpecialValuesAndCopies() throws {
         let source = """
@@ -1406,11 +1398,6 @@ struct CodegenBackendPrimitiveArrayEdgeCasesTests {
         )
     }
 
-    // KSP-481 follow-up: `for (i in 0 until n)` used to leave `i` typed as Any
-    // (see testCodegenForLoopUntilRangeExplicitIntType), which made ByteArray's
-    // indexed `get(index: Int)` unresolvable and surfaced as a TYPE-0001 error
-    // pointing at both operands of `a[i] != b[i]`. Locks in that indexing +
-    // comparison combination now that the loop variable is correctly typed Int.
     @Test
     func testByteArrayElementNotEqualsInsideUntilRangeLoop() throws {
         let source = """

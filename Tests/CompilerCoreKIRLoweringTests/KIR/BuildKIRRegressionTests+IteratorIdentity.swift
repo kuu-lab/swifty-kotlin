@@ -4,8 +4,6 @@ import Testing
 @testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
-    /// KSP-1000: the identity extension remains a source-backed inline call and
-    /// never lowers to an iterator runtime bridge.
     @Test
     func testIteratorIdentityExtensionIsSourceBackedInlineWithoutRuntimeCallee() throws {
         let source = """

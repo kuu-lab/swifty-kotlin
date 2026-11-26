@@ -172,6 +172,7 @@ extension JVMProgramBuilder {
             }
         }
         try prepareLocalNominalCaptures()
+        try prepareSerialization()
         for plan in classes.values.sorted(by: { $0.name < $1.name }) {
             let numberSubclass = isKotlinNumberSubclass(plan.symbol)
             guard plan.name.split(whereSeparator: { $0 == "/" || $0 == "$" }).allSatisfy({ component in
@@ -280,8 +281,8 @@ extension JVMProgramBuilder {
             let capital = String(name.prefix(1)).uppercased() + name.dropFirst()
             let booleanIs = name.hasPrefix("is") && name.count > 2 && name.dropFirst(2).first!.isUppercase
             let collectionGetter = collectionPropertyGetter(plan, name: name)
-            let getterName = plan.isJvmRecord ? name : (collectionGetter ?? (plan.isAnnotation ? name : (booleanIs ? name : "get" + capital)))
-            let setterName = booleanIs ? "set" + name.dropFirst(2) : "set" + capital
+            let getterName = try explicitAccessorJvmName(for: symbol, target: "get") ?? (plan.isJvmRecord ? name : (collectionGetter ?? (plan.isAnnotation ? name : (booleanIs ? name : "get" + capital))))
+            let setterName = try explicitAccessorJvmName(for: symbol, target: "set") ?? (booleanIs ? "set" + name.dropFirst(2) : "set" + capital)
             var getter = JVMForeignMethod(owner: plan.name, name: getterName, descriptor: "(" + getterParameters.map(\.descriptor).joined() + ")" + type.descriptor, parameters: getterParameters, result: type, isStatic: plan.isFacade, isInterface: plan.isInterface, isAbstract: isAbstract)
             getter.isSpecial = !plan.isFacade && (p.getter?.visibility == .private || p.modifiers.contains(.private))
             var setter: JVMForeignMethod?
@@ -462,6 +463,7 @@ extension JVMProgramBuilder {
             let parents = ([plan.superclass] + plan.interfaces).map { parentSignatures[$0] ?? "L" + $0 + ";" }
             result.genericSignature = (result.typeParameters.isEmpty ? "" : "<" + result.typeParameters.map(\.signature).joined() + ">") + parents.joined()
             results.append(result)
+            if let serializer = try serializerClass(for: plan) { results.append(serializer) }
             if let defaultImpls { results.append(defaultImpls) }
         }
         return results

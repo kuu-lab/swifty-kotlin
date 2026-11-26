@@ -46,8 +46,6 @@ struct PrimitiveIdentityEqualityTests {
         let source = try String(contentsOf: root.appendingPathComponent(
             "Scripts/diff_cases/primitive_identity_equality.kt"
         ), encoding: .utf8)
-        // Expected output from Kotlin 2.3.10/JVM. In particular, non-null
-        // Int identity has no boxing-cache boundary and NaN is not identical.
         try assertKotlinOutput(
             source,
             moduleName: "PrimitiveIdentityEquality",
