@@ -1037,6 +1037,9 @@ extension CallTypeChecker {
                })
             {
                 parameterMapping[index] = namedIndex
+                // A positional argument following a named one continues from
+                // the parameter after it (`windowed(4, step = 2, true)`).
+                nextPositionalParameter = namedIndex + 1
             } else {
                 parameterMapping[index] = nextPositionalParameter
                 nextPositionalParameter += 1

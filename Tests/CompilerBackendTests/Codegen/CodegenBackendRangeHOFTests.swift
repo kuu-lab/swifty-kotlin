@@ -604,6 +604,7 @@ struct CodegenBackendRangeHOFTests {
             println((1..6).windowed(4, partialWindows = false))
             println((1..5).windowed(3, partialWindows = true))
             println((1..6).windowed(4, step = 2, partialWindows = true))
+            println((1..6).windowed(4, step = 2, true))
         }
         """
 
@@ -614,6 +615,7 @@ struct CodegenBackendRangeHOFTests {
                 """
                 [[1, 2, 3, 4], [2, 3, 4, 5], [3, 4, 5, 6]]
                 [[1, 2, 3], [2, 3, 4], [3, 4, 5], [4, 5], [5]]
+                [[1, 2, 3, 4], [3, 4, 5, 6], [5, 6]]
                 [[1, 2, 3, 4], [3, 4, 5, 6], [5, 6]]
                 """ + "\n"
         )
