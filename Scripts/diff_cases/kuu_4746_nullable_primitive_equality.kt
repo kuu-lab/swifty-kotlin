@@ -6,6 +6,12 @@ import kotlin.time.Duration.Companion.seconds
 value class Counter(val raw: Long)
 
 @JvmInline
+value class FloatCounter(val raw: Float)
+
+@JvmInline
+value class DoubleCounter(val raw: Double)
+
+@JvmInline
 value class NullableText(val value: String?)
 
 class Link(var next: Link?, val delta: Long)
@@ -13,6 +19,10 @@ class Link(var next: Link?, val delta: Long)
 fun boxedCounter(value: Counter): Counter? = value
 
 fun boxedCounterAny(value: Counter): Any = value
+
+fun boxedFloatCounter(value: FloatCounter): Any = value
+
+fun boxedDoubleCounter(value: DoubleCounter): Any = value
 
 fun boxedLongMinimum(): Any = Long.MIN_VALUE
 
@@ -68,6 +78,21 @@ fun main() {
     val counterBoxTwo: Any = boxedCounterAny(Counter(1L))
     println(counterBoxOne == counterBoxTwo)
     println(counterBoxOne.hashCode() == counterBoxTwo.hashCode())
+    val floatCounterBoxOne: Any = boxedFloatCounter(FloatCounter(1.5f))
+    val floatCounterBoxTwo: Any = boxedFloatCounter(FloatCounter(1.5f))
+    println(floatCounterBoxOne == floatCounterBoxTwo)
+    println(floatCounterBoxOne.hashCode() == floatCounterBoxTwo.hashCode())
+    println(floatCounterBoxOne.hashCode())
+    val doubleCounterBoxOne: Any = boxedDoubleCounter(DoubleCounter(1.5))
+    val doubleCounterBoxTwo: Any = boxedDoubleCounter(DoubleCounter(1.5))
+    println(doubleCounterBoxOne == doubleCounterBoxTwo)
+    println(doubleCounterBoxOne.hashCode() == doubleCounterBoxTwo.hashCode())
+    println(doubleCounterBoxOne.hashCode())
+    val minimumCounterBox: Any = boxedCounterAny(Counter(Long.MIN_VALUE))
+    val minimumCounterBoxCopy: Any = boxedCounterAny(Counter(Long.MIN_VALUE))
+    println(minimumCounterBox == minimumCounterBoxCopy)
+    println(minimumCounterBox.hashCode() == minimumCounterBoxCopy.hashCode())
+    println(minimumCounterBox.hashCode())
     val wideCounterBox: Any = boxedCounterAny(Counter(4294967296L))
     println(wideCounterBox.hashCode())
     val longBoxOne = boxedLongMinimum()

@@ -9807,7 +9807,12 @@ enum WasmRuntimeHelpers {
             code.op(WasmOpcode.i64Eq)
             code.openIf()
             Self.emitValueClassPayloadHash(
-                &code, primitive: primitive, boxLocal: 0, scratchLocal: hL
+                &code,
+                ctx: ctx,
+                primitive: primitive,
+                boxLocal: 0,
+                pointerLocal: iL,
+                valueLocal: hL
             )
             code.op(WasmOpcode.return)
             code.end()
@@ -10003,31 +10008,87 @@ enum WasmRuntimeHelpers {
 
     private static func emitValueClassPayloadHash(
         _ code: inout WasmCode,
+        ctx: WasmModuleContext,
         primitive: PrimitiveType,
         boxLocal: Int,
-        scratchLocal: Int
+        pointerLocal: Int,
+        valueLocal: Int
     ) {
+        let boxedTypeID: Int64? = switch primitive {
+        case .long: Self.stableNominalTypeID("kotlin.Long")
+        case .ulong: Self.stableNominalTypeID("kotlin.ULong")
+        case .float: Self.stableNominalTypeID("kotlin.Float")
+        case .double: Self.stableNominalTypeID("kotlin.Double")
+        default: nil
+        }
+        emitLoadAt(&code, baseLocal: boxLocal, byteOffset: L.valueClassBoxPayloadOffset)
+        code.localSet(pointerLocal)
+        if let boxedTypeID {
+            code.localGet(pointerLocal)
+            code.globalGet(ctx.dataEndGlobal)
+            code.op(WasmOpcode.i64GeU)
+            code.localGet(pointerLocal)
+            code.globalGet(ctx.heapGlobal)
+            code.op(WasmOpcode.i64LtU)
+            code.op(WasmOpcode.i32And)
+            code.localGet(pointerLocal)
+            code.i64Const(7)
+            code.op(WasmOpcode.i64And)
+            code.op(WasmOpcode.i64Eqz)
+            code.op(WasmOpcode.i32And)
+            code.openIf(result: .i64)
+            emitLoadAt(&code, baseLocal: pointerLocal, byteOffset: L.typeIDOffset)
+            code.i64Const(boxedTypeID)
+            code.op(WasmOpcode.i64Eq)
+            code.openIf(result: .i64)
+            code.localGet(pointerLocal)
+            code.call(ctx.emittedHelperIndex(for: "__kk_wasm_elem_hash", argumentCount: 1))
+            code.elseBranch()
+            code.localGet(pointerLocal)
+            Self.emitPrimitiveHashFromRawValue(
+                &code, primitive: primitive, valueLocal: valueLocal
+            )
+            code.end()
+            code.elseBranch()
+            code.localGet(pointerLocal)
+            Self.emitPrimitiveHashFromRawValue(
+                &code, primitive: primitive, valueLocal: valueLocal
+            )
+            code.end()
+        } else {
+            code.localGet(pointerLocal)
+            Self.emitPrimitiveHashFromRawValue(
+                &code, primitive: primitive, valueLocal: valueLocal
+            )
+        }
+    }
+
+    private static func emitPrimitiveHashFromRawValue(
+        _ code: inout WasmCode,
+        primitive: PrimitiveType,
+        valueLocal: Int
+    ) {
+        code.localSet(valueLocal)
         switch primitive {
         case .long, .ulong:
-            emitLoadAt(&code, baseLocal: boxLocal, byteOffset: L.valueClassBoxPayloadOffset)
-            emitLoadAt(&code, baseLocal: boxLocal, byteOffset: L.valueClassBoxPayloadOffset)
+            code.localGet(valueLocal)
+            code.localGet(valueLocal)
             code.i64Const(32)
             code.op(WasmOpcode.i64ShrU)
             code.op(WasmOpcode.i64Xor)
             code.op(WasmOpcode.i32WrapI64)
             code.op(WasmOpcode.i64ExtendI32S)
         case .double:
-            emitLoadAt(&code, baseLocal: boxLocal, byteOffset: L.valueClassBoxPayloadOffset)
+            code.localGet(valueLocal)
             code.op(WasmOpcode.f64ReinterpretI64)
-            emitLoadAt(&code, baseLocal: boxLocal, byteOffset: L.valueClassBoxPayloadOffset)
+            code.localGet(valueLocal)
             code.op(WasmOpcode.f64ReinterpretI64)
             code.op(WasmOpcode.f64Ne)
             code.openIf(result: .i64)
             code.i64Const(0x7FF8_0000)
             code.elseBranch()
-            emitLoadAt(&code, baseLocal: boxLocal, byteOffset: L.valueClassBoxPayloadOffset)
-            code.localTee(scratchLocal)
-            code.localGet(scratchLocal)
+            code.localGet(valueLocal)
+            code.localGet(valueLocal)
             code.i64Const(32)
             code.op(WasmOpcode.i64ShrU)
             code.op(WasmOpcode.i64Xor)
@@ -10035,26 +10096,26 @@ enum WasmRuntimeHelpers {
             code.op(WasmOpcode.i64ExtendI32S)
             code.end()
         case .float:
-            emitLoadAt(&code, baseLocal: boxLocal, byteOffset: L.valueClassBoxPayloadOffset)
+            code.localGet(valueLocal)
             code.op(WasmOpcode.i32WrapI64)
             code.op(WasmOpcode.f32ReinterpretI32)
-            emitLoadAt(&code, baseLocal: boxLocal, byteOffset: L.valueClassBoxPayloadOffset)
+            code.localGet(valueLocal)
             code.op(WasmOpcode.i32WrapI64)
             code.op(WasmOpcode.f32ReinterpretI32)
             code.op(WasmOpcode.f32Ne)
             code.openIf(result: .i64)
             code.i64Const(0x7FC0_0000)
             code.elseBranch()
-            emitLoadAt(&code, baseLocal: boxLocal, byteOffset: L.valueClassBoxPayloadOffset)
+            code.localGet(valueLocal)
             code.op(WasmOpcode.i32WrapI64)
             code.op(WasmOpcode.i64ExtendI32S)
             code.end()
         case .int, .byte, .short, .uint:
-            emitLoadAt(&code, baseLocal: boxLocal, byteOffset: L.valueClassBoxPayloadOffset)
+            code.localGet(valueLocal)
             code.op(WasmOpcode.i32WrapI64)
             code.op(WasmOpcode.i64ExtendI32S)
         case .boolean, .char, .ubyte, .ushort:
-            emitLoadAt(&code, baseLocal: boxLocal, byteOffset: L.valueClassBoxPayloadOffset)
+            code.localGet(valueLocal)
             code.op(WasmOpcode.i32WrapI64)
             code.op(WasmOpcode.i64ExtendI32U)
         }
