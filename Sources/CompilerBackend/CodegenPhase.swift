@@ -464,7 +464,8 @@ public final class CodegenPhase: CompilerPhase {
                     ?? function.body
                 for instruction in body {
                     guard let target = Self.calledFunctionSymbol(instruction),
-                          let targetFunction = functionsBySymbol[target] else {
+                          let targetFunction = functionsBySymbol[target],
+                          Self.isTransitiveWasmInitDependency(target, symbols: sema.symbols) else {
                         continue
                     }
                     if !serializedSymbols.contains(target),
@@ -497,6 +498,20 @@ public final class CodegenPhase: CompilerPhase {
             return true
         }
         return !parentInfo.fqName.elementsEqual(info.fqName.dropLast())
+    }
+
+    // Constructors and synthetic init factories have no vtable helper surface,
+    // but virtual members do: shipping one through the init dependency closure
+    // would let a materialized body displace the member thunk in consumer
+    // vtables.
+    private static func isTransitiveWasmInitDependency(_ symbol: SymbolID, symbols: SymbolTable) -> Bool {
+        guard let info = symbols.symbol(symbol) else {
+            return true
+        }
+        guard info.kind == .function else {
+            return true
+        }
+        return isMaterializableWasmFunction(symbol, symbols: symbols)
     }
 
     // Open or overriding members still belong to the vtable/itable helper

@@ -81,6 +81,33 @@ struct WasmLibraryBodyImportTests {
     }
 
     @Test
+    func initTransitiveClosureDoesNotShipVirtualMemberBodies() throws {
+        let libraryPath = try compileWasmLibrary(
+            moduleName: "VirtualLib",
+            source: """
+            package test
+
+            open class Base {
+                open fun value(): String = "B"
+            }
+
+            object Registry {
+                val value: String = Base().value()
+            }
+            """
+        )
+        defer { try? FileManager.default.removeItem(atPath: libraryPath) }
+
+        let metadata = try Data(contentsOf: URL(fileURLWithPath: libraryPath + "/metadata.bin"))
+        let valueRecord = try #require(MetadataDecoder().decode(metadata).first {
+            $0.kind == .function && $0.fqName == "test.Base.value"
+        })
+        let linkName = try #require(valueRecord.externalLinkName)
+        let kirPath = libraryPath + "/inline-kir/" + MetadataEncoder.inlineKIRFileName(for: linkName)
+        #expect(!FileManager.default.fileExists(atPath: kirPath))
+    }
+
+    @Test
     func sameNamedPrivateMemberBodiesRemainDistinct() throws {
         let libraryPath = try compileWasmLibrary(
             moduleName: "CollisionLib",
