@@ -41,6 +41,7 @@ fun __jvmNewline() {}
 fun __jvmWhitespace(value: Char): Boolean = false
 fun __jvmSpaceChar(value: Char): Boolean = false
 fun __jvmIsDigit(value: Char): Boolean = false
+fun __jvmIsLetter(value: Char): Boolean = false
 fun __jvmDirectionality(value: Char): Int = 0
 fun __jvmIsUpperCase(value: Char): Boolean = false
 fun __jvmIsLowerCase(value: Char): Boolean = false

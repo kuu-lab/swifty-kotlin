@@ -203,6 +203,13 @@
     "kind": "static"
   },
   {
+    "symbol": "__jvmIsLetter",
+    "owner": "java/lang/Character",
+    "name": "isLetter",
+    "descriptor": "(C)Z",
+    "kind": "static"
+  },
+  {
     "symbol": "__jvmDirectionality",
     "owner": "java/lang/Character",
     "name": "getDirectionality",
