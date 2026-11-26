@@ -123,6 +123,38 @@ extension CallTypeChecker {
         } else {
             nativeArgumentType = kClassArgumentType
         }
+        if calleeName == interner.intern("isInstance"), args.count == 1, sema.types.nullability(of: receiverType) == .nonNull {
+            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            let isInvariantKClass: Bool
+            if case .kClassType = sema.types.kind(of: nonNullReceiverType) {
+                isInvariantKClass = true
+            } else if let classType = resolveClassType(nonNullReceiverType, sema: sema),
+                      case .invariant = classType.args.first {
+                isInvariantKClass = true
+            } else {
+                isInvariantKClass = false
+            }
+            if isInvariantKClass,
+               let kClassSymbol = sema.types.kClassInterfaceSymbol,
+               let owner = sema.symbols.symbol(kClassSymbol),
+               let functionSymbol = sema.symbols.lookup(fqName: owner.fqName + [calleeName])
+            {
+                for argument in args {
+                    _ = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+                }
+                sema.bindings.bindCall(
+                    id,
+                    binding: CallBinding(
+                        chosenCallee: functionSymbol,
+                        substitutedTypeArguments: [],
+                        parameterMapping: [0: 0]
+                    )
+                )
+                sema.bindings.bindCallableTarget(id, target: .symbol(functionSymbol))
+                sema.bindings.bindExprType(id, type: sema.types.booleanType)
+                return sema.types.booleanType
+            }
+        }
         if args.isEmpty, let propertyType = bindKClassNativeProperty(
             id, name: calleeName, argument: nativeArgumentType, sema: sema, interner: interner
         ) {
