@@ -18,7 +18,7 @@ enum JVMClassFile {
             methods.append(JVMMethodCode(name: try pool.utf8("main"), descriptor: try pool.utf8(launcherDescriptor), access: 0x0009, code: launcher.data, stack: 0, locals: 1, frames: nil))
         }
         let metadata = try JVMMetadata.annotation(program, pool: pool)
-        return try write(name: program.internalClassName, superclass: "java/lang/Object", interfaces: [], access: 0x0031, fields: program.properties.compactMap(\.field) + program.extraFields, fieldSignatures: Dictionary(uniqueKeysWithValues: program.properties.compactMap { property in property.field.flatMap { field in (property.fieldGenericSignature ?? property.genericSignature).flatMap { $0 == field.type.descriptor ? nil : (field.name, $0) } } }), methods: methods, sourceFile: program.sourceFileName, metadata: metadata, annotations: program.annotations, signature: nil, classIndex: classIndex, rootClassName: program.internalClassName, majorVersion: target.classFileMajorVersion, pool: pool)
+        return try write(name: program.internalClassName, superclass: "java/lang/Object", interfaces: [], access: 0x0031, fields: program.properties.compactMap(\.field) + program.extraFields, fieldSignatures: Dictionary(uniqueKeysWithValues: program.properties.compactMap { property in property.field.flatMap { field in (property.fieldGenericSignature ?? property.genericSignature).flatMap { $0 == field.type.descriptor ? nil : (field.key, $0) } } }), methods: methods, sourceFile: program.sourceFileName, metadata: metadata, annotations: program.annotations, signature: nil, classIndex: classIndex, rootClassName: program.internalClassName, majorVersion: target.classFileMajorVersion, pool: pool)
     }
     static func emit(_ type: JVMClass, program: JVMProgram, target: JVMTarget = .java8, javaParameters: Bool = false, classIndex: ClassIndex) throws -> Data {
         if type.isFileFacade {
@@ -31,7 +31,7 @@ enum JVMClassFile {
         if let source = type.reifiedClones.first { try pool.seed(try source.body.analyze().pool) }
         var methods = try type.functions.map { try emitMethod($0, owner: type.name, javaParameters: javaParameters, pool: pool) }
         methods += try type.reifiedClones.map { try JVMReifiedCloneEmitter.emit($0, owner: type.name, pool: pool) }
-        return try write(name: type.name, superclass: type.superclass, interfaces: type.interfaces, access: type.access, fields: type.properties.compactMap(\.field) + type.extraFields, fieldSignatures: Dictionary(uniqueKeysWithValues: type.properties.compactMap { property in property.field.flatMap { field in (property.fieldGenericSignature ?? property.genericSignature).flatMap { $0 == field.type.descriptor ? nil : (field.name, $0) } } }), methods: methods, sourceFile: type.sourceFileName ?? program.sourceFileName, metadata: type.emitMetadata ? try JVMMetadata.annotation(program, type: type, pool: pool) : nil, annotations: type.annotations, signature: type.genericSignature, typeParameters: type.typeParameters, recordComponents: type.recordComponents, classIndex: classIndex, rootClassName: program.internalClassName, enclosingMethod: type.enclosingMethod, majorVersion: target.classFileMajorVersion, pool: pool)
+        return try write(name: type.name, superclass: type.superclass, interfaces: type.interfaces, access: type.access, fields: type.properties.compactMap(\.field) + type.extraFields, fieldSignatures: Dictionary(uniqueKeysWithValues: type.properties.compactMap { property in property.field.flatMap { field in (property.fieldGenericSignature ?? property.genericSignature).flatMap { $0 == field.type.descriptor ? nil : (field.key, $0) } } }).merging(type.extraFieldSignatures, uniquingKeysWith: { _, moved in moved }), methods: methods, sourceFile: type.sourceFileName ?? program.sourceFileName, metadata: type.emitMetadata ? try JVMMetadata.annotation(program, type: type, pool: pool) : nil, annotations: type.annotations, signature: type.genericSignature, typeParameters: type.typeParameters, recordComponents: type.recordComponents, classIndex: classIndex, rootClassName: program.internalClassName, enclosingMethod: type.enclosingMethod, majorVersion: target.classFileMajorVersion, pool: pool)
     }
     private static func emitMethod(_ function: JVMFunction, owner: String, javaParameters: Bool, pool: JVMConstantPool) throws -> JVMMethodCode {
         var method = try JVMMethodEmitter(function: function, owner: owner, pool: pool).emit()
@@ -127,7 +127,7 @@ enum JVMClassFile {
             return selected.sorted().map { entries[$0] }
         }
     }
-    private static func write(name: String, superclass: String, interfaces: [String], access: UInt16, fields: [JVMField], fieldSignatures: [String: String] = [:], methods: [JVMMethodCode], sourceFile: String, metadata: Data?, annotations: [JVMAnnotation] = [], signature: String?, typeParameters: [JVMTypeParameter] = [], recordComponents: [JVMRecordComponent] = [], classIndex: ClassIndex, rootClassName: String, enclosingMethod: JVMEnclosingMethod? = nil, majorVersion: UInt16 = 52, pool: JVMConstantPool) throws -> Data {
+    private static func write(name: String, superclass: String, interfaces: [String], access: UInt16, fields: [JVMField], fieldSignatures: [JVMFieldKey: String] = [:], methods: [JVMMethodCode], sourceFile: String, metadata: Data?, annotations: [JVMAnnotation] = [], signature: String?, typeParameters: [JVMTypeParameter] = [], recordComponents: [JVMRecordComponent] = [], classIndex: ClassIndex, rootClassName: String, enclosingMethod: JVMEnclosingMethod? = nil, majorVersion: UInt16 = 52, pool: JVMConstantPool) throws -> Data {
         guard methods.count <= 65_535, fields.count <= 65_535, interfaces.count <= 65_535 else { throw JVMEmissionError.limit("JVM member/interface count exceeds the classfile limit.") }
         guard recordComponents.count <= 65_535 else { throw JVMEmissionError.limit("JVM record component count exceeds the classfile limit.") }
         guard recordComponents.isEmpty || majorVersion >= 60 else { throw JVMEmissionError.limit("JVM Record attributes require classfile version 60 or later.") }
@@ -137,7 +137,7 @@ enum JVMClassFile {
         let codeName = try pool.utf8("Code"), stackMapName = try pool.utf8("StackMapTable")
         let sourceName = try pool.utf8("SourceFile"), sourceIndex = try pool.utf8(sourceFile)
         let signatureName = try pool.utf8("Signature")
-        let fieldGenerics = try fields.map { try fieldSignatures[$0.name].map { try pool.utf8($0) } }
+        let fieldGenerics = try fields.map { try fieldSignatures[$0.key].map { try pool.utf8($0) } }
         let classSignature = try signature.map { try pool.utf8($0) }
         let methodSignatures = try methods.map { try $0.signature.map { try pool.utf8($0) } }
         let classAnnotations = try JVMAnnotations.attributes(annotations, metadata: metadata, pool: pool)

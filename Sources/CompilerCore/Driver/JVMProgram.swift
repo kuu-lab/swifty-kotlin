@@ -297,6 +297,15 @@ public struct JVMForeignMethod: Sendable {
     }
 }
 
+public struct JVMFieldKey: Hashable {
+    public let name: String
+    public let descriptor: String
+
+    public init(name: String, descriptor: String) {
+        self.name = name; self.descriptor = descriptor
+    }
+}
+
 public struct JVMField {
     public let owner: String
     public let name: String
@@ -305,6 +314,7 @@ public struct JVMField {
     public var annotations: [JVMAnnotation] = []
     public var isDeprecated = false
     public var constantValue: JVMConstant? = nil
+    public var key: JVMFieldKey { JVMFieldKey(name: name, descriptor: type.descriptor) }
 }
 
 public struct JVMProperty {
@@ -322,6 +332,7 @@ public struct JVMProperty {
     public var fieldGenericSignature: String? = nil
     public var receiverGenericSignature: String? = nil
     public var delegateField: JVMField? = nil
+    public var relocatedField: JVMField? = nil
     public var delegateSymbol: SymbolID? = nil
     public var annotationsMethod: JVMForeignMethod? = nil
     public var customGetter: Bool = false
@@ -365,6 +376,7 @@ public struct JVMClass {
     public var functions: [JVMFunction]
     public var properties: [JVMProperty]
     public var extraFields: [JVMField] = []
+    public var extraFieldSignatures: [JVMFieldKey: String] = [:]
     public var isFileFacade = false
     public var sourceFileName: String? = nil
     public var emitMetadata = true

@@ -764,6 +764,8 @@ extension JVMFunctionBuilder {
                 return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "setStackTrace", [.reference("[Ljava/lang/StackTraceElement;", nullable: false)], .unit, receiver: receiver, arguments: [stackTrace]))
             case "suppressed" where args.isEmpty:
                 return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "getSuppressed", [], .reference("[Ljava/lang/Throwable;", nullable: false), receiver: receiver))
+            case "getSuppressed" where args.isEmpty:
+                return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "getSuppressed", [], .reference("[Ljava/lang/Throwable;", nullable: false), receiver: receiver))
             case "initCause" where args.count == 1:
                 let cause = try requireValue(args[0].expr)
                 return JVMIntrinsicResult(value: try jdkCall("java/lang/Throwable", "initCause", [.reference("java/lang/Throwable", nullable: true)], .reference("java/lang/Throwable", nullable: false), receiver: receiver, arguments: [cause]))
