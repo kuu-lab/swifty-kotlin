@@ -8,6 +8,8 @@ value class Counter(val raw: Long)
 @JvmInline
 value class NullableText(val value: String?)
 
+class Link(var next: Link?, val delta: Long)
+
 fun boxedCounter(value: Counter): Counter? = value
 
 fun boxedCounterAny(value: Counter): Any = value
@@ -66,10 +68,22 @@ fun main() {
     val counterBoxTwo: Any = boxedCounterAny(Counter(1L))
     println(counterBoxOne == counterBoxTwo)
     println(counterBoxOne.hashCode() == counterBoxTwo.hashCode())
+    val wideCounterBox: Any = boxedCounterAny(Counter(4294967296L))
+    println(wideCounterBox.hashCode())
     val longBoxOne = boxedLongMinimum()
     val longBoxTwo = boxedLongMinimum()
     println(longBoxOne == longBoxTwo)
     println(longBoxOne.hashCode() == longBoxTwo.hashCode())
+    println(longBoxOne.hashCode())
+
+    val selfLink = Link(null, -9030L)
+    selfLink.next = selfLink
+    val selfLinkAny: Any = selfLink
+    selfLinkAny.hashCode()
+    println("self-hash-ok")
+    val firstLink: Any = Link(null, -9030L)
+    val secondLink: Any = Link(null, -9030L)
+    println(firstLink == secondLink)
 
     val minimumLongList = listOf<Long?>(Long.MIN_VALUE)
     println(minimumLongList.contains(null))

@@ -9801,10 +9801,19 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64Eq)
         code.op(WasmOpcode.i32And)
         code.openIf()
+        for (classID, primitive) in Self.valueClassHashPrimitives(ctx) {
+            code.localGet(tidL)
+            code.i64Const(classID)
+            code.op(WasmOpcode.i64Eq)
+            code.openIf()
+            Self.emitValueClassPayloadHash(
+                &code, primitive: primitive, boxLocal: 0, scratchLocal: hL
+            )
+            code.op(WasmOpcode.return)
+            code.end()
+        }
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.valueClassBoxPayloadOffset)
-        code.call(ctx.emittedHelperIndex(
-            for: "__kk_wasm_elem_hash", argumentCount: 1
-        ))
+        code.call(ctx.emittedHelperIndex(for: "__kk_wasm_elem_hash", argumentCount: 1))
         code.op(WasmOpcode.return)
         code.end()
         // String: h = 31*h + byte (JVM folds UTF-16 chars; our storage is
@@ -9940,6 +9949,115 @@ enum WasmRuntimeHelpers {
         code.elseBranch()
         code.localGet(0)
         code.end()
+    }
+
+    private static func valueClassHashPrimitives(
+        _ ctx: WasmModuleContext
+    ) -> [(classID: Int64, primitive: PrimitiveType)] {
+        guard let symbols = ctx.symbols, let types = ctx.types else { return [] }
+        var seenSymbols = Set<SymbolID>()
+        var seenClassIDs = Set<Int64>()
+        var result: [(classID: Int64, primitive: PrimitiveType)] = []
+        for declaration in ctx.kir.arena.declarations {
+            guard case let .nominalType(nominal) = declaration,
+                  seenSymbols.insert(nominal.symbol).inserted,
+                  let symbol = symbols.symbol(nominal.symbol),
+                  symbol.flags.contains(.valueType),
+                  let underlying = symbols.effectiveValueClassUnderlyingType(for: nominal.symbol)
+            else { continue }
+            var visited: Set<SymbolID> = [nominal.symbol]
+            guard let primitive = Self.valueClassHashPrimitive(
+                underlying, symbols: symbols, types: types, visited: &visited
+            ) else { continue }
+            let fqName = symbol.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
+            guard !fqName.isEmpty else { continue }
+            let classID = Self.stableNominalTypeID(fqName)
+            guard seenClassIDs.insert(classID).inserted else { continue }
+            result.append((classID, primitive))
+        }
+        return result
+    }
+
+    private static func valueClassHashPrimitive(
+        _ type: TypeID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        visited: inout Set<SymbolID>
+    ) -> PrimitiveType? {
+        switch types.kind(of: type) {
+        case let .primitive(primitive, .nonNull):
+            return primitive
+        case let .classType(classType) where classType.nullability == .nonNull:
+            guard let symbol = symbols.symbol(classType.classSymbol),
+                  symbol.flags.contains(.valueType),
+                  visited.insert(classType.classSymbol).inserted,
+                  let underlying = symbols.effectiveValueClassUnderlyingType(for: classType.classSymbol)
+            else { return nil }
+            return Self.valueClassHashPrimitive(
+                underlying, symbols: symbols, types: types, visited: &visited
+            )
+        default:
+            return nil
+        }
+    }
+
+    private static func emitValueClassPayloadHash(
+        _ code: inout WasmCode,
+        primitive: PrimitiveType,
+        boxLocal: Int,
+        scratchLocal: Int
+    ) {
+        switch primitive {
+        case .long, .ulong:
+            emitLoadAt(&code, baseLocal: boxLocal, byteOffset: L.valueClassBoxPayloadOffset)
+            emitLoadAt(&code, baseLocal: boxLocal, byteOffset: L.valueClassBoxPayloadOffset)
+            code.i64Const(32)
+            code.op(WasmOpcode.i64ShrU)
+            code.op(WasmOpcode.i64Xor)
+            code.op(WasmOpcode.i32WrapI64)
+            code.op(WasmOpcode.i64ExtendI32S)
+        case .double:
+            emitLoadAt(&code, baseLocal: boxLocal, byteOffset: L.valueClassBoxPayloadOffset)
+            code.op(WasmOpcode.f64ReinterpretI64)
+            emitLoadAt(&code, baseLocal: boxLocal, byteOffset: L.valueClassBoxPayloadOffset)
+            code.op(WasmOpcode.f64ReinterpretI64)
+            code.op(WasmOpcode.f64Ne)
+            code.openIf(result: .i64)
+            code.i64Const(0x7FF8_0000)
+            code.elseBranch()
+            emitLoadAt(&code, baseLocal: boxLocal, byteOffset: L.valueClassBoxPayloadOffset)
+            code.localTee(scratchLocal)
+            code.localGet(scratchLocal)
+            code.i64Const(32)
+            code.op(WasmOpcode.i64ShrU)
+            code.op(WasmOpcode.i64Xor)
+            code.op(WasmOpcode.i32WrapI64)
+            code.op(WasmOpcode.i64ExtendI32S)
+            code.end()
+        case .float:
+            emitLoadAt(&code, baseLocal: boxLocal, byteOffset: L.valueClassBoxPayloadOffset)
+            code.op(WasmOpcode.i32WrapI64)
+            code.op(WasmOpcode.f32ReinterpretI32)
+            emitLoadAt(&code, baseLocal: boxLocal, byteOffset: L.valueClassBoxPayloadOffset)
+            code.op(WasmOpcode.i32WrapI64)
+            code.op(WasmOpcode.f32ReinterpretI32)
+            code.op(WasmOpcode.f32Ne)
+            code.openIf(result: .i64)
+            code.i64Const(0x7FC0_0000)
+            code.elseBranch()
+            emitLoadAt(&code, baseLocal: boxLocal, byteOffset: L.valueClassBoxPayloadOffset)
+            code.op(WasmOpcode.i32WrapI64)
+            code.op(WasmOpcode.i64ExtendI32S)
+            code.end()
+        case .int, .byte, .short, .uint:
+            emitLoadAt(&code, baseLocal: boxLocal, byteOffset: L.valueClassBoxPayloadOffset)
+            code.op(WasmOpcode.i32WrapI64)
+            code.op(WasmOpcode.i64ExtendI32S)
+        case .boolean, .char, .ubyte, .ushort:
+            emitLoadAt(&code, baseLocal: boxLocal, byteOffset: L.valueClassBoxPayloadOffset)
+            code.op(WasmOpcode.i32WrapI64)
+            code.op(WasmOpcode.i64ExtendI32U)
+        }
     }
 
     private static func emitCollectionHashBody(

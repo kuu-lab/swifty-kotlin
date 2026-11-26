@@ -163,7 +163,7 @@ final class WasmModuleContext {
         static let stringBuilderTypeID: Int64 = -9_029
         static let unsignedRangeIteratorTypeID: Int64 = -9_031
         static let valueClassBoxMarker: Int64 = -9_030
-        static let valueClassBoxMarkerOffset: Int64 = 24
+        static let valueClassBoxMarkerOffset: Int64 = metaOffset
         static let valueClassBoxPayloadOffset: Int64 = 16
         /// Data-class marker bit OR'd into a type record's s3 slot by
         /// `kk_runtime_register_data_class`; the low bits carry the
