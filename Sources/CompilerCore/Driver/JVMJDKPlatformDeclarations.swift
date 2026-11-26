@@ -555,9 +555,14 @@ extension JVMClasspathIndex {
                 fun name(): String = null!!
                 companion object {
                     external fun forName(charsetName: String): Charset
+                    external fun defaultCharset(): Charset
                 }
             }
-            """, 0x0401, "java/lang/Object", [method("java/nio/charset/Charset", "name", [], .string), method("java/nio/charset/Charset", "forName", [.string], .reference("java/nio/charset/Charset", nullable: false), staticMember: true)]),
+            """, 0x0401, "java/lang/Object", [
+                method("java/nio/charset/Charset", "name", [], .string),
+                method("java/nio/charset/Charset", "forName", [.string], .reference("java/nio/charset/Charset", nullable: false), staticMember: true),
+                method("java/nio/charset/Charset", "defaultCharset", [], .reference("java/nio/charset/Charset", nullable: false), staticMember: true),
+            ]),
         ]
         let appendableName = "java/lang/Appendable"
         let appendable: JVMValueType = .reference(appendableName, nullable: false)
