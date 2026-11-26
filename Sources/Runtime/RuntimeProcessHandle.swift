@@ -7,8 +7,6 @@ import RuntimeABI
     import Glibc
 #endif
 
-/// Decodes a NUL-terminated `[CChar]` buffer as UTF-8; the array-taking
-/// `String(cString:)` overload is deprecated.
 private func runtimeUTF8String(fromCString buffer: [CChar]) -> String {
     let end = buffer.firstIndex(of: 0) ?? buffer.count
     return String(decoding: buffer[..<end].map { UInt8(bitPattern: $0) }, as: UTF8.self)
@@ -22,8 +20,6 @@ private func runtimeUTF8String(fromCString buffer: [CChar]) -> String {
         return count == size ? info : nil
     }
 
-    /// `proc_pidpath` resolves the executable even for processes whose argv[0]
-    /// was a bare command name; nil when the process is gone or not ours.
     private func runtimeProcessCommandPath(_ pid: pid_t) -> String? {
         var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
         let length = proc_pidpath(pid, &buffer, UInt32(buffer.count))
@@ -31,9 +27,6 @@ private func runtimeUTF8String(fromCString buffer: [CChar]) -> String {
         return runtimeUTF8String(fromCString: buffer)
     }
 
-    /// `KERN_PROCARGS2` returns argc followed by the exec path and then argc
-    /// argument strings. Kernel tasks and processes owned by other users may
-    /// be unreadable; nil then maps to empty `ProcessHandle.Info` fields.
     private func runtimeProcessArguments(_ pid: pid_t) -> [String]? {
         var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
         var size = 0
@@ -42,7 +35,6 @@ private func runtimeUTF8String(fromCString buffer: [CChar]) -> String {
         guard sysctl(&mib, 3, &bytes, &size, nil, 0) == 0, size > MemoryLayout<Int32>.size else { return nil }
         let argc = bytes.withUnsafeBytes { $0.load(as: Int32.self) }
         var offset = MemoryLayout<Int32>.size
-        // Skip the executable path string, then the NUL padding before argv.
         while offset < size, bytes[offset] != 0 { offset += 1 }
         offset += 1
         while offset < size, bytes[offset] == 0 { offset += 1 }
@@ -85,8 +77,6 @@ private func runtimeUTF8String(fromCString buffer: [CChar]) -> String {
         return String(cString: passwd.pointee.pw_name)
     }
 
-    /// (pid, ppid) pairs for every process visible to this user, used by
-    /// `ProcessHandle.children()`/`descendants()`/`parent()`/`allProcesses()`.
     func runtimeCollectProcessPairs() -> [(pid_t, pid_t)] {
         let size = proc_listallpids(nil, 0)
         guard size > 0 else { return [] }
@@ -128,8 +118,6 @@ private func runtimeUTF8String(fromCString buffer: [CChar]) -> String {
         return runtimeUTF8String(fromCString: buffer)
     }
 
-    /// `/proc/<pid>/cmdline` is NUL-separated argv; kernel threads have an
-    /// empty file which maps to nil (no arguments available).
     private func runtimeProcessArguments(_ pid: pid_t) -> [String]? {
         guard let data = FileManager.default.contents(atPath: "/proc/\(pid)/cmdline"),
               !data.isEmpty
@@ -171,7 +159,6 @@ private func runtimeUTF8String(fromCString buffer: [CChar]) -> String {
         guard let status = try? String(contentsOfFile: "/proc/\(pid)/status", encoding: .utf8) else { return nil }
         for line in status.split(separator: "\n") where line.hasPrefix("Uid:") {
             let fields = line.split(separator: " ")
-            // "Uid:\t<ruid>\t<euid>\t<suid>\t<fsuid>" — the real uid names the owner.
             guard fields.count > 1, let uid = uid_t(String(fields[1])) else { continue }
             guard let passwd = getpwuid(uid) else { return nil }
             return String(cString: passwd.pointee.pw_name)
@@ -192,9 +179,6 @@ private func runtimeUTF8String(fromCString buffer: [CChar]) -> String {
     }
 #endif
 
-/// `ProcessHandle.of`/`isAlive` probe: registry children answer from their
-/// published exit state; foreign processes use `kill(pid, 0)` where EPERM
-/// still means "exists".
 @_cdecl("__kk_process_handle_alive")
 public func __kk_process_handle_alive(_ pid: Int) -> Int {
     let pidValue = pid_t(truncatingIfNeeded: pid)
@@ -206,9 +190,6 @@ public func __kk_process_handle_alive(_ pid: Int) -> Int {
     return errno == EPERM ? 1 : 0
 }
 
-/// `ProcessHandle.destroy()`/`destroyForcibly()`: SIGTERM vs SIGKILL. Returns
-/// 1 when the signal was delivered (the JDK returns whether termination was
-/// initiated, which `kill(2)` success approximates).
 @_cdecl("__kk_process_handle_destroy")
 public func __kk_process_handle_destroy(_ pid: Int, _ forcible: Int) -> Int {
     let pidValue = pid_t(truncatingIfNeeded: pid)
@@ -217,9 +198,6 @@ public func __kk_process_handle_destroy(_ pid: Int, _ forcible: Int) -> Int {
     return kill(pidValue, signal) == 0 ? 1 : 0
 }
 
-/// Flat `[pid, ppid, ...]` `List<Long>` for `children`/`descendants`/`parent`/
-/// `allProcesses`, built like `__kk_longArray_toList` so generic `List<Long>`
-/// consumers unbox correctly.
 @_cdecl("__kk_process_handle_table")
 public func __kk_process_handle_table() -> Int {
     let pairs = runtimeCollectProcessPairs()
@@ -248,8 +226,6 @@ public func __kk_process_info_command_line(_ pid: Int) -> Int {
     return runtimeMakeStringRaw(arguments.joined(separator: " "))
 }
 
-/// `ProcessHandle.Info.arguments()` excludes argv[0]; the OS returns full
-/// argv, so the first element is dropped here.
 @_cdecl("__kk_process_info_arguments")
 public func __kk_process_info_arguments(_ pid: Int) -> Int {
     guard let arguments = runtimeProcessArguments(pid_t(truncatingIfNeeded: pid)),

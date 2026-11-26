@@ -4,7 +4,6 @@ import CompilerCore
 
 extension NativeEmitter {
 
-    /// One partition worker's emitted LLVM module plus the context that owns it.
     typealias PartitionModule = (
         context: LLVMCAPIBindings.LLVMContextRef,
         module: LLVMCAPIBindings.LLVMModuleRef
@@ -25,12 +24,6 @@ extension NativeEmitter {
             && symbols?.hasLazySymbolMaterialization != true
     }
 
-    /// Emits function bodies in contiguous partitions of the symbol-sorted
-    /// emittable list. Each partition builds a private LLVM context + module
-    /// (LLVM contexts must not be shared between threads), emits its chunk,
-    /// then the partition modules merge into `llvmModule` in partition order
-    /// via LLVMLinkModules2.
-    ///
     /// Per-partition private globals (e.g. `str_lit_*` string literals) can
     /// collide by name; LLVM renames them when modules merge. Because the
     /// merge order is fixed, the resulting module — and therefore the object
@@ -83,8 +76,6 @@ extension NativeEmitter {
                 }
             }
         } catch {
-            // Dispose partitions that were never merged; merged contexts are
-            // retained above and freed here since the module stays unreturned.
             input.disposeUnmergedPartitions(using: bindings)
             for partitionContext in retainedContexts {
                 bindings.disposeContext(partitionContext)
@@ -94,9 +85,6 @@ extension NativeEmitter {
         return retainedContexts
     }
 
-    /// Emits a library as a primary globals/metadata object plus one
-    /// independently compiled object file per function partition, running both
-    /// IR construction and LLVM machine-code emission in parallel across cores.
     func emitPartitionedObjects(
         outputObjectsDir: String,
         moduleName: String
@@ -116,19 +104,32 @@ extension NativeEmitter {
         }
 
         let workerCount = min(parallelJobs, emittableFunctions.count)
-        var buckets: [[(KIRFunction, String)]] = Array(repeating: [], count: workerCount)
-        for (index, item) in emittableFunctions.enumerated() {
-            buckets[index % workerCount].append(item)
+        let startupIndices = optLevel == .O0 ? [] : emittableFunctions.indices.filter {
+            Self.isStartupReflectionInitializer(interner.resolve(emittableFunctions[$0].0.name))
         }
+        let startupSet = Set(startupIndices)
+        let optimizedIndices = emittableFunctions.indices.filter { !startupSet.contains($0) }
+        func partitions(of indices: [Int], workers: Int) -> [[Int]] {
+            Self.planObjectPartitions(
+                weights: indices.map { emittableFunctions[$0].0.body.count },
+                workerCount: workers,
+                maxWeightPerPartition: maxInstructionsPerObjectPartition
+            ).map { partition in partition.map { indices[$0] } }
+        }
+        let plan = partitions(of: optimizedIndices, workers: workerCount).map { ($0, optLevel) }
+            + partitions(of: startupIndices, workers: 1).map { ($0, OptimizationLevel.O0) }
+        let buckets = plan.map { partition in partition.0.map { emittableFunctions[$0] } }
+        let partitionCount = buckets.count
 
         let primaryRelPath = "objects/\(moduleName)_0.o"
         let primaryOutPath = outputObjectsDir + "/\(moduleName)_0.o"
-        let partitionRelPaths = (0 ..< workerCount).map { "objects/\(moduleName)_\($0 + 1).o" }
-        let partitionOutPaths = (0 ..< workerCount).map { "\(outputObjectsDir)/\(moduleName)_\($0 + 1).o" }
+        let partitionRelPaths = (0 ..< partitionCount).map { "objects/\(moduleName)_\($0 + 1).o" }
+        let partitionOutPaths = (0 ..< partitionCount).map { "\(outputObjectsDir)/\(moduleName)_\($0 + 1).o" }
 
         let driver = PartitionedObjectEmissionDriver(
             emitter: self,
             buckets: buckets,
+            optimizationLevels: plan.map(\.1),
             outputPaths: partitionOutPaths,
             runtimeCallbackRawABISymbols: runtimeCallbackRawABISymbols
         )
@@ -138,12 +139,43 @@ extension NativeEmitter {
                 if taskIndex == workerCount {
                     driver.runPrimaryGlobalsWorker(outputPath: primaryOutPath)
                 } else {
-                    driver.runPartitionWorker(at: taskIndex)
+                    while let partitionIndex = driver.claimNextPartition() {
+                        driver.runPartitionWorker(at: partitionIndex)
+                    }
                 }
             }
         }
         try driver.rethrowFirstError()
         return [primaryRelPath] + partitionRelPaths
+    }
+
+    static func isStartupReflectionInitializer(_ name: String) -> Bool {
+        name.hasPrefix("__ctor_reflect_init_")
+    }
+
+    static func planObjectPartitions(weights: [Int], workerCount: Int, maxWeightPerPartition: Int) -> [[Int]] {
+        guard !weights.isEmpty, workerCount > 0 else { return [] }
+        let costs = weights.map { max($0, 1) }
+        let totalCost = costs.reduce(0, +)
+        let budget = max(maxWeightPerPartition, 1)
+        let partitionCount = min(costs.count, max(workerCount, (totalCost + budget - 1) / budget))
+        let heaviestFirst = costs.indices.sorted { lhs, rhs in
+            costs[lhs] != costs[rhs] ? costs[lhs] > costs[rhs] : lhs < rhs
+        }
+        var partitions = Array(repeating: [Int](), count: partitionCount)
+        var loads = Array(repeating: 0, count: partitionCount)
+        for function in heaviestFirst {
+            var target = 0
+            for candidate in 1 ..< partitionCount where loads[candidate] < loads[target] {
+                target = candidate
+            }
+            partitions[target].append(function)
+            loads[target] += costs[function]
+        }
+        let claimOrder = partitions.indices.sorted { lhs, rhs in
+            loads[lhs] != loads[rhs] ? loads[lhs] > loads[rhs] : lhs < rhs
+        }
+        return claimOrder.map { partitions[$0].sorted() }
     }
 
     private func collectEmittableFunctionsForPartitioning(
@@ -213,12 +245,14 @@ extension NativeEmitter {
 
     fileprivate func emitModuleToObjectFile(
         llvmModule: LLVMCAPIBindings.LLVMModuleRef,
-        outputPath: String
+        outputPath: String,
+        optLevel moduleOptLevel: OptimizationLevel? = nil
     ) throws {
+        let level = moduleOptLevel ?? optLevel
         try CodegenCriticalSection.withLinuxLLVMProcessLock(target: target) {
-            let targetMachine = try configuredTargetMachine(for: llvmModule)
+            let targetMachine = try configuredTargetMachine(for: llvmModule, optLevel: level)
             defer { bindings.disposeTargetMachine(targetMachine) }
-            if let error = bindings.optimizeModule(llvmModule, targetMachine: targetMachine, optLevel: optLevel) {
+            if let error = bindings.optimizeModule(llvmModule, targetMachine: targetMachine, optLevel: level) {
                 throw LLVMBackendError.nativeEmissionFailed(error)
             }
             if let errorMessage = bindings.emitObject(targetMachine: targetMachine, module: llvmModule, outputPath: outputPath) {
@@ -227,10 +261,6 @@ extension NativeEmitter {
         }
     }
 
-    /// Emits one partition's functions into a private context/module. The
-    /// module gets extern declarations for every global and function (matching
-    /// the primary module's declarations) plus definitions for the chunk's own
-    /// functions; merging upgrades those declarations in the primary module.
     private func emitFunctionPartitionModule(
         functions: ArraySlice<(KIRFunction, String)>,
         runtimeCallbackRawABISymbols: Set<SymbolID>
@@ -371,15 +401,12 @@ extension NativeEmitter {
             return try slot.get()
         }
 
-        /// Marks a partition's module consumed by LLVMLinkModules2 so cleanup
-        /// passes never dispose it a second time.
         func clearPartition(at index: Int) {
             lock.lock()
             slots[index] = nil
             lock.unlock()
         }
 
-        /// Disposes module+context for every partition not consumed by a merge.
         func disposeUnmergedPartitions(using bindings: LLVMCAPIBindings) {
             lock.lock()
             let remaining = slots
@@ -396,21 +423,34 @@ extension NativeEmitter {
     private final class PartitionedObjectEmissionDriver: @unchecked Sendable {
         let emitter: NativeEmitter
         let buckets: [[(KIRFunction, String)]]
+        let optimizationLevels: [OptimizationLevel]
         let outputPaths: [String]
         let runtimeCallbackRawABISymbols: Set<SymbolID>
         private let lock = NSLock()
         private var errors: [any Error] = []
+        private var nextPartitionIndex = 0
 
         init(
             emitter: NativeEmitter,
             buckets: [[(KIRFunction, String)]],
+            optimizationLevels: [OptimizationLevel],
             outputPaths: [String],
             runtimeCallbackRawABISymbols: Set<SymbolID>
         ) {
             self.emitter = emitter
             self.buckets = buckets
+            self.optimizationLevels = optimizationLevels
             self.outputPaths = outputPaths
             self.runtimeCallbackRawABISymbols = runtimeCallbackRawABISymbols
+        }
+
+        func claimNextPartition() -> Int? {
+            lock.lock()
+            defer { lock.unlock() }
+            guard errors.isEmpty, nextPartitionIndex < buckets.count else { return nil }
+            let index = nextPartitionIndex
+            nextPartitionIndex += 1
+            return index
         }
 
         func runPrimaryGlobalsWorker(outputPath: String) {
@@ -433,7 +473,8 @@ extension NativeEmitter {
                 }
                 try emitter.emitModuleToObjectFile(
                     llvmModule: partition.module,
-                    outputPath: outputPaths[index]
+                    outputPath: outputPaths[index],
+                    optLevel: optimizationLevels[index]
                 )
             } catch {
                 recordError(error)

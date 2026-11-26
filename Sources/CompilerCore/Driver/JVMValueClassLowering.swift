@@ -8,7 +8,6 @@ private struct JVMValueClassInfo {
 }
 
 extension JVMProgramBuilder {
-    /// Source IR stays boxed; ABI entry points adapt to Kotlin's unboxed JVM ABI.
     func lowerValueClasses(_ input: JVMProgram) throws -> JVMProgram {
         var output = input
         let fileFacades = Set([input.internalClassName] + input.classes.filter(\.isFileFacade).map(\.name))
@@ -58,8 +57,6 @@ extension JVMProgramBuilder {
         }
         for name in values.keys { resolveSignature(name) }
         func importedCarrier(_ type: JVMValueType) -> JVMValueType? {
-            // The classfile adapters give the carrier descriptor. Nullable
-            // imported values need additional metadata about the underlying type.
             guard !type.isNullable else { return nil }
             return context.jvmImports?.importedValueCarrier(for: type)
         }
@@ -144,7 +141,6 @@ extension JVMProgramBuilder {
         }
         func bridge(_ original: JVMFunction, owner: String, properties: [JVMProperty], baseName: String? = nil) throws -> [JVMFunction] {
             let sourcePlan = classes.values.first { $0.name == owner }
-            // Captures in lifted closures keep the boxed internal IR layout.
             guard fileFacades.contains(owner) || sourcePlan != nil else { return [original] }
             if original.isConstructor && sourcePlan?.isAnonymous == true { return [original] }
             let ref = original.reference
@@ -161,7 +157,6 @@ extension JVMProgramBuilder {
             var name = ref.name.components(separatedBy: "$unsigned$")[0]
             let visibleName = original.sourceName ?? name
             let parameters = ref.parameters.map(physical)
-            // Coroutine transport always carries the logical boxed result.
             let result = original.isSuspend ? ref.result : physical(ref.result)
             if !original.isConstructor {
                 if let baseName { name = baseName + "$default" }
@@ -169,8 +164,10 @@ extension JVMProgramBuilder {
                     // The stdlib's Instant difference uses a return-only suffix.
                     let legacyInstantDifference = context.options.stdlibOnly && owner == "kotlin/time/Instant"
                         && ref.name == "minus" && ref.parameters.map(\.referenceName) == [owner]
+                    let parameterElements = ref.parameters.map(element)
+                    let mangleParameters = parameterElements.contains { $0 != "_" }
                     let hashArguments = legacyInstantDifference ? ""
-                        : ref.parameters.map(element).joined() + (original.isSuspend ? "_" : "")
+                        : (mangleParameters ? parameterElements.joined() : "") + (original.isSuspend ? "_" : "")
                     // The bundled time ABI predates return-type mangling for these operators.
                     let legacyTimeOperator = context.options.stdlibOnly && (
                         owner == "kotlin/time/Duration" && ["plus", "minus"].contains(ref.name) && ref.parameters.map(\.referenceName) == [owner]
@@ -255,8 +252,6 @@ extension JVMProgramBuilder {
             if original.isAbstract {
                 adapter.instructions = []
                 adapter.access = (original.access ?? 0x0401)
-                // Boxed source calls dispatch through this default adapter to
-                // the public unboxed contract, including external implementers.
                 let back = try builder(owner, ref.name, ref.parameters, ref.result, staticBody: false)
                 var arguments: [JVMValue] = []
                 for (input, target) in zip(back.locals.dropFirst(), physicalParameters) { arguments.append(try convert(input, to: target, b: back)) }

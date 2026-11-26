@@ -4,8 +4,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-1917: Iterable pair zip is infix in both source and serialized stdlib paths,
-    /// while the two-parameter transform overload remains a regular call.
     @Test(arguments: [true, false], [0, 2])
     func testIterableZipInfixThroughSourceAndFreshArtifact(
         fromSource: Bool,

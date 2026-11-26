@@ -32,8 +32,6 @@ enum RuntimeLiveHandles {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var entries: [UInt: WeakEntry] = [:]
 
-    /// Loading `object` takes a strong reference atomically with respect to
-    /// deallocation.
     private final class WeakEntry {
         weak var object: AnyObject?
 
@@ -42,7 +40,6 @@ enum RuntimeLiveHandles {
         }
     }
 
-    /// Call from the designated initializer.
     static func register(_ object: AnyObject) {
         let key = address(of: object)
         lock.lock()
@@ -50,9 +47,6 @@ enum RuntimeLiveHandles {
         lock.unlock()
     }
 
-    /// Call from `deinit`, before the memory is reused.
-    /// The entry is removed unconditionally: until `deinit` finishes the memory
-    /// cannot be recycled, so no other object's entry can live at this address.
     static func unregister(_ object: AnyObject) {
         let key = address(of: object)
         lock.lock()
@@ -60,11 +54,6 @@ enum RuntimeLiveHandles {
         lock.unlock()
     }
 
-    /// Resolve `pointer` to its registered object while holding the registry
-    /// lock, returning a strong reference that keeps the object alive for the
-    /// rest of the caller's operation. Returns nil when the address is not
-    /// registered or the object has already begun deinitializing (weak loads
-    /// on a deallocating object return nil).
     static func resolve(_ pointer: UnsafeMutableRawPointer) -> AnyObject? {
         let key = UInt(bitPattern: pointer)
         lock.lock()
@@ -77,8 +66,6 @@ enum RuntimeLiveHandles {
     }
 }
 
-/// Returns nil when the handle is zero, refers to an object that has already
-/// been deallocated, or refers to a live object of a different type.
 func resolveLiveRuntimeHandle<T: AnyObject>(_ rawValue: Int, as _: T.Type) -> T? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue),
           let object = RuntimeLiveHandles.resolve(ptr)

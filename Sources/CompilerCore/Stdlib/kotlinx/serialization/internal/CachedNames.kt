@@ -5,12 +5,6 @@ package kotlinx.serialization.internal
 
 import kotlinx.serialization.descriptors.*
 
-/**
- * Internal interface used as a marker for [SerialDescriptor] in order
- * to retrieve the set of all element names without allocations.
- * Used by our implementations as a performance optimization.
- * It's not an instance of [SerialDescriptor] to simplify implementation via delegation
- */
 internal interface CachedNames {
 
     public val serialNames: Set<String>

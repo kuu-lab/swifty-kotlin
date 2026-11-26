@@ -56,12 +56,6 @@ struct CodegenBackendCollectionFlatMapTests {
         try assertKotlinOutput(source, moduleName: "CollectionFlatMapIndexed", expected: "[0, 10, 1, 20, 2, 30]\n")
     }
 
-    // MARK: - KUU-4060: List-receiver flatMap with non-List Iterable transforms
-
-    /// `List.flatMap` used to bind a KSwiftK-local `(T) -> List<R>` overload
-    /// for every transform, so a lambda returning a range silently flattened
-    /// to `[]`. The transform return type now selects the JVM
-    /// `Iterable.flatMap`/`flatMapSequence` overloads.
     @Test func testCodegenListFlatMapWithRangeTransform() throws {
         let source = """
         fun main() {
@@ -96,8 +90,6 @@ struct CodegenBackendCollectionFlatMapTests {
         )
     }
 
-    /// The flattened element type must stay `Int` for a range transform so
-    /// the result is assignable to `List<Int>` (JVM parity).
     @Test func testCodegenListFlatMapRangeTransformKeepsElementType() throws {
         let source = """
         fun main() {
@@ -144,8 +136,6 @@ struct CodegenBackendCollectionFlatMapTests {
         )
     }
 
-    /// `IntArray.flatMap` shares the `(T) -> Iterable<R>` transform shape, so
-    /// primitive arrays flatten ranges the same way.
     @Test func testCodegenIntArrayFlatMapWithRangeTransform() throws {
         let source = """
         fun main() {

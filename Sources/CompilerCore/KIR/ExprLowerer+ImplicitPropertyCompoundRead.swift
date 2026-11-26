@@ -1,6 +1,4 @@
 extension ExprLowerer {
-    /// A custom setter does not require a custom getter: stored reads keep
-    /// using the backing-field slot, while delegated/custom reads use get.
     func lowerImplicitPropertyCompoundRead(
         propertySymbol: SymbolID,
         receiver: KIRExprID,

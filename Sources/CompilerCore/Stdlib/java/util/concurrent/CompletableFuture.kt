@@ -63,9 +63,6 @@ public open class CompletableFuture<T> : Future<T>, CompletionStage<T> {
         return result as T
     }
 
-    // KUU-3059: the JVM get(timeout, unit) contract — block until the future
-    // completes or the deadline passes, then TimeoutException. Waiting uses
-    // the per-thread atomicfu parker woken from the completion handlers.
     public override operator fun get(timeout: Long, unit: TimeUnit): T {
         if (isCompleted) return get()
         val handle = ParkingSupport.currentThreadHandle()

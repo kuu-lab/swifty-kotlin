@@ -5,8 +5,6 @@
 import Foundation
 import Testing
 
-/// BUG-218: verify file-local helpers keep distinct call bindings and native
-/// symbols when same-named private top-level functions span source files.
 @Suite
 struct Bug218PrivateTopLevelCodegenTests {
     @Test

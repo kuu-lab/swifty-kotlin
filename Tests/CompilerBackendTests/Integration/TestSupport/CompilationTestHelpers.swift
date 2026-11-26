@@ -13,12 +13,10 @@ private func formatDiagnostics(_ diagnostics: [Diagnostic]) -> String {
         .joined(separator: ", ")
 }
 
-/// Create a ``CompilerDriver`` instance configured for testing with backend phases.
 func makeTestDriver() -> CompilerDriver {
     CompilerDriver(backendPhases: makeBackendPhases)
 }
 
-/// Build ``CompilerOptions`` for test compilation.
 func makeTestOptions(
     moduleName: String,
     inputs: [String],
@@ -34,15 +32,10 @@ func makeTestOptions(
         emit: emit,
         target: allowDefaultStdlibLibrary ? defaultTargetTriple() : .hostDefault(),
         optLevel: optLevel,
-        // Matches the makeCompilationContext default in Pipeline.swift: Backend
-        // tests link the precompiled stdlib artifact rather than compiling
-        // bundled Kotlin sources. Stated explicitly rather than left to
-        // CompilerOptions' own default so the choice isn't silently implicit.
         allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
     )
 }
 
-/// Assert a driver run exited successfully with no error-severity diagnostics.
 func assertCompilationSucceeded(
     _ result: (exitCode: Int, diagnostics: [Diagnostic]),
     context: String = "Compilation"
@@ -58,7 +51,6 @@ func assertCompilationSucceeded(
     }
 }
 
-/// Assert a compilation context accumulated no error-severity diagnostics.
 func assertNoDiagnosticErrors(_ ctx: CompilationContext) throws {
     guard ctx.diagnostics.hasError else { return }
     throw TestCompilationFailure(
@@ -66,7 +58,6 @@ func assertNoDiagnosticErrors(_ ctx: CompilationContext) throws {
     )
 }
 
-/// Compile Kotlin source through the KIR dump phase and assert success.
 func assertKotlinCompilesToKIR(
     _ source: String,
     moduleName: String = "TestMod"
@@ -93,7 +84,6 @@ func assertKotlinCompilesToKIR(
     }
 }
 
-/// Compile Kotlin source through object emission and assert a valid object file is produced.
 func assertKotlinCompilesToObject(
     _ source: String,
     moduleName: String = "TestMod"
@@ -124,7 +114,6 @@ func assertKotlinCompilesToObject(
     }
 }
 
-/// Compile `source` to an executable, run it, and assert stdout equals `expectedOutput`.
 func compileAndRunKotlin(
     _ source: String,
     expectedOutput: String,
@@ -143,8 +132,6 @@ func compileAndRunKotlin(
     )
 }
 
-/// Compile related fixtures together so source-injection coverage pays the
-/// bundled stdlib compilation cost once for the matrix.
 func compileAndRunKotlinSources(
     _ sources: [String],
     expectedOutput: String,

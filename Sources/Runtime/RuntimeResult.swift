@@ -1,7 +1,7 @@
 final class RuntimeResultBox {
     let isSuccess: Bool
-    let value: Int      // success value or 0
-    let exception: Int  // throwable or 0
+    let value: Int
+    let exception: Int
 
     init(isSuccess: Bool, value: Int, exception: Int) {
         self.isSuccess = isSuccess

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-642: DeepRecursiveFunction trampoline + exception propagation.
 fun main() {
     val sumTo = DeepRecursiveFunction<Int, Int> {
@@ -23,4 +24,23 @@ fun main() {
         if (n <= 0) 0 else identity.callRecursive(n - 1) + 1
     }
     println(hop(8))
+
+    var mutualEven: DeepRecursiveFunction<Int, Int>? = null
+    var mutualOdd: DeepRecursiveFunction<Int, Int>? = null
+    mutualEven = DeepRecursiveFunction { n ->
+        when {
+            n == 0 -> throw IllegalStateException("terminal")
+            n == 4000 -> try {
+                mutualOdd!!.callRecursive(n - 1)
+            } catch (e: IllegalStateException) {
+                7000
+            }
+            else -> mutualOdd!!.callRecursive(n - 1) + 1
+        }
+    }
+    mutualOdd = DeepRecursiveFunction { n ->
+        if (n == 0) throw IllegalStateException("terminal")
+        else mutualEven!!.callRecursive(n - 1) + 1
+    }
+    println(mutualEven!!(10000))
 }

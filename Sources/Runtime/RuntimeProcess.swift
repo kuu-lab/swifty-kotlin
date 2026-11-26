@@ -18,11 +18,6 @@ private func runtimePosixWrite(_ fd: Int32, _ buffer: UnsafeRawPointer, _ count:
     #endif
 }
 
-/// Input stream reading the read end of a child-process pipe (the child's
-/// stdout or stderr). Reads go straight to the kernel `read(2)` so a blocked
-/// child keeps the parent parked exactly like a JVM `ProcessPipeInputStream`;
-/// `readChunk` performs a single underlying read per call, matching
-/// `InputStream.read(byte[])` semantics for blocking streams.
 private final class RuntimeProcessPipeInputStreamBox: RuntimeInputStreamBox, RuntimeChunkedInputStream {
     private let fileHandle: FileHandle
     private let fd: Int32
@@ -82,8 +77,6 @@ private final class RuntimeProcessPipeInputStreamBox: RuntimeInputStreamBox, Run
         }
     }
 
-    /// `FIONREAD` is not exposed to Swift on Darwin; report unknown like the
-    /// socket input stream does. Blocking reads still observe every byte.
     override func available() -> Int {
         0
     }
@@ -133,9 +126,6 @@ private final class RuntimeProcessPipeInputStreamBox: RuntimeInputStreamBox, Run
     }
 }
 
-/// Output sink writing to the write end of the child-stdin pipe. Writes loop
-/// on `write(2)` until the buffer is drained so large Kotlin writes are not
-/// truncated by a partial pipe write.
 private final class RuntimeProcessPipeOutputSink: RuntimeOutputStreamSink {
     private let fileHandle: FileHandle
     private let fd: Int32
@@ -174,7 +164,6 @@ private final class RuntimeProcessPipeOutputSink: RuntimeOutputStreamSink {
         }
     }
 
-    /// Pipe writes are unbuffered kernel hand-offs; there is nothing to flush.
     func flush() throws {}
 
     func close() {
@@ -190,8 +179,6 @@ private final class RuntimeProcessPipeOutputSink: RuntimeOutputStreamSink {
     }
 }
 
-/// JDK `ProcessBuilder.NullOutputStream`: every non-empty write fails with
-/// `IOException("Stream closed")`; `flush()`/`close()` are no-ops.
 private final class RuntimeNullOutputStreamSink: RuntimeOutputStreamSink {
     func write(_ data: Data) throws {
         guard !data.isEmpty else { return }
@@ -203,8 +190,6 @@ private final class RuntimeNullOutputStreamSink: RuntimeOutputStreamSink {
     func closeThrowing() throws {}
 }
 
-/// One stream's redirection target, decoded from the `ProcessBuilder` spec
-/// strings passed to `__kk_process_start_full`.
 private enum RuntimeProcessRedirectKind {
     case pipe
     case inherit
@@ -219,8 +204,6 @@ private struct RuntimeProcessRedirectSpec {
     var path: String?
 }
 
-/// Parses `"P"`/`"I"`/`"D"` or `kind + path` (`R`/`W`/`A`); returns nil on
-/// malformed input so the spawn fails instead of silently mis-wiring I/O.
 private func runtimeParseRedirectSpec(_ spec: String) -> RuntimeProcessRedirectSpec? {
     guard let kindChar = spec.first else { return nil }
     let path = spec.count > 1 ? String(spec.dropFirst()) : nil
@@ -235,9 +218,6 @@ private func runtimeParseRedirectSpec(_ spec: String) -> RuntimeProcessRedirectS
     }
 }
 
-/// Opens `path` for child stdio redirection. `writing` selects
-/// `O_WRONLY|O_CREAT` with `O_TRUNC` or `O_APPEND`; reads use `O_RDONLY`.
-/// The returned handle owns the descriptor (`closeOnDealloc`).
 private func runtimeOpenProcessRedirectFile(path: String, writing: Bool, append: Bool) -> FileHandle? {
     let flags: Int32
     if writing {
@@ -256,15 +236,9 @@ private func runtimeOpenDevNull(writing: Bool) -> FileHandle? {
     return FileHandle(fileDescriptor: fd, closeOnDealloc: true)
 }
 
-/// Tracks one spawned child: exit status (published by a monitor thread that
-/// reaps the process exactly once), the optional parent-held pipe ends, and
-/// the lazy stream boxes exposed through `Process.getXStream()`.
 final class RuntimeProcessBox: @unchecked Sendable {
     let process: Foundation.Process
     let pid: pid_t
-    /// Parent-held pipe ends; each is non-nil exactly when that stream was
-    /// redirected to `PIPE`. The child-side ends were closed right after
-    /// `run()` so reads observe EOF when the child exits.
     let stdinPipe: Pipe?
     let stdoutPipe: Pipe?
     let stderrPipe: Pipe?
@@ -294,9 +268,6 @@ final class RuntimeProcessBox: @unchecked Sendable {
         self.stderrPipe = stderrPipe
     }
 
-    /// Spawns a daemon thread that reaps the child exactly once and publishes
-    /// its decoded exit status (128+signal for signal deaths, matching the
-    /// JDK's `exitValue()` for `kill -TERM`/`kill -KILL` children).
     func startExitMonitor(registry: RuntimeProcessRegistry) {
         exitLock.lock()
         if exitMonitorStarted {
@@ -330,7 +301,6 @@ final class RuntimeProcessBox: @unchecked Sendable {
         exitLock.unlock()
     }
 
-    /// Blocks until the monitor publishes the exit status.
     func waitFor() -> Int {
         exitLock.lock()
         while !exited {
@@ -343,9 +313,6 @@ final class RuntimeProcessBox: @unchecked Sendable {
         return status
     }
 
-    /// Non-blocking check followed by a timed wait on the exit condition.
-    /// `timeoutNanos <= 0` polls once, matching `Process.waitFor(long, unit)`
-    /// for non-positive timeouts.
     func waitFor(timeoutNanos: Int64) -> Bool {
         exitLock.lock()
         defer { exitLock.unlock() }
@@ -395,9 +362,6 @@ final class RuntimeProcessBox: @unchecked Sendable {
         }
     }
 
-    /// Shared `NullInputStream` for both non-piped readable streams; the JDK
-    /// returns the same singleton for `getInputStream()`/`getErrorStream()`
-    /// under non-PIPE redirects, so reference equality holds here too.
     private func sharedNullInputStreamRaw() -> Int {
         if nullInputStreamRawValue != 0 { return nullInputStreamRawValue }
         let box = RuntimeInputStreamBox(data: Data())
@@ -414,8 +378,6 @@ final class RuntimeProcessBox: @unchecked Sendable {
         return nullOutputStreamRawValue
     }
 
-    /// `Process.getInputStream()`: the child's stdout, or a null stream when
-    /// stdout was redirected away from a pipe.
     func inputStreamRaw() -> Int {
         streamLock.lock()
         defer { streamLock.unlock() }
@@ -430,8 +392,6 @@ final class RuntimeProcessBox: @unchecked Sendable {
         return inputStreamRawValue
     }
 
-    /// `Process.getOutputStream()`: the child's stdin, or a null output stream
-    /// when stdin was redirected away from a pipe.
     func outputStreamRaw() -> Int {
         streamLock.lock()
         defer { streamLock.unlock() }
@@ -446,8 +406,6 @@ final class RuntimeProcessBox: @unchecked Sendable {
         return outputStreamRawValue
     }
 
-    /// `Process.getErrorStream()`: the child's stderr, a null stream under
-    /// `redirectErrorStream(true)`, or a null stream for non-PIPE redirects.
     func errorStreamRaw() -> Int {
         streamLock.lock()
         defer { streamLock.unlock() }
@@ -467,10 +425,6 @@ final class RuntimeProcessRegistry: @unchecked Sendable {
     private let lock = NSLock()
     private var nextHandle = 1
     private var processes: [Int: RuntimeProcessBox] = [:]
-    /// Live registry children by PID so `ProcessHandle.isAlive`/`of` can
-    /// distinguish our (reaped-once) children from foreign processes. Entries
-    /// are removed when the exit monitor publishes the status, so a recycled
-    /// PID correctly falls through to the `kill(pid, 0)` probe.
     private var byPid: [pid_t: RuntimeProcessBox] = [:]
 
     func insert(_ box: RuntimeProcessBox) -> Int {
@@ -525,9 +479,6 @@ private func runtimeProcessExecutablePath(_ name: String) -> String? {
     return nil
 }
 
-/// `envp == nil` inherits the parent environment; a non-nil array fully
-/// replaces it, matching `Runtime.exec(cmd, envp, dir)` on the JDK. Entries
-/// are `KEY=VALUE` strings; an entry without `=` maps to an empty value.
 private func runtimeProcessEnvironment(_ envp: [String]?) -> [String: String]? {
     guard let envp else { return nil }
     var environment: [String: String] = [:]
@@ -542,11 +493,6 @@ private func runtimeProcessEnvironment(_ envp: [String]?) -> [String: String]? {
     return environment
 }
 
-/// Spawns `command` (NUL-joined argv produced by `ProcessBuilder`/`Runtime.exec`)
-/// with stdin/stdout/stderr wired per `redirects` (`nil` means all-PIPE, the
-/// `Runtime.exec`/`__kk_process_start` behavior). `mergeErrorStream` dups the
-/// child's stderr onto its stdout target, matching
-/// `ProcessBuilder.redirectErrorStream(true)`.
 private func runtimeProcessSpawn(
     commandRaw: Int,
     envp: [String]?,
@@ -580,7 +526,6 @@ private func runtimeProcessSpawn(
     var stderrPipe: Pipe?
     var ownedHandles: [FileHandle] = []
 
-    // --- stdin ---
     switch stdinSpec.kind {
     case .pipe:
         let pipe = Pipe()
@@ -599,10 +544,9 @@ private func runtimeProcessSpawn(
         ownedHandles.append(handle)
         process.standardInput = handle
     case .fileWrite, .fileAppend:
-        return 0  // invalid redirect for stdin; Kotlin validates earlier
+        return 0
     }
 
-    // --- stdout ---
     switch stdoutSpec.kind {
     case .pipe:
         let pipe = Pipe()
@@ -624,11 +568,7 @@ private func runtimeProcessSpawn(
         return 0
     }
 
-    // --- stderr ---
     if mergeErrorStream {
-        // JDK: child fd2 is dup'd onto fd1's target. Reusing the same
-        // FileHandle instance gives identical semantics for pipes, files,
-        // inherit, and discard.
         process.standardError = process.standardOutput
     } else {
         switch stderrSpec.kind {
@@ -663,8 +603,6 @@ private func runtimeProcessSpawn(
     do {
         try process.run()
     } catch {
-        // The child never started; release every descriptor we opened so
-        // nothing leaks.
         for pipe in [stdinPipe, stdoutPipe, stderrPipe].compactMap({ $0 }) {
             for handle in [pipe.fileHandleForReading, pipe.fileHandleForWriting] {
                 try? handle.close()
@@ -710,11 +648,6 @@ public func __kk_process_start(_ commandRaw: Int) -> Int {
     runtimeProcessSpawn(commandRaw: commandRaw, envp: nil, dirPath: nil, redirects: nil, mergeErrorStream: false)
 }
 
-/// `Runtime.exec` envp/dir overloads: `commandRaw` keeps the NUL-joined argv
-/// encoding of `__kk_process_start`; `envpRaw` is a nullable `Array<String>`
-/// of `KEY=VALUE` entries (null sentinel inherits the parent environment) and
-/// `dirRaw` a nullable working-directory path (null sentinel inherits the
-/// parent's current directory).
 @_cdecl("__kk_process_start_ex")
 public func __kk_process_start_ex(_ commandRaw: Int, _ envpRaw: Int, _ dirRaw: Int) -> Int {
     var envp: [String]? = nil
@@ -732,10 +665,6 @@ public func __kk_process_start_ex(_ commandRaw: Int, _ envpRaw: Int, _ dirRaw: I
     )
 }
 
-/// `ProcessBuilder.start()` full form: `redirectsRaw` is a 3-element
-/// `Array<String>` of stream specs (stdin/stdout/stderr, each `"P"`/`"I"`/`"D"`
-/// or a kind letter plus path); `errorStreamRaw` nonzero merges stderr into
-/// stdout.
 @_cdecl("__kk_process_start_full")
 public func __kk_process_start_full(_ commandRaw: Int, _ envpRaw: Int, _ dirRaw: Int, _ redirectsRaw: Int, _ errorStreamRaw: Int) -> Int {
     var envp: [String]? = nil

@@ -18,8 +18,6 @@ extension BuildKIRRegressionTests {
         })
 
         let expectedTokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParameterSymbol)
-        // #8313 appends a hidden KType parameter after the type token
-        // (renamed to reifiedKTypeSymbol in #12352).
         let expectedKTypeSymbol = SyntheticSymbolScheme.reifiedKTypeSymbol(for: typeParameterSymbol)
         try #require(pickFunction.params.count == 3)
         #expect(pickFunction.params[1].symbol == expectedTokenSymbol)

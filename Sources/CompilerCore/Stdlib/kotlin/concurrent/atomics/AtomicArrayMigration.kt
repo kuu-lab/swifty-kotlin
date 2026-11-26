@@ -2,13 +2,6 @@
 
 package kotlin.concurrent.atomics
 
-// MIGRATION-ATOMIC-002
-// AtomicIntArray / AtomicLongArray / AtomicArray<T> CAS-loop update operators
-// migrated to Kotlin source (KSP-CAP-004 / KSP-673). They are CAS retry loops
-// built on the loadAt/compareAndSetAt bridge members.
-// Migration source: Sources/Runtime/RuntimeAtomic.swift
-//   kk_atomic_int_array_*/kk_atomic_long_array_*/kk_atomic_ref_array_*
-
 public fun AtomicIntArray.fetchAndUpdateAt(index: Int, transform: (Int) -> Int): Int {
     while (true) {
         val old = loadAt(index)

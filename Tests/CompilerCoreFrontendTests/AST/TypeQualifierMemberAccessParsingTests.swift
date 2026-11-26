@@ -6,11 +6,6 @@ import Testing
 
 @Suite
 struct TypeQualifierMemberAccessParsingTests {
-    /// KUU-3238: `G<Int>.GI()` must parse as a member access whose receiver
-    /// is the type-argument-bearing classifier `G<Int>`, not error out with
-    /// KSWIFTK-PARSE-0001 at the member name. The receiver keeps the generic
-    /// arguments on a marked `.call`, the same side-channel a callable
-    /// reference uses for its type receiver.
     @Test(arguments: [
         "G<Int>.GI()", "G<Int>.GI", "A<B>.C",
         "Outer<Int>.Inner.Deeper()", "G<List<Int>>.N(1)",
@@ -44,9 +39,6 @@ struct TypeQualifierMemberAccessParsingTests {
         #expect(restored.isTypeQualifierCall(receiver))
     }
 
-    /// `G<Int>.GI()` carries explicit parentheses, so the member access must
-    /// keep the explicit-call marker that distinguishes `Owner.Nested()` from
-    /// the bare classifier `Owner.Nested`.
     @Test
     func qualifiedConstructorCallKeepsExplicitCallMarker() throws {
         let lexed = lex("G<Int>.GI()")
@@ -75,9 +67,6 @@ struct TypeQualifierMemberAccessParsingTests {
         #expect(!bareArena.isExplicitCall(bareID))
     }
 
-    /// `pkg.G<Int>.GI()` and `a.b<T>.c` keep their generic arguments on
-    /// `memberCall.typeArgs`; the marker only covers the single-name form
-    /// (`G<Int>`) that a `memberCall` cannot represent.
     @Test(arguments: ["a.b<T>.c", "pkg.G<Int>.GI()"])
     func multiSegmentQualifierKeepsMemberTypeArguments(_ source: String) throws {
         let lexed = lex(source)
@@ -101,9 +90,6 @@ struct TypeQualifierMemberAccessParsingTests {
         #expect(arena.snapshot().typeQualifierCallExpressions.isEmpty)
     }
 
-    /// Comparisons, generic calls, trailing lambdas and callable references
-    /// must keep their existing AST shapes — only `expr<Args>.` introduces a
-    /// type-qualifier call.
     @Test(arguments: [
         "a < b", "a < b > c", "a > b", "f<Int>()", "f<Int> { 1 }",
         "Box<String>::echo", "g<Int>() + h<Int>()", "list[0] < x",
@@ -121,10 +107,6 @@ struct TypeQualifierMemberAccessParsingTests {
         #expect(arena.snapshot().typeQualifierCallExpressions.isEmpty)
     }
 
-    /// The exact KUU-3238 reproduction must pass the parser: kotlinc accepts
-    /// the syntax and only rejects the inner-class constructor call
-    /// semantically, so the KSWIFTK-PARSE-0001 at the member name is the
-    /// parity bug.
     @Test
     func innerClassQualifiedConstructorParsesWithoutError() throws {
         let source = """
@@ -137,9 +119,6 @@ struct TypeQualifierMemberAccessParsingTests {
         })
     }
 
-    /// A non-inner nested class through a generic qualifier resolves and
-    /// constructs (kotlinc reports a deprecated-qualifier diagnostic instead;
-    /// the inverse-parity gap is tracked separately).
     @Test
     func nestedClassQualifiedConstructorResolves() throws {
         let source = """

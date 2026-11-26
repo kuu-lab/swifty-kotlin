@@ -14,9 +14,6 @@ private let booleanIteratorTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.BooleanIterator"
 )
 
-/// Source-backed `CharIterator` returns its concrete Char representation at
-/// the iterator ABI boundary. Preserve that type when a generic runtime bridge
-/// materializes the iterator as `RuntimeValue`.
 func runtimeSourceIteratorValue(_ rawValue: Int, iteratorRaw: Int) -> RuntimeValue {
     let isCharSequenceIterator: Bool = if let iteratorTypeID = runtimeObjectTypeID(rawValue: iteratorRaw) {
         iteratorTypeID == charSequenceIteratorTypeID
@@ -30,9 +27,6 @@ func runtimeSourceIteratorValue(_ rawValue: Int, iteratorRaw: Int) -> RuntimeVal
     return RuntimeValue(raw: rawValue)
 }
 
-/// Source-backed Float/Double/Boolean iterators return their raw scalar words
-/// at the `Iterator<T>.next()` ABI boundary. Box those words before generic
-/// consumers treat the result as an erased `Any` value (KUU-4544).
 func runtimeBoxSourceIteratorPrimitiveValue(_ rawValue: Int, iteratorRaw: Int) -> Int? {
     guard let iteratorTypeID = runtimeObjectTypeID(rawValue: iteratorRaw) else {
         return nil
@@ -66,9 +60,6 @@ func runtimeValueFromCollectionABI(_ rawValue: Int) -> RuntimeValue {
     return RuntimeValue(charScalar: charBox.value)
 }
 
-/// Converts a tagged value to the legacy raw ABI representation used by
-/// collection iterator/accessor entry points. `Char` is the one primitive whose
-/// type identity must survive this conversion for generic collection consumers.
 @inline(__always)
 func runtimeCollectionABIValue(_ value: RuntimeValue) -> Int {
     if value.tag == RuntimeValue.charTag {
@@ -168,7 +159,6 @@ func registerIteratorItable(
         let removePtr = unsafeBitCast(remove, to: Int.self)
         _ = kk_object_register_itable_method(raw, 0, 2, removePtr)
         if mutableIterator {
-            // MutableIterator declares remove as its direct method at slot 0.
             _ = kk_object_register_itable_iface(raw, Int(runtimeMutableIteratorInterfaceTypeID), 1)
             _ = kk_object_register_itable_method(raw, 1, 0, removePtr)
         }
@@ -308,7 +298,6 @@ private func maybeRegisterCollectionIterableItable(raw: Int, box: AnyObject) {
     }
 }
 
-/// Restore the canonical empty collection registrations cleared by a metadata reset.
 func runtimeRestoreCanonicalCollectionSingletonMetadata() {
     if let box = runtimeListBox(from: emptyListSingletonRaw) {
         maybeRegisterCollectionIterableItable(raw: emptyListSingletonRaw, box: box)
@@ -327,9 +316,6 @@ private let runtimeSetContainsItableThunk: @convention(c) (Int, Int) -> Int = { 
     kk_set_contains(setRaw, element)
 }
 
-/// Runtime set boxes participate in the Collection/Set itable paths used by
-/// interface-typed member calls. Source objects register their own overrides;
-/// these entries preserve the storage-backed behavior for factory boxes.
 private func registerRuntimeSetMemberItables(raw: Int) {
     let collectionSlot = 3
     let collectionTypeID = Int(runtimeStableNominalTypeID(fqName: "kotlin.collections.Collection"))
@@ -358,12 +344,6 @@ private func registerRuntimeSetMemberItables(raw: Int) {
     )
 }
 
-
-// Runtime-backed iterator boxes are returned by `iterator()` calls resolved
-// through the synthetic collection fallback (e.g. `List.iterator()`). When a
-// source-implemented `Sequence`/`Iterator` wrapper stores such an iterator as
-// an `Iterator<T>` interface value, subsequent `hasNext()`/`next()` calls use
-// itable dispatch and need the box to advertise those methods.
 
 let runtimeListIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
     runtimeThrowingBridge(outThrown) { kk_list_iterator_hasNext(iterRaw) }

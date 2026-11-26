@@ -14,6 +14,9 @@ extension LocalDeclTypeChecker {
         let interner = ctx.interner
 
         let inferredReceiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        if case .superRef = ctx.ast.arena.expr(receiverExpr) {
+            sema.bindings.markSuperCall(id)
+        }
         let getName = interner.intern("get")
         let receiverInfo = indexedOperatorMemberCandidates(
             named: getName, receiverExpr: receiverExpr, receiverType: inferredReceiverType, ctx: ctx
@@ -37,10 +40,6 @@ extension LocalDeclTypeChecker {
             )
             indexTypes.append(driver.inferExpr(indexExpr, ctx: ctx, locals: &locals, expectedType: literalExpectedType))
         }
-        // Indexed `++` / `--` is represented as a compound assignment with a
-        // synthetic `1`. Its type depends on the element, so defer that literal
-        // until `get()` has supplied the element type. Explicit RHS expressions
-        // keep their existing eager, unconstrained inference.
         let isIncrementDecrement = ctx.ast.arena.isIncrementDecrement(id)
         let initialValueType: TypeID?
         if isIncrementDecrement {
@@ -134,7 +133,6 @@ extension LocalDeclTypeChecker {
             return sema.types.errorType
         }
         if ctx.ast.arena.isNullAssertedCompoundAssignRead(id) {
-            // `a[i]!! += v`: the `!!` applies to the element read by `get()`.
             elementType = sema.types.definitelyNonNullForm(of: elementType)
         }
 
@@ -162,9 +160,6 @@ extension LocalDeclTypeChecker {
             )
         }
 
-        // `a[i] += v` / `a[i]++` on an element type that defines its own
-        // operator (`plusAssign`, `plus`, `inc`, ...) must call it on the
-        // `get()` result instead of the builtin numeric/String arithmetic.
         let elementOperator: IndexedCompoundAssignElementOperatorBinding?
         switch resolveIndexedElementOperator(
             id, op: op, receiverType: receiverType, elementType: elementType,
@@ -198,8 +193,6 @@ extension LocalDeclTypeChecker {
         }
 
         let resultType = if isBuiltinNumericIncrement {
-            // Built-in inc/dec writes its wrapped result back to the element
-            // type, even when ordinary binary arithmetic promotes that type.
             elementType
         } else {
             elementOperator?.resultType ?? compoundOpResultType(
@@ -243,8 +236,6 @@ extension LocalDeclTypeChecker {
             }
         }
 
-        // The resolved element operator already checked its own argument
-        // and result types; these constraints only describe the builtin path.
         if elementOperator == nil {
             let binaryOp = driver.helpers.compoundAssignToBinaryOp(op)
             let isCharOffset = elementType == sema.types.charType
@@ -258,11 +249,6 @@ extension LocalDeclTypeChecker {
             ) ?? valueType
             let isBuiltinArithmeticPair = sema.types.isBuiltinArithmeticOperand(arithmeticLhs)
                 && sema.types.isBuiltinArithmeticOperand(arithmeticRhs)
-            // Builtin indexed `++` / `--` has no explicit RHS: the synthetic
-            // Int literal `1` is an AST implementation detail, while the
-            // operation is defined by the element type. Numeric binary
-            // operators also accept a different RHS type when their result
-            // can be written back to the element.
             let isStringConcatenation = binaryOp == .add
                 && sema.types.makeNonNullable(elementType) == sema.types.stringType
             if !isCharOffset && !isBuiltinNumericIncrement && !isBuiltinArithmeticPair && !isStringConcatenation {
@@ -283,18 +269,11 @@ extension LocalDeclTypeChecker {
     }
 
     private enum IndexedElementOperatorResolution {
-        /// Primitive/String element, or no applicable operator: keep the
-        /// builtin `kk_op_*` / string-concat path.
         case builtin
         case resolved(IndexedCompoundAssignElementOperatorBinding)
-        /// A diagnostic has already been emitted.
         case failed
     }
 
-    /// Resolves the operator applied to the element of `a[i] op= v`, mirroring
-    /// `inferMemberCompoundAssignExpr`: `++`/`--` use `inc()`/`dec()`;
-    /// otherwise the in-place `plusAssign`-style operator wins, then the
-    /// binary `plus`-style operator, and both being applicable is ambiguous.
     private func resolveIndexedElementOperator(
         _ id: ExprID,
         op: CompoundAssignOp,
@@ -333,8 +312,6 @@ extension LocalDeclTypeChecker {
             guard let (call, returnType) = resolveElementOperatorCall(
                 names: [name], args: [], elementType: elementType, range: range, locals: locals, ctx: ctx
             ) else {
-                // Non-numeric elements have no builtin `++`/`--`; a missing
-                // inc()/dec() is an error, like the non-indexed path reports.
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0002",
                     "No viable overload found for operator '\(interner.resolve(name))'.",
@@ -413,7 +390,6 @@ extension LocalDeclTypeChecker {
         return .builtin
     }
 
-    /// Does not touch `callBindings[id]`, which holds the `get()` binding.
     private func resolveElementOperatorCall(
         names: [InternedString],
         args: [CallArg],
@@ -424,9 +400,6 @@ extension LocalDeclTypeChecker {
     ) -> (CallBinding, TypeID)? {
         let sema = ctx.sema
         let call = CallExpr(range: range, calleeName: names[0], args: args, isOperatorCall: true)
-        // Indexed element operators have no AST receiver expression, so KIR
-        // lowering cannot yet emit the member-extension dispatch receiver;
-        // keep them on the member/package-extension paths for now.
         var candidates = driver.exprChecker.collectOperatorCandidates(
             names: names, receiverType: elementType, call: call, locals: locals, ctx: ctx,
             allowsImplicitReceiverMemberExtensionOperators: false
@@ -454,9 +427,6 @@ extension LocalDeclTypeChecker {
             }
         }
         guard !candidates.isEmpty else { return nil }
-        // A forward-declared element operator can still carry the header's
-        // inferred-return placeholder; infer the pre-selected callee first
-        // (KUU-4479).
         let hasUninferredReturn = candidates.contains { candidate in
             driver.inferredReturnFunctions[candidate] != nil
                 && !driver.checkedInferredReturnFunctions.contains(candidate)
@@ -498,8 +468,6 @@ extension LocalDeclTypeChecker {
         return (operatorCallBinding, returnType)
     }
 
-    /// `a[i] += v` is only ambiguous between `plusAssign` and `plus` when the
-    /// `plus` form could actually be written back through `set()`.
     private func receiverSupportsIndexedSet(_ receiverType: TypeID, ctx: TypeInferenceContext) -> Bool {
         if isConcreteArrayLikeReceiverType(receiverType, sema: ctx.sema, interner: ctx.interner) {
             return true
@@ -510,9 +478,6 @@ extension LocalDeclTypeChecker {
         ).contains { ctx.cachedSymbol($0)?.flags.contains(.operatorFunction) == true }
     }
 
-    /// Mirrors CallLowerer+Operators.swift's isGenericArrayReceiverType/
-    /// genericArrayElementType, which need a concrete T to select the matching
-    /// box/unbox pair.
     private func isStarProjectedArrayReceiver(_ receiverType: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
         guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema),
@@ -525,36 +490,16 @@ extension LocalDeclTypeChecker {
         return true
     }
 
-    /// Mirrors CallLowerer+ReceiverTypePredicates.swift's isConcreteArrayLikeType,
-    /// which KIR lowering uses to keep genuine arrays on the raw
-    /// array/boxing runtime path even though `Array<T>` also has real,
-    /// resolvable `get`/`set` member symbols.
     private func isConcreteArrayLikeReceiverType(_ receiverType: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
         guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
             return false
         }
-        // Only the bundled kotlin.<Name> array classes (and fqName-less
-        // synthetic stubs) use the raw array runtime path; a user class that
-        // shadows the imported name keeps ordinary member dispatch (KUU-3615).
         return (symbol.fqName.isEmpty
             || symbol.fqName == [interner.intern("kotlin"), symbol.name])
             && knownNames.isArrayLikeName(symbol.name)
     }
 
-    /// Resolve `operator fun set` for the write-back half of `a[i] op= v` and,
-    /// on success, record it via `IndexedCompoundAssignOperatorBinding` so
-    /// KIR lowering can dispatch to it instead of the raw array runtime. Only
-    /// called once `get()` has resolved to an operator and either the
-    /// receiver is not a concrete array or the selected `get()` is an
-    /// extension on an array type. Built-in array member access keeps the raw
-    /// array path. A custom `get` without a matching `set` is rejected by the
-    /// caller instead of falling back to raw array access.
-    /// Returns `true` once a matching `set()` overload is resolved and bound;
-    /// `false` when the receiver has no usable `set()` (missing entirely, or
-    /// no overload whose parameters accept `indexTypes + valueType`) — the
-    /// caller must then treat this as a hard Sema error rather than silently
-    /// falling back to the raw array runtime.
     private func bindIndexedCompoundAssignSetOperator(
         _ id: ExprID,
         receiverType: TypeID,
@@ -610,9 +555,6 @@ extension LocalDeclTypeChecker {
             return false
         }
 
-        // A projected receiver forbids writing through an `in` parameter
-        // (e.g. `xs[0] += v` on `MutableList<out Int>` desugars to `set`),
-        // matching the member-call path's variance violation check.
         if !driver.callChecker.allowsProjectedReceiverUnsafeVariance(
             chosenSet, sema: sema, interner: interner
         ),
@@ -683,16 +625,9 @@ extension LocalDeclTypeChecker {
         )
     }
 
-    /// Outcome of resolving `operator fun get` for the read half of
-    /// `a[i] op= v`.
     private enum IndexedGetResolution {
-        /// A `get` operator was resolved and bound; payload is the element type.
         case resolved(TypeID)
-        /// No `get` candidate exists at all. The caller may still use the
-        /// built-in array path, but only for a genuine array receiver.
         case noCandidate
-        /// `get` candidates existed but none accepted the arguments. A
-        /// diagnostic was emitted; the caller must reject the expression.
         case failed
     }
 
@@ -707,9 +642,6 @@ extension LocalDeclTypeChecker {
 
         guard !getCandidates.isEmpty else { return .noCandidate }
 
-        // A forward-declared `get` operator can still carry the header's
-        // inferred-return placeholder; infer the pre-selected callee first
-        // (KUU-4479).
         let hasUninferredGetReturn = getCandidates.contains { candidate in
             driver.inferredReturnFunctions[candidate] != nil
                 && !driver.checkedInferredReturnFunctions.contains(candidate)
@@ -760,9 +692,6 @@ extension LocalDeclTypeChecker {
             return .failed
         }
 
-        // A projected receiver (e.g. `MutableList<in Int>`) reads the
-        // projection's captured upper bound as the element type, not the
-        // solver's raw type argument — mirror the member-call projection merge.
         var mergedSubstitution = resolved.substitutedTypeArguments
         if let varianceResult = sema.types.buildVarianceProjectionSubstitutions(
             receiverType: receiverType,
@@ -852,8 +781,6 @@ extension LocalDeclTypeChecker {
             if local.isMutable {
                 return ctx.dataFlow.stableMutableReceivers.contains(reference.root)
             }
-            // Delegated locals re-read through getValue, so they are not stable
-            // smart-cast references even when declared with `val`.
             return !locals.delegatedLocalSymbols.contains(local.symbol)
         }
         if reference.root.rawValue < 0 { return true }
@@ -911,10 +838,6 @@ extension LocalDeclTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner
-        // Declaration annotations BuildAST forwarded onto this expression
-        // (KUU-4290) resolve once up front: the records are registered on the
-        // function symbol below, and their `@OptIn` markers scope over the
-        // signature and body like a member function's own annotations.
         let localFunAnnotationRecords = driver.helpers.localDeclarationAnnotationRecords(for: id, ctx: ctx)
         let localFunOptInMarkers = driver.helpers.optInMarkers(
             from: localFunAnnotationRecords,
@@ -1021,8 +944,6 @@ extension LocalDeclTypeChecker {
             sema.symbols.setPropertyType(contextReceiverTypes[index], for: symbol)
             return (declaration: declaration, symbol: symbol, type: contextReceiverTypes[index])
         }
-        // Anonymous-function declarations receive an expected type from their
-        // wrapper block, so unannotated parameters can be typed before the body.
         let expectedFunctionType: FunctionType? = {
             guard let expectedType else { return nil }
             if case let .functionType(functionType) = sema.types.kind(of: expectedType) {
@@ -1083,10 +1004,6 @@ extension LocalDeclTypeChecker {
                 usageRange: range
             )
         } else if isAnonymousFunction, let expectedFunctionType {
-            // An anonymous function's unannotated return type comes from the
-            // expected function type, just like its unannotated parameters:
-            // `return fun(value) { return value + 1 }` against `(Int) -> Int`
-            // checks `value + 1` against `Int`, not `Unit`.
             expectedFunctionType.returnType
         } else {
             switch body {
@@ -1107,10 +1024,6 @@ extension LocalDeclTypeChecker {
         if ast.arena.isInfixFunction(id) { functionFlags.insert(.infixFunction) }
         if ast.arena.isOperatorFunction(id) { functionFlags.insert(.operatorFunction) }
         if ast.arena.isLocalInlineFunction(id) {
-            // kotlinc gates local `inline` behind
-            // `NOT_YET_SUPPORTED_LOCAL_INLINE_FUNCTION`; emit here so a
-            // covering `@Suppress` (already registered during DataFlow) filters
-            // the diagnostic through the normal emission path.
             ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0400",
                 "local inline functions are not yet supported.",
@@ -1118,11 +1031,6 @@ extension LocalDeclTypeChecker {
             )
             functionFlags.insert(.inlineFunction)
         }
-        // kotlinc reports 'without a body must be abstract' on any bodiless
-        // named function declared lexically inside a class, including local
-        // functions (which additionally get 'must have a body' from BuildAST).
-        // Local funs in top-level functions only get 'must have a body';
-        // anonymous function expressions only get 'must have a body' too.
         if body == .unit, !isAnonymousFunction,
            ctx.enclosingClassSymbol != nil,
            !ast.arena.isLocalBodilessExemptFunction(id) {
@@ -1132,10 +1040,6 @@ extension LocalDeclTypeChecker {
                 range: range
             )
         }
-        // kotlinc applies the 'abstract member requires abstract owner' rule
-        // to local `abstract fun` too: it fires whenever the lexically
-        // enclosing class is non-abstract (interfaces, enum classes and
-        // abstract classes are exempt — the same exemptions as for members).
         if ast.arena.isLocalAbstractFunction(id),
            let enclosingClass = ctx.enclosingClassSymbol,
            let ownerSym = sema.symbols.symbol(enclosingClass),
@@ -1149,9 +1053,6 @@ extension LocalDeclTypeChecker {
                 range: range
             )
         }
-        // 'with a body cannot be abstract' applies to local `abstract fun`
-        // too, but only when a class encloses it — kotlinc does not run the
-        // member check on declarations inside top-level functions.
         if ast.arena.isLocalAbstractFunction(id), body != .unit,
            ctx.enclosingClassSymbol != nil {
             sema.diagnostics.error(
@@ -1205,19 +1106,13 @@ extension LocalDeclTypeChecker {
             nullability: .nonNull
         )))
 
-        // Local functions share the lexical call namespace, where same-named
-        // declarations form an overload set. Keep them in scope separately
-        // from local values, which use `LocalBindings` for value-position lookup.
         ctx.scope.insert(funSymbol)
         ctx.semaCacheContext?.invalidateScopeLookups()
 
-        // Local functions introduce a new scope for control flow: reset loop/lambda stacks.
         let previousFunctionScope = ctx.dataFlow.localStability.currentLocalFunctionScope
         ctx.dataFlow.localStability.currentLocalFunctionScope = id
         defer { ctx.dataFlow.localStability.currentLocalFunctionScope = previousFunctionScope }
         var bodyLocals = locals
-        // A deferred body cannot inherit mutable captures' flow facts from
-        // the declaration site. Establish its own facts while checking it.
         for (name, local) in bodyLocals where local.isMutable {
             let declaredType = sema.symbols.propertyType(for: local.symbol) ?? local.type
             bodyLocals[name] = (declaredType, local.symbol, local.isMutable, local.isInitialized)
@@ -1251,8 +1146,6 @@ extension LocalDeclTypeChecker {
             currentDeclSymbol: receiverType != nil ? funSymbol : ctx.currentDeclSymbol
         )
         bodyCtx.isUnitCoercionContext = resolvedReturnType == sema.types.unitType
-        // The local function's own `@OptIn` consents inside its body and
-        // default parameter values, matching member-function semantics.
         bodyCtx.inheritedOptInMarkers.formUnion(localFunOptInMarkers)
         bodyCtx = bodyCtx.with(
             contextReceiverTypes: ctx.contextReceiverTypes + contextParameterDeclarations.map(\.type)
@@ -1286,8 +1179,6 @@ extension LocalDeclTypeChecker {
         // (KUU-3210). Calls still see the function through `ctx.scope`.
         bodyLocals[name] = (funType, funSymbol, false, true)
         for (i, param) in valueParams.enumerated() {
-            // Keep element types in the call signature while exposing the
-            // source-level array type for reference varargs inside local bodies.
             let localType = driver.declChecker.localTypeForParameter(
                 at: i, signature: signature, sema: sema, interner: interner,
                 referenceVarargAsArray: true
@@ -1352,9 +1243,6 @@ extension LocalDeclTypeChecker {
             inferredBodyType = sema.types.unitType
         }
 
-        // Propagate the expression body's value marks onto the local function
-        // symbol so call results inherit them through bindCall — mirrors
-        // typeCheckFunctionDecl (KUU-2942).
         if case let .expr(bodyExprID, _) = body {
             if sema.bindings.isRangeExpr(bodyExprID) {
                 sema.bindings.markRangeSymbol(funSymbol)
@@ -1392,11 +1280,6 @@ extension LocalDeclTypeChecker {
             }
         }
 
-        // An anonymous block body that does not end in a `return`/`throw`
-        // produces `Unit` rather than the expected return type:
-        // `fun(x) { sideEffect() }` stays `(T) -> Unit` even where
-        // `(T) -> R` is expected. Bodies ending in a return keep the
-        // expected return type their return values were checked against.
         let signatureReturnType: TypeID? = if returnTypeRef != nil {
             nil
         } else if isAnonymousFunction, case .block = body,
@@ -1443,10 +1326,6 @@ extension LocalDeclTypeChecker {
         localFunctionOuterSymbols.formUnion(driver.helpers.lexicalTypeParameterSymbols(in: ctx).filter {
             sema.symbols.symbol($0)?.flags.contains(.reifiedTypeParameter) == true
         })
-        // Parameter default expressions are evaluated in the lifted function's
-        // scope at call time: an outer local referenced only there
-        // (`fun bar(y: T = x)`) is a real capture the `$default` stub and call
-        // sites must thread through (KUU-3182).
         var localFunctionCaptureSymbols = driver.captureAnalyzer.collectCapturedOuterSymbols(
             inBody: body,
             ast: ast,

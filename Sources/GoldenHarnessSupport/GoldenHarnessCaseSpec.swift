@@ -1,16 +1,8 @@
 import Foundation
 
-/// Cases without a spec file keep the historical implicit behavior — the
-/// worker uses `KSWIFTK_GOLDEN_STDLIB_LIBRARY` when present and falls back to
-/// bundled-source injection when it is not. A case that declares a profile
-/// instead pins the mode it verifies: an `.artifact` case fails when no
-/// artifact path is available rather than silently downgrading to source.
 public enum GoldenStdlibProfile: String, Sendable, CaseIterable {
-    /// Resolve stdlib symbols from a prebuilt `.kklib` artifact.
     case artifact
-    /// Compile the bundled Kotlin stdlib sources together with the case.
     case source
-    /// Compile without stdlib (residual synthetic fallbacks only).
     case noStdlib = "no-stdlib"
 }
 
@@ -51,8 +43,6 @@ public struct GoldenHarnessCaseSpec: Sendable, Equatable {
         sourceURL.deletingPathExtension().appendingPathExtension(specFileExtension)
     }
 
-    /// Loads the spec adjacent to `sourceURL`, or `nil` when no spec file
-    /// exists. Throws on any malformed spec.
     public static func load(forSourceURL sourceURL: URL) throws -> GoldenHarnessCaseSpec? {
         let url = specURL(forSourceURL: sourceURL)
         guard FileManager.default.fileExists(atPath: url.path) else {

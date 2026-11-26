@@ -46,7 +46,6 @@ private func largeStackThreadEntry(_ arg: UnsafeMutableRawPointer?) -> UnsafeMut
 /// closure, which keeps the cross-thread capture explicit and avoids relying on
 /// `withoutActuallyEscaping` for thread hops.
 enum LargeStackExecutor {
-    /// Virtual allocation only — pages are committed lazily by the kernel.
     private static let stackSize = 64 << 20
 
     static func run<T>(
@@ -76,9 +75,6 @@ enum LargeStackExecutor {
         #else
         var attr = pthread_attr_t()
         guard pthread_attr_init(&attr) == 0 else {
-            // If we cannot configure a large stack, run the work on the caller
-            // thread as a last resort. This may overflow on tiny cooperative-pool
-            // stacks, but it is better than silently hanging or losing the result.
             box.run()
             return try box.result!.get() as! T
         }

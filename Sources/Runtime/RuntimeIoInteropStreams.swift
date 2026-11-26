@@ -1,6 +1,5 @@
 import Foundation
 
-/// Construction performs no read and owns no independent closed flag.
 final class RuntimeKotlinInputStreamBox: RuntimeChildReferenceProviding {
     let readFn: Int
     let readClosure: Int
@@ -147,9 +146,6 @@ public func __kk_kotlin_sink_output_stream_range(
         descriptionFn: descriptionFn, descriptionClosure: descriptionClosure)), fqName: "java.io.OutputStream", input: false)
 }
 
-/// Typed InputStream/OutputStream calls have a thrown slot. The existing Any
-/// override registry reuses this entry without changing public Any ABI; its
-/// pre-existing erased exception policy is documented separately.
 @_cdecl("__kk_io_stream_to_string")
 public func __kk_io_stream_to_string(_ stream: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {

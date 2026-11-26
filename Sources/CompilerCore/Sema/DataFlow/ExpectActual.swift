@@ -1,17 +1,11 @@
 import Foundation
 
-/// Source declarations keyed by their symbol's decl-site range, used to tell
-/// whether an actual member still carries a header placeholder type because
-/// its real type will only be inferred during body analysis.
 struct ExpectActualSourceDeclarations {
     var functionsByRange: [SourceRange: [FunDecl]] = [:]
     var propertiesByRange: [SourceRange: [PropertyDecl]] = [:]
 }
 
 extension DataFlowSemaPhase {
-    /// Convenience entry point for unit tests that exercise matching without a
-    /// following type-check pass; provisionally-linked pairs are dropped
-    /// instead of re-verified.
     func validateExpectActualMatching(
         ast: ASTModule,
         symbols: SymbolTable,
@@ -47,9 +41,6 @@ extension DataFlowSemaPhase {
         // and its compiled stub would link silently (KUU-3969). Claim every
         // pending expect entry so the check sees the full expect surface.
         symbols.drainIndexedExpectEntries()
-        // Common libraries preserve expect markers so a platform compilation can
-        // pair them with local actual declarations. Other imported declarations
-        // remain outside this validation unless they are marked expect.
         let expects = symbols.allSymbols().filter { sym in
             sym.flags.contains(.expectDeclaration)
                 && (sym.declSite != nil || sym.flags.contains(.importedLibrary))
@@ -77,7 +68,6 @@ extension DataFlowSemaPhase {
             return property
         }, by: \.range)
         for expectSym in expects {
-            // Optional expectation applies to the annotation class and its members.
             var expectationOwner: SymbolID? = expectSym.id
             var isOptionalExpectation = false
             while let owner = expectationOwner {
@@ -135,8 +125,6 @@ extension DataFlowSemaPhase {
                 .joined(separator: ".")
 
             guard let actualSym = compatibleCandidates.first else {
-                // Common source-set artifacts intentionally preserve expect
-                // declarations for a platform compilation to match later.
                 if commonModuleMode, actuals.isEmpty {
                     continue
                 }
@@ -221,7 +209,6 @@ extension DataFlowSemaPhase {
         let sourceFunctions = symbols.children(ofFQName: expectOwner.fqName)
             .compactMap { symbols.symbol($0) }
             .filter { $0.kind == .function && $0.declSite != nil }
-        // Expect/actual classes share an FQ name, so verify the exact owner ID.
         let expectedFunctions = sourceFunctions.filter {
             symbols.parentSymbol(for: $0.id) == expectOwner.id
         }
@@ -348,9 +335,6 @@ extension DataFlowSemaPhase {
         return nil
     }
 
-    /// Re-checks pairs whose link relied on a deferred inferred actual type.
-    /// Runs after body analysis has published the real inferred types; any
-    /// residual placeholder no longer gets the benefit of the doubt.
     func verifyDeferredExpectActualTypes(
         _ pairs: [(expect: SymbolID, actual: SymbolID)],
         symbols: SymbolTable,
@@ -492,8 +476,6 @@ extension DataFlowSemaPhase {
             ) {
                 return true
             }
-            // An actual property without a type annotation stores the header's
-            // Any? placeholder until body analysis publishes the inferred type.
             return allowDeferredInferredActualTypes
                 && isDeferredInferredActualPropertyType(
                     actual,
@@ -595,7 +577,6 @@ extension DataFlowSemaPhase {
             return false
 
         case .backingField, .valueParameter, .local, .label:
-            // These symbol kinds are not meaningful as expect/actual declarations.
             return false
         }
     }
@@ -673,10 +654,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// True when the matched pair still has a deferred type component — the
-    /// actual declaration omitted its type/return-type annotation, so only the
-    /// header placeholder was available at match time. The provisional link is
-    /// re-verified once body analysis publishes the inferred type.
     private func isDeferredInferredTypePair(
         expect: SemanticSymbol,
         actual: SemanticSymbol,
@@ -707,9 +684,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// An actual property declared without a type annotation is assigned the
-    /// `Any?` placeholder during header collection; the real type arrives only
-    /// when its initializer or getter is type-checked in body analysis.
     private func isDeferredInferredActualPropertyType(
         _ actual: SemanticSymbol,
         propertiesByRange: [SourceRange: [PropertyDecl]],
@@ -728,9 +702,6 @@ extension DataFlowSemaPhase {
         return true
     }
 
-    /// An expression-bodied actual function without a return-type annotation
-    /// stores `Any` in its header signature until `inferFunctionReturnTypes`
-    /// publishes the inferred return type during body analysis.
     private func isDeferredInferredActualReturnType(
         _ actual: SemanticSymbol,
         actualSig: FunctionSignature,

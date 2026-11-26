@@ -5,6 +5,99 @@ import Testing
 
 extension JVMBackendTests {
     @Test
+    func arrayListSubclassOverridesAndDispatchesOnJVM() throws {
+        try assertJVM("""
+        class A : ArrayList<Int>() {
+            override fun add(element: Int): Boolean {
+                println("override")
+                return super.add(element)
+            }
+        }
+
+        fun main() {
+            val list: ArrayList<Int> = A()
+            println(list.add(1))
+        }
+        """, "override\ntrue\n")
+    }
+
+    @Test
+    func arrayListSubclassCallsInheritedMembersOnJVM() throws {
+        try assertJVM("""
+        class A : ArrayList<String>()
+
+        fun main() {
+            val a = A()
+            println(a.add("x"))
+            println(a.size)
+            println(a[0])
+            a[0] = "y"
+            println(a[0])
+        }
+        """, "true\n1\nx\ny\n")
+    }
+
+    @Test
+    func arrayListSubclassInheritedIndexedCompoundAssignmentOnJVM() throws {
+        try assertJVM("""
+        class A : ArrayList<Int>()
+
+        fun main() {
+            val a = A()
+            a.add(1)
+            a[0] += 1
+            println(a[0])
+        }
+        """, "2\n")
+    }
+
+    @Test
+    func intermediateArrayListSubclassSuperCallsUseBaseImplementationsOnJVM() throws {
+        try assertJVM("""
+        open class B : ArrayList<Int>()
+        class A : B() {
+            override fun add(element: Int): Boolean {
+                return super.add(element)
+            }
+            override fun get(index: Int): Int = super[index]
+            override fun set(index: Int, element: Int): Int {
+                super[index] = element
+                return element
+            }
+        }
+
+        fun main() {
+            val xs: ArrayList<Int> = A()
+            println(xs.add(1))
+            println(xs[0])
+            xs[0] = 2
+            println(xs[0])
+        }
+        """, "true\n1\n2\n")
+    }
+
+    @Test
+    func arrayListSubclassSuperIndexedAccessUsesBaseImplementationOnJVM() throws {
+        try assertJVM("""
+        class A : ArrayList<String>() {
+            override fun get(index: Int): String = super[index]
+            override fun set(index: Int, element: String): String {
+                super[index] = element
+                return element
+            }
+        }
+
+        fun main() {
+            val xs: ArrayList<String> = A()
+            xs.add("x")
+            println(xs[0])
+            xs[0] = "y"
+            println(xs[0])
+        }
+        """, "x\ny\n")
+    }
+
+    @Test
     func javaCollectionParameterAcceptsMutableOverride() throws {
         try withWorkspace { root in
             try """

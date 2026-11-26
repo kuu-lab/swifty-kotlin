@@ -230,6 +230,14 @@ extension JVMClasspathIndex {
                 companion object {
                     external fun isDigit(value: Char): Boolean
                     external fun isDigit(value: Int): Boolean
+                    external fun isHighSurrogate(value: Char): Boolean
+                    external fun isLowSurrogate(value: Char): Boolean
+                    external fun isLowerCase(value: Char): Boolean
+                    external fun isLowerCase(value: Int): Boolean
+                    external fun isUpperCase(value: Char): Boolean
+                    external fun isUpperCase(value: Int): Boolean
+                    external fun toLowerCase(value: Char): Char
+                    external fun toLowerCase(value: Int): Int
                     external fun toUpperCase(value: Char): Char
                     external fun toUpperCase(value: Int): Int
                 }
@@ -237,6 +245,14 @@ extension JVMClasspathIndex {
             """, 0x0011, "java/lang/Object", [
                 method("java/lang/Character", "isDigit", [.char], .boolean, staticMember: true),
                 method("java/lang/Character", "isDigit", [.int], .boolean, staticMember: true),
+                method("java/lang/Character", "isHighSurrogate", [.char], .boolean, staticMember: true),
+                method("java/lang/Character", "isLowSurrogate", [.char], .boolean, staticMember: true),
+                method("java/lang/Character", "isLowerCase", [.char], .boolean, staticMember: true),
+                method("java/lang/Character", "isLowerCase", [.int], .boolean, staticMember: true),
+                method("java/lang/Character", "isUpperCase", [.char], .boolean, staticMember: true),
+                method("java/lang/Character", "isUpperCase", [.int], .boolean, staticMember: true),
+                method("java/lang/Character", "toLowerCase", [.char], .char, staticMember: true),
+                method("java/lang/Character", "toLowerCase", [.int], .int, staticMember: true),
                 method("java/lang/Character", "toUpperCase", [.char], .char, staticMember: true),
                 method("java/lang/Character", "toUpperCase", [.int], .int, staticMember: true),
             ]),
@@ -522,9 +538,17 @@ extension JVMClasspathIndex {
             ("java/util/Collections", """
             package java.util
             class Collections private constructor() {
-                companion object { external fun <T> sort(list: kotlin.collections.List<T>, c: java.util.Comparator<in T>): Unit }
+                companion object {
+                    external fun <T> sort(list: kotlin.collections.List<T>, c: java.util.Comparator<in T>): Unit
+                    external fun <T> reverse(list: kotlin.collections.List<T>): Unit
+                    external fun <T> shuffle(list: kotlin.collections.List<T>): Unit
+                }
             }
-            """, 0x0031, "java/lang/Object", [method("java/util/Collections", "sort", [.reference("java/util/List", nullable: false), comparator], .unit, staticMember: true)]),
+            """, 0x0031, "java/lang/Object", [
+                method("java/util/Collections", "sort", [.reference("java/util/List", nullable: false), comparator], .unit, staticMember: true),
+                method("java/util/Collections", "reverse", [.reference("java/util/List", nullable: false)], .unit, staticMember: true),
+                method("java/util/Collections", "shuffle", [.reference("java/util/List", nullable: false)], .unit, staticMember: true),
+            ]),
             ("java/security/InvalidParameterException", """
             package java.security
             open class InvalidParameterException: kotlin.IllegalArgumentException {
@@ -547,9 +571,14 @@ extension JVMClasspathIndex {
                 fun name(): String = null!!
                 companion object {
                     external fun forName(charsetName: String): Charset
+                    external fun defaultCharset(): Charset
                 }
             }
-            """, 0x0401, "java/lang/Object", [method("java/nio/charset/Charset", "name", [], .string), method("java/nio/charset/Charset", "forName", [.string], .reference("java/nio/charset/Charset", nullable: false), staticMember: true)]),
+            """, 0x0401, "java/lang/Object", [
+                method("java/nio/charset/Charset", "name", [], .string),
+                method("java/nio/charset/Charset", "forName", [.string], .reference("java/nio/charset/Charset", nullable: false), staticMember: true),
+                method("java/nio/charset/Charset", "defaultCharset", [], .reference("java/nio/charset/Charset", nullable: false), staticMember: true),
+            ]),
         ]
         let appendableName = "java/lang/Appendable"
         let appendable: JVMValueType = .reference(appendableName, nullable: false)
@@ -680,21 +709,6 @@ extension JVMClasspathIndex {
                                                  contents: Data(source.utf8), origin: .residualStdlib)
             sourceClasses[file] = info
             classes[durationName] = info
-        }
-        // The shared frontend already declares File, its constructors and
-        // path. Supply their JDK signatures even with no platform jar.
-        let fileName = "java/io/File"
-        if classes[fileName] == nil {
-            let fileType = JVMValueType.reference(fileName, nullable: false)
-            classes[fileName] = JVMClassInfo(name: fileName, flags: 0x0001, superclass: "java/lang/Object",
-                                           interfaces: ["java/io/Serializable", "java/lang/Comparable"], methods: [
-                method(fileName, "<init>", [.string], fileType),
-                method(fileName, "<init>", [.string, .string], fileType),
-                method(fileName, "<init>", [.reference(fileName, nullable: true), .string], fileType),
-                method(fileName, "getPath", [], .string),
-                method(fileName, "getAbsolutePath", [], .string),
-                method(fileName, "mkdirs", [], .boolean),
-            ])
         }
         let closeableName = "java/io/Closeable"
         if classes[closeableName] == nil {

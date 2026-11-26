@@ -91,9 +91,6 @@ extension BuildASTPhase.ExpressionParser {
 
         case let .memberCall(receiver, callee, typeArgs, args, _)
             where typeArgs.isEmpty && args.isEmpty:
-            // A name reference can still invoke a top-level property's getter.
-            // Capture every receiver once because the synthesized read and
-            // write otherwise evaluate that reference separately.
             let receiverRange = astArena.exprRange(receiver) ?? operandRange
             let receiverName = interner.intern("$incdec$receiver$\(nextIncDecTempID())")
             statements.append(astArena.appendExpr(.localDecl(
@@ -117,8 +114,6 @@ extension BuildASTPhase.ExpressionParser {
                 receiver: cachedReceiver,
                 callee: callee,
                 value: one,
-                // This synthetic mutation and its read represent one property
-                // use. Share the operand range so annotation diagnostics dedup.
                 range: operandRange
             ))
             astArena.markIncrementDecrement(assignment, returnsValue: isPrefix)
@@ -132,8 +127,6 @@ extension BuildASTPhase.ExpressionParser {
             )
 
         default:
-            // Unsupported target: leave the operator unparsed so
-            // the existing behaviour is preserved.
             return nil
         }
 

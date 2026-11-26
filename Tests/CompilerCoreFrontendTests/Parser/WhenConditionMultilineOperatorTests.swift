@@ -3,9 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// A subject-less `when` branch condition split across newlines after an
-/// infix operator must stay a single condition — `a ||\n b` continues the
-/// expression rather than starting a new entry.
 @Suite
 struct WhenConditionMultilineOperatorTests {
     @Test

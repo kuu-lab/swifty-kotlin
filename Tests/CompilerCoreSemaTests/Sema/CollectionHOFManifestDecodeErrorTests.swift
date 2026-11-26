@@ -4,27 +4,13 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-/// Tests that collection HOF type inference works correctly even when external
-/// library metadata is missing or unavailable — bundled Kotlin declarations
-/// must remain available without external metadata.
 @Suite
 struct CollectionHOFManifestDecodeErrorTests {
-
-    /// Verify that collection HOF members are available via bundled declarations
-    /// without any external library metadata loaded.
-
-    /// Verify that invalid/non-existent search paths do not cause crashes
-    /// and that the compiler falls back to bundled declarations gracefully.
-
-    /// Verify that migrated collection HOF declarations are not synthetic stubs.
-
-    // MARK: - Consolidated runSema clean tests
 
     @Test
     func testRunSemaClean() throws {
 
         let sources: [String] = [
-            // testCollectionHOFSyntheticStubsResolveWithoutExternalMetadata
             """
             package sample0
 
@@ -35,7 +21,6 @@ struct CollectionHOFManifestDecodeErrorTests {
                     }
 
             """,
-            // testCollectionWindowedTransformSourceDefinitionResolvesWithoutExternalMetadata
             """
             package sample1
 
@@ -46,7 +31,6 @@ struct CollectionHOFManifestDecodeErrorTests {
                     }
 
             """,
-            // testCollectionHOFStubsFlagsAreCorrect
             """
             package sample2
             fun noop() {}
@@ -65,8 +49,6 @@ struct CollectionHOFManifestDecodeErrorTests {
 
             let interner = ctx.interner
 
-            // === testCollectionHOFSyntheticStubsResolveWithoutExternalMetadata ===
-
             do {
 
                 let sample0Path = paths[0]
@@ -75,14 +57,11 @@ struct CollectionHOFManifestDecodeErrorTests {
 
                 let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
 
-                // No searchPaths — purely relying on bundled Kotlin declarations.
-
                 let collectionsFQ: [InternedString] = [
                     interner.intern("kotlin"),
                     interner.intern("collections"),
                 ]
 
-                // mapIndexed is now provided by bundled Kotlin source (top-level extension).
                 let mapIndexedSource = sema.symbols.lookup(
                     fqName: collectionsFQ + [interner.intern("mapIndexed")]
                 )
@@ -102,12 +81,9 @@ struct CollectionHOFManifestDecodeErrorTests {
                     #expect(sema.symbols.externalLinkName(for: partitionSymbolID) == nil)
                 }
 
-                // No type-constraint errors expected.
                 assertNoDiagnostic("KSWIFTK-TYPE-0001", in: sample0Diagnostics)
 
             }
-
-            // === testCollectionWindowedTransformSourceDefinitionResolvesWithoutExternalMetadata ===
 
             do {
 
@@ -141,8 +117,6 @@ struct CollectionHOFManifestDecodeErrorTests {
                 assertNoDiagnostic("KSWIFTK-TYPE-0001", in: sample1Diagnostics)
 
             }
-
-            // === testCollectionHOFSourceFlagsAreCorrect ===
 
             do {
 

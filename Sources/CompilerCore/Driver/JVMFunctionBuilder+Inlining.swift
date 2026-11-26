@@ -17,7 +17,6 @@ extension JVMFunctionBuilder {
         let stack: [SymbolID: Int]
     }
     func inlineArgument(_ name: InternedString) -> InlineLambda? {
-        // A block-local function value can shadow an inline parameter.
         guard !scopes.contains(where: { $0[name] != nil }) else { return nil }
         return inlineArguments[name]
     }
@@ -45,13 +44,23 @@ extension JVMFunctionBuilder {
         let extensionReceiver = try declaration.receiverType == nil ? nil : receiverValue ?? receiver.map(requireValue) ?? implicitExtensionReceiver(id)
         var parameters: [InternedString: Local] = [:], lambdas: [InternedString: InlineLambda] = [:]
         var supplied: Set<Int> = []
+        let calleeSignature = program.sema.symbols.functionSignature(for: binding.chosenCallee)
         for (sourceIndex, argument) in args.enumerated() {
             let i = binding.parameterMapping[sourceIndex] ?? sourceIndex
             guard declaration.valueParams.indices.contains(i), supplied.insert(i).inserted else { throw fail("Invalid inline argument mapping.", id) }
             let parameter = declaration.valueParams[i]
-            if !parameter.isNoinline && !parameter.isCrossinline, case .lambdaLiteral = arena.expr(argument.expr) {
+            // Only a parameter declared with a function type takes an inlined
+            // lambda. A lambda passed where the declaration says `T` (e.g.
+            // plusElement(element: T)) is an ordinary value the body stores or
+            // forwards, so it must be materialized as a closure local.
+            var inlinesLambda = !parameter.isNoinline && !parameter.isCrossinline
+            if inlinesLambda, let calleeSignature, calleeSignature.parameterTypes.indices.contains(i),
+               case .typeParam = program.sema.types.kind(of: calleeSignature.parameterTypes[i]) {
+                inlinesLambda = false
+            }
+            if inlinesLambda, case .lambdaLiteral = arena.expr(argument.expr) {
                 lambdas[parameter.name] = InlineLambda(id: argument.expr, scopes: scopes, dispatch: thisValue, receiver: extensionValue, contexts: contextualReceivers, returns: inlineReturns, arguments: inlineArguments, lexicalLambda: lambdaID, stack: inlineStack)
-            } else if !parameter.isNoinline && !parameter.isCrossinline, case let .nameRef(name, _) = arena.expr(argument.expr), let forwarded = inlineArgument(name) {
+            } else if inlinesLambda, case let .nameRef(name, _) = arena.expr(argument.expr), let forwarded = inlineArgument(name) {
                 lambdas[parameter.name] = forwarded
             } else {
                 let source = try requireValue(argument.expr)
@@ -131,8 +140,6 @@ extension JVMFunctionBuilder {
         }
         let type = try expectedResult ?? program.expressionType(id)
         let physicalResult = program.references[binding.chosenCallee]?.result ?? method?.result
-        // Safe calls lift Unit to Unit?, but inline Unit bodies have no result.
-        // The safe-call join materializes Unit only on the non-null edge.
         let result = type == .unit || physicalResult == .unit ? nil : try value(type), end = label()
         inlineReturns = [InlineReturn(lambda: nil, result: result, end: end, finalizerDepth: finalizers.count)]
         switch declaration.body {
@@ -142,7 +149,6 @@ extension JVMFunctionBuilder {
         case let .block(body, _): for statement in body where !terminated { _ = try expression(statement, discarded: true) }
         case .unit: throw fail("Inline function requires a body.", id)
         }
-        // A non-local return may have no edge back into this expression.
         mark(end)
         return JVMIntrinsicResult(value: result)
     }

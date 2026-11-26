@@ -55,6 +55,110 @@ struct AnonymousFunctionBodyParsingTests {
         #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
     }
 
+    @Test
+    func newlineBetweenContextPrefixAndAnonymousFunctionParses() throws {
+        let (_, context) = try buildASTModule(from: """
+        @file:OptIn(kotlin.ExperimentalContextParameters::class)
+        fun main() {
+            with("O") {
+                val f = context(a: String)
+                fun(y: String): String = a + y
+            }
+        }
+        """, includeStdlib: false)
+
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func newlineBetweenContextPrefixAndAnonymousFunctionParsesInUnbracedIfBranch() throws {
+        let (ast, context) = try buildASTModule(from: """
+        @file:OptIn(kotlin.ExperimentalContextParameters::class)
+        fun main() {
+            with("O") {
+                if (true) context(a: String)
+                fun(y: String): String = a + y
+            }
+        }
+        """, includeStdlib: false)
+
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+        let snapshot = ast.arena.snapshot()
+        #expect(snapshot.expressions.contains { expression in
+            guard case let .ifExpr(_, thenID, _, _) = expression else {
+                return false
+            }
+            return snapshot.anonymousFunctionExpressions.contains(thenID)
+        })
+    }
+
+    @Test
+    func malformedContextPrefixInUnbracedIfBranchIsRejected() throws {
+        let (_, context) = try buildASTModule(from: """
+        fun context(x: Int) {}
+        fun main() {
+            if (true) context(42)
+            fun(y: String): String = y
+        }
+        """, includeStdlib: false)
+
+        assertExpectedDiagnostics([
+            .error("KSWIFTK-PARSE-0030", containing: "context parameters must be named"),
+        ], in: context)
+    }
+
+    @Test(arguments: [
+        ("context() fun(): String = \"ok\"", "Empty context parameter list."),
+        ("context(a: String,, b: String) fun(): String = \"ok\"", "Expecting a parameter declaration."),
+    ])
+    func malformedContextParameterListsAreRejected(_ expression: String, _ message: String) throws {
+        let (_, context) = try buildASTModule(from: """
+        @file:OptIn(kotlin.ExperimentalContextParameters::class)
+        val f = \(expression)
+        """, includeStdlib: false)
+
+        assertExpectedDiagnostics([
+            .error("KSWIFTK-PARSE-0001", containing: message),
+        ], in: context)
+    }
+
+    @Test
+    func trailingCommaInContextPrefixStillParsesAnonymousFunction() throws {
+        let (ast, context) = try buildASTModule(from: """
+        @file:OptIn(kotlin.ExperimentalContextParameters::class)
+        val f = context(a: String,)
+        fun(): String = a
+        """, includeStdlib: false)
+
+        assertExpectedDiagnostics([], in: context)
+        let snapshot = ast.arena.snapshot()
+        #expect(snapshot.localFunContextReceivers.values.contains { $0.count == 1 })
+    }
+
+    @Test
+    func newlineBetweenContextPrefixAndAnonymousFunctionParsesInTopLevelInitializer() throws {
+        let (_, context) = try buildASTModule(from: """
+        @file:OptIn(kotlin.ExperimentalContextParameters::class)
+        val f = context(a: String)
+        fun(y: String): String = a + y
+        """, includeStdlib: false)
+
+        #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func semicolonBetweenContextPrefixAndAnonymousFunctionDoesNotParseAsContextualFunction() throws {
+        let (_, context) = try buildASTModule(from: """
+        @file:OptIn(kotlin.ExperimentalContextParameters::class)
+        fun main() {
+            val f = context(a: String);
+            fun(y: String): String = a + y
+        }
+        """, includeStdlib: false)
+
+        #expect(context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+    }
+
     @Test(arguments: [
         "fun main() { val g = fun(x: Int) { return x * 2 } }",
         "val f = fun() { return 1 }",
@@ -65,9 +169,6 @@ struct AnonymousFunctionBodyParsingTests {
         #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
     }
 
-    // kotlinc reports 'function 'anonymous' must have a body.' for a bodiless
-    // `fun(...)` in expression position and still binds the anonymous
-    // function value.
     @Test(arguments: [
         "val f = fun(): Int",
         "val f = fun()",
@@ -94,8 +195,6 @@ struct AnonymousFunctionBodyParsingTests {
         }, "\(context.diagnostics.diagnostics)")
     }
 
-    // kotlinc reports 'type parameters are prohibited here.' at the `<`
-    // directly after `fun` — for bodied and bodiless literals alike.
     @Test(arguments: [
         "val f = fun <T>(x: T) = x",
         "val f = fun <T>(): Int",
@@ -110,10 +209,6 @@ struct AnonymousFunctionBodyParsingTests {
         }, "\(context.diagnostics.diagnostics)")
     }
 
-    // KUU-4006: an expression-bodied anonymous function inside a lambda body
-    // was rejected with SEMA-0426 because the speculative assignment probe
-    // split the statement at `=` and parsed `fun(): Int` as a bodiless
-    // anonymous function LHS without rolling its diagnostics back.
     @Test(arguments: [
         "fun main() { val f = Array(3) { fun(): Int = it * it } }",
         "fun main() { val f = run { fun(): Int = 7 } }",
@@ -127,8 +222,6 @@ struct AnonymousFunctionBodyParsingTests {
         #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
     }
 
-    // The genuine bodiless literal inside a lambda still reports
-    // 'must have a body' through the winning expression parse.
     @Test(arguments: [
         "fun main() { val f = run { fun(): Int } }",
         "fun main() { listOf(1).forEach { fun(): Int } }",
@@ -142,10 +235,6 @@ struct AnonymousFunctionBodyParsingTests {
         }, "\(context.diagnostics.diagnostics)")
     }
 
-    // Nameless `fun` forms with a receiver or type parameters in statement
-    // position are anonymous function expressions, not named declarations —
-    // `fun T.(` used to be claimed by the local-function probe and mistyped
-    // as a local function literally named `T`.
     @Test(arguments: [
         "fun main() { fun Int.(): Int = this * 2 }",
         "fun main() { val f = { fun Int.(): Int = this * 2 } }",
@@ -156,8 +245,6 @@ struct AnonymousFunctionBodyParsingTests {
         let (_, context) = try buildASTModule(from: source, includeStdlib: false)
 
         if source.contains("<T>") {
-            // kotlinc reports 'type parameters are prohibited here.' on
-            // generic anonymous function literals.
             #expect(context.diagnostics.diagnostics.contains {
                 $0.code == "KSWIFTK-PARSE-0001"
                     && $0.message == "type parameters are prohibited here."

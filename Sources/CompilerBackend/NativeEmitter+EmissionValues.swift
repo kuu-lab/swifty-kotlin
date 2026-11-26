@@ -53,8 +53,6 @@ extension NativeEmitter.FunctionEmissionContext {
             return symbol.kind == .enumClass
                 || symbol.fqName == KnownCompilerNames(interner: interner).kotlinTextCharsetFQName
         case .unit, .nullableUnit, .platformUnit:
-            // Safe calls returning Unit use the Int64.min sentinel for
-            // null, while the valid Unit value is raw zero.
             return true
         default:
             return false
@@ -127,7 +125,6 @@ extension NativeEmitter.FunctionEmissionContext {
             globalVariables: globalVariables,
             nameCounter: nameCounter,
             declareExternalFunction: { name, argCount, appendThrown in
-                // Runtime calls use raw handles rather than Kotlin aggregate types.
                 if let spec = NativeEmitter.runtimeABIFunctionByName[name] {
                     let valueParameters = spec.parameters.filter {
                         !(spec.isThrowing && $0.name == "outThrown" && $0.type == .nullableIntptrPointer)
@@ -138,8 +135,6 @@ extension NativeEmitter.FunctionEmissionContext {
                         appendThrownChannel: spec.isThrowing
                     )
                 }
-                // Source-backed addresses must use the same typed ABI as calls,
-                // including aggregate Strings and the hidden thrown channel.
                 if let symbol = externalFunctionSymbolsByLinkName[name],
                    let signature = symbols?.functionSignature(for: symbol)
                 {
@@ -176,9 +171,6 @@ extension NativeEmitter.FunctionEmissionContext {
                 return declareExternalFunction(
                     named: name,
                     argumentCount: observedArgumentCount,
-                    // Private adapters referenced by imported inline bodies
-                    // have no exported signature, but retain the mandatory
-                    // thrown parameter of every compiler-generated function.
                     appendThrownChannel: appendThrown
                         || name.hasPrefix(RuntimeABISpec.compilerGeneratedLinkNamePrefix)
                 )
@@ -195,7 +187,6 @@ extension NativeEmitter.FunctionEmissionContext {
                     + signature.contextParameterTypes.count
                     + signature.parameterTypes.count
                 let appendThrown = runtimeSpec?.isThrowing ?? true
-                // Runtime aliases retain their raw-handle declaration path.
                 if runtimeSpec == nil,
                    let sourceSignature = sourceExternalSignature(for: symbol, argumentCount: argumentCount)
                 {

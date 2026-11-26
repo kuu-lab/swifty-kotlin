@@ -3,18 +3,12 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// TYPE-111: Verify that premature `anyType` fallbacks in object literal,
-/// callable reference, and compound assignment inference have been replaced
-/// with `errorType` + diagnostics where appropriate.
 @Suite
 struct AnyTypeFallbackTests {
-
-    // MARK: - Path-aware expression search helpers
 
     @Test
     func testAnyTypeFallbacks() throws {
         let sources: [String] = [
-            // testObjectLiteralPropertyWithInitializerInfersConcreteType
             """
             package sample0
 
@@ -26,7 +20,6 @@ struct AnyTypeFallbackTests {
                     }
 
             """,
-            // testObjectLiteralPropertyWithTypeAnnotationUsesAnnotatedType
             """
             package sample1
 
@@ -38,7 +31,6 @@ struct AnyTypeFallbackTests {
                     }
 
             """,
-            // testCallableRefResolvedNoDiagnostic
             """
             package sample2
 
@@ -48,7 +40,6 @@ struct AnyTypeFallbackTests {
                     }
 
             """,
-            // testCallableRefUnresolvedEmitsDiagnostic
             """
             package sample3
 
@@ -67,7 +58,6 @@ struct AnyTypeFallbackTests {
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
 
-            // === testObjectLiteralPropertyWithInitializerInfersConcreteType ===
             do {
                 let sample0Diagnostics = diagnosticsForPath(paths[0], in: ctx)
                 guard let declID = firstUserObjectLiteralDeclID(in: ast, path: paths[0], sourceManager: ctx.sourceManager),
@@ -87,7 +77,6 @@ struct AnyTypeFallbackTests {
                 assertNoDiagnostic("KSWIFTK-SEMA-0101", in: sample0Diagnostics)
             }
 
-            // === testObjectLiteralPropertyWithTypeAnnotationUsesAnnotatedType ===
             do {
                 let sample1Diagnostics = diagnosticsForPath(paths[1], in: ctx)
                 guard let declID = firstUserObjectLiteralDeclID(in: ast, path: paths[1], sourceManager: ctx.sourceManager),
@@ -105,7 +94,6 @@ struct AnyTypeFallbackTests {
                 assertNoDiagnostic("KSWIFTK-SEMA-0101", in: sample1Diagnostics)
             }
 
-            // === testCallableRefResolvedNoDiagnostic ===
             do {
                 let sample2Diagnostics = diagnosticsForPath(paths[2], in: ctx)
                 let mainBody = try #require(findMainBodyStatements(in: ast, path: paths[2], sourceManager: ctx.sourceManager, interner: interner))
@@ -123,7 +111,6 @@ struct AnyTypeFallbackTests {
                 #expect(!sample2Diagnostics.contains { $0.severity == .error }, "Unexpected diagnostics: \(sample2Diagnostics.map { "\($0.code): \($0.message)" })")
             }
 
-            // === testCallableRefUnresolvedEmitsDiagnostic ===
             do {
                 let sample3Diagnostics = diagnosticsForPath(paths[3], in: ctx)
                 assertHasDiagnostic("KSWIFTK-SEMA-0022", in: sample3Diagnostics)

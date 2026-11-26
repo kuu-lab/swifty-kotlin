@@ -9,8 +9,6 @@ package kotlin.collections
 
 import kotlin.internal.KsSymbolName
 
-// KSP-1061: The bridge supports built-in collection boxes and source-defined
-// implementations.
 public interface Iterable<out E> {
     @KsSymbolName("kk_iterable_iterator")
     public operator fun iterator(): Iterator<E>

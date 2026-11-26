@@ -1,5 +1,3 @@
-/// Proves effective immutability before flow inference, including deferred writes
-/// in closures. A local with any effective reassignment is conservatively excluded.
 final class LocalVariableStabilityAnalyzer {
     private var analyzedRoots: Set<ExprID> = []
     private var declarations: Set<ExprID> = []
@@ -7,22 +5,17 @@ final class LocalVariableStabilityAnalyzer {
     var inPlaceLambdaScopes: Set<ExprID> = []
     private var mutationValues: [ExprID: [ExprID: (scopes: [ExprID], value: ExprID?)]] = [:]
     private var mutationScopes: [ExprID: Set<[ExprID]>] = [:]
-    /// Writes in the local function currently being checked are direct writes.
-    /// Other deferred scopes still make the captured variable unstable.
     var currentLocalFunctionScope: ExprID?
     private var closureScopes: [ExprID] = []
     private var flowBarrierScopes: [ExprID] = []
     private var flowBarrierReassignments: [ExprID: [ExprID: Set<ExprID>]] = [:]
     private var lambdaCalls: [ExprID: (call: ExprID, argument: Int)] = [:]
-    // Only writes from a deeper deferred scope invalidate local smart casts.
     private var declarationDepths: [ExprID: Int] = [:]
 
     func isMutatedInClosure(_ declaration: ExprID, sema: SemaModule) -> Bool {
         (mutationScopes[declaration] ?? []).contains { isDeferredMutation($0, sema: sema) }
     }
 
-    /// A captured write cannot invalidate a narrowing if every deferred value
-    /// is already a subtype of the narrowed type. Unknown values stay unsafe.
     func closureWritesPreserve(
         _ declaration: ExprID, type: TypeID, ast: ASTModule,
         sema: SemaModule, localSymbols: Set<SymbolID>
@@ -44,8 +37,6 @@ final class LocalVariableStabilityAnalyzer {
     }
 
     private func isDeferredMutation(_ scopes: [ExprID], sema: SemaModule) -> Bool {
-        // A write directly in this body is sequenced with its reads,
-        // even when the local function itself is nested in a closure.
         if let currentLocalFunctionScope, scopes.last == currentLocalFunctionScope { return false }
         return scopes.contains { scope in
             if scope == currentLocalFunctionScope { return false }
@@ -160,7 +151,6 @@ final class LocalVariableStabilityAnalyzer {
                 if let depth = declarationDepths[declaration], depth < closureScopes.count {
                     let scopes = Array(closureScopes.dropFirst(depth))
                     mutationScopes[declaration, default: []].insert(scopes)
-                    // Compound assignments do not necessarily store the RHS type.
                     if case .localAssign = expression {
                         mutationValues[declaration, default: [:]][id] = (scopes, value)
                     } else {

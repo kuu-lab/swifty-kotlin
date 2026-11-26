@@ -107,11 +107,28 @@ extension CallTypeChecker {
             memberReceiverType = assertedType
         }
 
-        // A `?.` call evaluates its arguments only when the receiver is
-        // non-null, so a stable receiver reference narrows to non-null while
-        // they are checked (`x?.let { x.length }`, `map[x]` inside the
-        // lambda). The narrowing is scoped to the arguments: the receiver may
-        // still be null afterwards, so the narrowed local must be restored.
+        // `a?.f(<args>)` skips the whole argument evaluation when `a` is null,
+        // so a definite assignment performed inside the arguments (directly,
+        // in a block-valued argument, or through a nested callsInPlace
+        // contract) is only conditional. The receiver is already evaluated
+        // here, so only locals still uninitialized at this point are reverted
+        // once the arguments have been inferred (KUU-4625).
+        let uninitializedBeforeArguments: Set<SymbolID> = safeCall
+            ? Set(locals.compactMap { $0.value.isInitialized ? nil : $0.value.symbol })
+            : []
+        defer {
+            if !uninitializedBeforeArguments.isEmpty {
+                var reverted: Set<SymbolID> = []
+                for (name, local) in locals
+                where local.isInitialized && uninitializedBeforeArguments.contains(local.symbol) {
+                    locals[name] = (local.type, local.symbol, local.isMutable, false)
+                    reverted.insert(local.symbol)
+                    if !local.isMutable { locals.possiblyAssignedVals.insert(local.symbol) }
+                }
+                if !reverted.isEmpty { locals.safeCallArgumentInitializations[id] = reverted }
+            }
+        }
+
         if safeCall {
             let baseState = ctx.flowState.includingMembers(from: locals)
             var narrowedState = ctx.dataFlow.narrowNonNull(
@@ -122,8 +139,6 @@ extension CallTypeChecker {
                 sema: ctx.sema,
                 interner: ctx.interner
             )
-            // `(x as? T)?.f(...)` narrows the cast operand to T inside the
-            // arguments the same way a stable receiver narrows to non-null.
             narrowedState = ctx.dataFlow.narrowSafeCastOperand(
                 receiverID,
                 base: narrowedState,
@@ -154,9 +169,6 @@ extension CallTypeChecker {
                         narrowedRequest, receiverType: memberReceiverType, locals: &narrowedLocals
                     )
                 )
-                // Keep argument-side effects on other locals, but restore
-                // the entries that moved only because of the receiver
-                // narrowing: `?.` may skip evaluation entirely.
                 for (name, prior) in locals
                 where narrowedState.variables[prior.symbol] != baseState.variables[prior.symbol] {
                     narrowedLocals[name] = prior
@@ -177,15 +189,6 @@ extension CallTypeChecker {
         return result
     }
 
-    /// `inferNameRefExpr(isQualifier:)` skips the opt-in check for a plain
-    /// object used purely as a member-call qualifier on the assumption that
-    /// the resolved callee re-checks the same markers — true for members
-    /// (owner propagation) and for extensions whose declared receiver type
-    /// carries the marker, but false for e.g. `GlobalScope.launch {}` where
-    /// `launch` is an extension on `CoroutineScope` and the
-    /// `@DelicateCoroutinesApi` marker lives only on the `GlobalScope`
-    /// object (KUU-4426). After resolution, emit the qualifier object's
-    /// requirements that the chosen callee does not already cover.
     private func checkObjectQualifierOptInCoverage(_ request: MemberCallInferenceRequest) {
         let sema = request.ctx.sema
         guard !request.safeCall,
@@ -232,29 +235,12 @@ extension CallTypeChecker {
         )
     }
 
-    /// KUU-1453: `recv.name` without parentheses is property-access syntax.
-    /// Kotlin never invokes a function that way — `c.m` is a compile error
-    /// ("function invocation 'm()' expected"). Member-call inference shares
-    /// one candidate machinery for both shapes, so an argument-less
-    /// non-explicit call can otherwise bind any zero-argument function
-    /// (member `c.m`, user extension `l.myProp`, bundled function
-    /// `l.first`). The only function bindings legal under property syntax
-    /// are property accessors (extension-property reads bind the getter
-    /// call) and the bundled-stdlib property facades (`lastIndex`,
-    /// `indices`, `javaClass`, `KClass.java`, and the synthetic `Char` member properties
-    /// `code`/`category`/`directionality`) that model upstream properties
-    /// the bundled surface cannot declare directly — the same contract
-    /// KUU-1451 established on the implicit-receiver side.
     private func enforceFunctionInvocationSyntax(
         _ request: MemberCallInferenceRequest,
         result: TypeID
     ) -> TypeID {
         let sema = request.sema
         let knownNames = request.knownNames
-        // This check protects dotted property syntax (`recv.name`). A
-        // nominal callable value written as `f()` is routed through member
-        // inference for its generated `invoke`, but the source expression
-        // remains `.call` rather than a dotted member access.
         let isDottedMemberAccess = switch request.ctx.ast.arena.expr(request.id) {
         case .memberCall, .safeMemberCall:
             true
@@ -288,10 +274,6 @@ extension CallTypeChecker {
             guard symbol.kind == .function || symbol.kind == .constructor else {
                 return result
             }
-            // A property read binds its accessor call — the property itself,
-            // not a function invocation. `accessorOwnerProperty` covers
-            // registered accessors; a `.property` parent marks source-level
-            // getter/setter helpers that share the property's name.
             if sema.symbols.accessorOwnerProperty(for: chosen) != nil {
                 return result
             }
@@ -311,9 +293,6 @@ extension CallTypeChecker {
                 return result
             }
         } else {
-            // Intrinsic `toString` resolution can bind only the expression
-            // type, without a CallBinding. Preserve actual properties with
-            // that name, but still require invocation syntax for the method.
             let isProperty = sema.bindings.identifierSymbol(for: request.id)
                 .flatMap(sema.symbols.symbol)
                 .map { $0.kind == .property || $0.kind == .field } ?? false
@@ -332,8 +311,6 @@ extension CallTypeChecker {
         return sema.types.errorType
     }
 
-    /// Synthetic Char property facades participate only in property syntax.
-    /// Ordinary same-named user functions remain callable extensions.
     func isSyntheticCharPropertyFacadeFunction(
         _ candidate: SymbolID,
         ctx: TypeInferenceContext
@@ -344,14 +321,6 @@ extension CallTypeChecker {
         return isBundledPropertyStyleFacadeFunction(candidate, ctx: ctx)
     }
 
-    /// The bundled stdlib models a small, fixed set of upstream Kotlin
-    /// properties as zero-argument package-level extension functions
-    /// (bundled-source `lastIndex`/`indices`/`javaClass`/`KClass.java` facades, and the
-    /// synthetic `Char` member-property stubs `code`/`category`/
-    /// `directionality`). A function bound through property-access syntax
-    /// is a facade only for those exact modeled properties — user,
-    /// member, or other bundled functions keep Kotlin's
-    /// invocation-syntax requirement.
     func isBundledPropertyStyleFacadeFunction(
         _ candidate: SymbolID,
         ctx: TypeInferenceContext
@@ -368,19 +337,6 @@ extension CallTypeChecker {
         else {
             return false
         }
-        // Two facade families model upstream Kotlin properties as
-        // zero-argument functions:
-        // - Bundled source extension functions for the upstream extension
-        //   properties `lastIndex`, `indices`, `javaClass` and `KClass.java`, which the
-        //   bundled parser cannot declare on generic receivers (see
-        //   `Stdlib/kotlin/collections/` and `Stdlib/kotlin/JavaClass.kt`).
-        //   These must be bundled declarations.
-        // - The upstream `Char` member properties `code`, `category` and
-        //   `directionality`, which the header pipeline registers as
-        //   synthetic `kotlin.text` extension functions on a non-null Char
-        //   receiver (see `HeaderHelpers+SyntheticCharStubs.swift`). These
-        //   are synthetic stubs, not bundled declarations, so the receiver
-        //   is pinned to `Char` and the symbol to stdlib-internal flags.
         var allowsSyntheticStub = false
         switch interner.resolve(symbol.name) {
         case "lastIndex", "indices", "javaClass":
@@ -390,10 +346,6 @@ extension CallTypeChecker {
                 interner.intern("kotlin"), interner.intern("jvm"), interner.intern("java"),
             ] else { return false }
         case "code", "category", "directionality":
-            // The signature key alone cannot tell the facade apart from a
-            // user extension with the same name and receiver: both produce
-            // the same (owner, name, arity) member key. Pin the declaration
-            // to the `kotlin.text` package the stubs are registered under.
             guard signature.receiverType == sema.types.charType,
                   symbol.fqName == [
                       interner.intern("kotlin"), interner.intern("text"), symbol.name,
@@ -411,9 +363,6 @@ extension CallTypeChecker {
             if parent.kind == .property {
                 return false
             }
-            // A genuine member is declared under its nominal owner; a
-            // package-level extension keeps its package FQName even when
-            // member lookup attaches it to the nominal.
             if parent.kind != .package,
                symbol.fqName == parent.fqName + [symbol.name]
             {
@@ -439,39 +388,15 @@ extension CallTypeChecker {
         {
             return true
         }
-        // A bundled-source declaration can be missing from the bundled
-        // index when its receiver is a bare type parameter
-        // (`fun <T : Any> T.javaClass()`): the AST key builder cannot name
-        // a nominal owner for `T`. Its declSite still marks it as bundled
-        // stdlib source.
         if let declFileID = sema.symbols.sourceFileID(for: candidate) ?? symbol.declSite?.start.file,
            let sourceManager = ctx.visibilityChecker.sourceManager,
            sourceManager.origin(of: declFileID)?.isBundledStdlib == true
         {
             return true
         }
-        // Synthetic stubs carry no bundled-declaration index entry; they
-        // are still stdlib-internal symbols, so the flag is enough proof
-        // of bundled origin for the synthetic facade names.
         return allowsSyntheticStub && symbol.flags.contains(.synthetic)
     }
 
-    /// KUU-4047: bundled `java.*` shim classes are Kotlin declarations, so
-    /// the Java `is`-getter convention never materializes a synthetic
-    /// property. On the JVM a zero-argument `is`+uppercase method
-    /// (`Optional.isPresent()`, `Optional.isEmpty()`, `BitSet.isEmpty()`)
-    /// is reachable BOTH as `o.isPresent()` and as the property-syntax read
-    /// `o.isPresent`. When property syntax bound such a member function and
-    /// the *receiver's* nominal is a bundled `java.*` class, keep the Java
-    /// dual access — the read binds the same `isX()` call.
-    ///
-    /// The receiver nominal, not the callee's declaring class, carries the
-    /// Java-ness: `java.util.ArrayDeque` overrides may bind a
-    /// `kotlin.collections` supertype declaration here, while on the JVM
-    /// `deque.isEmpty` is a property because the static type is a Java
-    /// class. `get`-prefixed methods are unaffected — they map to a
-    /// differently-named property (`getValue()` → `value`) that the bundled
-    /// surface models as an explicit `val` instead.
     func isBundledJavaIsGetterMemberFunction(
         _ candidate: SymbolID,
         receiverType: TypeID?,
@@ -481,10 +406,6 @@ extension CallTypeChecker {
             && isBundledJavaNominal(receiverType: receiverType, ctx: ctx)
     }
 
-    /// The callee side of the Java `is`-getter convention: a genuine member
-    /// function (declared under a nominal owner, not a package-level
-    /// extension) named `is`+uppercase taking no arguments and returning a
-    /// non-void type.
     func isBundledJavaIsGetterFunctionShape(
         _ candidate: SymbolID,
         ctx: TypeInferenceContext
@@ -526,10 +447,6 @@ extension CallTypeChecker {
         return true
     }
 
-    /// Whether [receiverType]'s nominal symbol is a bundled `java.*`
-    /// declaration — the bundled-source classes and the imported stdlib
-    /// artifact both count; user classes even in `java.*` packages do not
-    /// get the Java convention.
     func isBundledJavaNominal(
         receiverType: TypeID?,
         ctx: TypeInferenceContext
@@ -565,8 +482,6 @@ extension CallTypeChecker {
         receiverType: TypeID,
         locals: inout LocalBindings
     ) -> TypeID {
-        // Synthetic fast paths model ordinary calls. Infix calls must first
-        // select eligible members/extensions through the regular resolver.
         if request.ctx.ast.arena.isInfixCall(request.id) {
             return inferRegularMemberCall(request, receiverType: receiverType, locals: &locals)
         }
@@ -698,8 +613,6 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
-        // Extensions are never candidates on a `super.` call, so the bundled
-        // source binding may proceed exactly as before.
         guard !isSuperCall else { return false }
         let lookupReceiverType = sema.types.makeNonNullable(receiverType)
         let bulkReceiverFQName = sema.requiresResolvedLibraryCalls
@@ -720,8 +633,6 @@ extension CallTypeChecker {
                   !symbol.fqName.starts(with: knownNames.kotlinCollectionsPackage),
                   !sema.symbols.isImportedStdlibSymbol(candidate)
             else { return false }
-            // Bundled stdlib sources model `java.*` and `kotlin.*` surfaces as
-            // ordinary Kotlin declarations; they are not user code either.
             if let declFileID = sema.symbols.sourceFileID(for: candidate)
                 ?? symbol.declSite?.start.file,
                let sourceManager = ctx.visibilityChecker.sourceManager,
@@ -776,9 +687,6 @@ extension CallTypeChecker {
         }
     }
 
-    /// Nominal owners reachable from `root` through real `directSupertypes`
-    /// edges (including `root` itself) — used to keep `kotlin.Any` fallback
-    /// members out of the unqualified-`super` ambiguity count.
     private func realMemberOwners(
         of root: SymbolID,
         sema: SemaModule
@@ -792,10 +700,6 @@ extension CallTypeChecker {
         return seen
     }
 
-    /// Shared by member calls/reads (`inferMemberCallImpl`) and member
-    /// property writes (`inferMemberAssignExpr`): an unqualified `super`
-    /// receiver must resolve to the direct supertype that actually declares
-    /// the accessed member rather than the implicit `kotlin.Any` fallback.
     func resolveSuperMemberReceiverType(
         receiverID: ExprID,
         receiverType: TypeID,
@@ -824,8 +728,6 @@ extension CallTypeChecker {
                 to: superSymbol
             ) ?? []
             let superType = sema.types.make(.classType(ClassType(classSymbol: superSymbol, args: typeArgs)))
-            // Supertype selection precedes overload applicability: even different
-            // parameter lists require super<T> when both supertypes define the name.
             let foundMembers: [SymbolID]
             if isPropertyAccess {
                 foundMembers = driver.helpers.lookupMemberProperty(
@@ -857,18 +759,10 @@ extension CallTypeChecker {
                 concreteSupertypes.append(superType)
             }
             if concreteMembers.contains(where: { member in
-                // Interface runtime bridges provide a fallback, not an independent
-                // Kotlin default competing with a concrete superclass implementation.
-                // The annotation survives library serialization; ordinary imported
-                // defaults also have link names, so a link name alone is insufficient.
                 guard let owner = sema.symbols.parentSymbol(for: member),
                       sema.symbols.symbol(owner)?.kind == .interface,
                       let memberSymbol = sema.symbols.symbol(member)
                 else { return true }
-                // Compiler-synthesized interface members are runtime bridge
-                // stubs (e.g. the `MutableSet.addAll(array)` residual), not
-                // Kotlin default implementations. Imported declarations also
-                // carry `.synthetic`, so only genuine in-module stubs count.
                 guard !memberSymbol.flags.contains(.synthetic)
                         || memberSymbol.flags.contains(.importedLibrary)
                 else { return false }

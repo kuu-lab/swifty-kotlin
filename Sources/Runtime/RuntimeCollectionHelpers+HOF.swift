@@ -7,9 +7,6 @@ func runtimeSetThrown(_ outThrown: UnsafeMutablePointer<Int>?, _ value: Int) {
     outThrown?.pointee = value
 }
 
-/// Used by iterator `next()` after the iteration is exhausted so callers do not
-/// observe a silent `0`. JVM iterator exhaustion throws a messageless
-/// `NoSuchElementException`, so the default is a nil message.
 func runtimeThrowIteratorExhausted(
     _ outThrown: UnsafeMutablePointer<Int>?,
     message: String? = nil
@@ -82,7 +79,6 @@ func runtimeInvokeCollectionLambda1MaybeWrapped(
     )
 }
 
-/// Like `runtimeInvokeCollectionLambda1`, but leaves `value` boxed for statically-`Any` lambda parameters (LambdaLowerer unboxes concrete-primitive ones itself).
 @inline(__always)
 func runtimeInvokeCollectionLambda1PreservingBox(
     fnPtr: Int,
@@ -166,13 +162,6 @@ func runtimeInvokeClosureThunk(
     return fn(pair.closureRaw, outThrown)
 }
 
-/// Like `runtimeInvokeClosureThunk`, but tolerates `fnPtr` arriving as a
-/// `kk_function_create_0`-wrapped function-value handle instead of a raw,
-/// directly-callable function pointer — see `resolveFunctionValuePair`. Kept
-/// as a defensive pairing for zero-arg native bridges alongside
-/// `kk_worker_execute`'s job half (see the comment at its call site), which
-/// is the confirmed instance of this ABI boundary receiving a wrapped
-/// handle.
 @inline(__always)
 func runtimeInvokeClosureThunkMaybeWrapped(
     fnPtr: Int,

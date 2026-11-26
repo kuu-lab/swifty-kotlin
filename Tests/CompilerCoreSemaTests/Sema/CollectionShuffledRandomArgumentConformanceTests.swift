@@ -3,12 +3,6 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// KUU-4435: `shuffled(random:)` bound through the synthetic collection
-/// fallback without consulting its real `kotlin.random.Random` parameter
-/// signature, so `list.shuffled(42)` compiled and reached the runtime
-/// bridge with an Int where a Random object was expected (vtable panic).
-/// kotlinc rejects these calls at compile time, and these tests pin that
-/// parity while keeping the admissible `Random` arguments on the fallback.
 @Suite
 struct CollectionShuffledRandomArgumentConformanceTests {
     @Test

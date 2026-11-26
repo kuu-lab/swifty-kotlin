@@ -8,12 +8,4 @@
 
 package kotlin.collections
 
-// KSP-669: nominal `kotlin.collections.RandomAccess` marker interface migrated
-// out of the synthetic self-registration; on bundle load it reuses the synthetic
-// shell, which otherwise remains as a fallback for non-bundled contexts.
-
-/**
- * Marker interface indicating that the [List] implementation supports fast
- * (generally constant time) indexed access to its elements.
- */
 public interface RandomAccess

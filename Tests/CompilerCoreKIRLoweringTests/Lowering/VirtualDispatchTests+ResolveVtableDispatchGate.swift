@@ -4,10 +4,6 @@
 import Foundation
 import Testing
 
-// DEBT-KIR-001: vtable dispatch is enabled for compiler-created objects via
-// allocation-time vtable method registration, with kk_alloc/KTypeInfo remaining
-// as the runtime fallback path.
-
 extension VirtualDispatchTests {
     @Test func testHiddenFinalMemberCallsStayDirectInClassHierarchy() throws {
         let source = """
@@ -63,9 +59,6 @@ extension VirtualDispatchTests {
         }
     }
 
-    /// Isolated unit test for `resolveVirtualDispatch` on an open-class hierarchy.
-    /// Open-class hierarchies must select vtable dispatch when the callee has a
-    /// layout slot and the parent has known subtypes.
     @Test func testResolveVtableDispatchReturnsVtableForOpenClassWithSubtypes() {
         let fixture = makeVtableFixture()
         let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types).ctx
@@ -90,7 +83,6 @@ extension VirtualDispatchTests {
         #expect(dispatch == .vtable(slot: 0))
     }
 
-    /// Confirms that a class without known subtypes also skips vtable dispatch.
     @Test func testResolveVtableDispatchReturnsNilForClassWithoutSubtypes() {
         let interner = StringInterner()
         let types = TypeSystem()
@@ -173,8 +165,6 @@ extension VirtualDispatchTests {
         #expect(slot == 0, "speak should occupy vtable slot 0 in makeVtableFixture")
     }
 
-    /// Verifies vtable slot selection is per-callee, not always slot 0.
-    /// A class with two virtual methods must dispatch each to its own slot.
     @Test func testResolveVtableDispatchSelectsCorrectNonZeroSlot() throws {
         let interner = StringInterner()
         let types = TypeSystem()

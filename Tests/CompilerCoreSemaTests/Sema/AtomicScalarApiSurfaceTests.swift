@@ -56,11 +56,6 @@ struct AtomicScalarApiSurfaceTests {
         }
     }
 
-    // KUU-1365: names absent from the real kotlin.concurrent.atomics API
-    // (checked against the JVM reference kotlinc) must not resolve: Native
-    // extras (`value`, operator get/set, `length`, getAndSet, non-At CAS,
-    // *AndGet aliases), the phantom atomicArrayOf factory / AtomicArray(size)
-    // constructor, and the AtomicBoolean update family.
     @Test
     func canonicalAtomicsRejectNonCanonicalMembers() throws {
         let scalarCalls = [

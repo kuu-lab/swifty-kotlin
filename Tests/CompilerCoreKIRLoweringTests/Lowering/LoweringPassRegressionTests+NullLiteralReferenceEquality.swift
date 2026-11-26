@@ -4,15 +4,6 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-/// KUU-3865: `x == null` / `x != null` lowers to `x === null` /
-/// `x !== null` on the JVM — a raw slot check that never calls
-/// `Any.equals`. Sending a reference operand through kk_structural_eq
-/// asks the registered erased-Any equals override about the null
-/// sentinel instead, which flips the result for overrides that answer
-/// true for null (e.g. an `equals`-SAM wrapper `{ it == null }`).
-/// These tests pin the raw kk_op_eq/ne lowering for reference operands
-/// while non-literal peers keep the structural path and nullable
-/// primitives keep their sentinel-safe path.
 extension LoweringPassRegressionTests {
     @Test(arguments: ["x == null", "null == x"])
     func testAnyOperandNullLiteralUsesRawNullCheck(comparison: String) throws {

@@ -180,12 +180,6 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena
     ) -> [ContextReceiverDecl] {
-        // The `context(...)` clause is a declaration-prefix element: it may
-        // appear before or after the annotation/modifier run, but never inside
-        // one. Skip annotation spans and modifier keywords so `context` used
-        // as an annotation name (`@context(X)`), inside annotation arguments,
-        // or inside an unrelated expression statement is not mistaken for a
-        // clause (KUU-4291).
         var contextIndex: Int?
         var prefixIndex = 0
         while prefixIndex < tokens.count {
@@ -223,6 +217,19 @@ extension BuildASTPhase {
         var depth = 1
         var current: [Token] = []
         var items: [ContextReceiverDecl] = []
+        var sawComma = false
+        func appendCurrentItem() {
+            guard let item = parseContextReceiverItem(from: current, interner: interner, astArena: astArena) else {
+                return
+            }
+            items.append(ContextReceiverDecl(
+                name: item.name,
+                type: item.ref,
+                isContextParameter: item.isContextParameter,
+                isCrossinline: item.isCrossinline,
+                isNoinline: item.isNoinline
+            ))
+        }
         while index < tokens.count, depth > 0 {
             let token = tokens[index]
             if token.kind == .symbol(.lParen) {
@@ -231,27 +238,28 @@ extension BuildASTPhase {
             } else if token.kind == .symbol(.rParen) {
                 depth -= 1
                 if depth == 0 {
-                    if let item = parseContextReceiverItem(from: current, interner: interner, astArena: astArena) {
-                        items.append(ContextReceiverDecl(
-                            name: item.name,
-                            type: item.ref,
-                            isContextParameter: item.isContextParameter,
-                            isCrossinline: item.isCrossinline,
-                            isNoinline: item.isNoinline
-                        ))
+                    if !current.isEmpty {
+                        appendCurrentItem()
+                    } else if !sawComma {
+                        diagnostics?.error(
+                            "KSWIFTK-PARSE-0001",
+                            "Empty context parameter list.",
+                            range: token.range
+                        )
                     }
                     break
                 }
                 current.append(token)
             } else if token.kind == .symbol(.comma), depth == 1 {
-                if let item = parseContextReceiverItem(from: current, interner: interner, astArena: astArena) {
-                    items.append(ContextReceiverDecl(
-                        name: item.name,
-                        type: item.ref,
-                        isContextParameter: item.isContextParameter,
-                        isCrossinline: item.isCrossinline,
-                        isNoinline: item.isNoinline
-                    ))
+                sawComma = true
+                if current.isEmpty {
+                    diagnostics?.error(
+                        "KSWIFTK-PARSE-0001",
+                        "Expecting a parameter declaration.",
+                        range: token.range
+                    )
+                } else {
+                    appendCurrentItem()
                 }
                 current.removeAll(keepingCapacity: true)
             } else {
@@ -262,9 +270,6 @@ extension BuildASTPhase {
         return items
     }
 
-    /// Context parameters may carry a `name:` or `_:` prefix (`context(ctx: Context)` /
-    /// `context(_: Context)`). The `context` soft keyword can also be used as the name.
-    /// Split the leading `name :` off so the receiver type still parses.
     private func parseContextReceiverItem(
         from tokens: [Token],
         interner: StringInterner,
@@ -290,10 +295,6 @@ extension BuildASTPhase {
                    allowUseSiteTarget: false
                )
             {
-                // Context parameters may be annotated (`context(@Foo name: T)`);
-                // the annotations themselves are not modeled on
-                // `ContextReceiverDecl`, but skipping them keeps the `name:` /
-                // `_:` prefix visible to the checks below.
                 typeTokens.removeFirst(parsed.nextIndex)
             } else if first.kind == .keyword(.crossinline) {
                 isCrossinline = true
@@ -345,13 +346,16 @@ extension BuildASTPhase {
                     "Expected type after ':'.",
                     range: following?.range ?? nameColonRange
                 )
+            } else if !isContextParameter {
+                diagnostics?.error(
+                    "KSWIFTK-PARSE-0030",
+                    "context parameters must be named. Use '_' to declare an anonymous context parameter.",
+                    range: typeTokens.first?.range ?? tokens.first?.range
+                )
             }
             return nil
         }
         if !isContextParameter {
-            // Kotlin 2.4 context parameters must be named (`name:`) or
-            // anonymous (`_:`); a bare type is the removed context-receiver
-            // syntax, which kotlinc rejects per element (KUU-4291).
             diagnostics?.error(
                 "KSWIFTK-PARSE-0030",
                 "context parameters must be named. Use '_' to declare an anonymous context parameter.",
@@ -379,7 +383,6 @@ extension BuildASTPhase {
             if token.kind == .symbol(.assign) || token.kind == .symbol(.lBrace) {
                 return nil
             }
-            // A where-clause bound uses a colon but is not a return type.
             if case .softKeyword(.where) = token.kind {
                 return nil
             }
@@ -453,9 +456,6 @@ extension BuildASTPhase {
             return nil
         }
         if tokens[separatorIndex].kind == .symbol(.questionDot) {
-            // The lexer combines the nullable suffix and extension separator in `?.`.
-            // Keep the suffix in the receiver type while consuming the same token as
-            // the boundary before the property name.
             receiverTokens.append(Token(kind: .symbol(.question), range: tokens[separatorIndex].range))
         }
         return parseTypeRef(from: receiverTokens, interner: interner, astArena: astArena)
@@ -492,8 +492,6 @@ extension BuildASTPhase {
         in tokens: [Token],
         after valVarIndex: Int
     ) -> Int? {
-        // `?.` is lexed as one token. In a declaration head it terminates a
-        // nullable receiver and separates that receiver from the property name.
         var depth = BracketDepth()
         var lastSeparatorIndex: Int?
         for index in (valVarIndex + 1) ..< tokens.count {
@@ -619,18 +617,12 @@ extension BuildASTPhase {
             switch child {
             case let .token(tokenID):
                 if let token = resolveToken(tokenID, in: arena) {
-                    // Stop before inline `get(`/`set(` accessor keywords so that
-                    // type and initializer parsing don't consume accessor tokens.
                     if !enteredNestedBlock {
                         switch token.kind {
                         case .softKeyword(.get), .softKeyword(.set):
                             if let idx = inlineAccessorStartIndex(in: tokens + [token]) {
                                 return droppingTrailingAccessorModifiers(Array(tokens.prefix(idx)), interner: interner)
                             }
-                            // `var p: Int get() { ... }` keeps the getter's
-                            // block as a sibling node, so the direct tokens
-                            // end at `get()` and the scan above cannot see a
-                            // body. Use the following children instead.
                             if isSiblingBlockAccessorHeader(
                                 at: childIndex, in: children, arena: arena, previous: tokens.last
                             ) {
@@ -648,8 +640,6 @@ extension BuildASTPhase {
             case let .node(childID):
                 let childKind = arena.node(childID).kind
                 if childKind == .propertyAccessor {
-                    // A later accessor child may follow an inline expression
-                    // getter. Its '=' belongs to the getter, not an initializer.
                     let inlineAccessorTokens = Array(tokens.prefix(inlineAccessorScanEnd))
                     if let idx = inlineAccessorStartIndex(in: inlineAccessorTokens) {
                         return droppingTrailingAccessorModifiers(Array(tokens.prefix(idx)), interner: interner)
@@ -657,9 +647,6 @@ extension BuildASTPhase {
                     return droppingTrailingAccessorModifiers(tokens, interner: interner)
                 }
                 if childKind == .block {
-                    // An expression getter may end in a lambda sibling block.
-                    // Strip its complete `get() =` header before returning the
-                    // property head, just as for a propertyAccessor child.
                     let inlineAccessorTokens = Array(tokens.prefix(inlineAccessorScanEnd))
                     if let idx = inlineAccessorStartIndex(in: inlineAccessorTokens) {
                         return droppingTrailingAccessorModifiers(Array(tokens.prefix(idx)), interner: interner)
@@ -690,9 +677,6 @@ extension BuildASTPhase {
                 }
             }
         }
-        // Final check: scan only the direct-token prefix for inline accessor
-        // start.  Recursed trailing-lambda tokens may contain calls to `get` or
-        // `set`, which are not property accessors.
         let inlineAccessorTokens = Array(tokens.prefix(inlineAccessorScanEnd))
         if let idx = inlineAccessorStartIndex(in: inlineAccessorTokens) {
             return droppingTrailingAccessorModifiers(Array(tokens.prefix(idx)), interner: interner)
@@ -700,11 +684,6 @@ extension BuildASTPhase {
         return tokens
     }
 
-    /// `get`/`set` accessors accept their own modifiers between the property
-    /// signature and the accessor keyword — `val x: Int @Anno get()` or
-    /// `val x: Int private get()`. Those tokens are not part of the type
-    /// reference or initializer, so drop the trailing accessor-modifier run
-    /// from head tokens that end at an accessor boundary.
     private func droppingTrailingAccessorModifiers(_ tokens: [Token], interner: StringInterner) -> [Token] {
         guard let start = trailingAccessorModifierStart(in: tokens, interner: interner) else {
             return tokens
@@ -712,13 +691,6 @@ extension BuildASTPhase {
         return Array(tokens[..<start])
     }
 
-    /// Start index of a trailing run made solely of annotations and accessor
-    /// modifier keywords (`public`/`private`/`internal`/`protected`/`inline`).
-    /// Only meaningful where an accessor is known to follow the token list.
-    /// A candidate preceded by `.`/`?.`/`->` is a type-name continuation
-    /// (`p.inline`, `() -> inline`), and the run may never absorb the whole
-    /// type or initializer — a class literally named `inline` remains a type
-    /// (`val x: inline get()`), matching kotlinc's resolution.
     func trailingAccessorModifierStart(in tokens: [Token], interner: StringInterner) -> Int? {
         var candidates: [Int] = []
         var boundaryIndex = -1
@@ -726,8 +698,6 @@ extension BuildASTPhase {
         var index = 0
         while index < tokens.count {
             let token = tokens[index]
-            // Skip whole annotations (including use-site `:` and `=` inside
-            // their argument lists) so they cannot look like separators.
             if token.kind == .symbol(.at),
                let parsed = AnnotationParsingSupport.parseAnnotation(
                    from: tokens, start: index, interner: interner, allowUseSiteTarget: true
@@ -781,8 +751,6 @@ extension BuildASTPhase {
                 }
             }
             guard valid else { continue }
-            // The head must keep a real type/initializer token after the last
-            // top-level `:`/`=`/`by` separator.
             var segmentHasRealToken = false
             var segmentIndex = boundaryIndex + 1
             while segmentIndex < start {
@@ -856,8 +824,6 @@ extension BuildASTPhase {
         firstTopLevelKeywordIndex(in: tokens, matching: [.fun])
     }
 
-    /// The scan is anchored at the `fun` keyword to avoid picking annotation
-    /// argument lists that appear before the declaration keyword.
     func functionParameterOpenParenIndex(in tokens: [Token]) -> Int? {
         guard let funIndex = functionKeywordIndex(in: tokens) else {
             return nil
@@ -871,8 +837,6 @@ extension BuildASTPhase {
                 close: .symbol(.greaterThan)
             )
         }
-        // `fun (() -> R).name(` / `fun (T)?.name(`: a parenthesized receiver
-        // type precedes the function name, so its `(` is not the parameter list.
         if let afterReceiver = indexAfterParenthesizedReceiver(in: tokens, from: index) {
             index = afterReceiver
         }

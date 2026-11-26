@@ -43,4 +43,13 @@ fun main() {
     }
     println("reduceSame=${reduced === reduceDestination}")
     println("reduce=${reduced[1]?.weight}:${reduced[0]?.weight}")
+
+    val nullableFoldDestination: MutableMap<String, Int?> = mutableMapOf<String, Int?>("a" to null)
+    val nullableFolded = listOf("apple", "banana")
+        .groupingBy { it.substring(0, 1) }
+        .foldTo(nullableFoldDestination, 7) { accumulator, element ->
+            (accumulator ?: 50) + element.length
+        }
+    println("nullableFoldSame=${nullableFolded === nullableFoldDestination}")
+    println("nullableFold=${nullableFolded["a"]}:${nullableFolded["b"]}")
 }

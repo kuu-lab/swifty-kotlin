@@ -2,8 +2,6 @@ import TestStdlibCache
 import Testing
 
 extension BundledStdlibExecutionTests {
-    // KUU-2413: enum hashCode keeps singleton identity across direct and
-    // Any-erased receivers in both bundled-source and imported-stdlib paths.
     @Test(arguments: [false, true], [0, 2])
     func testEnumEntryHashCodeMatchesJvmBehavior(
         allowDefaultStdlibLibrary: Bool,

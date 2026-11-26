@@ -1,15 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// KUU-3899: `x!!`/`.nullAssert` on a statically non-null operand whose
-    /// runtime slot cannot encode a null value — a raw primitive, or the flat
-    /// payload of a value class kept unboxed — must not probe the raw slot
-    /// with `kk_op_notnull`. The null-sentinel bit pattern is a legitimate
-    /// value there (`Long.MIN_VALUE`, `ULong` 2^63, `-0.0`, or `V(null)` for
-    /// a nullable underlying type), never a null reference, so the probe can
-    /// only fire spuriously. Nullable `V?`/primitive slots keep the probe on
-    /// the nominal box/handle, which still throws NPE on a real null.
-    ///
     /// JVM's `checkNotNull` throws on `v!!` for a *direct* flat `Int?`
     /// payload of `V(null)` — a carrier artifact (it cannot distinguish a
     /// null payload from a null object). KSwiftK deliberately treats `!!` on
@@ -89,11 +80,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-3899 regression for the upstream case
-    /// `coroutines/inlineClasses/resume/covariantOverrideSuspendFunWithNullableInlineClass_NullableInt_null`:
-    /// a non-null `IC` returned from a suspend function is delivered through
-    /// the boxed `IC?`/generic ABI; `!!` must check the nominal box, not the
-    /// unboxed nullable payload sentinel, and must not throw on `IC(null)`.
     @Test
     func testNullAssertOnSuspendDeliveredValueClassChecksBox() throws {
         try compileAndRunKotlin(

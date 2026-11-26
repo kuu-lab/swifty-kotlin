@@ -4,21 +4,6 @@ import Testing
 @testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
-    /// KSP-417 kept normalization and codePointCount as runtime bridges,
-    /// demoted to the private `__kk_` tier, and the old synthetic stubs had
-    /// no Kotlin body of their own — a call to them inlined the runtime
-    /// callee directly into the caller's KIR. KSP-717 moved normalize /
-    /// isNormalized / codePointCount to real bundled Kotlin functions
-    /// (StringNormalize.kt / StringBasics.kt) compiled once into the shared
-    /// stdlib artifact: `main` now resolves them as ordinary function calls
-    /// by their own name, and their internal `__kk_*` bridge calls live in
-    /// those functions' own (separately compiled) KIR bodies, invisible to
-    /// `main`'s. The bridges' `__kk_` link names are covered at the Sema
-    /// level by StringSyntheticMemberLinkTests; this only needs to confirm
-    /// `main` no longer inlines a raw runtime callee for these calls.
-    /// NormalizationForms.NFC/NFD/NFKC/NFKD are plain Kotlin property
-    /// initializers now, so their runtime bridges are gone entirely (not just
-    /// demoted) and must never appear as a callee anywhere.
     @Test func testUnicodeNormalizationAndCodePointCountResolveToBundledKotlinFunctions() throws {
         let source = """
         fun main() {

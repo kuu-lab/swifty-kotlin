@@ -1,8 +1,5 @@
 package kotlin.ranges
 
-// KSP-1283: ClosedRange cross-type contains follows the Kotlin 2.3.10 range
-// conversion contract, including checked narrowing and hidden mixed-number APIs.
-
 @kotlin.jvm.JvmName("intRangeContains")
 public operator fun ClosedRange<Int>.contains(value: Byte): Boolean =
     contains(value.toInt())

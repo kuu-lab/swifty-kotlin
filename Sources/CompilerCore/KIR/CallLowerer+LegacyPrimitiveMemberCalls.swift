@@ -26,9 +26,6 @@ extension CallLowerer {
             return result
         }
 
-        // KSP-642: Int/Long rotateLeft / rotateRight are lowered as ordinary calls to
-        // the bundled Kotlin declarations in `Stdlib/kotlin/Numbers.kt`.
-
         if calleeName == interner.intern("not"),
            args.isEmpty
         {
@@ -65,8 +62,6 @@ extension CallLowerer {
             calleeNameStr, chosenCallee: chosenCalleeForArgumentAdaptation, sema: sema, interner: interner
         )
 
-        // Float.mod(other) / Double.mod(other): Kotlin mod uses floor-style
-        // modulo, while rem/% use truncating remainder.
         if !selectsUserNumericExtension, args.count == 1,
            calleeNameStr == "mod"
         {
@@ -136,8 +131,6 @@ extension CallLowerer {
             return result
         }
 
-        // Explicit primitive arithmetic member calls behave exactly like the
-        // operator syntax, so emit the same `.binary` node and let the
         // operator/narrowing passes type it. The integer-receiver fast path
         // below only knows `kk_op_*` on integral slots, so any floating-point
         // operand must take the operator path to get its widening conversions.
@@ -162,8 +155,6 @@ extension CallLowerer {
             }
         }
 
-        // Direct range expressions are typed with their scalar element type, but
-        // `plus`/`minus` must keep the selected Iterable extension at this stage.
         let isRangePlusMinusReceiver = ["plus", "minus"].contains(calleeNameStr)
             && (sema.bindings.isRangeExpr(receiverExpr)
                 || ControlFlowTypeChecker.isRangeExpression(receiverExpr, ast: ast))
@@ -240,9 +231,6 @@ extension CallLowerer {
         result: KIRExprID,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        // Int/Long.toString(radix: Int) is bundled Kotlin source
-        // (Stdlib/kotlin/text/StringNumberConversions.kt, KSP-717) and falls
-        // through to the normal resolved-symbol call lowering below.
         if calleeName == interner.intern("toString"),
            args.isEmpty
         {
@@ -312,9 +300,6 @@ extension CallLowerer {
             let doubleType = sema.types.make(.primitive(.double, .nonNull))
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let rawNonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            // A smartcast intersection (`Interface & Char`) keeps the
-            // primitive as one part; resolve to it so the conversion table
-            // sees the concrete primitive receiver type.
             let nonNullReceiverType = smartcastNarrowedPrimitiveType(of: rawNonNullReceiverType, sema: sema)
                 ?? rawNonNullReceiverType
             let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
@@ -339,7 +324,7 @@ extension CallLowerer {
             case ("toInt", doubleType, intType): interner.intern("__kk_double_to_int")
             case ("toInt", floatType, intType): interner.intern("__kk_float_to_int")
             case ("toInt", longType, intType): interner.intern("kk_long_to_int")
-            case ("toInt", charType, intType): nil // Char is stored as Int
+            case ("toInt", charType, intType): nil
             case ("toInt", byteType, intType): nil
             case ("toInt", shortType, intType): nil
             case ("toInt", intType, intType): nil
@@ -354,7 +339,6 @@ extension CallLowerer {
             // high bits away (kk_ulong_to_uint has no dedicated symbol; reuse
             // kk_long_to_uint, which already truncates via UInt32(truncatingIfNeeded:)
             // on the same raw-register representation). Was wrongly treated as
-            // representation-preserving, which left garbage high bits behind.
             case ("toUInt", ulongType, uintType): interner.intern("kk_long_to_uint")
             case ("toLong", intType, longType): interner.intern("kk_int_to_long")
             case ("toLong", uintType, longType): interner.intern("kk_uint_to_long")
@@ -437,9 +421,6 @@ extension CallLowerer {
                     || (calleeStr == "toInt" && (nonNullReceiverType == byteType || nonNullReceiverType == shortType) && nonNullResultType == intType)
                     || (calleeStr == "toLong" && (nonNullReceiverType == byteType || nonNullReceiverType == shortType) && nonNullResultType == longType)
                     || (calleeStr == "toShort" && nonNullReceiverType == byteType && nonNullResultType == shortType)
-            // Byte.toByte() and Short.toShort() have no runtime callee; keep
-            // identity/representation-preserving conversions from falling through
-            // to generic member emission as raw symbols.
             if ["toInt", "toUInt", "toLong", "toULong", "toFloat", "toDouble", "toByte", "toShort", "toUByte", "toUShort", "toChar"].contains(calleeStr),
                nonNullReceiverType == nonNullResultType || isRepresentationPreservingConversion,
                nonNullReceiverType == intType || nonNullReceiverType == longType
@@ -467,12 +448,7 @@ extension CallLowerer {
         chosenCallee: SymbolID?,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        // KSP-662: bundled Kotlin (kotlin.text.CharConversions) resolves
-        // digitToInt / digitToIntOrNull, so no lowering special case is needed.
         if args.isEmpty, calleeNameStr == "code" {
-            // Sema resolves `'a'.code()` to a same-named user extension when
-            // one is in scope; only the kotlin.text property facade (and
-            // unbound name-based lookups) may become the kk_char_code read.
             if let chosenCallee,
                let chosenSymbol = sema.symbols.symbol(chosenCallee),
                chosenSymbol.fqName != KnownCompilerNames(interner: interner).kotlinTextCodeFQName
@@ -488,9 +464,6 @@ extension CallLowerer {
         return nil
     }
 
-    /// `floorDiv`/`mod` are extensions, so Sema may bind a same-named user
-    /// extension in a nearer scope; only the kotlin-package ones may become
-    /// `kk_op_*` intrinsics.
     func selectsUserNumericExtension(
         _ name: String,
         chosenCallee: SymbolID?,

@@ -43,7 +43,6 @@ struct JavaLangClassLoaderTests {
             try assertCompilationSucceeded(makeTestDriver().runForTesting(options: options))
         }
 
-        // Fix the process policy so the desiredAssertionStatus control is deterministic.
         let result = try CommandRunner.run(
             executable: "/usr/bin/env",
             arguments: [

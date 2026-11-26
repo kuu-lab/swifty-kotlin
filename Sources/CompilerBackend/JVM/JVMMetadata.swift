@@ -1,9 +1,6 @@
 import Foundation
 import CompilerCore
 
-/// Kotlin metadata 2.0 file facades and classes for the JVM subset.
-/// Field numbers follow Kotlin's metadata.proto, jvm_metadata.proto and
-/// jvm_module.proto. Explicit JVM signatures avoid inferred ABI mappings.
 enum JVMMetadata {
     struct Proto {
         var bytes = Data()
@@ -177,7 +174,7 @@ enum JVMMetadata {
                 proto.data(6, parameter(setter.parameterNames.first ?? "value", property.type, property.kotlinType))
             }
             var jvm = Proto()
-            if let field = property.delegateField ?? property.field { jvm.data(1, signature(field.name, field.type.descriptor)) }
+            if let field = property.delegateField ?? property.field ?? property.relocatedField { jvm.data(1, signature(field.name, field.type.descriptor)) }
             else if property.modifiers.contains(.const) { jvm.data(1, signature(property.name, property.type.descriptor)) }
             if let carrier = property.annotationsMethod { jvm.data(2, signature(carrier.name, carrier.descriptor)) }
             if !property.modifiers.contains(.const) { jvm.data(3, signature(property.getter.name, property.getter.descriptor)) }

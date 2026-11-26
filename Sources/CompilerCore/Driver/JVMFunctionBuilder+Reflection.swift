@@ -50,6 +50,26 @@ extension JVMFunctionBuilder {
         return try javaClass(token == .unit ? .reference("kotlin/Unit", nullable: false) : JVMClasspathIndex.boxed(token))
     }
 
+    private func throwableJDKReferenceMethod(for symbol: SymbolID) -> JVMForeignMethod? {
+        guard let info = program.sema.symbols.symbol(symbol), info.fqName.count == 3,
+              context.interner.resolve(info.fqName[0]) == "kotlin",
+              context.interner.resolve(info.fqName[1]) == "Throwable",
+              context.interner.resolve(info.fqName[2]) == "getSuppressed"
+        else { return nil }
+        var method = JVMForeignMethod(
+            owner: "java/lang/Throwable",
+            name: "getSuppressed",
+            descriptor: "()[Ljava/lang/Throwable;",
+            parameters: [],
+            result: .reference("[Ljava/lang/Throwable;", nullable: false),
+            isStatic: false,
+            isInterface: false,
+            isAbstract: false
+        )
+        method.isFinal = true
+        return method
+    }
+
     func reflectionReference(_ id: ExprID, receiver: ExprID?, member: InternedString) throws -> JVMValue {
         if context.interner.resolve(member) == "class" {
             let klass = try javaClassForClassReference(id, receiver: receiver)
@@ -84,6 +104,7 @@ extension JVMFunctionBuilder {
         if inlineOnly || program.sema.symbols.functionSignature(for: symbol)?.reifiedTypeParameterIndices.isEmpty == false {
             return try inlinedReference(id, symbol: symbol, receiver: receiver, unbound: unbound)
         }
+        if let text = try textReference(id, symbol: symbol, receiver: receiver, unbound: unbound) { return text }
         if let binding = program.sema.bindings.callableReferenceBinding(for: id), let function = functionType(id),
            let signature = program.sema.symbols.functionSignature(for: symbol) {
             let unitConversion = try program.type(function.returnType) == .unit && program.type(signature.returnType) != .unit
@@ -91,18 +112,22 @@ extension JVMFunctionBuilder {
                 return try adaptedReference(id, symbol: symbol, receiver: receiver, unbound: unbound)
             }
         }
-        // Source-backed inline declarations also retain an ordinary runtime
-        // entry for references, independently of call-site body expansion.
-        let sourceBacked = program.inlineDeclarations[symbol] != nil ? program.textLibraryMethods[symbol] : nil
-        let method = program.methods[symbol] ?? context.jvmImports?.method(for: symbol) ?? sourceBacked?.method
+        let sourceBacked = program.textLibraryMethods[symbol].flatMap { $0.adaptation == nil ? $0 : nil }
+        let collectionMethod = program.collectionInterfaceMethods[symbol]
+        let supportedCollectionReference = collectionMethod?.owner == "java/util/Map" && collectionMethod?.name == "putIfAbsent"
+        let method = program.methods[symbol] ?? (supportedCollectionReference ? collectionMethod : nil) ?? context.jvmImports?.method(for: symbol) ?? sourceBacked?.method ?? throwableJDKReferenceMethod(for: symbol)
         let ref = program.references[symbol]
         guard method != nil || ref != nil else { throw fail("Unsupported JVM callable reference target.", id) }
         let constructor = method?.isConstructor == true
         let isExtension = program.extensionSymbols.contains(symbol) || context.jvmImports?.extensionSymbols.contains(symbol) == true || sourceBacked?.extensionReceiver != nil
         let ownerName = ref?.owner ?? method!.owner
-        let staticTarget = ref != nil || method?.isStatic == true
-        let bound = !unbound && !constructor && (!staticTarget || isExtension) ? try receiver.map(requireValue) ?? instance(id) : nil
-        let params = ref?.parameters ?? method!.parameters
+        let valueMember = ref == nil && method?.isStatic == true && method?.kotlinFunction?.valueMemberParameterDescriptors != nil
+        let staticTarget = !valueMember && (ref != nil || method?.isStatic == true)
+        var bound = !unbound && !constructor && (!staticTarget || isExtension) ? try receiver.map(requireValue) ?? instance(id) : nil
+        if valueMember, let captured = bound, let method {
+            bound = try convert(captured, to: .reference(method.owner, nullable: false))
+        }
+        let params = ref?.parameters ?? (valueMember ? Array(method!.parameters.dropFirst()) : method!.parameters)
         let suspended = ref?.isSuspend ?? method?.isSuspend ?? false
         let arity = params.count + (!staticTarget && !constructor && bound == nil ? 1 : 0) - (staticTarget && isExtension && bound != nil ? 1 : 0) + (suspended ? 1 : 0)
         guard arity <= 22 else { throw fail("JVM callable reference arity exceeds 22.", id) }
@@ -229,8 +254,6 @@ extension JVMFunctionBuilder {
             return JVMIntrinsicResult(value: try jdkCall(ownerName, name, [.reference("java/lang/Class", nullable: false)], .reference("java/lang/annotation/Annotation", nullable: true), receiver: requireValue(receiverID), arguments: [requireValue(args[0].expr)], resolved: program.expressionType(id)))
         }
         if isClass, name == "java", args.isEmpty {
-            // A class reference already has a JVM Class token. Only a
-            // standalone KClass value needs the Kotlin reflection wrapper.
             if case let .callableRef(receiver, member, _) = arena.expr(receiverID),
                context.interner.resolve(member) == "class" {
                 return JVMIntrinsicResult(value: try javaClassForClassReference(receiverID, receiver: receiver))

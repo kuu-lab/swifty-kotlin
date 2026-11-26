@@ -3,10 +3,6 @@ import Foundation
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// KUU-4374: `KClass.primaryConstructor` / `constructors` hand out bare
-    /// RuntimeKConstructorBox handles; without a pinned description they
-    /// rendered as `<object 0x…>` instead of the JVM-style
-    /// `fun `<init>`(P): C` signature.
     @Test func constructorReflectionToStringRendersJvmSignature() throws {
         try compileAndRunKotlin(
             """

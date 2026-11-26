@@ -4,8 +4,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-3012: a user class with an implicit Any superclass must link when
-    /// the stdlib is imported from a serialized artifact.
     @Test(arguments: [true, false])
     func testUserDefinedPrimaryConstructorLinksWithAndWithoutStdlibArtifact(
         useArtifact: Bool

@@ -16,7 +16,6 @@ enum JVMEmissionError: Error, CustomStringConvertible {
     }
 }
 
-/// Big-endian classfile data. All narrowing conversions are checked by callers.
 struct JVMBytes {
     var data = Data()
 
@@ -54,6 +53,24 @@ final class JVMConstantPool {
         if wide { entries.append(Data()) }
         indices[entry.data] = index
         return index
+    }
+
+    /// Starts an empty pool with the entries of `source` at their original
+    /// indices, so bytecode copied from that class stays valid unchanged.
+    func seed(_ source: JVMRawConstantPool) throws {
+        guard entries.isEmpty, source.entries.count <= 65_535 else {
+            throw JVMEmissionError.limit("JVM constant pool cannot be seeded.")
+        }
+        // The seeded class has no BootstrapMethods attribute, so dynamic
+        // constants and call sites become same-size placeholders. Cloned code
+        // never uses them: bodies with invokedynamic are not cloned.
+        var placeholder = JVMBytes()
+        placeholder.u1(3); placeholder.u4(0)
+        for original in source.entries.dropFirst() {
+            let entry = original.first == 17 || original.first == 18 ? placeholder.data : original
+            entries.append(entry)
+            if !entry.isEmpty, indices[entry] == nil { indices[entry] = UInt16(entries.count) }
+        }
     }
 
     func utf8(_ value: String, kotlinLiteral: Bool = false) throws -> UInt16 {

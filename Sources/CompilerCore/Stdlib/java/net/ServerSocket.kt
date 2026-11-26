@@ -3,20 +3,14 @@ package java.net
 import java.io.Closeable
 import kotlin.internal.KsSymbolName
 
-/** Native source-backed `java.net.ServerSocket`: a real TCP listening socket
- * backed by POSIX `bind`/`listen`/`accept`. [accept] returns real connected
- * [Socket] instances; [setSoTimeout] bounds the accept wait like the JDK. */
 public open class ServerSocket : Closeable {
     private var handle: Long
     private var closed = false
 
-    /** Creates an unbound server socket. */
     public constructor() {
         handle = netServerSocketCreate()
     }
 
-    /** Creates a server socket bound to the wildcard address on `port`
-     * (`0` = any free port). */
     public constructor(port: Int) : this() {
         checkServerPort(port)
         bind(InetSocketAddress(port))
@@ -46,8 +40,6 @@ public open class ServerSocket : Closeable {
         netServerSocketBind(handle, resolved.hostAddress, endpoint.port, backlog)
     }
 
-    /** Blocks until a connection arrives and returns its [Socket].
-     * @throws SocketTimeoutException when [setSoTimeout] elapses first. */
     public open fun accept(): Socket {
         val client = netServerSocketAccept(handle)
         return Socket(client)

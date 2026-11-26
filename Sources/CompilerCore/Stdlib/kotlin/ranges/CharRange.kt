@@ -7,7 +7,6 @@ package kotlin.ranges
 
 import kotlin.internal.KsSymbolName
 
-// Construction retains only the hidden runtime factory for the range handle.
 public class CharRange @KsSymbolName("__kk_char_rangeTo") constructor(
     start: Char,
     endInclusive: Char,

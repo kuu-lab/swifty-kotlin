@@ -1,8 +1,6 @@
 import Foundation
 
 extension JVMPreparationPhase {
-    /// Every platform implementation is a real Kotlin source, selected in
-    /// stable resource order. ABI-only declarations live in a separate tree.
     func injectJVMStdlibSources(_ ctx: CompilationContext) throws {
         let base = try JVMStdlibCatalog.resourceRoot()
         let directory = base.appendingPathComponent("jvm/kotlin")

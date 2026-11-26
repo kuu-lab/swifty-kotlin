@@ -24,16 +24,6 @@ public struct FrontendResult {
 }
 
 public extension CompilerDriver {
-    /// Intended for language-server / editor integrations that need
-    /// diagnostics and semantic information for open buffers.
-    ///
-    /// - Parameters:
-    ///   - inMemorySources: Optional map of file path → source bytes for unsaved
-    ///     editor buffers. Each entry is pre-seeded into the `SourceManager`, so
-    ///     `LoadSourcesPhase` (which skips already-registered paths) uses the
-    ///     in-memory contents instead of reading from disk.
-    ///   - continuationPolicy: The default preserves the fail-fast frontend
-    ///     behavior.
     func runFrontend(
         options: CompilerOptions,
         inMemorySources: [String: Data] = [:],

@@ -1,6 +1,5 @@
 package java.util.zip
 
-/** A streaming zlib encoder that emits valid stored DEFLATE blocks. */
 public class Deflater public constructor(
     private var level: Int,
     private val nowrap: Boolean,

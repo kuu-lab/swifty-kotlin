@@ -1,7 +1,5 @@
 import Foundation
 
-/// Audits the supported source grammar before Sema. BuildAST deliberately
-/// tolerates/discards some tokens; JVM must never silently compile that loss.
 final class JVMSourceValidationPhase: CompilerPhase {
     static let name = "JVMSourceValidation"
 
@@ -53,17 +51,13 @@ private struct JVMSourceGrammar {
     }
     mutating func type(nullable: Bool = true, receiverSuffix: Bool = true) throws {
         while kind == .symbol(.at) { try annotation(typeContext: true) }
-        _ = take(.keyword(.suspend))
-        if take(.symbol(.lParen)) {
-            if !take(.symbol(.rParen)) {
-                repeat {
-                    if kind.isLabelName, tokens[min(index + 1, tokens.count - 1)].kind == .symbol(.colon) {
-                        index += 2
-                    }
-                    try type()
-                } while take(.symbol(.comma)) && kind != .symbol(.rParen)
-                try require(.symbol(.rParen))
-            }
+        let isSuspend = take(.keyword(.suspend))
+        if kind == .softKeyword(.context), tokens[min(index + 1, tokens.count - 1)].kind == .symbol(.lParen) {
+            try contextualFunctionType(isSuspend: isSuspend)
+            return
+        }
+        if kind == .symbol(.lParen) {
+            try functionTypeParameterList()
             if take(.symbol(.arrow)) { try type() }
             if nullable { _ = take(.symbol(.question)) }
             if receiverSuffix, take(.symbol(.dot)) { try type() }
@@ -71,16 +65,7 @@ private struct JVMSourceGrammar {
         }
         try name()
         while kind == .symbol(.dot), tokens[min(index + 1, tokens.count - 1)].kind != .symbol(.lParen) { index += 1; try name() }
-        if take(.symbol(.lessThan)) {
-            repeat {
-                if !take(.symbol(.star)) {
-                    while kind == .symbol(.at) { try annotation(typeContext: true) }
-                    _ = take(.keyword(.in)) || take(.softKeyword(.out))
-                    try type()
-                }
-            } while take(.symbol(.comma))
-            try require(.symbol(.greaterThan))
-        }
+        try typeArgumentsIfPresent()
         if take(.symbol(.amp)) {
             guard case let .identifier(marker) = kind,
                   context.interner.resolve(marker) == "Any" else { throw Unsupported() }
@@ -89,6 +74,79 @@ private struct JVMSourceGrammar {
         if nullable, receiverSuffix, take(.symbol(.questionDot)) { try type(); return }
         if nullable { _ = take(.symbol(.question)) }
         if receiverSuffix, take(.symbol(.dot)) { try type() }
+    }
+    mutating func functionTypeParameterList() throws {
+        try require(.symbol(.lParen))
+        if !take(.symbol(.rParen)) {
+            repeat {
+                if kind.isLabelName, tokens[min(index + 1, tokens.count - 1)].kind == .symbol(.colon) {
+                    index += 2
+                }
+                try type()
+            } while take(.symbol(.comma)) && kind != .symbol(.rParen)
+            try require(.symbol(.rParen))
+        }
+    }
+    mutating func functionTypeTail() throws {
+        try functionTypeParameterList()
+        try require(.symbol(.arrow))
+        try type()
+    }
+    mutating func typeArgumentsIfPresent() throws {
+        guard take(.symbol(.lessThan)) else { return }
+        repeat {
+            if !take(.symbol(.star)) {
+                while kind == .symbol(.at) { try annotation(typeContext: true) }
+                _ = take(.keyword(.in)) || take(.softKeyword(.out))
+                try type()
+            }
+        } while take(.symbol(.comma))
+        try require(.symbol(.greaterThan))
+    }
+    mutating func qualifiedContextReceiverSuffix() throws {
+        while kind == .symbol(.dot), tokens[min(index + 1, tokens.count - 1)].kind != .symbol(.lParen) {
+            index += 1
+            try name()
+            try typeArgumentsIfPresent()
+        }
+        _ = take(.symbol(.question))
+    }
+    func currentParenthesizedTypeIsReceiver() -> Bool {
+        guard kind == .symbol(.lParen) else { return false }
+        var depth = 0
+        var probe = index
+        while probe < tokens.count {
+            if tokens[probe].kind == .symbol(.lParen) { depth += 1 }
+            if tokens[probe].kind == .symbol(.rParen) {
+                depth -= 1
+                if depth == 0 {
+                    var next = probe + 1
+                    while next < tokens.count, tokens[next].kind == .symbol(.question) { next += 1 }
+                    guard next < tokens.count else { return false }
+                    return tokens[next].kind == .symbol(.dot) || tokens[next].kind == .symbol(.questionDot)
+                }
+            }
+            if tokens[probe].kind == .eof { return false }
+            probe += 1
+        }
+        return false
+    }
+    mutating func contextualFunctionType(isSuspend: Bool) throws {
+        try require(.softKeyword(.context))
+        try require(.symbol(.lParen))
+        repeat {
+            try type()
+        } while take(.symbol(.comma))
+        try require(.symbol(.rParen))
+        if !isSuspend { _ = take(.keyword(.suspend)) }
+        if kind == .symbol(.lParen), !currentParenthesizedTypeIsReceiver() {
+            try functionTypeTail()
+            return
+        }
+        try type(receiverSuffix: false)
+        try qualifiedContextReceiverSuffix()
+        guard take(.symbol(.dot)) || take(.symbol(.questionDot)) else { throw Unsupported() }
+        try functionTypeTail()
     }
     mutating func annotation(typeContext: Bool = false) throws {
         if typeContext {
@@ -162,8 +220,6 @@ private struct JVMSourceGrammar {
         }
     }
     mutating func modifiers() {
-        // `expect`/`actual`: Kotlin Multiplatform compiles a JVM/Android target
-        // from the common and platform source sets together.
         while [.public, .private, .internal, .protected, .open, .final, .abstract, .override, .inline, .tailrec, .suspend, .sealed, .data, .enum, .companion, .inner, .operator, .infix, .lateinit, .annotation, .value, .const, .expect, .actual].contains(where: { kind == .keyword($0) }) {
             // "value" is also a valid parameter/property name.
             if kind == .keyword(.value), tokens[min(index + 1, tokens.count - 1)].kind != .keyword(.class) { break }
@@ -268,7 +324,6 @@ private struct JVMSourceGrammar {
         if kind == .keyword(.fun), tokens[min(index + 1, tokens.count - 1)].kind != .keyword(.interface) {
             index += 1
             try typeParameters()
-            // Parse either a function name or a receiver type followed by its name.
             let start = index
             do {
                 while kind == .symbol(.at) { try annotation() }
@@ -337,9 +392,6 @@ private struct JVMSourceGrammar {
                 }
                 if take(.softKeyword(.get)) {
                     try parameters()
-                    // A getter may declare its return type explicitly, as in
-                    // `val x get(): Int = 1`; kotlinc infers the property type
-                    // from it when the property has no type annotation.
                     if take(.symbol(.colon)) { try type() }
                 } else if take(.softKeyword(.set)) {
                     if take(.symbol(.lParen)) {
@@ -378,9 +430,6 @@ private struct JVMSourceGrammar {
     mutating func body(allowNewlines: Bool = false) throws {
         while kind == .symbol(.at) { try annotation() }
         if kind == .symbol(.lBrace) {
-            // A control-flow body whose braces open with a lambda signature
-            // (`{ p -> ... }`) is a lambda literal, matching kotlinc; any
-            // other brace opens a block.
             var probe = self
             if probe.scanLambdaSignature() { try lambda() } else { try block() }
         } else { try statement(allowNewlines: allowNewlines) }
@@ -500,10 +549,6 @@ private struct JVMSourceGrammar {
         }
     }
 
-    /// Consumes a lambda parameter signature (`{`, optional parameters, `->`)
-    /// when the tokens have that shape, leaving `index` just after the arrow.
-    /// Otherwise restores `index` to its entry value and returns false, so a
-    /// plain block or a parameterless lambda body keeps its original parse.
     mutating func scanLambdaSignature() -> Bool {
         let entry = index
         guard take(.symbol(.lBrace)) else { return false }
@@ -533,6 +578,18 @@ private struct JVMSourceGrammar {
         if take(.symbol(.colon)) { try type() }
         if take(.symbol(.assign)) { try expression() }
         else { try block() }
+    }
+    func startsContextualAnonymousFunction() -> Bool {
+        var lookahead = self
+        do {
+            try lookahead.contextParameters()
+            guard lookahead.take(.keyword(.fun)) else { return false }
+            if lookahead.kind == .symbol(.lParen) { return true }
+            try lookahead.type(receiverSuffix: false)
+            return lookahead.kind == .symbol(.dot) || lookahead.kind == .symbol(.questionDot)
+        } catch {
+            return false
+        }
     }
     func startsTrailingLambda() -> Bool {
         guard !newlineBeforeCurrent(), !inDelegationHeader else { return false }
@@ -585,7 +642,7 @@ private struct JVMSourceGrammar {
                         }
                         else if hasSubject, take(.keyword(.in)) { try expression() }
                         else { try expression() }
-                    } while take(.symbol(.comma))
+                    } while take(.symbol(.comma)) && kind != .symbol(.arrow)
                     if take(.keyword(.if)) { try expression(allowNewlines: true) }
                 }
                 try require(.symbol(.arrow))
@@ -604,6 +661,9 @@ private struct JVMSourceGrammar {
         } else if [.plus, .minus, .bang, .plusPlus, .minusMinus].contains(where: { kind == .symbol($0) }) {
             index += 1; try primary(allowNewlines: allowNewlines); return
         } else if take(.symbol(.doubleColon)) { try name()
+        } else if kind == .softKeyword(.context), startsContextualAnonymousFunction() {
+            try contextParameters()
+            try anonymousFunction()
         } else if kind == .keyword(.fun) {
             try anonymousFunction()
         } else if kind == .keyword(.object) {

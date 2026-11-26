@@ -1,13 +1,3 @@
-// WasmEmitter+Function.swift — per-function KIR → wasm body emission.
-//
-// KIR control flow is flat (label/jump/jumpIfEqual/jumpIfNotNull); wasm is
-// structured. For each label we compute an enclosing interval — a forward
-// jump target becomes a `block` ending at the label, a backward jump target
-// becomes a `loop` starting at it — and then interleave block/loop opens and
-// `end`s into the linear instruction stream. Non-laminar intervals (which
-// the current lowerings never produce) are rejected with a diagnostic
-// instead of miscompiled.
-
 import Foundation
 import CompilerCore
 
@@ -16,8 +6,6 @@ final class WasmFunctionEmission {
     let function: KIRFunction
     var code = WasmCode()
 
-    /// KIR expr id → wasm local. Only write-targets get a local; reads of
-    /// unassigned ids are materialized from the expr kind directly.
     var localIndexByExpr: [Int32: Int] = [:]
     var paramLocalBySymbol: [Int32: Int] = [:]
     var scratchLocal = 0
@@ -31,7 +19,7 @@ final class WasmFunctionEmission {
     }
 
     var intervals: [LabelInterval] = []
-    var activeStack: [Int32] = [] // innermost last
+    var activeStack: [Int32] = []
 
     init(ctx: WasmModuleContext, function: KIRFunction) {
         self.ctx = ctx
@@ -44,7 +32,6 @@ final class WasmFunctionEmission {
         try computeIntervals()
         assignLocals()
 
-        // Per-position open/close schedules.
         var opensAt: [Int: [LabelInterval]] = [:]
         var closesAt: [Int: [LabelInterval]] = [:]
         for interval in intervals {
@@ -52,10 +39,10 @@ final class WasmFunctionEmission {
             closesAt[interval.close, default: []].append(interval)
         }
         for key in opensAt.keys {
-            opensAt[key]?.sort { $0.close > $1.close } // outermost first
+            opensAt[key]?.sort { $0.close > $1.close }
         }
         for key in closesAt.keys {
-            closesAt[key]?.sort { $0.open > $1.open } // innermost first
+            closesAt[key]?.sort { $0.open > $1.open }
         }
 
         for index in 0..<function.body.count {
@@ -77,8 +64,6 @@ final class WasmFunctionEmission {
             }
             try emitInstruction(function.body[index])
         }
-        // The function's implicit frame end; any still-open intervals are a
-        // compiler bug, but close them so the binary still validates.
         while !activeStack.isEmpty {
             activeStack.removeLast()
             code.end()
@@ -87,7 +72,7 @@ final class WasmFunctionEmission {
         var body = WasmCode()
         let localCount = nextLocal - function.params.count
         if localCount > 0 {
-            body.u(1) // one local declaration group
+            body.u(1)
             body.u(UInt64(localCount))
             body.op(WasmValType.i64.rawValue)
         } else {
@@ -97,8 +82,6 @@ final class WasmFunctionEmission {
         body.op(WasmOpcode.end)
         return body.bytes
     }
-
-    // MARK: - Locals
 
     private func assignLocals() {
         nextLocal = function.params.count
@@ -252,8 +235,6 @@ final class WasmFunctionEmission {
         nextLocal += 8
     }
 
-    // MARK: - Structured control flow
-
     private func computeIntervals() throws {
         var labelPositions: [Int32: Int] = [:]
         var branches: [(pos: Int, target: Int32)] = []
@@ -289,10 +270,6 @@ final class WasmFunctionEmission {
                 intervals.append(LabelInterval(label: label, open: open, close: position, isLoop: false))
             }
         }
-        // Forward-jump intervals can cross (if/else: the join label's block
-        // opens inside the else label's block but closes after it). Blocks are
-        // transparent to fallthrough, so the later-closing interval can safely
-        // open earlier and swallow the earlier one — the standard nesting fix.
         var changed = true
         while changed {
             changed = false
@@ -313,8 +290,6 @@ final class WasmFunctionEmission {
                 }
             }
         }
-        // Verify laminar nesting. Equal opens must order the longer (outer)
-        // interval first so containment checks see it on the stack.
         let sorted = intervals.sorted {
             $0.open == $1.open ? $0.close > $1.close : $0.open < $1.open
         }
@@ -341,9 +316,6 @@ final class WasmFunctionEmission {
         return activeStack.count - 1 - position
     }
 
-    // MARK: - Value resolution
-
-    /// Pushes the i64 value of `id` onto the operand stack.
     func resolveValue(_ id: KIRExprID) {
         if let local = localIndexByExpr[id.rawValue] {
             code.localGet(local)
@@ -352,8 +324,6 @@ final class WasmFunctionEmission {
         emitExprValue(arena.expr(id), for: id)
     }
 
-    /// Emits code that pushes the value described by `expr` (materializing
-    /// literals, symbol references, and string objects inline).
     private func emitExprValue(_ expr: KIRExprKind?, for id: KIRExprID) {
         switch expr {
         case let .intLiteral(value), let .longLiteral(value):
@@ -383,8 +353,6 @@ final class WasmFunctionEmission {
         }
     }
 
-    /// `.null` uses 0 for reference types and the Int64.min sentinel for
-    /// erased/raw contexts, matching the native dual representation.
     private func nullRepresentation(for id: KIRExprID) -> Int64 {
         if let type = arena.exprType(id),
            let types = ctx.types,
@@ -419,7 +387,6 @@ final class WasmFunctionEmission {
             code.i64Const(Int64(ctx.module.tableSlot(forFunction: helperIndex)))
             return
         }
-        // Nominal types and other symbols carry a stable identity value.
         code.i64Const(Int64(max(1, symbol.rawValue)))
     }
 
@@ -509,19 +476,14 @@ final class WasmFunctionEmission {
         return offset
     }
 
-    // MARK: - Thrown channel
-
     private func emitThrownCheck(thrownResult: KIRExprID?) {
         if let thrownResult, let local = localIndexByExpr[thrownResult.rawValue] {
-            // Consume the channel into the slot and continue: the lowered
-            // jumpIfNotNull routes to the catch handler or a rethrow.
             code.globalGet(ctx.thrownGlobal)
             code.localSet(local)
             code.i64Const(0)
             code.globalSet(ctx.thrownGlobal)
             return
         }
-        // No local handler — propagate the thrown value to the caller.
         code.globalGet(ctx.thrownGlobal)
         code.op(WasmOpcode.i64Eqz)
         code.openIf()
@@ -545,8 +507,6 @@ final class WasmFunctionEmission {
         }
     }
 
-    // MARK: - Instructions
-
     private func emitInstruction(_ instruction: KIRInstruction) throws {
         switch instruction {
         case .nop, .beginBlock, .endBlock,
@@ -556,7 +516,7 @@ final class WasmFunctionEmission {
             break
 
         case .label:
-            break // positions only; structure handled by intervals
+            break
 
         case let .constValue(result, value):
             if let local = localIndexByExpr[result.rawValue] {
@@ -584,7 +544,6 @@ final class WasmFunctionEmission {
             }
 
         case let .nullAssert(operand, result):
-            // v1: pass-through. A null-check trap belongs to M2 NPE work.
             resolveValue(operand)
             if let local = localIndexByExpr[result.rawValue] {
                 code.localSet(local)
@@ -695,7 +654,6 @@ final class WasmFunctionEmission {
             code.brIf(try branchDepth(to: target))
 
         case let .jumpIfNotNull(value, target):
-            // Null covers both the zero reference and the Int64.min sentinel.
             resolveValue(value)
             code.i64Const(0)
             code.op(WasmOpcode.i64Ne)
@@ -750,8 +708,6 @@ final class WasmFunctionEmission {
         }
     }
 
-    // MARK: - Calls
-
     private func emitCall(
         symbol: SymbolID?,
         callee: InternedString,
@@ -762,14 +718,12 @@ final class WasmFunctionEmission {
     ) {
         let name = ctx.interner.resolve(callee)
 
-        // The Wasm stdlib artifact carries declarations for these getters.
         if arguments.count == 1, let constant = ctx.primitiveCompanionGetterConstant(for: symbol) {
             emitExprValue(constant, for: result ?? arguments[0])
             emitCallResult(result: result, canThrow: false, thrownResult: thrownResult)
             return
         }
 
-        // Inline builtins consume pushed args directly.
         if WasmRuntimeHelpers.isInlineCallee(name) {
             for argument in arguments { resolveValue(argument) }
             WasmRuntimeHelpers.emitInlineCallee(
@@ -811,7 +765,6 @@ final class WasmFunctionEmission {
         thrownResult: KIRExprID?,
         dispatch: KIRDispatchKind
     ) {
-        // Push receiver + args first; then compute the funcref index.
         resolveValue(receiver)
         for argument in arguments { resolveValue(argument) }
 

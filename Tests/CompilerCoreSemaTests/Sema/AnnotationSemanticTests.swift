@@ -9,7 +9,6 @@ struct AnnotationSemanticTests {
 
     @Test func testAnnotationSemanticSema() throws {
         let sources: [String] = [
-            // testDeprecatedLevelErrorEmitsErrorAtCallSite
             """
             package sample0
                     @Deprecated("Use replacement", level = DeprecationLevel.ERROR)
@@ -19,7 +18,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testDeprecatedLevelErrorCanBeSuppressedWithDeprecationError
             """
             package sample1
                     @Deprecated("Use replacement", level = DeprecationLevel.ERROR)
@@ -30,7 +28,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testDeprecatedStdlibApisCanBeSuppressedWithDeprecationError
             """
             package sample2
                     import kotlin.io.createTempDir
@@ -49,7 +46,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testDeprecatedDefaultEmitsWarningAtCallSite
             """
             package sample3
                     @Deprecated("Use replacement")
@@ -59,7 +55,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testDeprecatedOnCompanionMemberEmitsWarning
             """
             package sample4
                     class Host {
@@ -73,7 +68,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testDeprecatedReplaceWithAddsMessageAndCodeAction
             """
             package sample5
                     @Deprecated("Use replacement", replaceWith = ReplaceWith("newApi()"))
@@ -84,7 +78,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testDeprecatedReplaceWithNamedExpressionParses
             """
             package sample6
                     @Deprecated(
@@ -98,7 +91,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testDeprecatedErrorLevelWithReplaceWithStillEmitsError
             """
             package sample7
                     @Deprecated("Use replacement", replaceWith = ReplaceWith("newApi()"), level = DeprecationLevel.ERROR)
@@ -109,7 +101,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testDeprecatedEmptyReplaceWithDoesNotAddSuggestion
             """
             package sample8
                     @Deprecated("Use replacement", replaceWith = ReplaceWith())
@@ -119,7 +110,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testDeprecatedSinceKotlinAcceptsDocumentedTargets
             """
             package sample9
                     @DeprecatedSinceKotlin(warningSince = "1.0", errorSince = "1.1", hiddenSince = "1.2")
@@ -139,7 +129,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testDeprecatedSinceKotlinRejectsFileTarget
             """
             package sample10
                     @file:DeprecatedSinceKotlin
@@ -147,21 +136,18 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testSyntheticDeprecatedToCharEmitsWarning
             """
             package sample11
                     fun caller(): Char = 65L.toChar()
 
             """,
 
-            // testSyntheticDeprecatedStringSubSequenceEmitsWarning
             """
             package sample12
                     fun caller(): String = "kotlin".subSequence(1, 4).toString()
 
             """,
 
-            // testSyntheticDeprecatedCreateTempDirEmitsError
             """
             package sample13
                     import kotlin.io.createTempDir
@@ -170,7 +156,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testSuppressUncheckedCastByKotlinNameSuppressesDiagnostic
             """
             package sample14
                     @Suppress("UNCHECKED_CAST")
@@ -180,7 +165,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testSuppressUncheckedCastByInternalCodeSuppressesDiagnostic
             """
             package sample15
                     @Suppress("KSWIFTK-SEMA-UNCHECKED-CAST")
@@ -190,14 +174,12 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testAnnotationTargetEnumConstantResolves
             """
             package sample16
                     fun targetSmoke(): AnnotationTarget = AnnotationTarget.CLASS
 
             """,
 
-            // testOverloadResolutionByLambdaReturnTypeResolves
             """
             package sample17
                     import kotlin.OverloadResolutionByLambdaReturnType
@@ -206,7 +188,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testExperimentalTypeInferenceResolves
             """
             package sample18
                     import kotlin.experimental.ExperimentalTypeInference
@@ -215,21 +196,18 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testOptInResolves
             """
             package sample19
                     fun marker(x: OptIn?): Int = 0
 
             """,
 
-            // testSubclassOptInRequiredResolves
             """
             package sample20
                     fun marker(x: SubclassOptInRequired?): Int = 0
 
             """,
 
-            // testContextFunctionTypeParamsRejectsDeclarationUsage
             """
             package sample21
                     @ContextFunctionTypeParams(1)
@@ -237,7 +215,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testContextFunctionTypeParamsRejectsTooLargeCount
             """
             package sample22
                     interface Host {
@@ -246,7 +223,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testConsistentCopyVisibilityRejectsFunctionUse
             """
             package sample23
                     @ConsistentCopyVisibility
@@ -254,7 +230,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testMustUseReturnValuesAllowsClassUse
             """
             package sample24
                     @MustUseReturnValues
@@ -262,7 +237,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testMustUseReturnValuesAllowsFileUse
             """
             package sample25
                     @file:MustUseReturnValues
@@ -271,7 +245,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testMustUseReturnValuesRejectsFunctionUse
             """
             package sample26
                     @MustUseReturnValues
@@ -279,7 +252,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testBuilderInferenceAcceptsDocumentedTargets
             """
             package sample27
                     @BuilderInference
@@ -292,7 +264,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testBuilderInferenceRejectsClassTarget
             """
             package sample28
                     @BuilderInference
@@ -300,7 +271,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testIgnorableReturnValueAllowsFunctionUse
             """
             package sample29
                     @IgnorableReturnValue
@@ -308,7 +278,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testIgnorableReturnValueRejectsClassUse
             """
             package sample30
                     @IgnorableReturnValue
@@ -316,7 +285,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testExposedCopyVisibilityRejectsFunctionUse
             """
             package sample31
                     @ExposedCopyVisibility
@@ -324,7 +292,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testParameterNameAcceptsTypeUse
             """
             package sample32
                     interface Host {
@@ -333,7 +300,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testParameterNameRejectsClassUse
             """
             package sample33
                     @ParameterName("Bad")
@@ -341,7 +307,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testPublishedApiAcceptsDocumentedDeclarationTargets
             """
             package sample34
                     @PublishedApi
@@ -355,7 +320,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testPublishedApiRejectsFileTarget
             """
             package sample35
                     @file:PublishedApi
@@ -363,7 +327,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testDslMarkerAcceptsAnnotationClassAndRejectsRegularClassUse
             """
             package sample36
                     @DslMarker
@@ -374,7 +337,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testDslMarkerCanMarkCustomDslAnnotation
             """
             package sample37
                     @DslMarker
@@ -385,7 +347,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testDataClassCopyVisibilityWarningCanBeSuppressedByAlias
             """
             package sample38
                     @Suppress("DATA_CLASS_COPY_VISIBILITY")
@@ -393,7 +354,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testDeprecatedSinceKotlinRefinesSeverityAndHonorsSuppression
             """
             package sample39
                     @Deprecated("Use replacement")
@@ -419,7 +379,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testDeprecatedHiddenLevelEmitsErrorAndHiddenSincePromotes
             """
             package sample40
                     @Deprecated("Use replacement", level = DeprecationLevel.HIDDEN)
@@ -433,7 +392,6 @@ struct AnnotationSemanticTests {
 
             """,
 
-            // testDeprecatedUuidLexicalOrderEmitsError
             """
             @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
             package sample41
@@ -448,7 +406,6 @@ struct AnnotationSemanticTests {
             let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
 
-            // testDeprecatedLevelErrorEmitsErrorAtCallSite
             do {
                 let samplePath = paths[0]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -458,7 +415,6 @@ struct AnnotationSemanticTests {
                 let v0 = diagnostics.contains(where: isError)
                 #expect(v0, "Expected deprecated(error) diagnostic, got: \(sampleDiags)")
             }
-            // testDeprecatedLevelErrorCanBeSuppressedWithDeprecationError
             do {
                 let samplePath = paths[1]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -467,7 +423,6 @@ struct AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected deprecated(error) diagnostic to be suppressed, got: \(sampleDiags)")
             }
-            // testDeprecatedStdlibApisCanBeSuppressedWithDeprecationError
             do {
                 let samplePath = paths[2]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -476,7 +431,6 @@ struct AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected stdlib deprecation diagnostics to be suppressed, got: \(sampleDiags)")
             }
-            // testDeprecatedDefaultEmitsWarningAtCallSite
             do {
                 let samplePath = paths[3]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -488,7 +442,6 @@ struct AnnotationSemanticTests {
                 let v2 = diagnostics.contains(where: isError)
                 #expect(!v2, "Did not expect deprecated(error) diagnostic for default level")
             }
-            // testDeprecatedOnCompanionMemberEmitsWarning
             do {
                 let samplePath = paths[4]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -498,7 +451,6 @@ struct AnnotationSemanticTests {
                 let v3 = diagnostics.contains(where: isWarning)
                 #expect(v3, "Expected deprecated warning on companion call, got: \(sampleDiags)")
             }
-            // testDeprecatedReplaceWithAddsMessageAndCodeAction
             do {
                 let samplePath = paths[5]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -511,7 +463,6 @@ struct AnnotationSemanticTests {
                 #expect(diagnostics[0].message.contains("Replace with: newApi()"), "Expected replaceWith message, got: \(diagnostics[0].message)")
                 #expect(diagnostics[0].codeActions.map(\.title) == ["Replace with 'newApi()'"])
             }
-            // testDeprecatedReplaceWithNamedExpressionParses
             do {
                 let samplePath = paths[6]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -522,7 +473,6 @@ struct AnnotationSemanticTests {
                 #expect(diagnostics[0].message.contains("Replace with: newApi()"), "Expected replaceWith message, got: \(diagnostics[0].message)")
                 #expect(diagnostics[0].codeActions.map(\.title) == ["Replace with 'newApi()'"])
             }
-            // testDeprecatedErrorLevelWithReplaceWithStillEmitsError
             do {
                 let samplePath = paths[7]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -534,7 +484,6 @@ struct AnnotationSemanticTests {
                 #expect(v5, "Expected deprecated error, got: \(sampleDiags)")
                 #expect(diagnostics[0].message.contains("Replace with: newApi()"), "Expected replaceWith message, got: \(diagnostics[0].message)")
             }
-            // testDeprecatedEmptyReplaceWithDoesNotAddSuggestion
             do {
                 let samplePath = paths[8]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -545,7 +494,6 @@ struct AnnotationSemanticTests {
                 #expect(!(diagnostics[0].message.contains("Replace with:")), "Did not expect replaceWith message, got: \(diagnostics[0].message)")
                 #expect(diagnostics[0].codeActions.isEmpty, "Did not expect code actions for empty replaceWith")
             }
-            // testDeprecatedSinceKotlinAcceptsDocumentedTargets
             do {
                 let samplePath = paths[9]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -554,7 +502,6 @@ struct AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected DeprecatedSinceKotlin target uses to be accepted, got: \(sampleDiags)")
             }
-            // testDeprecatedSinceKotlinRejectsFileTarget
             do {
                 let samplePath = paths[10]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -565,7 +512,6 @@ struct AnnotationSemanticTests {
                 let v7 = diagnostics.allSatisfy(isError)
                 #expect(v7, "Annotation-target diagnostics should be errors")
             }
-            // testSyntheticDeprecatedToCharEmitsWarning
             do {
                 let samplePath = paths[11]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -577,7 +523,6 @@ struct AnnotationSemanticTests {
                 #expect(v8, "Expected deprecated error for toChar(), got: \(sampleDiags)")
                 #expect(diagnostics[0].message.contains("toChar"), "Expected toChar() in message, got: \(diagnostics[0].message)")
             }
-            // testSyntheticDeprecatedStringSubSequenceEmitsWarning
             do {
                 let samplePath = paths[12]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -589,7 +534,6 @@ struct AnnotationSemanticTests {
                 #expect(v9, "Expected deprecated warning for subSequence(), got: \(sampleDiags)")
                 #expect(diagnostics[0].message.contains("subSequence"), "Expected subSequence() in message, got: \(diagnostics[0].message)")
             }
-            // testSyntheticDeprecatedCreateTempDirEmitsError
             do {
                 let samplePath = paths[13]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -601,7 +545,6 @@ struct AnnotationSemanticTests {
                 #expect(v10, "Expected deprecated error for createTempDir(), got: \(sampleDiags)")
                 #expect(diagnostics[0].message.contains("createTempDir"), "Expected createTempDir() in message, got: \(diagnostics[0].message)")
             }
-            // testSuppressUncheckedCastByKotlinNameSuppressesDiagnostic
             do {
                 let samplePath = paths[14]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -612,7 +555,6 @@ struct AnnotationSemanticTests {
                 let v11 = diagnostics.allSatisfy(isWarning)
                 #expect(v11, "Unchecked-cast diagnostics should be warnings")
             }
-            // testSuppressUncheckedCastByInternalCodeSuppressesDiagnostic
             do {
                 let samplePath = paths[15]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -623,42 +565,36 @@ struct AnnotationSemanticTests {
                 let v12 = diagnostics.allSatisfy(isWarning)
                 #expect(v12, "Unchecked-cast diagnostics should be warnings")
             }
-            // testAnnotationTargetEnumConstantResolves
             do {
                 let samplePath = paths[16]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
 
                 #expect(sampleDiags.isEmpty, "Expected AnnotationTarget smoke test to compile cleanly, got: \(sampleDiags)")
             }
-            // testOverloadResolutionByLambdaReturnTypeResolves
             do {
                 let samplePath = paths[17]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
 
                 #expect(sampleDiags.isEmpty, "Expected OverloadResolutionByLambdaReturnType smoke test to compile cleanly, got: \(sampleDiags)")
             }
-            // testExperimentalTypeInferenceResolves
             do {
                 let samplePath = paths[18]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
 
                 #expect(sampleDiags.isEmpty, "Expected ExperimentalTypeInference smoke test to compile cleanly, got: \(sampleDiags)")
             }
-            // testOptInResolves
             do {
                 let samplePath = paths[19]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
 
                 #expect(sampleDiags.isEmpty, "Expected OptIn smoke test to compile cleanly, got: \(sampleDiags)")
             }
-            // testSubclassOptInRequiredResolves
             do {
                 let samplePath = paths[20]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
 
                 #expect(sampleDiags.isEmpty, "Expected SubclassOptInRequired smoke test to compile cleanly, got: \(sampleDiags)")
             }
-            // testContextFunctionTypeParamsRejectsDeclarationUsage
             do {
                 let samplePath = paths[21]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -669,7 +605,6 @@ struct AnnotationSemanticTests {
                 let v14 = diagnostics.allSatisfy(isError)
                 #expect(v14, "Annotation-target diagnostics should be errors")
             }
-            // testContextFunctionTypeParamsRejectsTooLargeCount
             do {
                 let samplePath = paths[22]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -680,7 +615,6 @@ struct AnnotationSemanticTests {
                 let v15 = diagnostics.allSatisfy(isError)
                 #expect(v15, "Context-function-type diagnostics should be errors")
             }
-            // testConsistentCopyVisibilityRejectsFunctionUse
             do {
                 let samplePath = paths[23]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -691,7 +625,6 @@ struct AnnotationSemanticTests {
                 let v17 = diagnostics.allSatisfy(isError)
                 #expect(v17, "Annotation-target diagnostics should be errors")
             }
-            // testMustUseReturnValuesAllowsClassUse
             do {
                 let samplePath = paths[24]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -700,7 +633,6 @@ struct AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected @MustUseReturnValues to be accepted on classes, got: \(sampleDiags)")
             }
-            // testMustUseReturnValuesAllowsFileUse
             do {
                 let samplePath = paths[25]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -709,7 +641,6 @@ struct AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected @file:MustUseReturnValues to be accepted, got: \(sampleDiags)")
             }
-            // testMustUseReturnValuesRejectsFunctionUse
             do {
                 let samplePath = paths[26]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -720,7 +651,6 @@ struct AnnotationSemanticTests {
                 let v19 = diagnostics.allSatisfy(isError)
                 #expect(v19, "Annotation-target diagnostics should be errors")
             }
-            // testBuilderInferenceAcceptsDocumentedTargets
             do {
                 let samplePath = paths[27]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -729,7 +659,6 @@ struct AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected BuilderInference target uses to be accepted, got: \(sampleDiags)")
             }
-            // testBuilderInferenceRejectsClassTarget
             do {
                 let samplePath = paths[28]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -740,7 +669,6 @@ struct AnnotationSemanticTests {
                 let v23 = diagnostics.allSatisfy(isError)
                 #expect(v23, "Annotation-target diagnostics should be errors")
             }
-            // testIgnorableReturnValueAllowsFunctionUse
             do {
                 let samplePath = paths[29]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -749,7 +677,6 @@ struct AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected @IgnorableReturnValue to be accepted on functions, got: \(sampleDiags)")
             }
-            // testIgnorableReturnValueRejectsClassUse
             do {
                 let samplePath = paths[30]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -760,7 +687,6 @@ struct AnnotationSemanticTests {
                 let v25 = diagnostics.allSatisfy(isError)
                 #expect(v25, "Annotation-target diagnostics should be errors")
             }
-            // testExposedCopyVisibilityRejectsFunctionUse
             do {
                 let samplePath = paths[31]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -771,7 +697,6 @@ struct AnnotationSemanticTests {
                 let v28 = diagnostics.allSatisfy(isError)
                 #expect(v28, "Annotation-target diagnostics should be errors")
             }
-            // testParameterNameAcceptsTypeUse
             do {
                 let samplePath = paths[32]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -779,7 +704,6 @@ struct AnnotationSemanticTests {
 
                 #expect(sampleDiags.isEmpty, "Expected ParameterName on a type use to compile, got: \(sampleDiags)")
             }
-            // testParameterNameRejectsClassUse
             do {
                 let samplePath = paths[33]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -790,7 +714,6 @@ struct AnnotationSemanticTests {
                 let v31 = diagnostics.allSatisfy(isError)
                 #expect(v31, "Annotation-target diagnostics should be errors")
             }
-            // testPublishedApiAcceptsDocumentedDeclarationTargets
             do {
                 let samplePath = paths[34]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -799,7 +722,6 @@ struct AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected PublishedApi declaration targets to be accepted, got: \(sampleDiags)")
             }
-            // testPublishedApiRejectsFileTarget
             do {
                 let samplePath = paths[35]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -810,7 +732,6 @@ struct AnnotationSemanticTests {
                 let v34 = diagnostics.allSatisfy(isError)
                 #expect(v34, "Annotation-target diagnostics should be errors")
             }
-            // testDslMarkerAcceptsAnnotationClassAndRejectsRegularClassUse
             do {
                 let samplePath = paths[36]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -821,14 +742,12 @@ struct AnnotationSemanticTests {
                 let v35 = diagnostics.allSatisfy(isError)
                 #expect(v35, "Annotation-target diagnostics should be errors")
             }
-            // testDslMarkerCanMarkCustomDslAnnotation
             do {
                 let samplePath = paths[37]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
 
                 #expect(sampleDiags.isEmpty, "Expected custom DslMarker annotation to compile, got: \(sampleDiags)")
             }
-            // testDataClassCopyVisibilityWarningCanBeSuppressedByAlias
             do {
                 let samplePath = paths[38]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -837,7 +756,6 @@ struct AnnotationSemanticTests {
 
                 #expect(diagnostics.isEmpty, "Expected DATA_CLASS_COPY_VISIBILITY suppression alias to suppress diagnostic, got: \(sampleDiags)")
             }
-            // testDeprecatedSinceKotlinRefinesSeverityAndHonorsSuppression
             do {
                 let samplePath = paths[39]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -852,7 +770,6 @@ struct AnnotationSemanticTests {
                 #expect(!diagnostics.contains(where: { $0.message.contains("sinceFuture") }))
                 #expect(!diagnostics.contains(where: { $0.message.contains("sinceFutureWarningOnly") }))
             }
-            // testDeprecatedHiddenLevelEmitsErrorAndHiddenSincePromotes
             do {
                 let samplePath = paths[40]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -862,7 +779,6 @@ struct AnnotationSemanticTests {
                 #expect(diagnostics.count == 2, "Expected two hidden deprecation diagnostics, got: \(sampleDiags)")
                 #expect(diagnostics.allSatisfy(isError), "Hidden-level deprecations should be errors, got: \(diagnostics)")
             }
-            // testDeprecatedUuidLexicalOrderEmitsError
             do {
                 let samplePath = paths[41]
                 let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
@@ -879,62 +795,50 @@ struct AnnotationSemanticTests {
 
     @Test func testAnnotationSemanticSurfaceRegistrations() throws {
         let sources: [String] = [
-            // testDeprecatedSinceKotlinSurfaceHasVersionPropertiesAndDefaults
             """
             package sample0
             fun noop() {}
             """,
-            // testSubclassOptInRequiredMarkerClassPropertyIsRegistered
             """
             package sample1
             fun noop() {}
             """,
-            // testContextFunctionTypeParamsSurfaceIsRegistered
             """
             package sample2
             fun noop() {}
             """,
-            // testConsistentCopyVisibilityResolvesAndTargetsClasses
             """
             package sample3
             fun noop() {}
             """,
-            // testMustUseReturnValuesResolvesAndTargetsFileAndClass
             """
             package sample4
             fun marker(x: MustUseReturnValues?): Int = 0
             """,
-            // testBuilderInferenceAnnotationSurfaceIsRegisteredAndTargeted
             """
             package sample5
             fun noop() {}
             """,
-            // testIgnorableReturnValueResolvesAndTargetsFunctions
             """
             package sample6
             fun marker(x: IgnorableReturnValue?): Int = 0
             """,
-            // testExposedCopyVisibilityResolvesAndTargetsClasses
             """
             package sample7
             fun noop() {}
             """,
-            // testDslMarkerResolvesAndTargetsAnnotationClasses
             """
             package sample8
             fun noop() {}
             """,
-            // testParameterNameSurfaceHasNamePropertyConstructorAndTypeTarget
             """
             package sample9
             fun noop() {}
             """,
-            // testPublishedApiSurfaceHasDeclarationTargetsAndBinaryRetention
             """
             package sample10
             fun noop() {}
             """,
-            // testUnsafeVarianceSurfaceHasTypeTargetSourceRetentionAndMustBeDocumented
             """
             package sample11
             fun noop() {}
@@ -947,7 +851,6 @@ struct AnnotationSemanticTests {
 
             let sema = try #require(ctx.sema)
 
-            // testDeprecatedSinceKotlinSurfaceHasVersionPropertiesAndDefaults
             do {
             let fqName = [
                 ctx.interner.intern("kotlin"),
@@ -998,7 +901,6 @@ struct AnnotationSemanticTests {
             #expect(signature.valueParameterIsVararg == [false, false, false])
 
             }
-            // testSubclassOptInRequiredMarkerClassPropertyIsRegistered
             do {
             let valueSymbol = try #require(
                 sema.symbols.lookup(fqName: [
@@ -1011,7 +913,6 @@ struct AnnotationSemanticTests {
             #expect(sema.symbols.propertyType(for: valueSymbol) != nil, "markerClass must have a property type")
 
             }
-            // testContextFunctionTypeParamsSurfaceIsRegistered
             do {
             let annotationFQName = [
                 ctx.interner.intern("kotlin"),
@@ -1049,7 +950,6 @@ struct AnnotationSemanticTests {
             ))))
 
             }
-            // testConsistentCopyVisibilityResolvesAndTargetsClasses
             do {
             let symbol = try #require(
                 sema.symbols.lookup(fqName: [
@@ -1069,7 +969,6 @@ struct AnnotationSemanticTests {
             )
 
             }
-            // testMustUseReturnValuesResolvesAndTargetsFileAndClass
             do {
             let symbol = try #require(
                 sema.symbols.lookup(fqName: [
@@ -1092,7 +991,6 @@ struct AnnotationSemanticTests {
             )
 
             }
-            // testBuilderInferenceAnnotationSurfaceIsSyntheticAndTargeted
             do {
             let symbolID = try #require(
                 sema.symbols.lookup(fqName: [
@@ -1137,7 +1035,6 @@ struct AnnotationSemanticTests {
             )
 
             }
-            // testIgnorableReturnValueResolvesAndTargetsFunctions
             do {
             let symbol = try #require(
                 sema.symbols.lookup(fqName: [
@@ -1160,7 +1057,6 @@ struct AnnotationSemanticTests {
             )
 
             }
-            // testExposedCopyVisibilityResolvesAndTargetsClasses
             do {
             let symbol = try #require(
                 sema.symbols.lookup(fqName: [
@@ -1181,7 +1077,6 @@ struct AnnotationSemanticTests {
             )
 
             }
-            // testDslMarkerResolvesAndTargetsAnnotationClasses
             do {
             let symbol = try #require(
                 sema.symbols.lookup(fqName: [
@@ -1207,7 +1102,6 @@ struct AnnotationSemanticTests {
             )
 
             }
-            // testParameterNameSurfaceHasNamePropertyConstructorAndTypeTarget
             do {
             let fqName = [
                 ctx.interner.intern("kotlin"),
@@ -1253,7 +1147,6 @@ struct AnnotationSemanticTests {
             #expect(signature.valueParameterIsVararg == [false])
 
             }
-            // testPublishedApiSurfaceHasDeclarationTargetsAndBinaryRetention
             do {
             let symbol = try #require(
                 sema.symbols.lookup(fqName: [
@@ -1291,7 +1184,6 @@ struct AnnotationSemanticTests {
             )
 
             }
-            // testUnsafeVarianceSurfaceHasTypeTargetSourceRetentionAndMustBeDocumented
             do {
             let symbol = try #require(
                 sema.symbols.lookup(fqName: [
@@ -1468,9 +1360,6 @@ struct AnnotationSemanticTests {
     }
 
 
-    // KUU-547: annotation arguments are stored as raw source text, so a
-    // `const val` used as a string argument must resolve to the constant's
-    // value in the diagnostic instead of rendering the identifier.
     @Test func testDeprecatedMessageResolvesConstValReference() throws {
         let source = """
         package test

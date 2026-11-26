@@ -96,9 +96,6 @@ package enum CommandRunner {
         return try body()
     }
 
-    /// Only trusts directories whose directory and final executable cannot be
-    /// tampered with by another local user. If no trusted match is found,
-    /// `fallback` is returned.
     package static func resolveExecutable(_ name: String, fallback: String) -> String {
         resolveExecutable(
             name,
@@ -238,22 +235,10 @@ package enum CommandRunner {
             process.terminate()
             didExit = wait(for: terminatedSemaphore, timeout: terminationGracePeriodSeconds)
             if !didExit {
-                // Check if process is still running before sending SIGKILL to avoid killing wrong process
-                // Note: There's a race condition between this check and the kill() call where the process
-                // could exit and the PID could be reused. This is a fundamental limitation of the kill() API.
                 if process.isRunning {
-                    let killResult = kill(process.processIdentifier, SIGKILL)
-                    if killResult != 0 && errno != ESRCH {
-                        // ESRCH is expected if process exited between isRunning check and kill call
-                        // Other errors are unusual but we continue anyway
-                    }
+                    _ = kill(process.processIdentifier, SIGKILL)
                 }
                 didExit = wait(for: terminatedSemaphore, timeout: terminationGracePeriodSeconds)
-                if !didExit && process.isRunning {
-                    // Process is still running despite SIGKILL - this is unusual but possible
-                    // Log warning and continue - process should be dead by now
-                    // (We don't have a logging mechanism here, but the drain operations may fail)
-                }
             }
         }
 
@@ -262,8 +247,6 @@ package enum CommandRunner {
         let stdout = String(decoding: output.data(for: .stdout), as: UTF8.self)
         let stderr = String(decoding: output.data(for: .stderr), as: UTF8.self)
 
-        // Once the initial wait exceeds the timeout budget, surface a timeout
-        // even if terminate()/SIGKILL eventually forces a non-zero exit code.
         if didTimeOut {
             throw CommandRunnerError.timedOut(timeoutMessage(
                 executable: executable,

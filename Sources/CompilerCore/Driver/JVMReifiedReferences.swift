@@ -1,8 +1,6 @@
 import Foundation
 
 extension JVMFunctionBuilder {
-    /// Invocation uses a specialized body; reflection still describes the source
-    /// declaration, exactly as FunctionReferenceImpl does for Kotlin references.
     func inlinedReference(_ id: ExprID, symbol: SymbolID, receiver: ExprID?, unbound: Bool) throws -> JVMValue {
         guard let declaration = program.inlineDeclarations[symbol], let signature = program.sema.symbols.functionSignature(for: symbol),
               let binding = program.sema.bindings.callableReferenceBinding(for: id), let function = functionType(id),
@@ -105,7 +103,7 @@ extension JVMFunctionBuilder {
         let suspendConversion = !declaration.isSuspend && function.isSuspend
         let sourceResult = try program.type(signature.returnType)
         let unitConversion = resultType == .unit && sourceResult != .unit
-        let adapted = binding.isCallableReferenceAdapter || suspendConversion || unitConversion
+        let adapted = binding.hidesKCallable || suspendConversion || unitConversion
         let superclass = "kotlin/jvm/internal/" + (adapted ? "AdaptedFunctionReference" : "FunctionReferenceImpl")
         var generated = try program.closureClass(name, captures: captures.map { ($0.0, $0.1.type) }, inputs: inputTypes, result: resultType, helper: helperRef, suspend: function.isSuspend, superclass: superclass)
         let arity = inputTypes.count + (function.isSuspend ? 1 : 0)
@@ -118,7 +116,8 @@ extension JVMFunctionBuilder {
         var adaptationFlags: Int32 = member ? 0 : 1
         if suspendConversion { adaptationFlags |= 4 }
         if unitConversion { adaptationFlags |= 8 }
-        var code: [JVMInstruction] = [.constant(.int(Int32(arity)), count), .classLiteral(sourceOwner, klass), .constant(.string(sourceName.components(separatedBy: "$unsigned$")[0]), methodName), .callableSignature(sourceOwner, sourceName, sourceDescriptor, descriptor), .constant(.int(adaptationFlags), flags)]
+        let kotlinName = program.sema.symbols.symbol(symbol).map { context.interner.resolve($0.name) } ?? sourceName.components(separatedBy: "$unsigned$")[0]
+        var code: [JVMInstruction] = [.constant(.int(Int32(arity)), count), .classLiteral(sourceOwner, klass), .constant(.string(kotlinName), methodName), .callableSignature(sourceOwner, sourceName, sourceDescriptor, descriptor), .constant(.int(adaptationFlags), flags)]
         var superArgs = [count]
         if bound != nil { let object = temporary(.reference("java/lang/Object", nullable: true)); code.append(.copy(ctor.locals[1], object)); superArgs.append(object) }
         superArgs += [klass, methodName, descriptor, flags]

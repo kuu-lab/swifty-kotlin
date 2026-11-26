@@ -12,8 +12,6 @@ public func __kk_enum_set_class(_ classRaw: Int) -> Int {
     }
     guard let classifier = runtimeKClassBox(from: classifierRaw) else { return runtimeNullSentinelInt }
     if classifier.metadata?.isEnumClass == true { return classifierRaw }
-    // Boxing records enum identity independently of optional full reflection
-    // records and of the original entry's lifetime.
     let token = Int64(classifier.typeToken)
     guard token & RuntimeTypeTokenEncoding.baseMask == RuntimeTypeTokenEncoding.nominalBase else {
         return runtimeNullSentinelInt
@@ -23,8 +21,6 @@ public func __kk_enum_set_class(_ classRaw: Int) -> Int {
         ? classifierRaw : runtimeNullSentinelInt
 }
 
-/// Returns the registered enum entries for a Java Class handle, or null when
-/// the class is not an enum.
 @_cdecl("__kk_enum_set_values")
 public func __kk_enum_set_values(_ classRaw: Int) -> Int {
     let typeToken: Int

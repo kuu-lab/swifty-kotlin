@@ -44,7 +44,6 @@ struct AtomicfuParkingClosureAdapterTests {
         }
         #expect(adapterSymbol != factory)
         let adapter = try #require(fixture.kirArena.function(for: adapterSymbol))
-        // One explicit env word plus the separately lowered outThrown channel.
         #expect(adapter.params.count == 1)
         #expect(adapter.params[0].type == fixture.types.intType)
         #expect(adapter.returnType == fixture.types.anyType)

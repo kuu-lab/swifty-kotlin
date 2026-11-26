@@ -7,8 +7,6 @@ import Testing
 
 @Suite
 struct LoweringPassRegressionTests {
-    // Runtime expectations use declarations from the canonical ABI table.
-    // Missing entries record a test failure even for negative expectations.
     enum RuntimeCall: String {
         case bufferedReaderForEachLine = "__kk_buffered_reader_forEachLine"
         case bufferedReaderUseLines = "__kk_buffered_reader_useLines"
@@ -117,7 +115,6 @@ struct LoweringPassRegressionTests {
         }
     }
 
-    // Compiler intrinsics are registered separately from external ABI functions.
     enum CompilerCall: String {
         case intRangeInductionAdd = "__kk_int_range_induction_add"
         case intRangeInductionLe = "__kk_int_range_induction_le"
@@ -135,7 +132,6 @@ struct LoweringPassRegressionTests {
         }
     }
 
-    /// Follow the continuation factory's function ID instead of a generated name.
     func loweredSuspendFunction(
         originalNamed name: String,
         in module: KIRModule,
@@ -163,7 +159,6 @@ struct LoweringPassRegressionTests {
         }, "Expected the continuation factory to reference a declared function")
     }
 
-    /// A closure wrapper forwards to the original lambda's symbol.
     func closureWrapper(for lambda: SymbolID, in module: KIRModule) throws -> KIRFunction {
         let wrappers = findAllKIRFunctions(in: module).filter { function in
             function.symbol != lambda && function.body.contains { instruction in
@@ -177,7 +172,6 @@ struct LoweringPassRegressionTests {
 
     func launcherThunks(in module: KIRModule, interner: StringInterner) -> [KIRFunction] {
         let argumentGetter = interner.intern(RuntimeCall.coroutineLauncherArgGet.name)
-        // Receiver-only builder adapters share the getter but are not launcher values.
         return functionValueTargets(in: module).filter { function in
             function.body.contains { instruction in
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
@@ -186,7 +180,6 @@ struct LoweringPassRegressionTests {
         }
     }
 
-    /// Select function values from expressions and loaded symbol constants.
     func functionValueTargets(in module: KIRModule) -> [KIRFunction] {
         let functions = findAllKIRFunctions(in: module)
         let symbols = Set(module.arena.expressions.compactMap { expression -> SymbolID? in
@@ -200,8 +193,6 @@ struct LoweringPassRegressionTests {
         })
         return functions.filter { symbols.contains($0.symbol) }
     }
-
-    // MARK: - Shared lowering fixture
 
     struct LoweringRewriteFixture {
         let interner: StringInterner
@@ -303,7 +294,6 @@ struct LoweringPassRegressionTests {
         #expect(callees.contains(RuntimeCall.rangeHasNext.name), "Callees: \(callees)")
         #expect(callees.contains(RuntimeCall.rangeNext.name), "Callees: \(callees)")
         #expect(!callees.contains(CompilerCall.forLowered.name), "Callees: \(callees)")
-        // The test fixture uses symbol-less get/set calls, so they remain unchanged.
         #expect(callees.contains("get"), "Callees: \(callees)")
         #expect(callees.contains("set"), "Callees: \(callees)")
         #expect(loweredMain.body.contains { if case .jumpIfEqual = $0 { return true }; return false })
@@ -313,8 +303,6 @@ struct LoweringPassRegressionTests {
         #expect(callees.contains(RuntimeCall.coroutineContinuationNew.name), "Callees: \(callees)")
         let loweredSuspend = try loweredSuspendFunction(originalNamed: "suspendTarget", in: fixture.module, interner: fixture.interner)
         let loweredSuspendName = fixture.interner.resolve(loweredSuspend.name)
-        // A non-suspend caller enters the lowered function through the completion
-        // relay wrapper rather than calling it directly (#10964).
         #expect(callees.contains(RuntimeCall.coroutineCallSuspendWrapper.name), "Callees: \(callees)")
         #expect(!callees.contains("suspendTarget"), "Callees: \(callees)")
         let wrapperCallee = fixture.interner.intern(RuntimeCall.coroutineCallSuspendWrapper.name)
@@ -361,8 +349,6 @@ struct LoweringPassRegressionTests {
             }
             return false
         }.count
-        // A suspend function with one suspension point needs at least 2 dispatch jumps:
-        // one for label 1000 (entry) and one for label 1001 (resume point)
         #expect(dispatchJumpCount >= 2)
 
         let dispatchLabels = loweredSuspend.body.compactMap { instruction -> Int32? in
@@ -371,7 +357,6 @@ struct LoweringPassRegressionTests {
             }
             return nil
         }
-        // Coroutine state machine dispatch labels start at coroutineDispatchLabelBase
         #expect(dispatchLabels.contains(coroutineDispatchLabelBase))
         #expect(dispatchLabels.contains(coroutineDispatchLabelBase + 1))
 
@@ -510,7 +495,6 @@ struct LoweringPassRegressionTests {
         #expect(!rawSuspendCalls)
 
         let loweredTargets = try [suspendNoArg, suspendOneArg].map { original in
-            // Each original wrapper retains its symbol across coroutine lowering.
             let wrapper = try #require(findAllKIRFunctions(in: module).first { $0.symbol == original.symbol })
             return try loweredSuspendFunction(for: wrapper, in: module, interner: interner)
         }
@@ -529,9 +513,6 @@ struct LoweringPassRegressionTests {
         let allCanThrow = rewrittenSuspendCalls.allSatisfy(\.canThrow)
         #expect(allCanThrow)
 
-        // The no-arg overload is entered through its lowered entry point
-        // directly; the arg-bearing overload is entered through a synthesized
-        // launcher thunk that reads the argument back out of the continuation.
         let entryPoints = Set(rewrittenSuspendCalls.map(\.entryPoint))
         #expect(entryPoints.contains(loweredTargets[0].symbol))
         let launcherThunks = findAllKIRFunctions(in: module).filter {
@@ -591,7 +572,6 @@ struct LoweringPassRegressionTests {
             }
             return nil
         }
-        // Coroutine dispatch labels + original user label 20
         #expect(labels.contains(coroutineDispatchLabelBase))
         #expect(labels.contains(coroutineDispatchLabelBase + 1))
         #expect(labels.contains(20))
@@ -707,13 +687,11 @@ struct LoweringPassRegressionTests {
             let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
             try runToLowering(ctx)
             let module = try #require(ctx.kir)
-            // Scanned once and shared below: no scenario mutates `module`.
             let allFunctions = findAllKIRFunctions(in: module)
             let allCallees = allFunctions.flatMap { function in
                 extractCallees(from: function.body, interner: ctx.interner)
             }
 
-            // testRangeRandomCallsKeepRandomArgument
             do {
                 let body = try findKIRFunctionBody(named: "main_sample0", in: module, interner: ctx.interner)
                 let allCallees = extractCallees(from: body, interner: ctx.interner)
@@ -741,13 +719,11 @@ struct LoweringPassRegressionTests {
                     "Legacy range random runtime links must not remain in user call lowering: \(allCallees)"
                 )
             }
-            // testCoroutineLoweringRewritesKxMiniLauncherAndDelayBuiltins
             do {
                 let mainBody = try findKIRFunctionBody(named: "main_sample1", in: module, interner: ctx.interner)
                 let suspendBody = try loweredSuspendFunction(originalNamed: "delayedValue_1", in: module, interner: ctx.interner).body
 
                 let mainCalls = extractCallees(from: mainBody, interner: ctx.interner)
-                // Bundled runBlocking is Kotlin source (#8313); the launcher rewrite happens in its body.
                 #expect(mainCalls.contains { $0 == "runBlocking" || $0 == "runBlocking$default" }, "Callees: \(mainCalls)")
                 #expect(!mainCalls.contains(RuntimeCall.kxminiRunBlocking.name))
 
@@ -757,7 +733,6 @@ struct LoweringPassRegressionTests {
                 let throwFlags = extractThrowFlags(from: suspendBody, interner: ctx.interner)
                 #expect(throwFlags[RuntimeCall.kxminiDelay.name]?.allSatisfy { $0 == false } == true)
             }
-            // testCoroutineLoweringTreatsAwaitAndJoinAsSuspendPoints
             do {
                 let suspendBody = try loweredSuspendFunction(originalNamed: "awaitAndJoin", in: module, interner: ctx.interner).body
 
@@ -774,13 +749,11 @@ struct LoweringPassRegressionTests {
                 let joinABI = try #require(RuntimeABISpec.byName[RuntimeCall.jobJoin.name])
                 #expect(throwFlags[RuntimeCall.jobJoin.name]?.allSatisfy { $0 == joinABI.isThrowing } == true)
             }
-            // Source scopes and generated bodies must call declared targets.
             do {
                 let sema = try #require(ctx.sema)
                 let unresolvedCalls = KIRVerifier.verify(module: module, symbols: sema.symbols, interner: ctx.interner)
                     .filter { $0.kind == .unresolvableCallee }
                 #expect(unresolvedCalls.isEmpty, "Unresolved lowering targets: \(unresolvedCalls)")
-                // A valid bound symbol must not hide an obsolete runtime shim name.
                 let symbols = sema.symbols.allSymbols()
                 let declaredCallees = Set(RuntimeABIExterns.allExterns.map(\.name))
                     .union(RuntimeABISpec.compilerInternalNonThrowingCalleeNames)
@@ -794,14 +767,12 @@ struct LoweringPassRegressionTests {
                 }).subtracting(declaredCallees)
                 #expect(undeclaredRuntimeCallees.isEmpty, "Undeclared runtime lowering targets: \(undeclaredRuntimeCallees.sorted())")
             }
-            // testNonInlineCallIsNotRedirectedToSameNamedInlineOverload
             do {
                 #expect(
                     !allCallees.contains(RuntimeCall.lockWithLock.name),
                     "Mutex.withLock must not be inlined into the Lock.withLock bridge"
                 )
             }
-            // testCoroutineLoweringRewritesSuspendLocalFunctionCalls
             do {
                 let loweredOuter = try loweredSuspendFunction(originalNamed: "outerSuspendHost", in: module, interner: ctx.interner)
                 let loweredLocal = try loweredSuspendFunction(originalNamed: "localSuspendBridge", in: module, interner: ctx.interner)
@@ -815,7 +786,6 @@ struct LoweringPassRegressionTests {
                 #expect(localCallees.contains(RuntimeCall.coroutineStateEnter.name))
                 #expect(localCallees.contains(RuntimeCall.coroutineStateExit.name))
             }
-            // testCoroutineLoweringRewritesSuspendCoroutineUninterceptedOrReturnFromImport
             do {
                 let probeBody = try loweredSuspendFunction(originalNamed: "probe", in: module, interner: ctx.interner).body
 
@@ -823,7 +793,6 @@ struct LoweringPassRegressionTests {
                 #expect(callees.contains(RuntimeCall.coroutineSuspended.name), "callees: \(callees)")
                 #expect(!callees.contains("suspendCoroutineUninterceptedOrReturn"), "callees: \(callees)")
             }
-            // testSamConvertedCallableRefLowersToInterfaceWrapper
             do {
                 let mainBody = try findKIRFunctionBody(named: "main_sample7", in: module, interner: ctx.interner)
                 let mainCallees = extractCallees(from: mainBody, interner: ctx.interner)
@@ -873,7 +842,6 @@ struct LoweringPassRegressionTests {
             try runToKIR(ctx)
             let module = try #require(ctx.kir)
 
-            // testCoroutineLoweringRewritesSuspendFunctionTypeInvokeCalls
             do {
                 let allCallees = findAllKIRFunctions(in: module).flatMap { function in
                     extractCallees(from: function.body, interner: ctx.interner)
@@ -915,11 +883,6 @@ struct LoweringPassRegressionTests {
             }
             let printlnArg = printlnArgs[0]
 
-            // `String.uppercase()` is now bundled Kotlin source, so its body
-            // no longer has to expose the old `kk_string_uppercase_flat`
-            // runtime call here. The invariant under test is the safe-call
-            // merge itself: the inline result must be copied into the value
-            // consumed by `println` before the call is emitted.
             let hasMaterializedSafeCallResult = mainBody[..<printlnCallIndex!].contains { instruction in
                 if case let .copy(_, to) = instruction {
                     return to == printlnArg

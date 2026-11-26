@@ -1,6 +1,5 @@
 package java.util.logging
 
-/** Registry for logger instances created by the bundled logging facade. */
 public class LogManager private constructor() {
     private val loggers = LinkedHashMap<String, Logger>()
 

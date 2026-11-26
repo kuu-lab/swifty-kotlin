@@ -10,10 +10,6 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
-    // reduceIndexed: args = [receiver, lambda, closureRaw?]
-    // KSP-1355: source-bound Sequence.reduceIndexed calls compile the bundled
-    // body; this arm only normalizes residual calls that were already lowered
-    // to the kk_sequence_reduceIndexed entry point (unresolved receivers).
     if callee == lookup.kkSequenceReduceIndexedName, arguments.count == 2 || arguments.count == 3 {
         let receiverID = arguments[0]
         if state.sequenceExprIDs.contains(receiverID.rawValue) {
@@ -26,10 +22,6 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
     }
-    // reduceIndexedOrNull: args = [receiver, lambda, closureRaw?]
-    // KSP-1355: source-bound Sequence.reduceIndexedOrNull calls compile the
-    // bundled body; this arm only normalizes residual calls that were already
-    // lowered to the kk_sequence_reduceIndexedOrNull entry point.
     if callee == lookup.kkSequenceReduceIndexedOrNullName,
        arguments.count == 2 || arguments.count == 3 {
         let receiverID = arguments[0]; let lambdaID = arguments[1]

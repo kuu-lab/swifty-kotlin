@@ -2,8 +2,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// KUU-4289: `Process` stream APIs — the parent reads the child's stdout
-    /// and stderr and writes the child's stdin through pipes.
     @Test
     func processStreamsCarryChildOutputAndInput() throws {
         try compileAndRunKotlin(
@@ -33,8 +31,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-4289: `Runtime.exec` envp/dir overloads — a non-null envp fully
-    /// replaces the environment and dir selects the working directory.
     @Test
     func runtimeExecEnvpAndDirOverloads() throws {
         try compileAndRunKotlin(
@@ -69,10 +65,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-4289: an empty command array — reached directly or through a
-    /// whitespace-only `exec(String)` — surfaces
-    /// `ArrayIndexOutOfBoundsException` like the JDK, while `exec("")` keeps
-    /// throwing `IllegalArgumentException`.
     @Test
     func processEmptyCommandThrowsArrayIndexOutOfBounds() throws {
         try compileAndRunKotlin(
@@ -110,7 +102,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-4289: repeated stream getters return the identical object, like the JDK.
     @Test
     func processStreamGettersReturnSameInstance() throws {
         try compileAndRunKotlin(
@@ -128,10 +119,6 @@ extension BundledStdlibExecutionTests {
         )
     }
 
-    /// KUU-4311: `ProcessBuilder` environment/directory/redirect APIs,
-    /// `Process.waitFor(timeout)`/`onExit()`/`toHandle()`, and the
-    /// `ProcessHandle` surface. Assertions print booleans so the expected
-    /// output stays deterministic across machines.
     @Test
     func processBuilderRedirectsAndProcessHandle() throws {
         try compileAndRunKotlin(

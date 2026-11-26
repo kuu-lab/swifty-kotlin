@@ -24,17 +24,10 @@ final class RuntimeMapBox {
     }
     let defaultValueFnPtr: Int
     let defaultValueClosureRaw: Int
-    /// KUU-1361: java.util.TreeMap ordering — `sorted` selects comparator key
-    /// order over insertion order, `comparatorRaw` holds the user
-    /// `Comparator` object (0 = natural `Comparable` order), and
-    /// `invertCompare` flips it for `descendingMap()` views.
     private(set) var sorted: Bool
     private(set) var comparatorRaw: Int
     private(set) var invertCompare: Bool
     private(set) var isReadOnly = false
-    /// KUU-4500: java.util.LinkedHashMap `accessOrder=true` — a successful
-    /// `get` or an existing-key `put` moves the touched entry to the tail of
-    /// the iteration order (JDK `afterNodeAccess`).
     private(set) var accessOrder = false
     private var directModCount: Int = 0
 
@@ -42,11 +35,6 @@ final class RuntimeMapBox {
         accessOrder = true
     }
 
-    /// Move the entry at `index` to the tail of the storage order, matching
-    /// the JDK's `afterNodeAccess`. Not a structural modification, so
-    /// `modCount` deliberately stays unchanged (an iterator does not see a
-    /// reorder as a concurrent modification). View boxes forward the index,
-    /// which is already a backing-storage position.
     func recordAccess(at index: Int) {
         if let backingMap {
             backingMap.recordAccess(at: index)
@@ -95,10 +83,6 @@ final class RuntimeMapBox {
         backingMap?.isEffectivelyReadOnly ?? isReadOnly
     }
 
-    /// Structural-modification counter. Bumped on key insertion/removal
-    /// (`appendEntry`/`remove`/`removeAll`), never on `updateValue`, which
-    /// only replaces an existing key's value (matches JVM `HashMap.put`'s
-    /// non-structural update not incrementing `modCount`).
     var modCount: Int {
         backingMap?.modCount ?? directModCount
     }
@@ -394,9 +378,6 @@ final class RuntimeMapBox {
         updateValue(at: index, value: RuntimeValue(raw: rawValue))
     }
 
-    /// `countAsAccess: false` is for `MutableEntry.setValue`: the JDK writes
-    /// `HashMap.Node.value` directly and never triggers
-    /// `LinkedHashMap.afterNodeAccess` for it, even in access-order mode.
     func updateValue(at index: Int, value: RuntimeValue, countAsAccess: Bool = true) {
         if let backingMap {
             backingMap.updateValue(at: index, value: value, countAsAccess: countAsAccess)
@@ -528,8 +509,6 @@ final class RuntimeMapBox {
         keyIndex.reserveCapacity(keyStorage.count)
         for (offset, key) in keyStorage.enumerated() {
             let runtimeKey = indexKey(key)
-            // Keep the first position for malformed duplicate input, matching
-            // the legacy linear lookup behavior.
             if keyIndex[runtimeKey] == nil {
                 keyIndex[runtimeKey] = offset
             }
@@ -591,9 +570,6 @@ final class RuntimeMutableMapIteratorBox {
     let keyValues: [RuntimeValue]
     var index: Int
     var lastKey: Int?
-    /// The backing map's `modCount` as of the last point this iterator
-    /// observed it in sync (construction, or its own successful `remove()`,
-    /// which re-syncs after performing the mutation).
     var expectedModCount: Int
 
     init(mapRaw: Int, keys: [Int], keyValues: [RuntimeValue]) {
@@ -610,10 +586,6 @@ final class RuntimeMutableMapIteratorBox {
         return map.modCount == expectedModCount
     }
 }
-
-// These conformances enable the recursive BFS freeze in kk_freeze_object to
-// traverse all reachable object references when freezing an object graph.
-// Only types that store `Int` child handles need to conform.
 
 extension RuntimeMapBox: RuntimeChildReferenceProviding {
     var childRefs: [Int] {

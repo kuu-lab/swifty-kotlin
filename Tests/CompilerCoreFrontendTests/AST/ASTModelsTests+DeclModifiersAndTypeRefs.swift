@@ -124,8 +124,6 @@ extension ASTModelsTests {
         if case .enumEntryDecl = arena.decl(enumID) {} else { Issue.record("Expected enumEntryDecl") }
     }
 
-    // MARK: - TypeRef variants
-
     @Test
     func testTypeRefNamedVariant() {
         let interner = StringInterner()
@@ -220,7 +218,6 @@ extension ASTModelsTests {
         let inArg = TypeArgRef.in(typeRef)
         let star = TypeArgRef.star
 
-        // Each variant is distinct
         #expect(invariant != outArg)
         #expect(invariant != inArg)
         #expect(invariant != star)
@@ -228,7 +225,6 @@ extension ASTModelsTests {
         #expect(outArg != star)
         #expect(inArg != star)
 
-        // Same variant with same value is equal
         #expect(TypeArgRef.invariant(typeRef) == invariant)
         #expect(TypeArgRef.out(typeRef) == outArg)
         #expect(TypeArgRef.in(typeRef) == inArg)

@@ -53,7 +53,6 @@ final class ComposeLoweringPass: LoweringPass {
         }
         let currentComposerCalleeName = interner.intern("<get-currentComposer>")
 
-        // Collect all @Composable KIRFunctions that need ($composer, $changed) injected.
         var injectedParamsByFunction: [SymbolID: (composer: SymbolID, changed: SymbolID)] = [:]
         var composableCalleeSymbols: Set<SymbolID> = []
 

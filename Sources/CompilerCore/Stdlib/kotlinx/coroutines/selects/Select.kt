@@ -205,8 +205,6 @@ public class SelectImplementation<R>(override val context: CoroutineContext) : S
 
     internal fun complete() {
         selected = true
-        // Mark the state finished and drop every parked channel offer so a
-        // completed or cancelled select can no longer consume a rendezvous.
         __kkSelectStateFinish(selectState)
         for (handle in disposables) handle.dispose()
         disposables.clear()
@@ -217,11 +215,6 @@ public class SelectImplementation<R>(override val context: CoroutineContext) : S
             while (true) {
                 ensureActive()
                 for (clause in clauses) {
-                    // `ready` reports an outcome committed for this clause —
-                    // by its own poll or by an external claimant resolving a
-                    // parked offer. trySelect finalizes the selection
-                    // atomically: the first clause to claim the select wins
-                    // and a losing clause never executes its block.
                     if (clause.ready(clause.reg) && __kkSelectTrySelect(clause.reg) != 0) {
                         complete()
                         return clause.block()

@@ -3,9 +3,6 @@ package java.util
 import kotlin.collections.Collection
 import kotlin.collections.MutableCollection
 
-// KUU-3996: java.util.ArrayDeque implements java.util.Deque on the JVM,
-// which extends Queue; the bundled shim satisfies the Queue contract
-// directly (Deque itself remains unmodelled).
 public class ArrayDeque<E> private constructor(
     private val storage: kotlin.collections.ArrayDeque<E>
 ) : Queue<E>, MutableCollection<E> by storage {

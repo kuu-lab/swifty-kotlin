@@ -1611,8 +1611,10 @@ public final class SymbolTable {
         kind == .function || kind == .constructor
     }
 
+    /// Classifiers, which coexist with same-named callables: Compose pairs
+    /// `object MaterialTheme` with `fun MaterialTheme(...)`.
     private func isNominalType(_ kind: SymbolKind) -> Bool {
-        kind == .class || kind == .enumClass || kind == .interface
+        kind == .class || kind == .enumClass || kind == .interface || kind == .object || kind == .annotationClass
     }
 
     public func setFunctionSignature(_ signature: FunctionSignature, for symbol: SymbolID) {

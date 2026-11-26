@@ -140,11 +140,60 @@ extension OverloadResolver {
         )
         guard solution.isSuccess else { return [:] }
         let symbolTable = typeSystem.symbolTable
+
+        func concreteType(in operand: ConstraintOperand) -> TypeID? {
+            guard case let .type(type) = operand,
+                  !containsTypeVariable(type, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
+            else {
+                return nil
+            }
+            return type
+        }
+        func variable(in operand: ConstraintOperand) -> TypeVarID? {
+            guard case let .variable(variable) = operand else { return nil }
+            return variable
+        }
+        func concreteLowerVariable(left: ConstraintOperand, right: ConstraintOperand) -> TypeVarID? {
+            guard concreteType(in: left) != nil else { return nil }
+            return variable(in: right)
+        }
+        func addConcreteLowerEvidence(
+            from constraintsToScan: [VariableConstraint],
+            to concreteLowerVariables: inout Set<TypeVarID>
+        ) {
+            for constraint in constraintsToScan {
+                switch constraint.kind {
+                case .subtype:
+                    if let variable = concreteLowerVariable(left: constraint.left, right: constraint.right) {
+                        concreteLowerVariables.insert(variable)
+                    }
+                case .supertype:
+                    if let variable = concreteLowerVariable(left: constraint.right, right: constraint.left) {
+                        concreteLowerVariables.insert(variable)
+                    }
+                case .equal:
+                    if let variable = concreteLowerVariable(left: constraint.left, right: constraint.right) {
+                        concreteLowerVariables.insert(variable)
+                    }
+                    if let variable = concreteLowerVariable(left: constraint.right, right: constraint.left) {
+                        concreteLowerVariables.insert(variable)
+                    }
+                }
+            }
+        }
+        // Dependent-bound expansion needs positive evidence for the owner type.
+        // An upper-only solution is only a bound on the owner, not a type that
+        // can safely constrain the variables appearing in its own upper bound.
+        var concreteLowerVariables: Set<TypeVarID> = []
+        addConcreteLowerEvidence(from: constraints, to: &concreteLowerVariables)
+
         for _ in 0 ... max(1, signature.typeParameterSymbols.count) {
             var addedDependentConstraint = false
             for (index, typeParamSymbol) in signature.typeParameterSymbols.enumerated() {
                 guard let typeVar = typeVarBySymbol[typeParamSymbol],
-                      let substitutedType = solution.substitution[typeVar]
+                      concreteLowerVariables.contains(typeVar),
+                      let substitutedType = solution.substitution[typeVar],
+                      !containsTypeVariable(substitutedType, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
                 else {
                     continue
                 }
@@ -154,13 +203,15 @@ extension OverloadResolver {
                 let symbolBounds = symbolTable?.typeParameterUpperBounds(for: typeParamSymbol) ?? []
                 let upperBounds = signatureBounds + symbolBounds.filter { !signatureBounds.contains($0) }
                 for upperBound in upperBounds {
-                    let substitutedBound = typeSystem.substituteTypeParameters(
-                        in: upperBound,
-                        substitution: solution.substitution,
-                        typeVarBySymbol: typeVarBySymbol
-                    )
+                    // A partial solution is not a fixed assignment. Keep
+                    // inference variables in the bound symbolic so the
+                    // concrete type can contribute constraints for them; for
+                    // example, `R = Int` must not erase `R` from
+                    // `M : MutableMap<in K, R>` before `M`'s nullable value
+                    // type is considered.
+                    let dependentBound = upperBound
                     guard containsTypeVariable(
-                        substitutedBound,
+                        dependentBound,
                         typeVarBySymbol: typeVarBySymbol,
                         typeSystem: typeSystem
                     ) else {
@@ -168,15 +219,23 @@ extension OverloadResolver {
                     }
                     let dependentConstraints = decomposeSubtypeConstraint(
                         subtype: substitutedType,
-                        supertype: substitutedBound,
+                        supertype: dependentBound,
                         typeVarBySymbol: typeVarBySymbol,
                         typeSystem: typeSystem,
                         blameRange: blameRange
                     )
-                    guard !usedTypeVariables(from: dependentConstraints).isEmpty else {
+                    let novelConstraints = dependentConstraints.filter { dependent in
+                        !constraints.contains { existing in
+                            existing.kind == dependent.kind
+                                && existing.left == dependent.left
+                                && existing.right == dependent.right
+                        }
+                    }
+                    guard !usedTypeVariables(from: novelConstraints).isEmpty else {
                         continue
                     }
-                    constraints.append(contentsOf: dependentConstraints)
+                    constraints.append(contentsOf: novelConstraints)
+                    addConcreteLowerEvidence(from: novelConstraints, to: &concreteLowerVariables)
                     addedDependentConstraint = true
                 }
             }

@@ -8,6 +8,8 @@ inline fun <T, V> Sequence<T>.associateWith(valueSelector: (T) -> V): Map<T, V> 
 inline fun <T> Sequence<T>.partition(predicate: (T) -> Boolean): Pair<List<T>, List<T>> { val yes = mutableListOf<T>(); val no = mutableListOf<T>(); for (item in this) { if (predicate(item)) yes.add(item) else no.add(item) }; return Pair(yes, no) }
 inline fun <T> Sequence<T>.forEach(action: (T) -> Unit): Unit { for (item in this) action(item) }
 inline fun <T, R> Sequence<T>.fold(initial: R, operation: (R, T) -> R): R { var result = initial; for (item in this) result = operation(result, item); return result }
+inline fun <T> Sequence<T>.sumBy(selector: (T) -> Int): Int { var sum = 0; for (item in this) sum += selector(item); return sum }
+inline fun <T> Sequence<T>.sumByDouble(selector: (T) -> Double): Double { var sum = 0.0; for (item in this) sum += selector(item); return sum }
 
 inline fun <T> Sequence<T>.any(predicate: (T) -> Boolean): Boolean { for (item in this) if (predicate(item)) return true; return false }
 inline fun <T> Sequence<T>.all(predicate: (T) -> Boolean): Boolean { for (item in this) if (!predicate(item)) return false; return true }

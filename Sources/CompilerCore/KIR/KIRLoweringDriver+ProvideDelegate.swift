@@ -1,15 +1,4 @@
 extension KIRLoweringDriver {
-    /// Emits the stable KProperty object shared by all operations on a delegated property.
-    /// KUU-2947: a property declared inside a function hands its delegate a
-    /// KProperty0/KMutableProperty0-shaped stub (matching the JVM's
-    /// PropertyReference0Impl), so `isLocal` selects the local-stub runtime
-    /// entry point that registers the 0-arity reflection type and its
-    /// unsupported-accessor behavior.
-    /// `delegateValue` is the live delegate handle (per-instance field or
-    /// global slot content) when the caller has one: it is stored on the stub
-    /// so `p.getDelegate()` inside getValue/setValue/provideDelegate answers
-    /// it like the JVM (KUU-3694). Local delegated properties keep the JVM's
-    /// `null` answer, so callers pass nil there.
     func emitKPropertyStubCreate(
         propertySymbol: SymbolID,
         sema: SemaModule,
@@ -65,10 +54,6 @@ extension KIRLoweringDriver {
             stubArguments.append(isMutableExprID)
             stubCalleeName = "__kk_kproperty_stub_create_local"
         } else {
-            // KUU-3194: prefer a real accessor-backed wrapper object so the
-            // KProperty value dispatches get/set/invoke to the generated
-            // accessors. Fall back to the metadata-only runtime stub when the
-            // property shape is not representable as a wrapper.
             if let wrapperValue = lambdaLowerer.lowerDelegatedPropertyStubWrapper(
                 propertySymbol: propertySymbol,
                 propertyName: propertyName,
@@ -99,11 +84,6 @@ extension KIRLoweringDriver {
         body.append(
             .call(callee: interner.intern(stubCalleeName), arguments: stubArguments, result: kPropertyExprID, canThrow: false)
         )
-        // KUU-3947: pin the JVM-style `val pkg.Owner.name: kotlin.T` text on
-        // the cached stub fallback so `property` printed inside getValue/
-        // setValue/provideDelegate shows the declaring owner like the JVM.
-        // (The accessor-backed wrapper path above pins its own description;
-        // local delegated stubs stay on the RuntimeKPropertyStub rendering.)
         if !isLocal {
             lambdaLowerer.emitFunctionDescription(
                 value: kPropertyExprID,
@@ -138,9 +118,6 @@ extension KIRLoweringDriver {
         return kPropertyExprID
     }
 
-    /// Emits the full provideDelegate flow for top-level properties: store raw delegate,
-    /// build thisRef + KProperty stub, call provideDelegate, and store its result as the
-    /// actual delegate (getValue/setValue resolve directly against that value).
     func emitProvideDelegateInit(
         delegateObjExpr: KIRExprID,
         symbol: SymbolID,
@@ -162,10 +139,8 @@ extension KIRLoweringDriver {
             return
         }
 
-        // Store the raw delegate so we can call provideDelegate on it.
         initInstructions.append(.storeGlobal(value: delegateObjExpr, symbol: delegateStorageSymbol))
 
-        // Build thisRef (null for top-level properties).
         let thisRefExprID = arena.appendExpr(.null, type: sema.types.nullableAnyType)
         initInstructions.append(.constValue(result: thisRefExprID, value: .null))
 
@@ -202,8 +177,6 @@ extension KIRLoweringDriver {
         initInstructions.append(.storeGlobal(value: provideDelegateResult, symbol: delegateStorageSymbol))
     }
 
-    /// Emits the simple delegate init: stores the raw delegate object directly
-    /// (getValue/setValue resolve directly against that value).
     func emitSimpleDelegateInit(
         delegateObjExpr: KIRExprID,
         delegateStorageSymbol: SymbolID,

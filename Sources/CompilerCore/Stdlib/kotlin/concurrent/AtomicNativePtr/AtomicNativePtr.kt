@@ -4,12 +4,6 @@ package kotlin.concurrent
 
 import kotlin.native.internal.NativePtr
 
-/**
- * Upstream stores the pointer in a `@Volatile` property and implements the
- * operations through `kotlin.internal` field intrinsics. KSwiftK lowers those
- * intrinsics as plain field reads and writes, so the members keep the same
- * sequential shape as the source-backed `kotlin.native.concurrent` twin.
- */
 @SinceKotlin("1.9")
 public class AtomicNativePtr(value: NativePtr) {
     @Volatile

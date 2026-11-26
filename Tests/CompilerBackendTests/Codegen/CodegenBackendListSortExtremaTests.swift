@@ -5,20 +5,6 @@
 import Foundation
 import Testing
 
-/// RF-LOWER-CALL-011: end-to-end counterpart of
-/// `ListSortExtremaLoweringRoutingTests`.
-///
-/// The comparator/selector, empty-input, null-key and equal-rank contracts for
-/// the List `sorted*` / `min*` / `max*` families are already covered by
-/// `Scripts/diff_cases/{list_sort_max_min,list_sorted_variants,list_max_min_with,
-/// list_maxby_minby}.kt` — but only there, and that `diff_kotlinc.sh` CI step is
-/// `continue-on-error`.  The execution tests below make them blocking, and the
-/// IR tests pin that neither the source nor the artifact stdlib path redirects
-/// a resolved Kotlin declaration to the legacy `kk_list_*` sorting/extrema
-/// exports — of which only `kk_list_sortedBy` still has a `@_cdecl`, so a
-/// redirect would fail at link time rather than produce a wrong answer.
-///
-/// Expected outputs were taken from kotlinc 2.x on the same sources.
 @Suite
 struct CodegenBackendListSortExtremaTests {
     /// The legacy `kk_list_*` sorting/extrema ABI surface, in LLVM IR call /
@@ -34,7 +20,6 @@ struct CodegenBackendListSortExtremaTests {
         "@kk_list_maxByOrNull(", "@kk_list_maxOfOrNull(",
         "@kk_list_min(", "@kk_list_minOrNull(", "@kk_list_minBy(",
         "@kk_list_minByOrNull(", "@kk_list_minOfOrNull(",
-        // KSP-1511
         "@kk_list_shuffled(", "@kk_list_shuffled_random(",
     ]
 
@@ -50,10 +35,6 @@ struct CodegenBackendListSortExtremaTests {
         return try String(contentsOfFile: llvmPath, encoding: .utf8)
     }
 
-    // MARK: - no redirect to the legacy runtime exports
-
-    /// Artifact path: explicitly select the shared precompiled `.kklib`
-    /// so this test exercises imported stdlib symbols.
     @Test
     func listSortExtremaKeepSourceCalleesThroughStdlibArtifact() throws {
         try withTemporaryFile(contents: KotlinSourceFixtures.listSortExtremaCoverage) { path in
@@ -74,7 +55,6 @@ struct CodegenBackendListSortExtremaTests {
         }
     }
 
-    /// Source path: the bundled stdlib is compiled alongside the module.
     @Test
     func listSortExtremaKeepSourceCalleesWithStdlibFromSource() throws {
         try withTemporaryFile(contents: KotlinSourceFixtures.listSortExtremaCoverage) { path in
@@ -93,10 +73,6 @@ struct CodegenBackendListSortExtremaTests {
         }
     }
 
-    // MARK: - execution contracts
-
-    /// KUU-553: compiling the bundled stdlib from source used to bind these
-    /// calls to generic List<T>.min/minOrNull and return the first element.
     @Test
     func floatingPointListMinUsesIterableSpecializationsWithStdlibFromSource() throws {
         let source = """
@@ -120,9 +96,6 @@ struct CodegenBackendListSortExtremaTests {
         )
     }
 
-    /// Comparator- and selector-driven ordering, and the equal-rank rule:
-    /// sorting is stable (equal keys keep input order) and the extrema pick the
-    /// *first* element of an equal-ranked run.
     @Test
     func listSortExtremaPreserveComparatorSelectorAndEqualRankOrder() throws {
         let source = """
@@ -178,8 +151,6 @@ struct CodegenBackendListSortExtremaTests {
         )
     }
 
-    /// KUU-2749: a callable reference returning a primitive must cross the
-    /// erased return ABI when captured by a generic sorting callback.
     @Test
     func genericListSortingBoxesCallableReferenceKeys() throws {
         let source = """
@@ -208,8 +179,6 @@ struct CodegenBackendListSortExtremaTests {
         )
     }
 
-    /// Comparator parameters erase their element type, so primitive candidates
-    /// must be boxed before the Comparator bridge performs its generic cast.
     @Test
     func minMaxOfWithNaturalOrderBoxesPrimitiveCandidates() throws {
         let source = """
@@ -230,9 +199,6 @@ struct CodegenBackendListSortExtremaTests {
         )
     }
 
-    /// `sortedByDescending` takes a `R?` selector: null keys sort last in
-    /// descending order, which `compareValues` — not a raw `compareTo` — has to
-    /// supply.
     @Test
     func listSortedByDescendingOrdersNullKeysLast() throws {
         let source = """
@@ -249,9 +215,6 @@ struct CodegenBackendListSortExtremaTests {
         )
     }
 
-    /// Empty input: every `*OrNull` form yields `null`, `sorted()` an empty
-    /// list, and the non-null forms throw a catchable
-    /// `NoSuchElementException`.
     @Test
     func listSortExtremaHandleEmptyInput() throws {
         let source = """

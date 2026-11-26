@@ -32,11 +32,6 @@ struct CompanionBlocksAndExtensionsExecutionTests {
         )
     }
 
-    /// KUU-3821: `companion {}` blocks and a `companion object` share one
-    /// companion scope on the JVM — every block property initializer runs
-    /// eagerly inside that scope's <clinit> before the companion object's
-    /// own body, so the init log is "ACBI" (block, block, object property,
-    /// object init block) rather than deferred or interleaved differently.
     @Test
     func companionBlocksAndCompanionObjectInitializeInOneScope() throws {
         try compileAndRunKotlin(
@@ -66,10 +61,6 @@ struct CompanionBlocksAndExtensionsExecutionTests {
         )
     }
 
-    /// KUU-3822: initializing a class whose companion scope is a
-    /// `companion {}` block first initializes the supertype's companion
-    /// blocks — the same superclass-chain-first order named companion
-    /// objects follow on the JVM.
     @Test
     func companionBlocksInitializeSupertypeCompanionsFirst() throws {
         try compileAndRunKotlin(
@@ -101,9 +92,6 @@ struct CompanionBlocksAndExtensionsExecutionTests {
         )
     }
 
-    /// KUU-3823: an enum's `companion {}` block initializers run inside the
-    /// enum's <clinit> after the enum entries — touching a block member
-    /// must observe "12" (entry then block), never "21".
     @Test
     func enumCompanionBlockInitializesAfterEntries() throws {
         try compileAndRunKotlin(
@@ -128,11 +116,6 @@ struct CompanionBlocksAndExtensionsExecutionTests {
         )
     }
 
-    /// KUU-3827: an enum with only `companion {}` blocks still owns a
-    /// synthetic companion for `values`/`valueOf`/`entries`, but the enum's
-    /// <clinit> must also run the hidden `$CompanionBlocks` object's
-    /// initializers — reading `entries` first then observing the shared
-    /// init log yields "12" (entries, then block).
     @Test
     func enumEntriesTriggerCompanionBlockInitialization() throws {
         try compileAndRunKotlin(

@@ -154,11 +154,6 @@ extension BuildKIRRegressionTests {
 
     @Test
     func localObjectMemberExtensionPropertyReadUsesRegisteredAccessor() throws {
-        // KUU-3692: an explicit `O.e` read on a local object's member
-        // extension property must call the registered getter accessor with
-        // (dispatch receiver, extension receiver), not a placeholder call
-        // that lowers to an external bare `get` symbol. Local named objects
-        // are rejected since #12074 (SEMA-0429), so use an anonymous object.
         let ctx = makeContextFromSource("""
         object O
         fun main() {
@@ -192,7 +187,6 @@ extension BuildKIRRegressionTests {
         }
         #expect(!getterCalls.isEmpty, "expected a .call getter invocation")
         #expect(getterCalls.allSatisfy { $0.count == 2 })
-        // No unresolved placeholder `get` call may survive in any body.
         #expect(!functions.flatMap(\.body).contains { instruction in
             guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction else { return false }
             return callee == KnownCompilerNames(interner: ctx.interner).get && symbol == nil

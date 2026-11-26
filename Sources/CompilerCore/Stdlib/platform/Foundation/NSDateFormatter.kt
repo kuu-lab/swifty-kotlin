@@ -1,8 +1,5 @@
 package platform.Foundation
 
-// NSDateFormatterStyle / NSNumberFormatterBehavior are NS_ENUM(NSUInteger)
-// in NSDateFormatter.h / NSNumberFormatter.h; Kotlin/Native exposes them as
-// typealiases over NSUInteger with top-level constants.
 public typealias NSDateFormatterStyle = ULong
 
 public const val NSDateFormatterNoStyle: NSDateFormatterStyle = 0uL

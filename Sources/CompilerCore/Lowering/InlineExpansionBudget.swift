@@ -1,4 +1,3 @@
-/// Per-caller resource limits shared by rescans and nested lambda splices.
 final class InlineExpansionBudget {
     struct Limits {
         var work = 1_000_000

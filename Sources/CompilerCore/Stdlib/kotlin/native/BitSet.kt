@@ -7,7 +7,6 @@ private fun bitSetElementSize(bitSize: Int): Int =
 
 @ObsoleteNativeApi
 public class BitSet(size: Int = BIT_SET_ELEMENT_SIZE) {
-    // Store bits in 64-bit elements, matching Kotlin/Native's implementation.
     private var bits: LongArray = LongArray(bitSetElementSize(size))
 
     private val lastIndex: Int

@@ -4,9 +4,6 @@ import Foundation
 #if canImport(Testing)
 import Testing
 
-/// BUG-142: `++` / `--` used in expression position (`values[index++]`) was parsed
-/// but the mutation was dropped, so user-defined iterators over a collection held
-/// in an instance field never advanced and looped forever.
 @Suite
 struct CodegenBackendIncrementExpressionPositionTests {
     @Test
@@ -215,11 +212,6 @@ struct CodegenBackendIncrementExpressionPositionTests {
 
     @Test
     func testIncrementDecrementExtensionOperatorWithDefaultArgument() throws {
-        // KUU-3192: the synthesized `++`/`--` call carries no explicit
-        // arguments, so an `inc`/`dec` whose parameters are all optional must
-        // go through the `<name>$default` stub with a default mask. Emitting a
-        // direct call to the original symbol passed an incomplete argument
-        // list and crashed at runtime.
         let source = """
         var result = "fail"
 
@@ -247,9 +239,6 @@ struct CodegenBackendIncrementExpressionPositionTests {
 
     @Test
     func testIncrementDecrementLocalOperatorCapturingDefaultArgument() throws {
-        // The `$default` stub for a local operator evaluates the omitted
-        // default expression itself, so it needs the same lifted capture
-        // environment the original function object carries.
         let source = """
         var result = "fail"
 

@@ -23,8 +23,6 @@ extension CallLowerer {
             let concreteType = index < callBinding.substitutedTypeArguments.count
                 ? callBinding.substitutedTypeArguments[index]
                 : sema.types.anyType
-            // Nested inline calls must forward the enclosing reified token;
-            // a type parameter has no concrete nominal token to encode yet.
             var forwardedParameter: TypeParamType?
             var tokenType = concreteType
             switch sema.types.kind(of: concreteType) {
@@ -66,10 +64,6 @@ extension CallLowerer {
                     arguments.append(tokenExpr)
                 }
                 if carriesComponent {
-                    // KUU-4022: the slot carries the substituted type's full
-                    // KType, so `typeOf<U>` inside the callee keeps its type
-                    // arguments; a forwarded reified parameter reuses the
-                    // enclosing function's captured box.
                     arguments.append(driver.lowerKTypeExpr(
                         for: componentType, sema: sema, arena: arena,
                         interner: interner, instructions: &instructions
@@ -85,7 +79,6 @@ extension CallLowerer {
             instructions.append(.constValue(result: tokenExpr, value: .intLiteral(encodedToken)))
             arguments.append(tokenExpr)
             if carriesComponent {
-                // See above: this hidden argument is the substitution's KType.
                 arguments.append(driver.lowerKTypeExpr(
                     for: componentType, sema: sema, arena: arena,
                     interner: interner, instructions: &instructions
@@ -167,7 +160,8 @@ extension CallLowerer {
         receiverExpr: ExprID,
         calleeName: InternedString,
         argumentExprs: [ExprID],
-        sema: SemaModule
+        sema: SemaModule,
+        interner: StringInterner
     ) -> CallBinding? {
         let existingBinding = sema.bindings.callBindings[exprID]
         if let existing = existingBinding,
@@ -230,7 +224,8 @@ extension CallLowerer {
                 named: calleeName,
                 nonNullReceiverType: nonNullReceiverType,
                 argumentCount: argumentExprs.count,
-                sema: sema
+                sema: sema,
+                interner: interner
             ))
         }
         // Duplicate registrations (bundled source decl beside an artifact
@@ -290,16 +285,12 @@ extension CallLowerer {
         )
     }
 
-    /// Source-level extension functions and extension-property getters declared
-    /// for `nonNullReceiverType`. Sema resolves those against the narrowed
-    /// receiver, but a receiver whose static type stays nullable (a mutable
-    /// local keeps its declared type across a null check) leaves no call
-    /// binding behind, and only the bare source name would reach codegen.
     private func extensionCandidates(
         named calleeName: InternedString,
         nonNullReceiverType: TypeID,
         argumentCount: Int,
-        sema: SemaModule
+        sema: SemaModule,
+        interner: StringInterner
     ) -> [SymbolID] {
         func receiverMatches(_ candidate: SymbolID) -> Bool {
             guard let signature = sema.symbols.functionSignature(for: candidate),
@@ -308,10 +299,25 @@ extension CallLowerer {
             else {
                 return false
             }
-            return sema.types.isSubtype(
-                nonNullReceiverType,
-                sema.types.makeNonNullable(declaredReceiver)
-            )
+            let declaredNonNullReceiver = sema.types.makeNonNullable(declaredReceiver)
+            if sema.types.isSubtype(nonNullReceiverType, declaredNonNullReceiver) {
+                return true
+            }
+            // Generic nullable-receiver predicates such as Map<K, V>?.isNullOrEmpty()
+            // do not reduce to a plain subtype check once their type parameters are
+            // left as symbols. For these zero-argument collection predicates, match
+            // the nominal receiver instead so KIR can still recover the stdlib call.
+            guard argumentCount == 0,
+                  interner.resolve(calleeName) == "isNullOrEmpty",
+                  let actualClassType = resolveClassType(nonNullReceiverType, sema: sema),
+                  let declaredClassType = resolveClassType(declaredNonNullReceiver, sema: sema)
+            else {
+                return false
+            }
+            let actualReceiverSymbol = actualClassType.classSymbol
+            let declaredReceiverSymbol = declaredClassType.classSymbol
+            return actualReceiverSymbol == declaredReceiverSymbol
+                || sema.types.isNominalSubtypeSymbol(actualReceiverSymbol, of: declaredReceiverSymbol)
         }
 
         return sema.symbols.lookupByShortName(calleeName).compactMap { candidate in

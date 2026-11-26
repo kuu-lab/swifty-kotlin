@@ -5,16 +5,6 @@ import Foundation
 import Testing
 
 extension StdlibArtifactRegressionTests {
-    /// KUU-2683 (BUG-266): assignments to `Long` properties of an imported
-    /// `object` must reach their accessors. `minBytes`/`maxBytes` write
-    /// through custom setters onto private backing vars, `plainLong` keeps
-    /// the flat-global backing-field path, `silentA`/`silentB` prove a
-    /// misbound `set` call cannot drop a write silently, and the `+=` on
-    /// `minBytes` exercises the getter/setter round trip that used to read
-    /// and write a dead flat-global slot.
-    ///
-    /// false compiles producer and consumer together from source; true emits
-    /// a real user .kklib first and compiles only the consumer against it.
     @Test(arguments: [false, true])
     func testLongObjectSetterControlRoundTrip(useProducerLibrary: Bool) throws {
         let stdlibArtifactPath = try Self.buildStdlibArtifact()

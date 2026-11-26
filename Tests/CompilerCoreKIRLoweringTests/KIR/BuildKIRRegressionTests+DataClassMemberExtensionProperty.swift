@@ -5,8 +5,6 @@ import Testing
 @testable import CompilerTestSupport
 
 extension BuildKIRRegressionTests {
-    // KUU-3520: a member extension property may share a name with a data
-    // class's primary-constructor property without replacing its component.
     @Test
     func dataClassComponentUsesConstructorPropertyWithSameNamedMemberExtension() throws {
         try withTemporaryFile(contents: """

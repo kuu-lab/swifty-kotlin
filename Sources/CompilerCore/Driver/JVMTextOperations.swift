@@ -7,7 +7,6 @@ struct JVMTextParameter {
     var variadic = false
 }
 
-/// The same intrinsic signatures drive Sema declarations and JVM invocation.
 struct JVMTextOperation {
     let name: String
     var receiver = "String"
@@ -57,7 +56,9 @@ struct JVMTextOperation {
         add("trimIndent")
         add("replaceIndent", [p("newIndent", .string, "empty")])
         add("lines", sourceResult: "List<String>", result: list, receiver: "CharSequence", jvmReceiver: sequence)
+        add("prependIndent", [p("indent", .string, "indent")])
         add("trimMargin", [p("marginPrefix", .string, "margin")])
+        add("replaceIndentByMargin", [p("newIndent", .string, "empty"), p("marginPrefix", .string, "margin")])
         for name in ["uppercase", "lowercase", "reversed"] { add(name) }
         add("repeat", [p("n", .int)], jvmReceiver: sequence)
         for name in ["padStart", "padEnd"] { add(name, [p("length", .int), p("padChar", .char, "space")]) }
@@ -77,6 +78,11 @@ struct JVMTextOperation {
         add("endsWith", [p("suffix", sequence), p("ignoreCase", .boolean, "false")],
             sourceResult: "Boolean", result: .boolean, receiver: "CharSequence", jvmReceiver: sequence)
         add("startsWith", [p("prefix", .string), p("startIndex", .int), p("ignoreCase", .boolean, "false")], sourceResult: "Boolean", result: .boolean)
+        let nullableSequence = JVMValueType.reference("java/lang/CharSequence", nullable: true)
+        add("contentEquals", [p("other", nullableSequence)],
+            sourceResult: "Boolean", result: .boolean, receiver: "CharSequence?", jvmReceiver: nullableSequence)
+        add("contentEquals", [p("other", nullableSequence), p("ignoreCase", .boolean)],
+            sourceResult: "Boolean", result: .boolean, receiver: "CharSequence?", jvmReceiver: nullableSequence)
         for name in ["indexOf", "lastIndexOf"] {
             for char in [false, true] {
                 add(name, [p(char ? "char" : "string", char ? .char : .string), p("startIndex", .int, name == "indexOf" ? "0" : "lastIndex"), p("ignoreCase", .boolean, "false")], sourceResult: "Int", result: .int, jvmReceiver: sequence)

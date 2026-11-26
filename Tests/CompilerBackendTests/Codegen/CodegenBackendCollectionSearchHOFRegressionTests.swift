@@ -3,8 +3,6 @@ import Foundation
 #if canImport(Testing)
 import Testing
 
-// KSP-423 regression tests: predicate first/last and Array.contains must lower
-// to bundled Kotlin source rather than stale kk_* runtime entries.
 @Suite
 struct CodegenBackendCollectionSearchHOFRegressionTests {
 
@@ -83,7 +81,6 @@ struct CodegenBackendCollectionSearchHOFRegressionTests {
         )
     }
 
-    // KSP-973: generic Iterable.first-family calls must use bundled source implementations.
     @Test
     func codegenIterableFirstFamilyUsesSourceImplementation() throws {
         let source = """
@@ -128,7 +125,6 @@ struct CodegenBackendCollectionSearchHOFRegressionTests {
         )
     }
 
-    // KUU-1889: generic Array predicate search must execute through source and artifact stdlibs.
     @Test(arguments: [false, true])
     func codegenArrayIndexOfFirstUsesSourceImplementation(allowDefaultStdlibLibrary: Bool) throws {
         let source = """

@@ -27,12 +27,6 @@ extension ExprLowerer {
             lhsExpr, ast: ast, sema: sema, arena: arena, interner: interner,
             propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
         )
-        // KSP-1523: UInt used to get its own branch here (`kk_uint_range_contains`),
-        // gated on `rhsType == uintType` — but `rhsType` is the range's own type
-        // (e.g. UIntRange), never its element type, so that comparison was always
-        // false. UInt now falls through to the same `appendContainsCall` path as
-        // every other range, which resolves to the shared `__kk_range_contains`
-        // bridge (safe: UInt always fits the Int64 fields it operates on).
         let floatingPointPlan = floatingPointRangeContainsPlan(
             for: rhsExpr, value: lhsExpr, sema: sema, ast: ast)
 
@@ -125,8 +119,6 @@ extension ExprLowerer {
                           interner: interner
                       )
             {
-                // Generic range interface members may lack a link name; use
-                // the concrete runtime bridge, as in the `r.contains(x)` path.
                 calleeName = rangeLink
                 remappedToRangeBridge = true
             } else if let sym = sema.symbols.symbol(callBinding.chosenCallee) {
@@ -224,8 +216,6 @@ extension ExprLowerer {
         return false
     }
 
-    /// How `x in <floating-point range>` must reach the box so the answer
-    /// matches kotlinc/JVM for cross-type operands (KUU-3228).
     private enum FloatingPointRangeContainsPlan {
         /// `x in a..b` / `x in a..<b` on a Float range with a Double operand.
         /// The JVM `in` intrinsic compares the promoted bounds
@@ -233,13 +223,8 @@ extension ExprLowerer {
         /// full Double precision at the boundary — a `value.toFloat()`
         /// membership check rounds edge Doubles onto the bound and disagrees.
         case promoteFloatBounds(endExclusive: Bool)
-        /// Any other container expression resolves the
-        /// `ClosedRange<Float>.contains(Double)` (`floatRangeContains`)
-        /// extension semantics on JVM: `contains(value.toFloat())`.
         case truncateValueToFloat
-        /// `__kk_float_range_contains` with the Float operand passed through.
         case floatDirect
-        /// `__kk_double_range_contains`; a Float operand is widened first.
         case doubleDirect
     }
 

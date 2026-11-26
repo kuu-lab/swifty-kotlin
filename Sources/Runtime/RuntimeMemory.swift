@@ -214,17 +214,11 @@ public func __kk_kclass_java_object_type(_ kclassRaw: Int) -> Int {
 
 @_cdecl("__kk_any_javaClass")
 public func __kk_any_javaClass(_ receiverRaw: Int) -> Int {
-    // A Class describes a classifier, independently of the source object's lifetime.
     let classifier = runtimeKClassBox(from: receiverRaw)
         ?? runtimeKClassBox(from: __kk_kclass_of(receiverRaw, Int(RuntimeTypeTokenEncoding.anyBase), 0))
     guard let classifier else {
         runtimeStructuredPanic("invalid runtime classifier")
     }
-    // KClass-sourced lookups canonicalize through javaClassCache so
-    // Class.forName and KClass.java agree on identity, matching JVM Class
-    // interning. Object receivers use the same classifier cache, with a
-    // runtime-class discriminator for arrays, collection implementations,
-    // and generated functions.
     if runtimeKClassBox(from: receiverRaw) != nil {
         return runtimeJavaClassHandle(typeToken: classifier.typeToken, nameHint: classifier.nameHint)
     }
@@ -257,8 +251,6 @@ func runtimeKotlinClassName(forJavaClassName name: String) -> String {
     case "java.lang.Exception": return "kotlin.Exception"
     case "java.lang.RuntimeException": return "kotlin.RuntimeException"
     default:
-        // Kotlin nested classifiers use dots in their semantic names; JVM
-        // binary class names use '$' between the same classifiers.
         return name.replacingOccurrences(of: "$", with: ".")
     }
 }
@@ -348,10 +340,6 @@ private func normalizedJavaClassTypeToken(_ token: Int) -> Int64 {
     Int64(truncatingIfNeeded: token) & ~RuntimeTypeTokenEncoding.nullableBit
 }
 
-/// Interned primitive `java.lang.Class` handle shared by
-/// `KClass.javaPrimitiveType`, `KClass.java`, and the primitive-receiver
-/// `javaClass` overloads so JVM class identity (`int.class == int.class`)
-/// holds across all three spellings.
 private func runtimeJavaPrimitiveClassHandle(typeToken: Int, nameHint: Int, canonicalNameOverride: String? = nil) -> Int {
     if let cached = runtimeStorage.withMetadataLock({ $0.primitiveJavaClassCache[typeToken] }) {
         return cached
@@ -379,9 +367,6 @@ public func __kk_kclass_java_class(_ kclassRaw: Int) -> Int {
     guard let classifier = runtimeKClassBox(from: kclassRaw) else {
         runtimeStructuredPanic("invalid KClass handle")
     }
-    // JVM `Int::class.java` *is* `int.class`: primitive classifiers return
-    // the same interned primitive handle as `javaPrimitiveType`, while
-    // `javaObjectType` keeps its wrapper override on a separate cache key.
     switch Int64(truncatingIfNeeded: classifier.typeToken) & RuntimeTypeTokenEncoding.baseMask {
     case RuntimeTypeTokenEncoding.booleanBase, RuntimeTypeTokenEncoding.byteBase,
          RuntimeTypeTokenEncoding.shortBase, RuntimeTypeTokenEncoding.intBase,
@@ -394,9 +379,6 @@ public func __kk_kclass_java_class(_ kclassRaw: Int) -> Int {
     default:
         break
     }
-    // KClass-sourced lookups canonicalize through javaClassCache so
-    // Class.forName and KClass.java agree on identity, matching JVM Class
-    // interning.
     return runtimeJavaClassHandle(typeToken: classifier.typeToken, nameHint: classifier.nameHint)
 }
 
@@ -454,9 +436,6 @@ public func __kk_kclass_java_primitive_type(_ kclassRaw: Int) -> Int {
     }
     let token = box.typeToken
     var canonicalNameOverride: String?
-    // Kotlin's eight value primitives and Nothing (the JVM Void classifier) map
-    // to primitive Class handles.
-    // Unit and unsigned value classes are reference types on the JVM.
     switch Int64(token) & RuntimeTypeTokenEncoding.baseMask {
     case RuntimeTypeTokenEncoding.booleanBase, RuntimeTypeTokenEncoding.byteBase,
          RuntimeTypeTokenEncoding.shortBase, RuntimeTypeTokenEncoding.intBase,

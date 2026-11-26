@@ -1,17 +1,6 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// `MessageDigest.getInstance` must accept SHAKE128/SHAKE256 (the JDK's
-    /// XOF providers expose a fixed 32/64-byte digest through this API) plus
-    /// the SHAKE128-256/SHAKE256-512 spellings, while dashed or undashed
-    /// lookalikes such as "SHAKE-128"/"SHAKE128256" are rejected exactly like
-    /// the JDK. Pins canonical XOF vectors, case-insensitive aliases, the JDK
-    /// reset contract (each digest() finalizes; the next digest() restarts
-    /// from an empty buffer rather than continuing the XOF stream),
-    /// digest(data) append semantics, update() bounds checking, and the
-    /// DigestException / IllegalArgumentException / index-error split in
-    /// digest(output, offset, length). Expected output was captured from
-    /// kotlinc on OpenJDK 27. Regression for KUU-4306.
     @Test
     func testMessageDigestShakeXofContract() throws {
         try compileAndRunKotlin(

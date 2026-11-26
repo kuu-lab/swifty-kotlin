@@ -39,6 +39,27 @@ struct NewlineOperatorTests {
     }
 
     @Test
+    func newlineBeforeAnonymousFunctionContinuesContextParameterPrefix() {
+        let previous = lex("val f = context(a: String)").tokens.dropLast()
+        let next = lex("fun(y: String): String = a + y").tokens.dropLast()
+        #expect(BuildASTPhase.isContinuationBoundary(previousTail: previous, nextHead: next))
+    }
+
+    @Test
+    func newlineBeforeAnonymousFunctionDoesNotContinueMemberContextCall() {
+        let previous = lex("obj.context()").tokens.dropLast()
+        let next = lex("fun(y: String): String = y").tokens.dropLast()
+        #expect(!BuildASTPhase.isContinuationBoundary(previousTail: previous, nextHead: next))
+    }
+
+    @Test
+    func newlineBeforeNamedFunctionDoesNotContinueContextParameterPrefix() {
+        let previous = lex("val f = context(a: String)").tokens.dropLast()
+        let next = lex("fun named(y: String): String = y").tokens.dropLast()
+        #expect(!BuildASTPhase.isContinuationBoundary(previousTail: previous, nextHead: next))
+    }
+
+    @Test
     func newlineBeforeDoWhileConditionContinuesExpression() {
         let previous = lex("do { value = \"x\" }").tokens.dropLast()
         let next = lex("while (value != \"Y\")").tokens.dropLast()
@@ -143,10 +164,6 @@ struct NewlineOperatorTests {
 
     @Test(arguments: ["+", "-"])
     func cstSeparatesLeadingUnaryAfterBlockBodiedLocalFunction(op: String) {
-        // A `{ }`-bodied local function followed by a newline `+x`/`-x` is two
-        // statements: the declaration, then a prefix-unary expression. The
-        // trailing-lambda continuation `f() { } + x` only applies on the same
-        // line, so the `+`/`-` line must not be absorbed into the declaration.
         let parsed = parse("fun f() {\n    fun String.unary() { }\n    \(op) \"OK\"\n}")
         let outerBlockIndex = parsed.arena.nodes.indices.first { index in
             guard parsed.arena.nodes[index].kind == .block else { return false }
@@ -250,9 +267,6 @@ struct NewlineOperatorTests {
         #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics.map(\.message))")
     }
 
-    /// KUU-3144: a `{` that opens a new statement line is its own statement —
-    /// it must not become a call argument of a bare name, a value, an indexed
-    /// or parenthesized or asserted expression, or a `return` keyword.
     @Test(arguments: [
         "val tmp = Unit",
         "n",
@@ -270,10 +284,6 @@ struct NewlineOperatorTests {
         #expect(!BuildASTPhase.isContinuationBoundary(previousTail: previous, nextHead: block))
     }
 
-    /// Kotlin does bind a `{` on the next line when the previous statement
-    /// still awaits a braced body (declaration/literal headers, `else`,
-    /// `try`, `finally`, `do`, subject-less `when`, `init`) or ends in an
-    /// explicit call suffix (`name(...)`, `name<...>`).
     @Test(arguments: [
         "run()",
         "f(x)",
@@ -325,8 +335,6 @@ struct NewlineOperatorTests {
 
     @Test
     func blockAfterUnitValueParsesAsOwnStatement() throws {
-        // KUU-3144 end to end: `val tmp = Unit` + `{ }` is a declaration plus
-        // a standalone lambda statement; `Unit` is never invoked.
         let context = makeContextFromSource("""
         fun test(): String {
             val tmp = Unit
@@ -353,10 +361,6 @@ struct NewlineOperatorTests {
     }
 
     @Test(arguments: [
-        // KUU-3794: a bare `f()` call inside an infix chain counts its callee
-        // and argument list as one operand. Counting them separately flipped
-        // the operand/operator parity and treated the trailing identifier as
-        // a pending infix name, so the next line's statement was swallowed.
         "val x = topFun() shr LOG",
         "val x = topFun() until LOG",
         "val x = topFun() to LOG",
@@ -364,8 +368,6 @@ struct NewlineOperatorTests {
         "val x = rootSize() shr local",
         "val x = a shr f() to b",
         "topFun() shr LOG",
-        // An infix name followed by a parenthesised operand (`a b (c)`)
-        // keeps the same parity: the trailing operand completes the chain.
         "val x = a b (c) d e",
     ])
     func bareCallOperandDoesNotMakeInfixTailPending(source: String) {
@@ -387,8 +389,6 @@ struct NewlineOperatorTests {
 
     @Test
     func infixCallWithBareCallReceiverKeepsFollowingReturn() throws {
-        // KUU-3794 end to end: `return x` must stay a separate block
-        // statement so the function body is not judged `Unit`.
         let context = makeContextFromSource("""
         val LOG = 5
         fun topFun() = 0

@@ -1,6 +1,5 @@
 package java.awt
 
-/** `java.awt.Image` — the abstract image base. */
 public abstract class Image {
     public abstract val width: Int
     public abstract val height: Int

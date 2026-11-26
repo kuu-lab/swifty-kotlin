@@ -124,13 +124,6 @@ extension NativeEmitter.FunctionEmissionContext {
         bindings.positionBuilder(builder, at: continueBlock)
     }
 
-    // Per-frame stack guard (KUU-1384): every emitted function prologue
-    // passes a marker address inside its own frame to
-    // `kk_stack_overflow_check`. Once the current thread's stack drops
-    // below the runtime's overflow bound the call returns a
-    // StackOverflowError handle which this prologue propagates through the
-    // ordinary outThrown channel, so deep recursion becomes a catchable
-    // exception instead of a SIGSEGV.
     func emitStackOverflowGuard() {
         guard let checkFunction = declareExternalFunction(
             named: "kk_stack_overflow_check",

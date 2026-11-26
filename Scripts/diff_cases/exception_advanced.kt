@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Test 1: Exception re-throw
     try {

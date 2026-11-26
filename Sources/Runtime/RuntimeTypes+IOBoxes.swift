@@ -14,11 +14,6 @@ protocol RuntimeChunkedInputStream: RuntimeReaderInputStream {
     func readChunk(_ maxCount: Int) -> [Int]
 }
 
-/// Char-level pull source behind the `java.io` reader bridges.
-/// `RuntimeBufferedReaderBox` covers file/stream-backed readers; a Kotlin
-/// `java.io.Reader` subclass object (StringReader, user subclasses) reaches
-/// the runtime through `RuntimeKotlinReaderCharSource` — both feed a
-/// `BufferedReader` upstream or `Reader.readText`/`copyTo` (KUU-4031).
 protocol RuntimeReaderCharSource: AnyObject {
     /// Next character or -1 at EOF / after close. Stream-backed boxes report
     /// a decoded Unicode scalar value; Kotlin-reader sources report a UTF-16
@@ -62,9 +57,6 @@ final class RuntimeBufferedReaderBox: RuntimeReaderCharSource, RuntimeChildRefer
         self.chunkSize = max(1, chunkSize)
     }
 
-    /// Used by `InputStream.bufferedReader()` (STDLIB-IO-FN-007) where the
-    /// underlying `InputStream` is in-memory (`ByteArrayInputStream`) — no
-    /// `FileHandle` is involved, so the buffer is treated as already at EOF.
     init(data: Data, chunkSize: Int = 4096) {
         self.fileHandle = nil
         self.pendingData = data
@@ -74,19 +66,12 @@ final class RuntimeBufferedReaderBox: RuntimeReaderCharSource, RuntimeChildRefer
         self.chunkSize = max(1, chunkSize)
     }
 
-    /// Preserve the stream cursor until the first read; reuse the existing
-    /// UTF-8 decoder and line-ending handling rather than draining at construction.
     convenience init(inputStream: any RuntimeReaderInputStream) {
         self.init(data: Data())
         self.inputStream = inputStream
         self.reachedEOF = false
     }
 
-    /// Reader sources already provide their own buffering. Keep a distinct
-    /// close state while forwarding reads and closing the wrapped source
-    /// transitively — box sources for `BufferedReader(BufferedReader)` /
-    /// `InputStreamReader`, `RuntimeKotlinReaderCharSource` for Kotlin
-    /// `java.io.Reader` objects (KUU-4031).
     convenience init(reader: any RuntimeReaderCharSource) {
         self.init(data: Data())
         self.upstreamReader = reader
@@ -152,7 +137,6 @@ final class RuntimeBufferedReaderBox: RuntimeReaderCharSource, RuntimeChildRefer
         return String(decoding: data, as: UTF8.self)
     }
 
-    /// Reads a single character, returning its Unicode scalar value, or -1 on EOF.
     func read() -> Int {
         guard !closed else { return -1 }
         if let upstreamReader { return upstreamReader.read() }
@@ -176,7 +160,6 @@ final class RuntimeBufferedReaderBox: RuntimeReaderCharSource, RuntimeChildRefer
                     totalBytes = 4
                     codePoint = UInt32(byte & 0x07)
                 } else {
-                    // Continuation byte or invalid — return as-is
                     return Int(byte)
                 }
                 while pendingByteCount < totalBytes - 1 {
@@ -243,9 +226,6 @@ final class RuntimeBufferedReaderBox: RuntimeReaderCharSource, RuntimeChildRefer
         return true
     }
 
-    /// Drops already-consumed bytes from the front of `pendingData`, keeping
-    /// the buffer bounded to roughly one unread chunk instead of accumulating
-    /// every byte the reader has ever seen.
     private func dropConsumedPrefix() {
         guard readOffset > 0 else { return }
         pendingData.removeFirst(readOffset)
@@ -278,7 +258,6 @@ final class RuntimeBufferedReaderBox: RuntimeReaderCharSource, RuntimeChildRefer
 }
 
 class RuntimeInputStreamBox: RuntimeChildReferenceProviding, RuntimeReaderInputStream {
-    /// Native stream implementations report I/O failures through the existing ABI.
     var readError: String? { nil }
     private let data: Data
     private let arrayRaw: Int?
@@ -298,8 +277,6 @@ class RuntimeInputStreamBox: RuntimeChildReferenceProviding, RuntimeReaderInputS
         self.closed = false
     }
 
-    /// ByteArrayInputStream retains the supplied array, including a ranged
-    /// ByteArray.inputStream view. A later caller mutation is observed by read.
     init(arrayRaw: Int, offset: Int, length: Int) {
         self.data = Data()
         self.arrayRaw = arrayRaw
@@ -396,7 +373,6 @@ final class RuntimeSequenceInputStreamBox: RuntimeChildReferenceProviding, Runti
         while let raw = current {
             let copied = __kk_input_stream_read_range(raw, bytes, offset, count, outThrown)
             if let outThrown, outThrown.pointee != 0 { return -1 }
-            // SequenceInputStream does not fill a request across streams.
             if copied != -1 { return copied }
             if !advance(outThrown) { return -1 }
         }
@@ -484,11 +460,6 @@ final class RuntimeFileHandleOutputStreamSink: RuntimeOutputStreamSink {
 
 }
 
-/// A Kotlin throwable rethrown through the Swift `Error` channel by a
-/// callback-backed stream sink. `thrownRaw` is the original Kotlin throwable
-/// handle; the `__kk_*_stream_*` bridges write it to `outThrown` unchanged so
-/// the Kotlin caller observes the original exception rather than a synthesized
-/// `IOException`.
 struct RuntimeKotlinThrownError: Error {
     let thrownRaw: Int
 }
@@ -596,8 +567,6 @@ final class RuntimeOutputStreamBox: RuntimeChildReferenceProviding {
 
     func closeThrowing() throws { try sink.closeThrowing() }
 
-    /// Return false for an ordinary byte stream so the caller can validate
-    /// and copy its range. Callback streams preserve source validation order.
     func writeKotlinRange(_ array: Int, offset: Int, count: Int) throws -> Bool {
         guard let callback = sink as? RuntimeKotlinRangeOutputStreamSink else { return false }
         try callback.writeRange(array, offset: offset, count: count)
@@ -731,7 +700,6 @@ final class RuntimeBufferedWriterBox: RuntimeJavaWriter {
         defer { closed = true }
         do { try flush() }
         catch {
-            // Close the underlying stream even if encoding/flush failed.
             try? stream?.closeThrowing()
             try? fileHandle?.close()
             try? upstreamWriter?.closeThrowing()
@@ -772,18 +740,12 @@ final class RuntimeBufferedWriterBox: RuntimeJavaWriter {
 /// `read()` reports Kotlin Char units and lone surrogates survive as the
 /// internal surrogate-marker encoding.
 final class RuntimeKotlinReaderCharSource: RuntimeReaderCharSource, RuntimeChildReferenceProviding {
-    /// Raw handle of the Kotlin `java.io.Reader` object — reported as a
-    /// child reference so the object outlives this source.
     let readerRaw: Int
     private var pendingUnits: [UInt16] = []
     private var readOffset = 0
     private var reachedEOF = false
     private var closed = false
-    /// One-code-unit lookahead for readLine()'s CRLF handling.
     private var pushbackUnit: UInt16?
-    /// First Kotlin throwable captured from a read/close callback. Throwing
-    /// bridges (`Reader.copyTo`) surface it; lenient bridges treat it as
-    /// EOF, matching the box's own error handling.
     private(set) var thrown: Int = 0
 
     init(readerRaw: Int) {
@@ -816,8 +778,6 @@ final class RuntimeKotlinReaderCharSource: RuntimeReaderCharSource, RuntimeChild
         return pendingByteCount > 0
     }
 
-    /// Does NOT close the reader, matching Kotlin's `Reader.readText()`
-    /// contract. Partially buffered text still drains on a mid-read throw.
     func readText() -> String {
         var units: [UInt16] = []
         if let unit = pushbackUnit {
@@ -835,9 +795,6 @@ final class RuntimeKotlinReaderCharSource: RuntimeReaderCharSource, RuntimeChild
         return runtimeKotlinStringFromUTF16CodeUnits(units)
     }
 
-    /// Line reader over UTF-16 units. `\n`, `\r` and `\r\n` terminate; a
-    /// trailing non-empty fragment is returned as the last line, mirroring
-    /// `BufferedReader.readLine()` and `RuntimeBufferedReaderBox.readLine()`.
     func readLine() -> String? {
         guard !closed else { return nil }
         var units: [UInt16] = []
@@ -861,9 +818,6 @@ final class RuntimeKotlinReaderCharSource: RuntimeReaderCharSource, RuntimeChild
         return runtimeKotlinStringFromUTF16CodeUnits(units)
     }
 
-    /// Dispatches the Kotlin object's `close()` through its registered
-    /// Closeable itable entry — `Reader.close()` is the interface's sole
-    /// method, so slot 0 on every compatible interface nominal.
     func close() {
         guard !closed else { return }
         closed = true
@@ -912,10 +866,6 @@ final class RuntimeKotlinReaderCharSource: RuntimeReaderCharSource, RuntimeChild
         return count
     }
 
-    /// Refills `pendingUnits` from the Kotlin object's vtable
-    /// `read(CharArray, Int, Int)` entry. A missing entry, a non-positive
-    /// count or a thrown Kotlin exception all settle as EOF (the throwable
-    /// is kept in `thrown` for bridges that can surface it).
     private func refill() {
         guard pendingByteCount == 0, !reachedEOF, !closed, thrown == 0 else { return }
         let buffer = RuntimeArrayBox(length: 4096)

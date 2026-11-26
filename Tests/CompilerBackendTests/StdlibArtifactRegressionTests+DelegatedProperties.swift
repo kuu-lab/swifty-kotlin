@@ -41,7 +41,6 @@ extension StdlibArtifactRegressionTests {
 
     @Test
     func testDelegatedPropertyInitializersInCompanionAndNamedObject() throws {
-        // Source-mode O2 currently fails in unrelated bundled-stdlib codegen (KSWIFTK-BACKEND-1006).
         let configurations: [(useArtifact: Bool, optimization: Int)] = [
             (useArtifact: false, optimization: 0),
             (useArtifact: true, optimization: 0),
@@ -93,14 +92,8 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
-    /// KUU-2943: a delegated `var` declared with a visibility-only setter
-    /// clause (`private set`/`protected set`) still routes writes through the
-    /// synthesized setValue-forwarding accessor — previously the bare
-    /// `setter.body == .unit` check downgraded them to direct field stores on
-    /// a dead slot, silently losing the write (JetBrains kt9712 shape).
     @Test
     func testDelegatedVarWithRestrictedSetterVisibility() throws {
-        // Source-mode O2 currently fails in unrelated bundled-stdlib codegen (KSWIFTK-BACKEND-1006).
         let configurations: [(useArtifact: Bool, optimization: Int)] = [
             (useArtifact: false, optimization: 0),
             (useArtifact: true, optimization: 0),

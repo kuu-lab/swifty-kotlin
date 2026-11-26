@@ -36,10 +36,6 @@ struct HardKeywordIdentifierTests {
         }
     }
 
-    /// KUU-4363: `import` is a hard keyword token, but Kotlin only treats it
-    /// as a directive at compilation-unit level. Inside blocks it remains a
-    /// legal simple identifier — kotlinc accepts it as a local name, a
-    /// value-parameter name and a lambda parameter.
     @Test
     func importIsLegalIdentifierInsideBlocks() throws {
         let source = """
@@ -59,8 +55,6 @@ struct HardKeywordIdentifierTests {
         }
     }
 
-    /// KUU-4363 guard: removing `import` from the declaration-start keywords
-    /// must not break real import directives at file top level.
     @Test
     func topLevelImportRemainsAnImportDirective() throws {
         let (ast, ctx) = try buildASTModule(from: """
